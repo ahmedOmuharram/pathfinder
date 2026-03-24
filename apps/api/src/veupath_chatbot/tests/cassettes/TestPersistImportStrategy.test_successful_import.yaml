@@ -1,0 +1,490 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - amoebadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - Authorization=SCRUBBED
+    method: GET
+    uri: https://amoebadb.org/amoeba/app
+  response:
+    body:
+      string: "<!doctype html>\n<html lang=\"en\">\n  <head>\n        <title>AmoebaDB</title>\n
+        \   <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width,
+        initial-scale=1\"/>\n    <link href=\"/amoeba/images/AmoebaDB/favicon.ico\"
+        type=\"image/x-icon\" rel=\"shortcut icon\"/>\n    <script>\n            window.__asset_path_remove_me_please__
+        = \"/amoeba/bundles/\";\n\n            window.__SITE_CONFIG__ = {\n                requireLogin:
+        \"true\" === \"true\",\n        rootElement: \"#wdk-container\",\n        rootUrl:
+        \"/amoeba/app\",\n        endpoint: \"/amoeba/service\",\n        projectId:
+        \"AmoebaDB\",\n        webAppUrl: \"/amoeba\",\n        facebookUrl: \"https://facebook.com/pages/EuPathDB/133123003429972\",\n
+        \       twitterUrl: \"https://twitter.com/VEuPathDB\",\n        twitterUrl2:
+        \"\",\n        youtubeUrl: \"https://youtube.com/user/EuPathDB/playlists\",\n
+        \       discordUrl: \"\",\n        linkedinUrl: \"https://www.linkedin.com/company/veupathdb/\",\n
+        \       redditUrl: \"https://www.reddit.com/r/BRC_users/\",\n        vimeoUrl:
+        \"\",\n        blueskyUrl: \"https://veupathdb.bsky.social\",\n        communitySite:
+        \"//static-content.veupathdb.org/\",\n        siteSearchServiceUrl: \"/site-search\",\n
+        \               useEda: \"true\" === \"true\",\n        edaExampleAnalysesAuthor:
+        \"1926010\",\n        edaServiceUrl: \"/eda\",\n                edaEnableFullScreenApps:
+        \"true\" === \"true\",\n                        useUserDatasetsWorkspace:
+        \"true\" === \"false\",\n        communityDatasetsEnabled: \"true\" === \"False\",\n
+        \       showExtraMetadata: \"\",\n        datasetImportUrl: \"/dataset-import\",\n
+        \       userDatasetsUploadTypes: \"genelist,bigwigfiles,rnaseq\",\n                showUnreleasedData:
+        \"true\" === \"False\",\n        showSubscriptionProds: \"true\" === \"true\",\n
+        \               vdiServiceUrl: \"/vdi\",\n                aiExpressionQualtricsId:
+        \"SV_38C4ZX1JxLi2SEe\",\n              };\n    </script>\n          <script
+        async src=\"https://www.googletagmanager.com/gtag/js?id=G-HB1YQBH7KJ\"></script>\n
+        \     <script>\n        window.dataLayer = window.dataLayer || [];\n        function
+        gtag(){dataLayer.push(arguments);}\n        gtag('js', new Date());\n        gtag('config',
+        'G-HB1YQBH7KJ');\n      </script>                    <script charset=\"utf8\"
+        src=\"/amoeba/bundles/site-client.bundle-34004a8a2241518a8ad16df910acba9a.js\"
+        ></script>\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css\"/>\n
+        \   <link rel=\"stylesheet\" type=\"text/css\" href=\"/amoeba/bundles/site-client.bundle-34004a8a2241518a8ad16df910acba9a.css\"/>\n
+        \ </head>\n    <body class=\"vpdb-Body\">\n    <div class=\"main-stack\">\n
+        \     <div id=\"wdk-container\">\n                  Loading...\n              </div>\n
+        \   </div>            <script>\n        ((window.gitter = {}).chat = {}).options
+        = {\n          room: 'VEuPathDB-genomic/community'\n        };\n        document.addEventListener(\n
+        \         'gitter-sidecar-instance-started', \n          function gitterSidecarHack()
+        {\n            const gitterBtn = document.querySelector('.gitter-open-chat-button');\n
+        \           const gitterAside = document.querySelector('.gitter-chat-embed');\n\n
+        \           // we want to hide the aside and any loading indicators when button
+        is clicked\n            gitterAside.style.display = 'none';\n            document.querySelector('.gitter-chat-embed-loading-wrapper').style.display
+        = 'none';\n\n            if (gitterBtn.baseURI.includes('embed-record')) {\n
+        \             gitterBtn.style.display = 'none';\n            }\n\n            gitterBtn.addEventListener(\n
+        \             'click', \n              function openGitterInNewTab(e) {\n
+        \               e.stopPropagation();\n                e.preventDefault();\n
+        \               window.open('https://app.gitter.im/#/room/#VEuPathDB-genomic_community:gitter.im',
+        \"VEuPathDBGitterForum\");\n              }, \n              true\n            );\n\n
+        \           gitterAside.addEventListener(\n              'gitter-chat-toggle',
+        \n              function keepGitterBtnVisible() {\n                // we want
+        the chat button to remain visible when clicked\n                gitterBtn.classList.remove('is-collapsed');\n
+        \             }\n            )\n          }\n        );\n        // Prioritize
+        loading application data over this script\n        setTimeout(2000, function
+        loadSideCar() {\n          const scriptTag = document.createElement('script');\n
+        \         scriptTag.src = 'https://cdn.jsdelivr.net/npm/gitter-sidecar@1.5.0/dist/sidecar.min.js';\n
+        \         document.head.appendChild(scriptTag);\n        });\n      </script>
+        \ </body>\n</html>\n"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/html
+      Date:
+      - Tue, 24 Mar 2026 17:37:53 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - JSESSIONID=SCRUBBED; Path=/; Secure
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4509'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - amoebadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://amoebadb.org/amoeba/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["Entamoeba
+        histolytica HM-1:IMSS","Entamoeba dispar SAW760","Entamoeba invadens IP1"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Amoebozoa","term":"Amoebozoa"},"children":[{"data":{"display":"Discosea","term":"Discosea"},"children":[{"data":{"display":"Acanthamoeba
+        castellanii str. Neff","term":"Acanthamoeba castellanii str. Neff"},"children":[]}]},{"data":{"display":"Evosea","term":"Evosea"},"children":[{"data":{"display":"Eumycetozoa","term":"Eumycetozoa"},"children":[{"data":{"display":"Dictyostelium
+        discoideum","term":"Dictyostelium discoideum"},"children":[{"data":{"display":"Dictyostelium
+        discoideum AX4","term":"Dictyostelium discoideum AX4"},"children":[]}]},{"data":{"display":"Dictyostelium
+        purpureum","term":"Dictyostelium purpureum"},"children":[{"data":{"display":"Dictyostelium
+        purpureum QSDP1","term":"Dictyostelium purpureum QSDP1"},"children":[]}]}]},{"data":{"display":"Mastigamoebida","term":"Mastigamoebida"},"children":[{"data":{"display":"Entamoebidae","term":"Entamoebidae"},"children":[{"data":{"display":"Entamoeba
+        dispar","term":"Entamoeba dispar"},"children":[{"data":{"display":"Entamoeba
+        dispar SAW760","term":"Entamoeba dispar SAW760"},"children":[]}]},{"data":{"display":"Entamoeba
+        histolytica","term":"Entamoeba histolytica"},"children":[{"data":{"display":"Entamoeba
+        histolytica HM-1:IMSS","term":"Entamoeba histolytica HM-1:IMSS"},"children":[]},{"data":{"display":"Entamoeba
+        histolytica HM-1:IMSS-A","term":"Entamoeba histolytica HM-1:IMSS-A"},"children":[]},{"data":{"display":"Entamoeba
+        histolytica HM-1:IMSS-B","term":"Entamoeba histolytica HM-1:IMSS-B"},"children":[]},{"data":{"display":"Entamoeba
+        histolytica HM-3:IMSS","term":"Entamoeba histolytica HM-3:IMSS"},"children":[]},{"data":{"display":"Entamoeba
+        histolytica KU27","term":"Entamoeba histolytica KU27"},"children":[]}]},{"data":{"display":"Entamoeba
+        invadens","term":"Entamoeba invadens"},"children":[{"data":{"display":"Entamoeba
+        invadens IP1","term":"Entamoeba invadens IP1"},"children":[]}]},{"data":{"display":"Entamoeba
+        moshkovskii","term":"Entamoeba moshkovskii"},"children":[{"data":{"display":"Entamoeba
+        moshkovskii Laredo","term":"Entamoeba moshkovskii Laredo"},"children":[]}]},{"data":{"display":"Entamoeba
+        nuttalli","term":"Entamoeba nuttalli"},"children":[{"data":{"display":"Entamoeba
+        nuttalli P19","term":"Entamoeba nuttalli P19"},"children":[]}]}]},{"data":{"display":"Mastigamoebidae","term":"Mastigamoebidae"},"children":[{"data":{"display":"Mastigamoeba
+        balamuthi ATCC 30984","term":"Mastigamoeba balamuthi ATCC 30984"},"children":[]}]}]}]}]},{"data":{"display":"Heterolobosea","term":"Heterolobosea"},"children":[{"data":{"display":"Naegleria
+        fowleri","term":"Naegleria fowleri"},"children":[{"data":{"display":"Naegleria
+        fowleri ATCC 30863","term":"Naegleria fowleri ATCC 30863"},"children":[]},{"data":{"display":"Naegleria
+        fowleri strain ATCC 30894","term":"Naegleria fowleri strain ATCC 30894"},"children":[]},{"data":{"display":"Naegleria
+        fowleri strain Ty","term":"Naegleria fowleri strain Ty"},"children":[]}]},{"data":{"display":"Naegleria
+        gruberi","term":"Naegleria gruberi"},"children":[{"data":{"display":"Naegleria
+        gruberi strain NEG-M","term":"Naegleria gruberi strain NEG-M"},"children":[]}]},{"data":{"display":"Naegleria
+        lovaniensis","term":"Naegleria lovaniensis"},"children":[{"data":{"display":"Naegleria
+        lovaniensis strain ATCC 30569","term":"Naegleria lovaniensis strain ATCC 30569"},"children":[]}]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["Entamoeba
+        histolytica HM-1:IMSS","Entamoeba dispar SAW760","Entamoeba invadens IP1"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["Entamoeba
+        histolytica HM-1:IMSS","Entamoeba dispar SAW760","Entamoeba invadens IP1"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:53 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '6439'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - amoebadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://amoebadb.org/amoeba/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["Entamoeba
+        histolytica HM-1:IMSS","Entamoeba dispar SAW760","Entamoeba invadens IP1"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Amoebozoa","term":"Amoebozoa"},"children":[{"data":{"display":"Discosea","term":"Discosea"},"children":[{"data":{"display":"Acanthamoeba
+        castellanii str. Neff","term":"Acanthamoeba castellanii str. Neff"},"children":[]}]},{"data":{"display":"Evosea","term":"Evosea"},"children":[{"data":{"display":"Eumycetozoa","term":"Eumycetozoa"},"children":[{"data":{"display":"Dictyostelium
+        discoideum","term":"Dictyostelium discoideum"},"children":[{"data":{"display":"Dictyostelium
+        discoideum AX4","term":"Dictyostelium discoideum AX4"},"children":[]}]},{"data":{"display":"Dictyostelium
+        purpureum","term":"Dictyostelium purpureum"},"children":[{"data":{"display":"Dictyostelium
+        purpureum QSDP1","term":"Dictyostelium purpureum QSDP1"},"children":[]}]}]},{"data":{"display":"Mastigamoebida","term":"Mastigamoebida"},"children":[{"data":{"display":"Entamoebidae","term":"Entamoebidae"},"children":[{"data":{"display":"Entamoeba
+        dispar","term":"Entamoeba dispar"},"children":[{"data":{"display":"Entamoeba
+        dispar SAW760","term":"Entamoeba dispar SAW760"},"children":[]}]},{"data":{"display":"Entamoeba
+        histolytica","term":"Entamoeba histolytica"},"children":[{"data":{"display":"Entamoeba
+        histolytica HM-1:IMSS","term":"Entamoeba histolytica HM-1:IMSS"},"children":[]},{"data":{"display":"Entamoeba
+        histolytica HM-1:IMSS-A","term":"Entamoeba histolytica HM-1:IMSS-A"},"children":[]},{"data":{"display":"Entamoeba
+        histolytica HM-1:IMSS-B","term":"Entamoeba histolytica HM-1:IMSS-B"},"children":[]},{"data":{"display":"Entamoeba
+        histolytica HM-3:IMSS","term":"Entamoeba histolytica HM-3:IMSS"},"children":[]},{"data":{"display":"Entamoeba
+        histolytica KU27","term":"Entamoeba histolytica KU27"},"children":[]}]},{"data":{"display":"Entamoeba
+        invadens","term":"Entamoeba invadens"},"children":[{"data":{"display":"Entamoeba
+        invadens IP1","term":"Entamoeba invadens IP1"},"children":[]}]},{"data":{"display":"Entamoeba
+        moshkovskii","term":"Entamoeba moshkovskii"},"children":[{"data":{"display":"Entamoeba
+        moshkovskii Laredo","term":"Entamoeba moshkovskii Laredo"},"children":[]}]},{"data":{"display":"Entamoeba
+        nuttalli","term":"Entamoeba nuttalli"},"children":[{"data":{"display":"Entamoeba
+        nuttalli P19","term":"Entamoeba nuttalli P19"},"children":[]}]}]},{"data":{"display":"Mastigamoebidae","term":"Mastigamoebidae"},"children":[{"data":{"display":"Mastigamoeba
+        balamuthi ATCC 30984","term":"Mastigamoeba balamuthi ATCC 30984"},"children":[]}]}]}]}]},{"data":{"display":"Heterolobosea","term":"Heterolobosea"},"children":[{"data":{"display":"Naegleria
+        fowleri","term":"Naegleria fowleri"},"children":[{"data":{"display":"Naegleria
+        fowleri ATCC 30863","term":"Naegleria fowleri ATCC 30863"},"children":[]},{"data":{"display":"Naegleria
+        fowleri strain ATCC 30894","term":"Naegleria fowleri strain ATCC 30894"},"children":[]},{"data":{"display":"Naegleria
+        fowleri strain Ty","term":"Naegleria fowleri strain Ty"},"children":[]}]},{"data":{"display":"Naegleria
+        gruberi","term":"Naegleria gruberi"},"children":[{"data":{"display":"Naegleria
+        gruberi strain NEG-M","term":"Naegleria gruberi strain NEG-M"},"children":[]}]},{"data":{"display":"Naegleria
+        lovaniensis","term":"Naegleria lovaniensis"},"children":[{"data":{"display":"Naegleria
+        lovaniensis strain ATCC 30569","term":"Naegleria lovaniensis strain ATCC 30569"},"children":[]}]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["Entamoeba
+        histolytica HM-1:IMSS","Entamoeba dispar SAW760","Entamoeba invadens IP1"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["Entamoeba
+        histolytica HM-1:IMSS","Entamoeba dispar SAW760","Entamoeba invadens IP1"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:54 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '6439'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - amoebadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://amoebadb.org/amoeba/service/users/current
+  response:
+    body:
+      string: '{"isGuest":false,"id":1214413863,"email":"ahmed.o.muharram@gmail.com","properties":{"organizationType":"academic","firstName":"PathFinder","lastName":"Test
+        User","country":"US","groupName":"Chris Callison-Burch Lab","groupType":"research","subscriptionToken":"","organization":"University
+        of Pennsylvania","middleName":"","position":"grad_student","interests":"","username":"pathfinder-dev-testing"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:54 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '400'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchName":"GenesByTaxon","searchConfig":{"parameters":{"organism":"[\"Acanthamoeba
+      castellanii str. Neff\"]"}},"customName":"Experiment: Materialization Test"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '163'
+      Content-Type:
+      - application/json
+      Host:
+      - amoebadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://amoebadb.org/amoeba/service/users/1214413863/steps
+  response:
+    body:
+      string: '{"id":438849423}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:54 GMT
+      Location:
+      - https://amoebadb.org/amoeba/service/users/1214413863/steps
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"__pathfinder_internal__:exp:exp-source-for-import","isPublic":false,"isSaved":false,"stepTree":{"stepId":438849423},"description":"Persisted
+      strategy for experiment Materialization Test"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '196'
+      Content-Type:
+      - application/json
+      Host:
+      - amoebadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://amoebadb.org/amoeba/service/users/1214413863/strategies
+  response:
+    body:
+      string: '{"id":330129363}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:54 GMT
+      Location:
+      - https://amoebadb.org/amoeba/service/users/1214413863/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '2'
+      Content-Type:
+      - application/json
+      Host:
+      - amoebadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://amoebadb.org/amoeba/service/users/1214413863/strategies/330129363/duplicated-step-tree
+  response:
+    body:
+      string: '{"stepTree":{"stepId":438849433}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:55 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '33'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"__pathfinder_internal__:exp:exp-import-001","isPublic":false,"isSaved":false,"stepTree":{"stepId":438849433},"description":"Imported
+      strategy for experiment Materialization Test"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '188'
+      Content-Type:
+      - application/json
+      Host:
+      - amoebadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://amoebadb.org/amoeba/service/users/1214413863/strategies
+  response:
+    body:
+      string: '{"id":330129373}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:55 GMT
+      Location:
+      - https://amoebadb.org/amoeba/service/users/1214413863/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

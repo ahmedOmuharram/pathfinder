@@ -6,28 +6,62 @@ Focuses on:
 - read_stream_messages with malformed event data
 - read_stream_thinking with edge cases
 - Projection skipping for non-projected event types
+- emit edge cases with real Redis
 """
 
 import json
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock
 from uuid import uuid4
 
-import pytest
+from redis.asyncio import Redis
 
 from veupath_chatbot.platform.events import (
     _entry_id_to_iso,
-    _project_event,
     emit,
     read_stream_messages,
     read_stream_thinking,
 )
+from veupath_chatbot.platform.redis import get_redis
+
+# ---------------------------------------------------------------------------
+# Helpers — write raw events to a real Redis stream
+# ---------------------------------------------------------------------------
+
+
+async def _xadd(
+    redis: Redis,
+    stream_key: str,
+    event_type: str,
+    data: object,
+    *,
+    operation_id: str = "op_1",
+) -> bytes:
+    """Write a raw event entry to a Redis stream."""
+    return await redis.xadd(
+        stream_key,
+        {
+            "op": operation_id.encode(),
+            "type": event_type.encode(),
+            "data": json.dumps(data, default=str).encode()
+            if not isinstance(data, bytes)
+            else data,
+        },
+    )
+
+
+async def _xadd_raw(
+    redis: Redis,
+    stream_key: str,
+    fields: dict[bytes, bytes],
+) -> bytes:
+    """Write raw bytes fields to a Redis stream (for malformed data tests)."""
+    return await redis.xadd(stream_key, fields)
 
 
 class TestEntryIdToIso:
     """_entry_id_to_iso converts Redis entry IDs to ISO 8601 timestamps."""
 
-    def test_valid_entry_id(self):
+    def test_valid_entry_id(self) -> None:
         # 1709234567890 ms = some specific datetime
         result = _entry_id_to_iso("1709234567890-0")
         assert result.endswith(("+00:00", "Z"))
@@ -35,12 +69,12 @@ class TestEntryIdToIso:
         dt = datetime.fromisoformat(result)
         assert dt.tzinfo is not None
 
-    def test_bytes_entry_id(self):
+    def test_bytes_entry_id(self) -> None:
         result = _entry_id_to_iso(b"1709234567890-0")
         dt = datetime.fromisoformat(result)
         assert dt.tzinfo is not None
 
-    def test_invalid_entry_id_returns_now(self):
+    def test_invalid_entry_id_returns_now(self) -> None:
         """Non-numeric entry ID should fall back to current time."""
         result = _entry_id_to_iso("invalid-entry-id")
         dt = datetime.fromisoformat(result)
@@ -48,13 +82,13 @@ class TestEntryIdToIso:
         diff = abs((datetime.now(UTC) - dt).total_seconds())
         assert diff < 5
 
-    def test_zero_timestamp(self):
+    def test_zero_timestamp(self) -> None:
         result = _entry_id_to_iso("0-0")
         dt = datetime.fromisoformat(result)
         # Unix epoch
         assert dt.year == 1970
 
-    def test_entry_id_without_sequence(self):
+    def test_entry_id_without_sequence(self) -> None:
         """Entry ID with no '-N' suffix — split('-')[0] still works."""
         result = _entry_id_to_iso("1709234567890")
         dt = datetime.fromisoformat(result)
@@ -62,366 +96,300 @@ class TestEntryIdToIso:
 
 
 class TestReadStreamMessagesEdgeCases:
-    """Edge cases for read_stream_messages."""
+    """Edge cases for read_stream_messages — using real Redis."""
 
-    @pytest.fixture
-    def mock_redis(self):
-        redis = AsyncMock()
-        redis.xrange = AsyncMock(return_value=[])
-        return redis
-
-    async def test_empty_stream(self, mock_redis):
-        messages = await read_stream_messages(mock_redis, str(uuid4()))
+    async def test_empty_stream(self) -> None:
+        redis = get_redis()
+        messages = await read_stream_messages(redis, str(uuid4()))
         assert messages == []
 
-    async def test_malformed_data_skipped(self, mock_redis):
+    async def test_malformed_data_skipped(self) -> None:
         """Events with invalid JSON data should be skipped without crashing."""
-        mock_redis.xrange.return_value = [
-            (
-                b"1-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"user_message",
-                    b"data": b"not valid json {{{",
-                },
-            ),
-            (
-                b"2-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"assistant_message",
-                    b"data": json.dumps(
-                        {"messageId": "m1", "content": "hello"}
-                    ).encode(),
-                },
-            ),
-        ]
+        redis = get_redis()
+        stream_id = str(uuid4())
+        stream_key = f"stream:{stream_id}"
 
-        messages = await read_stream_messages(mock_redis, str(uuid4()))
+        # Write a malformed event (invalid JSON)
+        await _xadd_raw(
+            redis,
+            stream_key,
+            {
+                b"op": b"op_1",
+                b"type": b"user_message",
+                b"data": b"not valid json {{{",
+            },
+        )
+        # Write a valid assistant_message
+        await _xadd(
+            redis,
+            stream_key,
+            "assistant_message",
+            {"messageId": "m1", "content": "hello"},
+        )
+
+        messages = await read_stream_messages(redis, stream_id)
         # The malformed user_message is skipped; only assistant_message remains
         assert len(messages) == 1
         assert messages[0]["role"] == "assistant"
 
-    async def test_missing_data_field_skipped(self, mock_redis):
+    async def test_missing_data_field_skipped(self) -> None:
         """Events without a b'data' key should be skipped."""
-        mock_redis.xrange.return_value = [
-            (
-                b"1-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"user_message",
-                    # no b"data" key
-                },
-            ),
-            (
-                b"2-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"assistant_message",
-                    b"data": json.dumps({"content": "hi"}).encode(),
-                },
-            ),
-        ]
+        redis = get_redis()
+        stream_id = str(uuid4())
+        stream_key = f"stream:{stream_id}"
 
-        messages = await read_stream_messages(mock_redis, str(uuid4()))
+        # Write an event without a data field
+        await _xadd_raw(
+            redis,
+            stream_key,
+            {
+                b"op": b"op_1",
+                b"type": b"user_message",
+                # no b"data" key
+            },
+        )
+        # Write a valid event
+        await _xadd(
+            redis,
+            stream_key,
+            "assistant_message",
+            {"content": "hi"},
+        )
+
+        messages = await read_stream_messages(redis, stream_id)
         assert len(messages) == 1
         assert messages[0]["role"] == "assistant"
 
-    async def test_assistant_message_with_empty_content(self, mock_redis):
-        mock_redis.xrange.return_value = [
-            (
-                b"1-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"assistant_message",
-                    b"data": json.dumps({"messageId": "m1"}).encode(),
-                },
-            ),
-        ]
+    async def test_assistant_message_with_empty_content(self) -> None:
+        redis = get_redis()
+        stream_id = str(uuid4())
+        stream_key = f"stream:{stream_id}"
 
-        messages = await read_stream_messages(mock_redis, str(uuid4()))
+        await _xadd(
+            redis,
+            stream_key,
+            "assistant_message",
+            {"messageId": "m1"},
+        )
+
+        messages = await read_stream_messages(redis, stream_id)
         assert len(messages) == 1
         assert messages[0]["content"] == ""
 
-    async def test_planning_artifacts_aggregated(self, mock_redis):
-        mock_redis.xrange.return_value = [
-            (b"1-0", {b"op": b"op_1", b"type": b"message_start", b"data": b"{}"}),
-            (
-                b"2-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"planning_artifact",
-                    b"data": json.dumps(
-                        {"planningArtifact": {"type": "plan", "steps": [1, 2]}}
-                    ).encode(),
-                },
-            ),
-            (
-                b"3-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"assistant_message",
-                    b"data": json.dumps(
-                        {"messageId": "m1", "content": "done"}
-                    ).encode(),
-                },
-            ),
-            (b"4-0", {b"op": b"op_1", b"type": b"message_end", b"data": b"{}"}),
-        ]
+    async def test_planning_artifacts_aggregated(self) -> None:
+        redis = get_redis()
+        stream_id = str(uuid4())
+        stream_key = f"stream:{stream_id}"
 
-        messages = await read_stream_messages(mock_redis, str(uuid4()))
+        await _xadd(redis, stream_key, "message_start", {})
+        await _xadd(
+            redis,
+            stream_key,
+            "planning_artifact",
+            {"planningArtifact": {"type": "plan", "steps": [1, 2]}},
+        )
+        await _xadd(
+            redis,
+            stream_key,
+            "assistant_message",
+            {"messageId": "m1", "content": "done"},
+        )
+        await _xadd(redis, stream_key, "message_end", {})
+
+        messages = await read_stream_messages(redis, stream_id)
         assert len(messages) == 1
         assert "planningArtifacts" in messages[0]
         assert len(messages[0]["planningArtifacts"]) == 1
 
-    async def test_turn_reset_on_message_end(self, mock_redis):
+    async def test_turn_reset_on_message_end(self) -> None:
         """Turn accumulators should reset after message_end."""
-        mock_redis.xrange.return_value = [
-            # Turn 1
-            (b"1-0", {b"op": b"op_1", b"type": b"message_start", b"data": b"{}"}),
-            (
-                b"2-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"tool_call_start",
-                    b"data": json.dumps({"id": "tc1", "name": "tool_a"}).encode(),
-                },
-            ),
-            (
-                b"3-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"assistant_message",
-                    b"data": json.dumps(
-                        {"messageId": "m1", "content": "turn1"}
-                    ).encode(),
-                },
-            ),
-            (b"4-0", {b"op": b"op_1", b"type": b"message_end", b"data": b"{}"}),
-            # Turn 2 — should NOT carry over tool calls from turn 1
-            (b"5-0", {b"op": b"op_2", b"type": b"message_start", b"data": b"{}"}),
-            (
-                b"6-0",
-                {
-                    b"op": b"op_2",
-                    b"type": b"assistant_message",
-                    b"data": json.dumps(
-                        {"messageId": "m2", "content": "turn2"}
-                    ).encode(),
-                },
-            ),
-            (b"7-0", {b"op": b"op_2", b"type": b"message_end", b"data": b"{}"}),
-        ]
+        redis = get_redis()
+        stream_id = str(uuid4())
+        stream_key = f"stream:{stream_id}"
 
-        messages = await read_stream_messages(mock_redis, str(uuid4()))
+        # Turn 1
+        await _xadd(redis, stream_key, "message_start", {}, operation_id="op_1")
+        await _xadd(
+            redis,
+            stream_key,
+            "tool_call_start",
+            {"id": "tc1", "name": "tool_a"},
+            operation_id="op_1",
+        )
+        await _xadd(
+            redis,
+            stream_key,
+            "assistant_message",
+            {"messageId": "m1", "content": "turn1"},
+            operation_id="op_1",
+        )
+        await _xadd(redis, stream_key, "message_end", {}, operation_id="op_1")
+
+        # Turn 2 — should NOT carry over tool calls from turn 1
+        await _xadd(redis, stream_key, "message_start", {}, operation_id="op_2")
+        await _xadd(
+            redis,
+            stream_key,
+            "assistant_message",
+            {"messageId": "m2", "content": "turn2"},
+            operation_id="op_2",
+        )
+        await _xadd(redis, stream_key, "message_end", {}, operation_id="op_2")
+
+        messages = await read_stream_messages(redis, stream_id)
         assert len(messages) == 2
         assert "toolCalls" in messages[0]
         assert "toolCalls" not in messages[1]
 
 
 class TestReadStreamThinkingEdgeCases:
-    @pytest.fixture
-    def mock_redis(self):
-        redis = AsyncMock()
-        redis.xrange = AsyncMock(return_value=[])
-        return redis
-
-    async def test_no_events_returns_none(self, mock_redis):
-        result = await read_stream_thinking(mock_redis, str(uuid4()))
+    async def test_no_events_returns_none(self) -> None:
+        redis = get_redis()
+        result = await read_stream_thinking(redis, str(uuid4()))
         assert result is None
 
-    async def test_all_tool_calls_completed_returns_none(self, mock_redis):
-        mock_redis.xrange.return_value = [
-            (b"1-0", {b"op": b"op_1", b"type": b"message_start", b"data": b"{}"}),
-            (
-                b"2-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"tool_call_start",
-                    b"data": json.dumps({"id": "tc1", "name": "search"}).encode(),
-                },
-            ),
-            (
-                b"3-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"tool_call_end",
-                    b"data": json.dumps({"id": "tc1"}).encode(),
-                },
-            ),
-        ]
+    async def test_all_tool_calls_completed_returns_none(self) -> None:
+        redis = get_redis()
+        stream_id = str(uuid4())
+        stream_key = f"stream:{stream_id}"
 
-        result = await read_stream_thinking(mock_redis, str(uuid4()))
+        await _xadd(redis, stream_key, "message_start", {})
+        await _xadd(
+            redis,
+            stream_key,
+            "tool_call_start",
+            {"id": "tc1", "name": "search"},
+        )
+        await _xadd(
+            redis,
+            stream_key,
+            "tool_call_end",
+            {"id": "tc1"},
+        )
+
+        result = await read_stream_thinking(redis, stream_id)
         # No message_end, but all tool calls are completed — no open tools
         assert result is None
 
-    async def test_multiple_open_tool_calls(self, mock_redis):
-        mock_redis.xrange.return_value = [
-            (b"1-0", {b"op": b"op_1", b"type": b"message_start", b"data": b"{}"}),
-            (
-                b"2-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"tool_call_start",
-                    b"data": json.dumps({"id": "tc1", "name": "search"}).encode(),
-                },
-            ),
-            (
-                b"3-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"tool_call_start",
-                    b"data": json.dumps({"id": "tc2", "name": "filter"}).encode(),
-                },
-            ),
-        ]
+    async def test_multiple_open_tool_calls(self) -> None:
+        redis = get_redis()
+        stream_id = str(uuid4())
+        stream_key = f"stream:{stream_id}"
 
-        result = await read_stream_thinking(mock_redis, str(uuid4()))
+        await _xadd(redis, stream_key, "message_start", {})
+        await _xadd(
+            redis,
+            stream_key,
+            "tool_call_start",
+            {"id": "tc1", "name": "search"},
+        )
+        await _xadd(
+            redis,
+            stream_key,
+            "tool_call_start",
+            {"id": "tc2", "name": "filter"},
+        )
+
+        result = await read_stream_thinking(redis, stream_id)
         assert result is not None
         assert len(result["toolCalls"]) == 2
 
-    async def test_malformed_tool_call_data_skipped(self, mock_redis):
+    async def test_malformed_tool_call_data_skipped(self) -> None:
         """Malformed JSON in tool_call_start should not crash thinking detection."""
-        mock_redis.xrange.return_value = [
-            (b"1-0", {b"op": b"op_1", b"type": b"message_start", b"data": b"{}"}),
-            (
-                b"2-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"tool_call_start",
-                    b"data": b"not valid json",
-                },
-            ),
-            (
-                b"3-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"tool_call_start",
-                    b"data": json.dumps({"id": "tc2", "name": "valid"}).encode(),
-                },
-            ),
-        ]
+        redis = get_redis()
+        stream_id = str(uuid4())
+        stream_key = f"stream:{stream_id}"
 
-        result = await read_stream_thinking(mock_redis, str(uuid4()))
+        await _xadd(redis, stream_key, "message_start", {})
+        # Malformed tool_call_start
+        await _xadd_raw(
+            redis,
+            stream_key,
+            {
+                b"op": b"op_1",
+                b"type": b"tool_call_start",
+                b"data": b"not valid json",
+            },
+        )
+        # Valid tool_call_start
+        await _xadd(
+            redis,
+            stream_key,
+            "tool_call_start",
+            {"id": "tc2", "name": "valid"},
+        )
+
+        result = await read_stream_thinking(redis, stream_id)
         assert result is not None
         assert len(result["toolCalls"]) == 1
         assert result["toolCalls"][0]["name"] == "valid"
 
-    async def test_second_turn_overrides_first(self, mock_redis):
+    async def test_second_turn_overrides_first(self) -> None:
         """If there are two message_start events, only the last one matters."""
-        mock_redis.xrange.return_value = [
-            # Turn 1 (completed)
-            (b"1-0", {b"op": b"op_1", b"type": b"message_start", b"data": b"{}"}),
-            (
-                b"2-0",
-                {
-                    b"op": b"op_1",
-                    b"type": b"tool_call_start",
-                    b"data": json.dumps({"id": "tc1", "name": "old_tool"}).encode(),
-                },
-            ),
-            (b"3-0", {b"op": b"op_1", b"type": b"message_end", b"data": b"{}"}),
-            # Turn 2 (active)
-            (b"4-0", {b"op": b"op_2", b"type": b"message_start", b"data": b"{}"}),
-            (
-                b"5-0",
-                {
-                    b"op": b"op_2",
-                    b"type": b"tool_call_start",
-                    b"data": json.dumps({"id": "tc2", "name": "new_tool"}).encode(),
-                },
-            ),
-        ]
+        redis = get_redis()
+        stream_id = str(uuid4())
+        stream_key = f"stream:{stream_id}"
 
-        result = await read_stream_thinking(mock_redis, str(uuid4()))
+        # Turn 1 (completed)
+        await _xadd(
+            redis, stream_key, "message_start", {}, operation_id="op_1"
+        )
+        await _xadd(
+            redis,
+            stream_key,
+            "tool_call_start",
+            {"id": "tc1", "name": "old_tool"},
+            operation_id="op_1",
+        )
+        await _xadd(redis, stream_key, "message_end", {}, operation_id="op_1")
+
+        # Turn 2 (active)
+        await _xadd(
+            redis, stream_key, "message_start", {}, operation_id="op_2"
+        )
+        await _xadd(
+            redis,
+            stream_key,
+            "tool_call_start",
+            {"id": "tc2", "name": "new_tool"},
+            operation_id="op_2",
+        )
+
+        result = await read_stream_thinking(redis, stream_id)
         assert result is not None
         # Should show only the active turn's tool calls
         assert len(result["toolCalls"]) == 1
         assert result["toolCalls"][0]["name"] == "new_tool"
 
 
-class TestProjectionSkipping:
-    """Non-projected event types should not trigger DB writes."""
-
-    @pytest.fixture
-    def mock_session(self):
-        session = AsyncMock()
-        session.execute = AsyncMock()
-        session.flush = AsyncMock()
-        return session
-
-    async def test_assistant_delta_not_projected(self, mock_session):
-        """High-frequency events like assistant_delta should not hit DB."""
-        await _project_event(
-            mock_session,
-            str(uuid4()),
-            "assistant_delta",
-            {"content": "tok"},
-            "1-0",
-        )
-        mock_session.execute.assert_not_called()
-
-    async def test_tool_call_start_not_projected(self, mock_session):
-        await _project_event(
-            mock_session,
-            str(uuid4()),
-            "tool_call_start",
-            {"id": "tc1"},
-            "1-0",
-        )
-        mock_session.execute.assert_not_called()
-
-    async def test_user_message_is_projected(self, mock_session):
-        await _project_event(
-            mock_session,
-            str(uuid4()),
-            "user_message",
-            {"content": "hello"},
-            "1-0",
-        )
-        mock_session.execute.assert_called_once()
-        mock_session.flush.assert_called_once()
-
-    async def test_model_selected_is_projected(self, mock_session):
-        await _project_event(
-            mock_session,
-            str(uuid4()),
-            "model_selected",
-            {"modelId": "gpt-5"},
-            "1-0",
-        )
-        mock_session.execute.assert_called_once()
-
-
 class TestEmitEdgeCases:
-    async def test_emit_with_none_operation_id(self):
-        redis = AsyncMock()
-        redis.xadd = AsyncMock(return_value=b"1-0")
+    """emit() edge cases using real Redis."""
 
-        entry_id = await emit(redis, "stream-1", None, "test", {"key": "value"})
-        assert entry_id == "1-0"
+    async def test_emit_with_none_operation_id(self) -> None:
+        redis = get_redis()
+        stream_id = f"test-emit-{uuid4().hex[:8]}"
 
-        call_args = redis.xadd.call_args
-        fields = call_args[0][1]
-        assert fields["op"] == b""
+        entry_id = await emit(redis, stream_id, None, "test", {"key": "value"})
+        assert isinstance(entry_id, str)
+        assert "-" in entry_id  # Redis entry ID format: timestamp-sequence
 
-    async def test_emit_string_entry_id(self):
-        """If Redis returns a string entry ID instead of bytes."""
-        redis = AsyncMock()
-        redis.xadd = AsyncMock(return_value="1709234567890-0")
+        # Verify the event was actually written
+        entries = await redis.xrange(f"stream:{stream_id}")
+        assert len(entries) == 1
+        fields = entries[0][1]
+        assert fields[b"op"] == b""
 
-        entry_id = await emit(redis, "stream-1", "op_1", "test", {})
-        assert entry_id == "1709234567890-0"
-
-    async def test_emit_serializes_non_json_types_with_default_str(self):
+    async def test_emit_serializes_non_json_types_with_default_str(self) -> None:
         """datetime and other non-JSON types should be serialized via default=str."""
-        redis = AsyncMock()
-        redis.xadd = AsyncMock(return_value=b"1-0")
+        redis = get_redis()
+        stream_id = f"test-emit-{uuid4().hex[:8]}"
 
         now = datetime.now(UTC)
-        await emit(redis, "stream-1", "op_1", "test", {"timestamp": now})
+        entry_id = await emit(redis, stream_id, "op_1", "test", {"timestamp": now})
+        assert isinstance(entry_id, str)
 
-        call_args = redis.xadd.call_args
-        data_bytes = call_args[0][1]["data"]
-        data = json.loads(data_bytes)
+        # Verify serialized data
+        entries = await redis.xrange(f"stream:{stream_id}")
+        assert len(entries) == 1
+        data = json.loads(entries[0][1][b"data"])
         assert isinstance(data["timestamp"], str)

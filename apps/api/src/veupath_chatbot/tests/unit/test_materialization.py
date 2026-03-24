@@ -1,23 +1,24 @@
-"""Tests for WDK strategy materialization.
+"""Unit tests for materialization validation logic.
 
-These tests mock the StrategyAPI to test the materialization logic without
-making actual WDK calls.
+Tests that exercise pure validation paths (no WDK HTTP calls):
+- Missing source_strategy_id raises ValidationError
+- Noop when no strategy to clean up
+- Error suppression during cleanup
+
+WDK contract tests (step creation, strategy persistence, import, cleanup)
+have been moved to integration/test_materialization.py.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier, WDKStepTree
 from veupath_chatbot.platform.errors import (
     StrategyCompilationError,
     ValidationError,
     WDKError,
 )
 from veupath_chatbot.services.experiment.materialization import (
-    _materialize_step_tree,
-    _persist_experiment_strategy,
     _persist_import_strategy,
     cleanup_experiment_strategy,
 )
@@ -43,144 +44,7 @@ def _cfg(
     )
 
 
-class TestMaterializeStepTree:
-    async def test_leaf_node(self) -> None:
-        api = AsyncMock()
-        api.create_step.return_value = WDKIdentifier(id=100)
-
-        node = PlanStepNode.model_validate(
-            {
-                "searchName": "GenesByText",
-                "parameters": {"text": "kinase"},
-                "displayName": "Text Search",
-            }
-        )
-        result = await _materialize_step_tree(api, node, "gene")
-
-        assert result.step_id == 100
-        assert result.primary_input is None
-        assert result.secondary_input is None
-        api.create_step.assert_called_once()
-
-    async def test_transform_node(self) -> None:
-        api = AsyncMock()
-        # First call: leaf step creation
-        api.create_step.return_value = WDKIdentifier(id=100)
-        # Second call: transform step creation
-        api.create_transform_step.return_value = WDKIdentifier(id=200)
-
-        node = PlanStepNode.model_validate(
-            {
-                "searchName": "GenesByTFBS",
-                "parameters": {"tfbs": "AP2"},
-                "primaryInput": {
-                    "searchName": "GenesByText",
-                    "parameters": {"text": "kinase"},
-                },
-            }
-        )
-        result = await _materialize_step_tree(api, node, "gene")
-
-        assert result.step_id == 200
-        assert result.primary_input is not None
-        assert result.primary_input.step_id == 100
-        assert result.secondary_input is None
-
-    async def test_combine_node(self) -> None:
-        api = AsyncMock()
-        api.create_step.side_effect = [WDKIdentifier(id=100), WDKIdentifier(id=200)]
-        api.create_combined_step.return_value = WDKIdentifier(id=300)
-
-        node = PlanStepNode.model_validate(
-            {
-                "searchName": "combined",
-                "operator": "INTERSECT",
-                "primaryInput": {
-                    "searchName": "GenesByText",
-                    "parameters": {"text": "kinase"},
-                },
-                "secondaryInput": {
-                    "searchName": "GenesByText",
-                    "parameters": {"text": "phosphatase"},
-                },
-            }
-        )
-        result = await _materialize_step_tree(api, node, "gene")
-
-        assert result.step_id == 300
-        assert result.primary_input is not None
-        assert result.secondary_input is not None
-        api.create_combined_step.assert_called_once()
-
-
-class TestPersistExperimentStrategy:
-    @patch("veupath_chatbot.services.experiment.materialization.get_strategy_api")
-    async def test_single_mode(self, mock_get_api: MagicMock) -> None:
-        api = AsyncMock()
-        api.create_step.return_value = WDKIdentifier(id=100)
-        api.create_strategy.return_value = WDKIdentifier(id=500)
-        mock_get_api.return_value = api
-
-        result = await _persist_experiment_strategy(_cfg("single"), "exp-001")
-
-        assert result["strategy_id"] == 500
-        assert result["step_id"] == 100
-        api.create_step.assert_called_once()
-        api.create_strategy.assert_called_once()
-
-    @patch("veupath_chatbot.services.experiment.materialization.get_strategy_api")
-    async def test_multi_step_mode(self, mock_get_api: MagicMock) -> None:
-        api = AsyncMock()
-        api.create_step.return_value = WDKIdentifier(id=100)
-        api.create_strategy.return_value = WDKIdentifier(id=500)
-        mock_get_api.return_value = api
-
-        cfg = _cfg("multi-step")
-        cfg.step_tree = PlanStepNode.model_validate(
-            {
-                "searchName": "GenesByText",
-                "parameters": {"text": "kinase"},
-            }
-        )
-        result = await _persist_experiment_strategy(cfg, "exp-001")
-
-        assert result["strategy_id"] == 500
-        assert result["step_id"] == 100
-
-    @patch("veupath_chatbot.services.experiment.materialization.get_strategy_api")
-    async def test_raises_on_failed_strategy_creation(
-        self, mock_get_api: MagicMock
-    ) -> None:
-        api = AsyncMock()
-        api.create_step.return_value = WDKIdentifier(id=100)
-        api.create_strategy.side_effect = WDKError(
-            detail="WDK strategy creation failed"
-        )
-        mock_get_api.return_value = api
-
-        with pytest.raises(WDKError, match="WDK strategy creation failed"):
-            await _persist_experiment_strategy(_cfg("single"), "exp-001")
-
-
-class TestPersistImportStrategy:
-    async def test_successful_import(self) -> None:
-        api = AsyncMock()
-        dup_tree = WDKStepTree.model_validate(
-            {
-                "stepId": 100,
-                "primaryInput": {"stepId": 50},
-            }
-        )
-        api.get_duplicated_step_tree.return_value = dup_tree
-        api.create_strategy.return_value = WDKIdentifier(id=500)
-
-        cfg = _cfg("import", source_strategy_id="999")
-        result = await _persist_import_strategy(api, cfg, "exp-001")
-
-        assert result["strategy_id"] == 500
-        assert result["step_id"] == 100
-        api.get_duplicated_step_tree.assert_awaited_once_with(999)
-
+class TestPersistImportStrategyValidation:
     async def test_raises_without_source_strategy(self) -> None:
         api = AsyncMock()
         cfg = _cfg("import")  # no source_strategy_id
@@ -200,18 +64,7 @@ class TestPersistImportStrategy:
             await _persist_import_strategy(api, cfg, "exp-001")
 
 
-class TestCleanupExperimentStrategy:
-    @patch("veupath_chatbot.services.experiment.materialization.get_strategy_api")
-    async def test_deletes_strategy(self, mock_get_api: MagicMock) -> None:
-        api = AsyncMock()
-        mock_get_api.return_value = api
-
-        exp = Experiment(id="exp-001", config=_cfg())
-        exp.wdk_strategy_id = 42
-
-        await cleanup_experiment_strategy(exp)
-        api.delete_strategy.assert_called_once_with(42)
-
+class TestCleanupExperimentStrategyValidation:
     async def test_noop_when_no_strategy(self) -> None:
         exp = Experiment(id="exp-001", config=_cfg())
         exp.wdk_strategy_id = None
@@ -228,5 +81,5 @@ class TestCleanupExperimentStrategy:
         exp = Experiment(id="exp-001", config=_cfg())
         exp.wdk_strategy_id = 42
 
-        # Should not raise — errors are logged and suppressed
+        # Should not raise -- errors are logged and suppressed
         await cleanup_experiment_strategy(exp)

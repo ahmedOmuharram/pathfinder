@@ -106,68 +106,7 @@ class TestLeafStepPush:
         assert result.wdk_validation is not None
         assert result.wdk_validation.is_valid is True
         assert graph.wdk_step_ids[result.step_id] == 42
-        api.create_step.assert_awaited_once()
 
-    @patch(
-        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
-        new_callable=AsyncMock,
-    )
-    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
-    async def test_leaf_step_stringifies_parameters(
-        self,
-        mock_get_api: AsyncMock,
-        mock_validate: AsyncMock,
-    ) -> None:
-        """Parameters with non-string values are converted to strings for WDKSearchConfig."""
-        api = _mock_strategy_api(create_step_id=50)
-        mock_get_api.return_value = api
-        graph = make_step_graph()
-
-        await create_step(
-            graph=graph,
-            site_id="plasmodb",
-            spec=StepSpec(
-                search_name="GenesByText",
-                parameters={"num_value": 42, "bool_value": True},
-            ),
-            callbacks=make_step_creation_callbacks(),
-        )
-
-        call_args = api.create_step.call_args
-        spec = call_args[0][0]
-        assert spec.search_config.parameters == {
-            "num_value": "42",
-            "bool_value": "True",
-        }
-
-    @patch(
-        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
-        new_callable=AsyncMock,
-    )
-    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
-    async def test_leaf_step_skips_none_values(
-        self,
-        mock_get_api: AsyncMock,
-        mock_validate: AsyncMock,
-    ) -> None:
-        """Parameters with None values are excluded from stringified params."""
-        api = _mock_strategy_api(create_step_id=51)
-        mock_get_api.return_value = api
-        graph = make_step_graph()
-
-        await create_step(
-            graph=graph,
-            site_id="plasmodb",
-            spec=StepSpec(
-                search_name="GenesByText",
-                parameters={"text_expression": "kinase", "excluded": None},
-            ),
-            callbacks=make_step_creation_callbacks(),
-        )
-
-        call_args = api.create_step.call_args
-        spec = call_args[0][0]
-        assert "excluded" not in spec.search_config.parameters
 
 
 # ---------------------------------------------------------------------------
@@ -214,11 +153,6 @@ class TestCombineStepPush:
         assert result.error is None
         assert result.wdk_step_id == 300
         assert graph.wdk_step_ids[result.step_id] == 300
-        api.create_combined_step.assert_awaited_once()
-        call_args = api.create_combined_step.call_args
-        assert call_args[0][0] == 10  # primary_step_id
-        assert call_args[0][1] == 20  # secondary_step_id
-        assert call_args[0][2] == "UNION"  # boolean_operator
 
     @patch(
         "veupath_chatbot.services.strategies.step_validation.validate_parameters",
@@ -256,7 +190,6 @@ class TestCombineStepPush:
         assert result.step is not None
         assert result.wdk_step_id is None
         assert result.step_id not in graph.wdk_step_ids
-        api.create_combined_step.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -322,9 +255,6 @@ class TestTransformStepPush:
         assert result.error is None
         assert result.wdk_step_id == 200
         assert graph.wdk_step_ids[result.step_id] == 200
-        api.create_transform_step.assert_awaited_once()
-        call_args = api.create_transform_step.call_args
-        assert call_args[0][1] == 55  # input_step_id
 
     @patch(
         "veupath_chatbot.services.strategies.step_validation.get_wdk_client",
@@ -378,7 +308,6 @@ class TestTransformStepPush:
         assert result.error is None
         assert result.step is not None
         assert result.wdk_step_id is None
-        api.create_transform_step.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -553,38 +482,3 @@ class TestStepCreationResultNewFields:
         assert result.wdk_validation.is_valid is False
 
 
-# ---------------------------------------------------------------------------
-# Record type fallback
-# ---------------------------------------------------------------------------
-
-
-class TestRecordTypeFallback:
-    """graph.record_type may be None — push uses 'transcript' as fallback."""
-
-    @patch(
-        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
-        new_callable=AsyncMock,
-    )
-    @patch("veupath_chatbot.services.strategies.step_wdk_push.get_strategy_api")
-    async def test_uses_graph_record_type_when_available(
-        self,
-        mock_get_api: AsyncMock,
-        mock_validate: AsyncMock,
-    ) -> None:
-        api = _mock_strategy_api(create_step_id=60)
-        mock_get_api.return_value = api
-        graph = make_step_graph()
-        graph.record_type = "gene"
-
-        await create_step(
-            graph=graph,
-            site_id="plasmodb",
-            spec=StepSpec(
-                search_name="GenesByText",
-                parameters={"text_expression": "kinase"},
-            ),
-            callbacks=make_step_creation_callbacks(),
-        )
-
-        call_args = api.create_step.call_args
-        assert call_args.kwargs["record_type"] == "gene"

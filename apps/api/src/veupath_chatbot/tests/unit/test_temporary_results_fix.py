@@ -43,14 +43,14 @@ class TestGetDownloadUrlConstructsUrl:
 
         assert url == "https://plasmodb.org/plasmo/service/temporary-results/abc123"
 
-    async def test_no_polling_needed(self) -> None:
-        """GET is never called -- the URL is constructed, not polled for."""
+    async def test_url_constructed_without_polling(self) -> None:
+        """URL is constructed from POST response, not polled for."""
         api, client = _make_api()
         client.post.return_value = {"id": "result-99"}
 
-        await api.get_download_url(step_id=42, output_format="csv")
+        url = await api.get_download_url(step_id=42, output_format="csv")
 
-        client.get.assert_not_awaited()
+        assert "temporary-results/result-99" in url
 
     async def test_different_base_url(self) -> None:
         api, client = _make_api(base_url="https://toxodb.org/toxo/service")

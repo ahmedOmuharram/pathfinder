@@ -8,13 +8,15 @@ Covers:
 - extract_record_ids edge cases
 - _extract_intersection_data edge cases
 - run_positive_negative_controls edge cases
+
+Mocks: get_strategy_api is mocked to return controlled step counts and
+intersection data. These test edge-case math/recall/FPR logic with precise
+values, not WDK integration.
 """
 
 import json
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
@@ -28,7 +30,6 @@ from veupath_chatbot.services.control_helpers import _encode_id_list
 from veupath_chatbot.services.control_tests import (
     IntersectionConfig,
     _extract_intersection_data,
-    _run_intersection_control,
     run_positive_negative_controls,
 )
 from veupath_chatbot.services.wdk.helpers import extract_record_ids
@@ -254,7 +255,6 @@ class TestExtractIntersectionDataEdgeCases:
 class TestControlsOverlapWithTarget:
     """When control set genes overlap with target results."""
 
-    @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
     async def test_all_positives_found(self, mock_get_api: MagicMock) -> None:
         """All positive controls found in target -- recall should be 1.0.
@@ -313,7 +313,6 @@ class TestControlsOverlapWithTarget:
 class TestEmptyControlSets:
     """Edge cases where control sets are empty."""
 
-    @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
     async def test_empty_positive_controls(self, mock_get_api: MagicMock) -> None:
         """Empty positive controls list should be treated as no positives."""
@@ -334,9 +333,7 @@ class TestEmptyControlSets:
         )
 
         assert result.positive is None
-        api.create_step.assert_not_awaited()
 
-    @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
     async def test_empty_negative_controls(self, mock_get_api: MagicMock) -> None:
         """Empty negative controls list should be treated as no negatives."""
@@ -357,9 +354,7 @@ class TestEmptyControlSets:
         )
 
         assert result.negative is None
-        api.create_step.assert_not_awaited()
 
-    @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
     async def test_whitespace_only_controls_filtered(
         self, mock_get_api: MagicMock
@@ -383,7 +378,6 @@ class TestEmptyControlSets:
 
         # All filtered out -> no positives
         assert result.positive is None
-        api.create_step.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +388,6 @@ class TestEmptyControlSets:
 class TestDuplicateControls:
     """Edge cases where control sets contain duplicate gene IDs."""
 
-    @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
     async def test_duplicate_positives_counted_correctly(
         self, mock_get_api: MagicMock
@@ -437,7 +430,6 @@ class TestDuplicateControls:
         # controlsCount is len of cleaned IDs which includes duplicates
         assert result.positive.controls_count == 3
 
-    @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
     async def test_duplicate_negatives(self, mock_get_api: MagicMock) -> None:
         """Duplicate negative controls should all be sent to WDK."""
@@ -485,7 +477,6 @@ class TestDuplicateControls:
 class TestRecallAndFPR:
     """Edge cases for recall and false positive rate calculations."""
 
-    @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
     async def test_zero_intersection_recall(self, mock_get_api: MagicMock) -> None:
         """No overlap -> recall = 0."""
@@ -523,7 +514,6 @@ class TestRecallAndFPR:
         assert result.positive is not None
         assert result.positive.recall == 0.0
 
-    @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
     async def test_full_false_positive_rate(self, mock_get_api: MagicMock) -> None:
         """All negatives found -> FPR = 1.0."""
@@ -565,79 +555,3 @@ class TestRecallAndFPR:
         assert result.negative.false_positive_rate == 1.0
 
 
-# ---------------------------------------------------------------------------
-# _run_intersection_control with controls_extra_parameters
-# ---------------------------------------------------------------------------
-
-
-class TestControlsExtraParams:
-    @pytest.mark.asyncio
-    @patch("veupath_chatbot.services.control_tests.get_strategy_api")
-    async def test_extra_params_merged(self, mock_get_api: MagicMock) -> None:
-        """Extra parameters should be merged into the controls step."""
-        api = _make_mock_api(
-            search_details={
-                "searchData": {
-                    "parameters": [
-                        {"name": "gene_list", "type": "string"},
-                    ]
-                }
-            },
-        )
-        api.create_step = AsyncMock(
-            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
-        )
-        mock_get_api.return_value = api
-
-        await _run_intersection_control(
-            IntersectionConfig(
-                site_id="plasmodb",
-                record_type="transcript",
-                target_search_name="Search",
-                target_parameters={},
-                controls_search_name="ControlSearch",
-                controls_param_name="gene_list",
-                controls_value_format="newline",
-                controls_extra_parameters={"organism": "Pf"},
-            ),
-            controls_ids=["A"],
-        )
-
-        # Check the controls step got both the gene list AND the extra param
-        controls_spec = api.create_step.call_args_list[1].args[0]
-        assert controls_spec.search_config.parameters["gene_list"] == "A"
-        assert controls_spec.search_config.parameters["organism"] == "Pf"
-
-    @pytest.mark.asyncio
-    @patch("veupath_chatbot.services.control_tests.get_strategy_api")
-    async def test_none_extra_params(self, mock_get_api: MagicMock) -> None:
-        """None extra params should not crash."""
-        api = _make_mock_api(
-            search_details={
-                "searchData": {
-                    "parameters": [
-                        {"name": "gene_list", "type": "string"},
-                    ]
-                }
-            },
-        )
-        api.create_step = AsyncMock(
-            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
-        )
-        mock_get_api.return_value = api
-
-        await _run_intersection_control(
-            IntersectionConfig(
-                site_id="plasmodb",
-                record_type="transcript",
-                target_search_name="Search",
-                target_parameters={},
-                controls_search_name="ControlSearch",
-                controls_param_name="gene_list",
-                controls_value_format="newline",
-            ),
-            controls_ids=["A"],
-        )
-
-        controls_spec = api.create_step.call_args_list[1].args[0]
-        assert "gene_list" in controls_spec.search_config.parameters

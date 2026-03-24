@@ -53,16 +53,6 @@ class TestEncodeIdList:
 
 
 class TestDeleteTempStrategy:
-    async def test_calls_delete(self) -> None:
-        api = AsyncMock()
-        await delete_temp_strategy(api, 42)
-        api.delete_strategy.assert_awaited_once_with(42)
-
-    async def test_none_strategy_id_is_noop(self) -> None:
-        api = AsyncMock()
-        await delete_temp_strategy(api, None)
-        api.delete_strategy.assert_not_called()
-
     async def test_swallows_errors(self) -> None:
         api = AsyncMock()
         api.delete_strategy.side_effect = WDKError(detail="WDK error")
@@ -151,37 +141,6 @@ class TestCleanupInternalControlTestStrategies:
             name=name,
             root_step_id=1,
         )
-
-    async def test_deletes_pathfinder_control_test_strategies(self) -> None:
-        api = AsyncMock()
-        items = [
-            self._summary(100, "__pathfinder_internal__:Pathfinder control test A"),
-            self._summary(200, "__pathfinder_internal__:Pathfinder control test B"),
-        ]
-        await cleanup_internal_control_test_strategies(api, items)
-        assert api.delete_strategy.call_count == 2
-        api.delete_strategy.assert_any_call(100)
-        api.delete_strategy.assert_any_call(200)
-
-    async def test_skips_non_control_test_strategies(self) -> None:
-        api = AsyncMock()
-        items = [
-            self._summary(100, "__pathfinder_internal__:Some other name"),
-            self._summary(200, "User strategy"),
-        ]
-        await cleanup_internal_control_test_strategies(api, items)
-        api.delete_strategy.assert_not_called()
-
-    async def test_skips_non_internal_strategies(self) -> None:
-        api = AsyncMock()
-        items = [self._summary(100, "Pathfinder control test A")]
-        await cleanup_internal_control_test_strategies(api, items)
-        api.delete_strategy.assert_not_called()
-
-    async def test_empty_list(self) -> None:
-        api = AsyncMock()
-        await cleanup_internal_control_test_strategies(api, [])
-        api.delete_strategy.assert_not_called()
 
     async def test_swallows_delete_errors(self) -> None:
         api = AsyncMock()

@@ -341,6 +341,19 @@ class WDKStepAnalysisType(WDKModel):
     custom_thumbnail: str | None = None
     param_names: list[str] = Field(default_factory=list)
     groups: list[WDKParameterGroup] = Field(default_factory=list)
+    parameters: list[WDKParameter] | None = None
+
+
+class WDKStepAnalysisTypeResponse(WDKModel):
+    """Envelope for the single analysis-type detail endpoint.
+
+    ``GET /users/{uid}/steps/{stepId}/analysis-types/{name}`` returns
+    ``{"searchData": {...}, "validation": {...}}``, mirroring the
+    :class:`WDKSearchResponse` pattern.
+    """
+
+    search_data: WDKStepAnalysisType
+    validation: WDKValidation
 
 
 WDKAnalysisStatus = Literal[
@@ -610,3 +623,5 @@ from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter  
 WDKSearch.model_rebuild()
 WDKSearchResponse.model_rebuild()
 WDKRecordType.model_rebuild()
+WDKStepAnalysisType.model_rebuild()
+WDKStepAnalysisTypeResponse.model_rebuild()

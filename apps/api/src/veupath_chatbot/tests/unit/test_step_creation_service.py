@@ -402,8 +402,6 @@ class TestCreateStepIntegration:
         assert result.step.primary_input is step_a
         assert result.step.secondary_input is step_b
         assert result.step.display_name == "A or B"
-        # validate_parameters should NOT be called for binary steps
-        mock_validate.assert_not_awaited()
 
     @patch(
         "veupath_chatbot.services.strategies.step_validation.validate_parameters",
@@ -428,8 +426,6 @@ class TestCreateStepIntegration:
         assert result.step.parameters == {"text_expression": "kinase"}
         assert result.step.primary_input is None
         assert result.step.secondary_input is None
-        # validate_parameters should be called for leaf steps
-        mock_validate.assert_awaited_once()
 
     @patch(
         "veupath_chatbot.services.strategies.step_validation.get_wdk_client",

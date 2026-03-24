@@ -1,0 +1,925 @@
+interactions:
+- request:
+    body: '{"searchText":"*","pagination":{"offset":0,"numRecords":20},"restrictToProject":"PiroplasmaDB"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '95'
+      Content-Type:
+      - application/json
+      Host:
+      - piroplasmadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://piroplasmadb.org/site-search
+  response:
+    body:
+      string: "{\n  \"documentTypes\": [\n    {\n      \"displayName\": \"News\",\n
+        \     \"displayNamePlural\": \"News\",\n      \"count\": 1,\n      \"searchFields\":
+        [{\n        \"isSubtitle\": false,\n        \"displayName\": \"Content\",\n
+        \       \"name\": \"TEXT__news_content\",\n        \"term\": \"content\"\n
+        \     }],\n      \"id\": \"news\",\n      \"hasOrganismField\": false,\n      \"summaryFields\":
+        [],\n      \"isWdkRecordType\": false\n    },\n    {\n      \"displayName\":
+        \"Popset isolate sequence\",\n      \"displayNamePlural\": \"Popset isolate
+        sequences\",\n      \"count\": 27194,\n      \"wdkSearchName\": \"PopsetIsolatesByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Curated geographic location\",\n          \"name\": \"TEXT__popsetSequence_curated_geographic_location\",\n
+        \         \"term\": \"curated_geographic_location\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Curated isolation
+        source\",\n          \"name\": \"TEXT__popsetSequence_curated_isolation_source\",\n
+        \         \"term\": \"curated_isolation_source\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Description\",\n
+        \         \"name\": \"TEXT__popsetSequence_description\",\n          \"term\":
+        \"description\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Geographic location\",\n          \"name\": \"TEXT__popsetSequence_geographic_location\",\n
+        \         \"term\": \"geographic_location\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Host\",\n          \"name\": \"TEXT__popsetSequence_specific_host\",\n
+        \         \"term\": \"specific_host\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Isolation source\",\n          \"name\":
+        \"TEXT__popsetSequence_isolation_source\",\n          \"term\": \"isolation_source\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Note\",\n          \"name\": \"TEXT__popsetSequence_note\",\n          \"term\":
+        \"note\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Organism\",\n          \"name\": \"TEXT__popsetSequence_organism\",\n          \"term\":
+        \"organism\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Popset\",\n          \"name\": \"TEXT__popsetSequence_popset\",\n          \"term\":
+        \"popset\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Popset ID\",\n          \"name\": \"TEXT__popsetSequence_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Product\",\n          \"name\": \"TEXT__popsetSequence_product\",\n
+        \         \"term\": \"product\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"References\",\n          \"name\": \"MULTITEXT__popsetSequence_References\",\n
+        \         \"term\": \"References\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Strain\",\n          \"name\": \"TEXT__popsetSequence_strain\",\n
+        \         \"term\": \"strain\"\n        }\n      ],\n      \"id\": \"popsetSequence\",\n
+        \     \"hasOrganismField\": false,\n      \"summaryFields\": [\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Description\",\n
+        \         \"name\": \"TEXT__popsetSequence_description\",\n          \"term\":
+        \"description\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Geographic location\",\n          \"name\": \"TEXT__popsetSequence_geographic_location\",\n
+        \         \"term\": \"geographic_location\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Product\",\n          \"name\": \"TEXT__popsetSequence_product\",\n
+        \         \"term\": \"product\"\n        }\n      ],\n      \"isWdkRecordType\":
+        true\n    },\n    {\n      \"displayName\": \"Organism\",\n      \"displayNamePlural\":
+        \"Organisms\",\n      \"count\": 785,\n      \"wdkSearchName\": \"OrganismsByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Data source\",\n          \"name\": \"TEXT__organism_data_source\",\n          \"term\":
+        \"data_source\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Genome sequencing and annotation\",\n          \"name\":
+        \"MULTITEXT__organism_GenomeSequencingAndAnnotationAttribution\",\n          \"term\":
+        \"GenomeSequencingAndAnnotationAttribution\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Genome version history\",\n          \"name\":
+        \"MULTITEXT__organism_GenomeVersionHistory\",\n          \"term\": \"GenomeVersionHistory\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Organism\",\n          \"name\": \"TEXT__organism_organism_full\",\n          \"term\":
+        \"organism_full\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Organism ID\",\n          \"name\": \"TEXT__organism_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Species\",\n          \"name\": \"TEXT__organism_species\",\n
+        \         \"term\": \"species\"\n        }\n      ],\n      \"id\": \"organism\",\n
+        \     \"hasOrganismField\": true,\n      \"summaryFields\": [],\n      \"isWdkRecordType\":
+        true\n    },\n    {\n      \"displayName\": \"Gene\",\n      \"displayNamePlural\":
+        \"Genes\",\n      \"count\": 7350897,\n      \"wdkSearchName\": \"GenesByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Apollo Annotations\",\n          \"name\": \"MULTITEXT__gene_apolloCommentContent\",\n
+        \         \"term\": \"apolloCommentContent\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"EC descriptions and numbers\",\n          \"name\":
+        \"MULTITEXT__gene_ECNumbers\",\n          \"term\": \"ECNumbers\"\n        },\n
+        \       {\n          \"isSubtitle\": false,\n          \"displayName\": \"Epitopes
+        from IEDB\",\n          \"name\": \"MULTITEXT__gene_Epitopes\",\n          \"term\":
+        \"Epitopes\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"External links\",\n          \"name\": \"MULTITEXT__gene_GeneLinkouts\",\n
+        \         \"term\": \"GeneLinkouts\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Gene ID\",\n          \"name\": \"TEXT__gene_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Gene name or symbol\",\n          \"name\":
+        \"TEXT__gene_name\",\n          \"term\": \"name\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Gene type\",\n
+        \         \"name\": \"TEXT__gene_gene_type\",\n          \"term\": \"gene_type\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"GeneModel Characteristics\",\n          \"name\": \"MULTITEXT__gene_GeneModelCharacteristics\",\n
+        \         \"term\": \"GeneModelCharacteristics\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Genomic sequence
+        ID\",\n          \"name\": \"TEXT__gene_sequence_id\",\n          \"term\":
+        \"sequence_id\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"GO terms\",\n          \"name\": \"MULTITEXT__gene_GOTerms\",\n
+        \         \"term\": \"GOTerms\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"InterPro domains\",\n          \"name\":
+        \"MULTITEXT__gene_InterPro\",\n          \"term\": \"InterPro\"\n        },\n
+        \       {\n          \"isSubtitle\": false,\n          \"displayName\": \"Metabolic
+        pathways\",\n          \"name\": \"MULTITEXT__gene_MetabolicPathways\",\n
+        \         \"term\": \"MetabolicPathways\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Names, IDs, and aliases\",\n          \"name\":
+        \"MULTITEXT__gene_Alias\",\n          \"term\": \"Alias\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Notes from
+        annotators\",\n          \"name\": \"MULTITEXT__gene_Notes\",\n          \"term\":
+        \"Notes\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Organism\",\n          \"name\": \"TEXT__gene_organism_full\",\n          \"term\":
+        \"organism_full\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Ortholog group\",\n          \"name\": \"TEXT__gene_orthomcl_name\",\n
+        \         \"term\": \"orthomcl_name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Orthologs\",\n          \"name\": \"MULTITEXT__gene_Orthologs\",\n
+        \         \"term\": \"Orthologs\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"PDB chains\",\n          \"name\": \"MULTITEXT__gene_PdbSimilarities\",\n
+        \         \"term\": \"PdbSimilarities\"\n        },\n        {\n          \"isSubtitle\":
+        true,\n          \"displayName\": \"Product description\",\n          \"name\":
+        \"TEXT__gene_product\",\n          \"term\": \"product\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Product descriptions
+        (all)\",\n          \"name\": \"MULTITEXT__gene_Products\",\n          \"term\":
+        \"Products\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"PubMed\",\n          \"name\": \"MULTITEXT__gene_PubMed\",\n          \"term\":
+        \"PubMed\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Sequence Ontology ID\",\n          \"name\": \"TEXT__gene_so_id\",\n          \"term\":
+        \"so_id\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Sequence Ontology term\",\n          \"name\": \"TEXT__gene_so_term_name\",\n
+        \         \"term\": \"so_term_name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Transcripts\",\n          \"name\": \"MULTITEXT__gene_GeneTranscripts\",\n
+        \         \"term\": \"GeneTranscripts\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"User comments\",\n          \"name\":
+        \"MULTITEXT__gene_UserCommentContent\",\n          \"term\": \"UserCommentContent\"\n
+        \       }\n      ],\n      \"id\": \"gene\",\n      \"hasOrganismField\":
+        true,\n      \"summaryFields\": [\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Gene name or symbol\",\n          \"name\": \"TEXT__gene_name\",\n
+        \         \"term\": \"name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Gene type\",\n          \"name\": \"TEXT__gene_gene_type\",\n
+        \         \"term\": \"gene_type\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Organism\",\n          \"name\": \"TEXT__gene_organism_full\",\n
+        \         \"term\": \"organism_full\"\n        },\n        {\n          \"isSubtitle\":
+        true,\n          \"displayName\": \"Product description\",\n          \"name\":
+        \"TEXT__gene_product\",\n          \"term\": \"product\"\n        }\n      ],\n
+        \     \"isWdkRecordType\": true\n    },\n    {\n      \"displayName\": \"EST\",\n
+        \     \"displayNamePlural\": \"ESTs\",\n      \"count\": 62912,\n      \"wdkSearchName\":
+        \"EstsByText\",\n      \"searchFields\": [\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"EST ID\",\n          \"name\": \"TEXT__est_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Library\",\n          \"name\": \"TEXT__est_dbest_name\",\n
+        \         \"term\": \"dbest_name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Organism\",\n          \"name\": \"TEXT__est_organism\",\n
+        \         \"term\": \"organism\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Reference\",\n          \"name\": \"MULTITEXT__est_ReferenceInfo\",\n
+        \         \"term\": \"ReferenceInfo\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Stage\",\n          \"name\": \"TEXT__est_stage\",\n
+        \         \"term\": \"stage\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Vector\",\n          \"name\": \"TEXT__est_vector\",\n
+        \         \"term\": \"vector\"\n        }\n      ],\n      \"id\": \"est\",\n
+        \     \"hasOrganismField\": false,\n      \"summaryFields\": [\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Library\",\n
+        \         \"name\": \"TEXT__est_dbest_name\",\n          \"term\": \"dbest_name\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Organism\",\n          \"name\": \"TEXT__est_organism\",\n          \"term\":
+        \"organism\"\n        }\n      ],\n      \"isWdkRecordType\": true\n    },\n
+        \   {\n      \"displayName\": \"Genomic sequence\",\n      \"displayNamePlural\":
+        \"Genomic sequences\",\n      \"count\": 4247193,\n      \"wdkSearchName\":
+        \"GenomicSeqByText\",\n      \"searchFields\": [\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Description\",\n          \"name\": \"TEXT__genomic-sequence_description\",\n
+        \         \"term\": \"description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"GenBank\",\n          \"name\": \"TEXT__genomic-sequence_genbank_accession\",\n
+        \         \"term\": \"genbank_accession\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Organism\",\n          \"name\": \"TEXT__genomic-sequence_organism_full\",\n
+        \         \"term\": \"organism_full\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Previous IDs and aliases\",\n          \"name\":
+        \"MULTITEXT__genomic-sequence_Aliases\",\n          \"term\": \"Aliases\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Sequence ID\",\n          \"name\": \"TEXT__genomic-sequence_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Sequence type\",\n          \"name\":
+        \"TEXT__genomic-sequence_sequence_type\",\n          \"term\": \"sequence_type\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"User Comments\",\n          \"name\": \"MULTITEXT__genomic-sequence_userCommentContent\",\n
+        \         \"term\": \"userCommentContent\"\n        }\n      ],\n      \"id\":
+        \"genomic-sequence\",\n      \"hasOrganismField\": true,\n      \"summaryFields\":
+        [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Description\",\n          \"name\": \"TEXT__genomic-sequence_description\",\n
+        \         \"term\": \"description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Organism\",\n          \"name\": \"TEXT__genomic-sequence_organism_full\",\n
+        \         \"term\": \"organism_full\"\n        }\n      ],\n      \"isWdkRecordType\":
+        true\n    },\n    {\n      \"displayName\": \"Compound\",\n      \"displayNamePlural\":
+        \"Compounds\",\n      \"count\": 154803,\n      \"wdkSearchName\": \"CompoundsByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Associated metabolic pathways\",\n          \"name\": \"MULTITEXT__compound_MetabolicPathways\",\n
+        \         \"term\": \"MetabolicPathways\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"ChEBI ID\",\n          \"name\": \"TEXT__compound_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Definition\",\n          \"name\": \"TEXT__compound_definition\",\n
+        \         \"term\": \"definition\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"IUPAC names\",\n          \"name\": \"MULTITEXT__compound_IupacNames\",\n
+        \         \"term\": \"IupacNames\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Metabolic pathway reactions\",\n          \"name\":
+        \"MULTITEXT__compound_MetabolicPathwaysReactions\",\n          \"term\": \"MetabolicPathwaysReactions\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Molecular formula\",\n          \"name\": \"TEXT__compound_formula\",\n
+        \         \"term\": \"formula\"\n        },\n        {\n          \"isSubtitle\":
+        true,\n          \"displayName\": \"Name\",\n          \"name\": \"TEXT__compound_compound_name\",\n
+        \         \"term\": \"compound_name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Properties\",\n          \"name\": \"MULTITEXT__compound_Properties\",\n
+        \         \"term\": \"Properties\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Secondary IDs\",\n          \"name\":
+        \"MULTITEXT__compound_SecondaryIds\",\n          \"term\": \"SecondaryIds\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Synonyms\",\n          \"name\": \"MULTITEXT__compound_Synonyms\",\n          \"term\":
+        \"Synonyms\"\n        }\n      ],\n      \"id\": \"compound\",\n      \"hasOrganismField\":
+        false,\n      \"summaryFields\": [\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Definition\",\n          \"name\": \"TEXT__compound_definition\",\n
+        \         \"term\": \"definition\"\n        },\n        {\n          \"isSubtitle\":
+        true,\n          \"displayName\": \"Name\",\n          \"name\": \"TEXT__compound_compound_name\",\n
+        \         \"term\": \"compound_name\"\n        }\n      ],\n      \"isWdkRecordType\":
+        true\n    },\n    {\n      \"displayName\": \"General info pages\",\n      \"displayNamePlural\":
+        \"General info pages\",\n      \"count\": 36,\n      \"searchFields\": [{\n
+        \       \"isSubtitle\": false,\n        \"displayName\": \"Content\",\n        \"name\":
+        \"TEXT__general_content\",\n        \"term\": \"content\"\n      }],\n      \"id\":
+        \"general\",\n      \"hasOrganismField\": false,\n      \"summaryFields\":
+        [],\n      \"isWdkRecordType\": false\n    },\n    {\n      \"displayName\":
+        \"Search\",\n      \"displayNamePlural\": \"Searches\",\n      \"count\":
+        173,\n      \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Record type\",\n          \"name\": \"TEXT__search_record-type\",\n
+        \         \"term\": \"record-type\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Search description\",\n          \"name\":
+        \"TEXT__search_description\",\n          \"term\": \"description\"\n        },\n
+        \       {\n          \"isSubtitle\": false,\n          \"displayName\": \"Search
+        name\",\n          \"name\": \"TEXT__search_displayName\",\n          \"term\":
+        \"displayName\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Search summary\",\n          \"name\": \"TEXT__search_summary\",\n
+        \         \"term\": \"summary\"\n        }\n      ],\n      \"id\": \"search\",\n
+        \     \"hasOrganismField\": false,\n      \"summaryFields\": [{\n        \"isSubtitle\":
+        false,\n        \"displayName\": \"Search summary\",\n        \"name\": \"TEXT__search_summary\",\n
+        \       \"term\": \"summary\"\n      }],\n      \"isWdkRecordType\": false\n
+        \   },\n    {\n      \"displayName\": \"Workshop exercise\",\n      \"displayNamePlural\":
+        \"Workshop exercises\",\n      \"count\": 20,\n      \"searchFields\": [{\n
+        \       \"isSubtitle\": false,\n        \"displayName\": \"Content\",\n        \"name\":
+        \"TEXT__workshop-exercise_content\",\n        \"term\": \"content\"\n      }],\n
+        \     \"id\": \"workshop-exercise\",\n      \"hasOrganismField\": false,\n
+        \     \"summaryFields\": [],\n      \"isWdkRecordType\": false\n    },\n    {\n
+        \     \"displayName\": \"Field sample\",\n      \"displayNamePlural\": \"Field
+        samples\",\n      \"count\": 0,\n      \"searchFields\": [\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Citations\",\n          \"name\": \"MULTITEXT__popbio_citations\",\n
+        \         \"term\": \"citations\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Collection ID\",\n          \"name\":
+        \"TEXT__popbio_collection_id\",\n          \"term\": \"collection_id\"\n        },\n
+        \       {\n          \"isSubtitle\": false,\n          \"displayName\": \"Collection
+        location\",\n          \"name\": \"TEXT__popbio_collection_location\",\n          \"term\":
+        \"collection_location\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Collection protocols\",\n          \"name\":
+        \"MULTITEXT__popbio_collection_protocols\",\n          \"term\": \"collection_protocols\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Description\",\n          \"name\": \"TEXT__popbio_computed_description\",\n
+        \         \"term\": \"computed_description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"PopBio Study ID\",\n          \"name\":
+        \"MULTITEXT__popbio_project_ids\",\n          \"term\": \"project_ids\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Sample ID\",\n          \"name\": \"TEXT__popbio_sample_id\",\n          \"term\":
+        \"sample_id\"\n        },\n        {\n          \"isSubtitle\": true,\n          \"displayName\":
+        \"Sample name\",\n          \"name\": \"TEXT__popbio_sample_name\",\n          \"term\":
+        \"sample_name\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Species\",\n          \"name\": \"TEXT__popbio_species\",\n
+        \         \"term\": \"species\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Tags\",\n          \"name\": \"MULTITEXT__popbio_tags\",\n
+        \         \"term\": \"tags\"\n        }\n      ],\n      \"id\": \"popbio-sample\",\n
+        \     \"hasOrganismField\": false,\n      \"summaryFields\": [\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Description\",\n
+        \         \"name\": \"TEXT__popbio_computed_description\",\n          \"term\":
+        \"computed_description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"PopBio Study ID\",\n          \"name\":
+        \"MULTITEXT__popbio_project_ids\",\n          \"term\": \"project_ids\"\n
+        \       },\n        {\n          \"isSubtitle\": true,\n          \"displayName\":
+        \"Sample name\",\n          \"name\": \"TEXT__popbio_sample_name\",\n          \"term\":
+        \"sample_name\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Species\",\n          \"name\": \"TEXT__popbio_species\",\n
+        \         \"term\": \"species\"\n        }\n      ],\n      \"isWdkRecordType\":
+        false\n    },\n    {\n      \"displayName\": \"Metabolic pathway\",\n      \"displayNamePlural\":
+        \"Metabolic pathways\",\n      \"count\": 3609,\n      \"wdkSearchName\":
+        \"PathwaysByText\",\n      \"searchFields\": [\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Associated compounds\",\n          \"name\":
+        \"MULTITEXT__pathway_Compounds\",\n          \"term\": \"Compounds\"\n        },\n
+        \       {\n          \"isSubtitle\": true,\n          \"displayName\": \"Pathway\",\n
+        \         \"name\": \"TEXT__pathway_name\",\n          \"term\": \"name\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Pathway ID\",\n          \"name\": \"TEXT__pathway_primary_key\",\n          \"term\":
+        \"primary_key\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Pathway source\",\n          \"name\": \"TEXT__pathway_pathway_source_text\",\n
+        \         \"term\": \"pathway_source_text\"\n        }\n      ],\n      \"id\":
+        \"pathway\",\n      \"hasOrganismField\": false,\n      \"summaryFields\":
+        [{\n        \"isSubtitle\": true,\n        \"displayName\": \"Pathway\",\n
+        \       \"name\": \"TEXT__pathway_name\",\n        \"term\": \"name\"\n      }],\n
+        \     \"isWdkRecordType\": true\n    },\n    {\n      \"displayName\": \"Tutorial\",\n
+        \     \"displayNamePlural\": \"Tutorials\",\n      \"count\": 15,\n      \"searchFields\":
+        [{\n        \"isSubtitle\": false,\n        \"displayName\": \"Content\",\n
+        \       \"name\": \"TEXT__tutorial_content\",\n        \"term\": \"content\"\n
+        \     }],\n      \"id\": \"tutorial\",\n      \"hasOrganismField\": false,\n
+        \     \"summaryFields\": [],\n      \"isWdkRecordType\": false\n    },\n    {\n
+        \     \"displayName\": \"Data set\",\n      \"displayNamePlural\": \"Data
+        sets\",\n      \"count\": 58,\n      \"wdkSearchName\": \"DatasetsByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Acknowledgement\",\n          \"name\": \"TEXT__dataset_acknowledgement\",\n
+        \         \"term\": \"acknowledgement\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Associated publications\",\n          \"name\":
+        \"MULTITEXT__dataset_Publications\",\n          \"term\": \"Publications\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Category\",\n          \"name\": \"TEXT__dataset_newcategory\",\n          \"term\":
+        \"newcategory\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Description\",\n          \"name\": \"TEXT__dataset_description\",\n
+        \         \"term\": \"description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"External resources\",\n          \"name\":
+        \"MULTITEXT__dataset_ExternalResources\",\n          \"term\": \"ExternalResources\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Name\",\n          \"name\": \"TEXT__dataset_primary_key\",\n          \"term\":
+        \"primary_key\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Organisms\",\n          \"name\": \"MULTITEXT__dataset_Organisms\",\n
+        \         \"term\": \"Organisms\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Principal Investigator and Collaborators\",\n
+        \         \"name\": \"MULTITEXT__dataset_Contacts\",\n          \"term\":
+        \"Contacts\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Summary\",\n          \"name\": \"TEXT__dataset_summary\",\n          \"term\":
+        \"summary\"\n        }\n      ],\n      \"id\": \"dataset\",\n      \"hasOrganismField\":
+        true,\n      \"summaryFields\": [{\n        \"isSubtitle\": false,\n        \"displayName\":
+        \"Summary\",\n        \"name\": \"TEXT__dataset_summary\",\n        \"term\":
+        \"summary\"\n      }],\n      \"isWdkRecordType\": true\n    }\n  ],\n  \"fieldCounts\":
+        {},\n  \"categories\": [\n    {\n      \"documentTypes\": [\n        \"gene\",\n
+        \       \"genomic-sequence\"\n      ],\n      \"name\": \"Genome\"\n    },\n
+        \   {\n      \"documentTypes\": [\"organism\"],\n      \"name\": \"Organism\"\n
+        \   },\n    {\n      \"documentTypes\": [\"est\"],\n      \"name\": \"Transcriptomics\"\n
+        \   },\n    {\n      \"documentTypes\": [\n        \"popsetSequence\",\n        \"popbio-sample\"\n
+        \     ],\n      \"name\": \"Population biology\"\n    },\n    {\n      \"documentTypes\":
+        [\n        \"pathway\",\n        \"compound\"\n      ],\n      \"name\": \"Metabolism\"\n
+        \   },\n    {\n      \"documentTypes\": [\n        \"dataset\",\n        \"search\"\n
+        \     ],\n      \"name\": \"Data access\"\n    },\n    {\n      \"documentTypes\":
+        [\n        \"tutorial\",\n        \"workshop-exercise\"\n      ],\n      \"name\":
+        \"Instructional\"\n    },\n    {\n      \"documentTypes\": [\n        \"news\",\n
+        \       \"general\"\n      ],\n      \"name\": \"About\"\n    }\n  ],\n  \"organismCounts\":
+        {\n    \"Trypanosoma cruzi strain CL Brener\": 32805,\n    \"Aspergillus carbonarius
+        ITEM 5010\": 12565,\n    \"Aedes aegypti LVP_AGWG\": 22115,\n    \"Bremia
+        lactucae strain SF5\": 9988,\n    \"Leishmania sp. Ghana MHOM/GH/2012/GH5\":
+        8236,\n    \"Plasmodium blacklocki G01\": 5480,\n    \"Blumeria graminis f.
+        sp. triticale THUN-12\": 8030,\n    \"Fusarium oxysporum f. sp. cubense race
+        1\": 16968,\n    \"Hamiltosporidium tvaerminnensis IL-G-3\": 8942,\n    \"Anopheles
+        coluzzii Mali-NIH\": 25318,\n    \"Cyclospora cayetanensis strain CHN_HEN01\":
+        9753,\n    \"Anopheles cruzii AcruBR1\": 17491,\n    \"Encephalitozoon cuniculi
+        GB-M1\": 2138,\n    \"Malassezia sympodialis ATCC 42132\": 4628,\n    \"Encephalitozoon
+        intestinalis ATCC 50506\": 2023,\n    \"Giardia Assemblage B isolate GS_B\":
+        6710,\n    \"Coccidioides posadasii C735 delta SOWgp\": 7311,\n    \"Metarhizium
+        anisopliae ARSEF 549\": 10966,\n    \"Monilinia fructicola CPMC6\": 10185,\n
+        \   \"Vitrella brassicaformis CCMP3155\": 24477,\n    \"Trypanosoma cruzi
+        strain G\": 14954,\n    \"Spizellomyces punctatus DAOM BR117\": 9208,\n    \"Encephalitozoon
+        romaleae SJ-2008\": 1897,\n    \"Eimeria maxima Weybridge\": 9622,\n    \"Enterocytozoon
+        hepatopenaei EHP-ID16\": 163,\n    \"Lodderomyces elongisporus NRRL YB-4239\":
+        5937,\n    \"Acanthamoeba astronyxis Unknown\": 98249,\n    \"Trypanosoma
+        cruzi strain Y\": 9822,\n    \"Babesia divergens strain Rouen 1987\": 143,\n
+        \   \"Trypanosoma cruzi JR cl. 4\": 15313,\n    \"Plasmodium falciparum ML01\":
+        6185,\n    \"Aspergillus novofumigatus IBT 16806\": 11792,\n    \"Trypanosoma
+        congolense Tc1/148\": 537,\n    \"Anopheles maculatus maculatus3\": 62833,\n
+        \   \"Plasmodium gaboni strain G01\": 5465,\n    \"Cimex lectularius Harlan\":
+        16222,\n    \"Leishmania gerbilli strain LEM452\": 8843,\n    \"Cryptococcus
+        gattii CA1873\": 6816,\n    \"Saprolegnia parasitica CBS 223.65\": 21879,\n
+        \   \"Toxoplasma gondii FOU\": 13169,\n    \"Anopheles maculipalpis AmacGA1\":
+        13101,\n    \"Trypanosoma cruzi CL Brener Non-Esmeraldo-like\": 11148,\n    \"Cryptococcus
+        neoformans var. grubii H99 2018\": 15,\n    \"Acanthamoeba triangularis SH621\":
+        56743,\n    \"Glossina morsitans Yale\": 26957,\n    \"Hyalomma asiaticum
+        Hyas-2018\": 35978,\n    \"Candida pseudohaemulonii strain B12108\": 5322,\n
+        \   \"Plasmodium vivax PAM\": 6848,\n    \"Trypanosoma cruzi CL Brener Esmeraldo-like\":
+        10638,\n    \"Plasmodium ovale wallikeri PowCR01\": 7827,\n    \"Entamoeba
+        histolytica HM-3:IMSS\": 9243,\n    \"Blumeria hordei strain RACE1\": 7250,\n
+        \   \"Edhazardia aedis USNM 41457\": 5692,\n    \"Hepatospora eriocheir strain
+        canceri\": 5403,\n    \"Cordyceps militaris CM01\": 9684,\n    \"Rhizophagus
+        irregularis C2\": 25668,\n    \"Fusarium graminearum DAOM 233423\": 870,\n
+        \   \"Giardia Assemblage D isolate DID\": 261,\n    \"Eimeria mitis Houghton\":
+        26056,\n    \"Aspergillus steynii IBT 23096\": 13468,\n    \"Candida albicans
+        SC5314_B\": 6424,\n    \"Cenococcum geophilum 1.58\": 15014,\n    \"Schizosaccharomyces
+        pombe 972h-\": 7002,\n    \"Schizophyllum commune H4-8\": 16493,\n    \"Candida
+        metapsilosis BP57\": 5753,\n    \"Neospora caninum Liverpool\": 7333,\n    \"Aspergillus
+        oryzae RIB40\": 12377,\n    \"Trypanosoma cruzi Y C6\": 17917,\n    \"Histomonas
+        meleagridis 2922-C6/04-290x\": 11419,\n    \"Metarhizium acridum CQMa 102\":
+        0,\n    \"Besnoitia besnoiti strain Bb-Ger1\": 8737,\n    \"Macrophomina phaseolina
+        MS6\": 16219,\n    \"Puccinia triticina 1-1 BBBD Race 1\": 30511,\n    \"Culex
+        quinquefasciatus Johannesburg\": 22966,\n    \"Nakaseomyces glabratus CBS138
+        2020\": 5522,\n    \"Pneumocystis canis CanA\": 3147,\n    \"Pseudogymnoascus
+        destructans 20631-21\": 11073,\n    \"Sclerotinia sclerotiorum 1980 UF-70\":
+        11385,\n    \"Aspergillus fijiensis CBS 313.89\": 12486,\n    \"Aedes albopictus
+        Foshan\": 173077,\n    \"Aspergillus thermomutatus strain HMR AF 39\": 10350,\n
+        \   \"Cryptococcus neoformans var. grubii H99\": 8354,\n    \"Allomyces macrogynus
+        ATCC 38327\": 19436,\n    \"Kwoniella heveanensis CBS 569\": 8245,\n    \"Rhizopus
+        delemar RA 99-880\": 17787,\n    \"Kwoniella bestiolae CBS 10118\": 9283,\n
+        \   \"Phytophthora plurivora AV1007\": 1898,\n    \"Naegleria lovaniensis
+        strain ATCC 30569\": 14875,\n    \"Canis lupus familiaris isolate SID07034\":
+        31498,\n    \"Ordospora colligata OC4\": 1895,\n    \"Neospora caninum Liverpool
+        2019\": 7843,\n    \"Nakaseomyces glabratus BG2\": 5495,\n    \"Plasmodium
+        falciparum KH02\": 5576,\n    \"Plasmodium falciparum KH01\": 5593,\n    \"Plasmodium
+        vivax PvW1\": 6195,\n    \"Plasmodium knowlesi strain Malayan Strain Pk1 A\":
+        5374,\n    \"Enterocytozoon hepatopenaei strain TH1\": 2599,\n    \"Anopheles
+        funestus FUMOZ\": 14181,\n    \"Mastigamoeba balamuthi ATCC 30984\": 16622,\n
+        \   \"Naegleria fowleri strain ATCC 30894\": 13871,\n    \"Sporothrix brasiliensis
+        5110\": 9245,\n    \"Glossina palpalis IAEA\": 24462,\n    \"Paracoccidioides
+        brasiliensis Pb03\": 8614,\n    \"Cryptococcus neoformans var. neoformans
+        XL280\": 38,\n    \"Coccidioides posadasii RMSCC 3700\": 244,\n    \"Crithidia
+        fasciculata strain Cf-Cl\": 10078,\n    \"Trypanosoma melophagium St. Kilda\":
+        9833,\n    \"Acanthamoeba sp T4b-type\": 224483,\n    \"Coccidioides posadasii
+        CPA 0020\": 625,\n    \"Nosema granulosis Ou3-Ou53\": 5394,\n    \"Aspergillus
+        glaucus CBS 516.65\": 11512,\n    \"Entamoeba histolytica Rahman\": 18524,\n
+        \   \"Naegleria gruberi strain NEG-M\": 17405,\n    \"Aedes albopictus C6/36
+        cell line\": 41179,\n    \"Hortaea werneckii EXF-2000\": 16279,\n    \"Monocercomonoides
+        exilis PA203\": 18254,\n    \"Puccinia graminis f. sp. tritici CRL 75-36-700-3\":
+        16703,\n    \"Anopheles coustani AcouGA1\": 14914,\n    \"Bos taurus breed
+        Hereford\": 29819,\n    \"Trichomonascus ciferrii CBS 4856\": 7493,\n    \"Acanthamoeba
+        castellanii Ma\": 221749,\n    \"Hepatospora eriocheir strain GB1\": 4017,\n
+        \   \"Sporisorium reilianum SRZ2\": 6837,\n    \"Parastagonospora nodorum
+        SN15\": 17604,\n    \"Coccidioides posadasii CPA 0001\": 257,\n    \"Fusarium
+        graminearum PH-1\": 14152,\n    \"Babesia microti strain ATCC 30222\": 236,\n
+        \   \"Trichophyton tonsurans CBS 112818\": 8737,\n    \"Tubulinosema ratisbonensis
+        Franzen\": 4035,\n    \"Plasmodium praefalciparum strain G01\": 6256,\n    \"Plasmodium
+        brasilianum strain Bolivian I\": 5957,\n    \"Vittaforma corneae ATCC 50505\":
+        2514,\n    \"Paracoccidioides brasiliensis Pb18\": 8580,\n    \"Rhizophagus
+        irregularis A1 (DAOM-664342)\": 37779,\n    \"Fusarium odoratissimum NRRL
+        54006\": 17394,\n    \"Toxoplasma gondii ME49\": 11044,\n    \"Aspergillus
+        ochraceoroseus IBT 24754\": 9105,\n    \"Candida auris strain B8441\": 5600,\n
+        \   \"Ordospora colligata GB-EP-1\": 1876,\n    \"Trachipleistophora hominis
+        Unknown strain\": 3564,\n    \"Schizosaccharomyces octosporus yFS286\": 5362,\n
+        \   \"Exophiala oligosperma strain CBS 72588\": 12082,\n    \"Cavia porcellus
+        2N\": 30000,\n    \"Malassezia restricta KCTC 27527\": 4555,\n    \"Sarcoptes
+        scabiei Arlian\": 29658,\n    \"Ixodes persulcatus Iper-2018\": 40108,\n    \"Coccidioides
+        posadasii str. Silveira\": 10434,\n    \"Cryptococcus neoformans var. grubii
+        KN99\": 6983,\n    \"Phlebotomus papatasi M1\": 13310,\n    \"Pediculus humanus
+        USDA\": 13613,\n    \"Anopheles christyi ACHKN1017\": 41579,\n    \"Podospora
+        anserina S mat+\": 10922,\n    \"Coccidioides posadasii CPA 0066\": 476,\n
+        \   \"Babesia sp. Xinjiang Xinjiang\": 3327,\n    \"Trypanosoma cruzi Bug2148\":
+        930,\n    \"Anopheles stephensi SDA-500\": 14722,\n    \"Fusarium vanettenii
+        77-13-4\": 15918,\n    \"Giardia Assemblage E isolate P15\": 5980,\n    \"Uncinocarpus
+        reesii 1704\": 7902,\n    \"Acanthamoeba sp. SK_2022b\": 1791,\n    \"Nematocida
+        displodere strain JUm2807\": 2319,\n    \"Acanthamoeba sp. SK_2022c\": 20779,\n
+        \   \"Aspergillus homomorphus CBS 101889\": 11816,\n    \"Acanthamoeba sp.
+        SK_2022a\": 2109,\n    \"Leptomonas seymouri ATCC 30220\": 9818,\n    \"Candida
+        haemulonis B11899\": 5422,\n    \"Anopheles minimus MINIMUS1\": 13827,\n    \"Paratrypanosoma
+        confusum CUL13\": 10848,\n    \"Plasmodium vinckei Cameroon EL\": 5403,\n
+        \   \"Pneumocystis jirovecii RU7\": 3882,\n    \"Anopheles sinensis China\":
+        29287,\n    \"Haemaphysalis longicornis HaeL-2018\": 29538,\n    \"Aspergillus
+        luchuensis CBS 106.47\": 13885,\n    \"Aspergillus parasiticus CBS 117618\":
+        14276,\n    \"Penicilliopsis zonata CBS 506.65\": 10274,\n    \"Pyricularia
+        oryzae BR32\": 14893,\n    \"Toxoplasma gondii MAS\": 12360,\n    \"Endotrypanum
+        monterogeii strain LV88\": 10376,\n    \"Leishmania enriettii MCAV/BR/2001/CUR178\":
+        8408,\n    \"Rhodnius prolixus CDC\": 32276,\n    \"Giardia Assemblage B isolate
+        GS\": 7494,\n    \"Babesia bigemina strain BOND\": 5579,\n    \"Toxoplasma
+        gondii strain ME49xCTG F1 S27\": 51,\n    \"Plasmodium chabaudi chabaudi\":
+        5388,\n    \"Trichomonas vaginalis G3 2022\": 88407,\n    \"Plasmodium gaboni
+        strain SY75\": 6265,\n    \"Histoplasma capsulatum NAm1\": 9683,\n    \"Babesia
+        microti strain GreenwichYale_Lab_strain_1\": 252,\n    \"Cryptosporidium ryanae
+        45019\": 3805,\n    \"Amphiamblys sp. WSBS2006\": 5423,\n    \"Entamoeba nuttalli
+        P19\": 11427,\n    \"Claviceps purpurea 20.1\": 9171,\n    \"Giardia assemblage
+        A isolate AS175\": 1140,\n    \"Cystoisospora suis strain Wien I\": 26174,\n
+        \   \"Anopheles merus MAF\": 15606,\n    \"Anncaliia algerae PRA339\": 4093,\n
+        \   \"Cryptosporidium hominis 37999\": 79,\n    \"Plasmodium coatneyi Hackeri\":
+        5590,\n    \"Cryptosporidium hominis UKH1\": 157,\n    \"Hyaloperonospora
+        arabidopsidis Emoy2\": 17312,\n    \"Encephalitozoon hellem Swiss\": 2055,\n
+        \   \"Coccidioides immitis H538.4\": 11281,\n    \"Leishmania tropica L590\":
+        9099,\n    \"Malassezia restricta CBS 7877\": 4166,\n    \"Aphanomyces euteiches
+        MF1\": 29684,\n    \"Plasmodium reichenowi G01\": 5958,\n    \"Plasmodium
+        falciparum IT\": 5605,\n    \"Penicillium digitatum Pd1\": 9000,\n    \"Leishmania
+        braziliensis MHOM/BR/75/M2903\": 10124,\n    \"Leishmania braziliensis MHOM/BR/75/M2904\":
+        8633,\n    \"Schizosaccharomyces japonicus yFS275\": 5266,\n    \"Cryptococcus
+        gattii VGII R265\": 6721,\n    \"Pneumocystis wakefieldiae 2A\": 3241,\n    \"Nannizzia
+        gypsea CBS 118893\": 9049,\n    \"Amauroascus mutatus isolate UAMH 3576\":
+        3076,\n    \"Blastomyces percursus strain EI222\": 14253,\n    \"Cyberlindnera
+        fabianii 65\": 5535,\n    \"Leishmania orientalis MHOM/TH/2014/LSCM4\": 8257,\n
+        \   \"Entamoeba histolytica KU50\": 1064,\n    \"Entamoeba dispar SAW760\":
+        12061,\n    \"Entamoeba histolytica HM-1:IMSS-A\": 8014,\n    \"Plasmodium
+        vinckei vinckei strain vinckei\": 5059,\n    \"Entamoeba histolytica HM-1:IMSS-B\":
+        8240,\n    \"Anopheles coluzzii Ngousso\": 13442,\n    \"Talaromyces stipitatus
+        ATCC 10500\": 13451,\n    \"Cryptococcus cf. gattii MF34\": 6337,\n    \"Hemileia
+        vastatrix Race XXXIII\": 129611,\n    \"Eimeria falciformis Bayer Haberkorn
+        1970\": 6791,\n    \"Entamoeba histolytica KU48\": 1169,\n    \"Penicillium
+        expansum d1\": 11294,\n    \"Puccinia striiformis f. sp. tritici PST-130\":
+        0,\n    \"Plasmodium falciparum SN01\": 5629,\n    \"Talaromyces marneffei
+        ATCC 18224\": 10648,\n    \"Encephalitozoon cuniculi EC1\": 1911,\n    \"Encephalitozoon
+        cuniculi EC2\": 1919,\n    \"Leishmania enriettii strain LEM3045\": 9327,\n
+        \   \"Triatoma infestans isolate FIOC_28\": 14952,\n    \"Vavraia culicis
+        subsp. floridensis\": 3205,\n    \"Encephalitozoon cuniculi EC3\": 1914,\n
+        \   \"Trypanosoma brucei Lister strain 427\": 9346,\n    \"Stomoxys calcitrans
+        USDA\": 29013,\n    \"Anncaliia algerae PRA109\": 12444,\n    \"Cucumispora
+        dikerogammari Dv6\": 12383,\n    \"Plenodomus lingam JN3\": 12686,\n    \"Anopheles
+        farauti FAR1\": 13604,\n    \"Chaetomium globosum CBS 148.51\": 11270,\n    \"Nematocida
+        major JUm2507\": 2529,\n    \"Drosophila melanogaster iso-1\": 20251,\n    \"Toxoplasma
+        gondii CtCo5\": 6178,\n    \"Aspergillus niger ATCC 1015\": 11935,\n    \"Aspergillus
+        eucalypticola CBS 122712\": 12339,\n    \"Penicillium rubens Wisconsin 54-1255\":
+        14071,\n    \"Amblyomma maculatum SK-2019\": 125878,\n    \"Phytophthora capsici
+        LT1534\": 29362,\n    \"Debaryomyces hansenii CBS767\": 6706,\n    \"Saccharomyces
+        paradoxus CBS432\": 5821,\n    \"Nematocida ausubeli ERTm6\": 2516,\n    \"Nematocida
+        ausubeli ERTm2\": 3034,\n    \"Entamoeba histolytica KU27\": 9266,\n    \"Rhodotorula
+        toruloides NBRC 0880\": 0,\n    \"Giardia Assemblage B isolate BAH15c1\":
+        5501,\n    \"Plasmodium falciparum Dd2\": 5478,\n    \"Kluyveromyces lactis
+        NRRL Y-1140\": 5396,\n    \"Histomonas meleagridis 2922-C6/04-10x\": 11307,\n
+        \   \"Phycomyces blakesleeanus NRRL 1555(-)\": 16931,\n    \"Candida albicans
+        SC5314\": 6478,\n    \"Anopheles epiroticus Epiroticus2\": 14996,\n    \"Phlebotomus
+        papatasi Israel\": 118662,\n    \"Saccharomyces cerevisiae S288C\": 6368,\n
+        \   \"Cordyceps militaris ATCC 34164\": 9370,\n    \"Fusarium mangiferae MRC7560\":
+        16404,\n    \"Leishmania major strain Friedlin\": 9415,\n    \"Anopheles dirus
+        WRAIR2\": 14517,\n    \"Cryptosporidium hominis UdeA01\": 3872,\n    \"Rhizopus
+        microsporus var. microsporus ATCC 52814\": 12115,\n    \"Verticillium dahliae
+        JR2\": 11646,\n    \"Trypanosoma cruzi strain S162a\": 8589,\n    \"Rickenella
+        mellea Ricmel1\": 18042,\n    \"Coprinopsis cinerea #326\": 15282,\n    \"Anopheles
+        gambiae Pimperena\": 13043,\n    \"Nosema bombycis CQ1\": 6076,\n    \"Aspergillus
+        luchuensis IFO 4308\": 12919,\n    \"Melampsora larici-populina 98AG31\":
+        16843,\n    \"Blumeria graminis f. sp. tritici 96224\": 8483,\n    \"Cryptosporidium
+        andersoni isolate 30847\": 4040,\n    \"Ordospora colligata NO-V-7\": 1884,\n
+        \   \"Pyronema omphalodes CBS 100304\": 11894,\n    \"Paecilomyces variotii
+        CBS 101075\": 9502,\n    \"Pleurotus ostreatus PC9\": 11915,\n    \"Sarcocystis
+        neurona SN3\": 7963,\n    \"Candida albicans WO-1\": 6177,\n    \"Saprolegnia
+        diclina VS20\": 17839,\n    \"Macaca mulatta isolate AG07107\": 38372,\n    \"Aspergillus
+        ibericus CBS 121593\": 12106,\n    \"Trypanosoma congolense IL3000\": 14632,\n
+        \   \"Plasmodium yoelii yoelii YM\": 6030,\n    \"Cryptosporidium tyzzeri
+        isolate UGA55\": 4050,\n    \"Toxoplasma gondii VEG\": 9887,\n    \"Trypanosoma
+        congolense IL3000 2019\": 10691,\n    \"Coccidioides immitis RMSCC 3703\":
+        290,\n    \"Scedosporium apiospermum IHEM 14462\": 11097,\n    \"Phytophthora
+        sojae strain P6497\": 28225,\n    \"Toxoplasma gondii p89\": 12028,\n    \"Anopheles
+        merus MAF 2021\": 17528,\n    \"Enterospora canceri strain GB1\": 2716,\n
+        \   \"Plasmodium ovale curtisi GH01\": 7966,\n    \"Cryptosporidium ubiquitum
+        isolate 39726\": 3806,\n    \"Plasmodium inui San Antonio 1\": 6203,\n    \"Aspergillus
+        fumigatus Af293\": 10140,\n    \"Trypanosoma brucei brucei TREU927\": 11896,\n
+        \   \"Plasmodium billcollinsi G01\": 5214,\n    \"Trypanosoma cruzi strain
+        S15\": 9198,\n    \"Babesia divergens strain 1802A\": 4274,\n    \"Culicoides
+        sonorensis PIR-s-3\": 23587,\n    \"Plasmodium malariae UG01\": 6779,\n    \"Spironucleus
+        salmonicida ATCC50377\": 9109,\n    \"Babesia ovata strain Miyake\": 5203,\n
+        \   \"Pichia kudriavzevii strain CBS5147\": 6,\n    \"Theileria orientalis
+        Goon Nure\": 3223,\n    \"Trypanosoma cruzi strain S11\": 7856,\n    \"Aspergillus
+        niger CBS 513.88\": 14423,\n    \"Anopheles marshallii AmarGA1\": 13648,\n
+        \   \"Anopheles stephensi UCISS2018\": 15927,\n    \"Toxoplasma gondii COUG\":
+        14248,\n    \"Coccidioides posadasii RMSCC 3488\": 10026,\n    \"Leishmania
+        panamensis strain MHOM/PA/94/PSC-1\": 8084,\n    \"Tremella mesenterica DSM
+        1558\": 8355,\n    \"Plasmodium knowlesi strain A1H1\": 5482,\n    \"Acanthamoeba
+        quina Vil3\": 60491,\n    \"Talaromyces marneffei TM4\": 9,\n    \"Phytophthora
+        parasitica INRA-310\": 23949,\n    \"Amauroascus niger isolate UAMH 3544\":
+        3482,\n    \"Gregarina niphandrodes Unknown strain\": 7076,\n    \"Acanthamoeba
+        culbertsoni A1\": 72412,\n    \"Cryptosporidium hominis isolate 30976\": 4048,\n
+        \   \"Aspergillus terreus NIH2624\": 10579,\n    \"Plasmodium vivax Sal-1\":
+        8414,\n    \"Eimeria necatrix Houghton\": 12311,\n    \"Aspergillus heteromorphus
+        CBS 117.55\": 11642,\n    \"Trypanosoma cruzi Sylvio X10/1\": 20732,\n    \"Hamiltosporidium
+        magnivora IL-BN-2\": 8014,\n    \"Aspergillus campestris IBT 28561\": 9992,\n
+        \   \"Plasmodium falciparum GB4\": 5664,\n    \"Blastomyces gilchristii SLH14081\":
+        10252,\n    \"Aspergillus sydowii CBS 593.65\": 13815,\n    \"Eimeria praecox
+        Houghton\": 28984,\n    \"Naegleria lovaniensis NL_76_15_250\": 200,\n    \"Aphanomyces
+        invadans NJM9701\": 15898,\n    \"Mus musculus C57BL6J\": 55554,\n    \"Coccidioides
+        immitis RS\": 9913,\n    \"Dictyostelium discoideum AX4\": 14005,\n    \"Anopheles
+        aquasalis AaquGF1\": 13081,\n    \"Fusarium oxysporum f. sp. lycopersici 4287\":
+        21443,\n    \"Chrysosporium queenslandicum isolate CBS 280.77\": 2725,\n    \"Naegleria
+        fowleri ATCC 30863\": 14377,\n    \"Encephalitozoon hellem ATCC 50504\": 2019,\n
+        \   \"Trichophyton rubrum CBS 118892\": 8750,\n    \"Phytophthora cactorum
+        10300\": 28508,\n    \"Verruconis gallopava strain CBS 43764\": 10239,\n    \"Aspergillus
+        sclerotiicarbonarius CBS 121057\": 13060,\n    \"Entamoeba moshkovskii Laredo\":
+        17057,\n    \"Trypanosoma cruzi strain CL\": 42109,\n    \"Nosema apis BRL
+        01\": 3319,\n    \"Acanthamoeba castellanii str. Neff 2021\": 112,\n    \"Anopheles
+        coluzzii MOPTI\": 14754,\n    \"Aspergillus niger strain LDM3\": 15,\n    \"Malassezia
+        pachydermatis CBS 1879\": 4294,\n    \"Leishmania sp. Namibia MPRO/NA/1975/252/LV425\":
+        8334,\n    \"Hanseniaspora guilliermondii strain UTAD222\": 4361,\n    \"Aspergillus
+        niger ATCC 13496\": 12602,\n    \"Biomphalaria glabrata XG47\": 26450,\n    \"Meyerozyma
+        guilliermondii ATCC 6260\": 6072,\n    \"Anopheles arabiensis Dongola\": 14864,\n
+        \   \"Pleurotus ostreatus PC15\": 12473,\n    \"Cytauxzoon felis strain Winnie\":
+        4685,\n    \"Leishmania mexicana MHOM/GT/2001/U1103\": 9266,\n    \"Malassezia
+        globosa CBS 7966\": 4354,\n    \"Phytophthora ramorum strain Pr102\": 15297,\n
+        \   \"Leishmania turanica strain LEM423\": 8937,\n    \"Theileria orientalis
+        Fish Creek\": 3387,\n    \"Babesia ovis Selcuk\": 3680,\n    \"Trypanosoma
+        cruzi marinkellei strain B7\": 27012,\n    \"Cryptosporidium sp. chipmunk
+        LX-2015\": 854,\n    \"Sporothrix schenckii 1099-18\": 10451,\n    \"Anopheles
+        coluzzii AcolN3\": 14746,\n    \"Spraguea lophii 42_110\": 3989,\n    \"Aspergillus
+        lentulus strain IFM 54703\": 9929,\n    \"Plasmodium vivax-like Pvl01\": 6795,\n
+        \   \"Microsporidium sp. FI-F-10\": 1900,\n    \"Apiotrichum montevideense
+        JCM 9937\": 62,\n    \"Plasmodium falciparum SD01\": 5464,\n    \"Aspergillus
+        flavus NRRL3357\": 14596,\n    \"Alternaria alternata SRC1lrK2f\": 13657,\n
+        \   \"Babesia microti strain Naushon\": 133,\n    \"Trypanosoma cruzi Brazil
+        A4\": 19111,\n    \"Cyclospora cayetanensis isolate NF1_C8\": 6876,\n    \"Leptomonas
+        pyrrhocoris H10\": 10209,\n    \"Trichosporon asahii var. asahii CBS 2479\":
+        8913,\n    \"Acanthamoeba lugdunensis L3a\": 67460,\n    \"Rhinocladiella
+        mackenziei CBS 650.93\": 11436,\n    \"Giardia Assemblage A isolate WB Calgary\":
+        38,\n    \"Dictyostelium purpureum QSDP1\": 13203,\n    \"Paracoccidioides
+        lutzii Pb01\": 9064,\n    \"Theileria orientalis strain Shintoku\": 4068,\n
+        \   \"Balamuthia mandrillaris CDC-V039\": 1606,\n    \"Anncaliia algerae Undeen\":
+        8428,\n    \"Rhipicephalus annulatus KleinGrass\": 16340,\n    \"Giardia muris
+        strain Roberts-Thomson\": 5297,\n    \"Ixodes scapularis PalLabHiFi\": 39305,\n
+        \   \"Puccinia striiformis strain 93-210\": 15584,\n    \"Giardia Assemblage
+        A isolate CIA\": 94,\n    \"Plasmodium yoelii yoelii 17XNL\": 13392,\n    \"Macaca
+        fascicularis REF\": 36926,\n    \"Trichoderma virens Gv29-8\": 12499,\n    \"Madurella
+        mycetomatis mm55\": 11512,\n    \"Emergomyces orientalis 5z489\": 109,\n    \"Phlebotomus
+        argentipes India\": 10908,\n    \"Fonsecaea pedrosoi CBS 271.37\": 12585,\n
+        \   \"Cryptococcus gattii WM276\": 6595,\n    \"Hamiltosporidium tvaerminnensis
+        OER-3-3\": 41787,\n    \"Pythium insidiosum Pi-s\": 16043,\n    \"Clavispora
+        lusitaniae ATCC 42720\": 6163,\n    \"Kwoniella dejecticola CBS 10117\": 8738,\n
+        \   \"Cryptococcus gattii NT-10\": 7214,\n    \"Phanerochaete chrysosporium
+        RP-78\": 13835,\n    \"Anopheles funestus AfunGA1\": 15150,\n    \"Naganishia
+        albida NRRL Y-1402\": 835,\n    \"Magnaporthiopsis poae ATCC 64411\": 12570,\n
+        \   \"Eimeria brunetti Houghton\": 17287,\n    \"Plasmodium falciparum TG01\":
+        6140,\n    \"Leishmania amazonensis MHOM/BR/71973/M2269\": 10755,\n    \"Cryptosporidium
+        hominis isolate TU502_2012\": 3917,\n    \"Enterocytozoon bieneusi H348\":
+        5540,\n    \"Globisporangium iwayamae DAOM BR242034\": 26417,\n    \"Plasmodium
+        vivax PvSY56\": 15,\n    \"Epichloe festucae Fl1\": 9,\n    \"Dermacentor
+        silvarum Dsil-2018\": 37790,\n    \"Giardia Assemblage A2 isolate DH\": 5449,\n
+        \   \"Emergomyces africanus CBS 136260\": 13305,\n    \"Leishmania infantum
+        JPCM5\": 8785,\n    \"Emmonsia crescens UAMH 3008\": 11293,\n    \"Acanthamoeba
+        castellanii str. Neff\": 16044,\n    \"Ixodes scapularis Wikel\": 392835,\n
+        \   \"Plasmodium yoelii yoelii 17X\": 6280,\n    \"Giardia Assemblage A isolate
+        WB\": 9959,\n    \"Thermothelomyces thermophilus ATCC 42464\": 9300,\n    \"Theileria
+        annulata strain Ankara\": 3810,\n    \"Homo sapiens REF\": 60870,\n    \"Acanthamoeba
+        rhysodes Singh\": 62837,\n    \"Glossina austeni TTRI\": 22304,\n    \"Trypanosoma
+        cruzi strain 231\": 8470,\n    \"Coccidioides posadasii RMSCC 2133\": 56,\n
+        \   \"Nematocida parisii ERTm1\": 2790,\n    \"Acanthamoeba palestinensis
+        Reich\": 26189,\n    \"Nematocida parisii ERTm3\": 2842,\n    \"Dermacentor
+        andersoni qqDerAnde1.2\": 35804,\n    \"Dermacentor andersoni qqDerAnde1.1\":
+        8199,\n    \"Beauveria bassiana HN6\": 13,\n    \"Candida tropicalis MYA-3404
+        2020\": 6144,\n    \"Epichloe glyceriae E277\": 3077,\n    \"Plasmodium cynomolgi
+        strain B\": 7440,\n    \"Toxoplasma gondii GAB2-2007-GAL-DOM2\": 11808,\n
+        \   \"Lutzomyia longipalpis Jacobina\": 22298,\n    \"Plasmodium falciparum
+        GA01\": 5572,\n    \"Histoplasma capsulatum H143\": 9846,\n    \"Phytophthora
+        infestans T30-4\": 24266,\n    \"Anopheles moucheti AmouCM1\": 14616,\n    \"Cladophialophora
+        bantiana CBS 173.52\": 12878,\n    \"Plasmodium cynomolgi strain M\": 6888,\n
+        \   \"Pichia kudriavzevii strain CBS573\": 5374,\n    \"Pneumocystis murina
+        B123\": 3696,\n    \"Cryptosporidium muris RN66\": 4066,\n    \"Musca domestica
+        aabys 2023\": 21622,\n    \"Aspergillus nidulans FGSC A4\": 10998,\n    \"Trypanosoma
+        cruzi Sylvio X10/1-2012\": 37896,\n    \"Plasmodium falciparum NF166\": 5617,\n
+        \   \"Chaetothyriales sp. CBS 132003\": 5846,\n    \"Cyphellophora europaea
+        CBS 101466\": 11173,\n    \"Glossina pallidipes IAEA\": 21365,\n    \"Exophiala
+        dermatitidis NIH/UT8656\": 9368,\n    \"Cladophialophora carrionii KSF\":
+        11264,\n    \"Plasmodium yoelii yoelii 17XNL 2023\": 6071,\n    \"Leishmania
+        donovani CL-SL\": 9794,\n    \"Ixodes scapularis ISE6\": 29947,\n    \"Botrytis
+        cinerea B05.10\": 12092,\n    \"Exophiala spinifera CBS 89968\": 12139,\n
+        \   \"Babesia microti strain ATCC PRA-99\": 84,\n    \"Anopheles stephensi
+        Indian\": 35561,\n    \"Lichtheimia corymbifera JMRC:FSU:9682\": 12589,\n
+        \   \"Trypanosoma cruzi strain Ycl6\": 6968,\n    \"Plasmodium adleri G01\":
+        5649,\n    \"Ophiostoma piceae UAMH 11346\": 8930,\n    \"Encephalitozoon
+        cuniculi EcunIII-L\": 1912,\n    \"Ixodes ricinus Charles River\": 204517,\n
+        \   \"Podospora comata strain T mat+\": 13109,\n    \"Trichoderma atroviride
+        strain JCM 9410\": 24,\n    \"Trypanosoma brucei EATRO1125\": 11587,\n    \"Zymoseptoria
+        tritici IPO323\": 11862,\n    \"Coccidioides posadasii RMSCC 1037\": 636,\n
+        \   \"Trypanosoma cruzi strain Ycl2\": 6885,\n    \"Coccidioides posadasii
+        RMSCC 1038\": 555,\n    \"Trypanosoma cruzi strain Ycl4\": 6665,\n    \"Aspergillus
+        niger strain N402 (ATCC64974)\": 11207,\n    \"Candida duobushaemulonis strain
+        B09383\": 5338,\n    \"Neurospora discreta FGSC 8579\": 10522,\n    \"Toxoplasma
+        gondii VAND\": 11568,\n    \"Giardia Assemblage B isolate GS Calgary\": 20,\n
+        \   \"Gaeumannomyces tritici R3-111a-1\": 15267,\n    \"Porcisia hertigi MCOE/PA/1965/C119\":
+        7966,\n    \"Aspergillus flavus NRRL3357 2020\": 13967,\n    \"Gallus gallus
+        isolate bGalGal1\": 25618,\n    \"Nakaseomyces glabratus BG3993\": 5501,\n
+        \   \"Cryptosporidium meleagridis strain UKMEL1\": 3864,\n    \"Aedes aegypti
+        Aag2\": 3753,\n    \"Acanthamoeba mauritaniensis 1652\": 67234,\n    \"Trypanosoma
+        cruzi strain S92a\": 7135,\n    \"Acanthamoeba lenticulata PD2S\": 79049,\n
+        \   \"Neurospora crassa OR74A\": 10613,\n    \"Aspergillus cristatus GZAAS20.1005\":
+        10413,\n    \"Eimeria acervulina Houghton\": 10283,\n    \"Nosema ceranae
+        BRL\": 2405,\n    \"Trypanosoma cruzi Tula cl2\": 45712,\n    \"Taphrina deformans
+        PYCC 5710\": 5084,\n    \"Leishmania martiniquensis MHOM/TH/2012/LSCM1\":
+        8010,\n    \"Rhipicephalus sanguineus Rsan-2018\": 35047,\n    \"Plasmodium
+        falciparum KE01\": 5501,\n    \"Histoplasma capsulatum WU24\": 9204,\n    \"Stachybotrys
+        chartarum IBT 40293\": 13796,\n    \"Dictyocoela muelleri Ou54\": 17965,\n
+        \   \"Toxoplasma gondii TgCatPRC2\": 13365,\n    \"Toxoplasma gondii RH-88\":
+        8852,\n    \"Cryptococcus depauperatus CBS 7841\": 6756,\n    \"Raffaelea
+        lauricola RL4\": 10631,\n    \"Glossina fuscipes IAEA\": 22898,\n    \"Byssoonygena
+        ceratinophila isolate UAMH 5669\": 4852,\n    \"Pneumocystis oryctolagi CS1\":
+        2895,\n    \"Naganishia albida JCM2334\": 75,\n    \"Blastomyces dermatitidis
+        ATCC 26199\": 12843,\n    \"Plasmodium falciparum 3D7\": 5737,\n    \"Neurospora
+        tetrasperma FGSC 2508\": 10462,\n    \"Saccharomycodes ludwigii UTAD17\":
+        5378,\n    \"Bodo saltans strain Lake Konstanz\": 20479,\n    \"Cryptococcus
+        depauperatus CBS 7855\": 6563,\n    \"Batrachochytrium dendrobatidis JEL423\":
+        8834,\n    \"Leptotrombidium deliense UoL-UT\": 81726,\n    \"Anopheles bellator
+        AbelBR1\": 14669,\n    \"Coccidioides immitis WA_211\": 7999,\n    \"Dictyocoela
+        roeselum Ou19\": 2235,\n    \"Cladophialophora carrionii CBS 160.54\": 10448,\n
+        \   \"Pneumocystis carinii B80\": 3758,\n    \"Aspergillus tubingensis CBS
+        134.48\": 12626,\n    \"Globisporangium ultimum DAOM BR144\": 16406,\n    \"Hammondia
+        hammondi strain H.H.34\": 23039,\n    \"Pneumocystis sp. macacae isolate P2C\":
+        3447,\n    \"Coprinopsis cinerea okayama7#130\": 13726,\n    \"Mitosporidium
+        daphniae UGP3\": 3941,\n    \"Trypanosoma vivax Y486\": 20341,\n    \"Lichtheimia
+        ramosa KPH11\": 11,\n    \"Plasmodium falciparum 7G8 2019\": 5505,\n    \"Fusarium
+        proliferatum ET1\": 16542,\n    \"Fusarium odoratissimum strain race 4\":
+        15437,\n    \"Histoplasma capsulatum G217B\": 12376,\n    \"Trypanosoma theileri
+        isolate Edinburgh\": 11566,\n    \"Exophiala mesophila strain CBS 40295\":
+        9247,\n    \"Glossina brevipalpis IAEA\": 16643,\n    \"Fusarium circinatum
+        NRRL 25331\": 15129,\n    \"Plasmodium vinckei lentum DE\": 5368,\n    \"Trichophyton
+        equinum CBS 127.97\": 8911,\n    \"Aspergillus brasiliensis CBS 101740\":
+        13367,\n    \"Theileria parva strain Muguga\": 4144,\n    \"Trypanosoma cruzi
+        strain Esmeraldo\": 15804,\n    \"Hamiltosporidium tvaerminnensis FI-OER-3-3\":
+        7037,\n    \"Toxoplasma gondii GT1\": 10701,\n    \"Lomentospora prolificans
+        JHH-5317\": 10394,\n    \"Plasmodium knowlesi strain H\": 5667,\n    \"Aspergillus
+        aculeatus ATCC 16872\": 11826,\n    \"Rattus norvegicus BN/NHsdMcwi\": 30737,\n
+        \   \"Kwoniella mangroviensis CBS 8507\": 8618,\n    \"Lutzomyia longipalpis
+        M1\": 12050,\n    \"Coccidioides immitis RMSCC 2394\": 32,\n    \"Arthrobotrys
+        flagrans CBS H-5679\": 9942,\n    \"Aspergillus tanneri NIH1004\": 15306,\n
+        \   \"Leishmania arabica strain LEM1108\": 8924,\n    \"Anopheles darlingi
+        Coari\": 13227,\n    \"Leishmania donovani strain LV9\": 8533,\n    \"Plasmodium
+        falciparum GN01\": 5620,\n    \"Angomonas deanei strain Cavalho ATCC PRA-265\":
+        10542,\n    \"Cladophialophora psammophila CBS 110553\": 13545,\n    \"Rhipicephalus
+        microplus Rmic-2018\": 36046,\n    \"Toxoplasma gondii TgCATBr5\": 6996,\n
+        \   \"Pseudocercospora fijiensis CIRAD86\": 13188,\n    \"Theileria equi strain
+        WA\": 5414,\n    \"Toxoplasma gondii TgCATBr9\": 12460,\n    \"Antonospora
+        locustae CLX\": 19,\n    \"Leishmania donovani BPK282A1\": 8172,\n    \"Anopheles
+        arabiensis DONGOLA 2021\": 15866,\n    \"Cryptococcus neoformans strain:VNII\":
+        6713,\n    \"Plasmodium falciparum 7G8\": 5523,\n    \"Podosphaera aphanis
+        DRCT72020\": 30172,\n    \"Sabethes cyaneus ScyaPA1\": 14165,\n    \"Coccidioides
+        posadasii strain Silveira 2022\": 8448,\n    \"Leishmania major strain LV39c5\":
+        9911,\n    \"Synchytrium endobioticum MB42\": 8818,\n    \"Fusarium oxysporum
+        NRRL 32931\": 17811,\n    \"Aphanomyces astaci strain APO3\": 20420,\n    \"Fusarium
+        solani FSSC 5 MPI-SDFR-AT-0091\": 18015,\n    \"Anopheles culicifacies A-37\":
+        30892,\n    \"Toxoplasma gondii CAST\": 12359,\n    \"Anopheles albimanus
+        STECLA 2020\": 12953,\n    \"Culex quinquefasciatus JHB 2020\": 18723,\n    \"Toxoplasma
+        gondii RH 2016\": 442,\n    \"Aspergillus versicolor CBS 583.65\": 13416,\n
+        \   \"Plasmodium vivax P01\": 7104,\n    \"Mucor lusitanicus CBS 277.49\":
+        11958,\n    \"Lentinus tigrinus ALCF2SS1-7\": 15878,\n    \"Plasmodium vinckei
+        brucechwatti DA\": 5349,\n    \"Histoplasma capsulatum H88\": 12297,\n    \"Anopheles
+        atroparvus EBRO\": 15362,\n    \"Babesia duncani strain WA1 2023\": 4393,\n
+        \   \"Toxoplasma gondii RUB\": 12645,\n    \"Babesia duncani strain WA1\":
+        9,\n    \"Anopheles sinensis SINENSIS\": 23655,\n    \"Plasmodium fragile
+        strain nilgiri\": 5993,\n    \"Anopheles quadriannulatus SANGWE\": 16642,\n
+        \   \"Plasmodium vinckei vinckei CY\": 5168,\n    \"Yarrowia lipolytica CLIB89
+        (W29)\": 8754,\n    \"Trichoderma reesei QM6a 2017\": 10246,\n    \"Aspergillus
+        clavatus NRRL 1\": 9573,\n    \"Blastocrithidia nonstop P57\": 78,\n    \"Colletotrichum
+        graminicola M1.001\": 13055,\n    \"Cryptosporidium baileyi TAMU-09Q1\": 154,\n
+        \   \"Thelohania contejeani T1\": 4257,\n    \"Exophiala aquamarina CBS 119918\":
+        13270,\n    \"Entamoeba histolytica HM-1:IMSS\": 9830,\n    \"Biomphalaria
+        glabrata BB02\": 363387,\n    \"Leishmania donovani HU3\": 8631,\n    \"Acanthamoeba
+        sp Galka\": 224138,\n    \"Anopheles gambiae Ifakara\": 15357,\n    \"Giardia
+        Assemblage A isolate WB 2019\": 5427,\n    \"Trypanosoma brucei gambiense
+        DAL972\": 8094,\n    \"Sarcocystis neurona SO SN1\": 10144,\n    \"Musca domestica
+        aabys\": 36623,\n    \"Cryptococcus gattii VGIV IND107\": 6878,\n    \"Yarrowia
+        lipolytica CLIB122\": 7230,\n    \"Babesia microti strain RI\": 3698,\n    \"Cladophialophora
+        immunda strain CBS 83496\": 13157,\n    \"Trypanosoma cruzi strain S154a\":
+        6947,\n    \"Fonsecaea multimorphosa CBS 102226\": 12473,\n    \"Blechomonas
+        ayalai B08-376\": 8672,\n    \"Fusarium napiforme NRRL 25196\": 0,\n    \"Puccinia
+        striiformis 93TX-2\": 15192,\n    \"Entamoeba invadens IP1\": 13152,\n    \"Plasmodium
+        vinckei petteri CR 2020\": 5405,\n    \"Leishmania panamensis MHOM/COL/81/L13\":
+        9635,\n    \"Fusarium oxysporum Fo47\": 18681,\n    \"Fusarium oxysporum f.
+        sp. melonis 26406\": 21180,\n    \"Pyricularia pennisetigena Br36\": 11537,\n
+        \   \"Anopheles ziemanni AzieGA1\": 14506,\n    \"Plasmodium vinckei petteri
+        strain CR\": 5280,\n    \"Trypanosoma cruzi Dm28c 2014\": 12609,\n    \"Trypanosoma
+        cruzi Dm28c 2018\": 19749,\n    \"Trypanosoma cruzi Dm28c 2017\": 23901,\n
+        \   \"Cryptococcus gattii EJB2\": 7191,\n    \"Phialophora attinorum CBS 131958\":
+        11980,\n    \"Globisporangium irregulare DAOM BR486\": 19757,\n    \"Trypanosoma
+        grayi ANR4\": 13548,\n    \"Anopheles nili AnilCM1\": 12512,\n    \"Curvularia
+        clavata yc1106\": 10301,\n    \"Babesia caballi USDA-D6B2\": 6004,\n    \"Albugo
+        candida 2VRR\": 16149,\n    \"Xylaria arbuscula CBS 124340\": 13212,\n    \"Hepatocystis
+        sp. ex Piliocolobus tephrosceles 2019\": 7913,\n    \"Albugo laibachii Nc14\":
+        18457,\n    \"Plasmodium falciparum NF54\": 5640,\n    \"Candida auris strain
+        6684\": 8401,\n    \"Plasmodium reichenowi CDC\": 6368,\n    \"Colletotrichum
+        higginsianum IMI 349063\": 14677,\n    \"Babesia bovis T2Bo\": 3995,\n    \"Nakaseomyces
+        glabratus CBS 138\": 5630,\n    \"Leishmania major strain SD 75.1\": 8968,\n
+        \   \"Pythium arrhenomanes ATCC 12531\": 24830,\n    \"Trichomonas vaginalis
+        G3\": 163376,\n    \"Aedes albopictus Foshan FPA\": 42678,\n    \"Aspergillus
+        fumigatus A1163\": 10162,\n    \"Anopheles albimanus STECLA\": 12818,\n    \"Toxoplasma
+        gondii ARI\": 12894,\n    \"Babesia microti Nan_Hs_2011_N11-50\": 133,\n    \"Cryptosporidium
+        parvum 2022\": 9,\n    \"Candida parapsilosis CDC317\": 5994,\n    \"Diutina
+        rugosa CBS 613\": 5989,\n    \"Plasmodium falciparum CD01\": 5503,\n    \"Leishmania
+        amazonensis strain PH8\": 8881,\n    \"Blastomyces dermatitidis ER-3\": 10109,\n
+        \   \"Ordospora colligata FI-SK-17-1\": 1876,\n    \"Leishmania donovani strain
+        BHU 1220\": 37,\n    \"Trypanosoma cruzi TCC\": 30539,\n    \"Plasmodium relictum
+        SGS1-like\": 5789,\n    \"Plasmodium berghei ANKA\": 5276,\n    \"Fusarium
+        fujikuroi IMI 58289\": 15112,\n    \"Babesia microti strain GI\": 142,\n    \"Chromera
+        velia CCMP2878\": 36563,\n    \"Plasmodium gallinaceum 8A\": 5602,\n    \"Apophysomyces
+        variabilis NCCPF 102052\": 412,\n    \"Candida auris strain B11243\": 5834,\n
+        \   \"Candida auris strain B11245\": 5683,\n    \"Zymoseptoria tritici ST99CH_3D1\":
+        12013,\n    \"Anopheles melas CM1001059_A\": 36007,\n    \"Rhizophagus irregularis
+        DAOM 181602=DAOM 197198\": 26668,\n    \"Entamoeba histolytica DS4-868\":
+        1178,\n    \"Trypanosoma equiperdum OVI\": 11162,\n    \"Pythium aphanidermatum
+        DAOM BR444\": 14138,\n    \"Trypanosoma cruzi Berenice\": 15276,\n    \"Fusarium
+        oxysporum f. sp. conglutinans Fo5176\": 17932,\n    \"Cladophialophora yegresii
+        CBS 114405\": 10127,\n    \"Kluyveromyces marxianus DMKU3-1042\": 5161,\n
+        \   \"Phytophthora palmivora var. palmivora strain sbr112.9\": 52995,\n    \"Nematocida
+        ironsii ERTm5\": 2896,\n    \"Plasmodium falciparum NF135.C10\": 5639,\n    \"Balamuthia
+        mandrillaris strain 2046\": 14700,\n    \"Anopheles darlingi AdarGF1\": 12460,\n
+        \   \"Trichoderma reesei QM6a\": 9216,\n    \"Trypanosoma evansi strain STIB
+        805\": 10118,\n    \"Ascosphaera apis ARSEF 7405\": 6525,\n    \"Sordaria
+        macrospora k-hell\": 11620,\n    \"Nakaseomyces glabratus DSY562\": 5563,\n
+        \   \"Batrachochytrium salamandrivorans BS\": 15545,\n    \"Mucor circinelloides
+        1006PhL\": 12881,\n    \"Debaryomyces fabryi CBS 789\": 6562,\n    \"Leishmania
+        major Friedlin 2021\": 11279,\n    \"Histoplasma capsulatum G184AR\": 12736,\n
+        \   \"Fusarium proliferatum strain NRRL62905\": 15758,\n    \"Eimeria tenella
+        strain Houghton\": 13299,\n    \"Trichomonas tenax strain NIH4 ATCC 30207\":
+        4162,\n    \"Cryptosporidium bovis isolate 45015\": 3779,\n    \"Microsporum
+        canis CBS 113480\": 8865,\n    \"Candida tropicalis MYA-3404\": 6466,\n    \"Myotis
+        myotis mMyoMyo1\": 30880,\n    \"Leishmania tarentolae Parrot-TarII\": 9882,\n
+        \   \"Anopheles gambiae PEST\": 13999,\n    \"Candida dubliniensis CD36\":
+        6104,\n    \"Ustilago maydis 521\": 6938,\n    \"Emergomyces pasteurianus
+        Ep9510\": 10722,\n    \"Cryptosporidium sp. chipmunk genotype I strain 37763\":
+        3834,\n    \"Aspergillus ellipticus CBS 707.79\": 13698,\n    \"Aspergillus
+        fischeri NRRL 181\": 10832,\n    \"Trichophyton mentagrophytes TIMM 2789\":
+        24502,\n    \"Cryptosporidium parvum IOWA-ATCC\": 4044,\n    \"Eimeria tenella
+        Houghton 2021\": 7843,\n    \"Pseudoloma neurophilia strain MK1\": 5249,\n
+        \   \"Fusarium verticillioides 7600\": 16265,\n    \"Pyricularia oryzae 70-15\":
+        13238,\n    \"Trypanosoma cruzi strain S44a\": 4972,\n    \"Acanthamoeba sp
+        Incertae sedis\": 24099,\n    \"Cryptosporidium hominis TU502\": 5379,\n    \"Hamiltosporidium
+        magnivora BE-OM-2\": 8209,\n    \"Leishmania aethiopica L147\": 8883,\n    \"Puccinia
+        sorghi strain RO10H11247\": 37485,\n    \"Aspergillus uvarum CBS 121591\":
+        12520,\n    \"Leishmania martiniquensis LEM2494\": 8833,\n    \"Candida auris
+        strain B11220\": 5502,\n    \"Globisporangium ultimum var. sporangiiferum
+        BR650\": 19569,\n    \"Trypanosoma rangeli SC58\": 14909,\n    \"Candida auris
+        strain B11221\": 5736,\n    \"Cryptococcus neoformans var. neoformans JEC21\":
+        7019,\n    \"Naegleria fowleri strain Ty\": 9443,\n    \"Plasmodium falciparum
+        HB3\": 5490,\n    \"Nosema ceranae strain PA08_1199\": 3802,\n    \"Trypanosoma
+        cruzi strain S23b\": 7146,\n    \"Leishmania tarentolae Parrot Tar II 2019\":
+        8883,\n    \"Giardia intestinalis Beaver\": 9,\n    \"Pneumocystis jirovecii
+        SE8\": 4084,\n    \"Cryptosporidium parvum Iowa II\": 4029,\n    \"Tritrichomonas
+        foetus strain K\": 26817,\n    \"Phytophthora cinnamomi GKB4\": 20115,\n    \"Phytophthora
+        ramorum 14567\": 15378,\n    \"Phytopythium vexans DAOM BR484\": 15677,\n
+        \   \"Porospora cf. gigantea A\": 6058,\n    \"Peronospora effusa R13\": 9388,\n
+        \   \"Glossina fuscipes IAEA 2018\": 23797,\n    \"Trypanosoma brucei Lister
+        strain 427 2018\": 17561,\n    \"Haemoproteus tartakovskyi strain SISKIN1\":
+        8409,\n    \"Leishmania braziliensis MHOM/BR/75/M2904 2019\": 8651,\n    \"Nosema
+        ceranae BRL01\": 8144,\n    \"Hanseniaspora uvarum strain AWRI3580\": 4080,\n
+        \   \"Histoplasma capsulatum G186AR\": 12751,\n    \"Porospora cf. gigantea
+        B\": 6295,\n    \"Aspergillus wentii DTO 134E9\": 12687,\n    \"Cryptococcus
+        neoformans var. neoformans B-3501A\": 6623,\n    \"Acanthamoeba castellanii
+        C3\": 175\n  },\n  \"searchResults\": {\n    \"documents\": [\n      {\n        \"score\":
+        1,\n        \"wdkPrimaryKeyString\": \"CHEBI:100000\",\n        \"documentType\":
+        \"compound\",\n        \"summaryFieldData\": {\"TEXT__compound_compound_name\":
+        \"(2S,3S,4R)-3-[4-(3-cyclopentylprop-1-ynyl)phenyl]-4-(hydroxymethyl)-1-(2-methoxy-1-oxoethyl)-2-azetidinecarbonitrile\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100000\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100001\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"N-[(2R,3S,6R)-2-(hydroxymethyl)-6-[2-[[oxo-[4-(trifluoromethyl)anilino]methyl]amino]ethyl]-3-oxanyl]-3-pyridinecarboxamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100001\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100002\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"3-chloro-N-[(5S,6S,9S)-5-methoxy-3,6,9-trimethyl-2-oxo-11-oxa-3,8-diazabicyclo[10.4.0]hexadeca-1(12),13,15-trien-14-yl]benzenesulfonamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100002\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100003\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"(4R,7S,8R)-8-methoxy-4,7,10-trimethyl-11-oxo-14-(1-oxobutylamino)-N-propyl-2-oxa-5,10-diazabicyclo[10.4.0]hexadeca-1(12),13,15-triene-5-carboxamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100003\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100004\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"1-(2,5-difluorophenyl)-3-[(5S,6S,9S)-5-methoxy-3,6,9-trimethyl-2-oxo-8-[oxo(2-pyrazinyl)methyl]-11-oxa-3,8-diazabicyclo[10.4.0]hexadeca-1(12),13,15-trien-14-yl]urea\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100004\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100005\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"N-[(1S,3S,4aS,9aR)-1-(hydroxymethyl)-3-[2-oxo-2-(1-piperidinyl)ethyl]-3,4,4a,9a-tetrahydro-1H-pyrano[3,4-b]benzofuran-6-yl]-3-methoxybenzenesulfonamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100005\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100006\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"N-(1,3-benzodioxol-5-ylmethyl)-2-[(2R,3R,6S)-3-[[(2,5-difluoroanilino)-oxomethyl]amino]-2-(hydroxymethyl)-3,6-dihydro-2H-pyran-6-yl]acetamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100006\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100007\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"LSM-11386\"},\n        \"foundInFields\":
+        {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\": [\"CHEBI:100007\"]\n
+        \     },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100008\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"(2R,3R,4R)-1-[1,3-benzodioxol-5-yl(oxo)methyl]-4-(hydroxymethyl)-3-phenyl-2-azetidinecarbonitrile\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100008\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100009\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"(2R,3S,4S)-1-(4-fluorophenyl)sulfonyl-4-(hydroxymethyl)-3-phenyl-2-azetidinecarbonitrile\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100009\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:10000\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"Vismione D\"},\n        \"foundInFields\":
+        {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\": [\"CHEBI:10000\"]\n
+        \     },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100010\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"N-[(5S,6S,9S)-5-methoxy-3,6,9-trimethyl-2-oxo-8-(2-phenylethyl)-11-oxa-3,8-diazabicyclo[10.4.0]hexadeca-1(12),13,15-trien-14-yl]propanamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100010\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100011\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"2-[(3R,6aR,8R,10aR)-1-[(4-fluorophenyl)-oxomethyl]-3-hydroxy-3,4,6,6a,8,9,10,10a-octahydro-2H-pyrano[2,3-c][1,5]oxazocin-8-yl]-1-(1-piperidinyl)ethanone\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100011\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100012\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"N-[(2R,4aR,12aR)-2-[2-(cyclohexylmethylamino)-2-oxoethyl]-5-methyl-6-oxo-2,3,4,4a,12,12a-hexahydropyrano[2,3-c][1,5]benzoxazocin-8-yl]-2-pyrazinecarboxamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100012\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100013\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"2-[(2S,4aR,12aS)-8-(ethylcarbamoylamino)-5-methyl-6-oxo-2,3,4,4a,12,12a-hexahydropyrano[2,3-c][1,5]benzoxazocin-2-yl]-N-[(1S)-1-phenylethyl]acetamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100013\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100014\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"N-[(4S,7R,8R)-8-methoxy-4,7,10-trimethyl-11-oxo-2-oxa-5,10-diazabicyclo[10.4.0]hexadeca-1(12),13,15-trien-14-yl]-3,5-dimethyl-4-isoxazolesulfonamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100014\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100015\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"N-[(4-chlorophenyl)methyl]-2-[(2S,3R,6R)-2-(hydroxymethyl)-3-[(2-methoxy-1-oxoethyl)amino]-3,6-dihydro-2H-pyran-6-yl]acetamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100015\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100016\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"2-[(3R,6aR,8S,10aR)-3-hydroxy-1-(pyridin-4-ylmethyl)-3,4,6,6a,8,9,10,10a-octahydro-2H-pyrano[2,3-c][1,5]oxazocin-8-yl]-N-ethylacetamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100016\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100017\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"2-[(1R,3S,4aR,9aS)-1-(hydroxymethyl)-6-[(1-oxo-2-pyridin-4-ylethyl)amino]-3,4,4a,9a-tetrahydro-1H-pyrano[3,4-b]benzofuran-3-yl]-N-(2-pyridinylmethyl)acetamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100017\"]\n      },\n      {\n        \"score\": 1,\n        \"wdkPrimaryKeyString\":
+        \"CHEBI:100018\",\n        \"documentType\": \"compound\",\n        \"summaryFieldData\":
+        {\"TEXT__compound_compound_name\": \"(3S)-2-tert-butylsulfinyl-4-[3-(3-fluorophenyl)phenyl]-3-(2-hydroxyethyl)-N-[3-(4-morpholinyl)propyl]-1,3-dihydropyrrolo[3,4-c]pyridine-6-carboxamide\"},\n
+        \       \"foundInFields\": {},\n        \"project\": \"PiroplasmaDB\",\n        \"primaryKey\":
+        [\"CHEBI:100018\"]\n      }\n    ],\n    \"totalCount\": 11847696\n  }\n}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:38:13 GMT
+      Server:
+      - nginx/1.26.1
+      Transfer-Encoding:
+      - chunked
+      Via:
+      - 1.0 w1.piroplasmadb.org
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '68813'
+    status:
+      code: 200
+      message: OK
+version: 1

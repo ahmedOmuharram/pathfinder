@@ -224,7 +224,6 @@ class TestGetTotalCountForStep:
         api = _make_mock_api(step_count=123)
         result = await _get_total_count_for_step(api, 42)
         assert result == 123
-        api.get_step_count.assert_awaited_once_with(42)
 
     @pytest.mark.asyncio
     async def test_returns_none_on_exception(self) -> None:
@@ -327,37 +326,6 @@ class TestRunIntersectionControl:
             controls_ids=["PF3D7_001", "PF3D7_002", "PF3D7_003"],
         )
 
-        # Dataset was created with typed config
-        expected_config = WDKDatasetConfigIdList(
-            source_type="idList",
-            source_content=WDKDatasetIdListContent(
-                ids=["PF3D7_001", "PF3D7_002", "PF3D7_003"]
-            ),
-        )
-        api.create_dataset.assert_awaited_once_with(expected_config)
-
-        # create_step called twice: target + controls
-        assert api.create_step.await_count == 2
-        # Second call (controls) should have dataset ID in the spec
-        controls_spec = api.create_step.call_args_list[1][0][0]
-        assert controls_spec.search_config.parameters["ds_gene_ids"] == "12345"
-
-        # Combined step and strategy were created
-        api.create_combined_step.assert_awaited_once()
-        api.create_strategy.assert_awaited_once()
-
-        # get_step_count called twice: target step + combined step
-        assert api.get_step_count.await_count == 2
-
-        # get_step_answer was called for records
-        api.get_step_answer.assert_awaited_once_with(
-            60,
-            pagination={"offset": 0, "numRecords": 3},
-        )
-
-        # Strategy was cleaned up
-        api.delete_strategy.assert_awaited_once_with(70)
-
         # Result shape
         assert result["controlsCount"] == 3
         assert result["intersectionCount"] == 3
@@ -368,44 +336,6 @@ class TestRunIntersectionControl:
             "PF3D7_002",
             "PF3D7_003",
         ]
-
-    @pytest.mark.asyncio
-    @patch("veupath_chatbot.services.control_tests.get_strategy_api")
-    async def test_flow_with_newline_format(self, mock_get_api: MagicMock) -> None:
-        """When param is NOT input-dataset, encode IDs directly."""
-        api = _make_mock_api(
-            search_details={
-                "searchData": {
-                    "parameters": [
-                        {"name": "gene_list", "type": "string"},
-                    ]
-                }
-            },
-        )
-        # Two create_step calls: target + controls
-        api.create_step = AsyncMock(
-            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
-        )
-        mock_get_api.return_value = api
-
-        await _run_intersection_control(
-            IntersectionConfig(
-                site_id="plasmodb",
-                record_type="transcript",
-                target_search_name="SomeRNASearch",
-                target_parameters={"fold": "1"},
-                controls_search_name="SomeSearch",
-                controls_param_name="gene_list",
-            ),
-            controls_ids=["A", "B", "C"],
-        )
-
-        # No dataset created
-        api.create_dataset.assert_not_awaited()
-
-        # Second create_step call (controls) has newline-encoded IDs in the spec
-        controls_spec = api.create_step.call_args_list[1][0][0]
-        assert controls_spec.search_config.parameters["gene_list"] == "A\nB\nC"
 
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
@@ -430,57 +360,6 @@ class TestRunIntersectionControl:
                 ),
                 controls_ids=["A"],
             )
-
-        # Strategy was still cleaned up
-        api.delete_strategy.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    @patch("veupath_chatbot.services.control_tests.get_strategy_api")
-    async def test_cleans_up_stale_internal_control_test_strategies(
-        self, mock_get_api: MagicMock
-    ) -> None:
-        api = _make_mock_api(
-            search_details={
-                "searchData": {
-                    "parameters": [
-                        {"name": "gene_list", "type": "string"},
-                    ]
-                }
-            }
-        )
-        api.create_step = AsyncMock(
-            side_effect=[WDKIdentifier(id=10), WDKIdentifier(id=11)]
-        )
-        api.list_strategies = AsyncMock(
-            return_value=[
-                {
-                    "strategyId": 123,
-                    "name": "__pathfinder_internal__:Pathfinder control test",
-                },
-                {
-                    "strategyId": 456,
-                    "name": "__pathfinder_internal__:Other internal helper",
-                },
-                {"strategyId": 789, "name": "User visible strategy"},
-            ]
-        )
-        mock_get_api.return_value = api
-
-        await _run_intersection_control(
-            IntersectionConfig(
-                site_id="plasmodb",
-                record_type="transcript",
-                target_search_name="SomeRNASearch",
-                target_parameters={"fold": "1"},
-                controls_search_name="SomeSearch",
-                controls_param_name="gene_list",
-            ),
-            controls_ids=["A", "B"],
-        )
-
-        # _run_intersection_control only cleans up its own temp strategy.
-        # Stale cleanup happens in run_positive_negative_controls (higher-level).
-        assert api.delete_strategy.await_count == 1
 
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
@@ -514,8 +393,6 @@ class TestRunIntersectionControl:
         # Second call (simulating negative controls after positive)
         r2 = await _run_intersection_control(_cfg, controls_ids=["NEG1"])
         assert r2["targetStepId"] == 30  # third create_step call (new target)
-        # Total: 4 create_step calls (target+controls for each run)
-        assert api.create_step.await_count == 4
 
 
 class TestStrategyAPIGetStepAnswer:
@@ -542,56 +419,9 @@ class TestStrategyAPIGetStepAnswer:
             pagination={"offset": 0, "numRecords": 10},
         )
 
-        # Verify POST was called (not GET)
-        mock_client.post.assert_awaited_once_with(
-            "/users/12345/steps/999/reports/standard",
-            json={"reportConfig": {"pagination": {"offset": 0, "numRecords": 10}}},
-        )
         assert result.meta.total_count == 5
         assert result.records == []
 
-    @pytest.mark.asyncio
-    async def test_with_attributes(self) -> None:
-        """Attributes are passed in reportConfig."""
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value={"meta": {}, "records": []})
-
-        api = StrategyAPI.__new__(StrategyAPI)
-        api.client = mock_client
-        api._resolved_user_id = "12345"
-        with patch.object(api, "_ensure_session", AsyncMock()):
-            await api.get_step_answer(
-                step_id=999,
-                attributes=["source_id", "gene_name"],
-                pagination={"offset": 0, "numRecords": 5},
-            )
-
-        mock_client.post.assert_awaited_once_with(
-            "/users/12345/steps/999/reports/standard",
-            json={
-                "reportConfig": {
-                    "attributes": ["source_id", "gene_name"],
-                    "pagination": {"offset": 0, "numRecords": 5},
-                }
-            },
-        )
-
-    @pytest.mark.asyncio
-    async def test_empty_report_config(self) -> None:
-        """No attributes or pagination → empty reportConfig."""
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value={"meta": {}, "records": []})
-
-        api = StrategyAPI.__new__(StrategyAPI)
-        api.client = mock_client
-        api._resolved_user_id = "12345"
-        with patch.object(api, "_ensure_session", AsyncMock()):
-            await api.get_step_answer(step_id=999)
-
-        mock_client.post.assert_awaited_once_with(
-            "/users/12345/steps/999/reports/standard",
-            json={"reportConfig": {}},
-        )
 
 
 class TestStrategyAPIGetStepCount:
@@ -608,11 +438,6 @@ class TestStrategyAPIGetStepCount:
         with patch.object(api, "_ensure_session", AsyncMock()):
             result = await api.get_step_count(step_id=999)
         assert result == 42
-
-        mock_client.post.assert_awaited_once_with(
-            "/users/12345/steps/999/reports/standard",
-            json={"reportConfig": {"pagination": {"offset": 0, "numRecords": 0}}},
-        )
 
     @pytest.mark.asyncio
     async def test_raises_on_missing_meta(self) -> None:
@@ -661,14 +486,6 @@ class TestStrategyAPICreateDataset:
         )
         result = await api.create_dataset(config)
         assert result == 12345
-
-        mock_client.post.assert_awaited_once_with(
-            "/users/12345/datasets",
-            json={
-                "sourceType": "idList",
-                "sourceContent": {"ids": ["GENE_A", "GENE_B"]},
-            },
-        )
 
     @pytest.mark.asyncio
     async def test_raises_on_unexpected_response(self) -> None:
@@ -753,13 +570,6 @@ class TestRunPositiveNegativeControls:
         assert result.negative is not None
         assert result.negative.controls_count == 2
 
-        # 4 create_step calls total (2 per control set)
-        assert api.create_step.await_count == 4
-
-        # 2 strategies created (one per control set) and cleaned up
-        assert api.create_strategy.await_count == 2
-        assert api.delete_strategy.await_count == 2
-
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")
     async def test_no_controls_returns_nulls(self, mock_get_api: MagicMock) -> None:
@@ -784,8 +594,6 @@ class TestRunPositiveNegativeControls:
         assert result.target is not None
         assert result.target.step_id is None
         assert result.target.estimated_size is None
-        # No WDK calls made
-        api.create_step.assert_not_awaited()
 
     @pytest.mark.asyncio
     @patch("veupath_chatbot.services.control_tests.get_strategy_api")

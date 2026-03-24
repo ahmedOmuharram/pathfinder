@@ -71,7 +71,6 @@ class TestResolveRootStepId:
 
         result = await resolve_root_step_id(mock_api, strategy_id=10)
         assert result == 42
-        mock_api.get_strategy.assert_awaited_once_with(10)
 
 
 # ---------------------------------------------------------------------------
@@ -145,14 +144,15 @@ class TestGetForUser:
         with pytest.raises(NotFoundError):
             await svc.get_for_user(other_user, "gs-1")
 
-    async def test_raises_for_missing(self) -> None:
+    async def test_raises_for_missing(
+        self,
+        patch_app_db_engine: None,
+        db_cleaner: None,
+    ) -> None:
         store = GeneSetStore()
         svc = GeneSetService(store)
 
-        with (
-            patch.object(store, "_load", new_callable=AsyncMock, return_value=None),
-            pytest.raises(NotFoundError),
-        ):
+        with pytest.raises(NotFoundError):
             await svc.get_for_user(_USER, "nonexistent")
 
 
@@ -349,14 +349,15 @@ class TestDelete:
         await svc.delete(_USER, "doomed")
         assert store.get("doomed") is None
 
-    async def test_delete_nonexistent_raises(self) -> None:
+    async def test_delete_nonexistent_raises(
+        self,
+        patch_app_db_engine: None,
+        db_cleaner: None,
+    ) -> None:
         store = GeneSetStore()
         svc = GeneSetService(store)
 
-        with (
-            patch.object(store, "_load", new_callable=AsyncMock, return_value=None),
-            pytest.raises(NotFoundError),
-        ):
+        with pytest.raises(NotFoundError):
             await svc.delete(_USER, "ghost")
 
     async def test_delete_wrong_user_raises(self) -> None:
@@ -369,40 +370,41 @@ class TestDelete:
 
 
 # ---------------------------------------------------------------------------
-# GeneSetService.list_for_user
+# GeneSetService.list_for_user  (real DB via patch_app_db_engine)
 # ---------------------------------------------------------------------------
 
 
 class TestListForUser:
-    async def test_returns_user_sets(self) -> None:
+    async def test_returns_user_sets(
+        self,
+        patch_app_db_engine: None,
+        db_cleaner: None,
+    ) -> None:
+        # Use fresh user IDs so DB leftovers from prior tests don't interfere.
+        owner = uuid4()
         store = GeneSetStore()
-        store.save(_make_set("a", user_id=_USER))
-        store.save(_make_set("b", user_id=uuid4()))
+        store.save(_make_set("list-a", user_id=owner))
+        store.save(_make_set("list-b", user_id=uuid4()))
         svc = GeneSetService(store)
 
-        with patch(
-            "veupath_chatbot.services.gene_sets.store._list_from_db",
-            new_callable=AsyncMock,
-            return_value=[],
-        ):
-            result = await svc.list_for_user(_USER)
+        result = await svc.list_for_user(owner)
         assert len(result) == 1
-        assert result[0].id == "a"
+        assert result[0].id == "list-a"
 
-    async def test_filters_by_site(self) -> None:
+    async def test_filters_by_site(
+        self,
+        patch_app_db_engine: None,
+        db_cleaner: None,
+    ) -> None:
+        owner = uuid4()
         store = GeneSetStore()
-        store.save(_make_set("a", user_id=_USER, site_id="plasmo"))
-        store.save(_make_set("b", user_id=_USER, site_id="toxo"))
+        store.save(_make_set("site-a", user_id=owner, site_id="plasmo"))
+        store.save(_make_set("site-b", user_id=owner, site_id="toxo"))
         svc = GeneSetService(store)
 
-        with patch(
-            "veupath_chatbot.services.gene_sets.store._list_from_db",
-            new_callable=AsyncMock,
-            return_value=[],
-        ):
-            result = await svc.list_for_user(_USER, site_id="plasmo")
+        result = await svc.list_for_user(owner, site_id="plasmo")
         assert len(result) == 1
-        assert result[0].id == "a"
+        assert result[0].id == "site-a"
 
 
 # ---------------------------------------------------------------------------

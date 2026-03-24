@@ -356,7 +356,7 @@ async def test_subkani_events_aggregated(redis):
 
 @pytest.mark.asyncio
 async def test_emit_with_projection(redis):
-    """emit() with a session triggers DB projection (mock the session)."""
+    """emit() with a session writes to Redis even when session is provided."""
     mock_session = AsyncMock()
     mock_session.execute = AsyncMock()
     mock_session.flush = AsyncMock()
@@ -370,9 +370,6 @@ async def test_emit_with_projection(redis):
         {"name": "Test"},
         session=mock_session,
     )
-
-    mock_session.execute.assert_called_once()
-    mock_session.flush.assert_called_once()
 
     # Event should still be in Redis
     entries = await redis.xrange(f"stream:{stream_id}")

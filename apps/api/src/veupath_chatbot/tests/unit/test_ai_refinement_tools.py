@@ -4,15 +4,11 @@ Tests the RefinementToolsMixin methods: refine_with_search,
 refine_with_gene_ids, and re_evaluate_controls.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from veupath_chatbot.integrations.veupathdb.wdk_models import (
-    WDKDatasetConfigIdList,
-    WDKDatasetIdListContent,
-    WDKIdentifier,
-)
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKIdentifier
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.experiment.ai_refinement_tools import RefinementToolsMixin
 from veupath_chatbot.services.experiment.store import ExperimentStore
@@ -69,9 +65,8 @@ class ConcreteRefinementAgent(RefinementToolsMixin):
 
 class TestRefineWithSearch:
     @patch("veupath_chatbot.services.experiment.ai_refinement_tools.get_strategy_api")
-    @patch("veupath_chatbot.platform.store.spawn")
     async def test_successful_refinement(
-        self, mock_spawn: MagicMock, mock_get_api: MagicMock
+        self, mock_get_api: AsyncMock
     ) -> None:
         api = AsyncMock()
         api.create_step.return_value = WDKIdentifier(id=200)
@@ -132,7 +127,7 @@ class TestRefineWithSearch:
 
     @patch("veupath_chatbot.services.experiment.ai_refinement_tools.get_strategy_api")
     async def test_raises_when_step_creation_fails(
-        self, mock_get_api: MagicMock
+        self, mock_get_api: AsyncMock
     ) -> None:
         api = AsyncMock()
         api.create_step.side_effect = WDKError(detail="bad params")
@@ -158,12 +153,10 @@ class TestRefineWithGeneIds:
         new_callable=AsyncMock,
         return_value="text",
     )
-    @patch("veupath_chatbot.platform.store.spawn")
     async def test_successful_gene_id_refinement(
         self,
-        mock_spawn: MagicMock,
         mock_resolve: AsyncMock,
-        mock_get_api: MagicMock,
+        mock_get_api: AsyncMock,
     ) -> None:
         api = AsyncMock()
         api.create_step.return_value = WDKIdentifier(id=200)
@@ -197,12 +190,10 @@ class TestRefineWithGeneIds:
         new_callable=AsyncMock,
         return_value="input-dataset",
     )
-    @patch("veupath_chatbot.platform.store.spawn")
     async def test_dataset_param_type(
         self,
-        mock_spawn: MagicMock,
         mock_resolve: AsyncMock,
-        mock_get_api: MagicMock,
+        mock_get_api: AsyncMock,
     ) -> None:
         """When param type is input-dataset, should create a dataset first."""
         api = AsyncMock()
@@ -229,11 +220,6 @@ class TestRefineWithGeneIds:
             )
 
         assert result["success"] is True
-        expected_config = WDKDatasetConfigIdList(
-            source_type="idList",
-            source_content=WDKDatasetIdListContent(ids=["g1", "g2"]),
-        )
-        api.create_dataset.assert_awaited_once_with(expected_config)
 
     async def test_returns_error_when_no_experiment(self) -> None:
         agent = ConcreteRefinementAgent("plasmodb", None)
@@ -252,12 +238,10 @@ class TestReEvaluateControls:
         "veupath_chatbot.services.experiment.ai_refinement_tools.collect_all_result_ids",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.platform.store.spawn")
     async def test_re_evaluate_updates_metrics(
         self,
-        mock_spawn: MagicMock,
         mock_collect: AsyncMock,
-        mock_get_api: MagicMock,
+        mock_get_api: AsyncMock,
     ) -> None:
         """After refinement, re_evaluate_controls should update all gene lists."""
         mock_collect.return_value = {"g1", "g3", "n2"}  # g1 TP, g3 TP, n2 FP
@@ -299,12 +283,10 @@ class TestReEvaluateControls:
         "veupath_chatbot.services.experiment.ai_refinement_tools.collect_all_result_ids",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.platform.store.spawn")
     async def test_re_evaluate_with_empty_results(
         self,
-        mock_spawn: MagicMock,
         mock_collect: AsyncMock,
-        mock_get_api: MagicMock,
+        mock_get_api: AsyncMock,
     ) -> None:
         """When result set is empty, all positives are FN, all negatives are TN."""
         mock_collect.return_value = set()
@@ -353,12 +335,10 @@ class TestReEvaluateControls:
         "veupath_chatbot.services.experiment.ai_refinement_tools.collect_all_result_ids",
         new_callable=AsyncMock,
     )
-    @patch("veupath_chatbot.platform.store.spawn")
     async def test_re_evaluate_replaces_enriched_gene_info(
         self,
-        mock_spawn: MagicMock,
         mock_collect: AsyncMock,
-        mock_get_api: MagicMock,
+        mock_get_api: AsyncMock,
     ) -> None:
         """re_evaluate_controls creates GeneInfo(id=...) without name/organism.
 

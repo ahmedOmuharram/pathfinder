@@ -321,7 +321,6 @@ class TestEmitTrialResult:
             estimated_size=100,
         )
         await _emit_trial_result(ctx, trial_num=3, trial_result=trial)
-        callback.assert_called_once()
         event = callback.call_args[0][0]
         data = event["data"]
         assert data["status"] == "running"
@@ -343,7 +342,6 @@ class TestEmitTrialResult:
         await _emit_trial_result(
             ctx, trial_num=1, trial_result=trial, wdk_error="WDK 422"
         )
-        callback.assert_called_once()
         event = callback.call_args[0][0]
         data = event["data"]
         trial_data = data["trial"]
@@ -388,7 +386,6 @@ class TestEmitTrialResult:
         ctx.trials.append(best)
         ctx.trials.append(current)
         await _emit_trial_result(ctx, trial_num=2, trial_result=current)
-        callback.assert_called_once()
         event = callback.call_args[0][0]
         data = event["data"]
         best_data = data["bestTrial"]

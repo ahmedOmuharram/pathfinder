@@ -1,11 +1,12 @@
-"""Unit tests for veupath_chatbot.integrations.veupathdb.site_search_client.
+"""Unit tests for site-search Pydantic models, HTML stripping, SiteInfo,
+SiteSearchClient retry/error logic, and SiteRouter integration.
 
-Tests SiteSearchClient payload construction, response parsing, retry logic,
-and SiteRouter.get_site_search_client integration.
+HTTP contract compliance tests live in
+tests/integration/test_site_search_contract.py (VCR-backed).
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -396,33 +397,17 @@ class TestSiteOrigin:
 
 
 # ---------------------------------------------------------------------------
-# SiteSearchClient
+# SiteSearchClient POST body construction (respx — internal mechanism)
 # ---------------------------------------------------------------------------
 
 
 class TestSiteSearchClientPostBody:
-    """Verify POST body matches SearchRequest.java + SiteSearch/Types.ts contract."""
+    """Verify POST body matches SearchRequest.java + SiteSearch/Types.ts contract.
 
-    async def test_url_is_site_origin_plus_site_search(self) -> None:
-        with respx.mock(assert_all_called=False) as router:
-            route = router.post("https://plasmodb.org/site-search").respond(json={})
-            client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
-            try:
-                await client.search("kinase")
-            finally:
-                await client.close()
-            assert route.called
-
-    async def test_uses_post_not_get(self) -> None:
-        with respx.mock(assert_all_called=False) as router:
-            router.post("https://plasmodb.org/site-search").respond(json={})
-            get_route = router.get("https://plasmodb.org/site-search").respond(json={})
-            client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
-            try:
-                await client.search("kinase")
-            finally:
-                await client.close()
-            assert not get_route.called
+    These tests use respx to verify the exact request body shape sent by
+    SiteSearchClient. This is internal mechanism testing — the integration
+    tests verify the end-to-end contract with real responses.
+    """
 
     async def test_basic_search_body(self) -> None:
         captured_body: dict[str, object] = {}
@@ -570,84 +555,9 @@ class TestSiteSearchClientPostBody:
         assert captured_body["searchText"] == "*"
 
 
-class TestSiteSearchClientResponseParsing:
-    async def test_returns_typed_response(self) -> None:
-        with respx.mock(assert_all_called=False) as router:
-            router.post("https://plasmodb.org/site-search").respond(
-                json={"searchResults": {"totalCount": 5, "documents": []}}
-            )
-            client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
-            try:
-                resp = await client.search("kinase")
-            finally:
-                await client.close()
-            assert isinstance(resp, SiteSearchResponse)
-            assert resp.search_results.total_count == 5
-
-    async def test_parses_documents(self) -> None:
-        with respx.mock(assert_all_called=False) as router:
-            router.post("https://plasmodb.org/site-search").respond(
-                json={
-                    "searchResults": {
-                        "totalCount": 1,
-                        "documents": [
-                            {"documentType": "gene", "primaryKey": ["PF3D7_0523000"]}
-                        ],
-                    },
-                }
-            )
-            client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
-            try:
-                resp = await client.search("kinase")
-            finally:
-                await client.close()
-            assert len(resp.search_results.documents) == 1
-            assert resp.search_results.documents[0].primary_key == ["PF3D7_0523000"]
-
-    async def test_parses_organism_counts(self) -> None:
-        with respx.mock(assert_all_called=False) as router:
-            router.post("https://plasmodb.org/site-search").respond(
-                json={
-                    "organismCounts": {
-                        "Plasmodium falciparum 3D7": 100,
-                        "Toxoplasma gondii": 50,
-                    },
-                }
-            )
-            client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
-            try:
-                resp = await client.search("kinase")
-            finally:
-                await client.close()
-            assert resp.organism_counts == {
-                "Plasmodium falciparum 3D7": 100,
-                "Toxoplasma gondii": 50,
-            }
-
-    async def test_parses_total_count(self) -> None:
-        with respx.mock(assert_all_called=False) as router:
-            router.post("https://plasmodb.org/site-search").respond(
-                json={
-                    "searchResults": {"totalCount": 42, "documents": []},
-                }
-            )
-            client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
-            try:
-                resp = await client.search("kinase")
-            finally:
-                await client.close()
-            assert resp.search_results.total_count == 42
-
-    async def test_empty_body_returns_default(self) -> None:
-        with respx.mock(assert_all_called=False) as router:
-            router.post("https://plasmodb.org/site-search").respond(200, content=b"")
-            client = SiteSearchClient("https://plasmodb.org", "PlasmoDB")
-            try:
-                resp = await client.search("kinase")
-            finally:
-                await client.close()
-            assert resp.search_results.total_count == 0
-            assert resp.search_results.documents == []
+# ---------------------------------------------------------------------------
+# SiteSearchClient retry/error (respx — controlled failure injection)
+# ---------------------------------------------------------------------------
 
 
 class TestSiteSearchClientRetry:
@@ -821,6 +731,6 @@ class TestSiteRouterSiteSearchClient:
         ):
             router = SiteRouter()
             client = router.get_site_search_client("plasmodb")
-            with patch.object(client, "close", new_callable=AsyncMock) as mock_close:
-                await router.close_all()
-                mock_close.assert_called_once()
+            await router.close_all()
+            # After close_all, the client should be cleaned up
+            assert client._client is None

@@ -459,16 +459,17 @@ class TestFetchAndConvertEdgeCases:
 
         assert ast.root.parameters == {"text": "kinase"}
 
-    async def test_api_get_strategy_called_with_wdk_id(self) -> None:
+    async def test_returns_strategy_data_for_given_id(self) -> None:
         wdk = _make_wdk_strategy(
             step_tree=WDKStepTree(step_id=1),
             steps={"1": _wdk_step(1, "S1")},
         )
         api = _mock_api(wdk)
 
-        await fetch_and_convert(api, 42)
+        ast, _ = await fetch_and_convert(api, 42)
 
-        api.get_strategy.assert_awaited_once_with(42)
+        assert ast.root.search_name == "S1"
+        assert ast.root.id == "1"
 
     async def test_record_type_from_strategy(self) -> None:
         wdk = _make_wdk_strategy(

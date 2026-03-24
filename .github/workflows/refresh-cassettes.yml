@@ -1,0 +1,105 @@
+name: Refresh WDK Cassettes
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'  # Sunday 3am UTC
+  workflow_dispatch: {}    # Manual trigger
+
+jobs:
+  refresh:
+    # Skip entirely if WDK credentials are not configured (e.g. VEuPathDB fork)
+    if: ${{ secrets.WDK_AUTH_EMAIL != '' }}
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pathfinder_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
+      REDIS_URL: redis://localhost:6379/0
+      API_SECRET_KEY: test-secret-key-xxxxx-xxxxx-xxxxx
+      WDK_AUTH_EMAIL: ${{ secrets.WDK_AUTH_EMAIL }}
+      WDK_AUTH_PASSWORD: ${{ secrets.WDK_AUTH_PASSWORD }}
+      WDK_WIPE_CONFIRM: "1"
+      PATHFINDER_CHAT_PROVIDER: mock
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        working-directory: apps/api
+        run: uv sync --extra dev
+
+      - name: Pick random WDK site for recording
+        run: |
+          SITES=(plasmodb toxodb cryptodb giardiadb amoebadb microsporidiadb piroplasmadb tritrypdb trichdb fungidb vectorbase hostdb)
+          SITE=${SITES[$RANDOM % ${#SITES[@]}]}
+          echo "WDK_TARGET_SITE=$SITE" >> "$GITHUB_ENV"
+          echo "Selected site: $SITE"
+
+      - name: Wipe WDK account (pre-recording)
+        working-directory: apps/api
+        run: uv run python scripts/wipe_wdk_account.py --yes
+
+      - name: Record cassettes (sequential)
+        working-directory: apps/api
+        run: uv run pytest -m vcr --record-mode=all -p no:xdist --timeout=300 -v
+
+      - name: Wipe WDK account (post-recording)
+        working-directory: apps/api
+        run: uv run python scripts/wipe_wdk_account.py --yes
+
+      - name: Check for cassette changes
+        id: changes
+        working-directory: apps/api
+        run: |
+          if git diff --quiet src/veupath_chatbot/tests/cassettes/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create PR with updated cassettes
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/refresh-cassettes-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          git add apps/api/src/veupath_chatbot/tests/cassettes/
+          git commit -m "chore: refresh WDK cassettes $(date +%Y-%m-%d)"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "chore: refresh WDK cassettes $(date +%Y-%m-%d)" \
+            --body "Weekly automated cassette refresh against live WDK API."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

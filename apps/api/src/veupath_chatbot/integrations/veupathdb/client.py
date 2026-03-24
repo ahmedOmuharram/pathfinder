@@ -27,6 +27,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKStep,
     WDKStepAnalysisConfig,
     WDKStepAnalysisType,
+    WDKStepAnalysisTypeResponse,
 )
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.config import get_settings
@@ -528,13 +529,19 @@ class VEuPathDBClient:
 
     async def get_analysis_type(
         self, user_id: str, step_id: int, analysis_type: str
-    ) -> WDKStepAnalysisType:
-        """Get analysis form metadata for a specific analysis type."""
+    ) -> WDKStepAnalysisTypeResponse:
+        """Get analysis form metadata for a specific analysis type.
+
+        The WDK endpoint returns a ``{searchData, validation}`` envelope
+        (same pattern as ``GET .../searches/{name}``).
+        """
         raw = await self.get(
             f"/users/{user_id}/steps/{step_id}/analysis-types/{analysis_type}"
         )
         return validate_response(
-            WDKStepAnalysisType, raw, f"WDK analysis type response for {analysis_type}"
+            WDKStepAnalysisTypeResponse,
+            raw,
+            f"WDK analysis type response for {analysis_type}",
         )
 
     async def list_step_analyses(

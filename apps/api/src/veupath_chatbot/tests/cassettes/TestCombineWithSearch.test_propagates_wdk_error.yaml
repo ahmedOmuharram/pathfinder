@@ -1,0 +1,677 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - Authorization=SCRUBBED
+    method: GET
+    uri: https://vectorbase.org/vectorbase/app
+  response:
+    body:
+      string: "<!doctype html>\n<html lang=\"en\">\n  <head>\n        <title>VectorBase</title>\n
+        \   <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width,
+        initial-scale=1\"/>\n    <link href=\"/vectorbase/images/VectorBase/favicon.ico\"
+        type=\"image/x-icon\" rel=\"shortcut icon\"/>\n    <script>\n            window.__asset_path_remove_me_please__
+        = \"/vectorbase/bundles/\";\n\n            window.__SITE_CONFIG__ = {\n                requireLogin:
+        \"true\" === \"true\",\n        rootElement: \"#wdk-container\",\n        rootUrl:
+        \"/vectorbase/app\",\n        endpoint: \"/vectorbase/service\",\n        projectId:
+        \"VectorBase\",\n        webAppUrl: \"/vectorbase\",\n        facebookUrl:
+        \"https://facebook.com/pages/VectorBase/189608142260\",\n        twitterUrl:
+        \"https://twitter.com/VEuPathDB\",\n        twitterUrl2: \"https://twitter.com/VectorBase\",\n
+        \       youtubeUrl: \"https://youtube.com/user/EuPathDB/playlists\",\n        discordUrl:
+        \"\",\n        linkedinUrl: \"https://www.linkedin.com/company/veupathdb/\",\n
+        \       redditUrl: \"https://www.reddit.com/r/BRC_users/\",\n        vimeoUrl:
+        \"\",\n        blueskyUrl: \"https://veupathdb.bsky.social\",\n        communitySite:
+        \"//static-content.veupathdb.org/\",\n        siteSearchServiceUrl: \"/site-search\",\n
+        \               useEda: \"true\" === \"true\",\n        edaExampleAnalysesAuthor:
+        \"854899613,1926010\",\n        edaServiceUrl: \"/eda\",\n                edaSingleAppMode:
+        \"pass\",\n                edaEnableFullScreenApps: \"true\" === \"true\",\n
+        \                       useUserDatasetsWorkspace: \"true\" === \"false\",\n
+        \       communityDatasetsEnabled: \"true\" === \"False\",\n        showExtraMetadata:
+        \"\",\n        datasetImportUrl: \"/dataset-import\",\n        userDatasetsUploadTypes:
+        \"genelist,bigwigfiles,rnaseq\",\n                showUnreleasedData: \"true\"
+        === \"False\",\n        showSubscriptionProds: \"true\" === \"true\",\n                vdiServiceUrl:
+        \"/vdi\",\n                aiExpressionQualtricsId: \"SV_38C4ZX1JxLi2SEe\",\n
+        \             };\n    </script>\n          <script async src=\"https://www.googletagmanager.com/gtag/js?id=G-WN1ZCVHKGJ\"></script>\n
+        \     <script>\n        window.dataLayer = window.dataLayer || [];\n        function
+        gtag(){dataLayer.push(arguments);}\n        gtag('js', new Date());\n        gtag('config',
+        'G-WN1ZCVHKGJ');\n      </script>                    <script charset=\"utf8\"
+        src=\"/vectorbase/bundles/site-client.bundle-ec6518f07ec956c1b059bad82a652a2d.js\"
+        ></script>\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css\"/>\n
+        \   <link rel=\"stylesheet\" type=\"text/css\" href=\"/vectorbase/bundles/site-client.bundle-ec6518f07ec956c1b059bad82a652a2d.css\"/>\n
+        \ </head>\n    <body class=\"vpdb-Body\">\n    <div class=\"main-stack\">\n
+        \     <div id=\"wdk-container\">\n                  Loading...\n              </div>\n
+        \   </div>            <script>\n        ((window.gitter = {}).chat = {}).options
+        = {\n          room: 'VEuPathDB-genomic/community'\n        };\n        document.addEventListener(\n
+        \         'gitter-sidecar-instance-started', \n          function gitterSidecarHack()
+        {\n            const gitterBtn = document.querySelector('.gitter-open-chat-button');\n
+        \           const gitterAside = document.querySelector('.gitter-chat-embed');\n\n
+        \           // we want to hide the aside and any loading indicators when button
+        is clicked\n            gitterAside.style.display = 'none';\n            document.querySelector('.gitter-chat-embed-loading-wrapper').style.display
+        = 'none';\n\n            if (gitterBtn.baseURI.includes('embed-record')) {\n
+        \             gitterBtn.style.display = 'none';\n            }\n\n            gitterBtn.addEventListener(\n
+        \             'click', \n              function openGitterInNewTab(e) {\n
+        \               e.stopPropagation();\n                e.preventDefault();\n
+        \               window.open('https://app.gitter.im/#/room/#VEuPathDB-genomic_community:gitter.im',
+        \"VEuPathDBGitterForum\");\n              }, \n              true\n            );\n\n
+        \           gitterAside.addEventListener(\n              'gitter-chat-toggle',
+        \n              function keepGitterBtnVisible() {\n                // we want
+        the chat button to remain visible when clicked\n                gitterBtn.classList.remove('is-collapsed');\n
+        \             }\n            )\n          }\n        );\n        // Prioritize
+        loading application data over this script\n        setTimeout(2000, function
+        loadSideCar() {\n          const scriptTag = document.createElement('script');\n
+        \         scriptTag.src = 'https://cdn.jsdelivr.net/npm/gitter-sidecar@1.5.0/dist/sidecar.min.js';\n
+        \         document.head.appendChild(scriptTag);\n        });\n      </script>
+        \ </body>\n</html>\n"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/html
+      Date:
+      - Tue, 24 Mar 2026 17:32:41 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - JSESSIONID=SCRUBBED; Path=/; Secure
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4624'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["FILL"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Arthropoda","term":"Arthropoda"},"children":[{"data":{"display":"Arachnida","term":"Arachnida"},"children":[{"data":{"display":"Ixodida","term":"Ixodida"},"children":[{"data":{"display":"Dermacentor","term":"Dermacentor"},"children":[{"data":{"display":"Dermacentor
+        andersoni","term":"Dermacentor andersoni"},"children":[{"data":{"display":"Dermacentor
+        andersoni qqDerAnde1.2","term":"Dermacentor andersoni qqDerAnde1.2"},"children":[]}]},{"data":{"display":"Dermacentor
+        silvarum","term":"Dermacentor silvarum"},"children":[{"data":{"display":"Dermacentor
+        silvarum Dsil-2018","term":"Dermacentor silvarum Dsil-2018"},"children":[]}]}]},{"data":{"display":"Haemaphysalis","term":"Haemaphysalis"},"children":[{"data":{"display":"Haemaphysalis
+        longicornis HaeL-2018","term":"Haemaphysalis longicornis HaeL-2018"},"children":[]}]},{"data":{"display":"Hyalomma","term":"Hyalomma"},"children":[{"data":{"display":"Hyalomma
+        asiaticum Hyas-2018","term":"Hyalomma asiaticum Hyas-2018"},"children":[]}]},{"data":{"display":"Ixodes","term":"Ixodes"},"children":[{"data":{"display":"Ixodes
+        persulcatus","term":"Ixodes persulcatus"},"children":[{"data":{"display":"Ixodes
+        persulcatus Iper-2018","term":"Ixodes persulcatus Iper-2018"},"children":[]}]},{"data":{"display":"Ixodes
+        scapularis","term":"Ixodes scapularis"},"children":[{"data":{"display":"Ixodes
+        scapularis ISE6","term":"Ixodes scapularis ISE6"},"children":[]},{"data":{"display":"Ixodes
+        scapularis PalLabHiFi","term":"Ixodes scapularis PalLabHiFi"},"children":[]},{"data":{"display":"Ixodes
+        scapularis Wikel","term":"Ixodes scapularis Wikel"},"children":[]}]}]},{"data":{"display":"Rhipicephalus","term":"Rhipicephalus"},"children":[{"data":{"display":"Rhipicephalus
+        microplus","term":"Rhipicephalus microplus"},"children":[{"data":{"display":"Rhipicephalus
+        microplus Rmic-2018","term":"Rhipicephalus microplus Rmic-2018"},"children":[]}]},{"data":{"display":"Rhipicephalus
+        sanguineus","term":"Rhipicephalus sanguineus"},"children":[{"data":{"display":"Rhipicephalus
+        sanguineus Rsan-2018","term":"Rhipicephalus sanguineus Rsan-2018"},"children":[]}]}]}]},{"data":{"display":"Sarcoptiformes","term":"Sarcoptiformes"},"children":[{"data":{"display":"Sarcoptes
+        scabiei Arlian","term":"Sarcoptes scabiei Arlian"},"children":[]}]},{"data":{"display":"Trombidiformes","term":"Trombidiformes"},"children":[{"data":{"display":"Leptotrombidium
+        deliense UoL-UT","term":"Leptotrombidium deliense UoL-UT"},"children":[]}]}]},{"data":{"display":"Insecta","term":"Insecta"},"children":[{"data":{"display":"Diptera","term":"Diptera"},"children":[{"data":{"display":"Ceratopogonidae","term":"Ceratopogonidae"},"children":[{"data":{"display":"Culicoides
+        sonorensis PIR-s-3","term":"Culicoides sonorensis PIR-s-3"},"children":[]}]},{"data":{"display":"Culicidae","term":"Culicidae"},"children":[{"data":{"display":"Aedes","term":"Aedes"},"children":[{"data":{"display":"Aedes
+        aegypti","term":"Aedes aegypti"},"children":[{"data":{"display":"Aedes aegypti
+        LVP_AGWG","term":"Aedes aegypti LVP_AGWG"},"children":[]}]},{"data":{"display":"Aedes
+        albopictus","term":"Aedes albopictus"},"children":[{"data":{"display":"Aedes
+        albopictus C6/36 cell line","term":"Aedes albopictus C6/36 cell line"},"children":[]},{"data":{"display":"Aedes
+        albopictus Foshan","term":"Aedes albopictus Foshan"},"children":[]},{"data":{"display":"Aedes
+        albopictus Foshan FPA","term":"Aedes albopictus Foshan FPA"},"children":[]}]}]},{"data":{"display":"Anopheles","term":"Anopheles"},"children":[{"data":{"display":"Anopheles
+        albimanus","term":"Anopheles albimanus"},"children":[{"data":{"display":"Anopheles
+        albimanus STECLA","term":"Anopheles albimanus STECLA"},"children":[]},{"data":{"display":"Anopheles
+        albimanus STECLA 2020","term":"Anopheles albimanus STECLA 2020"},"children":[]}]},{"data":{"display":"Anopheles
+        aquasalis","term":"Anopheles aquasalis"},"children":[{"data":{"display":"Anopheles
+        aquasalis AaquGF1","term":"Anopheles aquasalis AaquGF1"},"children":[]}]},{"data":{"display":"Anopheles
+        atroparvus","term":"Anopheles atroparvus"},"children":[{"data":{"display":"Anopheles
+        atroparvus EBRO","term":"Anopheles atroparvus EBRO"},"children":[]}]},{"data":{"display":"Anopheles
+        bellator","term":"Anopheles bellator"},"children":[{"data":{"display":"Anopheles
+        bellator AbelBR1","term":"Anopheles bellator AbelBR1"},"children":[]}]},{"data":{"display":"Anopheles
+        christyi","term":"Anopheles christyi"},"children":[{"data":{"display":"Anopheles
+        christyi ACHKN1017","term":"Anopheles christyi ACHKN1017"},"children":[]}]},{"data":{"display":"Anopheles
+        coustani","term":"Anopheles coustani"},"children":[{"data":{"display":"Anopheles
+        coustani AcouGA1","term":"Anopheles coustani AcouGA1"},"children":[]}]},{"data":{"display":"Anopheles
+        cruzii","term":"Anopheles cruzii"},"children":[{"data":{"display":"Anopheles
+        cruzii AcruBR1","term":"Anopheles cruzii AcruBR1"},"children":[]}]},{"data":{"display":"Anopheles
+        culicifacies","term":"Anopheles culicifacies"},"children":[{"data":{"display":"Anopheles
+        culicifacies A-37","term":"Anopheles culicifacies A-37"},"children":[]}]},{"data":{"display":"Anopheles
+        darlingi","term":"Anopheles darlingi"},"children":[{"data":{"display":"Anopheles
+        darlingi AdarGF1","term":"Anopheles darlingi AdarGF1"},"children":[]},{"data":{"display":"Anopheles
+        darlingi Coari","term":"Anopheles darlingi Coari"},"children":[]}]},{"data":{"display":"Anopheles
+        dirus","term":"Anopheles dirus"},"children":[{"data":{"display":"Anopheles
+        dirus WRAIR2","term":"Anopheles dirus WRAIR2"},"children":[]}]},{"data":{"display":"Anopheles
+        epiroticus","term":"Anopheles epiroticus"},"children":[{"data":{"display":"Anopheles
+        epiroticus Epiroticus2","term":"Anopheles epiroticus Epiroticus2"},"children":[]}]},{"data":{"display":"Anopheles
+        farauti","term":"Anopheles farauti"},"children":[{"data":{"display":"Anopheles
+        farauti FAR1","term":"Anopheles farauti FAR1"},"children":[]}]},{"data":{"display":"Anopheles
+        funestus","term":"Anopheles funestus"},"children":[{"data":{"display":"Anopheles
+        funestus AfunGA1","term":"Anopheles funestus AfunGA1"},"children":[]},{"data":{"display":"Anopheles
+        funestus FUMOZ","term":"Anopheles funestus FUMOZ"},"children":[]}]},{"data":{"display":"Anopheles
+        maculatus","term":"Anopheles maculatus"},"children":[{"data":{"display":"Anopheles
+        maculatus maculatus3","term":"Anopheles maculatus maculatus3"},"children":[]}]},{"data":{"display":"Anopheles
+        maculipalpis","term":"Anopheles maculipalpis"},"children":[{"data":{"display":"Anopheles
+        maculipalpis AmacGA1","term":"Anopheles maculipalpis AmacGA1"},"children":[]}]},{"data":{"display":"Anopheles
+        marshallii","term":"Anopheles marshallii"},"children":[{"data":{"display":"Anopheles
+        marshallii AmarGA1","term":"Anopheles marshallii AmarGA1"},"children":[]}]},{"data":{"display":"Anopheles
+        minimus","term":"Anopheles minimus"},"children":[{"data":{"display":"Anopheles
+        minimus MINIMUS1","term":"Anopheles minimus MINIMUS1"},"children":[]}]},{"data":{"display":"Anopheles
+        moucheti","term":"Anopheles moucheti"},"children":[{"data":{"display":"Anopheles
+        moucheti AmouCM1","term":"Anopheles moucheti AmouCM1"},"children":[]}]},{"data":{"display":"Anopheles
+        nili","term":"Anopheles nili"},"children":[{"data":{"display":"Anopheles nili
+        AnilCM1","term":"Anopheles nili AnilCM1"},"children":[]}]},{"data":{"display":"Anopheles
+        sinensis","term":"Anopheles sinensis"},"children":[{"data":{"display":"Anopheles
+        sinensis China","term":"Anopheles sinensis China"},"children":[]},{"data":{"display":"Anopheles
+        sinensis SINENSIS","term":"Anopheles sinensis SINENSIS"},"children":[]}]},{"data":{"display":"Anopheles
+        stephensi","term":"Anopheles stephensi"},"children":[{"data":{"display":"Anopheles
+        stephensi Indian","term":"Anopheles stephensi Indian"},"children":[]},{"data":{"display":"Anopheles
+        stephensi SDA-500","term":"Anopheles stephensi SDA-500"},"children":[]},{"data":{"display":"Anopheles
+        stephensi UCISS2018","term":"Anopheles stephensi UCISS2018"},"children":[]}]},{"data":{"display":"Anopheles
+        ziemanni","term":"Anopheles ziemanni"},"children":[{"data":{"display":"Anopheles
+        ziemanni AzieGA1","term":"Anopheles ziemanni AzieGA1"},"children":[]}]},{"data":{"display":"gambiae
+        species complex","term":"gambiae species complex"},"children":[{"data":{"display":"Anopheles
+        arabiensis","term":"Anopheles arabiensis"},"children":[{"data":{"display":"Anopheles
+        arabiensis DONGOLA 2021","term":"Anopheles arabiensis DONGOLA 2021"},"children":[]},{"data":{"display":"Anopheles
+        arabiensis Dongola","term":"Anopheles arabiensis Dongola"},"children":[]}]},{"data":{"display":"Anopheles
+        coluzzii","term":"Anopheles coluzzii"},"children":[{"data":{"display":"Anopheles
+        coluzzii AcolN3","term":"Anopheles coluzzii AcolN3"},"children":[]},{"data":{"display":"Anopheles
+        coluzzii MOPTI","term":"Anopheles coluzzii MOPTI"},"children":[]},{"data":{"display":"Anopheles
+        coluzzii Mali-NIH","term":"Anopheles coluzzii Mali-NIH"},"children":[]},{"data":{"display":"Anopheles
+        coluzzii Ngousso","term":"Anopheles coluzzii Ngousso"},"children":[]}]},{"data":{"display":"Anopheles
+        gambiae","term":"Anopheles gambiae"},"children":[{"data":{"display":"Anopheles
+        gambiae Ifakara","term":"Anopheles gambiae Ifakara"},"children":[]},{"data":{"display":"Anopheles
+        gambiae PEST","term":"Anopheles gambiae PEST"},"children":[]}]},{"data":{"display":"Anopheles
+        melas","term":"Anopheles melas"},"children":[{"data":{"display":"Anopheles
+        melas CM1001059_A","term":"Anopheles melas CM1001059_A"},"children":[]}]},{"data":{"display":"Anopheles
+        merus","term":"Anopheles merus"},"children":[{"data":{"display":"Anopheles
+        merus MAF","term":"Anopheles merus MAF"},"children":[]},{"data":{"display":"Anopheles
+        merus MAF 2021","term":"Anopheles merus MAF 2021"},"children":[]}]},{"data":{"display":"Anopheles
+        quadriannulatus","term":"Anopheles quadriannulatus"},"children":[{"data":{"display":"Anopheles
+        quadriannulatus SANGWE","term":"Anopheles quadriannulatus SANGWE"},"children":[]}]}]}]},{"data":{"display":"Culex","term":"Culex"},"children":[{"data":{"display":"Culex
+        quinquefasciatus JHB 2020","term":"Culex quinquefasciatus JHB 2020"},"children":[]},{"data":{"display":"Culex
+        quinquefasciatus Johannesburg","term":"Culex quinquefasciatus Johannesburg"},"children":[]}]},{"data":{"display":"Sabethes","term":"Sabethes"},"children":[{"data":{"display":"Sabethes
+        cyaneus ScyaPA1","term":"Sabethes cyaneus ScyaPA1"},"children":[]}]}]},{"data":{"display":"Drosophilidae","term":"Drosophilidae"},"children":[{"data":{"display":"Drosophila
+        melanogaster iso-1","term":"Drosophila melanogaster iso-1"},"children":[]}]},{"data":{"display":"Glossinidae","term":"Glossinidae"},"children":[{"data":{"display":"Glossina
+        austeni","term":"Glossina austeni"},"children":[{"data":{"display":"Glossina
+        austeni TTRI","term":"Glossina austeni TTRI"},"children":[]}]},{"data":{"display":"Glossina
+        brevipalpis","term":"Glossina brevipalpis"},"children":[{"data":{"display":"Glossina
+        brevipalpis IAEA","term":"Glossina brevipalpis IAEA"},"children":[]}]},{"data":{"display":"Glossina
+        fuscipes","term":"Glossina fuscipes"},"children":[{"data":{"display":"Glossina
+        fuscipes IAEA","term":"Glossina fuscipes IAEA"},"children":[]},{"data":{"display":"Glossina
+        fuscipes IAEA 2018","term":"Glossina fuscipes IAEA 2018"},"children":[]}]},{"data":{"display":"Glossina
+        morsitans","term":"Glossina morsitans"},"children":[{"data":{"display":"Glossina
+        morsitans Yale","term":"Glossina morsitans Yale"},"children":[]}]},{"data":{"display":"Glossina
+        pallidipes","term":"Glossina pallidipes"},"children":[{"data":{"display":"Glossina
+        pallidipes IAEA","term":"Glossina pallidipes IAEA"},"children":[]}]},{"data":{"display":"Glossina
+        palpalis","term":"Glossina palpalis"},"children":[{"data":{"display":"Glossina
+        palpalis IAEA","term":"Glossina palpalis IAEA"},"children":[]}]}]},{"data":{"display":"Muscidae","term":"Muscidae"},"children":[{"data":{"display":"Musca","term":"Musca"},"children":[{"data":{"display":"Musca
+        domestica aabys","term":"Musca domestica aabys"},"children":[]},{"data":{"display":"Musca
+        domestica aabys 2023","term":"Musca domestica aabys 2023"},"children":[]}]},{"data":{"display":"Stomoxys","term":"Stomoxys"},"children":[{"data":{"display":"Stomoxys
+        calcitrans USDA","term":"Stomoxys calcitrans USDA"},"children":[]}]}]},{"data":{"display":"Psychodidae","term":"Psychodidae"},"children":[{"data":{"display":"Lutzomyia","term":"Lutzomyia"},"children":[{"data":{"display":"Lutzomyia
+        longipalpis Jacobina","term":"Lutzomyia longipalpis Jacobina"},"children":[]},{"data":{"display":"Lutzomyia
+        longipalpis M1","term":"Lutzomyia longipalpis M1"},"children":[]}]},{"data":{"display":"Phlebotomus","term":"Phlebotomus"},"children":[{"data":{"display":"Phlebotomus
+        argentipes","term":"Phlebotomus argentipes"},"children":[{"data":{"display":"Phlebotomus
+        argentipes India","term":"Phlebotomus argentipes India"},"children":[]}]},{"data":{"display":"Phlebotomus
+        papatasi","term":"Phlebotomus papatasi"},"children":[{"data":{"display":"Phlebotomus
+        papatasi Israel","term":"Phlebotomus papatasi Israel"},"children":[]},{"data":{"display":"Phlebotomus
+        papatasi M1","term":"Phlebotomus papatasi M1"},"children":[]}]}]}]}]},{"data":{"display":"Hemiptera","term":"Hemiptera"},"children":[{"data":{"display":"Cimicidae","term":"Cimicidae"},"children":[{"data":{"display":"Cimex
+        lectularius Harlan","term":"Cimex lectularius Harlan"},"children":[]}]},{"data":{"display":"Reduviidae","term":"Reduviidae"},"children":[{"data":{"display":"Rhodnius
+        prolixus CDC","term":"Rhodnius prolixus CDC"},"children":[]}]}]},{"data":{"display":"Phthiraptera","term":"Phthiraptera"},"children":[{"data":{"display":"Pediculus
+        humanus USDA","term":"Pediculus humanus USDA"},"children":[]}]}]}]},{"data":{"display":"Mollusca","term":"Mollusca"},"children":[{"data":{"display":"Biomphalaria
+        glabrata BB02","term":"Biomphalaria glabrata BB02"},"children":[]},{"data":{"display":"Biomphalaria
+        glabrata XG47","term":"Biomphalaria glabrata XG47"},"children":[]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["FILL"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["FILL"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:32:41 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '16859'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["FILL"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Arthropoda","term":"Arthropoda"},"children":[{"data":{"display":"Arachnida","term":"Arachnida"},"children":[{"data":{"display":"Ixodida","term":"Ixodida"},"children":[{"data":{"display":"Dermacentor","term":"Dermacentor"},"children":[{"data":{"display":"Dermacentor
+        andersoni","term":"Dermacentor andersoni"},"children":[{"data":{"display":"Dermacentor
+        andersoni qqDerAnde1.2","term":"Dermacentor andersoni qqDerAnde1.2"},"children":[]}]},{"data":{"display":"Dermacentor
+        silvarum","term":"Dermacentor silvarum"},"children":[{"data":{"display":"Dermacentor
+        silvarum Dsil-2018","term":"Dermacentor silvarum Dsil-2018"},"children":[]}]}]},{"data":{"display":"Haemaphysalis","term":"Haemaphysalis"},"children":[{"data":{"display":"Haemaphysalis
+        longicornis HaeL-2018","term":"Haemaphysalis longicornis HaeL-2018"},"children":[]}]},{"data":{"display":"Hyalomma","term":"Hyalomma"},"children":[{"data":{"display":"Hyalomma
+        asiaticum Hyas-2018","term":"Hyalomma asiaticum Hyas-2018"},"children":[]}]},{"data":{"display":"Ixodes","term":"Ixodes"},"children":[{"data":{"display":"Ixodes
+        persulcatus","term":"Ixodes persulcatus"},"children":[{"data":{"display":"Ixodes
+        persulcatus Iper-2018","term":"Ixodes persulcatus Iper-2018"},"children":[]}]},{"data":{"display":"Ixodes
+        scapularis","term":"Ixodes scapularis"},"children":[{"data":{"display":"Ixodes
+        scapularis ISE6","term":"Ixodes scapularis ISE6"},"children":[]},{"data":{"display":"Ixodes
+        scapularis PalLabHiFi","term":"Ixodes scapularis PalLabHiFi"},"children":[]},{"data":{"display":"Ixodes
+        scapularis Wikel","term":"Ixodes scapularis Wikel"},"children":[]}]}]},{"data":{"display":"Rhipicephalus","term":"Rhipicephalus"},"children":[{"data":{"display":"Rhipicephalus
+        microplus","term":"Rhipicephalus microplus"},"children":[{"data":{"display":"Rhipicephalus
+        microplus Rmic-2018","term":"Rhipicephalus microplus Rmic-2018"},"children":[]}]},{"data":{"display":"Rhipicephalus
+        sanguineus","term":"Rhipicephalus sanguineus"},"children":[{"data":{"display":"Rhipicephalus
+        sanguineus Rsan-2018","term":"Rhipicephalus sanguineus Rsan-2018"},"children":[]}]}]}]},{"data":{"display":"Sarcoptiformes","term":"Sarcoptiformes"},"children":[{"data":{"display":"Sarcoptes
+        scabiei Arlian","term":"Sarcoptes scabiei Arlian"},"children":[]}]},{"data":{"display":"Trombidiformes","term":"Trombidiformes"},"children":[{"data":{"display":"Leptotrombidium
+        deliense UoL-UT","term":"Leptotrombidium deliense UoL-UT"},"children":[]}]}]},{"data":{"display":"Insecta","term":"Insecta"},"children":[{"data":{"display":"Diptera","term":"Diptera"},"children":[{"data":{"display":"Ceratopogonidae","term":"Ceratopogonidae"},"children":[{"data":{"display":"Culicoides
+        sonorensis PIR-s-3","term":"Culicoides sonorensis PIR-s-3"},"children":[]}]},{"data":{"display":"Culicidae","term":"Culicidae"},"children":[{"data":{"display":"Aedes","term":"Aedes"},"children":[{"data":{"display":"Aedes
+        aegypti","term":"Aedes aegypti"},"children":[{"data":{"display":"Aedes aegypti
+        LVP_AGWG","term":"Aedes aegypti LVP_AGWG"},"children":[]}]},{"data":{"display":"Aedes
+        albopictus","term":"Aedes albopictus"},"children":[{"data":{"display":"Aedes
+        albopictus C6/36 cell line","term":"Aedes albopictus C6/36 cell line"},"children":[]},{"data":{"display":"Aedes
+        albopictus Foshan","term":"Aedes albopictus Foshan"},"children":[]},{"data":{"display":"Aedes
+        albopictus Foshan FPA","term":"Aedes albopictus Foshan FPA"},"children":[]}]}]},{"data":{"display":"Anopheles","term":"Anopheles"},"children":[{"data":{"display":"Anopheles
+        albimanus","term":"Anopheles albimanus"},"children":[{"data":{"display":"Anopheles
+        albimanus STECLA","term":"Anopheles albimanus STECLA"},"children":[]},{"data":{"display":"Anopheles
+        albimanus STECLA 2020","term":"Anopheles albimanus STECLA 2020"},"children":[]}]},{"data":{"display":"Anopheles
+        aquasalis","term":"Anopheles aquasalis"},"children":[{"data":{"display":"Anopheles
+        aquasalis AaquGF1","term":"Anopheles aquasalis AaquGF1"},"children":[]}]},{"data":{"display":"Anopheles
+        atroparvus","term":"Anopheles atroparvus"},"children":[{"data":{"display":"Anopheles
+        atroparvus EBRO","term":"Anopheles atroparvus EBRO"},"children":[]}]},{"data":{"display":"Anopheles
+        bellator","term":"Anopheles bellator"},"children":[{"data":{"display":"Anopheles
+        bellator AbelBR1","term":"Anopheles bellator AbelBR1"},"children":[]}]},{"data":{"display":"Anopheles
+        christyi","term":"Anopheles christyi"},"children":[{"data":{"display":"Anopheles
+        christyi ACHKN1017","term":"Anopheles christyi ACHKN1017"},"children":[]}]},{"data":{"display":"Anopheles
+        coustani","term":"Anopheles coustani"},"children":[{"data":{"display":"Anopheles
+        coustani AcouGA1","term":"Anopheles coustani AcouGA1"},"children":[]}]},{"data":{"display":"Anopheles
+        cruzii","term":"Anopheles cruzii"},"children":[{"data":{"display":"Anopheles
+        cruzii AcruBR1","term":"Anopheles cruzii AcruBR1"},"children":[]}]},{"data":{"display":"Anopheles
+        culicifacies","term":"Anopheles culicifacies"},"children":[{"data":{"display":"Anopheles
+        culicifacies A-37","term":"Anopheles culicifacies A-37"},"children":[]}]},{"data":{"display":"Anopheles
+        darlingi","term":"Anopheles darlingi"},"children":[{"data":{"display":"Anopheles
+        darlingi AdarGF1","term":"Anopheles darlingi AdarGF1"},"children":[]},{"data":{"display":"Anopheles
+        darlingi Coari","term":"Anopheles darlingi Coari"},"children":[]}]},{"data":{"display":"Anopheles
+        dirus","term":"Anopheles dirus"},"children":[{"data":{"display":"Anopheles
+        dirus WRAIR2","term":"Anopheles dirus WRAIR2"},"children":[]}]},{"data":{"display":"Anopheles
+        epiroticus","term":"Anopheles epiroticus"},"children":[{"data":{"display":"Anopheles
+        epiroticus Epiroticus2","term":"Anopheles epiroticus Epiroticus2"},"children":[]}]},{"data":{"display":"Anopheles
+        farauti","term":"Anopheles farauti"},"children":[{"data":{"display":"Anopheles
+        farauti FAR1","term":"Anopheles farauti FAR1"},"children":[]}]},{"data":{"display":"Anopheles
+        funestus","term":"Anopheles funestus"},"children":[{"data":{"display":"Anopheles
+        funestus AfunGA1","term":"Anopheles funestus AfunGA1"},"children":[]},{"data":{"display":"Anopheles
+        funestus FUMOZ","term":"Anopheles funestus FUMOZ"},"children":[]}]},{"data":{"display":"Anopheles
+        maculatus","term":"Anopheles maculatus"},"children":[{"data":{"display":"Anopheles
+        maculatus maculatus3","term":"Anopheles maculatus maculatus3"},"children":[]}]},{"data":{"display":"Anopheles
+        maculipalpis","term":"Anopheles maculipalpis"},"children":[{"data":{"display":"Anopheles
+        maculipalpis AmacGA1","term":"Anopheles maculipalpis AmacGA1"},"children":[]}]},{"data":{"display":"Anopheles
+        marshallii","term":"Anopheles marshallii"},"children":[{"data":{"display":"Anopheles
+        marshallii AmarGA1","term":"Anopheles marshallii AmarGA1"},"children":[]}]},{"data":{"display":"Anopheles
+        minimus","term":"Anopheles minimus"},"children":[{"data":{"display":"Anopheles
+        minimus MINIMUS1","term":"Anopheles minimus MINIMUS1"},"children":[]}]},{"data":{"display":"Anopheles
+        moucheti","term":"Anopheles moucheti"},"children":[{"data":{"display":"Anopheles
+        moucheti AmouCM1","term":"Anopheles moucheti AmouCM1"},"children":[]}]},{"data":{"display":"Anopheles
+        nili","term":"Anopheles nili"},"children":[{"data":{"display":"Anopheles nili
+        AnilCM1","term":"Anopheles nili AnilCM1"},"children":[]}]},{"data":{"display":"Anopheles
+        sinensis","term":"Anopheles sinensis"},"children":[{"data":{"display":"Anopheles
+        sinensis China","term":"Anopheles sinensis China"},"children":[]},{"data":{"display":"Anopheles
+        sinensis SINENSIS","term":"Anopheles sinensis SINENSIS"},"children":[]}]},{"data":{"display":"Anopheles
+        stephensi","term":"Anopheles stephensi"},"children":[{"data":{"display":"Anopheles
+        stephensi Indian","term":"Anopheles stephensi Indian"},"children":[]},{"data":{"display":"Anopheles
+        stephensi SDA-500","term":"Anopheles stephensi SDA-500"},"children":[]},{"data":{"display":"Anopheles
+        stephensi UCISS2018","term":"Anopheles stephensi UCISS2018"},"children":[]}]},{"data":{"display":"Anopheles
+        ziemanni","term":"Anopheles ziemanni"},"children":[{"data":{"display":"Anopheles
+        ziemanni AzieGA1","term":"Anopheles ziemanni AzieGA1"},"children":[]}]},{"data":{"display":"gambiae
+        species complex","term":"gambiae species complex"},"children":[{"data":{"display":"Anopheles
+        arabiensis","term":"Anopheles arabiensis"},"children":[{"data":{"display":"Anopheles
+        arabiensis DONGOLA 2021","term":"Anopheles arabiensis DONGOLA 2021"},"children":[]},{"data":{"display":"Anopheles
+        arabiensis Dongola","term":"Anopheles arabiensis Dongola"},"children":[]}]},{"data":{"display":"Anopheles
+        coluzzii","term":"Anopheles coluzzii"},"children":[{"data":{"display":"Anopheles
+        coluzzii AcolN3","term":"Anopheles coluzzii AcolN3"},"children":[]},{"data":{"display":"Anopheles
+        coluzzii MOPTI","term":"Anopheles coluzzii MOPTI"},"children":[]},{"data":{"display":"Anopheles
+        coluzzii Mali-NIH","term":"Anopheles coluzzii Mali-NIH"},"children":[]},{"data":{"display":"Anopheles
+        coluzzii Ngousso","term":"Anopheles coluzzii Ngousso"},"children":[]}]},{"data":{"display":"Anopheles
+        gambiae","term":"Anopheles gambiae"},"children":[{"data":{"display":"Anopheles
+        gambiae Ifakara","term":"Anopheles gambiae Ifakara"},"children":[]},{"data":{"display":"Anopheles
+        gambiae PEST","term":"Anopheles gambiae PEST"},"children":[]}]},{"data":{"display":"Anopheles
+        melas","term":"Anopheles melas"},"children":[{"data":{"display":"Anopheles
+        melas CM1001059_A","term":"Anopheles melas CM1001059_A"},"children":[]}]},{"data":{"display":"Anopheles
+        merus","term":"Anopheles merus"},"children":[{"data":{"display":"Anopheles
+        merus MAF","term":"Anopheles merus MAF"},"children":[]},{"data":{"display":"Anopheles
+        merus MAF 2021","term":"Anopheles merus MAF 2021"},"children":[]}]},{"data":{"display":"Anopheles
+        quadriannulatus","term":"Anopheles quadriannulatus"},"children":[{"data":{"display":"Anopheles
+        quadriannulatus SANGWE","term":"Anopheles quadriannulatus SANGWE"},"children":[]}]}]}]},{"data":{"display":"Culex","term":"Culex"},"children":[{"data":{"display":"Culex
+        quinquefasciatus JHB 2020","term":"Culex quinquefasciatus JHB 2020"},"children":[]},{"data":{"display":"Culex
+        quinquefasciatus Johannesburg","term":"Culex quinquefasciatus Johannesburg"},"children":[]}]},{"data":{"display":"Sabethes","term":"Sabethes"},"children":[{"data":{"display":"Sabethes
+        cyaneus ScyaPA1","term":"Sabethes cyaneus ScyaPA1"},"children":[]}]}]},{"data":{"display":"Drosophilidae","term":"Drosophilidae"},"children":[{"data":{"display":"Drosophila
+        melanogaster iso-1","term":"Drosophila melanogaster iso-1"},"children":[]}]},{"data":{"display":"Glossinidae","term":"Glossinidae"},"children":[{"data":{"display":"Glossina
+        austeni","term":"Glossina austeni"},"children":[{"data":{"display":"Glossina
+        austeni TTRI","term":"Glossina austeni TTRI"},"children":[]}]},{"data":{"display":"Glossina
+        brevipalpis","term":"Glossina brevipalpis"},"children":[{"data":{"display":"Glossina
+        brevipalpis IAEA","term":"Glossina brevipalpis IAEA"},"children":[]}]},{"data":{"display":"Glossina
+        fuscipes","term":"Glossina fuscipes"},"children":[{"data":{"display":"Glossina
+        fuscipes IAEA","term":"Glossina fuscipes IAEA"},"children":[]},{"data":{"display":"Glossina
+        fuscipes IAEA 2018","term":"Glossina fuscipes IAEA 2018"},"children":[]}]},{"data":{"display":"Glossina
+        morsitans","term":"Glossina morsitans"},"children":[{"data":{"display":"Glossina
+        morsitans Yale","term":"Glossina morsitans Yale"},"children":[]}]},{"data":{"display":"Glossina
+        pallidipes","term":"Glossina pallidipes"},"children":[{"data":{"display":"Glossina
+        pallidipes IAEA","term":"Glossina pallidipes IAEA"},"children":[]}]},{"data":{"display":"Glossina
+        palpalis","term":"Glossina palpalis"},"children":[{"data":{"display":"Glossina
+        palpalis IAEA","term":"Glossina palpalis IAEA"},"children":[]}]}]},{"data":{"display":"Muscidae","term":"Muscidae"},"children":[{"data":{"display":"Musca","term":"Musca"},"children":[{"data":{"display":"Musca
+        domestica aabys","term":"Musca domestica aabys"},"children":[]},{"data":{"display":"Musca
+        domestica aabys 2023","term":"Musca domestica aabys 2023"},"children":[]}]},{"data":{"display":"Stomoxys","term":"Stomoxys"},"children":[{"data":{"display":"Stomoxys
+        calcitrans USDA","term":"Stomoxys calcitrans USDA"},"children":[]}]}]},{"data":{"display":"Psychodidae","term":"Psychodidae"},"children":[{"data":{"display":"Lutzomyia","term":"Lutzomyia"},"children":[{"data":{"display":"Lutzomyia
+        longipalpis Jacobina","term":"Lutzomyia longipalpis Jacobina"},"children":[]},{"data":{"display":"Lutzomyia
+        longipalpis M1","term":"Lutzomyia longipalpis M1"},"children":[]}]},{"data":{"display":"Phlebotomus","term":"Phlebotomus"},"children":[{"data":{"display":"Phlebotomus
+        argentipes","term":"Phlebotomus argentipes"},"children":[{"data":{"display":"Phlebotomus
+        argentipes India","term":"Phlebotomus argentipes India"},"children":[]}]},{"data":{"display":"Phlebotomus
+        papatasi","term":"Phlebotomus papatasi"},"children":[{"data":{"display":"Phlebotomus
+        papatasi Israel","term":"Phlebotomus papatasi Israel"},"children":[]},{"data":{"display":"Phlebotomus
+        papatasi M1","term":"Phlebotomus papatasi M1"},"children":[]}]}]}]}]},{"data":{"display":"Hemiptera","term":"Hemiptera"},"children":[{"data":{"display":"Cimicidae","term":"Cimicidae"},"children":[{"data":{"display":"Cimex
+        lectularius Harlan","term":"Cimex lectularius Harlan"},"children":[]}]},{"data":{"display":"Reduviidae","term":"Reduviidae"},"children":[{"data":{"display":"Rhodnius
+        prolixus CDC","term":"Rhodnius prolixus CDC"},"children":[]}]}]},{"data":{"display":"Phthiraptera","term":"Phthiraptera"},"children":[{"data":{"display":"Pediculus
+        humanus USDA","term":"Pediculus humanus USDA"},"children":[]}]}]}]},{"data":{"display":"Mollusca","term":"Mollusca"},"children":[{"data":{"display":"Biomphalaria
+        glabrata BB02","term":"Biomphalaria glabrata BB02"},"children":[]},{"data":{"display":"Biomphalaria
+        glabrata XG47","term":"Biomphalaria glabrata XG47"},"children":[]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["FILL"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["FILL"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:32:42 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '16859'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/users/current
+  response:
+    body:
+      string: '{"isGuest":false,"id":1214413863,"email":"ahmed.o.muharram@gmail.com","properties":{"organizationType":"academic","firstName":"PathFinder","lastName":"Test
+        User","country":"US","groupName":"Chris Callison-Burch Lab","groupType":"research","subscriptionToken":"","organization":"University
+        of Pennsylvania","middleName":"","position":"grad_student","interests":"","username":"pathfinder-dev-testing"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:32:42 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '400'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchName":"GenesByTaxon","searchConfig":{"parameters":{"organism":"[\"Dermacentor
+      andersoni qqDerAnde1.2\"]"}},"customName":"Base step for refine test"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '156'
+      Content-Type:
+      - application/json
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://vectorbase.org/vectorbase/service/users/1214413863/steps
+  response:
+    body:
+      string: '{"id":438849013}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:32:42 GMT
+      Location:
+      - https://vectorbase.org/vectorbase/service/users/1214413863/steps
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"test-refine-base","isPublic":false,"isSaved":false,"stepTree":{"stepId":438849013}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '92'
+      Content-Type:
+      - application/json
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://vectorbase.org/vectorbase/service/users/1214413863/strategies
+  response:
+    body:
+      string: '{"id":330129093}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:32:42 GMT
+      Location:
+      - https://vectorbase.org/vectorbase/service/users/1214413863/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/record-types/transcript/searches/NonExistentSearchThatWDKRejects?expandParams=true
+  response:
+    body:
+      string: 'Resource ''search: NonExistentSearchThatWDKRejects'' does not exist.'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/plain
+      Date:
+      - Tue, 24 Mar 2026 17:32:42 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '66'
+    status:
+      code: 404
+      message: Not Found
+- request:
+    body: '{"searchName":"NonExistentSearchThatWDKRejects","searchConfig":{},"customName":"Refinement:
+      NonExistentSearchThatWDKRejects"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '125'
+      Content-Type:
+      - application/json
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://vectorbase.org/vectorbase/service/users/1214413863/steps
+  response:
+    body:
+      string: '{"level":"UNSPECIFIED","isValid":false,"errors":{"general":["NonExistentSearchThatWDKRejects
+        is not a valid search name."],"byKey":{}}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '135'
+      Content-Type:
+      - text/plain
+      Date:
+      - Tue, 24 Mar 2026 17:32:43 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 422
+      message: Unprocessable Entity
+version: 1

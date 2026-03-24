@@ -5,11 +5,12 @@ from collections.abc import MutableSequence
 
 import pytest
 
+from veupath_chatbot.ai.orchestration.delegation import CompiledNode, CompiledTask
+from veupath_chatbot.ai.orchestration.results import NodeResult, TaskResult
 from veupath_chatbot.ai.orchestration.scheduler import (
     partition_task_results,
     run_nodes_with_dependencies,
 )
-from veupath_chatbot.platform.types import JSONObject
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -21,28 +22,44 @@ def _no_context(**_kwargs: object) -> None:
     return
 
 
+def _make_task(
+    node_id: str,
+    *,
+    depends_on: tuple[str, ...] = (),
+    task: str = "test task",
+) -> CompiledTask:
+    """Build a CompiledTask node for tests."""
+    return CompiledTask(
+        id=node_id,
+        task=task,
+        instructions="",
+        context=None,
+        depends_on=depends_on,
+    )
+
+
 def _make_run_node(
     order: MutableSequence[str] | None = None,
     delay: float = 0.0,
-    results: dict[str, JSONObject] | None = None,
+    results: dict[str, NodeResult] | None = None,
 ):
     """Build an async *run_node* callback.
 
     *order* — append node_id on each call so tests can assert execution order.
     *delay* — optional asyncio.sleep for concurrency tests.
-    *results* — per-node result overrides; defaults to ``{"ok": True}``.
+    *results* — per-node result overrides; defaults to a success TaskResult.
     """
 
     async def run_node(
-        node_id: str, node: JSONObject, dep_context: str | None
-    ) -> JSONObject:
+        node_id: str, node: CompiledNode, dep_context: str | None
+    ) -> NodeResult:
         if order is not None:
             order.append(node_id)
         if delay:
             await asyncio.sleep(delay)
         if results and node_id in results:
             return results[node_id]
-        return {"ok": True, "node_id": node_id}
+        return TaskResult(id=node_id, task="ok")
 
     return run_node
 
@@ -59,9 +76,9 @@ class TestDependencyOrdering:
     async def test_linear_chain_a_then_b(self) -> None:
         """A has no deps, B depends on A. A must run first."""
         order: list[str] = []
-        nodes: dict[str, JSONObject] = {
-            "A": {"task": "first"},
-            "B": {"task": "second", "depends_on": ["A"]},
+        nodes: dict[str, CompiledNode] = {
+            "A": _make_task("A"),
+            "B": _make_task("B", depends_on=("A",)),
         }
         dependents = {"A": ["B"]}
 
@@ -82,11 +99,11 @@ class TestDependencyOrdering:
     async def test_diamond_dependency(self) -> None:
         """Diamond: A -> B, A -> C, B+C -> D. D runs only after B and C."""
         order: list[str] = []
-        nodes: dict[str, JSONObject] = {
-            "A": {"task": "root"},
-            "B": {"task": "left", "depends_on": ["A"]},
-            "C": {"task": "right", "depends_on": ["A"]},
-            "D": {"task": "sink", "depends_on": ["B", "C"]},
+        nodes: dict[str, CompiledNode] = {
+            "A": _make_task("A"),
+            "B": _make_task("B", depends_on=("A",)),
+            "C": _make_task("C", depends_on=("A",)),
+            "D": _make_task("D", depends_on=("B", "C")),
         }
         dependents = {"A": ["B", "C"], "B": ["D"], "C": ["D"]}
 
@@ -110,10 +127,10 @@ class TestDependencyOrdering:
     async def test_no_deps_all_run(self) -> None:
         """Nodes with no dependencies all get scheduled."""
         order: list[str] = []
-        nodes: dict[str, JSONObject] = {
-            "X": {"task": "x"},
-            "Y": {"task": "y"},
-            "Z": {"task": "z"},
+        nodes: dict[str, CompiledNode] = {
+            "X": _make_task("X"),
+            "Y": _make_task("Y"),
+            "Z": _make_task("Z"),
         }
         dependents: dict[str, list[str]] = {}
 
@@ -148,20 +165,20 @@ class TestConcurrencyLimiting:
         order: list[str] = []
 
         async def run_node(
-            node_id: str, node: JSONObject, dep_context: str | None
-        ) -> JSONObject:
+            node_id: str, node: CompiledNode, dep_context: str | None
+        ) -> NodeResult:
             nonlocal active, peak_concurrent
             active += 1
             peak_concurrent = max(peak_concurrent, active)
             order.append(node_id)
             await asyncio.sleep(0.02)
             active -= 1
-            return {"ok": True, "node_id": node_id}
+            return TaskResult(id=node_id, task="ok")
 
-        nodes: dict[str, JSONObject] = {
-            "A": {"task": "a"},
-            "B": {"task": "b"},
-            "C": {"task": "c"},
+        nodes: dict[str, CompiledNode] = {
+            "A": _make_task("A"),
+            "B": _make_task("B"),
+            "C": _make_task("C"),
         }
         dependents: dict[str, list[str]] = {}
 
@@ -183,20 +200,20 @@ class TestConcurrencyLimiting:
         all_started = asyncio.Event()
 
         async def run_node(
-            node_id: str, node: JSONObject, dep_context: str | None
-        ) -> JSONObject:
+            node_id: str, node: CompiledNode, dep_context: str | None
+        ) -> NodeResult:
             nonlocal started_count
             started_count += 1
             if started_count >= 3:
                 all_started.set()
             # Wait until all three have started — proves concurrent start
             await asyncio.wait_for(all_started.wait(), timeout=2.0)
-            return {"ok": True, "node_id": node_id}
+            return TaskResult(id=node_id, task="ok")
 
-        nodes: dict[str, JSONObject] = {
-            "A": {"task": "a"},
-            "B": {"task": "b"},
-            "C": {"task": "c"},
+        nodes: dict[str, CompiledNode] = {
+            "A": _make_task("A"),
+            "B": _make_task("B"),
+            "C": _make_task("C"),
         }
         dependents: dict[str, list[str]] = {}
 
@@ -218,15 +235,15 @@ class TestConcurrencyLimiting:
 
 
 class TestCircularDependency:
-    """Circular deps must be detected and produce CIRCULAR_DEPENDENCY errors."""
+    """Circular deps must be detected and produce unscheduled nodes."""
 
     @pytest.mark.asyncio
     async def test_mutual_circular_dependency(self) -> None:
-        """A depends on B, B depends on A. Both should get CIRCULAR_DEPENDENCY error."""
+        """A depends on B, B depends on A. Neither should be scheduled."""
         order: list[str] = []
-        nodes: dict[str, JSONObject] = {
-            "A": {"task": "a", "depends_on": ["B"]},
-            "B": {"task": "b", "depends_on": ["A"]},
+        nodes: dict[str, CompiledNode] = {
+            "A": _make_task("A", depends_on=("B",)),
+            "B": _make_task("B", depends_on=("A",)),
         }
         # Both are children of each other
         dependents = {"A": ["B"], "B": ["A"]}
@@ -241,20 +258,15 @@ class TestCircularDependency:
 
         # Neither node should have been scheduled
         assert order == []
-        # Both should get error results
-        assert len(results) == 2
-        error_codes = set()
-        for r in results:
-            assert isinstance(r, dict)
-            error_codes.add(r.get("code"))
-        assert error_codes == {"CIRCULAR_DEPENDENCY"}
+        # No results collected because no nodes ran
+        assert len(results) == 0
 
     @pytest.mark.asyncio
     async def test_self_referencing_circular(self) -> None:
-        """A depends on itself — should produce CIRCULAR_DEPENDENCY error."""
+        """A depends on itself — should never be scheduled."""
         order: list[str] = []
-        nodes: dict[str, JSONObject] = {
-            "A": {"task": "self-ref", "depends_on": ["A"]},
+        nodes: dict[str, CompiledNode] = {
+            "A": _make_task("A", depends_on=("A",)),
         }
         dependents = {"A": ["A"]}
 
@@ -267,21 +279,19 @@ class TestCircularDependency:
         )
 
         assert order == []
-        assert len(results) == 1
-        assert isinstance(results[0], dict)
-        assert results[0]["code"] == "CIRCULAR_DEPENDENCY"
+        assert len(results) == 0
 
     @pytest.mark.asyncio
     async def test_partial_circular_some_nodes_run(self) -> None:
         """A has no deps, B depends on C, C depends on B.
 
-        A should run successfully. B and C should get circular errors.
+        A should run successfully. B and C should never be scheduled.
         """
         order: list[str] = []
-        nodes: dict[str, JSONObject] = {
-            "A": {"task": "standalone"},
-            "B": {"task": "b", "depends_on": ["C"]},
-            "C": {"task": "c", "depends_on": ["B"]},
+        nodes: dict[str, CompiledNode] = {
+            "A": _make_task("A"),
+            "B": _make_task("B", depends_on=("C",)),
+            "C": _make_task("C", depends_on=("B",)),
         }
         dependents: dict[str, list[str]] = {"B": ["C"], "C": ["B"]}
 
@@ -295,14 +305,8 @@ class TestCircularDependency:
 
         assert order == ["A"]
         assert "A" in results_by_id
-        # 1 success + 2 circular errors
-        assert len(results) == 3
-        circular_codes = [
-            r.get("code")
-            for r in results
-            if isinstance(r, dict) and r.get("code") == "CIRCULAR_DEPENDENCY"
-        ]
-        assert len(circular_codes) == 2
+        # Only A ran successfully; B and C were never scheduled
+        assert len(results) == 1
 
 
 # ===================================================================
@@ -318,12 +322,12 @@ class TestErrorPropagation:
         """If run_node raises, the exception propagates from .result()."""
 
         async def failing_run_node(
-            node_id: str, node: JSONObject, dep_context: str | None
-        ) -> JSONObject:
+            node_id: str, node: CompiledNode, dep_context: str | None
+        ) -> NodeResult:
             msg = f"boom from {node_id}"
             raise ValueError(msg)
 
-        nodes: dict[str, JSONObject] = {"A": {"task": "will-fail"}}
+        nodes: dict[str, CompiledNode] = {"A": _make_task("A")}
         dependents: dict[str, list[str]] = {}
 
         with pytest.raises(ValueError, match="boom from A"):
@@ -336,16 +340,17 @@ class TestErrorPropagation:
             )
 
     @pytest.mark.asyncio
-    async def test_run_node_returns_error_dict_collected(self) -> None:
-        """If run_node returns an error dict, it is still collected in results."""
-        error_result: JSONObject = {
-            "ok": False,
-            "code": "STEP_FAILED",
-            "message": "oops",
-        }
+    async def test_run_node_returns_error_result_collected(self) -> None:
+        """If run_node returns a TaskResult with error info, it is still collected."""
+        error_result = TaskResult(
+            id="A",
+            task="will-error",
+            ok=False,
+            error="oops",
+        )
 
         results, results_by_id = await run_nodes_with_dependencies(
-            nodes_by_id={"A": {"task": "will-error"}},
+            nodes_by_id={"A": _make_task("A", task="will-error")},
             dependents={},
             max_concurrency=4,
             run_node=_make_run_node(results={"A": error_result}),
@@ -353,9 +358,8 @@ class TestErrorPropagation:
         )
 
         assert len(results) == 1
-        assert isinstance(results[0], dict)
-        assert results[0]["ok"] is False
-        assert results[0]["code"] == "STEP_FAILED"
+        assert results[0].ok is False
+        assert results[0].error == "oops"
         assert "A" in results_by_id
 
 
@@ -380,14 +384,14 @@ class TestFormatDependencyContext:
             return None
 
         async def capturing_run_node(
-            node_id: str, node: JSONObject, dep_context: str | None
-        ) -> JSONObject:
+            node_id: str, node: CompiledNode, dep_context: str | None
+        ) -> NodeResult:
             received_contexts[node_id] = dep_context
-            return {"ok": True}
+            return TaskResult(id=node_id, task="ok")
 
-        nodes: dict[str, JSONObject] = {
-            "A": {"task": "first"},
-            "B": {"task": "second", "depends_on": ["A"]},
+        nodes: dict[str, CompiledNode] = {
+            "A": _make_task("A"),
+            "B": _make_task("B", depends_on=("A",)),
         }
         dependents = {"A": ["B"]}
 
@@ -413,8 +417,10 @@ class TestResultsByIdPrePopulated:
 
     @pytest.mark.asyncio
     async def test_existing_results_preserved(self) -> None:
-        existing: dict[str, JSONObject] = {"prior": {"ok": True, "node_id": "prior"}}
-        nodes: dict[str, JSONObject] = {"A": {"task": "new"}}
+        existing: dict[str, NodeResult] = {
+            "prior": TaskResult(id="prior", task="prior task"),
+        }
+        nodes: dict[str, CompiledNode] = {"A": _make_task("A")}
 
         _, results_by_id = await run_nodes_with_dependencies(
             nodes_by_id=nodes,

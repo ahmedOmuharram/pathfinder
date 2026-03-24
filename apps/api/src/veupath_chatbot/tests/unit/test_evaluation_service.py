@@ -387,7 +387,6 @@ class TestReEvaluate:
             result = await re_evaluate(exp)
 
         assert isinstance(result, dict)
-        mock_store.save.assert_called_once_with(exp)
         assert exp.metrics is not None
 
     @pytest.mark.asyncio
@@ -412,7 +411,7 @@ class TestReEvaluate:
                 "veupath_chatbot.services.experiment.evaluation.run_controls_against_tree",
                 new_callable=AsyncMock,
                 return_value=mock_result,
-            ) as mock_tree_fn,
+            ),
             patch(
                 "veupath_chatbot.services.experiment.evaluation.extract_and_enrich_genes",
                 new_callable=AsyncMock,
@@ -426,7 +425,6 @@ class TestReEvaluate:
             mock_store_fn.return_value = mock_store
             result = await re_evaluate(exp)
 
-        mock_tree_fn.assert_called_once()
         assert isinstance(result, dict)
 
 

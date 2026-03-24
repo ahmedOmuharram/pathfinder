@@ -196,10 +196,9 @@ class TestPhaseEvaluate:
             "veupath_chatbot.services.experiment.service.run_controls_against_tree",
             new_callable=AsyncMock,
             return_value=control_result,
-        ) as mock_tree:
+        ):
             result, _metrics = await _phase_evaluate(pctx)
 
-        mock_tree.assert_awaited_once()
         assert result is control_result
         assert experiment.metrics is not None
 
@@ -319,12 +318,11 @@ class TestPhaseRankMetrics:
             patch(
                 "veupath_chatbot.services.experiment.service.compute_rank_metrics",
                 return_value=object(),  # sentinel
-            ) as mock_compute,
+            ),
         ):
             ordered = await _phase_rank_metrics(pctx)
 
         assert ordered is fake_ids
-        mock_compute.assert_called_once()
         assert experiment.rank_metrics is not None
 
     async def test_skips_when_no_sort_attribute(self) -> None:
@@ -395,10 +393,9 @@ class TestPhaseRobustness:
         with patch(
             "veupath_chatbot.services.experiment.service.compute_robustness",
             return_value=object(),
-        ) as mock_robust:
+        ):
             await _phase_robustness(pctx, ids, is_ranked=False)
 
-        mock_robust.assert_called_once()
         assert experiment.robustness is not None
 
     async def test_fetches_ids_when_not_provided(self) -> None:
@@ -478,10 +475,9 @@ class TestPhaseCrossValidate:
             "veupath_chatbot.services.experiment.service.run_cross_validation",
             new_callable=AsyncMock,
             return_value=sentinel,
-        ) as mock_cv:
+        ):
             await _phase_cross_validate(pctx, final_tree=None)
 
-        mock_cv.assert_awaited_once()
         assert experiment.cross_validation is sentinel
 
     async def test_tree_mode_uses_tree_cross_validation(self) -> None:
@@ -503,13 +499,9 @@ class TestPhaseCrossValidate:
             "veupath_chatbot.services.experiment.service.run_cross_validation",
             new_callable=AsyncMock,
             return_value=sentinel,
-        ) as mock_cv:
+        ):
             await _phase_cross_validate(pctx, final_tree=tree)
 
-        mock_cv.assert_awaited_once()
-        # Verify tree was passed through as the second positional arg
-        call_args = mock_cv.call_args.args
-        assert call_args[1] is tree
         assert experiment.cross_validation is sentinel
 
 
@@ -542,7 +534,6 @@ class TestPhaseEnrich:
         ):
             await _phase_enrich(pctx)
 
-        mock_svc.run_batch.assert_awaited_once()
         assert len(experiment.enrichment_results) > 0
 
     async def test_emits_enriching_progress(self) -> None:

@@ -1,0 +1,754 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216005653,"email":"guest1216005653","properties":{"organizationType":"","firstName":"","lastName":"","country":"","groupName":"","groupType":"","subscriptionToken":"","organization":"","middleName":"","position":"","interests":"","username":""}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:50 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"sourceType":"idList","sourceContent":{"ids":["PF3D7_0100100"]}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '65'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/datasets
+  response:
+    body:
+      string: '{"id":223293273}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:51 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/record-types/transcript/searches/GeneByLocusTag?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find a gene by its ID.","urlSegment":"GeneByLocusTag","dynamicAttributes":[{"isInReport":true,"formats":[],"truncateTo":100,"displayName":"Input
+        ID","name":"input_id","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"STRING","tools":{"reports":[],"filters":[]},"properties":{"organisms":["P.
+        falciparum","P. vivax","P. yoelii","P. berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]}},{"isInReport":true,"formats":[],"truncateTo":100,"displayName":"Input
+        Order","name":"dataset_order","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"STRING","tools":{"reports":[],"filters":[]},"properties":{"organisms":["P.
+        falciparum","P. vivax","P. yoelii","P. berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]}},{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["P.
+        falciparum","P. vivax","P. yoelii","P. berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"dataset_order","direction":"ASC"},{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"List
+        of IDs","fullName":"GeneQuestions.GeneByLocusTag","description":"Find genes
+        based on Gene ID(s). <br><br>\n           \n           <ul>\n\t        <li>Enter
+        one or more gene ID(s) by typing or pasting, \n                    or upload
+        a plain text file containing a list of IDs.\n\t\t    IDs can be delimited
+        by a comma, semicolon, new-line or space.\n\t\t    For example, a list can
+        be in the following form:\n\t\t    ''NCU06658, NCU06659, Ndisc8579_106685''.</li>\n\t\t<li>The
+        IDs you provide can contain * as a wild-card. For example,\n\t\t    searching
+        for XP_001350415* will identify XP_001350415.1,\n\t\t    XP_001350415.2, etc.</li>\n\t\t<li>Importantly,
+        it is possible that some IDs in your list will not be \n                    found
+        in the database due to annotation changes or unavailable\n                    ID
+        mapping. At present, we do not have a mechanism to inform you which IDs \n                    from
+        your input list were not found in the database.</li>\n           </ul>","defaultAttributes":["primary_key","dataset_order","organism","gene_location_text","gene_product","gene_type","input_id"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["ds_gene_ids"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"IDs
+        List","paramNames":["ds_gene_ids"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GeneByLocusTag","defaultSummaryView":"_default","parameters":[{"displayName":"Gene
+        ID input set","parsers":[{"displayName":"List","name":"list","description":"The
+        input is a list of records, one record in each row, and each record can have
+        multiple columns."}],"isVisible":true,"type":"input-dataset","help":"Input
+        a set of gene IDs, or upload a file. <br><br>\n            \n            IDs
+        can be delimited by a comma, semicolon, space, or new-line.<br><br>\n            \n            It
+        is possible that some IDs in your list will not be found in the database \n            due
+        to annotation changes or unavailable ID mapping. At present, we do not \n            have
+        a mechanism to inform you which IDs from your input list fail to  match \n            IDs
+        in the database.","dependentParams":[],"isReadOnly":false,"allowEmptyValue":false,"name":"ds_gene_ids","recordClassName":"transcript","initialDisplayValue":"","defaultIdList":"PF3D7_1133400","properties":{"organisms":["P.
+        falciparum","P. vivax","P. yoelii","P. berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]},"group":"empty"}],"properties":{"organisms":["P.
+        falciparum","P. vivax","P. yoelii","P. berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:51 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '5048'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216005653,"email":"guest1216005653","properties":{"organizationType":"","firstName":"","lastName":"","country":"","groupName":"","groupType":"","subscriptionToken":"","organization":"","middleName":"","position":"","interests":"","username":""}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:52 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchName":"GeneByLocusTag","searchConfig":{"parameters":{"ds_gene_ids":"223293273"}},"customName":"Enrichment
+      target"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '122'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/steps
+  response:
+    body:
+      string: '{"id":438849273}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:52 GMT
+      Location:
+      - https://plasmodb.org/plasmo/service/users/1216005653/steps
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"__pathfinder_internal__:Pathfinder enrichment analysis","isPublic":false,"isSaved":false,"stepTree":{"stepId":438849273}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '130'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/strategies
+  response:
+    body:
+      string: '{"id":330129273}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:53 GMT
+      Location:
+      - https://plasmodb.org/plasmo/service/users/1216005653/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216005653,"email":"guest1216005653","properties":{"organizationType":"","firstName":"","lastName":"","country":"","groupName":"","groupType":"","subscriptionToken":"","organization":"","middleName":"","position":"","interests":"","username":""}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:54 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/steps/438849273/analysis-types/go-enrichment
+  response:
+    body:
+      string: '{"searchData":{"paramNames":["organism","goAssociationsOntologies","goEvidenceCodes","goSubset","pValueCutoff"],"isCacheable":false,"displayName":"Gene
+        Ontology Enrichment","releaseVersion":"22","name":"go-enrichment","description":"<p>The
+        Gene Ontology (GO) is a public resource that develops organism \n            independent
+        ontologies (structured controlled vocabularies) that describe \n            a
+        gene&rsquo;s molecular function, cellular component or biological processes.
+        \n            GO Terms are associated with genes as a form of annotation.
+        \n            This tool looks for enriched GO terms &#8212; GO terms that
+        appear in the genes of \n            your search result (subset) more frequently
+        than they do in the set of all genes \n            for that organism (background).\n           </p>\n           <p>For
+        statistical reasons, this analysis can only be performed on a set of genes
+        \n             from a single organism. If your gene result contains genes
+        from several organisms, \n             use the Filter Table to limit your
+        gene result. Then choose an Ontology, a GO Association \n             Source,
+        and a P-Value Cutoff and click Submit.\n           </p>\n           <p> By
+        selecting GOSlim_generic_only for the GO subset parameter the background dataset\n             and
+        the gene list will be limited to GO terms from the GO Slim generic subset.
+        \n           </p>\n           <p>Hover over the help icon <div class=\"HelpTrigger\"><i
+        class=\"fa fa-question-circle\"></i></div>\n             next to each parameter
+        for more information about that parameter.\n           </p>","groups":[{"displayType":"hidden","displayName":"","name":"_hidden","description":"","isVisible":false,"parameters":[]},{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism","goAssociationsOntologies","goEvidenceCodes","goSubset","pValueCutoff"]}],"customThumbnail":"wdkCustomization/images/go-analysis-logo.png","shortDescription":"Find
+        Gene Ontology terms that are enriched in your gene result.","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":1,"isVisible":true,"type":"single-pick-vocabulary","help":"Choose
+        an organism to run the enrichment analysis on.   To see all organisms, select
+        ''All results'' filter above. \n  (Only organisms with enrichment results
+        are shown here).","dependentParams":[],"displayType":"select","isReadOnly":false,"vocabulary":[["Plasmodium
+        falciparum 3D7","Plasmodium falciparum 3D7",null]],"allowEmptyValue":false,"name":"organism","initialDisplayValue":"Plasmodium
+        falciparum 3D7","properties":{"organisms":["P. falciparum","P. vivax","P.
+        yoelii","P. berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]},"group":"empty"},{"displayName":"Ontology","minSelectedCount":1,"maxSelectedCount":1,"isVisible":true,"type":"single-pick-vocabulary","help":"Choose
+        the Ontology that you are interested in analyzing. Only terms from this ontology
+        will be considered during the enrichment analysis.\nThe ontologies are three
+        structured, controlled vocabularies that describe gene products in terms of
+        their related biological processes, cellular components and molecular functions.
+        For statistical reasons, only one ontology may be analyzed at once. If you
+        are interested in more than one, run separate GO enrichment analyses.","dependentParams":[],"displayType":"checkBox","isReadOnly":false,"vocabulary":[["Biological
+        Process","Biological Process",null],["Cellular Component","Cellular Component",null],["Molecular
+        Function","Molecular Function",null]],"allowEmptyValue":false,"name":"goAssociationsOntologies","initialDisplayValue":"Biological
+        Process","properties":{"organisms":["P. falciparum","P. vivax","P. yoelii","P.
+        berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]},"group":"empty"},{"displayName":"Evidence","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"A
+        GO Evidence Code of IEA is assigned to a computationally assigned association.All
+        others have some degree of curation","dependentParams":[],"displayType":"checkBox","isReadOnly":false,"vocabulary":[["Computed","Computed",null],["Curated","Curated",null]],"allowEmptyValue":false,"name":"goEvidenceCodes","initialDisplayValue":"[\"Computed\",\"Curated\"]","properties":{"organisms":["P.
+        falciparum","P. vivax","P. yoelii","P. berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]},"group":"empty"},{"displayName":"Limit
+        to GO Slim terms","minSelectedCount":1,"maxSelectedCount":1,"isVisible":true,"type":"single-pick-vocabulary","help":"Choose
+        Yes to limit enrichment analysis based on terms that are in the GO Slim generic
+        subset. This will limit both the background and the gene list of interest.","dependentParams":[],"displayType":"checkBox","isReadOnly":false,"vocabulary":[["No","No",null],["Yes","Yes",null]],"allowEmptyValue":false,"name":"goSubset","initialDisplayValue":"No","properties":{"organisms":["P.
+        falciparum","P. vivax","P. yoelii","P. berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]},"group":"empty"},{"max":1.0,"displayName":"P-Value
+        cutoff","increment":0.01,"isVisible":true,"type":"number","help":"Choose the
+        P-Value Cutoff that a GO term must meet before it is considered enriched in
+        your gene result. The P-value is a statistical measure of the likelihood that
+        a certain GO term appears among the genes in your results more often than
+        it appears in the set of all genes for that organism (background).","dependentParams":[],"isReadOnly":false,"min":0.0,"allowEmptyValue":false,"name":"pValueCutoff","initialDisplayValue":"0.05","properties":{"organisms":["P.
+        falciparum","P. vivax","P. yoelii","P. berghei","P. chabaudi","P. knowlesi"],"specificAttribution":[]},"group":"empty"}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:55 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '5847'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"reportConfig":{"pagination":{"offset":0,"numRecords":0}}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '59'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/steps/438849273/reports/standard
+  response:
+    body:
+      string: '{"records":[],"meta":{"displayViewTotalCount":1,"tables":[],"pagination":{"offset":0,"numRecords":0},"cachePreviouslyExisted":true,"viewTotalCount":1,"sorting":[],"recordClassName":"transcript","responseCount":0,"attributes":[],"totalCount":1,"displayTotalCount":1}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Disposition:
+      - inline
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:55 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '266'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"analysisName":"go-enrichment","parameters":{"organism":"[\"Plasmodium
+      falciparum 3D7\"]","goAssociationsOntologies":"[\"Biological Process\"]","goEvidenceCodes":"[\"Computed\",\"Curated\"]","goSubset":"[\"No\"]","pValueCutoff":"0.05"}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '237'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/steps/438849273/analyses
+  response:
+    body:
+      string: '{"displayName":"Gene Ontology Enrichment","stepId":438849273,"analysisId":203547173,"description":"<p>The
+        Gene Ontology (GO) is a public resource that develops organism \n            independent
+        ontologies (structured controlled vocabularies) that describe \n            a
+        gene&rsquo;s molecular function, cellular component or biological processes.
+        \n            GO Terms are associated with genes as a form of annotation.
+        \n            This tool looks for enriched GO terms &#8212; GO terms that
+        appear in the genes of \n            your search result (subset) more frequently
+        than they do in the set of all genes \n            for that organism (background).\n           </p>\n           <p>For
+        statistical reasons, this analysis can only be performed on a set of genes
+        \n             from a single organism. If your gene result contains genes
+        from several organisms, \n             use the Filter Table to limit your
+        gene result. Then choose an Ontology, a GO Association \n             Source,
+        and a P-Value Cutoff and click Submit.\n           </p>\n           <p> By
+        selecting GOSlim_generic_only for the GO subset parameter the background dataset\n             and
+        the gene list will be limited to GO terms from the GO Slim generic subset.
+        \n           </p>\n           <p>Hover over the help icon <div class=\"HelpTrigger\"><i
+        class=\"fa fa-question-circle\"></i></div>\n             next to each parameter
+        for more information about that parameter.\n           </p>","shortDescription":"Find
+        Gene Ontology terms that are enriched in your gene result.","parameters":{"goAssociationsOntologies":"Biological
+        Process","organism":"Plasmodium falciparum 3D7","goSubset":"No","pValueCutoff":"0.05","goEvidenceCodes":"[\"Computed\",\"Curated\"]"},"validation":{"level":"RUNNABLE","isValid":true},"analysisName":"go-enrichment","status":"CREATED"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:56 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '1848'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '0'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/steps/438849273/analyses/203547173/result
+  response:
+    body:
+      string: '{"status":"COMPLETE"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '21'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:35:57 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/steps/438849273/analyses/203547173/result/status
+  response:
+    body:
+      string: '{"status":"COMPLETE"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:36:00 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '21'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/steps/438849273/analyses/203547173/result
+  response:
+    body:
+      string: '{"headerRow":{"bonferroni":"Bonferroni","resultGenes":"Genes in your
+        result with this term","goId":"GO ID","goTerm":"GO Term","oddsRatio":"Odds
+        ratio","foldEnrich":"Fold enrichment","pValue":"P-value","percentInResult":"Percent
+        of bkgd Genes in your result","benjamini":"Benjamini","bgdGenes":"Genes in
+        the bkgd with this term"},"goSubset":["No"],"resultData":[{"bonferroni":"0.290560142825","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0098609","goTerm":"cell-cell
+        adhesion","oddsRatio":"inf","foldEnrich":"72.27","pValue":"0.0138361972774","percentInResult":"1.6","benjamini":"0.0573401420375","bgdGenes":"62"},{"bonferroni":"0.299933050659","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0007155","goTerm":"cell
+        adhesion","oddsRatio":"inf","foldEnrich":"70.02","pValue":"0.0142825262219","percentInResult":"1.6","benjamini":"0.0573401420375","bgdGenes":"64"},{"bonferroni":"0.351484043739","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0009405","goTerm":"obsolete
+        pathogenesis","oddsRatio":"inf","foldEnrich":"59.75","pValue":"0.0167373354162","percentInResult":"1.3","benjamini":"0.0573401420375","bgdGenes":"75"},{"bonferroni":"0.824815889311","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0020035","goTerm":"cytoadherence
+        to microvasculature, mediated by symbiont protein","oddsRatio":"inf","foldEnrich":"25.46","pValue":"0.03927694711","percentInResult":"0.6","benjamini":"0.0573401420375","bgdGenes":"176"},{"bonferroni":"0.82950234323","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0044406","goTerm":"adhesion
+        of symbiont to host","oddsRatio":"inf","foldEnrich":"25.32","pValue":"0.0395001115824","percentInResult":"0.6","benjamini":"0.0573401420375","bgdGenes":"177"},{"bonferroni":"0.89042624414","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0022610","goTerm":"biological
+        adhesion","oddsRatio":"inf","foldEnrich":"23.58","pValue":"0.0424012497209","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"190"},{"bonferroni":"0.89511269806","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0020013","goTerm":"modulation
+        by symbiont of host erythrocyte aggregation","oddsRatio":"inf","foldEnrich":"23.46","pValue":"0.0426244141933","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"191"},{"bonferroni":"0.904485605887","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0044068","goTerm":"modulation
+        by symbiont of host cellular process","oddsRatio":"inf","foldEnrich":"23.22","pValue":"0.0430707431375","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"193"},{"bonferroni":"0.946663691139","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0020033","goTerm":"antigenic
+        variation","oddsRatio":"inf","foldEnrich":"22.18","pValue":"0.0450792233876","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"202"},{"bonferroni":"0.96072305289","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0042783","goTerm":"evasion
+        of host immune response","oddsRatio":"inf","foldEnrich":"21.86","pValue":"0.0457487168043","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"205"},{"bonferroni":"0.965409506806","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0044003","goTerm":"modulation
+        by symbiont of host process","oddsRatio":"inf","foldEnrich":"21.75","pValue":"0.0459718812765","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"206"},{"bonferroni":"0.974782414638","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0052200","goTerm":"response
+        to host defenses","oddsRatio":"inf","foldEnrich":"21.54","pValue":"0.0464182102208","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"208"},{"bonferroni":"0.974782414638","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0051707","goTerm":"response
+        to other organism","oddsRatio":"inf","foldEnrich":"21.54","pValue":"0.0464182102208","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"208"},{"bonferroni":"0.974782414638","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0052173","goTerm":"response
+        to defenses of other organism","oddsRatio":"inf","foldEnrich":"21.54","pValue":"0.0464182102208","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"208"},{"bonferroni":"0.974782414638","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0043207","goTerm":"response
+        to external biotic stimulus","oddsRatio":"inf","foldEnrich":"21.54","pValue":"0.0464182102208","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"208"},{"bonferroni":"0.974782414638","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0075136","goTerm":"response
+        to host","oddsRatio":"inf","foldEnrich":"21.54","pValue":"0.0464182102208","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"208"},{"bonferroni":"0.974782414638","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=PF3D7_0100100,&autoRun=1''>1<\/a>","goId":"GO:0052572","goTerm":"response
+        to host immune response","oddsRatio":"inf","foldEnrich":"21.54","pValue":"0.0464182102208","percentInResult":"0.5","benjamini":"0.0573401420375","bgdGenes":"208"}],"revidoInputList":"GO:0098609
+        0.0138361972774\nGO:0007155 0.0142825262219\nGO:0009405 0.0167373354162\nGO:0020035
+        0.03927694711\nGO:0044406 0.0395001115824\nGO:0022610 0.0424012497209\nGO:0020013
+        0.0426244141933\nGO:0044068 0.0430707431375\nGO:0020033 0.0450792233876\nGO:0042783
+        0.0457487168043\nGO:0044003 0.0459718812765\nGO:0052200 0.0464182102208\nGO:0051707
+        0.0464182102208\nGO:0052173 0.0464182102208\nGO:0043207 0.0464182102208\nGO:0075136
+        0.0464182102208\nGO:0052572 0.0464182102208\n","contextHash":"a09e5ab81e42e141423e9b1d4cb1da2f","hiddenDownloadPath":"hiddenGoEnrichmentResult.tsv","downloadUrl":"https://plasmodb.org/plasmo/service/users/1216005653/steps/438849273/analyses/203547173/resources","goTermBaseUrl":"http://amigo.geneontology.org/amigo/term/","accessToken":"f023632d60ae9d25","headerDescription":{"bonferroni":"Bonferroni
+        adjusted p-value","resultGenes":"Number of genes with this term in your result","goId":"Gene
+        Ontology ID","goTerm":"Gene Ontology Term","oddsRatio":"Odds ratio statistic
+        from the Fisher''s exact test","foldEnrich":"The percent of genes with this
+        term in your result divided by the percent of genes with this term in the
+        background","pValue":"P-value from Fisher''s exact test","percentInResult":"Of
+        the genes in the background with this term, the percent that are present in
+        your result","benjamini":"Benjamini-Hochberg false discovery rate (FDR)","bgdGenes":"Number
+        of genes with this term in the background"},"downloadPath":"goEnrichmentResult.tsv","imageDownloadPath":"goCloud.png","evidenceCodes":["Computed","Curated"],"goOntologies":["Biological
+        Process"],"pvalueCutoff":"0.05","propertiesUrl":"https://plasmodb.org/plasmo/service/users/1216005653/steps/438849273/analyses/203547173/properties"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:36:01 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '8133'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: DELETE
+    uri: https://plasmodb.org/plasmo/service/users/1216005653/strategies/330129273
+  response:
+    body:
+      string: ''
+    headers:
+      Connection:
+      - keep-alive
+      Date:
+      - Tue, 24 Mar 2026 17:36:01 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 204
+      message: No Content
+version: 1

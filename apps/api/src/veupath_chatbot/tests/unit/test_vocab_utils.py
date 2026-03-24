@@ -3,7 +3,11 @@
 import pytest
 
 from veupath_chatbot.domain.parameters.vocab_utils import (
+    BROAD_VALUE_FIELDS,
+    collect_leaf_terms,
+    find_vocab_node,
     flatten_vocab,
+    get_node_value,
     match_vocab_value,
     normalize_vocab_key,
     numeric_equivalent,
@@ -290,3 +294,186 @@ class TestMatchVocabValue:
             match_vocab_value(vocab=vocab, param_name="my_param", value="bad")
         assert "my_param" in (exc_info.value.detail or "")
         assert "bad" in (exc_info.value.detail or "")
+
+
+# ---------------------------------------------------------------------------
+# get_node_value
+# ---------------------------------------------------------------------------
+
+
+def _make_vocab_tree() -> dict:
+    return {
+        "data": {"display": "@@fake@@", "value": "root"},
+        "children": [
+            {
+                "data": {"display": "Plasmodium", "value": "plasmodium"},
+                "children": [
+                    {
+                        "data": {"display": "P. falciparum 3D7", "value": "pf3d7"},
+                        "children": [],
+                    },
+                    {
+                        "data": {"display": "P. vivax", "value": "pvivax"},
+                        "children": [],
+                    },
+                ],
+            },
+            {
+                "data": {"display": "Toxoplasma", "value": "toxoplasma"},
+                "children": [],
+            },
+        ],
+    }
+
+
+class TestGetNodeValue:
+    def test_default_extracts_term(self) -> None:
+        node = {"data": {"term": "the_term", "value": "the_value"}}
+        assert get_node_value(node) == "the_term"
+
+    def test_broad_fields_prefers_value(self) -> None:
+        node = {"data": {"value": "the_value", "display": "Display"}}
+        assert get_node_value(node, fields=BROAD_VALUE_FIELDS) == "the_value"
+
+    def test_broad_fields_falls_back_to_id(self) -> None:
+        node = {"data": {"id": "the_id", "display": "Display"}}
+        assert get_node_value(node, fields=BROAD_VALUE_FIELDS) == "the_id"
+
+    def test_broad_fields_falls_back_to_term(self) -> None:
+        node = {"data": {"term": "the_term"}}
+        assert get_node_value(node, fields=BROAD_VALUE_FIELDS) == "the_term"
+
+    def test_broad_fields_falls_back_to_name(self) -> None:
+        node = {"data": {"name": "the_name"}}
+        assert get_node_value(node, fields=BROAD_VALUE_FIELDS) == "the_name"
+
+    def test_broad_fields_falls_back_to_display(self) -> None:
+        node = {"data": {"display": "the_display"}}
+        assert get_node_value(node, fields=BROAD_VALUE_FIELDS) == "the_display"
+
+    def test_empty_data_returns_none(self) -> None:
+        node = {"data": {}}
+        assert get_node_value(node) is None
+
+    def test_no_data_key_returns_none(self) -> None:
+        node = {}
+        assert get_node_value(node) is None
+
+    def test_non_string_values_converted(self) -> None:
+        node = {"data": {"term": 42}}
+        assert get_node_value(node) == "42"
+
+
+# ---------------------------------------------------------------------------
+# find_vocab_node (enhanced)
+# ---------------------------------------------------------------------------
+class TestFindVocabNode:
+    def test_default_matches_term(self) -> None:
+        tree = {
+            "data": {"term": "root", "display": "Root"},
+            "children": [
+                {"data": {"term": "child", "display": "Child"}, "children": []},
+            ],
+        }
+        assert find_vocab_node(tree, "child") is not None
+
+    def test_default_matches_display(self) -> None:
+        tree = {
+            "data": {"term": "root", "display": "Root"},
+            "children": [
+                {"data": {"term": "child", "display": "Child"}, "children": []},
+            ],
+        }
+        assert find_vocab_node(tree, "Child") is not None
+
+    def test_broad_fields_matches_value(self) -> None:
+        vocab = _make_vocab_tree()
+        node = find_vocab_node(vocab, "plasmodium", fields=BROAD_VALUE_FIELDS)
+        assert node is not None
+        assert node["data"]["value"] == "plasmodium"
+
+    def test_broad_fields_matches_display(self) -> None:
+        vocab = _make_vocab_tree()
+        node = find_vocab_node(vocab, "Plasmodium", fields=BROAD_VALUE_FIELDS)
+        assert node is not None
+
+    def test_normalize_matches_case_insensitive(self) -> None:
+        vocab = _make_vocab_tree()
+        node = find_vocab_node(
+            vocab, "PLASMODIUM", fields=BROAD_VALUE_FIELDS, normalize=True
+        )
+        assert node is not None
+
+    def test_no_match_returns_none(self) -> None:
+        vocab = _make_vocab_tree()
+        node = find_vocab_node(vocab, "nonexistent", fields=BROAD_VALUE_FIELDS)
+        assert node is None
+
+    def test_finds_in_children(self) -> None:
+        vocab = _make_vocab_tree()
+        node = find_vocab_node(vocab, "pf3d7", fields=BROAD_VALUE_FIELDS)
+        assert node is not None
+        assert node["data"]["value"] == "pf3d7"
+
+    def test_without_normalize_no_case_folding(self) -> None:
+        vocab = _make_vocab_tree()
+        node = find_vocab_node(vocab, "PLASMODIUM", fields=BROAD_VALUE_FIELDS)
+        assert node is None
+
+
+# ---------------------------------------------------------------------------
+# collect_leaf_terms (enhanced)
+# ---------------------------------------------------------------------------
+class TestCollectLeafTerms:
+    def test_default_collects_term_field(self) -> None:
+        node = {
+            "data": {"term": "parent"},
+            "children": [
+                {"data": {"term": "leaf1"}, "children": []},
+                {"data": {"term": "leaf2"}, "children": []},
+            ],
+        }
+        assert collect_leaf_terms(node) == ["leaf1", "leaf2"]
+
+    def test_broad_fields_collects_value_field(self) -> None:
+        node = {"data": {"value": "leaf_val"}, "children": []}
+        assert collect_leaf_terms(node, fields=BROAD_VALUE_FIELDS) == ["leaf_val"]
+
+    def test_broad_fields_parent_returns_children(self) -> None:
+        node = {
+            "data": {"value": "parent"},
+            "children": [
+                {"data": {"value": "child1"}, "children": []},
+                {"data": {"value": "child2"}, "children": []},
+            ],
+        }
+        assert collect_leaf_terms(node, fields=BROAD_VALUE_FIELDS) == [
+            "child1",
+            "child2",
+        ]
+
+    def test_broad_fields_deep_nesting(self) -> None:
+        node = {
+            "data": {"value": "root"},
+            "children": [
+                {
+                    "data": {"value": "mid"},
+                    "children": [
+                        {"data": {"value": "deep_leaf"}, "children": []},
+                    ],
+                },
+            ],
+        }
+        assert collect_leaf_terms(node, fields=BROAD_VALUE_FIELDS) == ["deep_leaf"]
+
+    def test_empty_data_skipped(self) -> None:
+        node = {"data": {}, "children": []}
+        assert collect_leaf_terms(node) == []
+
+    def test_leaf_with_no_term_skipped(self) -> None:
+        node = {"data": {"display": "only_display"}, "children": []}
+        assert collect_leaf_terms(node) == []
+
+    def test_leaf_with_no_term_but_broad_fields(self) -> None:
+        node = {"data": {"display": "only_display"}, "children": []}
+        assert collect_leaf_terms(node, fields=BROAD_VALUE_FIELDS) == ["only_display"]

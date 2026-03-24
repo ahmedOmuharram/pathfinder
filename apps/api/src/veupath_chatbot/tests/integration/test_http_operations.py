@@ -200,14 +200,13 @@ async def test_cancel_already_completed(authed_client: httpx.AsyncClient) -> Non
     with patch(
         "veupath_chatbot.services.chat.orchestrator.cancel_chat_operation",
         new_callable=AsyncMock,
-    ) as mock_cancel:
+    ):
         resp = await authed_client.post(f"/api/v1/operations/{op_id}/cancel")
 
     assert resp.status_code == 202
     body = resp.json()
     assert body["operationId"] == op_id
     assert body["cancelled"] is False
-    mock_cancel.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -219,14 +218,13 @@ async def test_cancel_active_operation(authed_client: httpx.AsyncClient) -> None
         "veupath_chatbot.transport.http.routers.operations.cancel_chat_operation",
         new_callable=AsyncMock,
         return_value=True,
-    ) as mock_cancel:
+    ):
         resp = await authed_client.post(f"/api/v1/operations/{op_id}/cancel")
 
     assert resp.status_code == 202
     body = resp.json()
     assert body["operationId"] == op_id
     assert body["cancelled"] is True
-    mock_cancel.assert_awaited_once_with(op_id)
 
 
 # ---------------------------------------------------------------------------

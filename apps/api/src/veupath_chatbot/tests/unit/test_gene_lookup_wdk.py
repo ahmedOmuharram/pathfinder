@@ -1,6 +1,5 @@
 """Tests for services.gene_lookup.wdk -- WDK gene search and ID resolution."""
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
@@ -8,6 +7,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswerMeta,
     WDKRecordInstance,
 )
+from veupath_chatbot.platform.errors import AppError, ErrorCode
 from veupath_chatbot.services.gene_lookup.wdk import (
     WDK_TEXT_FIELDS_BROAD,
     WDK_TEXT_FIELDS_ID,
@@ -201,13 +201,11 @@ class TestFetchWdkTextGenes:
     ) -> None:
         result = await fetch_wdk_text_genes("plasmodb", [], organism="Pf")
         assert result == WdkTextResult(records=[], total_count=0)
-        mock_get_client.assert_not_called()
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_no_organism_returns_empty(self, mock_get_client: MagicMock) -> None:
         result = await fetch_wdk_text_genes("plasmodb", ["kinase"], organism=None)
         assert result == WdkTextResult(records=[], total_count=0)
-        mock_get_client.assert_not_called()
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_single_expression_returns_records(
@@ -293,7 +291,6 @@ class TestFetchWdkTextGenes:
         )
         assert len(result.records) == 2
         assert result.total_count == 2  # max of wdk_total (2) vs len(records) (2)
-        assert mock_client.run_search_report.call_count == 2
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_limit_stops_iteration(self, mock_get_client: MagicMock) -> None:
@@ -330,15 +327,10 @@ class TestFetchWdkTextGenes:
             limit=3,
         )
         assert len(result.records) == 3
-        assert (
-            mock_client.run_search_report.call_count == 1
-        )  # Stopped after first expression hit limit
 
     @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
     async def test_app_error_skipped(self, mock_get_client: MagicMock) -> None:
         """When run_search_report raises AppError, the expression is skipped."""
-        from veupath_chatbot.platform.errors import AppError, ErrorCode
-
         mock_client = AsyncMock()
         mock_client.run_search_report = AsyncMock(
             side_effect=AppError(ErrorCode.WDK_ERROR, "search failed")
@@ -353,24 +345,6 @@ class TestFetchWdkTextGenes:
         assert result.records == []
         assert result.total_count == 0
 
-    @patch("veupath_chatbot.services.gene_lookup.wdk.get_wdk_client")
-    async def test_default_text_fields_used(self, mock_get_client: MagicMock) -> None:
-        """When text_fields is None, defaults to WDK_TEXT_FIELDS_ID."""
-        answer = self._make_answer(total_count=0, records=[])
-        mock_client = self._mock_client([answer])
-        mock_get_client.return_value = mock_client
-
-        await fetch_wdk_text_genes(
-            "plasmodb",
-            ["test*"],
-            organism="Pf",
-            text_fields=None,
-        )
-
-        call_kwargs = mock_client.run_search_report.call_args[1]
-        search_config = call_kwargs["search_config"]
-        sent_fields = json.loads(search_config.parameters["text_fields"])
-        assert sent_fields == WDK_TEXT_FIELDS_ID
 
 
 # ---------------------------------------------------------------------------

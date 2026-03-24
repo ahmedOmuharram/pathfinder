@@ -2,11 +2,11 @@
 
 Uses ``respx`` to mock outbound httpx transport so that every test exercises
 the full StrategyAPI -> VEuPathDBClient -> httpx pipeline without hitting a
-real WDK deployment.  Fixture responses come from
-``veupath_chatbot.tests.fixtures.wdk_responses``.
+real WDK deployment.
 """
 
 import json
+from typing import Any
 
 import httpx
 import pytest
@@ -25,20 +25,530 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKStepTree,
 )
 from veupath_chatbot.platform.errors import InternalError
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    analysis_create_response,
-    analysis_result_response,
-    analysis_status_response,
-    column_distribution_response_number,
-    column_distribution_response_string,
-    dataset_creation_response,
-    search_details_response,
-    searches_response,
-    standard_report_response,
-    step_creation_response,
-    strategy_creation_response,
-    user_current_response,
-)
+
+DEFAULT_GENE_IDS: list[str] = [
+    "PF3D7_0100100",
+    "PF3D7_0831900",
+    "PF3D7_1133400",
+    "PF3D7_0709000",
+    "PF3D7_1343700",
+]
+
+
+def _user_current_response(user_id: int = 12345) -> dict[str, Any]:
+    return {"id": user_id, "isGuest": True, "email": None, "properties": {}}
+
+
+def _step_creation_response(step_id: int = 100) -> dict[str, Any]:
+    return {"id": step_id}
+
+
+def _strategy_creation_response(strategy_id: int = 200) -> dict[str, Any]:
+    return {"id": strategy_id}
+
+
+def _dataset_creation_response(dataset_id: int = 500) -> dict[str, Any]:
+    return {"id": dataset_id}
+
+
+def _searches_response() -> list[dict[str, Any]]:
+    return [
+        {
+            "urlSegment": "GenesByTaxon",
+            "fullName": "GeneQuestions.GenesByTaxon",
+            "queryName": "GenesByTaxon",
+            "displayName": "Organism",
+            "shortDisplayName": "Organism",
+            "outputRecordClassName": "transcript",
+            "paramNames": ["organism"],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "organism", "gene_product"],
+            "defaultSorting": [{"attributeName": "organism", "direction": "ASC"}],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        {
+            "urlSegment": "GenesByTextSearch",
+            "fullName": "GeneQuestions.GenesByTextSearch",
+            "queryName": "GenesByTextSearch",
+            "displayName": "Text search (genes)",
+            "shortDisplayName": "Text",
+            "outputRecordClassName": "transcript",
+            "paramNames": [
+                "text_expression",
+                "text_fields",
+                "text_search_organism",
+                "document_type",
+            ],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "gene_product"],
+            "defaultSorting": [],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        {
+            "urlSegment": "boolean_question_TranscriptRecordClasses_TranscriptRecordClass",
+            "fullName": "InternalQuestions.boolean_question_TranscriptRecordClasses_TranscriptRecordClass",
+            "queryName": "bq_TranscriptRecordClasses_TranscriptRecordClass",
+            "displayName": "Combine Gene results",
+            "shortDisplayName": "Combine Gene results",
+            "outputRecordClassName": "transcript",
+            "paramNames": [
+                "bq_left_op_TranscriptRecordClasses_TranscriptRecordClass",
+                "bq_right_op_TranscriptRecordClasses_TranscriptRecordClass",
+                "bq_operator",
+            ],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": [],
+            "defaultSorting": [],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+            "allowedPrimaryInputRecordClassNames": ["transcript"],
+            "allowedSecondaryInputRecordClassNames": ["transcript"],
+        },
+        {
+            "urlSegment": "GenesByOrthologs",
+            "fullName": "GeneQuestions.GenesByOrthologs",
+            "queryName": "GenesByOrthologs",
+            "displayName": "Orthologs",
+            "shortDisplayName": "Orthologs",
+            "description": "Find genes by ortholog transform",
+            "outputRecordClassName": "transcript",
+            "paramNames": ["inputStepId", "organism", "isSyntenic"],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "gene_product"],
+            "defaultSorting": [],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+    ]
+
+
+def _search_details_response(search_name: str = "GenesByTaxon") -> dict[str, Any]:
+    boolean_name = "boolean_question_TranscriptRecordClasses_TranscriptRecordClass"
+    if search_name == boolean_name:
+        suffix = "TranscriptRecordClasses_TranscriptRecordClass"
+        return {
+            "searchData": {
+                "urlSegment": f"boolean_question_{suffix}",
+                "fullName": f"InternalQuestions.boolean_question_{suffix}",
+                "queryName": f"bq_{suffix}",
+                "displayName": "Combine Gene results",
+                "shortDisplayName": "Combine Gene results",
+                "outputRecordClassName": "transcript",
+                "isAnalyzable": True,
+                "isCacheable": True,
+                "noSummaryOnSingleRecord": False,
+                "defaultSummaryView": "_default",
+                "defaultAttributes": [],
+                "defaultSorting": [],
+                "paramNames": [
+                    f"bq_left_op_{suffix}",
+                    f"bq_right_op_{suffix}",
+                    "bq_operator",
+                ],
+                "parameters": [
+                    {
+                        "name": f"bq_left_op_{suffix}",
+                        "displayName": "Left operand",
+                        "type": "input-step",
+                        "allowEmptyValue": True,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "",
+                        "dependentParams": [],
+                        "properties": {},
+                    },
+                    {
+                        "name": f"bq_right_op_{suffix}",
+                        "displayName": "Right operand",
+                        "type": "input-step",
+                        "allowEmptyValue": True,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "",
+                        "dependentParams": [],
+                        "properties": {},
+                    },
+                    {
+                        "name": "bq_operator",
+                        "displayName": "Operator",
+                        "type": "single-pick-vocabulary",
+                        "allowEmptyValue": False,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "INTERSECT",
+                        "minSelectedCount": 1,
+                        "maxSelectedCount": 1,
+                        "dependentParams": [],
+                        "properties": {},
+                        "vocabulary": [
+                            ["UNION", "UNION", None],
+                            ["INTERSECT", "INTERSECT", None],
+                            ["MINUS", "LEFT_MINUS", None],
+                            ["RMINUS", "RIGHT_MINUS", None],
+                            ["LONLY", "LEFT_ONLY", None],
+                            ["RONLY", "RIGHT_ONLY", None],
+                        ],
+                    },
+                ],
+                "dynamicAttributes": [],
+                "filters": [],
+                "groups": [],
+                "properties": {},
+                "summaryViewPlugins": [],
+            },
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        }
+    if search_name == "GenesByOrthologs":
+        return {
+            "searchData": {
+                "urlSegment": "GenesByOrthologs",
+                "fullName": "GeneQuestions.GenesByOrthologs",
+                "queryName": "GenesByOrthologs",
+                "displayName": "Orthologs",
+                "shortDisplayName": "Orthologs",
+                "summary": "Find genes by ortholog transform",
+                "description": "Find genes by ortholog transform",
+                "outputRecordClassName": "transcript",
+                "isAnalyzable": True,
+                "isCacheable": True,
+                "noSummaryOnSingleRecord": False,
+                "defaultSummaryView": "_default",
+                "defaultAttributes": ["primary_key", "gene_product"],
+                "defaultSorting": [],
+                "paramNames": ["inputStepId", "organism", "isSyntenic"],
+                "parameters": [
+                    {
+                        "name": "inputStepId",
+                        "displayName": "Input step",
+                        "type": "input-step",
+                        "allowEmptyValue": True,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "",
+                        "dependentParams": [],
+                        "properties": {},
+                    },
+                    {
+                        "name": "organism",
+                        "displayName": "Organism",
+                        "type": "multi-pick-vocabulary",
+                        "allowEmptyValue": False,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+                        "minSelectedCount": 1,
+                        "maxSelectedCount": -1,
+                        "dependentParams": [],
+                        "properties": {},
+                        "vocabulary": [
+                            [
+                                "Plasmodium falciparum 3D7",
+                                "Plasmodium falciparum 3D7",
+                                None,
+                            ],
+                            ["Plasmodium vivax P01", "Plasmodium vivax P01", None],
+                        ],
+                    },
+                    {
+                        "name": "isSyntenic",
+                        "displayName": "Syntenic",
+                        "type": "single-pick-vocabulary",
+                        "allowEmptyValue": True,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "no",
+                        "minSelectedCount": 1,
+                        "maxSelectedCount": 1,
+                        "dependentParams": [],
+                        "properties": {},
+                        "vocabulary": [["yes", "yes", None], ["no", "no", None]],
+                    },
+                ],
+                "dynamicAttributes": [],
+                "filters": [],
+                "groups": [],
+                "properties": {},
+                "summaryViewPlugins": [],
+            },
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        }
+    # Default fallback is GenesByTaxon
+    return {
+        "searchData": {
+            "urlSegment": "GenesByTaxon",
+            "fullName": "GeneQuestions.GenesByTaxon",
+            "queryName": "GenesByTaxon",
+            "displayName": "Organism",
+            "shortDisplayName": "Organism",
+            "summary": "Find all genes from one or more species/organism.",
+            "description": "Find all genes from one or more species/organism.",
+            "outputRecordClassName": "transcript",
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "organism", "gene_product"],
+            "defaultSorting": [{"attributeName": "organism", "direction": "ASC"}],
+            "paramNames": ["organism"],
+            "parameters": [
+                {
+                    "name": "organism",
+                    "displayName": "Organism",
+                    "type": "multi-pick-vocabulary",
+                    "displayType": "treeBox",
+                    "allowEmptyValue": False,
+                    "isVisible": True,
+                    "isReadOnly": False,
+                    "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": -1,
+                    "countOnlyLeaves": True,
+                    "depthExpanded": 0,
+                    "dependentParams": [],
+                    "group": "empty",
+                    "properties": {},
+                    "vocabulary": {
+                        "data": {"display": "@@fake@@", "term": "@@fake@@"},
+                        "children": [
+                            {
+                                "data": {
+                                    "display": "Plasmodiidae",
+                                    "term": "Plasmodiidae",
+                                },
+                                "children": [
+                                    {
+                                        "data": {
+                                            "display": "Plasmodium falciparum 3D7",
+                                            "term": "Plasmodium falciparum 3D7",
+                                        },
+                                        "children": [],
+                                    },
+                                    {
+                                        "data": {
+                                            "display": "Plasmodium vivax P01",
+                                            "term": "Plasmodium vivax P01",
+                                        },
+                                        "children": [],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                },
+            ],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+
+
+def _standard_report_response(
+    gene_ids: list[str] | None = None,
+    total_count: int | None = None,
+) -> dict[str, Any]:
+    ids = gene_ids if gene_ids is not None else DEFAULT_GENE_IDS
+    count = total_count if total_count is not None else len(ids)
+    records = [
+        {
+            "id": [
+                {"name": "gene_source_id", "value": gid},
+                {"name": "source_id", "value": f"{gid}.1"},
+                {"name": "project_id", "value": "PlasmoDB"},
+            ],
+            "displayName": gid,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "attributes": {
+                "primary_key": gid,
+                "gene_source_id": gid,
+                "gene_name": None,
+                "gene_product": f"hypothetical protein, conserved ({gid})",
+                "gene_type": "protein_coding",
+                "organism": "<i>Plasmodium falciparum 3D7</i>",
+                "gene_location_text": "Pf3D7_01_v3: 29,510 - 37,126 (+)",
+                "gene_previous_ids": "",
+            },
+            "tables": {},
+            "tableErrors": [],
+        }
+        for gid in ids
+    ]
+    return {
+        "records": records,
+        "meta": {
+            "totalCount": count,
+            "displayedCount": len(ids),
+            "viewTotalCount": count,
+            "responseCount": len(ids),
+        },
+    }
+
+
+def _analysis_create_response(
+    analysis_id: int = 300,
+    step_id: int = 100,
+    analysis_name: str = "go-enrichment",
+) -> dict[str, Any]:
+    return {
+        "analysisId": analysis_id,
+        "stepId": step_id,
+        "analysisName": analysis_name,
+        "displayName": "GO enrichment",
+        "isNew": True,
+        "status": "CREATED",
+    }
+
+
+def _analysis_status_response(status: str = "COMPLETE") -> dict[str, Any]:
+    return {"status": status}
+
+
+def _analysis_result_response() -> dict[str, Any]:
+    return {
+        "resultData": [
+            {
+                "goId": "GO:0003735",
+                "goTerm": "structural constituent of ribosome",
+                "bgdGenes": "88",
+                "resultGenes": "<a href='?idList=PF3D7_0100100,PF3D7_0831900,PF3D7_1133400&autoRun=1'>12</a>",
+                "percentInResult": "28.6",
+                "foldEnrich": "2.41",
+                "oddsRatio": "2.95",
+                "pValue": "3.2e-5",
+                "benjamini": "1.1e-3",
+                "bonferroni": "4.8e-3",
+            },
+            {
+                "goId": "GO:0005840",
+                "goTerm": "ribosome",
+                "bgdGenes": "140",
+                "resultGenes": "<a href='?idList=PF3D7_0709000,PF3D7_1343700,PF3D7_0100100&autoRun=1'>15</a>",
+                "percentInResult": "35.7",
+                "foldEnrich": "1.89",
+                "oddsRatio": "2.03",
+                "pValue": "8.7e-4",
+                "benjamini": "1.5e-2",
+                "bonferroni": "7.6e-2",
+            },
+            {
+                "goId": "GO:0006412",
+                "goTerm": "translation",
+                "bgdGenes": "72",
+                "resultGenes": "<a href='?idList=PF3D7_0831900,PF3D7_1133400&autoRun=1'>10</a>",
+                "percentInResult": "23.8",
+                "foldEnrich": "2.45",
+                "oddsRatio": "2.92",
+                "pValue": "9.5e-4",
+                "benjamini": "3.9e-3",
+                "bonferroni": "2.1e-2",
+            },
+        ],
+        "downloadPath": "goEnrichmentResult.tsv",
+        "pvalueCutoff": "0.05",
+        "goTermBaseUrl": "http://amigo.geneontology.org/amigo/term/",
+    }
+
+
+def _column_distribution_response_string() -> dict[str, Any]:
+    return {
+        "histogram": [
+            {
+                "value": 2890,
+                "binStart": "Plasmodium falciparum 3D7",
+                "binEnd": "Plasmodium falciparum 3D7",
+                "binLabel": "Plasmodium falciparum 3D7",
+            },
+            {
+                "value": 1452,
+                "binStart": "Plasmodium vivax P01",
+                "binEnd": "Plasmodium vivax P01",
+                "binLabel": "Plasmodium vivax P01",
+            },
+            {
+                "value": 87,
+                "binStart": "Plasmodium knowlesi H",
+                "binEnd": "Plasmodium knowlesi H",
+                "binLabel": "Plasmodium knowlesi H",
+            },
+        ],
+        "statistics": {
+            "subsetSize": 4429,
+            "numVarValues": 4429,
+            "numDistinctValues": 3,
+            "numDistinctEntityRecords": 4429,
+            "numMissingCases": 0,
+        },
+    }
+
+
+def _column_distribution_response_number() -> dict[str, Any]:
+    return {
+        "histogram": [
+            {
+                "value": 350,
+                "binStart": "0.0",
+                "binEnd": "5.0",
+                "binLabel": "[0.0, 5.0)",
+            },
+            {
+                "value": 1200,
+                "binStart": "5.0",
+                "binEnd": "10.0",
+                "binLabel": "[5.0, 10.0)",
+            },
+            {
+                "value": 800,
+                "binStart": "10.0",
+                "binEnd": "15.0",
+                "binLabel": "[10.0, 15.0)",
+            },
+            {
+                "value": 120,
+                "binStart": "15.0",
+                "binEnd": "20.0",
+                "binLabel": "[15.0, 20.0)",
+            },
+        ],
+        "statistics": {
+            "subsetSize": 2470,
+            "subsetMin": 0.5,
+            "subsetMax": 18.7,
+            "subsetMean": 7.3,
+            "numVarValues": 2470,
+            "numDistinctValues": 185,
+            "numDistinctEntityRecords": 2470,
+            "numMissingCases": 15,
+        },
+    }
 
 BASE = "https://plasmodb.org/plasmo/service"
 USER_ID = 12345
@@ -54,7 +564,7 @@ def api() -> StrategyAPI:
 def _mock_ensure_session(router: respx.Router, user_id: int = USER_ID) -> None:
     """Register the GET /users/current route used by ``_ensure_session``."""
     router.get(f"{BASE}/users/current").respond(
-        200, json=user_current_response(user_id)
+        200, json=_user_current_response(user_id)
     )
 
 
@@ -92,7 +602,7 @@ class TestCreateStep:
         )
 
         step_route = respx.post(f"{BASE}/users/{USER_ID}/steps").respond(
-            200, json=step_creation_response(100)
+            200, json=_step_creation_response(100)
         )
 
         result = await api.create_step(
@@ -140,7 +650,7 @@ class TestCreateCombinedStep:
 
         # GET /record-types/transcript/searches -> includes boolean_question
         respx.get(f"{BASE}/record-types/transcript/searches").respond(
-            200, json=searches_response()
+            200, json=_searches_response()
         )
 
         # Real PlasmoDB uses underscores in boolean question urlSegment
@@ -151,10 +661,10 @@ class TestCreateCombinedStep:
         # GET search details for the boolean question
         respx.get(
             f"{BASE}/record-types/transcript/searches/{boolean_search_name}",
-        ).respond(200, json=search_details_response(boolean_search_name))
+        ).respond(200, json=_search_details_response(boolean_search_name))
 
         step_route = respx.post(f"{BASE}/users/{USER_ID}/steps").respond(
-            200, json=step_creation_response(110)
+            200, json=_step_creation_response(110)
         )
 
         result = await api.create_combined_step(
@@ -196,10 +706,10 @@ class TestCreateTransformStep:
         # GET search details (includes inputStepId as type=input-step)
         respx.get(
             f"{BASE}/record-types/transcript/searches/{transform_name}",
-        ).respond(200, json=search_details_response(transform_name))
+        ).respond(200, json=_search_details_response(transform_name))
 
         step_route = respx.post(f"{BASE}/users/{USER_ID}/steps").respond(
-            200, json=step_creation_response(120)
+            200, json=_step_creation_response(120)
         )
 
         result = await api.create_transform_step(
@@ -241,7 +751,7 @@ class TestCreateStrategy:
         _mock_ensure_session(respx)
 
         strategy_route = respx.post(f"{BASE}/users/{USER_ID}/strategies").respond(
-            200, json=strategy_creation_response(200)
+            200, json=_strategy_creation_response(200)
         )
 
         leaf_a = WDKStepTree(step_id=10)
@@ -282,7 +792,7 @@ class TestGetStepCount:
 
         report_route = respx.post(
             f"{BASE}/users/{USER_ID}/steps/100/reports/standard"
-        ).respond(200, json=standard_report_response(gene_ids=[], total_count=42))
+        ).respond(200, json=_standard_report_response(gene_ids=[], total_count=42))
 
         count = await api.get_step_count(step_id=100)
 
@@ -312,12 +822,12 @@ class TestRunStepAnalysis:
 
         # Warmup: zero-record standard report materializes the step answer
         respx.post(f"{BASE}/users/{uid}/steps/{step_id}/reports/standard").respond(
-            200, json=standard_report_response(gene_ids=[], total_count=42)
+            200, json=_standard_report_response(gene_ids=[], total_count=42)
         )
 
         # Phase 1: create analysis instance
         respx.post(analysis_base).respond(
-            200, json=analysis_create_response(analysis_id)
+            200, json=_analysis_create_response(analysis_id)
         )
 
         # Phase 2: kick off execution
@@ -329,13 +839,13 @@ class TestRunStepAnalysis:
         status_url = f"{analysis_base}/{analysis_id}/result/status"
         status_route = respx.get(status_url).mock(
             side_effect=[
-                httpx.Response(200, json=analysis_status_response("RUNNING")),
-                httpx.Response(200, json=analysis_status_response("COMPLETE")),
+                httpx.Response(200, json=_analysis_status_response("RUNNING")),
+                httpx.Response(200, json=_analysis_status_response("COMPLETE")),
             ]
         )
 
         # Phase 4: retrieve result
-        result_response = analysis_result_response()
+        result_response = _analysis_result_response()
         respx.get(f"{analysis_base}/{analysis_id}/result").respond(
             200, json=result_response
         )
@@ -373,19 +883,19 @@ class TestRunStepAnalysis:
         # Warmup: zero-record standard report
         warmup_route = respx.post(
             f"{BASE}/users/{uid}/steps/{step_id}/reports/standard"
-        ).respond(200, json=standard_report_response(gene_ids=[], total_count=150))
+        ).respond(200, json=_standard_report_response(gene_ids=[], total_count=150))
 
         respx.post(analysis_base).respond(
-            200, json=analysis_create_response(analysis_id)
+            200, json=_analysis_create_response(analysis_id)
         )
         respx.post(f"{analysis_base}/{analysis_id}/result").respond(
             200, json={"status": "RUNNING"}
         )
         respx.get(f"{analysis_base}/{analysis_id}/result/status").respond(
-            200, json=analysis_status_response("COMPLETE")
+            200, json=_analysis_status_response("COMPLETE")
         )
         respx.get(f"{analysis_base}/{analysis_id}/result").respond(
-            200, json=analysis_result_response()
+            200, json=_analysis_result_response()
         )
 
         result = await api.run_step_analysis(
@@ -417,12 +927,12 @@ class TestRunStepAnalysis:
 
         # Warmup report
         respx.post(f"{BASE}/users/{uid}/steps/{step_id}/reports/standard").respond(
-            200, json=standard_report_response(gene_ids=[], total_count=150)
+            200, json=_standard_report_response(gene_ids=[], total_count=150)
         )
 
         # Phase 1: create analysis instance (only once)
         create_route = respx.post(analysis_base).respond(
-            200, json=analysis_create_response(analysis_id)
+            200, json=_analysis_create_response(analysis_id)
         )
 
         # Phase 2: run endpoint called twice (initial + retry)
@@ -434,15 +944,15 @@ class TestRunStepAnalysis:
         status_url = f"{analysis_base}/{analysis_id}/result/status"
         status_route = respx.get(status_url).mock(
             side_effect=[
-                httpx.Response(200, json=analysis_status_response("ERROR")),
-                httpx.Response(200, json=analysis_status_response("RUNNING")),
-                httpx.Response(200, json=analysis_status_response("COMPLETE")),
+                httpx.Response(200, json=_analysis_status_response("ERROR")),
+                httpx.Response(200, json=_analysis_status_response("RUNNING")),
+                httpx.Response(200, json=_analysis_status_response("COMPLETE")),
             ]
         )
 
         # Phase 4: retrieve result
         respx.get(f"{analysis_base}/{analysis_id}/result").respond(
-            200, json=analysis_result_response()
+            200, json=_analysis_result_response()
         )
 
         result = await api.run_step_analysis(
@@ -475,11 +985,11 @@ class TestRunStepAnalysis:
         analysis_base = f"{BASE}/users/{uid}/steps/{step_id}/analyses"
 
         respx.post(f"{BASE}/users/{uid}/steps/{step_id}/reports/standard").respond(
-            200, json=standard_report_response(gene_ids=[], total_count=0)
+            200, json=_standard_report_response(gene_ids=[], total_count=0)
         )
 
         create_route = respx.post(analysis_base).respond(
-            200, json=analysis_create_response(analysis_id)
+            200, json=_analysis_create_response(analysis_id)
         )
         run_route = respx.post(f"{analysis_base}/{analysis_id}/result").respond(
             200, json={"status": "RUNNING"}
@@ -488,13 +998,13 @@ class TestRunStepAnalysis:
         status_url = f"{analysis_base}/{analysis_id}/result/status"
         respx.get(status_url).mock(
             side_effect=[
-                httpx.Response(200, json=analysis_status_response("OUT_OF_DATE")),
-                httpx.Response(200, json=analysis_status_response("COMPLETE")),
+                httpx.Response(200, json=_analysis_status_response("OUT_OF_DATE")),
+                httpx.Response(200, json=_analysis_status_response("COMPLETE")),
             ]
         )
 
         respx.get(f"{analysis_base}/{analysis_id}/result").respond(
-            200, json=analysis_result_response()
+            200, json=_analysis_result_response()
         )
 
         result = await api.run_step_analysis(
@@ -521,11 +1031,11 @@ class TestRunStepAnalysis:
         analysis_base = f"{BASE}/users/{uid}/steps/{step_id}/analyses"
 
         respx.post(f"{BASE}/users/{uid}/steps/{step_id}/reports/standard").respond(
-            200, json=standard_report_response(gene_ids=[], total_count=0)
+            200, json=_standard_report_response(gene_ids=[], total_count=0)
         )
 
         respx.post(analysis_base).respond(
-            200, json=analysis_create_response(analysis_id)
+            200, json=_analysis_create_response(analysis_id)
         )
         respx.post(f"{analysis_base}/{analysis_id}/result").respond(
             200, json={"status": "RUNNING"}
@@ -533,7 +1043,7 @@ class TestRunStepAnalysis:
 
         # Return ERROR every time — should eventually give up
         status_url = f"{analysis_base}/{analysis_id}/result/status"
-        respx.get(status_url).respond(200, json=analysis_status_response("ERROR"))
+        respx.get(status_url).respond(200, json=_analysis_status_response("ERROR"))
 
         with pytest.raises(InternalError, match="Analysis unavailable"):
             await api.run_step_analysis(
@@ -554,18 +1064,18 @@ class TestRunStepAnalysis:
         analysis_base = f"{BASE}/users/{uid}/steps/{step_id}/analyses"
 
         respx.post(f"{BASE}/users/{uid}/steps/{step_id}/reports/standard").respond(
-            200, json=standard_report_response(gene_ids=[], total_count=0)
+            200, json=_standard_report_response(gene_ids=[], total_count=0)
         )
 
         respx.post(analysis_base).respond(
-            200, json=analysis_create_response(analysis_id)
+            200, json=_analysis_create_response(analysis_id)
         )
         respx.post(f"{analysis_base}/{analysis_id}/result").respond(
             200, json={"status": "RUNNING"}
         )
 
         status_url = f"{analysis_base}/{analysis_id}/result/status"
-        respx.get(status_url).respond(200, json=analysis_status_response("EXPIRED"))
+        respx.get(status_url).respond(200, json=_analysis_status_response("EXPIRED"))
 
         with pytest.raises(InternalError, match="Step analysis failed"):
             await api.run_step_analysis(
@@ -586,7 +1096,7 @@ class TestCreateDataset:
         _mock_ensure_session(respx)
 
         dataset_route = respx.post(f"{BASE}/users/{USER_ID}/datasets").respond(
-            200, json=dataset_creation_response(500)
+            200, json=_dataset_creation_response(500)
         )
 
         gene_ids = ["PF3D7_0100100", "PF3D7_0831900", "PF3D7_1133400"]
@@ -616,7 +1126,7 @@ class TestGetColumnDistribution:
 
         step_id = 100
         column_name = "organism"
-        expected = column_distribution_response_string()
+        expected = _column_distribution_response_string()
 
         col_route = respx.post(
             f"{BASE}/users/{USER_ID}/steps/{step_id}/columns/{column_name}/reports/byValue"
@@ -640,7 +1150,7 @@ class TestGetColumnDistribution:
 
         step_id = 100
         column_name = "exon_count"
-        expected = column_distribution_response_number()
+        expected = _column_distribution_response_number()
 
         col_route = respx.post(
             f"{BASE}/users/{USER_ID}/steps/{step_id}/columns/{column_name}/reports/byValue"

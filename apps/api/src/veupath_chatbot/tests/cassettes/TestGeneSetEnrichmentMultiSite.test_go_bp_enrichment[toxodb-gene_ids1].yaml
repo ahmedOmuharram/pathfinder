@@ -1,0 +1,791 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://toxodb.org/toxo/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216006183,"email":"guest1216006183","properties":{"organizationType":"","firstName":"","lastName":"","country":"","groupName":"","groupType":"","subscriptionToken":"","organization":"","middleName":"","position":"","interests":"","username":""}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:00 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"sourceType":"idList","sourceContent":{"ids":["TGME49_214940","TGME49_200010","TGME49_200110","TGME49_200130","TGME49_200230","TGME49_200240","TGME49_200250","TGME49_200260","TGME49_200270","TGME49_200280","TGME49_200290","TGME49_200310","TGME49_200320","TGME49_200330","TGME49_200340","TGME49_200350","TGME49_200360","TGME49_200370","TGME49_200385","TGME49_200400","TGME49_200410","TGME49_200430","TGME49_200440","TGME49_200450","TGME49_200460","TGME49_200470","TGME49_200480","TGME49_200590","TGME49_200595","TGME49_200600","TGME49_200700","TGME49_201100","TGME49_201110","TGME49_201120","TGME49_201130","TGME49_201140","TGME49_201150","TGME49_201160","TGME49_201170","TGME49_201180","TGME49_201200","TGME49_201210","TGME49_201220","TGME49_201230","TGME49_201240","TGME49_201250","TGME49_201260","TGME49_201270","TGME49_201280","TGME49_201290"]}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '849'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://toxodb.org/toxo/service/users/1216006183/datasets
+  response:
+    body:
+      string: '{"id":223293413}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:01 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://toxodb.org/toxo/service/record-types/transcript/searches/GeneByLocusTag?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find a gene by its ID.","urlSegment":"GeneByLocusTag","dynamicAttributes":[{"isInReport":true,"formats":[],"truncateTo":100,"displayName":"Input
+        ID","name":"input_id","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"STRING","tools":{"reports":[],"filters":[]},"properties":{"organisms":["T.
+        gondii"],"specificAttribution":[]}},{"isInReport":true,"formats":[],"truncateTo":100,"displayName":"Input
+        Order","name":"dataset_order","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"STRING","tools":{"reports":[],"filters":[]},"properties":{"organisms":["T.
+        gondii"],"specificAttribution":[]}},{"help":"The *search result weight*. This
+        is the sum of the weights you specified for individual searches that found
+        this record.   The more searches that found this record the higher will be
+        its weight.  To give a search a weight, click \"Use Weights\" on the search
+        page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["T.
+        gondii"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"dataset_order","direction":"ASC"},{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"List
+        of IDs","fullName":"GeneQuestions.GeneByLocusTag","description":"Find genes
+        based on Gene ID(s). <br><br>\n           \n           <ul>\n\t        <li>Enter
+        one or more gene ID(s) by typing or pasting, \n                    or upload
+        a plain text file containing a list of IDs.\n\t\t    IDs can be delimited
+        by a comma, semicolon, new-line or space.\n\t\t    For example, a list can
+        be in the following form:\n\t\t    ''NCU06658, NCU06659, Ndisc8579_106685''.</li>\n\t\t<li>The
+        IDs you provide can contain * as a wild-card. For example,\n\t\t    searching
+        for XP_001350415* will identify XP_001350415.1,\n\t\t    XP_001350415.2, etc.</li>\n\t\t<li>Importantly,
+        it is possible that some IDs in your list will not be \n                    found
+        in the database due to annotation changes or unavailable\n                    ID
+        mapping. At present, we do not have a mechanism to inform you which IDs \n                    from
+        your input list were not found in the database.</li>\n           </ul>","defaultAttributes":["primary_key","dataset_order","organism","gene_location_text","gene_product","gene_type","input_id"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["ds_gene_ids"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"IDs
+        List","paramNames":["ds_gene_ids"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GeneByLocusTag","defaultSummaryView":"_default","parameters":[{"displayName":"Gene
+        ID input set","parsers":[{"displayName":"List","name":"list","description":"The
+        input is a list of records, one record in each row, and each record can have
+        multiple columns."}],"isVisible":true,"type":"input-dataset","help":"Input
+        a set of gene IDs, or upload a file. <br><br>\n            \n            IDs
+        can be delimited by a comma, semicolon, space, or new-line.<br><br>\n            \n            It
+        is possible that some IDs in your list will not be found in the database \n            due
+        to annotation changes or unavailable ID mapping. At present, we do not \n            have
+        a mechanism to inform you which IDs from your input list fail to  match \n            IDs
+        in the database.","dependentParams":[],"isReadOnly":false,"allowEmptyValue":false,"name":"ds_gene_ids","recordClassName":"transcript","initialDisplayValue":"","defaultIdList":"TGME49_239250","properties":{"organisms":["T.
+        gondii"],"specificAttribution":[]},"group":"empty"}],"properties":{"organisms":["T.
+        gondii"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:01 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4708'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://toxodb.org/toxo/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216006183,"email":"guest1216006183","properties":{"organizationType":"","firstName":"","lastName":"","country":"","groupName":"","groupType":"","subscriptionToken":"","organization":"","middleName":"","position":"","interests":"","username":""}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:01 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchName":"GeneByLocusTag","searchConfig":{"parameters":{"ds_gene_ids":"223293413"}},"customName":"Enrichment
+      target"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '122'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://toxodb.org/toxo/service/users/1216006183/steps
+  response:
+    body:
+      string: '{"id":438849313}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:01 GMT
+      Location:
+      - https://toxodb.org/toxo/service/users/1216006183/steps
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"__pathfinder_internal__:Pathfinder enrichment analysis","isPublic":false,"isSaved":false,"stepTree":{"stepId":438849313}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '130'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://toxodb.org/toxo/service/users/1216006183/strategies
+  response:
+    body:
+      string: '{"id":330129313}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:02 GMT
+      Location:
+      - https://toxodb.org/toxo/service/users/1216006183/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://toxodb.org/toxo/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216006183,"email":"guest1216006183","properties":{"organizationType":"","firstName":"","lastName":"","country":"","groupName":"","groupType":"","subscriptionToken":"","organization":"","middleName":"","position":"","interests":"","username":""}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:02 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://toxodb.org/toxo/service/users/1216006183/steps/438849313/analysis-types/go-enrichment
+  response:
+    body:
+      string: '{"searchData":{"paramNames":["organism","goAssociationsOntologies","goEvidenceCodes","goSubset","pValueCutoff"],"isCacheable":false,"displayName":"Gene
+        Ontology Enrichment","releaseVersion":"22","name":"go-enrichment","description":"<p>The
+        Gene Ontology (GO) is a public resource that develops organism \n            independent
+        ontologies (structured controlled vocabularies) that describe \n            a
+        gene&rsquo;s molecular function, cellular component or biological processes.
+        \n            GO Terms are associated with genes as a form of annotation.
+        \n            This tool looks for enriched GO terms &#8212; GO terms that
+        appear in the genes of \n            your search result (subset) more frequently
+        than they do in the set of all genes \n            for that organism (background).\n           </p>\n           <p>For
+        statistical reasons, this analysis can only be performed on a set of genes
+        \n             from a single organism. If your gene result contains genes
+        from several organisms, \n             use the Filter Table to limit your
+        gene result. Then choose an Ontology, a GO Association \n             Source,
+        and a P-Value Cutoff and click Submit.\n           </p>\n           <p> By
+        selecting GOSlim_generic_only for the GO subset parameter the background dataset\n             and
+        the gene list will be limited to GO terms from the GO Slim generic subset.
+        \n           </p>\n           <p>Hover over the help icon <div class=\"HelpTrigger\"><i
+        class=\"fa fa-question-circle\"></i></div>\n             next to each parameter
+        for more information about that parameter.\n           </p>","groups":[{"displayType":"hidden","displayName":"","name":"_hidden","description":"","isVisible":false,"parameters":[]},{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism","goAssociationsOntologies","goEvidenceCodes","goSubset","pValueCutoff"]}],"customThumbnail":"wdkCustomization/images/go-analysis-logo.png","shortDescription":"Find
+        Gene Ontology terms that are enriched in your gene result.","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":1,"isVisible":true,"type":"single-pick-vocabulary","help":"Choose
+        an organism to run the enrichment analysis on.   To see all organisms, select
+        ''All results'' filter above. \n  (Only organisms with enrichment results
+        are shown here).","dependentParams":[],"displayType":"select","isReadOnly":false,"vocabulary":[["Toxoplasma
+        gondii ME49","Toxoplasma gondii ME49",null]],"allowEmptyValue":false,"name":"organism","initialDisplayValue":"Toxoplasma
+        gondii ME49","properties":{"organisms":["T. gondii"],"specificAttribution":[]},"group":"empty"},{"displayName":"Ontology","minSelectedCount":1,"maxSelectedCount":1,"isVisible":true,"type":"single-pick-vocabulary","help":"Choose
+        the Ontology that you are interested in analyzing. Only terms from this ontology
+        will be considered during the enrichment analysis.\nThe ontologies are three
+        structured, controlled vocabularies that describe gene products in terms of
+        their related biological processes, cellular components and molecular functions.
+        For statistical reasons, only one ontology may be analyzed at once. If you
+        are interested in more than one, run separate GO enrichment analyses.","dependentParams":[],"displayType":"checkBox","isReadOnly":false,"vocabulary":[["Biological
+        Process","Biological Process",null],["Cellular Component","Cellular Component",null],["Molecular
+        Function","Molecular Function",null]],"allowEmptyValue":false,"name":"goAssociationsOntologies","initialDisplayValue":"Biological
+        Process","properties":{"organisms":["T. gondii"],"specificAttribution":[]},"group":"empty"},{"displayName":"Evidence","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"A
+        GO Evidence Code of IEA is assigned to a computationally assigned association.All
+        others have some degree of curation","dependentParams":[],"displayType":"checkBox","isReadOnly":false,"vocabulary":[["Computed","Computed",null],["Curated","Curated",null]],"allowEmptyValue":false,"name":"goEvidenceCodes","initialDisplayValue":"[\"Computed\",\"Curated\"]","properties":{"organisms":["T.
+        gondii"],"specificAttribution":[]},"group":"empty"},{"displayName":"Limit
+        to GO Slim terms","minSelectedCount":1,"maxSelectedCount":1,"isVisible":true,"type":"single-pick-vocabulary","help":"Choose
+        Yes to limit enrichment analysis based on terms that are in the GO Slim generic
+        subset. This will limit both the background and the gene list of interest.","dependentParams":[],"displayType":"checkBox","isReadOnly":false,"vocabulary":[["No","No",null],["Yes","Yes",null]],"allowEmptyValue":false,"name":"goSubset","initialDisplayValue":"No","properties":{"organisms":["T.
+        gondii"],"specificAttribution":[]},"group":"empty"},{"max":1.0,"displayName":"P-Value
+        cutoff","increment":0.01,"isVisible":true,"type":"number","help":"Choose the
+        P-Value Cutoff that a GO term must meet before it is considered enriched in
+        your gene result. The P-value is a statistical measure of the likelihood that
+        a certain GO term appears among the genes in your results more often than
+        it appears in the set of all genes for that organism (background).","dependentParams":[],"isReadOnly":false,"min":0.0,"allowEmptyValue":false,"name":"pValueCutoff","initialDisplayValue":"0.05","properties":{"organisms":["T.
+        gondii"],"specificAttribution":[]},"group":"empty"}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:04 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '5498'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"reportConfig":{"pagination":{"offset":0,"numRecords":0}}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '59'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://toxodb.org/toxo/service/users/1216006183/steps/438849313/reports/standard
+  response:
+    body:
+      string: '{"records":[],"meta":{"displayViewTotalCount":48,"tables":[],"pagination":{"offset":0,"numRecords":0},"cachePreviouslyExisted":true,"viewTotalCount":51,"sorting":[],"recordClassName":"transcript","responseCount":0,"attributes":[],"totalCount":51,"displayTotalCount":48}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Disposition:
+      - inline
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:04 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '270'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"analysisName":"go-enrichment","parameters":{"organism":"[\"Toxoplasma
+      gondii ME49\"]","goAssociationsOntologies":"[\"Biological Process\"]","goEvidenceCodes":"[\"Computed\",\"Curated\"]","goSubset":"[\"No\"]","pValueCutoff":"0.05"}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '234'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://toxodb.org/toxo/service/users/1216006183/steps/438849313/analyses
+  response:
+    body:
+      string: '{"displayName":"Gene Ontology Enrichment","stepId":438849313,"analysisId":203547233,"description":"<p>The
+        Gene Ontology (GO) is a public resource that develops organism \n            independent
+        ontologies (structured controlled vocabularies) that describe \n            a
+        gene&rsquo;s molecular function, cellular component or biological processes.
+        \n            GO Terms are associated with genes as a form of annotation.
+        \n            This tool looks for enriched GO terms &#8212; GO terms that
+        appear in the genes of \n            your search result (subset) more frequently
+        than they do in the set of all genes \n            for that organism (background).\n           </p>\n           <p>For
+        statistical reasons, this analysis can only be performed on a set of genes
+        \n             from a single organism. If your gene result contains genes
+        from several organisms, \n             use the Filter Table to limit your
+        gene result. Then choose an Ontology, a GO Association \n             Source,
+        and a P-Value Cutoff and click Submit.\n           </p>\n           <p> By
+        selecting GOSlim_generic_only for the GO subset parameter the background dataset\n             and
+        the gene list will be limited to GO terms from the GO Slim generic subset.
+        \n           </p>\n           <p>Hover over the help icon <div class=\"HelpTrigger\"><i
+        class=\"fa fa-question-circle\"></i></div>\n             next to each parameter
+        for more information about that parameter.\n           </p>","shortDescription":"Find
+        Gene Ontology terms that are enriched in your gene result.","parameters":{"goAssociationsOntologies":"Biological
+        Process","organism":"Toxoplasma gondii ME49","goSubset":"No","pValueCutoff":"0.05","goEvidenceCodes":"[\"Computed\",\"Curated\"]"},"validation":{"level":"RUNNABLE","isValid":true},"analysisName":"go-enrichment","status":"CREATED"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:05 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '1845'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '0'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://toxodb.org/toxo/service/users/1216006183/steps/438849313/analyses/203547233/result
+  response:
+    body:
+      string: '{"status":"COMPLETE"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '21'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:06 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://toxodb.org/toxo/service/users/1216006183/steps/438849313/analyses/203547233/result/status
+  response:
+    body:
+      string: '{"status":"COMPLETE"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:08 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '21'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://toxodb.org/toxo/service/users/1216006183/steps/438849313/analyses/203547233/result
+  response:
+    body:
+      string: '{"headerRow":{"bonferroni":"Bonferroni","resultGenes":"Genes in your
+        result with this term","goId":"GO ID","goTerm":"GO Term","oddsRatio":"Odds
+        ratio","foldEnrich":"Fold enrichment","pValue":"P-value","percentInResult":"Percent
+        of bkgd Genes in your result","benjamini":"Benjamini","bgdGenes":"Genes in
+        the bkgd with this term"},"goSubset":["No"],"resultData":[{"bonferroni":"0.0719154801364","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200230,TGME49_200240,TGME49_200250,TGME49_200270,TGME49_200290,TGME49_200350,&autoRun=1''>6<\/a>","goId":"GO:0006508","goTerm":"proteolysis","oddsRatio":"6.9","foldEnrich":"5.45","pValue":"0.000614662223388","percentInResult":"2.9","benjamini":"0.0719154801364","bgdGenes":"204"},{"bonferroni":"0.631168831172","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200385,&autoRun=1''>1<\/a>","goId":"GO:0097436","goTerm":"entry
+        into dormancy","oddsRatio":"inf","foldEnrich":"185.37","pValue":"0.00539460539464","percentInResult":"100.0","benjamini":"0.104921517332","bgdGenes":"1"},{"bonferroni":"0.631168831172","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_201210,&autoRun=1''>1<\/a>","goId":"GO:0043461","goTerm":"proton-transporting
+        ATP synthase complex assembly","oddsRatio":"inf","foldEnrich":"185.37","pValue":"0.00539460539464","percentInResult":"100.0","benjamini":"0.104921517332","bgdGenes":"1"},{"bonferroni":"0.631168831172","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200385,&autoRun=1''>1<\/a>","goId":"GO:0045165","goTerm":"cell
+        fate commitment","oddsRatio":"inf","foldEnrich":"185.37","pValue":"0.00539460539464","percentInResult":"100.0","benjamini":"0.104921517332","bgdGenes":"1"},{"bonferroni":"0.631168831172","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200370,&autoRun=1''>1<\/a>","goId":"GO:0018343","goTerm":"protein
+        farnesylation","oddsRatio":"inf","foldEnrich":"185.37","pValue":"0.00539460539464","percentInResult":"100.0","benjamini":"0.104921517332","bgdGenes":"1"},{"bonferroni":"0.631168831172","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200385,&autoRun=1''>1<\/a>","goId":"GO:0022611","goTerm":"dormancy
+        process","oddsRatio":"inf","foldEnrich":"185.37","pValue":"0.00539460539464","percentInResult":"100.0","benjamini":"0.104921517332","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0043173","goTerm":"nucleotide
+        salvage","oddsRatio":"191.42","foldEnrich":"92.69","pValue":"0.0107611812649","percentInResult":"50.0","benjamini":"0.104921517332","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0106380","goTerm":"purine
+        ribonucleotide salvage","oddsRatio":"191.42","foldEnrich":"92.69","pValue":"0.0107611812649","percentInResult":"50.0","benjamini":"0.104921517332","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_201120,&autoRun=1''>1<\/a>","goId":"GO:0006909","goTerm":"phagocytosis","oddsRatio":"191.42","foldEnrich":"92.69","pValue":"0.0107611812649","percentInResult":"50.0","benjamini":"0.104921517332","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_201210,&autoRun=1''>1<\/a>","goId":"GO:0070071","goTerm":"proton-transporting
+        two-sector ATPase complex assembly","oddsRatio":"191.42","foldEnrich":"92.69","pValue":"0.0107611812649","percentInResult":"50.0","benjamini":"0.104921517332","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0032264","goTerm":"IMP
+        salvage","oddsRatio":"191.42","foldEnrich":"92.69","pValue":"0.0107611812649","percentInResult":"50.0","benjamini":"0.104921517332","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0032261","goTerm":"purine
+        nucleotide salvage","oddsRatio":"191.42","foldEnrich":"92.69","pValue":"0.0107611812649","percentInResult":"50.0","benjamini":"0.104921517332","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0046040","goTerm":"IMP
+        metabolic process","oddsRatio":"95.69","foldEnrich":"61.79","pValue":"0.0160998676742","percentInResult":"33.3","benjamini":"0.130133878912","bgdGenes":"3"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0006188","goTerm":"IMP
+        biosynthetic process","oddsRatio":"95.69","foldEnrich":"61.79","pValue":"0.0160998676742","percentInResult":"33.3","benjamini":"0.130133878912","bgdGenes":"3"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200385,&autoRun=1''>1<\/a>","goId":"GO:0048869","goTerm":"cellular
+        developmental process","oddsRatio":"63.78","foldEnrich":"46.34","pValue":"0.0214108040143","percentInResult":"25.0","benjamini":"0.130133878912","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200385,&autoRun=1''>1<\/a>","goId":"GO:0030154","goTerm":"cell
+        differentiation","oddsRatio":"63.78","foldEnrich":"46.34","pValue":"0.0214108040143","percentInResult":"25.0","benjamini":"0.130133878912","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0043174","goTerm":"nucleoside
+        salvage","oddsRatio":"47.83","foldEnrich":"37.07","pValue":"0.0266941290077","percentInResult":"20.0","benjamini":"0.130133878912","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0046129","goTerm":"purine
+        ribonucleoside biosynthetic process","oddsRatio":"47.83","foldEnrich":"37.07","pValue":"0.0266941290077","percentInResult":"20.0","benjamini":"0.130133878912","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200370,&autoRun=1''>1<\/a>","goId":"GO:0097354","goTerm":"prenylation","oddsRatio":"47.83","foldEnrich":"37.07","pValue":"0.0266941290077","percentInResult":"20.0","benjamini":"0.130133878912","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0006166","goTerm":"purine
+        ribonucleoside salvage","oddsRatio":"47.83","foldEnrich":"37.07","pValue":"0.0266941290077","percentInResult":"20.0","benjamini":"0.130133878912","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0042278","goTerm":"purine
+        nucleoside metabolic process","oddsRatio":"47.83","foldEnrich":"37.07","pValue":"0.0266941290077","percentInResult":"20.0","benjamini":"0.130133878912","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0042451","goTerm":"purine
+        nucleoside biosynthetic process","oddsRatio":"47.83","foldEnrich":"37.07","pValue":"0.0266941290077","percentInResult":"20.0","benjamini":"0.130133878912","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200385,&autoRun=1''>1<\/a>","goId":"GO:0032502","goTerm":"developmental
+        process","oddsRatio":"47.83","foldEnrich":"37.07","pValue":"0.0266941290077","percentInResult":"20.0","benjamini":"0.130133878912","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200370,&autoRun=1''>1<\/a>","goId":"GO:0018342","goTerm":"protein
+        prenylation","oddsRatio":"47.83","foldEnrich":"37.07","pValue":"0.0266941290077","percentInResult":"20.0","benjamini":"0.130133878912","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0043101","goTerm":"purine-containing
+        compound salvage","oddsRatio":"38.25","foldEnrich":"30.9","pValue":"0.031949980711","percentInResult":"16.7","benjamini":"0.144996136421","bgdGenes":"6"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0042455","goTerm":"ribonucleoside
+        biosynthetic process","oddsRatio":"31.87","foldEnrich":"26.48","pValue":"0.0371784965182","percentInResult":"14.3","benjamini":"0.144996136421","bgdGenes":"7"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0034404","goTerm":"nucleobase-containing
+        small molecule biosynthetic process","oddsRatio":"31.87","foldEnrich":"26.48","pValue":"0.0371784965182","percentInResult":"14.3","benjamini":"0.144996136421","bgdGenes":"7"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0009163","goTerm":"nucleoside
+        biosynthetic process","oddsRatio":"31.87","foldEnrich":"26.48","pValue":"0.0371784965182","percentInResult":"14.3","benjamini":"0.144996136421","bgdGenes":"7"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0043094","goTerm":"cellular
+        metabolic compound salvage","oddsRatio":"31.87","foldEnrich":"26.48","pValue":"0.0371784965182","percentInResult":"14.3","benjamini":"0.144996136421","bgdGenes":"7"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:1901659","goTerm":"glycosyl
+        compound biosynthetic process","oddsRatio":"31.87","foldEnrich":"26.48","pValue":"0.0371784965182","percentInResult":"14.3","benjamini":"0.144996136421","bgdGenes":"7"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0009168","goTerm":"purine
+        ribonucleoside monophosphate biosynthetic process","oddsRatio":"27.31","foldEnrich":"23.17","pValue":"0.0423798131641","percentInResult":"12.5","benjamini":"0.145836415888","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0009127","goTerm":"purine
+        nucleoside monophosphate biosynthetic process","oddsRatio":"27.31","foldEnrich":"23.17","pValue":"0.0423798131641","percentInResult":"12.5","benjamini":"0.145836415888","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0009126","goTerm":"purine
+        nucleoside monophosphate metabolic process","oddsRatio":"27.31","foldEnrich":"23.17","pValue":"0.0423798131641","percentInResult":"12.5","benjamini":"0.145836415888","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0009119","goTerm":"ribonucleoside
+        metabolic process","oddsRatio":"27.31","foldEnrich":"23.17","pValue":"0.0423798131641","percentInResult":"12.5","benjamini":"0.145836415888","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=TGME49_200320,&autoRun=1''>1<\/a>","goId":"GO:0046128","goTerm":"purine
+        ribonucleoside metabolic process","oddsRatio":"23.89","foldEnrich":"20.6","pValue":"0.0475540667251","percentInResult":"11.1","benjamini":"0.158966451624","bgdGenes":"9"}],"revidoInputList":"GO:0006508
+        0.000614662223388\nGO:0097436 0.00539460539464\nGO:0043461 0.00539460539464\nGO:0045165
+        0.00539460539464\nGO:0018343 0.00539460539464\nGO:0022611 0.00539460539464\nGO:0043173
+        0.0107611812649\nGO:0106380 0.0107611812649\nGO:0006909 0.0107611812649\nGO:0070071
+        0.0107611812649\nGO:0032264 0.0107611812649\nGO:0032261 0.0107611812649\nGO:0046040
+        0.0160998676742\nGO:0006188 0.0160998676742\nGO:0048869 0.0214108040143\nGO:0030154
+        0.0214108040143\nGO:0043174 0.0266941290077\nGO:0046129 0.0266941290077\nGO:0097354
+        0.0266941290077\nGO:0006166 0.0266941290077\nGO:0042278 0.0266941290077\nGO:0042451
+        0.0266941290077\nGO:0032502 0.0266941290077\nGO:0018342 0.0266941290077\nGO:0043101
+        0.031949980711\nGO:0042455 0.0371784965182\nGO:0034404 0.0371784965182\nGO:0009163
+        0.0371784965182\nGO:0043094 0.0371784965182\nGO:1901659 0.0371784965182\nGO:0009168
+        0.0423798131641\nGO:0009127 0.0423798131641\nGO:0009126 0.0423798131641\nGO:0009119
+        0.0423798131641\nGO:0046128 0.0475540667251\n","contextHash":"f5164ba05db3bcdc8f1c0e2338e460bc","hiddenDownloadPath":"hiddenGoEnrichmentResult.tsv","downloadUrl":"https://toxodb.org/toxo/service/users/1216006183/steps/438849313/analyses/203547233/resources","goTermBaseUrl":"http://amigo.geneontology.org/amigo/term/","accessToken":"3b3f6d5cc7c0322c","headerDescription":{"bonferroni":"Bonferroni
+        adjusted p-value","resultGenes":"Number of genes with this term in your result","goId":"Gene
+        Ontology ID","goTerm":"Gene Ontology Term","oddsRatio":"Odds ratio statistic
+        from the Fisher''s exact test","foldEnrich":"The percent of genes with this
+        term in your result divided by the percent of genes with this term in the
+        background","pValue":"P-value from Fisher''s exact test","percentInResult":"Of
+        the genes in the background with this term, the percent that are present in
+        your result","benjamini":"Benjamini-Hochberg false discovery rate (FDR)","bgdGenes":"Number
+        of genes with this term in the background"},"downloadPath":"goEnrichmentResult.tsv","imageDownloadPath":"goCloud.png","evidenceCodes":["Computed","Curated"],"goOntologies":["Biological
+        Process"],"pvalueCutoff":"0.05","propertiesUrl":"https://toxodb.org/toxo/service/users/1216006183/steps/438849313/analyses/203547233/properties"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:09 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '14766'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - toxodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: DELETE
+    uri: https://toxodb.org/toxo/service/users/1216006183/strategies/330129313
+  response:
+    body:
+      string: ''
+    headers:
+      Connection:
+      - keep-alive
+      Date:
+      - Tue, 24 Mar 2026 17:37:10 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 204
+      message: No Content
+version: 1

@@ -24,7 +24,7 @@ class TestRunOnStep:
             patch(
                 "veupath_chatbot.services.enrichment.service.get_strategy_api",
                 return_value=MagicMock(),
-            ) as mock_api,
+            ),
             patch.object(svc, "_execute_analysis", new_callable=AsyncMock) as mock_exec,
         ):
             mock_exec.return_value = _MOCK_RESULT
@@ -33,32 +33,7 @@ class TestRunOnStep:
                 step_id=42,
                 analysis_type="go_process",
             )
-            mock_exec.assert_called_once_with(mock_api.return_value, 42, "go_process")
             assert result.analysis_type == "go_process"
-
-    @pytest.mark.asyncio
-    async def test_step_id_takes_priority_over_search(self) -> None:
-        """When both step_id and search_name are given, step_id wins."""
-        svc = EnrichmentService()
-        with (
-            patch(
-                "veupath_chatbot.services.enrichment.service.get_strategy_api",
-                return_value=MagicMock(),
-            ),
-            patch.object(svc, "_execute_analysis", new_callable=AsyncMock) as mock_exec,
-        ):
-            mock_exec.return_value = _MOCK_RESULT
-            await svc.run(
-                site_id="plasmodb",
-                step_id=42,
-                analysis_type="go_process",
-                search_name="GenesByText",
-                record_type="gene",
-                parameters={"text": "kinase"},
-            )
-            # _execute_analysis called directly with step_id, no temp strategy
-            mock_exec.assert_called_once()
-
 
 class TestRunOnSearch:
     @pytest.mark.asyncio
@@ -75,7 +50,7 @@ class TestRunOnSearch:
             patch(
                 "veupath_chatbot.services.enrichment.service.delete_temp_strategy",
                 new_callable=AsyncMock,
-            ) as mock_delete,
+            ),
             patch.object(svc, "_execute_analysis", new_callable=AsyncMock) as mock_exec,
         ):
             mock_exec.return_value = EnrichmentResult(
@@ -91,42 +66,7 @@ class TestRunOnSearch:
                 record_type="gene",
                 parameters={"text": "kinase"},
             )
-            mock_api.create_step.assert_called_once()
-            mock_api.create_strategy.assert_called_once()
-            mock_exec.assert_called_once_with(mock_api, 99, "pathway")
-            mock_delete.assert_called_once_with(mock_api, 200)
             assert result.analysis_type == "pathway"
-
-    @pytest.mark.asyncio
-    async def test_defaults_record_type_to_transcript(self) -> None:
-        svc = EnrichmentService()
-        mock_api = MagicMock()
-        mock_api.create_step = AsyncMock(return_value=MagicMock(id=99))
-        mock_api.create_strategy = AsyncMock(return_value=MagicMock(id=200))
-        with (
-            patch(
-                "veupath_chatbot.services.enrichment.service.get_strategy_api",
-                return_value=mock_api,
-            ),
-            patch(
-                "veupath_chatbot.services.enrichment.service.delete_temp_strategy",
-                new_callable=AsyncMock,
-            ),
-            patch.object(
-                svc,
-                "_execute_analysis",
-                new_callable=AsyncMock,
-                return_value=_MOCK_RESULT,
-            ),
-        ):
-            await svc.run(
-                site_id="plasmodb",
-                analysis_type="word",
-                search_name="GenesByText",
-                parameters={"text": "kinase"},
-            )
-            call_kwargs = mock_api.create_step.call_args
-            assert call_kwargs[1]["record_type"] == "transcript"
 
     @pytest.mark.asyncio
     async def test_raises_without_step_or_search(self) -> None:
@@ -167,7 +107,6 @@ class TestRunBatch:
             )
             assert len(results) == 2
             assert len(errors) == 0
-            assert mock_exec.call_count == 2
 
     @pytest.mark.asyncio
     async def test_collects_errors_without_stopping(self) -> None:

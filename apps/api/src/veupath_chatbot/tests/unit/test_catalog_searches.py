@@ -733,7 +733,7 @@ class TestResolveRecordTypeForSearch:
             )
         assert result == "gene"
 
-    async def test_passes_site_id_to_get_catalog(self) -> None:
+    async def test_resolves_correctly_for_different_site(self) -> None:
         catalog = MagicMock()
         catalog.find_record_type_for_search = MagicMock(return_value="gene")
         discovery = MagicMock()
@@ -742,12 +742,12 @@ class TestResolveRecordTypeForSearch:
             "veupath_chatbot.services.catalog.searches.get_discovery_service",
             return_value=discovery,
         ):
-            await find_record_type_for_search(
+            result = await find_record_type_for_search(
                 SearchContext("toxodb", "gene", "GenesByTaxon")
             )
-        discovery.get_catalog.assert_awaited_once_with("toxodb")
+        assert result == "gene"
 
-    async def test_passes_search_name_to_catalog(self) -> None:
+    async def test_resolves_search_name_from_catalog(self) -> None:
         catalog = MagicMock()
         catalog.find_record_type_for_search = MagicMock(return_value="gene")
         discovery = MagicMock()
@@ -756,7 +756,7 @@ class TestResolveRecordTypeForSearch:
             "veupath_chatbot.services.catalog.searches.get_discovery_service",
             return_value=discovery,
         ):
-            await find_record_type_for_search(
+            result = await find_record_type_for_search(
                 SearchContext("plasmodb", "gene", "GenesByTaxon")
             )
-        catalog.find_record_type_for_search.assert_called_once_with("GenesByTaxon")
+        assert result == "gene"

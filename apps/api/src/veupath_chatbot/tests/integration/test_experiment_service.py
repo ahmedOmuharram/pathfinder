@@ -20,6 +20,9 @@ from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.service import run_experiment
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
+    ControlSetData,
+    ControlTargetData,
+    ControlTestResult,
     ExperimentConfig,
     ExperimentMetrics,
 )
@@ -87,7 +90,7 @@ def _make_control_result(
     negative_intersection_ids: list[str] | None = None,
     target_estimated_size: int = 150,
     target_step_id: int = 100,
-) -> JSONObject:
+) -> ControlTestResult:
     """Build a realistic ``run_positive_negative_controls`` return value."""
     pos_ids = positive_intersection_ids or list(
         POSITIVE_IDS[:positive_intersection_count]
@@ -98,36 +101,36 @@ def _make_control_result(
     pos_missing = [pid for pid in POSITIVE_IDS if pid not in set(pos_ids)]
     neg_unexpected = list(neg_ids)
 
-    return {
-        "siteId": "PlasmoDB",
-        "recordType": "gene",
-        "target": {
-            "searchName": "GenesByTaxon",
-            "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
-            "stepId": target_step_id,
-            "estimatedSize": target_estimated_size,
-        },
-        "positive": {
-            "controlsCount": len(POSITIVE_IDS),
-            "intersectionCount": positive_intersection_count,
-            "intersectionIds": list(pos_ids),
-            "intersectionIdsSample": list(pos_ids[:50]),
-            "targetStepId": target_step_id,
-            "targetEstimatedSize": target_estimated_size,
-            "missingIdsSample": list(pos_missing[:50]),
-            "recall": positive_intersection_count / len(POSITIVE_IDS),
-        },
-        "negative": {
-            "controlsCount": len(NEGATIVE_IDS),
-            "intersectionCount": negative_intersection_count,
-            "intersectionIds": list(neg_ids),
-            "intersectionIdsSample": list(neg_ids[:50]),
-            "targetStepId": target_step_id,
-            "targetEstimatedSize": target_estimated_size,
-            "unexpectedHitsSample": list(neg_unexpected[:50]),
-            "falsePositiveRate": negative_intersection_count / len(NEGATIVE_IDS),
-        },
-    }
+    return ControlTestResult(
+        site_id="PlasmoDB",
+        record_type="gene",
+        target=ControlTargetData(
+            search_name="GenesByTaxon",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+            step_id=target_step_id,
+            estimated_size=target_estimated_size,
+        ),
+        positive=ControlSetData(
+            controls_count=len(POSITIVE_IDS),
+            intersection_count=positive_intersection_count,
+            intersection_ids=list(pos_ids),
+            intersection_ids_sample=list(pos_ids[:50]),
+            target_step_id=target_step_id,
+            target_estimated_size=target_estimated_size,
+            missing_ids_sample=list(pos_missing[:50]),
+            recall=positive_intersection_count / len(POSITIVE_IDS),
+        ),
+        negative=ControlSetData(
+            controls_count=len(NEGATIVE_IDS),
+            intersection_count=negative_intersection_count,
+            intersection_ids=list(neg_ids),
+            intersection_ids_sample=list(neg_ids[:50]),
+            target_step_id=target_step_id,
+            target_estimated_size=target_estimated_size,
+            unexpected_hits_sample=list(neg_unexpected[:50]),
+            false_positive_rate=negative_intersection_count / len(NEGATIVE_IDS),
+        ),
+    )
 
 
 def _make_mock_strategy_api() -> AsyncMock:

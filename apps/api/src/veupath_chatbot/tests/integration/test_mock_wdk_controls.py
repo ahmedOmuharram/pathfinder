@@ -25,15 +25,248 @@ from veupath_chatbot.services.control_tests import (
     _run_intersection_control,
     run_positive_negative_controls,
 )
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    dataset_creation_response,
-    search_details_response,
-    searches_response,
-    standard_report_response,
-    step_creation_response,
-    strategy_creation_response,
-    user_current_response,
-)
+
+
+# ---------------------------------------------------------------------------
+# Inline WDK response factories (replaces wdk_responses imports)
+# ---------------------------------------------------------------------------
+def user_current_response(user_id: int = 12345) -> dict:
+    """GET /users/current."""
+    return {"id": user_id, "isGuest": True, "email": None, "properties": {}}
+
+
+def step_creation_response(step_id: int = 100) -> dict:
+    """POST /users/{userId}/steps."""
+    return {"id": step_id}
+
+
+def strategy_creation_response(strategy_id: int = 200) -> dict:
+    """POST /users/{userId}/strategies."""
+    return {"id": strategy_id}
+
+
+def dataset_creation_response(dataset_id: int = 500) -> dict:
+    """POST /users/{userId}/datasets."""
+    return {"id": dataset_id}
+
+
+def searches_response() -> list:
+    """GET /record-types/transcript/searches -- minimal list for boolean discovery."""
+    return [
+        {
+            "urlSegment": "GenesByTaxon",
+            "fullName": "GeneQuestions.GenesByTaxon",
+            "queryName": "GenesByTaxon",
+            "displayName": "Organism",
+            "shortDisplayName": "Organism",
+            "outputRecordClassName": "transcript",
+            "paramNames": ["organism"],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": [],
+            "defaultSorting": [],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        {
+            "urlSegment": "boolean_question_TranscriptRecordClasses_TranscriptRecordClass",
+            "fullName": "InternalQuestions.boolean_question_TranscriptRecordClasses_TranscriptRecordClass",
+            "queryName": "bq_TranscriptRecordClasses_TranscriptRecordClass",
+            "displayName": "Combine Gene results",
+            "shortDisplayName": "Combine Gene results",
+            "outputRecordClassName": "transcript",
+            "paramNames": [
+                "bq_left_op_TranscriptRecordClasses_TranscriptRecordClass",
+                "bq_right_op_TranscriptRecordClasses_TranscriptRecordClass",
+                "bq_operator",
+            ],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": [],
+            "defaultSorting": [],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+            "allowedPrimaryInputRecordClassNames": ["transcript"],
+            "allowedSecondaryInputRecordClassNames": ["transcript"],
+        },
+    ]
+
+
+def search_details_response(search_name: str = "GenesByTaxon") -> dict:
+    """GET /record-types/transcript/searches/{name}?expandParams=true."""
+    suffix = "TranscriptRecordClasses_TranscriptRecordClass"
+    boolean_name = f"boolean_question_{suffix}"
+    if search_name == boolean_name:
+        return {
+            "searchData": {
+                "urlSegment": boolean_name,
+                "fullName": f"InternalQuestions.{boolean_name}",
+                "queryName": f"bq_{suffix}",
+                "displayName": "Combine Gene results",
+                "shortDisplayName": "Combine Gene results",
+                "outputRecordClassName": "transcript",
+                "isAnalyzable": True,
+                "isCacheable": True,
+                "noSummaryOnSingleRecord": False,
+                "defaultSummaryView": "_default",
+                "defaultAttributes": [],
+                "defaultSorting": [],
+                "paramNames": [
+                    f"bq_left_op_{suffix}",
+                    f"bq_right_op_{suffix}",
+                    "bq_operator",
+                ],
+                "parameters": [
+                    {
+                        "name": f"bq_left_op_{suffix}",
+                        "displayName": "Left operand",
+                        "type": "input-step",
+                        "allowEmptyValue": True,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "",
+                        "dependentParams": [],
+                        "properties": {},
+                    },
+                    {
+                        "name": f"bq_right_op_{suffix}",
+                        "displayName": "Right operand",
+                        "type": "input-step",
+                        "allowEmptyValue": True,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "",
+                        "dependentParams": [],
+                        "properties": {},
+                    },
+                    {
+                        "name": "bq_operator",
+                        "displayName": "Operator",
+                        "type": "single-pick-vocabulary",
+                        "allowEmptyValue": False,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "INTERSECT",
+                        "minSelectedCount": 1,
+                        "maxSelectedCount": 1,
+                        "dependentParams": [],
+                        "properties": {},
+                        "vocabulary": [
+                            ["UNION", "UNION", None],
+                            ["INTERSECT", "INTERSECT", None],
+                            ["MINUS", "LEFT_MINUS", None],
+                            ["RMINUS", "RIGHT_MINUS", None],
+                            ["LONLY", "LEFT_ONLY", None],
+                            ["RONLY", "RIGHT_ONLY", None],
+                        ],
+                    },
+                ],
+                "dynamicAttributes": [],
+                "filters": [],
+                "groups": [],
+                "properties": {},
+                "summaryViewPlugins": [],
+            },
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        }
+    # Fallback to GenesByTaxon
+    return {
+        "searchData": {
+            "urlSegment": "GenesByTaxon",
+            "fullName": "GeneQuestions.GenesByTaxon",
+            "queryName": "GenesByTaxon",
+            "displayName": "Organism",
+            "shortDisplayName": "Organism",
+            "outputRecordClassName": "transcript",
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": [],
+            "defaultSorting": [],
+            "paramNames": ["organism"],
+            "parameters": [
+                {
+                    "name": "organism",
+                    "displayName": "Organism",
+                    "type": "multi-pick-vocabulary",
+                    "allowEmptyValue": False,
+                    "isVisible": True,
+                    "isReadOnly": False,
+                    "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+                    "dependentParams": [],
+                    "properties": {},
+                },
+            ],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+
+
+_DEFAULT_GENE_IDS: list[str] = [
+    "PF3D7_0100100",
+    "PF3D7_0831900",
+    "PF3D7_1133400",
+    "PF3D7_0709000",
+    "PF3D7_1343700",
+]
+
+
+def standard_report_response(
+    gene_ids: list[str] | None = None,
+    total_count: int | None = None,
+) -> dict:
+    """POST .../reports/standard -- paginated records response."""
+    ids = gene_ids if gene_ids is not None else _DEFAULT_GENE_IDS
+    count = total_count if total_count is not None else len(ids)
+    records = [
+        {
+            "id": [
+                {"name": "gene_source_id", "value": gid},
+                {"name": "source_id", "value": f"{gid}.1"},
+                {"name": "project_id", "value": "PlasmoDB"},
+            ],
+            "displayName": gid,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "attributes": {
+                "primary_key": gid,
+                "gene_source_id": gid,
+                "gene_name": None,
+                "gene_product": f"hypothetical protein, conserved ({gid})",
+                "gene_type": "protein_coding",
+                "organism": "<i>Plasmodium falciparum 3D7</i>",
+                "gene_location_text": "Pf3D7_01_v3: 29,510 - 37,126 (+)",
+                "gene_previous_ids": "",
+            },
+            "tables": {},
+            "tableErrors": [],
+        }
+        for gid in ids
+    ]
+    return {
+        "records": records,
+        "meta": {
+            "totalCount": count,
+            "displayedCount": len(ids),
+            "viewTotalCount": count,
+            "responseCount": len(ids),
+        },
+    }
 
 # ---------------------------------------------------------------------------
 # Constants

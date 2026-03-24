@@ -1,8 +1,11 @@
 import asyncio
 import contextlib
+import hashlib
 import os
-from collections.abc import AsyncGenerator, Callable, Generator
+import re
+from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
 from contextlib import contextmanager
+from typing import Any
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -27,7 +30,9 @@ import veupath_chatbot.persistence.session as session_module
 import veupath_chatbot.platform.redis as redis_module
 import veupath_chatbot.services.chat.orchestrator as _orch
 import veupath_chatbot.services.workbench_chat.orchestrator
+from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.main import create_app
 from veupath_chatbot.persistence.models import Base, User
 from veupath_chatbot.platform.config import get_settings
@@ -438,3 +443,211 @@ def scripted_engine_factory() -> Callable[
             yield engine
 
     return _factory
+
+
+# ---------------------------------------------------------------------------
+# VCR cassette configuration
+# ---------------------------------------------------------------------------
+
+
+def _scrub_auth_cookies(request):
+    """Strip auth credentials from request before recording to cassette."""
+    if "cookie" in request.headers:
+        cookie = request.headers["cookie"]
+        cookie = re.sub(r"Authorization=[^;]+", "Authorization=SCRUBBED", cookie)
+        cookie = re.sub(r"JSESSIONID=[^;]+", "JSESSIONID=SCRUBBED", cookie)
+        request.headers["cookie"] = cookie
+    return request
+
+
+def _scrub_response_headers(response):
+    """Strip session cookies from response before recording to cassette."""
+    headers = response.get("headers", {})
+    set_cookie = headers.get("Set-Cookie")
+    if set_cookie is None:
+        return response
+    # VCRpy response dicts use str | list[str] for headers — this is
+    # internal library plumbing, not a domain boundary.
+    if isinstance(set_cookie, list):
+        headers["Set-Cookie"] = [
+            re.sub(r"(Authorization|JSESSIONID)=[^;]+", r"\1=SCRUBBED", c)
+            for c in set_cookie
+        ]
+    else:
+        headers["Set-Cookie"] = re.sub(
+            r"(Authorization|JSESSIONID)=[^;]+", r"\1=SCRUBBED", set_cookie
+        )
+    return response
+
+
+@pytest.fixture(scope="session")
+def vcr_config():
+    """Global VCR configuration for pytest-recording.
+
+    NOTE: record_mode is intentionally NOT set here. pytest-recording's
+    built-in ``record_mode`` fixture already defaults to ``"none"`` when
+    ``--record-mode`` is not passed on the CLI. Putting it in vcr_config
+    would override the CLI flag, making ``--record-mode=all`` ineffective.
+    """
+    return {
+        "cassette_library_dir": "src/veupath_chatbot/tests/cassettes",
+        "match_on": ["method", "path", "query", "body"],
+        "before_record_request": _scrub_auth_cookies,
+        "before_record_response": _scrub_response_headers,
+        "decode_compressed_response": True,
+        "ignore_hosts": ["test"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Background task control
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+async def _eager_spawn(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
+    """Replace spawn() with a tracked version that awaits all tasks in teardown.
+
+    Real ``spawn()`` creates fire-and-forget background tasks.  In tests,
+    these can outlive the test, hit closed DB connections, or make
+    unexpected WDK calls.  This fixture creates real ``asyncio.Task``
+    objects (so background logic actually runs) but tracks them and awaits
+    completion in teardown before ``db_cleaner`` runs TRUNCATE.
+
+    Autouse: every test gets this automatically.  No more per-test
+    ``@patch("...spawn")`` decorators needed.
+    """
+    pending: set[asyncio.Task[Any]] = set()
+
+    def _tracked_spawn(
+        coro: Coroutine[Any, Any, Any], *, name: str | None = None
+    ) -> asyncio.Task[Any] | None:
+        try:
+            task = asyncio.create_task(coro, name=name)
+        except RuntimeError:
+            coro.close()
+            return None
+        pending.add(task)
+        task.add_done_callback(pending.discard)
+        return task
+
+    # spawn is imported by name in multiple modules — patch all binding sites
+    monkeypatch.setattr("veupath_chatbot.platform.tasks.spawn", _tracked_spawn)
+    monkeypatch.setattr("veupath_chatbot.platform.store.spawn", _tracked_spawn)
+    monkeypatch.setattr(
+        "veupath_chatbot.services.experiment.core.streaming.spawn",
+        _tracked_spawn,
+    )
+
+    yield
+
+    # Await all spawned tasks before test teardown
+    if pending:
+        _done, timed_out = await asyncio.wait(pending, timeout=10.0)
+        for t in timed_out:
+            t.cancel()
+        if timed_out:
+            await asyncio.gather(*timed_out, return_exceptions=True)
+
+
+# ---------------------------------------------------------------------------
+# Real WDK fixtures (cassette-backed)
+# ---------------------------------------------------------------------------
+
+# Sites eligible for test recording (excluding orthomcl + veupathdb portal)
+_TEST_SITES: dict[str, str] = {
+    "plasmodb": "https://plasmodb.org/plasmo/service",
+    "toxodb": "https://toxodb.org/toxo/service",
+    "cryptodb": "https://cryptodb.org/cryptodb/service",
+    "giardiadb": "https://giardiadb.org/giardiadb/service",
+    "amoebadb": "https://amoebadb.org/amoeba/service",
+    "microsporidiadb": "https://microsporidiadb.org/micro/service",
+    "piroplasmadb": "https://piroplasmadb.org/piro/service",
+    "tritrypdb": "https://tritrypdb.org/tritrypdb/service",
+    "trichdb": "https://trichdb.org/trichdb/service",
+    "fungidb": "https://fungidb.org/fungidb/service",
+    "vectorbase": "https://vectorbase.org/vectorbase/service",
+    "hostdb": "https://hostdb.org/hostdb/service",
+}
+
+
+@pytest.fixture
+def wdk_test_site(request: pytest.FixtureRequest) -> tuple[str, str]:
+    """Pick a deterministic-per-test VEuPathDB site.
+
+    Each test gets a stable site based on a hash of its node ID.  Different
+    tests land on different sites, giving cross-site diversity across the
+    suite.  The mapping is deterministic across sessions, so cassette
+    record and replay always agree on which site a test uses.
+
+    Returns ``(site_id, base_url)`` tuple.
+    """
+    sites = list(_TEST_SITES.keys())
+    seed = int(hashlib.md5(request.node.nodeid.encode()).hexdigest(), 16)  # noqa: S324
+    site_id = sites[seed % len(sites)]
+    return site_id, _TEST_SITES[site_id]
+
+
+@pytest.fixture(scope="session")
+async def wdk_auth_token() -> str | None:
+    """Authenticate to WDK once and return the cross-site auth token.
+
+    The VEuPathDB auth token is valid across ALL sites (plasmodb, toxodb,
+    etc.), so we login once via plasmodb and reuse the token everywhere.
+
+    Only meaningful during cassette recording (when ``WDK_AUTH_EMAIL`` is
+    set).  During replay, returns ``None`` — cassettes respond regardless.
+    """
+    email = os.environ.get("WDK_AUTH_EMAIL", "").strip()
+    password = os.environ.get("WDK_AUTH_PASSWORD", "").strip()
+    if not email or not password:
+        return None
+
+    # Login via plasmodb — token works on all VEuPathDB sites.
+    async with httpx.AsyncClient(
+        base_url="https://plasmodb.org/plasmo/service",
+        follow_redirects=False,
+        timeout=30.0,
+    ) as client:
+        response = await client.post(
+            "/login",
+            json={
+                "email": email,
+                "password": password,
+                "redirectUrl": "https://plasmodb.org",
+            },
+        )
+
+    # WDK returns TWO Authorization cookies: first is authenticated,
+    # second is a new guest session.  We want the first (authenticated).
+    for header_name, header_value in response.headers.multi_items():
+        if (
+            header_name.lower() == "set-cookie"
+            and header_value.startswith("Authorization=")
+        ):
+            return header_value.split(";", 1)[0].split("=", 1)[1].strip('"')
+
+    return None
+
+
+@pytest.fixture
+async def wdk_api(
+    wdk_auth_token: str | None,
+    wdk_test_site: tuple[str, str],
+) -> AsyncGenerator[StrategyAPI]:
+    """Real StrategyAPI targeting a per-test random VEuPathDB site.
+
+    Backed by a real ``VEuPathDBClient`` — HTTP calls flow through to WDK
+    and are intercepted by VCR cassettes.  The auth token is session-scoped
+    (one login), but each test gets a fresh client pointing at its own
+    random site.
+    """
+    _site_id, base_url = wdk_test_site
+    client = VEuPathDBClient(
+        base_url=base_url,
+        timeout=30.0,
+        auth_token=wdk_auth_token,
+    )
+    api = StrategyAPI(client)
+    yield api
+    await client.close()

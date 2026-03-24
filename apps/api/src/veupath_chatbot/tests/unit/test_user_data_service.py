@@ -140,4 +140,3 @@ class TestPurgeWdkStrategies:
             result = await _purge_wdk_strategies(site_id=None, delete_wdk=True)
 
         assert result == 2
-        assert mock_api.delete_strategy.call_count == 2

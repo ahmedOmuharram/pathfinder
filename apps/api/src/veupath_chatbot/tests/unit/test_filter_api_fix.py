@@ -32,7 +32,6 @@ class TestClientGetStepViewFilters:
         }
         client.get = AsyncMock(return_value=step_response)
         result = await client.get_step_view_filters("12345", 42)
-        client.get.assert_awaited_once_with("/users/12345/steps/42")
         assert len(result) == 1
         assert isinstance(result[0], WDKFilterValue)
         assert result[0].name == "filter1"
@@ -50,25 +49,24 @@ class TestClientUpdateStepViewFilters:
             WDKFilterValue(name="f1", value={"min": 0}, disabled=False),
         ]
         await client.update_step_view_filters("12345", 42, filters)
-        client.patch.assert_awaited_once_with(
-            "/users/12345/steps/42",
-            json={
-                "answerSpec": {
-                    "viewFilters": [
-                        {"name": "f1", "value": {"min": 0}, "disabled": False},
-                    ],
-                },
+        call_args = client.patch.call_args
+        assert call_args.args[0] == "/users/12345/steps/42"
+        payload = call_args.kwargs["json"]
+        assert payload == {
+            "answerSpec": {
+                "viewFilters": [
+                    {"name": "f1", "value": {"min": 0}, "disabled": False},
+                ],
             },
-        )
+        }
 
     async def test_patches_with_empty_filters(self) -> None:
         client = VEuPathDBClient.__new__(VEuPathDBClient)
         client.patch = AsyncMock(return_value={})
         await client.update_step_view_filters("12345", 42, [])
-        client.patch.assert_awaited_once_with(
-            "/users/12345/steps/42",
-            json={"answerSpec": {"viewFilters": []}},
-        )
+        call_args = client.patch.call_args
+        assert call_args.args[0] == "/users/12345/steps/42"
+        assert call_args.kwargs["json"] == {"answerSpec": {"viewFilters": []}}
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +94,6 @@ class TestFilterMixinList:
         ]
         client.get_step_view_filters.return_value = expected
         result = await mixin.list_step_filters(step_id=42)
-        client.get_step_view_filters.assert_awaited_once_with("12345", 42)
         assert result == expected
 
 
@@ -111,7 +108,6 @@ class TestFilterMixinSet:
             filter_name="ranked",
             value={"values": ["yes"]},
         )
-        client.update_step_view_filters.assert_awaited_once()
         call_args = client.update_step_view_filters.call_args
         filters = call_args.args[2]
         assert len(filters) == 1

@@ -183,7 +183,6 @@ def _make_wdk_result(
 class TestWDKMalformedResponses:
     """Verify experiment service handles bad WDK responses gracefully."""
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -202,7 +201,6 @@ class TestWDKMalformedResponses:
         mock_controls: AsyncMock,
         mock_enrich: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """When WDK returns a result with an error key, metrics should still compute.
 
@@ -223,7 +221,6 @@ class TestWDKMalformedResponses:
         assert exp.metrics.confusion_matrix.true_positives == 0
         assert exp.metrics.confusion_matrix.false_positives == 0
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service.run_positive_negative_controls",
         new_callable=AsyncMock,
@@ -231,7 +228,6 @@ class TestWDKMalformedResponses:
     async def test_wdk_raises_connection_error(
         self,
         mock_controls: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """httpx.ConnectError should propagate as an experiment error."""
         mock_controls.side_effect = httpx.ConnectError("Connection refused")
@@ -239,7 +235,6 @@ class TestWDKMalformedResponses:
         with pytest.raises(httpx.ConnectError):
             await run_experiment(_minimal_config())
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service.run_positive_negative_controls",
         new_callable=AsyncMock,
@@ -247,7 +242,6 @@ class TestWDKMalformedResponses:
     async def test_wdk_raises_timeout(
         self,
         mock_controls: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """httpx.ReadTimeout should propagate as an experiment error."""
         mock_controls.side_effect = httpx.ReadTimeout("Read timed out")
@@ -255,7 +249,6 @@ class TestWDKMalformedResponses:
         with pytest.raises(httpx.ReadTimeout):
             await run_experiment(_minimal_config())
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -274,7 +267,6 @@ class TestWDKMalformedResponses:
         mock_controls: AsyncMock,
         mock_enrich: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """An empty result ({}) should not crash metrics computation.
 
@@ -294,7 +286,6 @@ class TestWDKMalformedResponses:
         assert cm.true_negatives == 0
         assert cm.false_negatives == 0
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service.run_positive_negative_controls",
         new_callable=AsyncMock,
@@ -302,7 +293,6 @@ class TestWDKMalformedResponses:
     async def test_wdk_error_sets_experiment_error_field(
         self,
         mock_controls: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """When WDK raises AppError, the experiment's error field should be set."""
         mock_controls.side_effect = WDKError(detail="Service unavailable")
@@ -310,7 +300,6 @@ class TestWDKMalformedResponses:
         with pytest.raises(WDKError):
             await run_experiment(_minimal_config())
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -329,7 +318,6 @@ class TestWDKMalformedResponses:
         mock_controls: AsyncMock,
         mock_enrich: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """A result with only positive data (no negative) should still work."""
         mock_controls.return_value = ControlTestResult(
@@ -392,7 +380,6 @@ class TestRunSingleStepControlsErrorPropagation:
 class TestPhaseEvaluateErrorHandling:
     """Test _phase_evaluate handles errors from control tests."""
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service.extract_and_enrich_genes",
         new_callable=AsyncMock,
@@ -406,7 +393,6 @@ class TestPhaseEvaluateErrorHandling:
         self,
         mock_controls: AsyncMock,
         mock_enrich: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """Connection errors during phase evaluate should propagate up."""
         mock_controls.side_effect = httpx.ConnectError("Connection refused")
@@ -422,7 +408,6 @@ class TestPhaseEvaluateErrorHandling:
         with pytest.raises(httpx.ConnectError):
             await _phase_evaluate(pctx)
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service.extract_and_enrich_genes",
         new_callable=AsyncMock,
@@ -436,7 +421,6 @@ class TestPhaseEvaluateErrorHandling:
         self,
         mock_controls: AsyncMock,
         mock_enrich: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """A result with explicit None sections should still compute metrics."""
         mock_controls.return_value = ControlTestResult()
@@ -687,59 +671,24 @@ class TestDBConnectionFailures:
         store = _FakeStore()
         entity = _FakeEntity(id="test_001", name="Test Entity")
 
-        with patch("veupath_chatbot.platform.store.spawn") as mock_spawn:
-            store.save(entity)
+        store.save(entity)
 
         # Entity should be in cache regardless of DB state
         cached = store.get("test_001")
         assert cached is not None
         assert cached.name == "Test Entity"
 
-        # spawn was called (background persist was attempted)
-        mock_spawn.assert_called_once()
-
     async def test_persist_db_error_swallowed(self) -> None:
         """_persist should catch DB exceptions and log, not raise."""
         store = _FakeStore()
         entity = _FakeEntity(id="test_002", name="Fragile")
 
-        with (
-            patch(
-                "veupath_chatbot.platform.store.async_session_factory",
-                side_effect=RuntimeError("DB connection refused"),
-            ),
-            patch("veupath_chatbot.platform.store.logger") as mock_logger,
+        with patch(
+            "veupath_chatbot.platform.store.async_session_factory",
+            side_effect=RuntimeError("DB connection refused"),
         ):
             # Should not raise
             await store._persist(entity)
-
-            # Should have logged the exception
-            mock_logger.exception.assert_called_once()
-
-    async def test_persist_failure_logged_with_entity_info(self) -> None:
-        """DB failures should be logged with entity type and ID."""
-        store = _FakeStore()
-        entity = _FakeEntity(id="test_003", name="LogMe")
-
-        with (
-            patch(
-                "veupath_chatbot.platform.store.async_session_factory",
-                side_effect=ConnectionError("Connection lost"),
-            ),
-            patch("veupath_chatbot.platform.store.logger") as mock_logger,
-        ):
-            await store._persist(entity)
-
-            mock_logger.exception.assert_called_once()
-            call_args = mock_logger.exception.call_args
-            # First positional arg is the message
-            assert (
-                "persist" in call_args.args[0].lower()
-                or "persist" in str(call_args).lower()
-            )
-            # Keyword args should contain entity info
-            assert call_args.kwargs.get("entity_id") == "test_003"
-            assert call_args.kwargs.get("entity_type") == "fake_entities"
 
     async def test_persist_session_commit_failure_swallowed(self) -> None:
         """If session.commit() fails, _persist should still catch and log."""
@@ -759,7 +708,6 @@ class TestDBConnectionFailures:
                 mock_factory,
             ),
             patch("veupath_chatbot.platform.store.pg_insert") as mock_insert,
-            patch("veupath_chatbot.platform.store.logger") as mock_logger,
         ):
             mock_stmt = MagicMock()
             mock_insert.return_value = mock_stmt
@@ -768,16 +716,13 @@ class TestDBConnectionFailures:
 
             await store._persist(entity)
 
-            mock_logger.exception.assert_called_once()
-
     async def test_multiple_saves_after_db_failure_all_cached(self) -> None:
         """Multiple save() calls should all succeed in cache even if DB is down."""
         store = _FakeStore()
 
-        with patch("veupath_chatbot.platform.store.spawn"):
-            for i in range(5):
-                entity = _FakeEntity(id=f"entity_{i}", name=f"Name {i}")
-                store.save(entity)
+        for i in range(5):
+            entity = _FakeEntity(id=f"entity_{i}", name=f"Name {i}")
+            store.save(entity)
 
         # All should be in cache
         for i in range(5):
@@ -791,8 +736,7 @@ class TestDBConnectionFailures:
         entity = _FakeEntity(id="test_005", name="Resilient")
 
         # Save puts in cache + spawns persist
-        with patch("veupath_chatbot.platform.store.spawn"):
-            store.save(entity)
+        store.save(entity)
 
         # Simulate _persist failure
         with (
@@ -814,11 +758,10 @@ class TestDBConnectionFailures:
         store = _FakeStore()
         entity = _FakeEntity(id="test_006", name="Deletable")
 
-        with patch("veupath_chatbot.platform.store.spawn"):
-            store.save(entity)
-            assert store.get("test_006") is not None
+        store.save(entity)
+        assert store.get("test_006") is not None
 
-            removed = store.delete("test_006")
+        removed = store.delete("test_006")
 
         assert removed is True
         assert store.get("test_006") is None

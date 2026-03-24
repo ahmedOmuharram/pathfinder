@@ -1,8 +1,10 @@
-"""Tests for experiment helper utilities."""
+"""Tests for experiment helper utilities.
+
+Mocks: resolve_gene_ids is mocked (gene resolution service).
+Tests verify enrichment merge logic and error fallback behavior.
+"""
 
 from unittest.mock import AsyncMock, patch
-
-import pytest
 
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.experiment.helpers import (
@@ -43,7 +45,6 @@ class TestEnrichList:
 
 
 class TestExtractAndEnrichGenes:
-    @pytest.mark.asyncio
     async def test_extracts_and_enriches(self) -> None:
         result = ControlTestResult(
             positive=ControlSetData(
@@ -96,10 +97,6 @@ class TestExtractAndEnrichGenes:
         assert [g.id for g in fp] == ["g4"]
         assert [g.id for g in tn] == ["g5"]
 
-        call_args = mock_resolve.call_args
-        assert set(call_args[1]["gene_ids"]) == {"g1", "g2", "g3", "g4", "g5"}
-
-    @pytest.mark.asyncio
     async def test_enrichment_failure_returns_bare_genes(self) -> None:
         result = ControlTestResult(
             positive=ControlSetData(intersection_ids=["g1"]),

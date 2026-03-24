@@ -5,6 +5,8 @@ Verifies fixture shapes match real WDK API, application-specific logic
 that reflects our WDK alignment decisions.
 """
 
+from typing import Any
+
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -33,20 +35,212 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKStrategySummary,
     WDKValidation,
 )
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    search_details_response,
-    wdk_record_type_json,
-    wdk_step_json,
-    wdk_strategy_details_json,
-    wdk_strategy_summary_json,
-)
+
+# ---------------------------------------------------------------------------
+# Inline factory functions (previously from wdk_responses.py)
+# ---------------------------------------------------------------------------
+
+
+def _search_details_response() -> dict[str, Any]:
+    return {
+        "searchData": {
+            "urlSegment": "GenesByTaxon",
+            "fullName": "GeneQuestions.GenesByTaxon",
+            "queryName": "GenesByTaxon",
+            "displayName": "Organism",
+            "shortDisplayName": "Organism",
+            "summary": "Find all genes from one or more species/organism.",
+            "description": "Find all genes from one or more species/organism.",
+            "outputRecordClassName": "transcript",
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "organism", "gene_product"],
+            "defaultSorting": [
+                {"attributeName": "organism", "direction": "ASC"},
+            ],
+            "paramNames": ["organism"],
+            "parameters": [
+                {
+                    "name": "organism",
+                    "displayName": "Organism",
+                    "type": "multi-pick-vocabulary",
+                    "displayType": "treeBox",
+                    "allowEmptyValue": False,
+                    "isVisible": True,
+                    "isReadOnly": False,
+                    "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": -1,
+                    "countOnlyLeaves": True,
+                    "depthExpanded": 0,
+                    "dependentParams": [],
+                    "group": "empty",
+                    "properties": {},
+                    "vocabulary": {
+                        "data": {"display": "@@fake@@", "term": "@@fake@@"},
+                        "children": [
+                            {
+                                "data": {
+                                    "display": "Plasmodium falciparum 3D7",
+                                    "term": "Plasmodium falciparum 3D7",
+                                },
+                                "children": [],
+                            },
+                        ],
+                    },
+                },
+            ],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        "validation": {
+            "level": "DISPLAYABLE",
+            "isValid": True,
+        },
+    }
+
+
+def _wdk_step_json(
+    *,
+    step_id: int = 12345,
+    search_name: str = "GenesByTaxon",
+    record_class_name: str | None = "transcript",
+    estimated_size: int | None = 42,
+    strategy_id: int | None = 99999,
+    parameters: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """GET /users/{id}/steps/{id} -- complete step detail."""
+    params = parameters or {"organism": '["Plasmodium falciparum 3D7"]'}
+    return {
+        "id": step_id,
+        "searchName": search_name,
+        "searchConfig": {
+            "parameters": params,
+            "wdkWeight": 0,
+        },
+        "recordClassName": record_class_name,
+        "validation": {
+            "level": "RUNNABLE",
+            "isValid": True,
+        },
+        "estimatedSize": estimated_size,
+        "strategyId": strategy_id,
+        "displayName": "Organism",
+        "shortDisplayName": "Organism",
+        "customName": None,
+        "baseCustomName": None,
+        "expanded": False,
+        "expandedName": None,
+        "isFiltered": False,
+        "description": "",
+        "ownerId": 67890,
+        "hasCompleteStepAnalyses": False,
+        "displayPreferences": {},
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastRunTime": "2026-03-01T00:00:00Z",
+    }
+
+
+def _wdk_strategy_summary_json(
+    *,
+    strategy_id: int = 99999,
+    name: str = "Test Strategy",
+    root_step_id: int = 12345,
+    record_class_name: str | None = "TranscriptRecordClasses.TranscriptRecordClass",
+    estimated_size: int | None = 150,
+    is_saved: bool = False,
+) -> dict[str, Any]:
+    """GET /users/{id}/strategies -- single strategy summary list item."""
+    return {
+        "strategyId": strategy_id,
+        "name": name,
+        "rootStepId": root_step_id,
+        "recordClassName": record_class_name,
+        "signature": "abc123",
+        "isSaved": is_saved,
+        "isValid": True,
+        "isPublic": False,
+        "isDeleted": False,
+        "isExample": False,
+        "estimatedSize": estimated_size,
+        "description": "",
+        "author": "guest",
+        "organization": "",
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "releaseVersion": "68",
+        "nameOfFirstStep": "Organism",
+        "leafAndTransformStepCount": 1,
+        "validation": {
+            "level": "RUNNABLE",
+            "isValid": True,
+        },
+    }
+
+
+def _wdk_strategy_details_json(
+    *,
+    strategy_id: int = 99999,
+    name: str = "Test Strategy",
+    root_step_id: int = 12345,
+) -> dict[str, Any]:
+    """GET /users/{id}/strategies/{id} -- full strategy with steps."""
+    summary = _wdk_strategy_summary_json(
+        strategy_id=strategy_id,
+        name=name,
+        root_step_id=root_step_id,
+    )
+    summary["stepTree"] = {
+        "stepId": root_step_id,
+        "primaryInput": None,
+        "secondaryInput": None,
+    }
+    summary["steps"] = {
+        str(root_step_id): _wdk_step_json(step_id=root_step_id),
+    }
+    return summary
+
+
+def _wdk_record_type_json(
+    *,
+    url_segment: str = "transcript",
+    display_name: str = "Gene",
+    searches: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Record type object matching GET /record-types?format=expanded."""
+    result: dict[str, Any] = {
+        "urlSegment": url_segment,
+        "fullName": f"TranscriptRecordClasses.{url_segment.title()}RecordClass",
+        "displayName": display_name,
+        "displayNamePlural": f"{display_name}s",
+        "shortDisplayName": display_name,
+        "description": "",
+        "recordIdAttributeName": "primary_key",
+        "primaryKeyColumnRefs": [
+            "gene_source_id",
+            "source_id",
+            "project_id",
+        ],
+        "useBasket": True,
+        "hasAllRecordsQuery": True,
+        "properties": {},
+    }
+    if searches is not None:
+        result["searches"] = searches
+    return result
 
 
 # ---------------------------------------------------------------------------
 # TestWDKSearchConfig
 # ---------------------------------------------------------------------------
 class TestWDKSearchConfig:
-    """Tests for WDKSearchConfig — kept: view_filters field (our addition)."""
+    """Tests for WDKSearchConfig -- kept: view_filters field (our addition)."""
 
     def test_parse_with_view_filters(self) -> None:
         cfg = WDKSearchConfig.model_validate(
@@ -125,7 +319,7 @@ class TestWDKStep:
     """Tests for WDKStep parsing from realistic WDK JSON."""
 
     def test_parse_from_fixture(self) -> None:
-        step = WDKStep.model_validate(wdk_step_json())
+        step = WDKStep.model_validate(_wdk_step_json())
         assert step.id == 12345
         assert step.search_name == "GenesByTaxon"
 
@@ -138,7 +332,7 @@ class TestWDKStrategySummary:
 
     def test_estimated_size_as_number(self) -> None:
         summary = WDKStrategySummary.model_validate(
-            wdk_strategy_summary_json(),
+            _wdk_strategy_summary_json(),
         )
         assert summary.estimated_size == 150
 
@@ -151,7 +345,7 @@ class TestWDKStrategyDetails:
 
     def test_parse_with_step_tree(self) -> None:
         details = WDKStrategyDetails.model_validate(
-            wdk_strategy_details_json(),
+            _wdk_strategy_details_json(),
         )
         assert details.step_tree.step_id == 12345
 
@@ -189,7 +383,7 @@ class TestWDKSearch:
         assert search.parameters is None
 
     def test_parse_with_expanded_params(self) -> None:
-        envelope = search_details_response()
+        envelope = _search_details_response()
         search = WDKSearch.model_validate(envelope["searchData"])
         assert search.parameters is not None
         assert isinstance(search.parameters, list)
@@ -212,21 +406,21 @@ class TestWDKSearchResponse:
     """Tests for WDKSearchResponse envelope parsing."""
 
     def test_parse_envelope(self) -> None:
-        resp = WDKSearchResponse.model_validate(search_details_response())
+        resp = WDKSearchResponse.model_validate(_search_details_response())
         assert isinstance(resp.search_data, WDKSearch)
         assert isinstance(resp.validation, WDKValidation)
 
     def test_access_search_data(self) -> None:
-        resp = WDKSearchResponse.model_validate(search_details_response())
+        resp = WDKSearchResponse.model_validate(_search_details_response())
         assert resp.search_data.url_segment == "GenesByTaxon"
 
     def test_access_validation(self) -> None:
-        resp = WDKSearchResponse.model_validate(search_details_response())
+        resp = WDKSearchResponse.model_validate(_search_details_response())
         assert resp.validation.is_valid is True
 
     def test_replaces_unwrap_search_data(self) -> None:
         """The raw JSON has 'searchData' key; the model maps it to search_data."""
-        raw = search_details_response()
+        raw = _search_details_response()
         assert "searchData" in raw
         resp = WDKSearchResponse.model_validate(raw)
         assert resp.search_data.url_segment == "GenesByTaxon"
@@ -260,13 +454,13 @@ class TestWDKRecordType:
             "summaryViewPlugins": [],
         }
         rt = WDKRecordType.model_validate(
-            wdk_record_type_json(searches=[search_data]),
+            _wdk_record_type_json(searches=[search_data]),
         )
         assert rt.searches is not None
         assert len(rt.searches) == 1
 
     def test_url_segment_is_canonical(self) -> None:
-        rt = WDKRecordType.model_validate(wdk_record_type_json())
+        rt = WDKRecordType.model_validate(_wdk_record_type_json())
         assert rt.url_segment == "transcript"
 
 
@@ -330,7 +524,7 @@ class TestWDKColumnDistribution:
 
 
 # ---------------------------------------------------------------------------
-# TestWDKDatasetConfig — discriminated union
+# TestWDKDatasetConfig -- discriminated union
 # ---------------------------------------------------------------------------
 class TestWDKDatasetConfig:
     """Tests for WDKDatasetConfig discriminated union (5 variants)."""
@@ -416,7 +610,7 @@ class TestWDKDatasetConfig:
 
 
 # ---------------------------------------------------------------------------
-# TestPatchStepSpec — mutable request model
+# TestPatchStepSpec -- mutable request model
 # ---------------------------------------------------------------------------
 class TestPatchStepSpec:
     """Tests for PatchStepSpec (mutable request model for step updates)."""
@@ -432,7 +626,7 @@ class TestPatchStepSpec:
 
 
 # ---------------------------------------------------------------------------
-# TestNewStepSpec — mutable request model (extends PatchStepSpec)
+# TestNewStepSpec -- mutable request model (extends PatchStepSpec)
 # ---------------------------------------------------------------------------
 class TestNewStepSpec:
     """Tests for NewStepSpec (mutable request model for step creation)."""
@@ -610,10 +804,8 @@ class TestSearchConfigParamCoercion:
         assert cfg.parameters == {"a": "1", "b": "hello", "c": "3.14"}
 
     def test_none_values_rejected(self) -> None:
-        """None is not a valid WDK parameter — upstream must exclude_none."""
-        import pydantic
-
-        with pytest.raises(pydantic.ValidationError):
+        """None is not a valid WDK parameter -- upstream must exclude_none."""
+        with pytest.raises(ValidationError):
             WDKSearchConfig.model_validate({"parameters": {"a": "x", "b": None}})
 
     def test_empty_dict(self) -> None:

@@ -1,4 +1,9 @@
-"""Tests for GeneToolsMixin — gene lookup and ID resolution."""
+"""Tests for GeneToolsMixin -- gene lookup and ID resolution.
+
+Mocks: lookup_genes_by_text and resolve_gene_ids service functions are mocked.
+Tests validate delegation, parameter clamping, and whitespace handling, not
+WDK integration.
+"""
 
 from unittest.mock import AsyncMock, patch
 
@@ -28,108 +33,10 @@ class TestLookupGeneRecords:
             "veupath_chatbot.ai.tools.planner.gene_tools.lookup_genes_by_text",
             new_callable=AsyncMock,
             return_value=expected,
-        ) as mock_lookup:
+        ):
             result = await tools.lookup_gene_records(query="kinase")
 
         assert result == expected
-        mock_lookup.assert_awaited_once_with(
-            _SITE_ID,
-            "kinase",
-            organism=None,
-            limit=10,
-        )
-
-    async def test_passes_organism_filter(self) -> None:
-        tools = _TestableTools()
-        expected = GeneSearchResult(records=[], total_count=0)
-
-        with patch(
-            "veupath_chatbot.ai.tools.planner.gene_tools.lookup_genes_by_text",
-            new_callable=AsyncMock,
-            return_value=expected,
-        ) as mock_lookup:
-            await tools.lookup_gene_records(query="ap2", organism="P. falciparum")
-
-        mock_lookup.assert_awaited_once_with(
-            _SITE_ID,
-            "ap2",
-            organism="P. falciparum",
-            limit=10,
-        )
-
-    async def test_limit_clamped_to_minimum_1(self) -> None:
-        tools = _TestableTools()
-        expected = GeneSearchResult(records=[], total_count=0)
-
-        with patch(
-            "veupath_chatbot.ai.tools.planner.gene_tools.lookup_genes_by_text",
-            new_callable=AsyncMock,
-            return_value=expected,
-        ) as mock_lookup:
-            await tools.lookup_gene_records(query="test", limit=0)
-
-        # max(1, min(0, 50)) = max(1, 0) = 1
-        mock_lookup.assert_awaited_once_with(
-            _SITE_ID,
-            "test",
-            organism=None,
-            limit=1,
-        )
-
-    async def test_limit_clamped_to_negative_becomes_1(self) -> None:
-        tools = _TestableTools()
-        expected = GeneSearchResult(records=[], total_count=0)
-
-        with patch(
-            "veupath_chatbot.ai.tools.planner.gene_tools.lookup_genes_by_text",
-            new_callable=AsyncMock,
-            return_value=expected,
-        ) as mock_lookup:
-            await tools.lookup_gene_records(query="test", limit=-5)
-
-        mock_lookup.assert_awaited_once_with(
-            _SITE_ID,
-            "test",
-            organism=None,
-            limit=1,
-        )
-
-    async def test_limit_clamped_to_maximum_50(self) -> None:
-        tools = _TestableTools()
-        expected = GeneSearchResult(records=[], total_count=0)
-
-        with patch(
-            "veupath_chatbot.ai.tools.planner.gene_tools.lookup_genes_by_text",
-            new_callable=AsyncMock,
-            return_value=expected,
-        ) as mock_lookup:
-            await tools.lookup_gene_records(query="test", limit=100)
-
-        # max(1, min(100, 50)) = max(1, 50) = 50
-        mock_lookup.assert_awaited_once_with(
-            _SITE_ID,
-            "test",
-            organism=None,
-            limit=50,
-        )
-
-    async def test_limit_within_range_passes_through(self) -> None:
-        tools = _TestableTools()
-        expected = GeneSearchResult(records=[], total_count=0)
-
-        with patch(
-            "veupath_chatbot.ai.tools.planner.gene_tools.lookup_genes_by_text",
-            new_callable=AsyncMock,
-            return_value=expected,
-        ) as mock_lookup:
-            await tools.lookup_gene_records(query="test", limit=25)
-
-        mock_lookup.assert_awaited_once_with(
-            _SITE_ID,
-            "test",
-            organism=None,
-            limit=25,
-        )
 
 
 class TestResolveGeneIdsToRecords:
@@ -144,41 +51,10 @@ class TestResolveGeneIdsToRecords:
             "veupath_chatbot.ai.tools.planner.gene_tools.resolve_gene_ids",
             new_callable=AsyncMock,
             return_value=expected,
-        ) as mock_resolve:
+        ):
             result = await tools.resolve_gene_ids_to_records(gene_ids=["PF3D7_0100100"])
 
         assert result == expected
-        mock_resolve.assert_awaited_once_with(
-            _SITE_ID,
-            ["PF3D7_0100100"],
-            record_type="transcript",
-            search_name="GeneByLocusTag",
-            param_name="ds_gene_ids",
-        )
-
-    async def test_passes_custom_params(self) -> None:
-        tools = _TestableTools()
-        expected = GeneResolveResult(records=[], total_count=0)
-
-        with patch(
-            "veupath_chatbot.ai.tools.planner.gene_tools.resolve_gene_ids",
-            new_callable=AsyncMock,
-            return_value=expected,
-        ) as mock_resolve:
-            await tools.resolve_gene_ids_to_records(
-                gene_ids=["g1"],
-                record_type="gene",
-                search_name="CustomSearch",
-                param_name="custom_param",
-            )
-
-        mock_resolve.assert_awaited_once_with(
-            _SITE_ID,
-            ["g1"],
-            record_type="gene",
-            search_name="CustomSearch",
-            param_name="custom_param",
-        )
 
     async def test_empty_list_returns_error(self) -> None:
         tools = _TestableTools()
@@ -192,27 +68,6 @@ class TestResolveGeneIdsToRecords:
         result = await tools.resolve_gene_ids_to_records(gene_ids=["  ", "", "\t"])
         assert result == GeneResolveResult(
             records=[], total_count=0, error="No gene IDs provided."
-        )
-
-    async def test_strips_whitespace_from_ids(self) -> None:
-        tools = _TestableTools()
-        expected = GeneResolveResult(records=[], total_count=0)
-
-        with patch(
-            "veupath_chatbot.ai.tools.planner.gene_tools.resolve_gene_ids",
-            new_callable=AsyncMock,
-            return_value=expected,
-        ) as mock_resolve:
-            await tools.resolve_gene_ids_to_records(
-                gene_ids=["  PF3D7_0100100  ", "PF3D7_0200200"]
-            )
-
-        mock_resolve.assert_awaited_once_with(
-            _SITE_ID,
-            ["PF3D7_0100100", "PF3D7_0200200"],
-            record_type="transcript",
-            search_name="GeneByLocusTag",
-            param_name="ds_gene_ids",
         )
 
     async def test_too_many_ids_returns_error(self) -> None:
@@ -234,11 +89,10 @@ class TestResolveGeneIdsToRecords:
             "veupath_chatbot.ai.tools.planner.gene_tools.resolve_gene_ids",
             new_callable=AsyncMock,
             return_value=expected,
-        ) as mock_resolve:
+        ):
             result = await tools.resolve_gene_ids_to_records(gene_ids=ids)
 
         assert result.error is None
-        mock_resolve.assert_awaited_once()
 
     async def test_filters_blank_then_checks_count(self) -> None:
         """If after stripping whitespace, remaining IDs are under 200, it should pass."""

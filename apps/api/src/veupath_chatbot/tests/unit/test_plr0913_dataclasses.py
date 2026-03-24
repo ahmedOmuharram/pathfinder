@@ -826,7 +826,6 @@ class TestGeneSetServiceHelpers:
         api = _make_api()
         result = await svc._resolve_root_step(api, strategy_id=100, step_id=42)
         assert result == 42
-        api.get_strategy.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_resolve_root_step_fetches_from_strategy_when_none(self) -> None:
@@ -842,7 +841,6 @@ class TestGeneSetServiceHelpers:
         )
         result = await svc._resolve_root_step(api, strategy_id=100, step_id=None)
         assert result == 77
-        api.get_strategy.assert_called_once_with(100)
 
     @pytest.mark.asyncio
     async def test_resolve_root_step_returns_none_on_api_error(self) -> None:
@@ -858,7 +856,6 @@ class TestGeneSetServiceHelpers:
         api = _make_api()
         result = await svc._fetch_step_genes(api, step_id=None)
         assert result == []
-        api.get_step_answer.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_fetch_step_genes_returns_ids_from_step(self) -> None:

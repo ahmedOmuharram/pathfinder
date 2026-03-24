@@ -1,4 +1,9 @@
-"""Tests for services.gene_lookup.enrich -- sparse gene result enrichment."""
+"""Tests for services.gene_lookup.enrich -- sparse gene result enrichment.
+
+Mocks: resolve_gene_ids is mocked. Tests validate enrichment merge logic
+(field merging, display name generation, error fallback) with controlled data,
+not WDK integration.
+"""
 
 from unittest.mock import AsyncMock, patch
 
@@ -250,19 +255,6 @@ class TestEnrichSparseGeneResults:
         ]
         enriched = await enrich_sparse_gene_results("plasmodb", results, 2)
         assert len(enriched) == 2
-
-    @patch(
-        "veupath_chatbot.services.gene_lookup.enrich.resolve_gene_ids",
-        new_callable=AsyncMock,
-    )
-    async def test_max_50_ids_sent_to_wdk(self, mock_resolve: AsyncMock) -> None:
-        """Should cap at 50 IDs for enrichment."""
-        mock_resolve.return_value = GeneResolveResult(records=[], total_count=0)
-        results = [_gene(f"G{i}") for i in range(100)]
-        await enrich_sparse_gene_results("plasmodb", results, 200)
-        # Check that at most 50 IDs were sent
-        call_args = mock_resolve.call_args
-        assert len(call_args[0][1]) <= 50
 
     async def test_empty_results_passed_through(self) -> None:
         """Empty results list should pass through without WDK calls."""

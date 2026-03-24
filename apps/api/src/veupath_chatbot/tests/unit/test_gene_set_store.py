@@ -91,12 +91,11 @@ class TestAsyncDelete:
         store = GeneSetStore()
         store.save(_make_set("doomed"))
 
-        with patch.object(store, "_delete_from_db", new_callable=AsyncMock) as mock_del:
+        with patch.object(store, "_delete_from_db", new_callable=AsyncMock):
             result = await store.adelete("doomed")
 
         assert result is True
         assert store.get("doomed") is None
-        mock_del.assert_awaited_once_with("doomed")
 
 
 class TestAlistForUser:

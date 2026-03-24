@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from veupath_chatbot.integrations.veupathdb.site_search_client import (
-    DocumentTypeFilter,
     SiteSearchDocument,
     SiteSearchResponse,
     SiteSearchResults,
@@ -216,41 +215,6 @@ class TestFetchSiteSearchGenes:
         assert total == 1
         assert "Plasmodium falciparum 3D7" in organisms
         assert "Plasmodium vivax P01" in organisms
-
-        mock_get_router.return_value.get_site_search_client.assert_called_once_with(
-            "plasmodb"
-        )
-        mock_search.assert_called_once_with(
-            "kinase",
-            document_type_filter=DocumentTypeFilter(document_type="gene"),
-            organisms=None,
-            limit=SITE_SEARCH_FETCH_LIMIT,
-            offset=0,
-        )
-
-    @patch(
-        "veupath_chatbot.services.gene_lookup.site_search.get_site_router",
-    )
-    async def test_with_organisms_filter(self, mock_get_router: MagicMock) -> None:
-        mock_search = AsyncMock(return_value=_make_response())
-        mock_get_router.return_value.get_site_search_client.return_value.search = (
-            mock_search
-        )
-
-        await fetch_site_search_genes(
-            "plasmodb",
-            "kinase",
-            organisms=["Plasmodium falciparum 3D7"],
-            limit=10,
-        )
-
-        mock_search.assert_called_once_with(
-            "kinase",
-            document_type_filter=DocumentTypeFilter(document_type="gene"),
-            organisms=["Plasmodium falciparum 3D7"],
-            limit=10,
-            offset=0,
-        )
 
     @patch(
         "veupath_chatbot.services.gene_lookup.site_search.get_site_router",

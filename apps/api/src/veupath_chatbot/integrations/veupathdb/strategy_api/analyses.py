@@ -12,6 +12,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnalysisStatus,
     WDKStepAnalysisConfig,
     WDKStepAnalysisType,
+    WDKStepAnalysisTypeResponse,
 )
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.logging import get_logger
@@ -47,7 +48,7 @@ class AnalysisMixin(StrategyAPIBase):
 
     async def get_analysis_type(
         self, step_id: int, analysis_type: str, user_id: str | None = None
-    ) -> WDKStepAnalysisType:
+    ) -> WDKStepAnalysisTypeResponse:
         """Get analysis form metadata for a step."""
         uid = await self._get_user_id(user_id)
         return await self.client.get_analysis_type(uid, step_id, analysis_type)

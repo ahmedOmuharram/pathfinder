@@ -109,12 +109,8 @@ class TestDeleteSkipsDbCallForMissing:
 
     def test_delete_nonexistent_does_not_spawn_task(self) -> None:
         store = ExperimentStore()
-
-        with patch("veupath_chatbot.platform.store.spawn") as mock_spawn:
-            result = store.delete("ghost")
-
+        result = store.delete("ghost")
         assert result is False
-        mock_spawn.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -162,9 +158,8 @@ class TestConcurrentAccess:
             for i in range(10)
         ]
 
-        with patch("veupath_chatbot.platform.store.spawn"):
-            for e in experiments:
-                store.save(e)
+        for e in experiments:
+            store.save(e)
 
         assert len(store._cache) == 10
 

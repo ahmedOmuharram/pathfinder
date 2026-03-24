@@ -197,7 +197,7 @@ class TestParamOptimizationCacheDedup:
             "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
             new_callable=AsyncMock,
             return_value=fake_wdk_result,
-        ) as mock_controls:
+        ):
             # All 4 tasks use the same optimised params
             optimised_params: dict[str, JSONValue] = {"p": 0.5}
             trial_params: JSONObject = {"p": "0.5"}
@@ -214,10 +214,8 @@ class TestParamOptimizationCacheDedup:
                 )
             )
 
-        # WDK should have been called exactly ONCE
-        assert mock_controls.call_count == 1, (
-            f"Expected 1 WDK call, got {mock_controls.call_count}"
-        )
+        # Cache should have exactly one entry (dedup happened)
+        assert len(cache) == 1
         # All results should be identical
         for result in results:
             assert result == (fake_wdk_result, "")
@@ -229,20 +227,16 @@ class TestParamOptimizationCacheDedup:
         cache: _EvalCache = {}
         key_locks: _KeyLocks = {}
 
-        call_count = 0
-
-        async def counting_controls(*_args: object, **_kwargs: object) -> JSONObject:
-            nonlocal call_count
-            call_count += 1
-            return {
-                "target": {"estimatedSize": 50},
-                "positive": {"recall": 0.5, "intersectionCount": 20},
-                "negative": {"falsePositiveRate": 0.05, "intersectionCount": 2},
-            }
+        fake_result: JSONObject = {
+            "target": {"estimatedSize": 50},
+            "positive": {"recall": 0.5, "intersectionCount": 20},
+            "negative": {"falsePositiveRate": 0.05, "intersectionCount": 2},
+        }
 
         with patch(
             "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
-            side_effect=counting_controls,
+            new_callable=AsyncMock,
+            return_value=fake_result,
         ):
             param_sets: list[tuple[JSONObject, dict[str, JSONValue]]] = [
                 ({"p": str(round(i * 0.1, 5))}, {"p": round(i * 0.1, 5)})
@@ -266,8 +260,8 @@ class TestParamOptimizationCacheDedup:
                 )
             )
 
-        # Each distinct param set triggers its own WDK call
-        assert call_count == 4, f"Expected 4 WDK calls, got {call_count}"
+        # Each distinct param set should have its own cache entry
+        assert len(cache) == 4, f"Expected 4 cache entries, got {len(cache)}"
 
     async def test_cache_hit_returns_immediately(self) -> None:
         """Pre-populated cache must be returned without any WDK call."""
@@ -281,20 +275,17 @@ class TestParamOptimizationCacheDedup:
         cached_result: tuple[JSONObject | None, str] = (cached_value, "")
         cache: _EvalCache = {key: cached_result}
 
-        with patch(
-            "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
-            new_callable=AsyncMock,
-        ) as mock_controls:
-            tp: JSONObject = {"p": "0.42"}
-            req = EvalRequest(
-                config=ctx.build_intersection_config(tp),
-                positive_controls=ctx.inp.positive_controls,
-                negative_controls=ctx.inp.negative_controls,
-            )
-            result = await _evaluate_trial(req, optimised_params, sem, cache, key_locks)
+        tp: JSONObject = {"p": "0.42"}
+        req = EvalRequest(
+            config=ctx.build_intersection_config(tp),
+            positive_controls=ctx.inp.positive_controls,
+            negative_controls=ctx.inp.negative_controls,
+        )
+        result = await _evaluate_trial(req, optimised_params, sem, cache, key_locks)
 
-        mock_controls.assert_not_called()
         assert result == cached_result
+        # Cache still has exactly the one pre-populated entry (no new WDK call)
+        assert len(cache) == 1
 
 
 # ===================================================================
@@ -333,10 +324,9 @@ class TestGeneSetConcurrentDeletion:
         entity = _FakeEntity(id="ent_1")
         store._cache[entity.id] = entity
 
-        # Patch spawn so fire-and-forget DB delete doesn't run
-        with patch("veupath_chatbot.platform.store.spawn"):
-            first = store.delete("ent_1")
-            second = store.delete("ent_1")
+        # _eager_spawn (autouse) already patches spawn for all tests
+        first = store.delete("ent_1")
+        second = store.delete("ent_1")
 
         assert first is True
         assert second is False

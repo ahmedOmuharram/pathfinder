@@ -1,7 +1,11 @@
 """Step creation, parameter assembly, and vocabulary helpers."""
 
 from veupath_chatbot.domain.parameters.vocab_utils import (
+    BROAD_VALUE_FIELDS,
+    collect_leaf_terms,
+    find_vocab_node,
     flatten_vocab,
+    get_node_value,
     normalize_vocab_key,
 )
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
@@ -70,7 +74,9 @@ class StepBuilderMixin(StrategyToolsBase):
             else self._match_vocab_normalized(entries, target)
         )
 
-    def _match_vocab_exact(self, entries: list[JSONObject], target: str) -> str | None:
+    def _match_vocab_exact(
+        self, entries: list[dict[str, str | None]], target: str
+    ) -> str | None:
         """Return the vocab value for an exact match against display or value."""
         for entry in entries:
             display = entry.get("display")
@@ -81,7 +87,9 @@ class StepBuilderMixin(StrategyToolsBase):
                 return raw_value or target
         return None
 
-    def _match_vocab_normalized(self, entries: list[JSONObject], target: str) -> str:
+    def _match_vocab_normalized(
+        self, entries: list[dict[str, str | None]], target: str
+    ) -> str:
         """Return the vocab value for a normalized match, or target if no match."""
         normalized_target = normalize_vocab_key(target)
         for entry in entries:
@@ -92,76 +100,6 @@ class StepBuilderMixin(StrategyToolsBase):
             if raw_value and normalize_vocab_key(raw_value) == normalized_target:
                 return raw_value
         return target
-
-    def _get_vocab_node_value(self, node: JSONObject) -> str:
-        data_raw = node.get("data")
-        data = data_raw if isinstance(data_raw, dict) else {}
-        value_raw = data.get("value")
-        id_raw = data.get("id")
-        term_raw = data.get("term")
-        name_raw = data.get("name")
-        display_raw = data.get("display")
-        raw_value: str | None = None
-        if isinstance(value_raw, str):
-            raw_value = value_raw
-        elif isinstance(id_raw, str):
-            raw_value = id_raw
-        elif isinstance(term_raw, str):
-            raw_value = term_raw
-        elif isinstance(name_raw, str):
-            raw_value = name_raw
-        elif isinstance(display_raw, str):
-            raw_value = display_raw
-        return raw_value if raw_value is not None else ""
-
-    def _find_vocab_node_for_match(
-        self, node: JSONObject, match: str
-    ) -> JSONObject | None:
-        candidates = self._collect_node_candidates(node)
-        if self._candidates_match(candidates, match):
-            return node
-        children_raw = node.get("children")
-        children = children_raw if isinstance(children_raw, list) else []
-        for child in children:
-            if isinstance(child, dict):
-                found = self._find_vocab_node_for_match(child, match)
-                if found:
-                    return found
-        return None
-
-    def _collect_node_candidates(self, node: JSONObject) -> list[JSONValue]:
-        """Collect candidate identifier values from a vocabulary node's data."""
-        data_raw = node.get("data")
-        data = data_raw if isinstance(data_raw, dict) else {}
-        candidates: list[JSONValue] = []
-        for key in ("value", "id", "term", "name", "display"):
-            val = data.get(key)
-            if val is not None:
-                candidates.append(val)
-        return candidates
-
-    def _candidates_match(self, candidates: list[JSONValue], match: str) -> bool:
-        """Check if any candidate matches exactly or after normalization."""
-        for candidate in candidates:
-            if match == str(candidate):
-                return True
-        normalized = normalize_vocab_key(match)
-        for candidate in candidates:
-            if normalize_vocab_key(str(candidate)) == normalized:
-                return True
-        return False
-
-    def _collect_leaf_terms(self, node: JSONObject) -> list[str]:
-        children_raw = node.get("children")
-        children = children_raw if isinstance(children_raw, list) else []
-        if not children:
-            value = self._get_vocab_node_value(node)
-            return [value] if value else []
-        leaves: list[str] = []
-        for child in children:
-            if isinstance(child, dict):
-                leaves.extend(self._collect_leaf_terms(child))
-        return leaves
 
     def _expand_leaf_values(
         self,
@@ -176,18 +114,20 @@ class StepBuilderMixin(StrategyToolsBase):
             match = str(value)
             if not match:
                 continue
-            node = self._find_vocab_node_for_match(vocabulary, match)
+            node = find_vocab_node(
+                vocabulary, match, fields=BROAD_VALUE_FIELDS, normalize=True
+            )
             if not node:
                 if match not in seen:
                     seen.add(match)
                     expanded.append(match)
                 continue
             if include_parent:
-                parent_value = self._get_vocab_node_value(node)
+                parent_value = get_node_value(node, fields=BROAD_VALUE_FIELDS) or ""
                 if parent_value and parent_value not in seen:
                     seen.add(parent_value)
                     expanded.append(parent_value)
-            for leaf in self._collect_leaf_terms(node):
+            for leaf in collect_leaf_terms(node, fields=BROAD_VALUE_FIELDS):
                 if leaf and leaf not in seen:
                     seen.add(leaf)
                     expanded.append(leaf)

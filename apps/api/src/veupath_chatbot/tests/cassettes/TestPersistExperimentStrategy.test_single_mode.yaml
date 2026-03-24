@@ -1,0 +1,371 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - hostdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - Authorization=SCRUBBED
+    method: GET
+    uri: https://hostdb.org/hostdb/app
+  response:
+    body:
+      string: "<!doctype html>\n<html lang=\"en\">\n  <head>\n        <title>HostDB</title>\n
+        \   <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width,
+        initial-scale=1\"/>\n    <link href=\"/hostdb/images/HostDB/favicon.ico\"
+        type=\"image/x-icon\" rel=\"shortcut icon\"/>\n    <script>\n            window.__asset_path_remove_me_please__
+        = \"/hostdb/bundles/\";\n\n            window.__SITE_CONFIG__ = {\n                requireLogin:
+        \"true\" === \"true\",\n        rootElement: \"#wdk-container\",\n        rootUrl:
+        \"/hostdb/app\",\n        endpoint: \"/hostdb/service\",\n        projectId:
+        \"HostDB\",\n        webAppUrl: \"/hostdb\",\n        facebookUrl: \"https://facebook.com/pages/EuPathDB/133123003429972\",\n
+        \       twitterUrl: \"https://twitter.com/VEuPathDB\",\n        twitterUrl2:
+        \"\",\n        youtubeUrl: \"https://youtube.com/user/EuPathDB/playlists\",\n
+        \       discordUrl: \"\",\n        linkedinUrl: \"https://www.linkedin.com/company/veupathdb/\",\n
+        \       redditUrl: \"https://www.reddit.com/r/BRC_users/\",\n        vimeoUrl:
+        \"\",\n        blueskyUrl: \"https://veupathdb.bsky.social\",\n        communitySite:
+        \"//static-content.veupathdb.org/\",\n        siteSearchServiceUrl: \"/site-search\",\n
+        \               useEda: \"true\" === \"true\",\n        edaExampleAnalysesAuthor:
+        \"1926010\",\n        edaServiceUrl: \"/eda\",\n                edaEnableFullScreenApps:
+        \"true\" === \"true\",\n                        useUserDatasetsWorkspace:
+        \"true\" === \"false\",\n        communityDatasetsEnabled: \"true\" === \"False\",\n
+        \       showExtraMetadata: \"\",\n        datasetImportUrl: \"/dataset-import\",\n
+        \       userDatasetsUploadTypes: \"genelist,bigwigfiles,rnaseq\",\n                showUnreleasedData:
+        \"true\" === \"False\",\n        showSubscriptionProds: \"true\" === \"true\",\n
+        \               vdiServiceUrl: \"/vdi\",\n                aiExpressionQualtricsId:
+        \"SV_38C4ZX1JxLi2SEe\",\n              };\n    </script>\n          <script
+        async src=\"https://www.googletagmanager.com/gtag/js?id=G-T0HBFP6XLQ\"></script>\n
+        \     <script>\n        window.dataLayer = window.dataLayer || [];\n        function
+        gtag(){dataLayer.push(arguments);}\n        gtag('js', new Date());\n        gtag('config',
+        'G-T0HBFP6XLQ');\n      </script>                    <script charset=\"utf8\"
+        src=\"/hostdb/bundles/site-client.bundle-e1e8b37443f559d687f9f3d143fbefe6.js\"
+        ></script>\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css\"/>\n
+        \   <link rel=\"stylesheet\" type=\"text/css\" href=\"/hostdb/bundles/site-client.bundle-e1e8b37443f559d687f9f3d143fbefe6.css\"/>\n
+        \ </head>\n    <body class=\"vpdb-Body\">\n    <div class=\"main-stack\">\n
+        \     <div id=\"wdk-container\">\n                  Loading...\n              </div>\n
+        \   </div>            <script>\n        ((window.gitter = {}).chat = {}).options
+        = {\n          room: 'VEuPathDB-genomic/community'\n        };\n        document.addEventListener(\n
+        \         'gitter-sidecar-instance-started', \n          function gitterSidecarHack()
+        {\n            const gitterBtn = document.querySelector('.gitter-open-chat-button');\n
+        \           const gitterAside = document.querySelector('.gitter-chat-embed');\n\n
+        \           // we want to hide the aside and any loading indicators when button
+        is clicked\n            gitterAside.style.display = 'none';\n            document.querySelector('.gitter-chat-embed-loading-wrapper').style.display
+        = 'none';\n\n            if (gitterBtn.baseURI.includes('embed-record')) {\n
+        \             gitterBtn.style.display = 'none';\n            }\n\n            gitterBtn.addEventListener(\n
+        \             'click', \n              function openGitterInNewTab(e) {\n
+        \               e.stopPropagation();\n                e.preventDefault();\n
+        \               window.open('https://app.gitter.im/#/room/#VEuPathDB-genomic_community:gitter.im',
+        \"VEuPathDBGitterForum\");\n              }, \n              true\n            );\n\n
+        \           gitterAside.addEventListener(\n              'gitter-chat-toggle',
+        \n              function keepGitterBtnVisible() {\n                // we want
+        the chat button to remain visible when clicked\n                gitterBtn.classList.remove('is-collapsed');\n
+        \             }\n            )\n          }\n        );\n        // Prioritize
+        loading application data over this script\n        setTimeout(2000, function
+        loadSideCar() {\n          const scriptTag = document.createElement('script');\n
+        \         scriptTag.src = 'https://cdn.jsdelivr.net/npm/gitter-sidecar@1.5.0/dist/sidecar.min.js';\n
+        \         document.head.appendChild(scriptTag);\n        });\n      </script>
+        \ </body>\n</html>\n"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/html
+      Date:
+      - Tue, 24 Mar 2026 17:37:51 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - JSESSIONID=SCRUBBED; Path=/; Secure
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4503'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - hostdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://hostdb.org/hostdb/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["Homo
+        sapiens REF","Mus musculus C57BL6J"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Aves","term":"Aves"},"children":[{"data":{"display":"Gallus
+        gallus isolate bGalGal1","term":"Gallus gallus isolate bGalGal1"},"children":[]}]},{"data":{"display":"Mammalia","term":"Mammalia"},"children":[{"data":{"display":"Artiodactyla","term":"Artiodactyla"},"children":[{"data":{"display":"Bos
+        taurus breed Hereford","term":"Bos taurus breed Hereford"},"children":[]}]},{"data":{"display":"Carnivora","term":"Carnivora"},"children":[{"data":{"display":"Canis
+        lupus familiaris isolate SID07034","term":"Canis lupus familiaris isolate
+        SID07034"},"children":[]}]},{"data":{"display":"Chiroptera","term":"Chiroptera"},"children":[{"data":{"display":"Myotis
+        myotis mMyoMyo1","term":"Myotis myotis mMyoMyo1"},"children":[]}]},{"data":{"display":"Primates","term":"Primates"},"children":[{"data":{"display":"Cercopithecidae","term":"Cercopithecidae"},"children":[{"data":{"display":"Macaca
+        fascicularis","term":"Macaca fascicularis"},"children":[{"data":{"display":"Macaca
+        fascicularis REF","term":"Macaca fascicularis REF"},"children":[]}]},{"data":{"display":"Macaca
+        mulatta","term":"Macaca mulatta"},"children":[{"data":{"display":"Macaca mulatta
+        isolate AG07107","term":"Macaca mulatta isolate AG07107"},"children":[]}]}]},{"data":{"display":"Hominidae","term":"Hominidae"},"children":[{"data":{"display":"Homo
+        sapiens REF","term":"Homo sapiens REF"},"children":[]}]}]},{"data":{"display":"Rodentia","term":"Rodentia"},"children":[{"data":{"display":"Caviidae","term":"Caviidae"},"children":[{"data":{"display":"Cavia
+        porcellus 2N","term":"Cavia porcellus 2N"},"children":[]}]},{"data":{"display":"Muridae","term":"Muridae"},"children":[{"data":{"display":"Mus","term":"Mus"},"children":[{"data":{"display":"Mus
+        musculus C57BL6J","term":"Mus musculus C57BL6J"},"children":[]}]},{"data":{"display":"Rattus","term":"Rattus"},"children":[{"data":{"display":"Rattus
+        norvegicus BN/NHsdMcwi","term":"Rattus norvegicus BN/NHsdMcwi"},"children":[]}]}]}]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["Homo
+        sapiens REF","Mus musculus C57BL6J"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["Homo
+        sapiens REF","Mus musculus C57BL6J"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:51 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4937'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - hostdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://hostdb.org/hostdb/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["Homo
+        sapiens REF","Mus musculus C57BL6J"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Aves","term":"Aves"},"children":[{"data":{"display":"Gallus
+        gallus isolate bGalGal1","term":"Gallus gallus isolate bGalGal1"},"children":[]}]},{"data":{"display":"Mammalia","term":"Mammalia"},"children":[{"data":{"display":"Artiodactyla","term":"Artiodactyla"},"children":[{"data":{"display":"Bos
+        taurus breed Hereford","term":"Bos taurus breed Hereford"},"children":[]}]},{"data":{"display":"Carnivora","term":"Carnivora"},"children":[{"data":{"display":"Canis
+        lupus familiaris isolate SID07034","term":"Canis lupus familiaris isolate
+        SID07034"},"children":[]}]},{"data":{"display":"Chiroptera","term":"Chiroptera"},"children":[{"data":{"display":"Myotis
+        myotis mMyoMyo1","term":"Myotis myotis mMyoMyo1"},"children":[]}]},{"data":{"display":"Primates","term":"Primates"},"children":[{"data":{"display":"Cercopithecidae","term":"Cercopithecidae"},"children":[{"data":{"display":"Macaca
+        fascicularis","term":"Macaca fascicularis"},"children":[{"data":{"display":"Macaca
+        fascicularis REF","term":"Macaca fascicularis REF"},"children":[]}]},{"data":{"display":"Macaca
+        mulatta","term":"Macaca mulatta"},"children":[{"data":{"display":"Macaca mulatta
+        isolate AG07107","term":"Macaca mulatta isolate AG07107"},"children":[]}]}]},{"data":{"display":"Hominidae","term":"Hominidae"},"children":[{"data":{"display":"Homo
+        sapiens REF","term":"Homo sapiens REF"},"children":[]}]}]},{"data":{"display":"Rodentia","term":"Rodentia"},"children":[{"data":{"display":"Caviidae","term":"Caviidae"},"children":[{"data":{"display":"Cavia
+        porcellus 2N","term":"Cavia porcellus 2N"},"children":[]}]},{"data":{"display":"Muridae","term":"Muridae"},"children":[{"data":{"display":"Mus","term":"Mus"},"children":[{"data":{"display":"Mus
+        musculus C57BL6J","term":"Mus musculus C57BL6J"},"children":[]}]},{"data":{"display":"Rattus","term":"Rattus"},"children":[{"data":{"display":"Rattus
+        norvegicus BN/NHsdMcwi","term":"Rattus norvegicus BN/NHsdMcwi"},"children":[]}]}]}]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["Homo
+        sapiens REF","Mus musculus C57BL6J"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["Homo
+        sapiens REF","Mus musculus C57BL6J"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:51 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4937'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - hostdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://hostdb.org/hostdb/service/users/current
+  response:
+    body:
+      string: '{"isGuest":false,"id":1214413863,"email":"ahmed.o.muharram@gmail.com","properties":{"organizationType":"academic","firstName":"PathFinder","lastName":"Test
+        User","country":"US","groupName":"Chris Callison-Burch Lab","groupType":"research","subscriptionToken":"","organization":"University
+        of Pennsylvania","middleName":"","position":"grad_student","interests":"","username":"pathfinder-dev-testing"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:51 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '400'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchName":"GenesByTaxon","searchConfig":{"parameters":{"organism":"[\"Gallus
+      gallus isolate bGalGal1\"]"}},"customName":"Experiment: Materialization Test"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '159'
+      Content-Type:
+      - application/json
+      Host:
+      - hostdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://hostdb.org/hostdb/service/users/1214413863/steps
+  response:
+    body:
+      string: '{"id":438849403}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:51 GMT
+      Location:
+      - https://hostdb.org/hostdb/service/users/1214413863/steps
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"__pathfinder_internal__:exp:exp-materialize-001","isPublic":false,"isSaved":false,"stepTree":{"stepId":438849403},"description":"Persisted
+      strategy for experiment Materialization Test"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '194'
+      Content-Type:
+      - application/json
+      Host:
+      - hostdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://hostdb.org/hostdb/service/users/1214413863/strategies
+  response:
+    body:
+      string: '{"id":330129343}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:52 GMT
+      Location:
+      - https://hostdb.org/hostdb/service/users/1214413863/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

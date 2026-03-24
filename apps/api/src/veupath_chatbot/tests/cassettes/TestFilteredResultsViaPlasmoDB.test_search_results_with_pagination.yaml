@@ -1,0 +1,52 @@
+interactions:
+- request:
+    body: '{"searchConfig":{"parameters":{"organism":"[\"Plasmodium falciparum 3D7\"]"}},"reportConfig":{"attributes":["primary_key","organism"],"pagination":{"offset":0,"numRecords":5}}}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '176'
+      Content-Type:
+      - application/json
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/record-types/transcript/searches/GenesByTaxon/reports/standard
+  response:
+    body:
+      string: '{"records":[{"tables":{},"displayName":"PF3D7_0100100","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{"organism":"<i>Plasmodium
+        falciparum 3D7<\/i>","primary_key":"PF3D7_0100100"},"id":[{"name":"gene_source_id","value":"PF3D7_0100100"},{"name":"source_id","value":"PF3D7_0100100.1"},{"name":"project_id","value":"PlasmoDB"}],"tableErrors":[]},{"tables":{},"displayName":"PF3D7_0100200","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{"organism":"<i>Plasmodium
+        falciparum 3D7<\/i>","primary_key":"PF3D7_0100200"},"id":[{"name":"gene_source_id","value":"PF3D7_0100200"},{"name":"source_id","value":"PF3D7_0100200.1"},{"name":"project_id","value":"PlasmoDB"}],"tableErrors":[]},{"tables":{},"displayName":"PF3D7_0100300","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{"organism":"<i>Plasmodium
+        falciparum 3D7<\/i>","primary_key":"PF3D7_0100300"},"id":[{"name":"gene_source_id","value":"PF3D7_0100300"},{"name":"source_id","value":"PF3D7_0100300.1"},{"name":"project_id","value":"PlasmoDB"}],"tableErrors":[]},{"tables":{},"displayName":"PF3D7_0100400","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{"organism":"<i>Plasmodium
+        falciparum 3D7<\/i>","primary_key":"PF3D7_0100400"},"id":[{"name":"gene_source_id","value":"PF3D7_0100400"},{"name":"source_id","value":"PF3D7_0100400.1"},{"name":"project_id","value":"PlasmoDB"}],"tableErrors":[]},{"tables":{},"displayName":"PF3D7_0100500","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{"organism":"<i>Plasmodium
+        falciparum 3D7<\/i>","primary_key":"PF3D7_0100500"},"id":[{"name":"gene_source_id","value":"PF3D7_0100500"},{"name":"source_id","value":"PF3D7_0100500.1"},{"name":"project_id","value":"PlasmoDB"}],"tableErrors":[]}],"meta":{"displayViewTotalCount":5720,"tables":[],"pagination":{"offset":0,"numRecords":5},"cachePreviouslyExisted":true,"viewTotalCount":5791,"sorting":[],"recordClassName":"transcript","responseCount":5,"attributes":["primary_key","organism"],"totalCount":5791,"displayTotalCount":5720}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Disposition:
+      - inline
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:37:45 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '2121'
+    status:
+      code: 200
+      message: OK
+version: 1

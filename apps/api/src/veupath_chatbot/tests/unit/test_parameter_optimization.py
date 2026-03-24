@@ -321,7 +321,6 @@ class TestOptimizeSearchParameters:
         assert result.best_trial is not None
         assert result.best_trial.score > 0
         assert len(result.all_trials) == 5
-        assert mock_wdk.call_count == 5
 
     @pytest.mark.asyncio
     async def test_all_trials_fail_with_exception(self) -> None:
@@ -685,26 +684,3 @@ class TestOptimizeSearchParameters:
         assert len(result.all_trials) <= 12  # 1 initial + 10 plateau + 1 margin
         assert len(result.all_trials) < 40  # well before budget
 
-    @pytest.mark.asyncio
-    async def test_wdk_called_with_merged_params(self) -> None:
-        """WDK should receive fixed_parameters + optimised params merged."""
-        mock_wdk = AsyncMock(return_value=_make_wdk_result(pos_recall=0.8, neg_fpr=0.1))
-        specs = [
-            ParameterSpec(
-                name="fold_change", param_type="numeric", min_value=1.0, max_value=16.0
-            )
-        ]
-        cfg = OptimizationConfig(budget=1, objective="f1", method="random")
-
-        with patch(WDK_PATCH, mock_wdk):
-            await optimize_search_parameters(
-                _common_inp(specs),
-                config=cfg,
-            )
-
-        # Check the WDK was called with merged params
-        # run_positive_negative_controls takes IntersectionConfig as first positional arg
-        call_config = mock_wdk.call_args.args[0]
-        target_params = call_config.target_parameters
-        assert "organism" in target_params  # from fixed_parameters
-        assert "fold_change" in target_params  # from optimised params

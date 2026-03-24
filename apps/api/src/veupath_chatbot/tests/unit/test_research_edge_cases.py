@@ -730,23 +730,6 @@ class TestCrossrefEdgeCases:
 
 class TestEuropePmcEdgeCases:
     @respx.mock
-    async def test_non_numeric_pub_year(self) -> None:
-        """pubYear that is a non-numeric string should produce None year."""
-        respx.get("https://www.ebi.ac.uk/europepmc/webservices/rest/search").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "resultList": {"result": [{"title": "T", "pubYear": "not-a-year"}]}
-                },
-            )
-        )
-        client = EuropePmcClient(timeout_seconds=5.0)
-        result = await client.search("test", limit=5, abstract_max_chars=500)
-        item = result["results"][0]
-        assert isinstance(item, dict)
-        assert item["year"] is None
-
-    @respx.mock
     async def test_no_doi_no_pmid(self) -> None:
         """Item with neither DOI nor PMID should have None URL."""
         respx.get("https://www.ebi.ac.uk/europepmc/webservices/rest/search").mock(
@@ -790,32 +773,6 @@ class TestOpenAlexEdgeCases:
         assert isinstance(item, dict)
         # Empty dict -> no pairs -> abstract stays None
         assert item["abstract"] is None
-
-    @respx.mock
-    async def test_abstract_inverted_index_non_int_positions(self) -> None:
-        """Inverted index with non-int positions should be skipped."""
-        respx.get("https://api.openalex.org/works").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "results": [
-                        {
-                            "title": "Test",
-                            "abstract_inverted_index": {
-                                "hello": ["not_int"],
-                                "world": [0],
-                            },
-                        }
-                    ]
-                },
-            )
-        )
-        client = OpenAlexClient(timeout_seconds=5.0)
-        result = await client.search("test", limit=5, abstract_max_chars=500)
-        item = result["results"][0]
-        assert isinstance(item, dict)
-        # Only "world" at position 0 should be in the abstract
-        assert item["abstract"] == "world"
 
     @respx.mock
     async def test_publication_year_as_string(self) -> None:

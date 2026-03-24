@@ -4,14 +4,124 @@ Covers: multi-step CRUD, plan updates, delete with WDK cleanup,
 open strategy flows, and state transitions.
 """
 
+from typing import Any
+
 import httpx
 import respx
 
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    step_get_response,
-    strategy_get_response,
-    strategy_list_item,
-)
+
+# ---------------------------------------------------------------------------
+# Inline WDK response factories
+# ---------------------------------------------------------------------------
+def strategy_list_item(
+    strategy_id: int = 200,
+    name: str = "Test strategy",
+) -> dict[str, Any]:
+    """GET /users/{id}/strategies list item -- summary only, no stepTree/steps."""
+    return {
+        "strategyId": strategy_id,
+        "name": name,
+        "description": "",
+        "author": "Guest User",
+        "rootStepId": 100,
+        "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+        "signature": "abc123def456",
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "releaseVersion": "68",
+        "isPublic": False,
+        "isSaved": False,
+        "isValid": True,
+        "isDeleted": False,
+        "isExample": False,
+        "organization": "",
+        "estimatedSize": 150,
+        "nameOfFirstStep": "Organism",
+        "leafAndTransformStepCount": 1,
+    }
+
+
+def strategy_get_response(
+    strategy_id: int = 200,
+    step_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    """GET /users/{userId}/strategies/{strategyId} -- detailed strategy."""
+    ids = step_ids or [100, 101, 102]
+    search_names = {0: "GenesByTaxon", 1: "GenesByTextSearch", 2: "GenesByOrthologs"}
+
+    def _build_tree(remaining: list[int]) -> dict[str, Any]:
+        if len(remaining) == 1:
+            return {"stepId": remaining[0]}
+        return {
+            "stepId": remaining[-1],
+            "primaryInput": _build_tree(remaining[:-1]),
+        }
+
+    step_tree = _build_tree(ids)
+    steps: dict[str, dict[str, Any]] = {}
+    for idx, sid in enumerate(ids):
+        sname = search_names.get(idx, "GenesByTaxon")
+        steps[str(sid)] = {
+            "id": sid,
+            "searchName": sname,
+            "searchConfig": {
+                "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
+                "wdkWeight": 0,
+            },
+            "displayName": "Organism" if sname == "GenesByTaxon" else sname,
+            "customName": None,
+            "estimatedSize": 150,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "isFiltered": False,
+            "hasCompleteStepAnalyses": False,
+        }
+
+    return {
+        "strategyId": strategy_id,
+        "name": "Test strategy",
+        "description": "",
+        "author": "Guest User",
+        "organization": "",
+        "releaseVersion": "68",
+        "isSaved": False,
+        "isPublic": False,
+        "isDeleted": False,
+        "isValid": True,
+        "isExample": False,
+        "rootStepId": ids[-1],
+        "estimatedSize": 150,
+        "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+        "stepTree": step_tree,
+        "steps": steps,
+        "signature": "abc123def456",
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "leafAndTransformStepCount": len(ids),
+        "nameOfFirstStep": "Organism",
+    }
+
+
+def step_get_response(
+    step_id: int = 100,
+    search_name: str = "GenesByTaxon",
+    estimated_size: int = 150,
+) -> dict[str, Any]:
+    """GET /users/{userId}/steps/{stepId} -- individual step details."""
+    return {
+        "id": step_id,
+        "customName": f"Step for {search_name}",
+        "displayName": f"Step for {search_name}",
+        "isFiltered": False,
+        "estimatedSize": estimated_size,
+        "hasCompleteStepAnalyses": False,
+        "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+        "searchName": search_name,
+        "searchConfig": {
+            "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
+        },
+    }
 
 # ---------------------------------------------------------------------------
 # Multi-step strategy CRUD
@@ -182,16 +292,16 @@ async def test_delete_wdk_linked_strategy_does_not_call_wdk_by_default(
 
     # Step 1: Sync to create a WDK-linked projection
     items = [strategy_list_item(strategy_id=800, name="WDK To Delete")]
-    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
-    wdk_respx.get(f"{base}/users/guest/strategies").respond(200, json=items)
+    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": 12345})
+    wdk_respx.get(f"{base}/users/12345/strategies").respond(200, json=items)
     # Auto-import gene set calls: strategy detail, step report, step detail
-    wdk_respx.get(f"{base}/users/guest/strategies/800").respond(
+    wdk_respx.get(f"{base}/users/12345/strategies/800").respond(
         200, json=strategy_get_response(strategy_id=800, step_ids=[100])
     )
-    wdk_respx.post(f"{base}/users/guest/steps/100/reports/standard").respond(
+    wdk_respx.post(f"{base}/users/12345/steps/100/reports/standard").respond(
         200, json={"records": [], "meta": {"totalCount": 0, "responseCount": 0}}
     )
-    wdk_respx.get(f"{base}/users/guest/steps/100").respond(
+    wdk_respx.get(f"{base}/users/12345/steps/100").respond(
         200, json=step_get_response(step_id=100)
     )
     # Lazy-fetch of strategy detail triggers search details call for parameter
@@ -221,7 +331,7 @@ async def test_delete_wdk_linked_strategy_does_not_call_wdk_by_default(
     strategy_id = sync_resp.json()[0]["id"]
 
     # Step 2: Mock WDK delete endpoint
-    wdk_delete_route = wdk_respx.delete(f"{base}/users/guest/strategies/800").respond(
+    wdk_delete_route = wdk_respx.delete(f"{base}/users/12345/strategies/800").respond(
         204
     )
 
@@ -349,8 +459,8 @@ async def test_open_wdk_strategy_imports_full_plan(
         "validation": {"level": "DISPLAYABLE", "isValid": True},
     }
 
-    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
-    wdk_respx.get(f"{base}/users/guest/strategies/900").respond(200, json=wdk_detail)
+    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": 12345})
+    wdk_respx.get(f"{base}/users/12345/strategies/900").respond(200, json=wdk_detail)
     wdk_respx.post(
         url__regex=r".*/record-types/.*/searches/.*/refreshed-dependent-params"
     ).respond(200, json={})
@@ -417,7 +527,7 @@ async def test_open_same_wdk_strategy_twice_reuses_projection(
         },
     }
 
-    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
+    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": 12345})
     _valid_search_response_901: dict = {
         "searchData": {
             "urlSegment": "mock",
@@ -430,7 +540,7 @@ async def test_open_same_wdk_strategy_twice_reuses_projection(
         "validation": {"level": "DISPLAYABLE", "isValid": True},
     }
 
-    wdk_respx.get(f"{base}/users/guest/strategies/901").respond(200, json=wdk_detail)
+    wdk_respx.get(f"{base}/users/12345/strategies/901").respond(200, json=wdk_detail)
     wdk_respx.post(
         url__regex=r".*/record-types/.*/searches/.*/refreshed-dependent-params"
     ).respond(200, json={})

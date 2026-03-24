@@ -21,6 +21,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearchResponse,
     WDKValidation,
 )
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.param_resolution import (
     _filter_context_values,
 )
@@ -135,7 +136,7 @@ class TestUnwrapSearchDataResolution:
 
     def test_search_data_with_nested_search_data(self) -> None:
         """Only one level of unwrapping."""
-        inner = {"searchData": {"displayName": "Deep"}}
+        inner: JSONObject = {"searchData": {"displayName": "Deep"}}
         result = unwrap_search_data({"searchData": inner})
         assert result is inner
         # The inner searchData is not further unwrapped
@@ -233,7 +234,9 @@ class TestGetSearchParametersUnknownTypes:
         params = result["parameters"]
         assert isinstance(params, list)
         assert len(params) == 1
-        assert params[0]["isVisible"] is False
+        first = params[0]
+        assert isinstance(first, dict)
+        assert first["isVisible"] is False
 
     async def test_no_default_value_when_both_absent(self) -> None:
         """When neither initialDisplayValue nor defaultValue are present."""

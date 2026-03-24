@@ -135,8 +135,8 @@ def _register_strategies_list(
     wdk_respx: respx.Router,
     items: list[dict],
 ) -> None:
-    wdk_respx.get(f"{_BASE}/users/current").respond(200, json={"id": "guest"})
-    wdk_respx.get(f"{_BASE}/users/guest/strategies").respond(200, json=items)
+    wdk_respx.get(f"{_BASE}/users/current").respond(200, json={"id": 12345})
+    wdk_respx.get(f"{_BASE}/users/12345/strategies").respond(200, json=items)
 
 
 def _register_gene_id_fetch(
@@ -146,14 +146,14 @@ def _register_gene_id_fetch(
     name: str,
     gene_ids: list[str],
 ) -> None:
-    wdk_respx.get(f"{_BASE}/users/guest/strategies/{strategy_id}").respond(
+    wdk_respx.get(f"{_BASE}/users/12345/strategies/{strategy_id}").respond(
         200, json=_wdk_strategy_detail(strategy_id, root_step_id, name)
     )
     wdk_respx.post(
-        f"{_BASE}/users/guest/steps/{root_step_id}/reports/standard"
+        f"{_BASE}/users/12345/steps/{root_step_id}/reports/standard"
     ).respond(200, json=_step_report_response(gene_ids))
     # _extract_step_search_context fetches step detail to get searchName/parameters
-    wdk_respx.get(f"{_BASE}/users/guest/steps/{root_step_id}").respond(
+    wdk_respx.get(f"{_BASE}/users/12345/steps/{root_step_id}").respond(
         200,
         json={
             "id": root_step_id,
@@ -271,8 +271,8 @@ class TestSyncCreatesGeneSets:
             "estimatedSize": 30,
             "leafAndTransformStepCount": 1,
         }
-        wdk_respx.get(f"{_BASE}/users/current").respond(200, json={"id": "guest"})
-        wdk_respx.get(f"{_BASE}/users/guest/strategies").respond(
+        wdk_respx.get(f"{_BASE}/users/current").respond(200, json={"id": 12345})
+        wdk_respx.get(f"{_BASE}/users/12345/strategies").respond(
             200, json=[valid_item, invalid_item]
         )
         _register_gene_id_fetch(wdk_respx, 46, 105, "Valid Strategy", _GENE_IDS_A)
@@ -342,7 +342,7 @@ class TestDeletionBehavior:
         item = _wdk_list_item(51, "Deletion Test B", root_step_id=111)
         _register_strategies_list(wdk_respx, [item])
         _register_gene_id_fetch(wdk_respx, 51, 111, "Deletion Test B", _GENE_IDS_A)
-        wdk_respx.delete(f"{_BASE}/users/guest/strategies/51").respond(204)
+        wdk_respx.delete(f"{_BASE}/users/12345/strategies/51").respond(204)
 
         sync_resp = await authed_client.post(
             "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}

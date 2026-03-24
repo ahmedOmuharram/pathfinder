@@ -246,7 +246,8 @@ class EuropePmcRawResult(BaseModel):
     """Raw result from the Europe PMC API.
 
     Field aliases map EuropePMC's camelCase keys to Python names.
-    ``pubYear`` is coerced from str via Pydantic lax mode.
+    ``pubYear`` is coerced from str via a before-validator that gracefully
+    handles non-numeric strings (e.g. ``"2020-2021"``) by returning None.
     ``authorString`` is split in a model_validator.
     """
 

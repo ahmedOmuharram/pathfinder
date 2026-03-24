@@ -5,7 +5,6 @@ that eliminate duplicated construction boilerplate.
 """
 
 from dataclasses import replace
-from unittest.mock import MagicMock
 
 import optuna
 
@@ -14,7 +13,10 @@ from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.types import (
     ExperimentConfig,
 )
-from veupath_chatbot.services.parameter_optimization.config import OptimizationInput
+from veupath_chatbot.services.parameter_optimization.config import (
+    OptimizationConfig,
+    OptimizationInput,
+)
 from veupath_chatbot.services.parameter_optimization.trials import _TrialContext
 
 
@@ -210,7 +212,7 @@ def _make_trial_context(
     )
     return _TrialContext(
         inp=inp,
-        cfg=MagicMock(),
+        cfg=OptimizationConfig(),
         optimization_id="opt_test",
         budget=10,
         study=optuna.create_study(direction="maximize"),

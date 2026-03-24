@@ -1,4 +1,4 @@
-"""Live integration tests for gene-ID enrichment against PlasmoDB WDK.
+"""Integration tests for gene-ID enrichment against PlasmoDB WDK.
 
 Tests the EXACT code path that was failing with "Either step_id or
 search_name+parameters required" when a user pastes gene IDs (no WDK
@@ -8,20 +8,16 @@ The fix: _phase_enrich detects gene-ID experiments (step_id=None,
 search_name="", target_gene_ids present) and builds a temporary
 GeneByLocusTag dataset, then runs enrichment against that.
 
-Requires network access to plasmodb.org.  Run with:
+Record cassettes:
+    WDK_AUTH_EMAIL=... WDK_AUTH_PASSWORD=... \
+    uv run pytest src/veupath_chatbot/tests/integration/test_live_gene_id_enrichment.py -v --record-mode=all
 
-    pytest src/veupath_chatbot/tests/integration/test_live_gene_id_enrichment.py -v -s
-
-Skip with:
-
-    pytest -m "not live_wdk"
+Replay (CI / normal dev):
+    uv run pytest src/veupath_chatbot/tests/integration/test_live_gene_id_enrichment.py -v
 """
-
-from collections.abc import AsyncGenerator
 
 import pytest
 
-from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.services.enrichment.service import EnrichmentService
 from veupath_chatbot.services.gene_sets.operations import (
@@ -46,20 +42,6 @@ GENE_IDS = [
 ]
 
 
-@pytest.fixture(autouse=True)
-async def _close_wdk_clients() -> AsyncGenerator[None]:
-    """Close shared WDK clients after each test."""
-    yield
-    try:
-        router = get_site_router()
-        await router.close_all()
-    except RuntimeError, OSError:
-        pass  # Client already closed or event loop torn down
-
-
-pytestmark = pytest.mark.live_wdk
-
-
 class TestBuildEnrichmentParamsFromGeneIds:
     """Test _build_enrichment_params_from_gene_ids against live PlasmoDB.
 
@@ -68,6 +50,7 @@ class TestBuildEnrichmentParamsFromGeneIds:
     experiments had no way to get enrichment params.
     """
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_creates_dataset_and_returns_params(self) -> None:
         """Upload gene IDs to PlasmoDB, get back GeneByLocusTag params."""
@@ -85,6 +68,7 @@ class TestBuildEnrichmentParamsFromGeneIds:
         assert isinstance(ds_id, str)
         assert len(ds_id) > 0
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_small_gene_list(self) -> None:
         """Even a single gene should produce valid params."""
@@ -108,6 +92,7 @@ class TestEnrichmentServiceWithGeneIds:
     first, then passes those to run_batch().
     """
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_go_process_enrichment(self) -> None:
         """Build params from gene IDs, then run GO Process enrichment."""
@@ -139,6 +124,7 @@ class TestEnrichmentServiceWithGeneIds:
             "Expected at least one enriched GO term for known gametocyte genes"
         )
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_multiple_enrichment_types(self) -> None:
         """Run GO Process + GO Function enrichment together."""

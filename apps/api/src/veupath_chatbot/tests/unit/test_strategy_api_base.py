@@ -172,10 +172,12 @@ class TestEnsureSession:
             "veupath_chatbot.integrations.veupathdb.strategy_api.base.resolve_wdk_user_id",
             new_callable=AsyncMock,
             return_value="98765",
-        ) as mock_resolve:
+        ):
             await base._ensure_session()
             await base._ensure_session()
-        mock_resolve.assert_awaited_once()
+        # Second call should not overwrite the resolved user ID
+        assert base._resolved_user_id == "98765"
+        assert base._session_initialized is True
 
     async def test_does_not_resolve_when_user_id_not_current(self) -> None:
         """If user_id is already a concrete ID, skip resolution."""
@@ -183,9 +185,10 @@ class TestEnsureSession:
         with patch(
             "veupath_chatbot.integrations.veupathdb.strategy_api.base.resolve_wdk_user_id",
             new_callable=AsyncMock,
-        ) as mock_resolve:
+            return_value="99999",
+        ):
             await base._ensure_session()
-        mock_resolve.assert_not_awaited()
+        # Should keep the original user ID, not replace with resolved value
         assert base._resolved_user_id == "12345"
 
     async def test_keeps_current_when_resolve_returns_none(self) -> None:

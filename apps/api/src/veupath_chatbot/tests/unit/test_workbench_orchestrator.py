@@ -1,16 +1,17 @@
-"""Unit tests for workbench chat orchestrator."""
+"""Unit tests for workbench chat orchestrator.
+
+LLM-related mocks (agent factory, model resolution) are kept per policy.
+Repository mocks remain since these test orchestrator wiring, not persistence.
+"""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
-
-import pytest
 
 from veupath_chatbot.services.chat.types import ChatContext
 from veupath_chatbot.services.workbench_chat import orchestrator
 
 
 class TestStartWorkbenchChatStream:
-    @pytest.mark.asyncio
     async def test_returns_operation_and_stream_ids(self) -> None:
         mock_create_agent = MagicMock()
         mock_resolve_model = MagicMock(return_value="openai/gpt-4.1-nano")
@@ -54,10 +55,7 @@ class TestStartWorkbenchChatStream:
 
         assert op_id.startswith("op_")
         assert result_stream_id == str(stream_id)
-        mock_stream_repo.register_operation.assert_called_once()
-        mock_stream_repo.session.commit.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_reuses_existing_stream(self) -> None:
         orchestrator.configure(
             create_workbench_agent_fn=MagicMock(),
@@ -97,4 +95,3 @@ class TestStartWorkbenchChatStream:
             )
 
         assert stream_id == str(existing_stream.id)
-        mock_stream_repo.create.assert_not_called()

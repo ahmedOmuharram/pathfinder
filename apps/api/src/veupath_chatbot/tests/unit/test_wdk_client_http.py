@@ -2,7 +2,7 @@
 
 Uses respx to mock outbound HTTP and verify:
 - Retry logic: 5xx retried 3x; 4xx not retried
-- Error mapping: status codes → WDKError with correct status
+- Error mapping: status codes -> WDKError with correct status
 - JSESSIONID initialization on first authenticated request
 - Empty response handling
 - Auth cookie (not header) per WDK contract
@@ -11,11 +11,12 @@ Uses respx to mock outbound HTTP and verify:
 WDK contracts validated:
 - Authorization via cookie, not header
 - JSESSIONID required for process queries (GenesByOrthologPattern)
-- 5xx → retry with exponential backoff
-- 4xx → immediate WDKError (no retry)
+- 5xx -> retry with exponential backoff
+- 4xx -> immediate WDKError (no retry)
 """
 
 import asyncio
+from typing import Any
 
 import httpx
 import pytest
@@ -25,10 +26,121 @@ from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchConfig
 from veupath_chatbot.platform.context import veupathdb_auth_token_ctx
 from veupath_chatbot.platform.errors import DataParsingError, WDKError
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    search_details_response,
-    standard_report_response,
-)
+
+# ---------------------------------------------------------------------------
+# Inline test data (previously from wdk_responses.py)
+# ---------------------------------------------------------------------------
+
+
+def _search_details_response() -> dict[str, Any]:
+    """Minimal GenesByTaxon search details envelope for happy-path tests."""
+    return {
+        "searchData": {
+            "urlSegment": "GenesByTaxon",
+            "fullName": "GeneQuestions.GenesByTaxon",
+            "queryName": "GenesByTaxon",
+            "displayName": "Organism",
+            "shortDisplayName": "Organism",
+            "summary": "Find all genes from one or more species/organism.",
+            "description": "Find all genes from one or more species/organism.",
+            "outputRecordClassName": "transcript",
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "organism", "gene_product"],
+            "defaultSorting": [
+                {"attributeName": "organism", "direction": "ASC"},
+            ],
+            "paramNames": ["organism"],
+            "parameters": [
+                {
+                    "name": "organism",
+                    "displayName": "Organism",
+                    "type": "multi-pick-vocabulary",
+                    "displayType": "treeBox",
+                    "allowEmptyValue": False,
+                    "isVisible": True,
+                    "isReadOnly": False,
+                    "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": -1,
+                    "countOnlyLeaves": True,
+                    "depthExpanded": 0,
+                    "dependentParams": [],
+                    "group": "empty",
+                    "properties": {},
+                    "vocabulary": {
+                        "data": {"display": "@@fake@@", "term": "@@fake@@"},
+                        "children": [
+                            {
+                                "data": {
+                                    "display": "Plasmodium falciparum 3D7",
+                                    "term": "Plasmodium falciparum 3D7",
+                                },
+                                "children": [],
+                            },
+                        ],
+                    },
+                },
+            ],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        "validation": {
+            "level": "DISPLAYABLE",
+            "isValid": True,
+        },
+    }
+
+
+_DEFAULT_GENE_IDS: list[str] = [
+    "PF3D7_0100100",
+    "PF3D7_0831900",
+    "PF3D7_1133400",
+    "PF3D7_0709000",
+    "PF3D7_1343700",
+]
+
+
+def _standard_report_response() -> dict[str, Any]:
+    """POST .../reports/standard -- paginated records response."""
+    records = [
+        {
+            "id": [
+                {"name": "gene_source_id", "value": gid},
+                {"name": "source_id", "value": f"{gid}.1"},
+                {"name": "project_id", "value": "PlasmoDB"},
+            ],
+            "displayName": gid,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "attributes": {
+                "primary_key": gid,
+                "gene_source_id": gid,
+                "gene_name": None,
+                "gene_product": f"hypothetical protein, conserved ({gid})",
+                "gene_type": "protein_coding",
+                "organism": "<i>Plasmodium falciparum 3D7</i>",
+                "gene_location_text": "Pf3D7_01_v3: 29,510 - 37,126 (+)",
+                "gene_previous_ids": "",
+            },
+            "tables": {},
+            "tableErrors": [],
+        }
+        for gid in _DEFAULT_GENE_IDS
+    ]
+    return {
+        "records": records,
+        "meta": {
+            "totalCount": len(_DEFAULT_GENE_IDS),
+            "displayedCount": len(_DEFAULT_GENE_IDS),
+            "viewTotalCount": len(_DEFAULT_GENE_IDS),
+            "responseCount": len(_DEFAULT_GENE_IDS),
+        },
+    }
 
 
 @pytest.fixture
@@ -46,11 +158,11 @@ def authed_client(base_url: str) -> VEuPathDBClient:
     return VEuPathDBClient(base_url=base_url, timeout=5.0, auth_token="test-token")
 
 
-# ── 4xx errors → WDKError immediately (no retry) ─────────────────
+# -- 4xx errors -> WDKError immediately (no retry) ---------
 
 
 class TestClientErrorNoRetry:
-    """WDK contract: 4xx responses are client errors — do NOT retry."""
+    """WDK contract: 4xx responses are client errors -- do NOT retry."""
 
     @pytest.mark.asyncio
     async def test_404_raises_wdk_error(self, client: VEuPathDBClient) -> None:
@@ -62,7 +174,7 @@ class TestClientErrorNoRetry:
 
     @pytest.mark.asyncio
     async def test_422_raises_wdk_error(self, client: VEuPathDBClient) -> None:
-        """WDK returns 422 for invalid parameters — must not retry."""
+        """WDK returns 422 for invalid parameters -- must not retry."""
         with respx.mock:
             respx.post(f"{client.base_url}/bad-params").respond(
                 422, text="Invalid parameter"
@@ -73,7 +185,7 @@ class TestClientErrorNoRetry:
 
     @pytest.mark.asyncio
     async def test_4xx_called_only_once(self, client: VEuPathDBClient) -> None:
-        """4xx should NOT be retried — verify only 1 request made."""
+        """4xx should NOT be retried -- verify only 1 request made."""
         with respx.mock:
             route = respx.get(f"{client.base_url}/forbidden").respond(
                 403, text="Forbidden"
@@ -83,15 +195,15 @@ class TestClientErrorNoRetry:
             assert route.call_count == 1
 
 
-# ── 5xx errors → retry then WDKError ─────────────────────────────
+# -- 5xx errors -> retry then WDKError ---------------------
 
 
 class TestServerErrorRetry:
-    """WDK contract: 5xx responses are transient — retry up to 3 times."""
+    """WDK contract: 5xx responses are transient -- retry up to 3 times."""
 
     @pytest.mark.asyncio
     async def test_5xx_retried_then_raises(self, client: VEuPathDBClient) -> None:
-        """All 3 attempts fail with 500 → WDKError after retries exhausted."""
+        """All 3 attempts fail with 500 -> WDKError after retries exhausted."""
         with respx.mock:
             route = respx.get(f"{client.base_url}/error").respond(
                 500, text="Internal Server Error"
@@ -105,7 +217,7 @@ class TestServerErrorRetry:
     async def test_5xx_recovers_on_second_attempt(
         self, client: VEuPathDBClient
     ) -> None:
-        """First attempt 500, second attempt 200 → success."""
+        """First attempt 500, second attempt 200 -> success."""
         with respx.mock:
             route = respx.get(f"{client.base_url}/flaky").mock(
                 side_effect=[
@@ -118,7 +230,7 @@ class TestServerErrorRetry:
             assert route.call_count == 2
 
 
-# ── Successful responses ──────────────────────────────────────────
+# -- Successful responses ----------------------------------
 
 
 class TestSuccessResponse:
@@ -145,7 +257,7 @@ class TestSuccessResponse:
             assert result == [1, 2, 3]
 
 
-# ── JSESSIONID initialization ────────────────────────────────────
+# -- JSESSIONID initialization -----------------------------
 
 
 class TestJsessionIdInit:
@@ -190,7 +302,7 @@ class TestJsessionIdInit:
 
         Bug: close() sets _client=None but leaves _session_initialized=True.
         Next request creates a fresh httpx.AsyncClient (no cookies) but skips
-        _init_wdk_session because the flag is still True → process queries
+        _init_wdk_session because the flag is still True -> process queries
         silently return 0 results.
         """
         with respx.mock:
@@ -214,7 +326,7 @@ class TestJsessionIdInit:
     async def test_unauthenticated_skips_session_init(
         self, client: VEuPathDBClient
     ) -> None:
-        """No auth token → no JSESSIONID initialization."""
+        """No auth token -> no JSESSIONID initialization."""
         with respx.mock:
             app_route = respx.get("https://plasmodb.org/plasmo/app").respond(200)
             respx.get(f"{client.base_url}/data").respond(200, json={"ok": True})
@@ -222,7 +334,7 @@ class TestJsessionIdInit:
             assert not app_route.called, "Unauthenticated should skip /app"
 
 
-# ── Auth cookie (not header) ──────────────────────────────────────
+# -- Auth cookie (not header) ------------------------------
 
 
 class TestAuthCookie:
@@ -249,7 +361,7 @@ class TestAuthCookie:
             ), "Auth token should be in cookies, not Authorization header"
 
 
-# ── get_searches response handling ────────────────────────────────
+# -- get_searches response handling -------------------------
 
 
 class TestGetSearches:
@@ -268,7 +380,7 @@ class TestGetSearches:
                         "displayName": "Organism",
                     },
                     "not_a_dict",  # should be skipped
-                    {"incomplete": True},  # missing urlSegment → skip
+                    {"incomplete": True},  # missing urlSegment -> skip
                 ],
             )
             searches = await client.get_searches("transcript")
@@ -285,17 +397,17 @@ class TestGetSearches:
             assert searches == []
 
 
-# ── get_search_details response handling ──────────────────────────
+# -- get_search_details response handling -------------------
 
 
 class TestGetSearchDetails:
     @pytest.mark.asyncio
     async def test_valid_response_parsed(self, client: VEuPathDBClient) -> None:
-        """Uses realistic fixture from wdk_responses.py (verified against live API)."""
+        """Uses realistic inline fixture (verified against live API)."""
         with respx.mock:
             respx.get(
                 f"{client.base_url}/record-types/transcript/searches/GenesByTaxon"
-            ).respond(200, json=search_details_response("GenesByTaxon"))
+            ).respond(200, json=_search_details_response())
             response = await client.get_search_details("transcript", "GenesByTaxon")
             assert response.search_data.url_segment == "GenesByTaxon"
             # Verify realistic fixture has real parameter data
@@ -307,7 +419,7 @@ class TestGetSearchDetails:
     async def test_invalid_response_raises_data_parsing_error(
         self, client: VEuPathDBClient
     ) -> None:
-        """Schema drift → DataParsingError, not crash."""
+        """Schema drift -> DataParsingError, not crash."""
         with respx.mock:
             respx.get(
                 f"{client.base_url}/record-types/transcript/searches/Bad"
@@ -318,7 +430,7 @@ class TestGetSearchDetails:
                 await client.get_search_details("transcript", "Bad")
 
 
-# ── run_search_report (anonymous report) ──────────────────────────
+# -- run_search_report (anonymous report) -------------------
 
 
 class TestRunSearchReport:
@@ -326,8 +438,8 @@ class TestRunSearchReport:
 
     @pytest.mark.asyncio
     async def test_returns_wdk_answer(self, client: VEuPathDBClient) -> None:
-        """Uses realistic fixture from wdk_responses.py (verified against live API)."""
-        fixture = standard_report_response()
+        """Uses realistic inline fixture (verified against live API)."""
+        fixture = _standard_report_response()
         with respx.mock:
             respx.post(
                 f"{client.base_url}/record-types/transcript/searches/GenesByTaxon/reports/standard"
@@ -352,7 +464,7 @@ class TestRunSearchReport:
                 await client.run_search_report("transcript", "Bad", WDKSearchConfig())
 
 
-# ── Concurrent auth isolation ────────────────────────────────────
+# -- Concurrent auth isolation ------------------------------
 
 
 class TestConcurrentAuthIsolation:
@@ -361,13 +473,13 @@ class TestConcurrentAuthIsolation:
 
     Regression test for B2: shared httpx client cookie jar race.
     Before fix, ``client.cookies.set("Authorization", token)`` mutated
-    a shared singleton — two concurrent users could swap tokens.
+    a shared singleton -- two concurrent users could swap tokens.
     """
 
     @pytest.mark.asyncio
     async def test_concurrent_requests_use_own_auth_token(self, base_url: str) -> None:
         """Two concurrent requests through the SAME client must each carry
-        their own Authorization cookie — never the other user's."""
+        their own Authorization cookie -- never the other user's."""
         shared_client = VEuPathDBClient(base_url=base_url, timeout=5.0)
         shared_client._session_initialized = True  # skip init for this test
 

@@ -1,0 +1,2 @@
+# VCR cassettes are auto-generated — show as binary in diffs
+apps/api/src/veupath_chatbot/tests/cassettes/**/*.yaml linguist-generated=true

@@ -192,6 +192,9 @@ def flatten_vocab(
 # Tree-vocabulary helpers (for dict/tree-shaped WDK vocabularies)
 # ---------------------------------------------------------------------------
 
+TERM_FIELDS: tuple[str, ...] = ("term",)
+BROAD_VALUE_FIELDS: tuple[str, ...] = ("value", "id", "term", "name", "display")
+
 
 def _get_node_data(node: JSONObject) -> JSONObject:
     """Extract the ``data`` sub-dict from a vocab tree node."""
@@ -199,10 +202,24 @@ def _get_node_data(node: JSONObject) -> JSONObject:
     return raw if isinstance(raw, dict) else {}
 
 
+def get_node_value(
+    node: JSONObject, *, fields: tuple[str, ...] = TERM_FIELDS
+) -> str | None:
+    """Extract the first non-None field value from a vocab node's data.
+
+    Tries *fields* in order, returning the first found as a string.
+    """
+    data = _get_node_data(node)
+    for field in fields:
+        raw = data.get(field)
+        if raw is not None:
+            return str(raw)
+    return None
+
+
 def get_node_term(node: JSONObject) -> str | None:
     """Return the ``term`` string from a vocab tree node, or None."""
-    term = _get_node_data(node).get("term")
-    return str(term) if term is not None else None
+    return get_node_value(node, fields=TERM_FIELDS)
 
 
 def get_vocab_children(node: JSONObject) -> list[JSONObject]:
@@ -213,29 +230,46 @@ def get_vocab_children(node: JSONObject) -> list[JSONObject]:
     return [child for child in raw if isinstance(child, dict)]
 
 
-def find_vocab_node(root: JSONObject, match: str) -> JSONObject | None:
-    """Find a node whose ``term`` or ``display`` equals *match* (DFS)."""
+def find_vocab_node(
+    root: JSONObject,
+    match: str,
+    *,
+    fields: tuple[str, ...] = ("term", "display"),
+    normalize: bool = False,
+) -> JSONObject | None:
+    """Find a node matching *match* against specified data fields (DFS).
+
+    When *normalize* is True, also tries normalized (lowercased, whitespace-collapsed)
+    comparison via ``normalize_vocab_key``.
+    """
     data = _get_node_data(root)
-    term = data.get("term")
-    display = data.get("display")
-    term_str = str(term) if term is not None else None
-    display_str = str(display) if display is not None else None
-    if match in (term_str, display_str):
+    candidates = [str(data[f]) for f in fields if data.get(f) is not None]
+    if match in candidates:
         return root
+    if normalize:
+        norm = normalize_vocab_key(match)
+        if any(normalize_vocab_key(c) == norm for c in candidates):
+            return root
     for child in get_vocab_children(root):
-        found = find_vocab_node(child, match)
+        found = find_vocab_node(child, match, fields=fields, normalize=normalize)
         if found:
             return found
     return None
 
 
-def collect_leaf_terms(node: JSONObject) -> list[str]:
-    """Collect all leaf ``term`` values under *node* (inclusive)."""
+def collect_leaf_terms(
+    node: JSONObject, *, fields: tuple[str, ...] = TERM_FIELDS
+) -> list[str]:
+    """Collect all leaf values under *node* (inclusive).
+
+    Uses ``get_node_value`` with the specified *fields* for value extraction.
+    Defaults to extracting ``term`` values.
+    """
     children = get_vocab_children(node)
     if not children:
-        term = get_node_term(node)
-        return [term] if term else []
+        value = get_node_value(node, fields=fields)
+        return [value] if value else []
     leaves: list[str] = []
     for child in children:
-        leaves.extend(collect_leaf_terms(child))
+        leaves.extend(collect_leaf_terms(child, fields=fields))
     return leaves

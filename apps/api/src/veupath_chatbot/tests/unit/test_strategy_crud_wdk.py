@@ -15,6 +15,8 @@ WDK contracts validated:
 """
 
 import json
+from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 import respx
@@ -26,11 +28,111 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.strategies import (
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree
 from veupath_chatbot.platform.errors import DataParsingError
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    StrategyItemDetails,
-    strategy_get_response,
-    strategy_list_item,
-)
+
+
+# ---------------------------------------------------------------------------
+# Inline WDK response factories (verified against live PlasmoDB)
+# ---------------------------------------------------------------------------
+@dataclass
+class _StrategyItemDetails:
+    """Optional details for _strategy_list_item."""
+
+    record_class_name: str = "TranscriptRecordClasses.TranscriptRecordClass"
+    estimated_size: int = 150
+    is_saved: bool = False
+    signature: str = "abc123def456"
+    leaf_and_transform_step_count: int = field(default=1)
+
+
+def _strategy_get_response(
+    strategy_id: int = 200,
+    step_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    """GET /users/{userId}/strategies/{strategyId} -- detailed strategy."""
+    ids = step_ids or [100, 101, 102]
+    search_names = {0: "GenesByTaxon", 1: "GenesByTextSearch", 2: "GenesByOrthologs"}
+
+    def _build_tree(remaining: list[int]) -> dict[str, Any]:
+        if len(remaining) == 1:
+            return {"stepId": remaining[0]}
+        return {
+            "stepId": remaining[-1],
+            "primaryInput": _build_tree(remaining[:-1]),
+        }
+
+    steps: dict[str, dict[str, Any]] = {}
+    for idx, sid in enumerate(ids):
+        sname = search_names.get(idx, "GenesByTaxon")
+        steps[str(sid)] = {
+            "id": sid,
+            "searchName": sname,
+            "searchConfig": {
+                "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
+                "wdkWeight": 0,
+            },
+            "displayName": "Organism" if sname == "GenesByTaxon" else sname,
+            "customName": None,
+            "estimatedSize": 150,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "isFiltered": False,
+            "hasCompleteStepAnalyses": False,
+        }
+
+    return {
+        "strategyId": strategy_id,
+        "name": "Test strategy",
+        "description": "",
+        "author": "Guest User",
+        "organization": "",
+        "releaseVersion": "68",
+        "isSaved": False,
+        "isPublic": False,
+        "isDeleted": False,
+        "isValid": True,
+        "isExample": False,
+        "rootStepId": ids[-1],
+        "estimatedSize": 150,
+        "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+        "stepTree": _build_tree(ids),
+        "steps": steps,
+        "signature": "abc123def456",
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "leafAndTransformStepCount": len(ids),
+        "nameOfFirstStep": "Organism",
+    }
+
+
+def _strategy_list_item(
+    strategy_id: int = 200,
+    name: str = "Test strategy",
+    details: _StrategyItemDetails | None = None,
+) -> dict[str, Any]:
+    """GET /users/{id}/strategies list item -- summary only."""
+    d = details or _StrategyItemDetails()
+    return {
+        "strategyId": strategy_id,
+        "name": name,
+        "description": "",
+        "author": "Guest User",
+        "rootStepId": 100,
+        "recordClassName": d.record_class_name,
+        "signature": d.signature,
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "releaseVersion": "68",
+        "isPublic": False,
+        "isSaved": d.is_saved,
+        "isValid": True,
+        "isDeleted": False,
+        "isExample": False,
+        "organization": "",
+        "estimatedSize": d.estimated_size,
+        "nameOfFirstStep": "Organism",
+        "leafAndTransformStepCount": d.leaf_and_transform_step_count,
+    }
 
 BASE = "https://plasmodb.org/plasmo/service"
 
@@ -48,11 +150,11 @@ def api() -> _TestableStrategies:
 def _realistic_wdk_strategy(strategy_id: int = 200) -> dict:
     """Realistic WDK strategy response from the verified fixture catalog.
 
-    Uses strategy_get_response() which mirrors real PlasmoDB API output
+    Uses _strategy_get_response() which mirrors real PlasmoDB API output
     (verified 2026-03-06). This catches fixture drift that hand-built
     dicts would miss.
     """
-    return strategy_get_response(strategy_id=strategy_id, step_ids=[100])
+    return _strategy_get_response(strategy_id=strategy_id, step_ids=[100])
 
 
 # ── create_strategy ───────────────────────────────────────────────
@@ -161,15 +263,15 @@ class TestGetStrategy:
 class TestListStrategies:
     @pytest.mark.asyncio
     async def test_parses_valid_items(self, api: _TestableStrategies) -> None:
-        """Uses realistic fixture from wdk_responses.py (verified against live API)."""
+        """Uses realistic inline WDK response fixture (verified against live API)."""
         with respx.mock:
             respx.get(f"{BASE}/users/12345/strategies").respond(
                 200,
                 json=[
-                    strategy_list_item(
+                    _strategy_list_item(
                         strategy_id=100,
                         name="Strategy A",
-                        details=StrategyItemDetails(estimated_size=500),
+                        details=_StrategyItemDetails(estimated_size=500),
                     )
                 ],
             )
@@ -185,7 +287,7 @@ class TestListStrategies:
             respx.get(f"{BASE}/users/12345/strategies").respond(
                 200,
                 json=[
-                    strategy_list_item(strategy_id=100, name="Valid"),
+                    _strategy_list_item(strategy_id=100, name="Valid"),
                     {"garbage": True},
                 ],
             )

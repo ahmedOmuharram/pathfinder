@@ -13,15 +13,329 @@ WDK contracts validated:
 - Step counts populated from WDK estimatedSize
 """
 
+from typing import Any
+
 import httpx
 import respx
 
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    search_details_response,
-    strategy_get_response,
-)
-
 BASE = "https://plasmodb.org/plasmo/service"
+
+
+# ---------------------------------------------------------------------------
+# Inline WDK response factories (verified against live PlasmoDB)
+# ---------------------------------------------------------------------------
+def _search_details_response(search_name: str = "GenesByTaxon") -> dict[str, Any]:
+    """GET /record-types/transcript/searches/{searchName}?expandParams=true."""
+    boolean_name = "boolean_question_TranscriptRecordClasses_TranscriptRecordClass"
+    if search_name == boolean_name:
+        suffix = "TranscriptRecordClasses_TranscriptRecordClass"
+        return {
+            "searchData": {
+                "urlSegment": f"boolean_question_{suffix}",
+                "fullName": f"InternalQuestions.boolean_question_{suffix}",
+                "queryName": f"bq_{suffix}",
+                "displayName": "Combine Gene results",
+                "shortDisplayName": "Combine Gene results",
+                "outputRecordClassName": "transcript",
+                "isAnalyzable": True,
+                "isCacheable": True,
+                "noSummaryOnSingleRecord": False,
+                "defaultSummaryView": "_default",
+                "defaultAttributes": [],
+                "defaultSorting": [],
+                "paramNames": [
+                    f"bq_left_op_{suffix}",
+                    f"bq_right_op_{suffix}",
+                    "bq_operator",
+                ],
+                "parameters": [
+                    {
+                        "name": f"bq_left_op_{suffix}",
+                        "displayName": "Left operand",
+                        "type": "input-step",
+                        "allowEmptyValue": True,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "",
+                        "dependentParams": [],
+                        "properties": {},
+                    },
+                    {
+                        "name": f"bq_right_op_{suffix}",
+                        "displayName": "Right operand",
+                        "type": "input-step",
+                        "allowEmptyValue": True,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "",
+                        "dependentParams": [],
+                        "properties": {},
+                    },
+                    {
+                        "name": "bq_operator",
+                        "displayName": "Operator",
+                        "type": "single-pick-vocabulary",
+                        "allowEmptyValue": False,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "INTERSECT",
+                        "minSelectedCount": 1,
+                        "maxSelectedCount": 1,
+                        "dependentParams": [],
+                        "properties": {},
+                        "vocabulary": [
+                            ["UNION", "UNION", None],
+                            ["INTERSECT", "INTERSECT", None],
+                            ["MINUS", "LEFT_MINUS", None],
+                            ["RMINUS", "RIGHT_MINUS", None],
+                            ["LONLY", "LEFT_ONLY", None],
+                            ["RONLY", "RIGHT_ONLY", None],
+                        ],
+                    },
+                ],
+                "dynamicAttributes": [],
+                "filters": [],
+                "groups": [],
+                "properties": {},
+                "summaryViewPlugins": [],
+            },
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        }
+    if search_name == "GenesByTextSearch":
+        return {
+            "searchData": {
+                "urlSegment": "GenesByTextSearch",
+                "fullName": "GeneQuestions.GenesByTextSearch",
+                "queryName": "GenesByTextSearch",
+                "displayName": "Text search (genes)",
+                "shortDisplayName": "Text",
+                "summary": "Find genes matching a text expression",
+                "description": "Find genes matching a text expression",
+                "outputRecordClassName": "transcript",
+                "isAnalyzable": True,
+                "isCacheable": True,
+                "noSummaryOnSingleRecord": False,
+                "defaultSummaryView": "_default",
+                "defaultAttributes": ["primary_key", "gene_product"],
+                "defaultSorting": [],
+                "paramNames": [
+                    "text_expression",
+                    "text_fields",
+                    "text_search_organism",
+                    "document_type",
+                ],
+                "parameters": [
+                    {
+                        "name": "text_expression",
+                        "displayName": "Text expression",
+                        "type": "string",
+                        "allowEmptyValue": False,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "",
+                        "dependentParams": [],
+                        "properties": {},
+                    },
+                    {
+                        "name": "text_fields",
+                        "displayName": "Fields to search",
+                        "type": "multi-pick-vocabulary",
+                        "allowEmptyValue": False,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": '["primary_key","Alias"]',
+                        "minSelectedCount": 1,
+                        "maxSelectedCount": -1,
+                        "dependentParams": [],
+                        "properties": {},
+                        "vocabulary": [
+                            ["primary_key", "Gene ID", None],
+                            ["Alias", "Gene alias", None],
+                            ["product", "Product description", None],
+                            ["GOTerms", "GO terms", None],
+                            ["Notes", "Notes", None],
+                        ],
+                    },
+                    {
+                        "name": "text_search_organism",
+                        "displayName": "Organism",
+                        "type": "multi-pick-vocabulary",
+                        "allowEmptyValue": False,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+                        "minSelectedCount": 1,
+                        "maxSelectedCount": -1,
+                        "dependentParams": [],
+                        "properties": {},
+                        "vocabulary": [
+                            [
+                                "Plasmodium falciparum 3D7",
+                                "Plasmodium falciparum 3D7",
+                                None,
+                            ],
+                        ],
+                    },
+                    {
+                        "name": "document_type",
+                        "displayName": "Document type",
+                        "type": "single-pick-vocabulary",
+                        "allowEmptyValue": False,
+                        "isVisible": True,
+                        "isReadOnly": False,
+                        "initialDisplayValue": "gene",
+                        "minSelectedCount": 1,
+                        "maxSelectedCount": 1,
+                        "dependentParams": [],
+                        "properties": {},
+                        "vocabulary": [
+                            ["gene", "Gene", None],
+                            ["est", "EST", None],
+                        ],
+                    },
+                ],
+                "dynamicAttributes": [],
+                "filters": [],
+                "groups": [],
+                "properties": {},
+                "summaryViewPlugins": [],
+            },
+            "validation": {"level": "DISPLAYABLE", "isValid": True},
+        }
+    # Fallback for all other search names (defaults to GenesByTaxon shape)
+    return {
+        "searchData": {
+            "urlSegment": "GenesByTaxon",
+            "fullName": "GeneQuestions.GenesByTaxon",
+            "queryName": "GenesByTaxon",
+            "displayName": "Organism",
+            "shortDisplayName": "Organism",
+            "summary": "Find all genes from one or more species/organism.",
+            "description": "Find all genes from one or more species/organism.",
+            "outputRecordClassName": "transcript",
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "organism", "gene_product"],
+            "defaultSorting": [
+                {"attributeName": "organism", "direction": "ASC"},
+            ],
+            "paramNames": ["organism"],
+            "parameters": [
+                {
+                    "name": "organism",
+                    "displayName": "Organism",
+                    "type": "multi-pick-vocabulary",
+                    "displayType": "treeBox",
+                    "allowEmptyValue": False,
+                    "isVisible": True,
+                    "isReadOnly": False,
+                    "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": -1,
+                    "countOnlyLeaves": True,
+                    "depthExpanded": 0,
+                    "dependentParams": [],
+                    "group": "empty",
+                    "properties": {},
+                    "vocabulary": {
+                        "data": {"display": "@@fake@@", "term": "@@fake@@"},
+                        "children": [
+                            {
+                                "data": {
+                                    "display": "Plasmodiidae",
+                                    "term": "Plasmodiidae",
+                                },
+                                "children": [
+                                    {
+                                        "data": {
+                                            "display": "Plasmodium falciparum 3D7",
+                                            "term": "Plasmodium falciparum 3D7",
+                                        },
+                                        "children": [],
+                                    },
+                                    {
+                                        "data": {
+                                            "display": "Plasmodium vivax P01",
+                                            "term": "Plasmodium vivax P01",
+                                        },
+                                        "children": [],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                },
+            ],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        "validation": {"level": "DISPLAYABLE", "isValid": True},
+    }
+
+
+def _strategy_get_response(
+    strategy_id: int = 200,
+    step_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    """GET /users/{userId}/strategies/{strategyId} -- detailed strategy."""
+    ids = step_ids or [100, 101, 102]
+    search_names = {0: "GenesByTaxon", 1: "GenesByTextSearch", 2: "GenesByOrthologs"}
+
+    def _build_tree(remaining: list[int]) -> dict[str, Any]:
+        if len(remaining) == 1:
+            return {"stepId": remaining[0]}
+        return {
+            "stepId": remaining[-1],
+            "primaryInput": _build_tree(remaining[:-1]),
+        }
+
+    steps: dict[str, dict[str, Any]] = {}
+    for idx, sid in enumerate(ids):
+        sname = search_names.get(idx, "GenesByTaxon")
+        steps[str(sid)] = {
+            "id": sid,
+            "searchName": sname,
+            "searchConfig": {
+                "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
+                "wdkWeight": 0,
+            },
+            "displayName": "Organism" if sname == "GenesByTaxon" else sname,
+            "customName": None,
+            "estimatedSize": 150,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "isFiltered": False,
+            "hasCompleteStepAnalyses": False,
+        }
+
+    return {
+        "strategyId": strategy_id,
+        "name": "Test strategy",
+        "description": "",
+        "author": "Guest User",
+        "organization": "",
+        "releaseVersion": "68",
+        "isSaved": False,
+        "isPublic": False,
+        "isDeleted": False,
+        "isValid": True,
+        "isExample": False,
+        "rootStepId": ids[-1],
+        "estimatedSize": 150,
+        "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+        "stepTree": _build_tree(ids),
+        "steps": steps,
+        "signature": "abc123def456",
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "leafAndTransformStepCount": len(ids),
+        "nameOfFirstStep": "Organism",
+    }
 
 
 def _setup_wdk_for_build(
@@ -32,21 +346,21 @@ def _setup_wdk_for_build(
 ) -> None:
     """Mock all WDK endpoints needed for a full strategy build.
 
-    Uses realistic fixtures from wdk_responses.py.
+    Uses realistic inline WDK response fixtures.
     """
     sids = step_ids or [100]
-    router.get(f"{BASE}/users/current").respond(200, json={"id": "guest"})
+    router.get(f"{BASE}/users/current").respond(200, json={"id": 12345})
 
     # Search metadata (needed by plan normalization and compilation)
     router.get(url__regex=r".*/record-types/.*/searches/GenesByTaxon$").respond(
-        200, json=search_details_response("GenesByTaxon")
+        200, json=_search_details_response("GenesByTaxon")
     )
     router.get(url__regex=r".*/record-types/.*/searches/GenesByTextSearch$").respond(
-        200, json=search_details_response("GenesByTextSearch")
+        200, json=_search_details_response("GenesByTextSearch")
     )
     router.get(url__regex=r".*/record-types/.*/searches/boolean_question.*$").respond(
         200,
-        json=search_details_response(
+        json=_search_details_response(
             "boolean_question_TranscriptRecordClasses_TranscriptRecordClass"
         ),
     )
@@ -105,7 +419,7 @@ def _setup_wdk_for_build(
     )
 
     # Strategy detail (for count extraction after build)
-    detail = strategy_get_response(strategy_id=strategy_id, step_ids=sids)
+    detail = _strategy_get_response(strategy_id=strategy_id, step_ids=sids)
     router.get(url__regex=rf".*/users/.*/strategies/{strategy_id}$").respond(
         200, json=detail
     )
@@ -138,7 +452,7 @@ def _setup_wdk_for_build(
 
     # Context-dependent param refresh (POST to search endpoint)
     router.post(url__regex=r".*/record-types/.*/searches/.*$").respond(
-        200, json=search_details_response("GenesByTaxon")
+        200, json=_search_details_response("GenesByTaxon")
     )
 
 

@@ -2,6 +2,9 @@
 
 Tests TemporaryResultsAPI: create_temporary_result, get_download_url,
 and get_step_preview.
+
+Mocks: HTTP client is mocked. Tests validate request payload construction
+and URL composition, not WDK integration.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -51,10 +54,12 @@ class TestEnsureSession:
             "veupath_chatbot.integrations.veupathdb.strategy_api.base.resolve_wdk_user_id",
             new_callable=AsyncMock,
             return_value="12345",
-        ) as mock_resolve:
+        ):
             await api._ensure_session()
             await api._ensure_session()
-        mock_resolve.assert_awaited_once()
+        # Second call should preserve the resolved user ID
+        assert api._resolved_user_id == "12345"
+        assert api._session_initialized is True
 
     async def test_keeps_current_if_resolve_returns_none(self) -> None:
         api, _client = _make_api()
@@ -82,14 +87,10 @@ class TestCreateTemporaryResult:
 
         result = await api.create_temporary_result(step_id=42)
 
-        client.post.assert_awaited_once_with(
-            "/temporary-results",
-            json={
-                "stepId": 42,
-                "reportName": "standard",
-            },
-        )
         assert result.id == "abc123"
+        payload = client.post.call_args.kwargs["json"]
+        assert payload["stepId"] == 42
+        assert payload["reportName"] == "standard"
 
     async def test_custom_reporter_and_format_config(self) -> None:
         api, client = _make_api("12345")
@@ -171,15 +172,15 @@ class TestGetDownloadUrl:
             "product",
         ]
 
-    async def test_no_polling_needed(self) -> None:
-        """GET is never called -- URL is constructed from POST response id."""
+    async def test_url_constructed_without_polling(self) -> None:
+        """URL is constructed from POST response id, no GET needed."""
         api, client = _make_api("12345")
         api._session_initialized = True
         client.post.return_value = {"id": "result1"}
 
-        await api.get_download_url(step_id=42, output_format="csv")
+        url = await api.get_download_url(step_id=42, output_format="csv")
 
-        client.get.assert_not_awaited()
+        assert url == "https://plasmodb.org/plasmo/service/temporary-results/result1"
 
     async def test_raises_when_no_id(self) -> None:
         api, client = _make_api("12345")
@@ -208,7 +209,6 @@ class TestGetStepPreview:
 
         await api.get_step_preview(step_id=42, limit=10)
 
-        client.post.assert_awaited_once()
         call_args = client.post.call_args
         assert "/steps/42/reports/standard" in call_args.args[0]
         payload = call_args.kwargs["json"]

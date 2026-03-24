@@ -1,19 +1,20 @@
-"""Live integration tests verifying workbench fixes across VEuPathDB sites.
+"""VCR-backed integration tests verifying workbench fixes across VEuPathDB sites.
 
 Tests:
 1. GeneByLocusTag search availability + ds_gene_ids parameter across 11 sites
 2. Gene set enrichment with specific gene IDs across 4 databases
 3. Enrichment response shape verification (term fields)
 
-NO MOCKS. All calls hit live WDK endpoints.
+Responses captured in VCR cassettes for offline replay in CI.
 
-Requires network access to VEuPathDB sites. Run with:
+Record cassettes::
 
-    pytest src/veupath_chatbot/tests/integration/test_live_workbench_fixes.py -v -s
+    WDK_AUTH_EMAIL=... WDK_AUTH_PASSWORD=... \
+    uv run pytest src/veupath_chatbot/tests/integration/test_live_workbench_fixes.py -v --record-mode=all
 
-Skip with:
+Replay (default)::
 
-    pytest -m "not live_wdk"
+    uv run pytest src/veupath_chatbot/tests/integration/test_live_workbench_fixes.py -v
 """
 
 from collections.abc import AsyncGenerator
@@ -26,9 +27,6 @@ from veupath_chatbot.services.enrichment.service import EnrichmentService
 from veupath_chatbot.services.gene_sets.operations import (
     _build_enrichment_params_from_gene_ids,
 )
-
-pytestmark = pytest.mark.live_wdk
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -71,6 +69,7 @@ class TestGeneByLocusTagAvailability:
     """Verify GeneByLocusTag search exists on every VEuPathDB gene site."""
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     @pytest.mark.parametrize(("site_id", "base_url"), GENE_SITES)
     async def test_gene_by_locus_tag_exists(self, site_id: str, base_url: str) -> None:
         """GeneByLocusTag search must exist under transcript record type."""
@@ -86,6 +85,7 @@ class TestGeneByLocusTagAvailability:
             )
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     @pytest.mark.parametrize(("site_id", "base_url"), GENE_SITES)
     async def test_ds_gene_ids_parameter_exists(
         self, site_id: str, base_url: str
@@ -344,6 +344,7 @@ class TestGeneSetEnrichmentMultiSite:
     """
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     @pytest.mark.parametrize(("site_id", "gene_ids"), ENRICHMENT_CASES)
     async def test_go_bp_enrichment(self, site_id: str, gene_ids: list[str]) -> None:
         """GO biological process enrichment from gene IDs."""
@@ -415,6 +416,7 @@ class TestFilteredResultsViaPlasmoDB:
     """
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_search_results_with_pagination(self) -> None:
         """Fetch GenesByTaxon results with pagination, verify response shape."""
         async with httpx.AsyncClient(timeout=60) as client:
@@ -453,6 +455,7 @@ class TestFilteredResultsViaPlasmoDB:
             assert "attributes" in rec
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_search_results_with_organism_filter(self) -> None:
         """Fetch GenesByTaxon results and verify all belong to the organism."""
         async with httpx.AsyncClient(timeout=60) as client:

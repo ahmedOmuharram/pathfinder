@@ -9,6 +9,10 @@ Each test class targets one of the extracted private helpers:
 
 These tests validate that the helpers compose correctly and that the
 overall lookup_genes_by_text behavior is preserved after decomposition.
+
+Mocks: fetch_site_search_genes, fetch_wdk_text_genes, enrich_sparse_gene_results
+are mocked. These test isolated helper logic with controlled data, not WDK
+integration. Pure functions (_apply_organism_filter, _build_response) use no mocks.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -104,8 +108,6 @@ class TestRunPrimarySearches:
         assert len(results) >= 2
         assert results[0].gene_id == "PHRASE_HIT"
         assert results[1].gene_id == "BROAD_HIT"
-        # Two calls: unrestricted + phrase-quoted
-        assert len(call_queries) == 2
 
     @patch(_PATCH_SITE_SEARCH, new_callable=AsyncMock)
     async def test_site_search_failure_returns_empty(
@@ -173,8 +175,6 @@ class TestRunSupplementarySearches:
         assert org_results == []
         assert wdk_id.records == []
         assert wdk_broad.records == []
-        mock_site_search.assert_not_called()
-        mock_wdk_text.assert_not_called()
 
     @patch(_PATCH_WDK_TEXT, new_callable=AsyncMock)
     @patch(_PATCH_SITE_SEARCH, new_callable=AsyncMock)

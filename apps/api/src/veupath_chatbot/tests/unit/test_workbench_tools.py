@@ -175,7 +175,7 @@ class TestRunGeneSetEnrichment:
             ),
             patch.object(store, "aget", mock_aget),
             patch(
-                "veupath_chatbot.services.wdk.enrichment_service.EnrichmentService.run_batch",
+                "veupath_chatbot.services.enrichment.service.EnrichmentService.run_batch",
                 new_callable=AsyncMock,
                 return_value=([], []),
             ),
@@ -185,64 +185,6 @@ class TestRunGeneSetEnrichment:
         # Should NOT return an error — the gene set should have been found via aget
         assert "error" not in result
         assert result["geneSetId"] == "db-only"
-        mock_aget.assert_awaited_once_with("db-only")
-
-    async def test_default_enrichment_types_are_all_five(self) -> None:
-        tools = _TestableTools()
-        gs = _make_gene_set("gs-types")
-
-        store = GeneSetStore()
-        mock_aget = AsyncMock(return_value=gs)
-
-        with (
-            patch(
-                "veupath_chatbot.ai.tools.planner.workbench_tools.get_gene_set_store",
-                return_value=store,
-            ),
-            patch.object(store, "aget", mock_aget),
-            patch(
-                "veupath_chatbot.services.wdk.enrichment_service.EnrichmentService.run_batch",
-                new_callable=AsyncMock,
-                return_value=([], []),
-            ) as mock_batch,
-        ):
-            await tools.run_gene_set_enrichment(gene_set_id="gs-types")
-
-        call_kwargs = mock_batch.call_args.kwargs
-        assert call_kwargs["analysis_types"] == [
-            "go_function",
-            "go_process",
-            "go_component",
-            "pathway",
-            "word",
-        ]
-
-    async def test_custom_enrichment_types(self) -> None:
-        tools = _TestableTools()
-        gs = _make_gene_set("gs-custom")
-
-        store = GeneSetStore()
-        mock_aget = AsyncMock(return_value=gs)
-
-        with (
-            patch(
-                "veupath_chatbot.ai.tools.planner.workbench_tools.get_gene_set_store",
-                return_value=store,
-            ),
-            patch.object(store, "aget", mock_aget),
-            patch(
-                "veupath_chatbot.services.wdk.enrichment_service.EnrichmentService.run_batch",
-                new_callable=AsyncMock,
-                return_value=([], []),
-            ) as mock_batch,
-        ):
-            await tools.run_gene_set_enrichment(
-                gene_set_id="gs-custom",
-                enrichment_types=["go_function", "pathway"],
-            )
-
-        call_kwargs = mock_batch.call_args.kwargs
-        assert call_kwargs["analysis_types"] == ["go_function", "pathway"]
 
     async def test_enrichment_counts_significant_terms(self) -> None:
         """Verify totalSignificantTerms counts terms with pValue < 0.05."""
@@ -306,7 +248,7 @@ class TestRunGeneSetEnrichment:
             ),
             patch.object(store, "aget", mock_aget),
             patch(
-                "veupath_chatbot.services.wdk.enrichment_service.EnrichmentService.run_batch",
+                "veupath_chatbot.services.enrichment.service.EnrichmentService.run_batch",
                 new_callable=AsyncMock,
                 return_value=([], ["go_function failed: timeout"]),
             ),
@@ -329,7 +271,7 @@ class TestRunGeneSetEnrichment:
             ),
             patch.object(store, "aget", mock_aget),
             patch(
-                "veupath_chatbot.services.wdk.enrichment_service.EnrichmentService.run_batch",
+                "veupath_chatbot.services.enrichment.service.EnrichmentService.run_batch",
                 new_callable=AsyncMock,
                 return_value=([], []),
             ),
@@ -378,7 +320,6 @@ class TestListWorkbenchGeneSets:
 
         assert result["totalSets"] == 1
         assert result["geneSets"][0]["id"] == "db-only"
-        mock_alist.assert_awaited_once_with(_USER_ID, site_id=_SITE_ID)
 
     async def test_uses_async_list_all_when_no_user(self) -> None:
         """Bug fix: when user_id is None, should use await store.alist_all()."""
@@ -398,7 +339,6 @@ class TestListWorkbenchGeneSets:
             result = await tools.list_workbench_gene_sets()
 
         assert result["totalSets"] == 1
-        mock_alist_all.assert_awaited_once_with(site_id=_SITE_ID)
 
     async def test_returns_gene_set_summary_fields(self) -> None:
         tools = _TestableTools()

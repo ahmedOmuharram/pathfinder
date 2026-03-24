@@ -1,12 +1,16 @@
-"""Integration boundary tests for typed WDK client responses.
+"""Unit tests for WDK client error handling and edge-case response parsing.
 
-Verifies that VEuPathDBClient correctly parses WDK REST API responses
-into typed Pydantic models, and raises DataParsingError on malformed data.
-Uses respx to mock HTTP responses.
+Verifies that VEuPathDBClient raises DataParsingError on malformed data
+and that SearchCatalog stores typed models correctly. Uses respx to
+provide controlled malformed inputs that cannot come from real WDK.
+
+Happy-path typed response tests live in:
+    tests/integration/test_wdk_client_typed_responses.py (VCR-backed)
 """
 
 import contextlib
 from collections.abc import Iterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -20,12 +24,176 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearchResponse,
 )
 from veupath_chatbot.platform.errors import DataParsingError
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    search_details_response,
-    searches_response,
-)
 
 _BASE = "https://plasmodb.org/plasmo/service"
+
+
+# ---------------------------------------------------------------------------
+# Inline test data (previously from wdk_responses.py)
+# ---------------------------------------------------------------------------
+
+
+def _searches_response() -> list[dict[str, Any]]:
+    return [
+        {
+            "urlSegment": "GenesByTaxon",
+            "fullName": "GeneQuestions.GenesByTaxon",
+            "queryName": "GenesByTaxon",
+            "displayName": "Organism",
+            "shortDisplayName": "Organism",
+            "outputRecordClassName": "transcript",
+            "paramNames": ["organism"],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "organism", "gene_product"],
+            "defaultSorting": [
+                {"attributeName": "organism", "direction": "ASC"},
+            ],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        {
+            "urlSegment": "GenesByTextSearch",
+            "fullName": "GeneQuestions.GenesByTextSearch",
+            "queryName": "GenesByTextSearch",
+            "displayName": "Text search (genes)",
+            "shortDisplayName": "Text",
+            "outputRecordClassName": "transcript",
+            "paramNames": [
+                "text_expression",
+                "text_fields",
+                "text_search_organism",
+                "document_type",
+            ],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "gene_product"],
+            "defaultSorting": [],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        {
+            "urlSegment": "boolean_question_TranscriptRecordClasses_TranscriptRecordClass",
+            "fullName": "InternalQuestions.boolean_question_TranscriptRecordClasses_TranscriptRecordClass",
+            "queryName": "bq_TranscriptRecordClasses_TranscriptRecordClass",
+            "displayName": "Combine Gene results",
+            "shortDisplayName": "Combine Gene results",
+            "outputRecordClassName": "transcript",
+            "paramNames": [
+                "bq_left_op_TranscriptRecordClasses_TranscriptRecordClass",
+                "bq_right_op_TranscriptRecordClasses_TranscriptRecordClass",
+                "bq_operator",
+            ],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": [],
+            "defaultSorting": [],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+            "allowedPrimaryInputRecordClassNames": ["transcript"],
+            "allowedSecondaryInputRecordClassNames": ["transcript"],
+        },
+        {
+            "urlSegment": "GenesByOrthologs",
+            "fullName": "GeneQuestions.GenesByOrthologs",
+            "queryName": "GenesByOrthologs",
+            "displayName": "Orthologs",
+            "shortDisplayName": "Orthologs",
+            "description": "Find genes by ortholog transform",
+            "outputRecordClassName": "transcript",
+            "paramNames": ["inputStepId", "organism", "isSyntenic"],
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "gene_product"],
+            "defaultSorting": [],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+    ]
+
+
+def _search_details_response() -> dict[str, Any]:
+    return {
+        "searchData": {
+            "urlSegment": "GenesByTaxon",
+            "fullName": "GeneQuestions.GenesByTaxon",
+            "queryName": "GenesByTaxon",
+            "displayName": "Organism",
+            "shortDisplayName": "Organism",
+            "summary": "Find all genes from one or more species/organism.",
+            "description": "Find all genes from one or more species/organism.",
+            "outputRecordClassName": "transcript",
+            "isAnalyzable": True,
+            "isCacheable": True,
+            "noSummaryOnSingleRecord": False,
+            "defaultSummaryView": "_default",
+            "defaultAttributes": ["primary_key", "organism", "gene_product"],
+            "defaultSorting": [
+                {"attributeName": "organism", "direction": "ASC"},
+            ],
+            "paramNames": ["organism"],
+            "parameters": [
+                {
+                    "name": "organism",
+                    "displayName": "Organism",
+                    "type": "multi-pick-vocabulary",
+                    "displayType": "treeBox",
+                    "allowEmptyValue": False,
+                    "isVisible": True,
+                    "isReadOnly": False,
+                    "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": -1,
+                    "countOnlyLeaves": True,
+                    "depthExpanded": 0,
+                    "dependentParams": [],
+                    "group": "empty",
+                    "properties": {},
+                    "vocabulary": {
+                        "data": {"display": "@@fake@@", "term": "@@fake@@"},
+                        "children": [
+                            {
+                                "data": {
+                                    "display": "Plasmodium falciparum 3D7",
+                                    "term": "Plasmodium falciparum 3D7",
+                                },
+                                "children": [],
+                            },
+                        ],
+                    },
+                },
+            ],
+            "dynamicAttributes": [],
+            "filters": [],
+            "groups": [],
+            "properties": {},
+            "summaryViewPlugins": [],
+        },
+        "validation": {
+            "level": "DISPLAYABLE",
+            "isValid": True,
+        },
+    }
 
 
 @contextlib.contextmanager
@@ -46,78 +214,12 @@ def _patched_client_deps() -> Iterator[None]:
         yield
 
 
-class TestClientTypedResponses:
-    """Verify that VEuPathDBClient methods parse responses into typed models."""
-
-    @pytest.mark.anyio
-    async def test_get_search_details_returns_wdk_search_response(self) -> None:
-        """get_search_details should return a WDKSearchResponse with typed fields."""
-        client = VEuPathDBClient(_BASE)
-        detail_json = search_details_response()
-
-        with respx.mock(assert_all_called=False) as router:
-            router.get(
-                f"{_BASE}/record-types/transcript/searches/GenesByTaxon",
-            ).respond(json=detail_json)
-
-            with _patched_client_deps():
-                result = await client.get_search_details("transcript", "GenesByTaxon")
-
-        assert isinstance(result, WDKSearchResponse)
-        assert result.search_data.url_segment == "GenesByTaxon"
-        assert result.validation.is_valid is True
-
-        await client.close()
-
-    @pytest.mark.anyio
-    async def test_get_searches_returns_list_of_wdk_search(self) -> None:
-        """get_searches should return a list of WDKSearch models."""
-        client = VEuPathDBClient(_BASE)
-        list_json = searches_response()
-
-        with respx.mock(assert_all_called=False) as router:
-            router.get(
-                f"{_BASE}/record-types/transcript/searches",
-            ).respond(json=list_json)
-
-            with _patched_client_deps():
-                result = await client.get_searches("transcript")
-
-        assert isinstance(result, list)
-        assert len(result) == len(list_json)
-        for item in result:
-            assert isinstance(item, WDKSearch)
-        assert result[0].url_segment == "GenesByTaxon"
-
-        await client.close()
-
-    @pytest.mark.anyio
-    async def test_get_search_details_with_params_returns_wdk_search_response(
-        self,
-    ) -> None:
-        """get_search_details_with_params should return WDKSearchResponse."""
-        client = VEuPathDBClient(_BASE)
-        detail_json = search_details_response()
-        context = {"organism": '["Plasmodium falciparum 3D7"]'}
-
-        with respx.mock(assert_all_called=False) as router:
-            router.post(
-                f"{_BASE}/record-types/transcript/searches/GenesByTaxon",
-            ).respond(json=detail_json)
-
-            with _patched_client_deps():
-                result = await client.get_search_details_with_params(
-                    "transcript", "GenesByTaxon", context
-                )
-
-        assert isinstance(result, WDKSearchResponse)
-        assert result.search_data.url_segment == "GenesByTaxon"
-
-        await client.close()
-
-
 class TestClientErrorHandling:
-    """Verify that malformed WDK responses raise DataParsingError."""
+    """Verify that malformed WDK responses raise DataParsingError.
+
+    These tests MUST use respx (not VCR) because they require controlled
+    malformed input that real WDK endpoints would never produce.
+    """
 
     @pytest.mark.anyio
     async def test_malformed_response_raises_data_parsing_error(self) -> None:
@@ -190,7 +292,7 @@ class TestClientErrorHandling:
     async def test_extra_fields_do_not_error(self) -> None:
         """Extra unknown fields should be silently ignored (extra='ignore')."""
         client = VEuPathDBClient(_BASE)
-        detail_json = search_details_response()
+        detail_json = _search_details_response()
         detail_json["searchData"]["totallyNewField"] = "should-be-ignored"
         detail_json["unknownTopLevel"] = 42
 
@@ -270,13 +372,17 @@ class TestClientErrorHandling:
 
 
 class TestDiscoveryTypedResponses:
-    """Verify that SearchCatalog stores and returns typed models."""
+    """Verify that SearchCatalog stores and returns typed models.
+
+    These tests use MagicMock (not respx) for the client -- they test
+    the catalog's in-memory storage logic, not HTTP transport.
+    """
 
     @pytest.mark.anyio
     async def test_search_catalog_stores_typed_searches(self) -> None:
         """SearchCatalog.get_searches should return list[WDKSearch]."""
         catalog = SearchCatalog("plasmodb")
-        list_json = searches_response()
+        list_json = _searches_response()
         typed_searches = [WDKSearch.model_validate(s) for s in list_json]
 
         mock_client = MagicMock(spec=VEuPathDBClient)
@@ -298,8 +404,8 @@ class TestDiscoveryTypedResponses:
     async def test_search_details_through_discovery_typed(self) -> None:
         """SearchCatalog.get_search_details should return WDKSearchResponse."""
         catalog = SearchCatalog("plasmodb")
-        list_json = searches_response()
-        detail_json = search_details_response()
+        list_json = _searches_response()
+        detail_json = _search_details_response()
         typed_searches = [WDKSearch.model_validate(s) for s in list_json]
 
         mock_client = MagicMock(spec=VEuPathDBClient)

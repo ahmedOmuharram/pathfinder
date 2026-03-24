@@ -311,8 +311,6 @@ class TestComputeStepCountsAnonymousReports:
         ):
             counts = await compute_step_counts_for_plan(plan, ast, "plasmodb")
             assert counts["step_1"] == 150
-            # Verify anonymous report was called (not compile_strategy)
-            mock_client.run_search_report.assert_called_once()
 
         _STEP_COUNTS_CACHE.clear()
 

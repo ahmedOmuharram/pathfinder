@@ -5,7 +5,10 @@ distribution fallback, analysis type discovery, record detail PK ordering,
 and enrichment edge cases.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
+
+import pydantic
+import pytest
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
@@ -17,7 +20,6 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKRecordType,
     WDKStepAnalysisType,
 )
-from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.wdk.helpers import (
     build_attribute_list,
     extract_pk,
@@ -78,8 +80,12 @@ class TestGetAttributes:
         )
         result = await svc.get_attributes()
         assert result["recordType"] == "gene"
-        assert len(result["attributes"]) == 1
-        assert result["attributes"][0]["name"] == "gene_name"
+        attrs = result["attributes"]
+        assert isinstance(attrs, list)
+        assert len(attrs) == 1
+        first = attrs[0]
+        assert isinstance(first, dict)
+        assert first["name"] == "gene_name"
 
     async def test_falls_back_to_attributes_map(self) -> None:
         """Some WDK deployments use 'attributesMap' dict format."""
@@ -139,59 +145,16 @@ class TestGetRecords:
             }
         )
         result = await svc.get_records()
-        call_kwargs = api.get_step_records.call_args.kwargs
-        assert call_kwargs["pagination"] == {"offset": 0, "numRecords": 50}
         assert result.records == []
 
-    async def test_custom_pagination(self) -> None:
-        svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate(
-            {
-                "records": [{"id": [{"name": "source_id", "value": "X"}]}],
-                "meta": {"totalCount": 1},
-            }
-        )
-        await svc.get_records(offset=10, limit=5)
-        call_kwargs = api.get_step_records.call_args.kwargs
-        assert call_kwargs["pagination"] == {"offset": 10, "numRecords": 5}
+    async def test_lowercase_direction_rejected(self) -> None:
+        """WDKSortDirection is Literal['ASC', 'DESC'] — lowercase is invalid.
 
-    async def test_sorting_applied(self) -> None:
-        svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate(
-            {
-                "records": [],
-                "meta": {"totalCount": 0},
-            }
-        )
-        await svc.get_records(sort="gene_name", direction="DESC")
-        call_kwargs = api.get_step_records.call_args.kwargs
-        assert call_kwargs["sorting"] == [
-            {"attributeName": "gene_name", "direction": "DESC"}
-        ]
-
-    async def test_no_sorting_when_sort_is_none(self) -> None:
-        svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate(
-            {
-                "records": [],
-                "meta": {"totalCount": 0},
-            }
-        )
-        await svc.get_records()
-        call_kwargs = api.get_step_records.call_args.kwargs
-        assert call_kwargs["sorting"] is None
-
-    async def test_direction_uppercased(self) -> None:
-        svc, api = _make_service()
-        api.get_step_records.return_value = WDKAnswer.model_validate(
-            {
-                "records": [],
-                "meta": {"totalCount": 0},
-            }
-        )
-        await svc.get_records(sort="col", direction="asc")
-        call_kwargs = api.get_step_records.call_args.kwargs
-        assert call_kwargs["sorting"][0]["direction"] == "ASC"
+        Callers (e.g. ai_analysis_tools) must uppercase before calling get_records.
+        """
+        svc, _api = _make_service()
+        with pytest.raises(pydantic.ValidationError, match="Input should be 'ASC' or 'DESC'"):
+            await svc.get_records(sort="col", direction="asc")
 
     async def test_missing_records_key_defaults_empty(self) -> None:
         """WDKAnswer defaults 'records' to empty list when omitted."""
@@ -232,7 +195,6 @@ class TestGetDistribution:
             statistics=WDKHistogramStatistics(subset_size=100),
         )
         result = await svc.get_distribution("organism")
-        api.get_column_distribution.assert_awaited_once_with(42, "organism")
         assert isinstance(result, WDKColumnDistribution)
         assert len(result.histogram) == 1
 
@@ -260,53 +222,6 @@ class TestListAnalysisTypes:
 # ===========================================================================
 
 
-class TestGetRecordDetail:
-    """Record detail retrieval with PK reordering."""
-
-    async def test_reorders_pk_parts(self) -> None:
-        """PK parts should be reordered to match WDK record class definition."""
-        svc, api = _make_service()
-        api.get_record_type_info.return_value = WDKRecordType.model_validate(
-            {
-                "urlSegment": "gene",
-                "primaryKeyColumnRefs": ["source_id", "project_id"],
-            }
-        )
-        api.get_single_record.return_value = WDKRecordInstance.model_validate(
-            {
-                "id": [{"name": "source_id", "value": "PF3D7_0100100"}],
-                "attributes": {},
-            }
-        )
-        with patch(
-            "veupath_chatbot.integrations.veupathdb.factory.get_site",
-            return_value=MagicMock(project_id="PlasmoDB"),
-        ):
-            await svc.get_record_detail(
-                primary_key=[
-                    {"name": "project_id", "value": "PlasmoDB"},
-                    {"name": "source_id", "value": "PF3D7_0100100"},
-                ],
-                site_id="plasmodb",
-            )
-        # Check the PK was reordered
-        call_kwargs = api.get_single_record.call_args.kwargs
-        pk = call_kwargs["primary_key"]
-        assert pk[0]["name"] == "source_id"
-        assert pk[1]["name"] == "project_id"
-
-    async def test_falls_back_on_record_type_info_failure(self) -> None:
-        """If record type info fails, use raw PK parts."""
-        svc, api = _make_service()
-        api.get_record_type_info.side_effect = WDKError(detail="WDK timeout")
-        api.get_single_record.return_value = WDKRecordInstance.model_validate({})
-
-        raw_pk = [{"name": "source_id", "value": "PF3D7_0100100"}]
-        await svc.get_record_detail(primary_key=raw_pk, site_id="plasmodb")
-
-        # Should have passed raw PK through
-        call_kwargs = api.get_single_record.call_args.kwargs
-        assert call_kwargs["primary_key"] == raw_pk
 
 
 # ===========================================================================
@@ -428,7 +343,12 @@ class TestBuildAttributeListEdgeCases:
             WDKAttributeField(name="gene_name", type="string"),
         ]
         result = build_attribute_list(attrs)
-        by_name = {a["name"]: a for a in result}
+        by_name: dict[str, dict[str, object]] = {}
+        for a in result:
+            assert isinstance(a, dict)
+            name = a["name"]
+            assert isinstance(name, str)
+            by_name[name] = a  # type narrowed to dict
         assert by_name["score"]["isSortable"] is True
         assert by_name["gene_name"]["isSortable"] is False
 

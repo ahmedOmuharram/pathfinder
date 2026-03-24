@@ -2,6 +2,9 @@
 
 Tests DatasetsMixin: create_dataset with typed WDKDatasetConfig input.
 Validates that WDKIdentifier.model_validate replaces the old isinstance guards.
+
+Mocks: HTTP client is mocked. Tests validate request payload construction
+and error handling, not WDK integration.
 """
 
 from unittest.mock import AsyncMock, MagicMock

@@ -23,10 +23,110 @@ from veupath_chatbot.services.enrichment.parser import (
     upsert_enrichment_result,
 )
 from veupath_chatbot.services.enrichment.types import EnrichmentResult
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    go_enrichment_form_response,
-    pathway_enrichment_form_response,
-)
+
+
+# ---------------------------------------------------------------------------
+# Inline WDK form metadata (verified against live PlasmoDB, 2026-03-04)
+# ---------------------------------------------------------------------------
+def _pathway_enrichment_form() -> dict:
+    """GET .../analysis-types/pathway-enrichment -- form metadata."""
+    return {
+        "searchData": {
+            "name": "pathway-enrichment",
+            "displayName": "Metabolic Pathway Enrichment",
+            "parameters": [
+                {
+                    "name": "organism",
+                    "displayName": "Organism",
+                    "type": "single-pick-vocabulary",
+                    "initialDisplayValue": "Plasmodium falciparum 3D7",
+                    "isVisible": True,
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": 1,
+                },
+                {
+                    "name": "pathwaysSources",
+                    "displayName": "Pathway Sources",
+                    "type": "multi-pick-vocabulary",
+                    "initialDisplayValue": '["KEGG","MetaCyc"]',
+                    "isVisible": True,
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": -1,
+                },
+                {
+                    "name": "pValueCutoff",
+                    "displayName": "P-Value cutoff",
+                    "type": "number",
+                    "initialDisplayValue": "0.05",
+                    "isVisible": True,
+                },
+                {
+                    "name": "exact_match_only",
+                    "displayName": "EC Exact Match Only",
+                    "type": "single-pick-vocabulary",
+                    "initialDisplayValue": "Yes",
+                    "isVisible": True,
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": 1,
+                },
+                {
+                    "name": "exclude_incomplete_ec",
+                    "displayName": "Exclude Incomplete EC Numbers",
+                    "type": "single-pick-vocabulary",
+                    "initialDisplayValue": "No",
+                    "isVisible": True,
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": 1,
+                },
+            ],
+        },
+    }
+
+
+def _go_enrichment_form() -> dict:
+    """GET .../analysis-types/go-enrichment -- form metadata."""
+    return {
+        "searchData": {
+            "name": "go-enrichment",
+            "displayName": "Gene Ontology Enrichment",
+            "parameters": [
+                {
+                    "name": "goAssociationsOntologies",
+                    "displayName": "Ontology",
+                    "type": "single-pick-vocabulary",
+                    "initialDisplayValue": "Biological Process",
+                    "isVisible": True,
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": 1,
+                },
+                {
+                    "name": "goEvidenceCodes",
+                    "displayName": "Evidence Codes",
+                    "type": "multi-pick-vocabulary",
+                    "initialDisplayValue": '["Computed","Curated"]',
+                    "isVisible": True,
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": -1,
+                },
+                {
+                    "name": "pValueCutoff",
+                    "displayName": "P-value cutoff",
+                    "type": "number",
+                    "initialDisplayValue": "0.05",
+                    "isVisible": True,
+                },
+                {
+                    "name": "organism",
+                    "displayName": "Organism",
+                    "type": "single-pick-vocabulary",
+                    "initialDisplayValue": "Plasmodium falciparum 3D7",
+                    "isVisible": True,
+                    "minSelectedCount": 1,
+                    "maxSelectedCount": 1,
+                },
+            ],
+        },
+    }
 
 
 class TestAnalysisTypeMaps:
@@ -70,7 +170,7 @@ class TestEncodeVocabParams:
         override properly-encoded defaults.  ``encode_vocab_params``
         re-encodes all vocab params using the form metadata.
         """
-        form = pathway_enrichment_form_response()
+        form = _pathway_enrichment_form()
         # Simulate what happens: user sends plain strings from frontend
         merged = {
             "organism": "Plasmodium falciparum 3D7",  # plain string (from user)
@@ -89,7 +189,7 @@ class TestEncodeVocabParams:
 
     def test_does_not_double_encode(self) -> None:
         """Values already encoded as JSON arrays are left alone."""
-        form = pathway_enrichment_form_response()
+        form = _pathway_enrichment_form()
         merged = {
             "organism": '["Plasmodium falciparum 3D7"]',  # already encoded
             "exact_match_only": '["Yes"]',
@@ -107,7 +207,7 @@ class TestEncodeVocabParams:
 
     def test_handles_params_not_in_form(self) -> None:
         """Params not listed in form metadata are left untouched."""
-        form = pathway_enrichment_form_response()
+        form = _pathway_enrichment_form()
         merged = {
             "organism": "Plasmodium falciparum 3D7",
             "unknownParam": "some value",
@@ -157,7 +257,7 @@ class TestExtractDefaultParams:
         does ``AbstractEnumParam.convertToTerms(params.get("organism"))``
         which calls ``new JSONArray(stableValue)`` — requires JSON array.
         """
-        form = pathway_enrichment_form_response()
+        form = _pathway_enrichment_form()
         result = extract_default_params(form)
 
         # Enum/vocab params must be JSON arrays
@@ -172,7 +272,7 @@ class TestExtractDefaultParams:
         assert result["pValueCutoff"] == "0.05"
 
     def test_extracts_go_enrichment_params(self) -> None:
-        form = go_enrichment_form_response()
+        form = _go_enrichment_form()
         result = extract_default_params(form)
 
         assert result["goAssociationsOntologies"] == '["Biological Process"]'

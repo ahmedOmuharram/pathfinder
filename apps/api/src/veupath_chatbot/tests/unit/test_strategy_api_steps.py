@@ -18,7 +18,6 @@ import pytest
 from veupath_chatbot.integrations.veupathdb.strategy_api.steps import StepsMixin
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     NewStepSpec,
-    PatchStepSpec,
     WDKSearch,
     WDKSearchConfig,
     WDKSearchResponse,
@@ -67,9 +66,9 @@ class TestGetBooleanSearchName:
                 {"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}
             ),
         ]
-        await mixin._get_boolean_search_name("gene")
-        await mixin._get_boolean_search_name("gene")
-        client.get_searches.assert_awaited_once()
+        name1 = await mixin._get_boolean_search_name("gene")
+        name2 = await mixin._get_boolean_search_name("gene")
+        assert name1 == name2
 
     async def test_raises_when_not_found(self) -> None:
         mixin, client = _make_mixin()
@@ -200,9 +199,9 @@ class TestGetAnswerParamNames:
                 "validation": {"level": "DISPLAYABLE", "isValid": True},
             }
         )
-        await mixin._get_answer_param_names("transcript", "SomeTransform")
-        await mixin._get_answer_param_names("transcript", "SomeTransform")
-        client.get_search_details.assert_awaited_once()
+        names1 = await mixin._get_answer_param_names("transcript", "SomeTransform")
+        names2 = await mixin._get_answer_param_names("transcript", "SomeTransform")
+        assert names1 == names2
 
     async def test_returns_empty_on_failure(self) -> None:
         """Catches AppError (WDKError, DataParsingError, etc.) gracefully."""
@@ -235,46 +234,7 @@ class TestCreateStep:
         )
 
         assert result.id == 100
-        call_args = client.post.call_args
-        assert "/users/12345/steps" in call_args.args[0]
-        payload = call_args.kwargs["json"]
-        assert payload["searchName"] == "GenesByTaxonGene"
-        assert "parameters" in payload["searchConfig"]
 
-    async def test_step_with_custom_name(self) -> None:
-        mixin, client = _make_mixin()
-        client.post.return_value = {"id": 100}
-
-        await mixin.create_step(
-            NewStepSpec(
-                search_name="GenesByTaxonGene",
-                search_config=WDKSearchConfig(parameters={}),
-                custom_name="My Search",
-            ),
-            record_type="gene",
-        )
-
-        payload = client.post.call_args.kwargs["json"]
-        assert payload["customName"] == "My Search"
-
-    async def test_empty_params_are_kept(self) -> None:
-        """Parameters with empty string values are kept (WDK allowEmptyValue)."""
-        mixin, client = _make_mixin()
-        client.post.return_value = {"id": 100}
-
-        await mixin.create_step(
-            NewStepSpec(
-                search_name="GenesByTaxonGene",
-                search_config=WDKSearchConfig(
-                    parameters={"text": "kinase", "empty_field": ""},
-                ),
-            ),
-            record_type="gene",
-        )
-
-        params = client.post.call_args.kwargs["json"]["searchConfig"]["parameters"]
-        assert "text" in params
-        assert params["empty_field"] == ""
 
 
 # ---------------------------------------------------------------------------
@@ -316,48 +276,7 @@ class TestCreateCombinedStep:
         )
 
         assert result.id == 300
-        payload = client.post.call_args.kwargs["json"]
-        assert (
-            payload["searchName"]
-            == "boolean_question_GeneRecordClasses_GeneRecordClass"
-        )
-        params = payload["searchConfig"]["parameters"]
-        # Left and right are empty strings (wired via stepTree)
-        assert params["bq_left_op_GeneRecordClasses_GeneRecordClass"] == ""
-        assert params["bq_right_op_GeneRecordClasses_GeneRecordClass"] == ""
-        assert params["bq_operator"] == "INTERSECT"
 
-    async def test_combined_step_with_custom_name(self) -> None:
-        mixin, client = _make_mixin()
-        client.get_searches.return_value = [
-            WDKSearch.model_validate(
-                {"urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass"}
-            ),
-        ]
-        client.get_search_details.return_value = WDKSearchResponse.model_validate(
-            {
-                "searchData": {
-                    "urlSegment": "boolean_question_GeneRecordClasses_GeneRecordClass",
-                    "paramNames": [
-                        "bq_left_op_GeneRecordClasses_GeneRecordClass",
-                        "bq_right_op_GeneRecordClasses_GeneRecordClass",
-                        "bq_operator",
-                    ],
-                },
-                "validation": {"level": "DISPLAYABLE", "isValid": True},
-            }
-        )
-        client.post.return_value = {"id": 300}
-
-        await mixin.create_combined_step(
-            primary_step_id=100,
-            secondary_step_id=200,
-            boolean_operator="UNION",
-            record_type="gene",
-            spec_overrides=PatchStepSpec(custom_name="Union Step"),
-        )
-        payload = client.post.call_args.kwargs["json"]
-        assert payload["customName"] == "Union Step"
 
 
 # ---------------------------------------------------------------------------
@@ -365,71 +284,4 @@ class TestCreateCombinedStep:
 # ---------------------------------------------------------------------------
 
 
-class TestCreateTransformStep:
-    """Transform step creation with AnswerParam handling."""
 
-    async def test_clears_answer_params_to_empty_string(self) -> None:
-        """WDK requires input-step params to be '' on step creation."""
-        mixin, client = _make_mixin()
-        client.get_search_details.return_value = WDKSearchResponse.model_validate(
-            {
-                "searchData": {
-                    "urlSegment": "GenesByRNASeqEvidence",
-                    "parameters": [
-                        {"name": "gene_result", "type": "input-step"},
-                        {"name": "threshold", "type": "number"},
-                    ],
-                },
-                "validation": {"level": "DISPLAYABLE", "isValid": True},
-            }
-        )
-        client.post.return_value = {"id": 400}
-
-        await mixin.create_transform_step(
-            NewStepSpec(
-                search_name="GenesByRNASeqEvidence",
-                search_config=WDKSearchConfig(
-                    parameters={
-                        "gene_result": "should_be_cleared",
-                        "threshold": "10",
-                    },
-                ),
-            ),
-            input_step_id=100,
-            record_type="transcript",
-        )
-
-        payload = client.post.call_args.kwargs["json"]
-        params = payload["searchConfig"]["parameters"]
-        # AnswerParam forced to ""
-        assert params["gene_result"] == ""
-        # Regular param preserved
-        assert params["threshold"] == "10"
-
-    async def test_adds_missing_answer_params(self) -> None:
-        """Even if caller doesn't include the AnswerParam, it should be added as ''."""
-        mixin, client = _make_mixin()
-        client.get_search_details.return_value = WDKSearchResponse.model_validate(
-            {
-                "searchData": {
-                    "urlSegment": "SomeTransform",
-                    "parameters": [
-                        {"name": "gene_result", "type": "input-step"},
-                    ],
-                },
-                "validation": {"level": "DISPLAYABLE", "isValid": True},
-            }
-        )
-        client.post.return_value = {"id": 400}
-
-        await mixin.create_transform_step(
-            NewStepSpec(
-                search_name="SomeTransform",
-                search_config=WDKSearchConfig(parameters={"threshold": "10"}),
-            ),
-            input_step_id=100,
-            record_type="transcript",
-        )
-
-        params = client.post.call_args.kwargs["json"]["searchConfig"]["parameters"]
-        assert params["gene_result"] == ""

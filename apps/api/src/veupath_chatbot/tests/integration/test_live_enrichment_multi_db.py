@@ -1,19 +1,18 @@
-"""Live integration tests for enrichment across multiple VEuPathDB databases.
+"""VCR-backed integration tests for enrichment across multiple VEuPathDB databases.
 
 Tests _build_enrichment_params_from_gene_ids, EnrichmentService.run(),
-and EnrichmentService.run_batch() against REAL WDK APIs with REAL gene IDs
-from six VEuPathDB databases: PlasmoDB, ToxoDB, CryptoDB, FungiDB,
-TriTrypDB, and VectorBase.
+and EnrichmentService.run_batch() against REAL WDK API responses captured
+in VCR cassettes from six VEuPathDB databases: PlasmoDB, ToxoDB, CryptoDB,
+FungiDB, TriTrypDB, and VectorBase.
 
-NO MOCKS. All calls hit live WDK endpoints.
+Record cassettes::
 
-Requires network access to VEuPathDB sites. Run with:
+    WDK_AUTH_EMAIL=... WDK_AUTH_PASSWORD=... \
+    uv run pytest src/veupath_chatbot/tests/integration/test_live_enrichment_multi_db.py -v --record-mode=all
 
-    pytest src/veupath_chatbot/tests/integration/test_live_enrichment_multi_db.py -v -s
+Replay (default)::
 
-Skip with:
-
-    pytest -m "not live_wdk"
+    uv run pytest src/veupath_chatbot/tests/integration/test_live_enrichment_multi_db.py -v
 """
 
 from collections.abc import AsyncGenerator
@@ -26,8 +25,6 @@ from veupath_chatbot.services.enrichment.service import EnrichmentService
 from veupath_chatbot.services.gene_sets.operations import (
     _build_enrichment_params_from_gene_ids,
 )
-
-pytestmark = pytest.mark.live_wdk
 
 # ---------------------------------------------------------------------------
 # Real gene IDs — 50 per database for statistical power
@@ -436,6 +433,7 @@ class TestBuildEnrichmentParamsMultiDb:
     """
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_plasmodb_dataset_creation(self) -> None:
         """Upload 50 P. falciparum genes to PlasmoDB and verify params."""
         (
@@ -452,6 +450,7 @@ class TestBuildEnrichmentParamsMultiDb:
         assert len(ds_id) > 0
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_toxodb_dataset_creation(self) -> None:
         """Upload 50 T. gondii genes to ToxoDB and verify params."""
         (
@@ -468,6 +467,7 @@ class TestBuildEnrichmentParamsMultiDb:
         assert len(ds_id) > 0
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_cryptodb_dataset_creation(self) -> None:
         """Upload 50 C. parvum genes to CryptoDB and verify params."""
         (
@@ -484,6 +484,7 @@ class TestBuildEnrichmentParamsMultiDb:
         assert len(ds_id) > 0
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_fungidb_dataset_creation(self) -> None:
         """Upload 50 A. fumigatus genes to FungiDB and verify params."""
         (
@@ -500,6 +501,7 @@ class TestBuildEnrichmentParamsMultiDb:
         assert len(ds_id) > 0
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_tritrypdb_dataset_creation(self) -> None:
         """Upload 50 T. brucei genes to TriTrypDB and verify params."""
         (
@@ -516,6 +518,7 @@ class TestBuildEnrichmentParamsMultiDb:
         assert len(ds_id) > 0
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_vectorbase_dataset_creation(self) -> None:
         """Upload 50 A. gambiae genes to VectorBase and verify params."""
         (
@@ -546,6 +549,7 @@ class TestEnrichmentMultiDb:
     """
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_plasmodb_go_enrichment(self) -> None:
         """GO process enrichment on 50 P. falciparum genes via PlasmoDB."""
         (
@@ -573,6 +577,7 @@ class TestEnrichmentMultiDb:
         assert result.error is None
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_toxodb_go_enrichment(self) -> None:
         """GO process enrichment on 50 T. gondii genes via ToxoDB."""
         (
@@ -600,6 +605,7 @@ class TestEnrichmentMultiDb:
         assert result.error is None
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_cryptodb_go_enrichment(self) -> None:
         """GO process enrichment on 50 C. parvum genes via CryptoDB."""
         (
@@ -627,6 +633,7 @@ class TestEnrichmentMultiDb:
         assert result.error is None
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_fungidb_go_enrichment(self) -> None:
         """GO process enrichment on 50 A. fumigatus genes via FungiDB."""
         (
@@ -654,6 +661,7 @@ class TestEnrichmentMultiDb:
         assert result.error is None
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_tritrypdb_go_enrichment(self) -> None:
         """GO process enrichment on 50 T. brucei genes via TriTrypDB."""
         (
@@ -681,6 +689,7 @@ class TestEnrichmentMultiDb:
         assert result.error is None
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_vectorbase_go_enrichment(self) -> None:
         """GO process enrichment on 50 A. gambiae genes via VectorBase."""
         (
@@ -721,6 +730,7 @@ class TestMultiTypeEnrichment:
     """
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_plasmodb_multi_type(self) -> None:
         """GO process + function + component on 50 PlasmoDB genes."""
         (
@@ -746,6 +756,7 @@ class TestMultiTypeEnrichment:
         assert result_types == {"go_process", "go_function", "go_component"}
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_toxodb_multi_type(self) -> None:
         """GO process + function on 50 ToxoDB genes."""
         (
@@ -771,6 +782,7 @@ class TestMultiTypeEnrichment:
         assert result_types == {"go_process", "go_function"}
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_fungidb_multi_type(self) -> None:
         """GO process + function + component on 50 FungiDB genes."""
         (
@@ -809,6 +821,7 @@ class TestLargeGeneSetEnrichment:
     """
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_plasmodb_100_genes(self) -> None:
         """Enrichment with 100 P. falciparum genes (50 base + 50 extra)."""
         large_gene_set = PLASMO_GENES + PLASMO_EXTRA_GENES
@@ -848,6 +861,7 @@ class TestEnrichmentEdgeCases:
     """Test edge cases for enrichment: single gene, missing params, etc."""
 
     @pytest.mark.asyncio
+    @pytest.mark.vcr
     async def test_single_gene_enrichment(self) -> None:
         """Enrichment with a single gene should still work (may return empty terms)."""
         single_gene = [PLASMO_GENES[0]]

@@ -16,21 +16,116 @@ WDK contracts validated:
 - isSaved flag round-trip through sync
 """
 
+from dataclasses import dataclass, field
+from typing import Any
+
 import httpx
 import respx
-
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    StrategyItemDetails,
-    strategy_get_response,
-    strategy_list_item,
-)
 
 BASE = "https://plasmodb.org/plasmo/service"
 
 
+@dataclass
+class StrategyItemDetails:
+    record_class_name: str = "TranscriptRecordClasses.TranscriptRecordClass"
+    estimated_size: int = 150
+    is_saved: bool = False
+    signature: str = "abc123def456"
+    leaf_and_transform_step_count: int = field(default=1)
+
+
+def _strategy_list_item(
+    strategy_id: int = 200,
+    name: str = "Test strategy",
+    details: StrategyItemDetails | None = None,
+) -> dict[str, Any]:
+    d = details or StrategyItemDetails()
+    return {
+        "strategyId": strategy_id,
+        "name": name,
+        "description": "",
+        "author": "Guest User",
+        "rootStepId": 100,
+        "recordClassName": d.record_class_name,
+        "signature": d.signature,
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "releaseVersion": "68",
+        "isPublic": False,
+        "isSaved": d.is_saved,
+        "isValid": True,
+        "isDeleted": False,
+        "isExample": False,
+        "organization": "",
+        "estimatedSize": d.estimated_size,
+        "nameOfFirstStep": "Organism",
+        "leafAndTransformStepCount": d.leaf_and_transform_step_count,
+    }
+
+
+def _strategy_get_response(
+    strategy_id: int = 200,
+    step_ids: list[int] | None = None,
+) -> dict[str, Any]:
+    ids = step_ids or [100, 101, 102]
+    search_names = {0: "GenesByTaxon", 1: "GenesByTextSearch", 2: "GenesByOrthologs"}
+
+    def _build_tree(remaining: list[int]) -> dict[str, Any]:
+        if len(remaining) == 1:
+            return {"stepId": remaining[0]}
+        return {
+            "stepId": remaining[-1],
+            "primaryInput": _build_tree(remaining[:-1]),
+        }
+
+    step_tree = _build_tree(ids)
+    steps: dict[str, dict[str, Any]] = {}
+    for idx, sid in enumerate(ids):
+        sname = search_names.get(idx, "GenesByTaxon")
+        steps[str(sid)] = {
+            "id": sid,
+            "searchName": sname,
+            "searchConfig": {
+                "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
+                "wdkWeight": 0,
+            },
+            "displayName": "Organism" if sname == "GenesByTaxon" else sname,
+            "customName": None,
+            "estimatedSize": 150,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "isFiltered": False,
+            "hasCompleteStepAnalyses": False,
+        }
+    return {
+        "strategyId": strategy_id,
+        "name": "Test strategy",
+        "description": "",
+        "author": "Guest User",
+        "organization": "",
+        "releaseVersion": "68",
+        "isSaved": False,
+        "isPublic": False,
+        "isDeleted": False,
+        "isValid": True,
+        "isExample": False,
+        "rootStepId": ids[-1],
+        "estimatedSize": 150,
+        "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+        "stepTree": step_tree,
+        "steps": steps,
+        "signature": "abc123def456",
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "leafAndTransformStepCount": len(ids),
+        "nameOfFirstStep": "Organism",
+    }
+
+
 def _setup_wdk_user(router: respx.Router) -> None:
     """Mock the /users/current endpoint (always needed for auth'd requests)."""
-    router.get(f"{BASE}/users/current").respond(200, json={"id": "guest"})
+    router.get(f"{BASE}/users/current").respond(200, json={"id": 12345})
 
 
 # ── Sync creates projections from WDK list ────────────────────────
@@ -53,7 +148,7 @@ async def test_sync_creates_projections_with_correct_wdk_fields(
     """
     _setup_wdk_user(wdk_respx)
     items = [
-        strategy_list_item(
+        _strategy_list_item(
             strategy_id=42,
             name="Malaria Drug Resistance Genes",
             details=StrategyItemDetails(
@@ -64,9 +159,9 @@ async def test_sync_creates_projections_with_correct_wdk_fields(
             ),
         ),
     ]
-    wdk_respx.get(f"{BASE}/users/guest/strategies").respond(200, json=items)
+    wdk_respx.get(f"{BASE}/users/12345/strategies").respond(200, json=items)
     # Background auto-import may attempt detail fetch
-    wdk_respx.get(url__regex=r".*/users/guest/strategies/\d+$").respond(200, json={})
+    wdk_respx.get(url__regex=r".*/users/12345/strategies/\d+$").respond(200, json={})
 
     resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
@@ -91,7 +186,7 @@ async def test_sync_handles_empty_wdk_strategy_list(
 ) -> None:
     """Empty WDK strategy list → empty projection list (no error)."""
     _setup_wdk_user(wdk_respx)
-    wdk_respx.get(f"{BASE}/users/guest/strategies").respond(200, json=[])
+    wdk_respx.get(f"{BASE}/users/12345/strategies").respond(200, json=[])
 
     resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
@@ -121,7 +216,7 @@ async def test_lazy_fetch_populates_plan_from_wdk_detail(
 
     # Step 1: Sync with summary only
     items = [
-        strategy_list_item(
+        _strategy_list_item(
             strategy_id=777,
             name="Ortholog Search",
             details=StrategyItemDetails(
@@ -130,14 +225,14 @@ async def test_lazy_fetch_populates_plan_from_wdk_detail(
             ),
         ),
     ]
-    wdk_respx.get(f"{BASE}/users/guest/strategies").respond(200, json=items)
+    wdk_respx.get(f"{BASE}/users/12345/strategies").respond(200, json=items)
     # Detail fetch during auto-import (background) — return realistic payload
-    detail = strategy_get_response(strategy_id=777, step_ids=[100, 101])
-    wdk_respx.get(url__regex=r".*/users/guest/strategies/777$").respond(
+    detail = _strategy_get_response(strategy_id=777, step_ids=[100, 101])
+    wdk_respx.get(url__regex=r".*/users/12345/strategies/777$").respond(
         200, json=detail
     )
     # Catch-all for other strategy detail fetches
-    wdk_respx.get(url__regex=r".*/users/guest/strategies/\d+$").respond(200, json={})
+    wdk_respx.get(url__regex=r".*/users/12345/strategies/\d+$").respond(200, json={})
 
     # Auto-import gene set: step report and step detail
     wdk_respx.post(url__regex=r".*/users/.*/steps/\d+/reports/standard$").respond(
@@ -213,12 +308,12 @@ async def test_sync_skips_malformed_strategy_items(
     """
     _setup_wdk_user(wdk_respx)
     items = [
-        strategy_list_item(strategy_id=100, name="Good Strategy"),
+        _strategy_list_item(strategy_id=100, name="Good Strategy"),
         {"garbage": True, "no_strategy_id": "oops"},
-        strategy_list_item(strategy_id=200, name="Also Good"),
+        _strategy_list_item(strategy_id=200, name="Also Good"),
     ]
-    wdk_respx.get(f"{BASE}/users/guest/strategies").respond(200, json=items)
-    wdk_respx.get(url__regex=r".*/users/guest/strategies/\d+$").respond(200, json={})
+    wdk_respx.get(f"{BASE}/users/12345/strategies").respond(200, json=items)
+    wdk_respx.get(url__regex=r".*/users/12345/strategies/\d+$").respond(200, json={})
 
     resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
@@ -245,19 +340,19 @@ async def test_sync_preserves_is_saved_flag(
     """
     _setup_wdk_user(wdk_respx)
     items = [
-        strategy_list_item(
+        _strategy_list_item(
             strategy_id=100,
             name="Saved",
             details=StrategyItemDetails(is_saved=True),
         ),
-        strategy_list_item(
+        _strategy_list_item(
             strategy_id=200,
             name="Draft",
             details=StrategyItemDetails(is_saved=False),
         ),
     ]
-    wdk_respx.get(f"{BASE}/users/guest/strategies").respond(200, json=items)
-    wdk_respx.get(url__regex=r".*/users/guest/strategies/\d+$").respond(200, json={})
+    wdk_respx.get(f"{BASE}/users/12345/strategies").respond(200, json=items)
+    wdk_respx.get(url__regex=r".*/users/12345/strategies/\d+$").respond(200, json={})
 
     resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}

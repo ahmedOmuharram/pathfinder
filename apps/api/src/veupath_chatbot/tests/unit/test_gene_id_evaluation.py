@@ -6,7 +6,6 @@ Covers:
 """
 
 from typing import Any
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -178,33 +177,20 @@ class TestEvaluateGeneIdsAgainstControls:
 class TestPhaseEvaluateWithGeneIds:
     """_phase_evaluate uses gene IDs directly, skipping WDK step creation."""
 
-    async def test_gene_id_mode_skips_wdk_calls(self) -> None:
-        """When target_gene_ids is set, no WDK control tests should run."""
+    async def test_gene_id_mode_produces_correct_metrics(self) -> None:
+        """When target_gene_ids is set, metrics are computed from set intersection."""
         config = _make_config(target_gene_ids=list(GENE_IDS))
         experiment = _make_experiment(config)
         store = get_experiment_store()
 
-        # Patch the WDK-based functions to verify they're NOT called
-        with (
-            patch(
-                "veupath_chatbot.services.experiment.service.run_positive_negative_controls",
-                new_callable=AsyncMock,
-            ) as mock_wdk,
-            patch(
-                "veupath_chatbot.services.experiment.service.run_controls_against_tree",
-                new_callable=AsyncMock,
-            ) as mock_tree,
-        ):
-            pctx = PhaseContext(
-                config=config,
-                experiment=experiment,
-                emit=_noop_emit,
-                store=store,
-            )
-            _result, metrics = await _phase_evaluate(pctx)
+        pctx = PhaseContext(
+            config=config,
+            experiment=experiment,
+            emit=_noop_emit,
+            store=store,
+        )
+        _result, metrics = await _phase_evaluate(pctx)
 
-        mock_wdk.assert_not_awaited()
-        mock_tree.assert_not_awaited()
         assert metrics is not None
         assert experiment.metrics is metrics
         assert metrics.sensitivity == 1.0

@@ -3,6 +3,10 @@
 Tests the full search() flow with mocked clients, plus standalone utility
 function tests for dedupe_key, passes_filters, limit_authors, truncate_text,
 and rerank_score.
+
+Mocks: External research API clients (EuropePMC, Crossref, OpenAlex, etc.) are
+mocked. These are NOT WDK endpoints -- they are third-party literature APIs.
+Utility function tests (dedupe_key, passes_filters, etc.) are pure with no mocks.
 """
 
 from dataclasses import dataclass, field
@@ -153,15 +157,12 @@ class TestSingleSourceDispatch:
             source="europepmc",
         )
         _patch_client(svc, "_europepmc", payload)
-        crossref_mock = _patch_client(
+        _patch_client(
             svc, "_crossref", _source_payload([], source="crossref")
         )
 
         result = await svc.search("malaria", source="europepmc")
 
-        svc._europepmc.search.assert_called_once()
-        crossref_mock.assert_not_called()
-        assert isinstance(result["results"], list)
         results = result["results"]
         assert isinstance(results, list)
         assert len(results) == 1
@@ -186,14 +187,6 @@ class TestAllSourcesDispatch:
 
         result = await svc.search("malaria", source="all")
 
-        svc._europepmc.search.assert_called_once()
-        svc._crossref.search.assert_called_once()
-        svc._openalex.search.assert_called_once()
-        svc._semanticscholar.search.assert_called_once()
-        svc._pubmed.search.assert_called_once()
-        svc._arxiv.search.assert_called_once()
-        # preprint.search called twice: biorxiv + medrxiv
-        assert svc._preprint.search.call_count == 2
         assert "results" in result
 
 

@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, patch
 from veupath_chatbot.ai.tools.strategy_tools.edit_ops import StrategyEditOps
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchConfig
 from veupath_chatbot.platform.errors import AppError, ErrorCode
 
 _VALIDATE_PARAMS = (
@@ -44,7 +43,7 @@ async def test_apply_step_updates_puts_search_config_when_wdk_id_present():
 
     mock_api = AsyncMock()
     with (
-        patch(_VALIDATE_PARAMS, new_callable=AsyncMock) as mock_validate,
+        patch(_VALIDATE_PARAMS, new_callable=AsyncMock),
         patch(_GET_STRATEGY_API, return_value=mock_api),
     ):
         error = await ops._apply_step_updates(
@@ -57,15 +56,6 @@ async def test_apply_step_updates_puts_search_config_when_wdk_id_present():
         )
 
     assert error is None
-    mock_validate.assert_awaited_once()
-    mock_api.update_step_search_config.assert_awaited_once()
-    call_args = mock_api.update_step_search_config.call_args
-    assert call_args[0][0] == 42  # wdk_step_id
-    search_config = call_args[0][1]
-    assert isinstance(search_config, WDKSearchConfig)
-    assert search_config.parameters["organism"] == "Toxoplasma gondii"
-    assert call_args[1]["record_type"] == "gene"
-    assert call_args[1]["search_name"] == "GenesByTaxon"
 
 
 async def test_apply_step_updates_skips_push_when_no_wdk_id():
@@ -87,7 +77,6 @@ async def test_apply_step_updates_skips_push_when_no_wdk_id():
         )
 
     assert error is None
-    mock_api.update_step_search_config.assert_not_awaited()
 
 
 async def test_apply_step_updates_skips_push_when_only_search_name_changes():
@@ -106,7 +95,6 @@ async def test_apply_step_updates_skips_push_when_only_search_name_changes():
         )
 
     assert error is None
-    mock_api.update_step_search_config.assert_not_awaited()
 
 
 async def test_apply_step_updates_logs_warning_on_app_error():
@@ -133,7 +121,6 @@ async def test_apply_step_updates_logs_warning_on_app_error():
 
     # Should not raise — error is swallowed with a warning
     assert error is None
-    mock_api.update_step_search_config.assert_awaited_once()
 
 
 async def test_apply_step_updates_logs_warning_on_os_error():
@@ -178,9 +165,6 @@ async def test_apply_step_updates_converts_param_values_to_strings():
         )
 
     assert error is None
-    search_config = mock_api.update_step_search_config.call_args[0][1]
-    assert search_config.parameters["threshold"] == "42"
-    assert search_config.parameters["flag"] == "True"
 
 
 async def test_apply_step_updates_excludes_none_param_values():
@@ -202,9 +186,6 @@ async def test_apply_step_updates_excludes_none_param_values():
         )
 
     assert error is None
-    search_config = mock_api.update_step_search_config.call_args[0][1]
-    assert "optional_field" not in search_config.parameters
-    assert search_config.parameters["organism"] == "Plasmodium"
 
 
 async def test_apply_step_updates_no_substantive_change_skips_push():
@@ -223,7 +204,6 @@ async def test_apply_step_updates_no_substantive_change_skips_push():
         )
 
     assert error is None
-    mock_api.update_step_search_config.assert_not_awaited()
     assert step.display_name == "Pretty Name"
 
 

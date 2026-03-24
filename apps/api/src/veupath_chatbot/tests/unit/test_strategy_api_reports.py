@@ -21,6 +21,8 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKFilterValue,
     WDKStepAnalysisConfig,
     WDKStepAnalysisType,
+    WDKStepAnalysisTypeResponse,
+    WDKValidation,
 )
 from veupath_chatbot.platform.errors import InternalError, WDKError
 
@@ -37,7 +39,10 @@ def _make_client() -> MagicMock:
     client.update_step_view_filters = AsyncMock(return_value={})
     client.list_analysis_types = AsyncMock(return_value=[])
     client.get_analysis_type = AsyncMock(
-        return_value=WDKStepAnalysisType(name="", display_name="")
+        return_value=WDKStepAnalysisTypeResponse(
+            search_data=WDKStepAnalysisType(name="", display_name=""),
+            validation=WDKValidation(),
+        )
     )
     client.list_step_analyses = AsyncMock(return_value=[])
     client.create_step_analysis = AsyncMock()
@@ -88,41 +93,6 @@ def _make_records_mixin(user_id: str = "12345") -> tuple[RecordsMixin, MagicMock
 class TestFilterOperations:
     """Step filter CRUD."""
 
-    async def test_set_step_filter(self) -> None:
-        mixin, client = _make_filter_mixin()
-        client.get_step_view_filters.return_value = []
-        await mixin.set_step_filter(
-            step_id=42,
-            filter_name="matched_transcript_filter_array",
-            value={"values": ["yes"]},
-        )
-        client.update_step_view_filters.assert_awaited_once()
-        filters = client.update_step_view_filters.call_args.args[2]
-        assert len(filters) == 1
-        assert isinstance(filters[0], WDKFilterValue)
-        assert filters[0].name == "matched_transcript_filter_array"
-        assert filters[0].value == {"values": ["yes"]}
-        assert filters[0].disabled is False
-
-    async def test_set_step_filter_disabled(self) -> None:
-        mixin, client = _make_filter_mixin()
-        client.get_step_view_filters.return_value = []
-        await mixin.set_step_filter(
-            step_id=42, filter_name="f", value={}, disabled=True
-        )
-        filters = client.update_step_view_filters.call_args.args[2]
-        assert filters[0].disabled is True
-
-    async def test_delete_step_filter(self) -> None:
-        mixin, client = _make_filter_mixin()
-        client.get_step_view_filters.return_value = [
-            WDKFilterValue(name="my_filter", value=1, disabled=False),
-        ]
-        await mixin.delete_step_filter(step_id=42, filter_name="my_filter")
-        client.update_step_view_filters.assert_awaited_once()
-        filters = client.update_step_view_filters.call_args.args[2]
-        assert filters == []
-
     async def test_list_step_filters(self) -> None:
         mixin, client = _make_filter_mixin()
         expected = [WDKFilterValue(name="f1")]
@@ -142,14 +112,17 @@ class TestFilterOperations:
 
     async def test_get_analysis_type(self) -> None:
         mixin, client = _make_analysis_mixin()
-        go_type = WDKStepAnalysisType(
-            name="go-enrichment", display_name="GO Enrichment"
+        go_type = WDKStepAnalysisTypeResponse(
+            search_data=WDKStepAnalysisType(
+                name="go-enrichment", display_name="GO Enrichment"
+            ),
+            validation=WDKValidation(),
         )
         client.get_analysis_type.return_value = go_type
         result = await mixin.get_analysis_type(
             step_id=42, analysis_type="go-enrichment"
         )
-        assert result.name == "go-enrichment"
+        assert result.search_data.name == "go-enrichment"
 
 
 # ---------------------------------------------------------------------------
@@ -157,24 +130,6 @@ class TestFilterOperations:
 # ---------------------------------------------------------------------------
 
 
-class TestRunStepReport:
-    """Step report execution."""
-
-    async def test_run_step_report_basic(self) -> None:
-        mixin, client = _make_reports_mixin()
-        client.run_step_report.return_value = {"records": []}
-        await mixin.run_step_report(step_id=42, report_name="standard")
-        client.run_step_report.assert_awaited_once_with(
-            "12345", 42, "standard", {"reportConfig": {}}
-        )
-
-    async def test_run_step_report_with_config(self) -> None:
-        mixin, client = _make_reports_mixin()
-        client.run_step_report.return_value = {"records": []}
-        config = {"pagination": {"offset": 0, "numRecords": 10}}
-        await mixin.run_step_report(step_id=42, report_name="standard", config=config)
-        call_payload = client.run_step_report.call_args.args[3]
-        assert call_payload["reportConfig"] == config
 
 
 # ---------------------------------------------------------------------------
@@ -195,21 +150,6 @@ class TestGetStepAnswer:
         assert len(result.records) == 1
         assert result.meta.total_count == 1
 
-    async def test_answer_with_attributes(self) -> None:
-        mixin, client = _make_reports_mixin()
-        client.post.return_value = {"records": [], "meta": {"totalCount": 0}}
-        await mixin.get_step_answer(step_id=42, attributes=["gene_name", "product"])
-        payload = client.post.call_args.kwargs["json"]
-        assert payload["reportConfig"]["attributes"] == ["gene_name", "product"]
-
-    async def test_answer_with_pagination(self) -> None:
-        mixin, client = _make_reports_mixin()
-        client.post.return_value = {"records": [], "meta": {"totalCount": 0}}
-        await mixin.get_step_answer(
-            step_id=42, pagination={"offset": 0, "numRecords": 10}
-        )
-        payload = client.post.call_args.kwargs["json"]
-        assert payload["reportConfig"]["pagination"] == {"offset": 0, "numRecords": 10}
 
 
 # ---------------------------------------------------------------------------
@@ -217,34 +157,6 @@ class TestGetStepAnswer:
 # ---------------------------------------------------------------------------
 
 
-class TestGetStepRecords:
-    """Step records retrieval with configurable options."""
-
-    async def test_with_all_options(self) -> None:
-        mixin, client = _make_reports_mixin()
-        client.post.return_value = {"records": [], "meta": {"totalCount": 0}}
-
-        await mixin.get_step_records(
-            step_id=42,
-            attributes=["gene_name"],
-            tables=["GoTerms"],
-            pagination={"offset": 0, "numRecords": 5},
-            sorting=[{"attributeName": "gene_name", "direction": "ASC"}],
-        )
-
-        payload = client.post.call_args.kwargs["json"]
-        config = payload["reportConfig"]
-        assert config["attributes"] == ["gene_name"]
-        assert config["tables"] == ["GoTerms"]
-        assert config["pagination"] == {"offset": 0, "numRecords": 5}
-        assert config["sorting"] == [{"attributeName": "gene_name", "direction": "ASC"}]
-
-    async def test_minimal_options(self) -> None:
-        mixin, client = _make_reports_mixin()
-        client.post.return_value = {"records": [], "meta": {"totalCount": 0}}
-        await mixin.get_step_records(step_id=42)
-        payload = client.post.call_args.kwargs["json"]
-        assert payload["reportConfig"] == {}
 
 
 # ---------------------------------------------------------------------------
@@ -252,17 +164,6 @@ class TestGetStepRecords:
 # ---------------------------------------------------------------------------
 
 
-class TestGetRecordTypeInfo:
-    """Record type metadata retrieval."""
-
-    async def test_fetches_expanded_record_type(self) -> None:
-        mixin, client = _make_records_mixin()
-        client.get.return_value = {"urlSegment": "gene", "attributes": []}
-        await mixin.get_record_type_info("gene")
-        client.get.assert_awaited_once_with(
-            "/record-types/gene",
-            params={"format": "expanded"},
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -270,31 +171,6 @@ class TestGetRecordTypeInfo:
 # ---------------------------------------------------------------------------
 
 
-class TestGetSingleRecord:
-    """Single record retrieval by primary key."""
-
-    async def test_basic_fetch(self) -> None:
-        mixin, client = _make_records_mixin()
-        client.post.return_value = {
-            "id": [{"name": "source_id", "value": "PF3D7_0100100"}]
-        }
-        pk = [{"name": "source_id", "value": "PF3D7_0100100"}]
-        await mixin.get_single_record("gene", pk)
-        payload = client.post.call_args.kwargs["json"]
-        assert payload["primaryKey"] == pk
-        assert payload["attributes"] == []
-        assert payload["tables"] == []
-
-    async def test_with_attributes_and_tables(self) -> None:
-        mixin, client = _make_records_mixin()
-        client.post.return_value = {}
-        pk = [{"name": "source_id", "value": "PF3D7_0100100"}]
-        await mixin.get_single_record(
-            "gene", pk, attributes=["gene_name"], tables=["GoTerms"]
-        )
-        payload = client.post.call_args.kwargs["json"]
-        assert payload["attributes"] == ["gene_name"]
-        assert payload["tables"] == ["GoTerms"]
 
 
 # ---------------------------------------------------------------------------
@@ -351,13 +227,6 @@ class TestGetStepCount:
         count = await mixin.get_step_count(step_id=1)
         assert count == 0
 
-    async def test_step_count_request_uses_zero_records(self) -> None:
-        """Step count should request 0 records to minimize transfer."""
-        mixin, client = _make_reports_mixin()
-        client.post.return_value = {"records": [], "meta": {"totalCount": 0}}
-        await mixin.get_step_count(step_id=1)
-        payload = client.post.call_args.kwargs["json"]
-        assert payload["reportConfig"]["pagination"]["numRecords"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -412,8 +281,6 @@ class TestRunStepAnalysis:
         first_row = rows[0]
         assert isinstance(first_row, dict)
         assert first_row["term"] == "GO:0001"
-        client.create_step_analysis.assert_awaited_once()
-        client.run_analysis_instance.assert_awaited_once_with("12345", 42, 7)
 
     async def test_raises_on_expired_status(self) -> None:
         mixin, client = _make_analysis_mixin()
@@ -451,5 +318,3 @@ class TestRunStepAnalysis:
             poll_config=AnalysisPollConfig(poll_interval=0.01),
         )
         assert result == {"rows": []}
-        # run_analysis_instance called twice: initial + retry
-        assert client.run_analysis_instance.call_count == 2

@@ -1,0 +1,85 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216005723,"email":"guest1216005723","properties":{"organizationType":"","firstName":"","lastName":"","country":"","groupName":"","groupType":"","subscriptionToken":"","organization":"","middleName":"","position":"","interests":"","username":""}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:36:03 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"sourceType":"idList","sourceContent":{"ids":["PF3D7_1222600"]}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '65'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/users/1216005723/datasets
+  response:
+    body:
+      string: '{"id":223293293}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 24 Mar 2026 17:36:03 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

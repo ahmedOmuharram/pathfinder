@@ -5,6 +5,8 @@ and real-world parameter shapes for all 11 parameter types in
 ``wdk_parameters.py``.
 """
 
+from typing import Any
+
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -23,14 +25,162 @@ from veupath_chatbot.integrations.veupathdb.wdk_parameters import (
     WDKStringParam,
     WDKTimestampParam,
 )
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    wdk_dataset_param_json,
-    wdk_enum_param_json,
-    wdk_filter_param_json,
-    wdk_string_param_json,
-)
 
 _param_adapter: TypeAdapter[WDKParameter] = TypeAdapter(WDKParameter)
+
+
+# ---------------------------------------------------------------------------
+# Inline factory functions (previously from wdk_responses.py)
+# ---------------------------------------------------------------------------
+
+
+def _wdk_string_param_json(
+    *,
+    name: str = "text_expression",
+    is_number: bool = False,
+    length: int = 0,
+) -> dict[str, Any]:
+    """Full string parameter matching WDK expandParams output."""
+    return {
+        "name": name,
+        "displayName": name.replace("_", " ").title(),
+        "help": None,
+        "type": "string",
+        "isVisible": True,
+        "group": "empty",
+        "isReadOnly": False,
+        "allowEmptyValue": False,
+        "visibleHelp": None,
+        "visibleHelpPosition": None,
+        "dependentParams": [],
+        "initialDisplayValue": "",
+        "properties": {},
+        "length": length,
+        "isMultiLine": False,
+        "isNumber": is_number,
+    }
+
+
+def _wdk_enum_param_json(
+    *,
+    name: str = "organism",
+    param_type: str = "multi-pick-vocabulary",
+    display_type: str = "treeBox",
+    vocabulary: Any = None,
+) -> dict[str, Any]:
+    """Full enum parameter matching WDK expandParams output."""
+    if vocabulary is not None:
+        vocab = vocabulary
+    elif display_type == "treeBox":
+        vocab = {
+            "data": {"display": "@@fake@@", "term": "@@fake@@"},
+            "children": [
+                {
+                    "data": {
+                        "display": "Plasmodium falciparum 3D7",
+                        "term": "Plasmodium falciparum 3D7",
+                    },
+                    "children": [],
+                },
+            ],
+        }
+    else:
+        vocab = [
+            ["Plasmodium falciparum 3D7", "Plasmodium falciparum 3D7", None],
+        ]
+    return {
+        "name": name,
+        "displayName": name.replace("_", " ").title(),
+        "help": None,
+        "type": param_type,
+        "isVisible": True,
+        "group": "empty",
+        "isReadOnly": False,
+        "allowEmptyValue": False,
+        "visibleHelp": None,
+        "visibleHelpPosition": None,
+        "dependentParams": [],
+        "initialDisplayValue": '["Plasmodium falciparum 3D7"]',
+        "properties": {},
+        "displayType": display_type,
+        "maxSelectedCount": -1,
+        "minSelectedCount": 1,
+        "vocabulary": vocab,
+        "countOnlyLeaves": True,
+        "depthExpanded": 0,
+    }
+
+
+def _wdk_filter_param_json(
+    *,
+    name: str = "gene_boolean_filter_array",
+) -> dict[str, Any]:
+    """Full filter parameter matching WDK expandParams output."""
+    return {
+        "name": name,
+        "displayName": name.replace("_", " ").title(),
+        "help": None,
+        "type": "filter",
+        "isVisible": True,
+        "group": "empty",
+        "isReadOnly": False,
+        "allowEmptyValue": True,
+        "visibleHelp": None,
+        "visibleHelpPosition": None,
+        "dependentParams": [],
+        "initialDisplayValue": None,
+        "properties": {},
+        "minSelectedCount": 0,
+        "ontology": [
+            {
+                "term": "is_boolean",
+                "parent": None,
+                "display": "Boolean",
+                "description": None,
+                "type": "string",
+                "units": None,
+                "precision": None,
+                "isRange": False,
+            },
+        ],
+        "values": None,
+        "filterDataTypeDisplayName": None,
+        "hideEmptyOntologyNodes": False,
+        "sortLeavesBeforeBranches": False,
+        "countPredictsAnswerCount": False,
+    }
+
+
+def _wdk_dataset_param_json(
+    *,
+    name: str = "ds_gene_ids",
+    record_class_name: str = "transcript",
+) -> dict[str, Any]:
+    """Full dataset parameter matching WDK expandParams output."""
+    return {
+        "name": name,
+        "displayName": name.replace("_", " ").title(),
+        "help": None,
+        "type": "input-dataset",
+        "isVisible": True,
+        "group": "empty",
+        "isReadOnly": False,
+        "allowEmptyValue": False,
+        "visibleHelp": None,
+        "visibleHelpPosition": None,
+        "dependentParams": [],
+        "initialDisplayValue": "",
+        "properties": {},
+        "defaultIdList": None,
+        "recordClassName": record_class_name,
+        "parsers": [
+            {
+                "name": "list",
+                "displayName": "List",
+                "description": "Parse a list of delimited gene IDs",
+            },
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -99,24 +249,24 @@ class TestParameterDiscrimination:
 
 class TestWDKStringParam:
     def test_basic_string_param(self) -> None:
-        data = wdk_string_param_json()
+        data = _wdk_string_param_json()
         param = WDKStringParam.model_validate(data)
         assert param.name == "text_expression"
         assert param.type == "string"
         assert param.length == 0
 
     def test_is_number_flag(self) -> None:
-        data = wdk_string_param_json(is_number=True)
+        data = _wdk_string_param_json(is_number=True)
         param = WDKStringParam.model_validate(data)
         assert param.is_number is True
 
     def test_length_zero_means_no_limit(self) -> None:
-        data = wdk_string_param_json(length=0)
+        data = _wdk_string_param_json(length=0)
         param = WDKStringParam.model_validate(data)
         assert param.length == 0
 
     def test_multiline_flag(self) -> None:
-        data = wdk_string_param_json()
+        data = _wdk_string_param_json()
         data["isMultiLine"] = True
         param = WDKStringParam.model_validate(data)
         assert param.is_multi_line is True
@@ -129,44 +279,44 @@ class TestWDKStringParam:
 
 class TestWDKEnumParam:
     def test_flat_vocabulary_select(self) -> None:
-        data = wdk_enum_param_json(display_type="select")
+        data = _wdk_enum_param_json(display_type="select")
         param = WDKEnumParam.model_validate(data)
         assert param.display_type == "select"
         assert isinstance(param.vocabulary, list)
 
     def test_flat_vocabulary_checkbox(self) -> None:
-        data = wdk_enum_param_json(display_type="checkBox")
+        data = _wdk_enum_param_json(display_type="checkBox")
         param = WDKEnumParam.model_validate(data)
         assert param.display_type == "checkBox"
 
     def test_flat_vocabulary_typeahead(self) -> None:
-        data = wdk_enum_param_json(display_type="typeAhead")
+        data = _wdk_enum_param_json(display_type="typeAhead")
         param = WDKEnumParam.model_validate(data)
         assert param.display_type == "typeAhead"
 
     def test_tree_vocabulary_treebox(self) -> None:
-        data = wdk_enum_param_json(display_type="treeBox")
+        data = _wdk_enum_param_json(display_type="treeBox")
         param = WDKEnumParam.model_validate(data)
         assert param.display_type == "treeBox"
         assert isinstance(param.vocabulary, dict)
 
     def test_single_pick_type(self) -> None:
-        data = wdk_enum_param_json(param_type="single-pick-vocabulary")
+        data = _wdk_enum_param_json(param_type="single-pick-vocabulary")
         param = WDKEnumParam.model_validate(data)
         assert param.type == "single-pick-vocabulary"
 
     def test_multi_pick_type(self) -> None:
-        data = wdk_enum_param_json(param_type="multi-pick-vocabulary")
+        data = _wdk_enum_param_json(param_type="multi-pick-vocabulary")
         param = WDKEnumParam.model_validate(data)
         assert param.type == "multi-pick-vocabulary"
 
     def test_max_selected_count_unlimited(self) -> None:
-        data = wdk_enum_param_json()
+        data = _wdk_enum_param_json()
         param = WDKEnumParam.model_validate(data)
         assert param.max_selected_count is None  # WDK sends -1, normalized to None
 
     def test_count_only_leaves_treebox(self) -> None:
-        data = wdk_enum_param_json(display_type="treeBox")
+        data = _wdk_enum_param_json(display_type="treeBox")
         param = WDKEnumParam.model_validate(data)
         assert param.count_only_leaves is True
 
@@ -178,13 +328,13 @@ class TestWDKEnumParam:
 
 class TestWDKFilterParam:
     def test_filter_with_ontology(self) -> None:
-        data = wdk_filter_param_json()
+        data = _wdk_filter_param_json()
         param = WDKFilterParam.model_validate(data)
         assert isinstance(param.ontology, list)
         assert len(param.ontology) > 0
 
     def test_filter_with_values(self) -> None:
-        data = wdk_filter_param_json()
+        data = _wdk_filter_param_json()
         data["values"] = {"key": "val"}
         param = WDKFilterParam.model_validate(data)
         assert isinstance(param.values, dict)
@@ -197,13 +347,13 @@ class TestWDKFilterParam:
 
 class TestWDKDatasetParam:
     def test_dataset_with_parsers(self) -> None:
-        data = wdk_dataset_param_json()
+        data = _wdk_dataset_param_json()
         param = WDKDatasetParam.model_validate(data)
         assert isinstance(param.parsers, list)
         assert len(param.parsers) > 0
 
     def test_default_id_list(self) -> None:
-        data = wdk_dataset_param_json()
+        data = _wdk_dataset_param_json()
         param = WDKDatasetParam.model_validate(data)
         assert param.default_id_list is None or isinstance(param.default_id_list, str)
 
@@ -215,35 +365,35 @@ class TestWDKDatasetParam:
 
 class TestBaseParameterFields:
     def test_inherits_from_wdk_model(self) -> None:
-        data = wdk_string_param_json()
+        data = _wdk_string_param_json()
         param = WDKStringParam.model_validate(data)
         assert isinstance(param, WDKModel)
 
     def test_dependent_params_present(self) -> None:
-        data = wdk_string_param_json()
+        data = _wdk_string_param_json()
         param = WDKStringParam.model_validate(data)
         assert isinstance(param.dependent_params, list)
 
     def test_dependent_params_non_empty(self) -> None:
-        data = wdk_string_param_json()
+        data = _wdk_string_param_json()
         data["dependentParams"] = ["organism", "taxon"]
         param = WDKStringParam.model_validate(data)
         assert param.dependent_params == ["organism", "taxon"]
 
     def test_initial_display_value(self) -> None:
-        data = wdk_enum_param_json()
+        data = _wdk_enum_param_json()
         param = WDKEnumParam.model_validate(data)
         assert isinstance(param.initial_display_value, str)
 
     def test_properties_dict(self) -> None:
-        data = wdk_string_param_json()
+        data = _wdk_string_param_json()
         data["properties"] = {"organisms": ["val"]}
         param = WDKStringParam.model_validate(data)
         assert isinstance(param.properties, dict)
         assert param.properties == {"organisms": ["val"]}
 
     def test_allow_empty_value(self) -> None:
-        data = wdk_string_param_json()
+        data = _wdk_string_param_json()
         data["allowEmptyValue"] = True
         param = WDKStringParam.model_validate(data)
         assert param.allow_empty_value is True
@@ -256,26 +406,26 @@ class TestBaseParameterFields:
 
 class TestRealWorldParams:
     def test_parse_plasmodb_organism_param(self) -> None:
-        data = wdk_enum_param_json(name="organism", display_type="treeBox")
+        data = _wdk_enum_param_json(name="organism", display_type="treeBox")
         result = _param_adapter.validate_python(data)
         assert isinstance(result, WDKEnumParam)
         assert result.name == "organism"
 
     def test_parse_plasmodb_text_expression(self) -> None:
-        data = wdk_string_param_json(name="text_expression")
+        data = _wdk_string_param_json(name="text_expression")
         result = _param_adapter.validate_python(data)
         assert isinstance(result, WDKStringParam)
 
     def test_parse_plasmodb_dataset_param(self) -> None:
-        data = wdk_dataset_param_json()
+        data = _wdk_dataset_param_json()
         result = _param_adapter.validate_python(data)
         assert isinstance(result, WDKDatasetParam)
 
     def test_parse_all_param_types_in_search(self) -> None:
         params_data = [
-            wdk_string_param_json(name="text_expression"),
-            wdk_enum_param_json(name="organism", display_type="treeBox"),
-            wdk_filter_param_json(name="gene_boolean_filter_array"),
+            _wdk_string_param_json(name="text_expression"),
+            _wdk_enum_param_json(name="organism", display_type="treeBox"),
+            _wdk_filter_param_json(name="gene_boolean_filter_array"),
         ]
         expected_types = [WDKStringParam, WDKEnumParam, WDKFilterParam]
         for data, expected_type in zip(params_data, expected_types, strict=True):
@@ -292,49 +442,49 @@ class TestParamSpecBridge:
     """Tests for ParamSpecNormalized.from_wdk() bridge."""
 
     def test_from_wdk_string_param(self) -> None:
-        param = WDKStringParam.model_validate(wdk_string_param_json())
+        param = WDKStringParam.model_validate(_wdk_string_param_json())
         spec = ParamSpecNormalized.from_wdk(param)
         assert spec.name == "text_expression"
         assert spec.param_type == "string"
         assert spec.is_number is False
 
     def test_from_wdk_enum_param(self) -> None:
-        param = WDKEnumParam.model_validate(wdk_enum_param_json())
+        param = WDKEnumParam.model_validate(_wdk_enum_param_json())
         spec = ParamSpecNormalized.from_wdk(param)
         assert spec.name == "organism"
         assert spec.param_type == "multi-pick-vocabulary"
         assert spec.vocabulary is not None
 
     def test_from_wdk_preserves_vocabulary(self) -> None:
-        param = WDKEnumParam.model_validate(wdk_enum_param_json(display_type="treeBox"))
+        param = WDKEnumParam.model_validate(_wdk_enum_param_json(display_type="treeBox"))
         spec = ParamSpecNormalized.from_wdk(param)
         assert isinstance(spec.vocabulary, dict)  # tree vocab
 
     def test_from_wdk_preserves_constraints(self) -> None:
-        param = WDKEnumParam.model_validate(wdk_enum_param_json())
+        param = WDKEnumParam.model_validate(_wdk_enum_param_json())
         spec = ParamSpecNormalized.from_wdk(param)
         assert spec.min_selected_count == 1
         assert spec.max_selected_count is None  # -1 -> None
 
     def test_from_wdk_preserves_dependent(self) -> None:
-        data = wdk_string_param_json()
+        data = _wdk_string_param_json()
         data["dependentParams"] = ["organism", "taxon"]
         param = WDKStringParam.model_validate(data)
         spec = ParamSpecNormalized.from_wdk(param)
         assert spec.dependent_params == ("organism", "taxon")
 
     def test_from_wdk_initial_display_value(self) -> None:
-        param = WDKEnumParam.model_validate(wdk_enum_param_json())
+        param = WDKEnumParam.model_validate(_wdk_enum_param_json())
         spec = ParamSpecNormalized.from_wdk(param)
         assert spec.initial_display_value is not None
 
     def test_from_wdk_number_flag(self) -> None:
-        param = WDKStringParam.model_validate(wdk_string_param_json(is_number=True))
+        param = WDKStringParam.model_validate(_wdk_string_param_json(is_number=True))
         spec = ParamSpecNormalized.from_wdk(param)
         assert spec.is_number is True
 
     def test_from_wdk_count_only_leaves(self) -> None:
-        param = WDKEnumParam.model_validate(wdk_enum_param_json(display_type="treeBox"))
+        param = WDKEnumParam.model_validate(_wdk_enum_param_json(display_type="treeBox"))
         spec = ParamSpecNormalized.from_wdk(param)
         assert spec.count_only_leaves is True
 
@@ -385,7 +535,7 @@ class TestSubtypeFieldsOnBase:
         assert param.max_selected_count is None
 
     def test_enum_param_shadows_base_defaults(self) -> None:
-        param = WDKEnumParam.model_validate(wdk_enum_param_json())
+        param = WDKEnumParam.model_validate(_wdk_enum_param_json())
         assert param.vocabulary is not None
         assert param.max_selected_count is None  # -1 normalized to None
 
@@ -398,6 +548,6 @@ class TestSubtypeFieldsOnBase:
         assert param.increment == 1.0
 
     def test_string_param_shadows_base_defaults(self) -> None:
-        param = WDKStringParam.model_validate(wdk_string_param_json(is_number=True))
+        param = WDKStringParam.model_validate(_wdk_string_param_json(is_number=True))
         assert param.is_number is True
         assert param.length == 0

@@ -1,29 +1,19 @@
-"""Tests for the thesis evaluation service (services/eval.py).
+"""Unit tests for pure domain logic in services/eval.py.
 
-Extracted business logic: gene ID fetching, root step extraction, strategy
-validation -- all previously living in the transport router.
+Tests extract_gene_id() (pure function, no I/O) and fetch_all_gene_ids()
+empty-result handling (pagination logic with mocked API).
+
+WDK contract tests (fetch_all_gene_ids with real data, build_gold_strategy,
+fetch_strategy_gene_ids) have been moved to integration/test_eval_service.py.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKAnswer,
-    WDKIdentifier,
     WDKRecordInstance,
-    WDKStrategyDetails,
 )
-from veupath_chatbot.services.eval import (
-    build_gold_strategy,
-    extract_gene_id,
-    fetch_all_gene_ids,
-    fetch_strategy_gene_ids,
-)
-
-# ---------------------------------------------------------------------------
-# extract_gene_id
-# ---------------------------------------------------------------------------
+from veupath_chatbot.services.eval import extract_gene_id, fetch_all_gene_ids
 
 
 class TestExtractGeneId:
@@ -50,30 +40,9 @@ class TestExtractGeneId:
         assert extract_gene_id(record) is None
 
 
-# ---------------------------------------------------------------------------
-# fetch_all_gene_ids
-# ---------------------------------------------------------------------------
+class TestFetchAllGeneIdsEmptyResult:
+    """Test pagination logic handles empty results correctly (mocked API)."""
 
-
-class TestFetchAllGeneIds:
-    @pytest.mark.asyncio
-    async def test_fetches_single_page(self) -> None:
-        mock_api = AsyncMock()
-        mock_api.get_step_answer = AsyncMock(
-            return_value=WDKAnswer.model_validate(
-                {
-                    "records": [
-                        {"id": [{"name": "source_id", "value": "GENE_A"}]},
-                        {"id": [{"name": "source_id", "value": "GENE_B"}]},
-                    ],
-                    "meta": {"totalCount": 2},
-                }
-            )
-        )
-        result = await fetch_all_gene_ids(mock_api, 1)
-        assert result == ["GENE_A", "GENE_B"]
-
-    @pytest.mark.asyncio
     async def test_handles_empty_result(self) -> None:
         mock_api = AsyncMock()
         mock_api.get_step_answer = AsyncMock(
@@ -83,92 +52,3 @@ class TestFetchAllGeneIds:
         )
         result = await fetch_all_gene_ids(mock_api, 1)
         assert result == []
-
-
-# ---------------------------------------------------------------------------
-# build_gold_strategy
-# ---------------------------------------------------------------------------
-
-
-class TestBuildGoldStrategy:
-    @pytest.mark.asyncio
-    async def test_returns_gene_ids_and_wdk_ids(self) -> None:
-        mock_api = AsyncMock()
-        mock_tree = MagicMock()
-        mock_tree.step_id = 42
-
-        mock_api.create_strategy = AsyncMock(return_value=WDKIdentifier(id=123))
-        mock_api.get_step_answer = AsyncMock(
-            return_value=WDKAnswer.model_validate(
-                {
-                    "records": [
-                        {"id": [{"name": "source_id", "value": "GENE_A"}]},
-                    ],
-                    "meta": {"totalCount": 1},
-                }
-            )
-        )
-
-        with (
-            patch(
-                "veupath_chatbot.services.eval.get_strategy_api",
-                return_value=mock_api,
-            ),
-            patch(
-                "veupath_chatbot.services.eval._materialize_step_tree",
-                new_callable=AsyncMock,
-                return_value=mock_tree,
-            ),
-        ):
-            result = await build_gold_strategy(
-                gold_id="test_gold",
-                site_id="plasmodb",
-                record_type="gene",
-                step_tree={"searchName": "GenesByTaxon"},
-            )
-
-        assert result.wdk_strategy_id == 123
-        assert result.root_step_id == 42
-        assert result.gene_ids == ["GENE_A"]
-
-
-# ---------------------------------------------------------------------------
-# fetch_strategy_gene_ids
-# ---------------------------------------------------------------------------
-
-
-class TestFetchStrategyGeneIds:
-    @pytest.mark.asyncio
-    async def test_returns_gene_ids(self) -> None:
-        mock_strategy = WDKStrategyDetails.model_validate(
-            {
-                "strategyId": 42,
-                "name": "Test",
-                "rootStepId": 99,
-                "stepTree": {"stepId": 99},
-            }
-        )
-
-        mock_api = AsyncMock()
-        mock_api.get_strategy = AsyncMock(return_value=mock_strategy)
-        mock_api.get_step_answer = AsyncMock(
-            return_value=WDKAnswer.model_validate(
-                {
-                    "records": [
-                        {"id": [{"name": "source_id", "value": "GENE_X"}]},
-                    ],
-                    "meta": {"totalCount": 1},
-                }
-            )
-        )
-
-        mock_projection = MagicMock()
-        mock_projection.wdk_strategy_id = 42
-
-        result = await fetch_strategy_gene_ids(
-            api=mock_api,
-            projection=mock_projection,
-        )
-
-        assert result == ["GENE_X"]
-        mock_api.get_strategy.assert_awaited_once_with(42)

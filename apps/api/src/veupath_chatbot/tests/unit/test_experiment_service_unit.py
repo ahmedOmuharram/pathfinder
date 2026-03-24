@@ -6,7 +6,7 @@ and edge cases in the experiment lifecycle.
 
 from dataclasses import dataclass, field
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -15,7 +15,6 @@ from veupath_chatbot.services.experiment.service import (
     PhaseContext,
     _phase_persist_strategy,
     _phase_rank_metrics,
-    _phase_robustness,
     run_experiment,
 )
 from veupath_chatbot.services.experiment.store import ExperimentStore
@@ -105,7 +104,6 @@ def _control_result() -> dict[str, Any]:
 
 
 class TestRunExperimentLifecycle:
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -118,7 +116,6 @@ class TestRunExperimentLifecycle:
         self,
         mock_evaluate: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """A simple single-step experiment should complete successfully."""
         mock_evaluate.return_value = (_control_result(), _dummy_metrics())
@@ -130,9 +127,7 @@ class TestRunExperimentLifecycle:
         assert exp.completed_at is not None
         assert exp.total_time_seconds is not None
         assert exp.total_time_seconds >= 0
-        mock_evaluate.assert_awaited_once()
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -145,7 +140,6 @@ class TestRunExperimentLifecycle:
         self,
         mock_evaluate: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """When evaluation fails, experiment status should be 'error'."""
         mock_evaluate.side_effect = RuntimeError("WDK connection failed")
@@ -153,7 +147,6 @@ class TestRunExperimentLifecycle:
         with pytest.raises(RuntimeError, match="WDK connection failed"):
             await run_experiment(_cfg())
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -166,7 +159,6 @@ class TestRunExperimentLifecycle:
         self,
         mock_evaluate: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """Experiment IDs should follow the exp_<hex> format."""
         mock_evaluate.return_value = (_control_result(), _dummy_metrics())
@@ -176,7 +168,6 @@ class TestRunExperimentLifecycle:
         assert exp.id.startswith("exp_")
         assert len(exp.id) == 16  # "exp_" + 12 hex chars
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -189,7 +180,6 @@ class TestRunExperimentLifecycle:
         self,
         mock_evaluate: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """The progress callback should receive experiment lifecycle events."""
         mock_evaluate.return_value = (_control_result(), _dummy_metrics())
@@ -206,7 +196,6 @@ class TestRunExperimentLifecycle:
         assert "started" in phases
         assert "completed" in phases
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -219,7 +208,6 @@ class TestRunExperimentLifecycle:
         self,
         mock_evaluate: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """Error events should be emitted when an experiment fails."""
         mock_evaluate.side_effect = ValueError("Bad config")
@@ -235,7 +223,6 @@ class TestRunExperimentLifecycle:
         phases = [e["data"]["phase"] for e in events]
         assert "error" in phases
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -248,7 +235,6 @@ class TestRunExperimentLifecycle:
         self,
         mock_evaluate: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """user_id should be stored on the experiment."""
         mock_evaluate.return_value = (_control_result(), _dummy_metrics())
@@ -272,13 +258,10 @@ class TestPhasePersistStrategy:
         emit = AsyncMock()
         pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
-        with (
-            patch(
-                "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
-                new_callable=AsyncMock,
-                side_effect=WDKError(detail="WDK down"),
-            ),
-            patch("veupath_chatbot.platform.store.spawn"),
+        with patch(
+            "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
+            new_callable=AsyncMock,
+            side_effect=WDKError(detail="WDK down"),
         ):
             await _phase_persist_strategy(pctx, None)
 
@@ -293,13 +276,10 @@ class TestPhasePersistStrategy:
         emit = AsyncMock()
         pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
-        with (
-            patch(
-                "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
-                new_callable=AsyncMock,
-                return_value={"strategy_id": 42, "step_id": 99},
-            ),
-            patch("veupath_chatbot.platform.store.spawn"),
+        with patch(
+            "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
+            new_callable=AsyncMock,
+            return_value={"strategy_id": 42, "step_id": 99},
         ):
             await _phase_persist_strategy(pctx, None)
 
@@ -314,13 +294,10 @@ class TestPhasePersistStrategy:
         emit = AsyncMock()
         pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
-        with (
-            patch(
-                "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
-                new_callable=AsyncMock,
-                return_value={"strategy_id": "42", "step_id": "99"},
-            ),
-            patch("veupath_chatbot.platform.store.spawn"),
+        with patch(
+            "veupath_chatbot.services.experiment.service._persist_experiment_strategy",
+            new_callable=AsyncMock,
+            return_value={"strategy_id": "42", "step_id": "99"},
         ):
             await _phase_persist_strategy(pctx, None)
 
@@ -338,11 +315,9 @@ class TestPhaseRankMetrics:
         emit = AsyncMock()
         pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
-        with patch("veupath_chatbot.platform.store.spawn"):
-            result = await _phase_rank_metrics(pctx)
+        result = await _phase_rank_metrics(pctx)
 
         assert result == []
-        emit.assert_not_awaited()
 
     async def test_skips_when_no_wdk_step_id(self) -> None:
         config = _cfg(extras=_CfgExtras(sort_attribute="mean"))
@@ -352,182 +327,9 @@ class TestPhaseRankMetrics:
         emit = AsyncMock()
         pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
 
-        with patch("veupath_chatbot.platform.store.spawn"):
-            result = await _phase_rank_metrics(pctx)
+        result = await _phase_rank_metrics(pctx)
 
         assert result == []
-
-
-class TestPhaseRobustness:
-    async def test_skips_when_no_wdk_step_id(self) -> None:
-        config = _cfg()
-        exp = Experiment(id="exp_001", config=config)
-        exp.wdk_step_id = None
-        store = ExperimentStore()
-        emit = AsyncMock()
-        pctx = PhaseContext(config=config, experiment=exp, emit=emit, store=store)
-
-        with patch("veupath_chatbot.platform.store.spawn"):
-            await _phase_robustness(pctx, [], is_ranked=False)
-
-        # Should have returned early without emitting
-        emit.assert_not_awaited()
-
-
-# ---------------------------------------------------------------------------
-# Enrichment phase edge cases
-# ---------------------------------------------------------------------------
-
-
-class TestPhaseEnrich:
-    @patch("veupath_chatbot.platform.store.spawn")
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_persist_strategy",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_evaluate",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_enrich",
-        new_callable=AsyncMock,
-    )
-    async def test_enrichment_runs_when_types_specified(
-        self,
-        mock_enrich: AsyncMock,
-        mock_evaluate: AsyncMock,
-        mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
-    ) -> None:
-        mock_evaluate.return_value = (_control_result(), _dummy_metrics())
-
-        await run_experiment(_cfg(extras=_CfgExtras(enrichment_types=["go_process"])))
-        mock_enrich.assert_awaited_once()
-
-    @patch("veupath_chatbot.platform.store.spawn")
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_persist_strategy",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_evaluate",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_enrich",
-        new_callable=AsyncMock,
-    )
-    async def test_enrichment_skipped_when_no_types(
-        self,
-        mock_enrich: AsyncMock,
-        mock_evaluate: AsyncMock,
-        mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
-    ) -> None:
-        mock_evaluate.return_value = (_control_result(), _dummy_metrics())
-
-        await run_experiment(_cfg(extras=_CfgExtras(enrichment_types=[])))
-        mock_enrich.assert_not_awaited()
-
-
-# ---------------------------------------------------------------------------
-# Cross-validation gating
-# ---------------------------------------------------------------------------
-
-
-class TestCrossValidationGating:
-    @patch("veupath_chatbot.platform.store.spawn")
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_persist_strategy",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_evaluate",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_cross_validate",
-        new_callable=AsyncMock,
-    )
-    async def test_cv_skipped_when_disabled(
-        self,
-        mock_cv: AsyncMock,
-        mock_evaluate: AsyncMock,
-        mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
-    ) -> None:
-        mock_evaluate.return_value = (_control_result(), _dummy_metrics())
-
-        await run_experiment(_cfg(extras=_CfgExtras(enable_cross_validation=False)))
-        mock_cv.assert_not_awaited()
-
-    @patch("veupath_chatbot.platform.store.spawn")
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_persist_strategy",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_evaluate",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_cross_validate",
-        new_callable=AsyncMock,
-    )
-    async def test_cv_skipped_when_no_controls(
-        self,
-        mock_cv: AsyncMock,
-        mock_evaluate: AsyncMock,
-        mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
-    ) -> None:
-        """CV requires both positive AND negative controls."""
-        mock_evaluate.return_value = (_control_result(), _dummy_metrics())
-
-        await run_experiment(
-            _cfg(
-                extras=_CfgExtras(
-                    enable_cross_validation=True,
-                    positive_controls=[],
-                    negative_controls=["n1"],
-                )
-            )
-        )
-        mock_cv.assert_not_awaited()
-
-    @patch("veupath_chatbot.platform.store.spawn")
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_persist_strategy",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_evaluate",
-        new_callable=AsyncMock,
-    )
-    @patch(
-        "veupath_chatbot.services.experiment.service._phase_cross_validate",
-        new_callable=AsyncMock,
-    )
-    async def test_cv_runs_when_enabled_with_controls(
-        self,
-        mock_cv: AsyncMock,
-        mock_evaluate: AsyncMock,
-        mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
-    ) -> None:
-        mock_evaluate.return_value = (_control_result(), _dummy_metrics())
-
-        await run_experiment(
-            _cfg(
-                extras=_CfgExtras(
-                    enable_cross_validation=True,
-                    positive_controls=["g1", "g2"],
-                    negative_controls=["n1"],
-                )
-            )
-        )
-        mock_cv.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -536,7 +338,6 @@ class TestCrossValidationGating:
 
 
 class TestErrorStateConsistency:
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -549,14 +350,12 @@ class TestErrorStateConsistency:
         self,
         mock_evaluate: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         mock_evaluate.side_effect = RuntimeError("WDK timeout")
 
         with pytest.raises(RuntimeError):
             await run_experiment(_cfg())
 
-    @patch("veupath_chatbot.platform.store.spawn")
     @patch(
         "veupath_chatbot.services.experiment.service._phase_persist_strategy",
         new_callable=AsyncMock,
@@ -570,7 +369,6 @@ class TestErrorStateConsistency:
         self,
         mock_evaluate: AsyncMock,
         mock_persist: AsyncMock,
-        mock_spawn: MagicMock,
     ) -> None:
         """Strategy persistence failure is caught and doesn't abort the experiment.
 

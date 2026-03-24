@@ -81,13 +81,14 @@ class TestRetryBehavior:
 
         call_count = 0
 
-        async def failing_request(*args, **kwargs):
+        async def failing_send(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             msg = "Connection refused"
             raise httpx.ConnectError(msg)
 
-        internal.request = failing_request
+        # Production code uses client.send(request), not client.request()
+        internal.send = failing_send
 
         p1, p2 = _patch_settings_and_ctx()
         with p1, p2, pytest.raises(WDKError) as exc_info:
@@ -563,7 +564,6 @@ class TestTemporaryResultsEdgeCases:
         url = await api.get_download_url(step_id=42, output_format="csv")
 
         assert url == "https://plasmodb.org/plasmo/service/temporary-results/abc123"
-        client.get.assert_not_awaited()
 
 
 # ===========================================================================

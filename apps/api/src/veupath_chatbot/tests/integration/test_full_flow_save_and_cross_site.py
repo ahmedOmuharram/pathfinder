@@ -1,15 +1,15 @@
 """Full-flow integration tests: save/WDK push, cross-site, and delegation.
 
 Tests strategy saving to WDK, cross-site searches (ToxoDB), and
-the delegation/sub-kani flow — all with live WDK calls.
+the delegation/sub-kani flow — all with live WDK calls (backed by VCR
+cassettes).
 
-Run with:
+Record cassettes:
+    WDK_AUTH_EMAIL=... WDK_AUTH_PASSWORD=... \
+    uv run pytest src/veupath_chatbot/tests/integration/test_full_flow_save_and_cross_site.py -v --record-mode=all
 
-    pytest src/veupath_chatbot/tests/integration/test_full_flow_save_and_cross_site.py -v -s
-
-Skip with:
-
-    pytest -m "not live_wdk"
+Replay (CI / normal dev):
+    uv run pytest src/veupath_chatbot/tests/integration/test_full_flow_save_and_cross_site.py -v
 """
 
 import json
@@ -22,8 +22,6 @@ from veupath_chatbot.tests.fixtures.scripted_engine import (
     ScriptedTurn,
 )
 from veupath_chatbot.tests.fixtures.sse_collector import collect_chat_stream
-
-pytestmark = pytest.mark.live_wdk
 
 
 def _extract_wdk_step_id(r1) -> object | None:
@@ -111,6 +109,7 @@ class TestBuildAndSave:
         ScriptedTurn(content="Strategy built and pushed to VEuPathDB as a draft."),
     ]
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_build_and_save(self, authed_client, scripted_engine_factory) -> None:
         with scripted_engine_factory(self.TURNS):
@@ -154,6 +153,7 @@ class TestBuildAndSave:
 class TestGetResultCount:
     """After building a strategy, get the result count for a step."""
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_estimated_size(self, authed_client, scripted_engine_factory) -> None:
         # Phase 1: build strategy
@@ -262,6 +262,7 @@ class TestToxoDBSearch:
         ),
     ]
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_toxodb_catalog(self, authed_client, scripted_engine_factory) -> None:
         with scripted_engine_factory(self.TURNS):
@@ -315,6 +316,7 @@ class TestCryptoDBLookup:
         ),
     ]
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_cryptodb_catalog(
         self, authed_client, scripted_engine_factory
@@ -358,7 +360,7 @@ class TestGeneLookupAndResolve:
                     "resolve_gene_ids_to_records",
                     {
                         "gene_ids": ["PF3D7_1031000"],
-                        "record_type": "gene",
+                        "record_type": "transcript",
                     },
                 )
             ]
@@ -371,6 +373,7 @@ class TestGeneLookupAndResolve:
         ),
     ]
 
+    @pytest.mark.vcr
     @pytest.mark.asyncio
     async def test_gene_lookup_and_resolve(
         self, authed_client, scripted_engine_factory
@@ -397,17 +400,12 @@ class TestGeneLookupAndResolve:
         for start, end in result.tool_calls:
             if start.data.get("name") == "lookup_gene_records":
                 result_str = str(end.data.get("result", ""))
-                try:
-                    data = (
-                        json.loads(result_str)
-                        if isinstance(result_str, str)
-                        else result_str
-                    )
-                except json.JSONDecodeError, TypeError:
-                    data = {}
-                if isinstance(data, dict):
-                    results = data.get("results", [])
-                    total = data.get("totalCount", 0)
-                    assert len(results) > 0 or total > 0, (
-                        f"Expected non-empty lookup results for Pfs25: {result_str[:500]}"
-                    )
+                # The tool returns a GeneSearchResult repr or JSON.
+                # Either way, a non-trivial string containing Pfs25
+                # confirms WDK returned gene records.
+                assert len(result_str) > 10, (
+                    f"Expected non-trivial lookup result: {result_str[:500]}"
+                )
+                assert "Pfs25" in result_str or "pfs25" in result_str.lower(), (
+                    f"Expected Pfs25 in lookup results: {result_str[:500]}"
+                )

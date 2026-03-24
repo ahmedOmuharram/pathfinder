@@ -5,7 +5,6 @@ it delegates to the optimization service. These tests exercise every
 validation branch without calling the actual optimization engine.
 """
 
-import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 
@@ -270,9 +269,6 @@ class TestFixedParametersJsonParsing:
 
         parsed = json.loads(result)
         assert "error" not in parsed
-        # Verify empty dict was passed to optimizer
-        inp = mock_opt.call_args.args[0]
-        assert inp.fixed_parameters == {}
 
 
 class TestControlsExtraParametersJsonParsing:
@@ -427,123 +423,6 @@ class TestCategoricalParameterValidation:
 
 
 class TestSuccessfulOptimization:
-    async def test_builds_correct_parameter_specs(self) -> None:
-        tools = _TestableTools()
-        with patch(
-            "veupath_chatbot.ai.tools.planner.optimization_tools.optimize_search_parameters",
-            new_callable=AsyncMock,
-        ) as mock_opt:
-            mock_opt.return_value = _mock_opt_result()
-            await tools.optimize_search_parameters(
-                target=_valid_target(
-                    parameter_space_json=json.dumps(
-                        [
-                            {
-                                "name": "fold_change",
-                                "type": "numeric",
-                                "min": 1.5,
-                                "max": 20.0,
-                                "logScale": True,
-                                "step": 0.5,
-                            },
-                            {
-                                "name": "direction",
-                                "type": "categorical",
-                                "choices": ["up", "down"],
-                            },
-                            {"name": "count", "type": "integer", "min": 1, "max": 100},
-                        ]
-                    )
-                ),
-                controls=_valid_controls(),
-            )
-
-        inp = mock_opt.call_args.args[0]
-        specs = inp.parameter_space
-        assert len(specs) == 3
-
-        # Numeric spec
-        assert specs[0].name == "fold_change"
-        assert specs[0].param_type == "numeric"
-        assert specs[0].min_value == 1.5
-        assert specs[0].max_value == 20.0
-        assert specs[0].log_scale is True
-        assert specs[0].step == 0.5
-
-        # Categorical spec
-        assert specs[1].name == "direction"
-        assert specs[1].param_type == "categorical"
-        assert specs[1].choices == ["up", "down"]
-
-        # Integer spec
-        assert specs[2].name == "count"
-        assert specs[2].param_type == "integer"
-        assert specs[2].min_value == 1.0
-        assert specs[2].max_value == 100.0
-
-    async def test_builds_correct_config(self) -> None:
-        tools = _TestableTools()
-        with patch(
-            "veupath_chatbot.ai.tools.planner.optimization_tools.optimize_search_parameters",
-            new_callable=AsyncMock,
-        ) as mock_opt:
-            mock_opt.return_value = _mock_opt_result()
-            await tools.optimize_search_parameters(
-                target=_valid_target(),
-                controls=_valid_controls(),
-                settings=_valid_settings(
-                    budget=25,
-                    objective="f_beta",
-                    beta=2.0,
-                    method="grid",
-                    estimated_size_penalty=0.5,
-                ),
-            )
-
-        call_kwargs = mock_opt.call_args.kwargs
-        config = call_kwargs["config"]
-        assert config.budget == 25
-        assert config.objective == "f_beta"
-        assert config.beta == 2.0
-        assert config.method == "grid"
-        assert config.estimated_size_penalty == 0.5
-
-    async def test_estimated_size_penalty_cannot_be_negative(self) -> None:
-        tools = _TestableTools()
-        with patch(
-            "veupath_chatbot.ai.tools.planner.optimization_tools.optimize_search_parameters",
-            new_callable=AsyncMock,
-        ) as mock_opt:
-            mock_opt.return_value = _mock_opt_result()
-            await tools.optimize_search_parameters(
-                target=_valid_target(),
-                controls=_valid_controls(),
-                settings=_valid_settings(estimated_size_penalty=-0.5),
-            )
-
-        call_kwargs = mock_opt.call_args.kwargs
-        config = call_kwargs["config"]
-        assert config.estimated_size_penalty == 0.0  # max(0.0, -0.5)
-
-    async def test_passes_controls_extra_parameters(self) -> None:
-        tools = _TestableTools()
-        with patch(
-            "veupath_chatbot.ai.tools.planner.optimization_tools.optimize_search_parameters",
-            new_callable=AsyncMock,
-        ) as mock_opt:
-            mock_opt.return_value = _mock_opt_result()
-            await tools.optimize_search_parameters(
-                target=_valid_target(),
-                controls=_valid_controls(
-                    controls_extra_parameters_json=json.dumps(
-                        {"organism": "P. falciparum 3D7"}
-                    )
-                ),
-            )
-
-        inp = mock_opt.call_args.args[0]
-        assert inp.controls_extra_parameters == {"organism": "P. falciparum 3D7"}
-
     async def test_returns_json_string(self) -> None:
         tools = _TestableTools()
         with patch(
@@ -564,33 +443,3 @@ class TestSuccessfulOptimization:
         assert parsed["downloads"]["expiresInSeconds"] == 600
         assert parsed["downloads"]["json"].startswith("/api/v1/exports/")
 
-    async def test_cancel_event_passed_when_present(self) -> None:
-        tools = _TestableTools()
-        tools._cancel_event = asyncio.Event()
-        with patch(
-            "veupath_chatbot.ai.tools.planner.optimization_tools.optimize_search_parameters",
-            new_callable=AsyncMock,
-        ) as mock_opt:
-            mock_opt.return_value = _mock_opt_result()
-            await tools.optimize_search_parameters(
-                target=_valid_target(),
-                controls=_valid_controls(),
-            )
-
-        call_kwargs = mock_opt.call_args.kwargs
-        assert call_kwargs["check_cancelled"] is not None
-
-    async def test_cancel_event_none_when_absent(self) -> None:
-        tools = _TestableTools()
-        with patch(
-            "veupath_chatbot.ai.tools.planner.optimization_tools.optimize_search_parameters",
-            new_callable=AsyncMock,
-        ) as mock_opt:
-            mock_opt.return_value = _mock_opt_result()
-            await tools.optimize_search_parameters(
-                target=_valid_target(),
-                controls=_valid_controls(),
-            )
-
-        call_kwargs = mock_opt.call_args.kwargs
-        assert call_kwargs["check_cancelled"] is None

@@ -1,11 +1,55 @@
+from dataclasses import dataclass, field
+from typing import Any
+
 import httpx
 import respx
 
 from veupath_chatbot.services.strategies.wdk_counts import _STEP_COUNTS_CACHE
-from veupath_chatbot.tests.fixtures.wdk_responses import (
-    StrategyItemDetails,
-    strategy_list_item,
-)
+
+
+# ---------------------------------------------------------------------------
+# Inline WDK response factories
+# ---------------------------------------------------------------------------
+@dataclass
+class StrategyItemDetails:
+    """Optional details for :func:`strategy_list_item`."""
+
+    record_class_name: str = "TranscriptRecordClasses.TranscriptRecordClass"
+    estimated_size: int = 150
+    is_saved: bool = False
+    signature: str = "abc123def456"
+    leaf_and_transform_step_count: int = field(default=1)
+
+
+def strategy_list_item(
+    strategy_id: int = 200,
+    name: str = "Test strategy",
+    details: StrategyItemDetails | None = None,
+) -> dict[str, Any]:
+    """GET /users/{id}/strategies list item -- summary only, no stepTree/steps."""
+    d = details or StrategyItemDetails()
+    return {
+        "strategyId": strategy_id,
+        "name": name,
+        "description": "",
+        "author": "Guest User",
+        "rootStepId": 100,
+        "recordClassName": d.record_class_name,
+        "signature": d.signature,
+        "createdTime": "2026-03-01T00:00:00Z",
+        "lastModified": "2026-03-06T00:00:00Z",
+        "lastViewed": "2026-03-06T00:00:00Z",
+        "releaseVersion": "68",
+        "isPublic": False,
+        "isSaved": d.is_saved,
+        "isValid": True,
+        "isDeleted": False,
+        "isExample": False,
+        "organization": "",
+        "estimatedSize": d.estimated_size,
+        "nameOfFirstStep": "Organism",
+        "leafAndTransformStepCount": d.leaf_and_transform_step_count,
+    }
 
 
 async def test_open_strategy_requires_site_id_when_creating_new(
@@ -21,8 +65,8 @@ async def test_sync_wdk_deletes_internal_control_test_strategies(
 ) -> None:
     base = "https://plasmodb.org/plasmo/service"
 
-    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
-    wdk_respx.get(f"{base}/users/guest/strategies").respond(
+    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": 12345})
+    wdk_respx.get(f"{base}/users/12345/strategies").respond(
         200,
         json=[
             {
@@ -33,7 +77,7 @@ async def test_sync_wdk_deletes_internal_control_test_strategies(
             }
         ],
     )
-    delete_route = wdk_respx.delete(f"{base}/users/guest/strategies/329824883").respond(
+    delete_route = wdk_respx.delete(f"{base}/users/12345/strategies/329824883").respond(
         204
     )
 
@@ -83,10 +127,10 @@ async def test_sync_wdk_creates_projections_from_summary_only(
         ),
     ]
 
-    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
-    wdk_respx.get(f"{base}/users/guest/strategies").respond(200, json=items)
+    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": 12345})
+    wdk_respx.get(f"{base}/users/12345/strategies").respond(200, json=items)
     # Mock detail route — background auto-import may fetch details
-    wdk_respx.get(url__regex=r".*/users/guest/strategies/\d+$").respond(200, json={})
+    wdk_respx.get(url__regex=r".*/users/12345/strategies/\d+$").respond(200, json={})
 
     resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
@@ -119,11 +163,11 @@ async def test_sync_wdk_populates_record_type_and_counts(
         )
     ]
 
-    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
-    wdk_respx.get(f"{base}/users/guest/strategies").respond(200, json=items)
+    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": 12345})
+    wdk_respx.get(f"{base}/users/12345/strategies").respond(200, json=items)
     # Background auto-import task may fetch individual strategy details to resolve
     # gene IDs; provide a catch-all mock so those calls don't fail the test.
-    wdk_respx.get(url__regex=r".*/users/guest/strategies/\d+$").respond(200, json={})
+    wdk_respx.get(url__regex=r".*/users/12345/strategies/\d+$").respond(200, json={})
 
     resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
@@ -148,8 +192,8 @@ async def test_get_strategy_lazy_loads_detail_for_summary_only_projection(
     # Note: all WDK mocks must be registered before the first sync call because
     # the background auto-import task runs inline and may call WDK detail endpoints.
     items = [strategy_list_item(strategy_id=500, name="Lazy Load Test")]
-    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
-    wdk_respx.get(f"{base}/users/guest/strategies").respond(200, json=items)
+    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": 12345})
+    wdk_respx.get(f"{base}/users/12345/strategies").respond(200, json=items)
 
     # WDK detail for strategy 500 — used by both the background auto-import task
     # (during sync-wdk) and the lazy detail fetch (during GET /strategies/{id}).
@@ -187,7 +231,7 @@ async def test_get_strategy_lazy_loads_detail_for_summary_only_projection(
         "createdTime": "2026-03-01T00:00:00Z",
         "lastModified": "2026-03-06T00:00:00Z",
     }
-    detail_route = wdk_respx.get(f"{base}/users/guest/strategies/500").respond(
+    detail_route = wdk_respx.get(f"{base}/users/12345/strategies/500").respond(
         200, json=wdk_detail
     )
 
@@ -204,10 +248,26 @@ async def test_get_strategy_lazy_loads_detail_for_summary_only_projection(
         200, json={}
     )
     wdk_respx.get(url__regex=r".*/record-types/.*/searches/.*").respond(200, json={})
-    wdk_respx.post(url__regex=r".*/users/guest/steps/\d+/reports/.*").respond(
+    wdk_respx.post(url__regex=r".*/users/12345/steps/\d+/reports/.*").respond(
         200, json={"records": []}
     )
-    wdk_respx.get(url__regex=r".*/users/guest/steps/\d+$").respond(200, json={})
+    wdk_respx.get(url__regex=r".*/users/12345/steps/\d+$").respond(
+        200,
+        json={
+            "id": 100,
+            "searchName": "GenesByTaxon",
+            "searchConfig": {
+                "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
+                "wdkWeight": 0,
+            },
+            "displayName": "Organism",
+            "customName": None,
+            "estimatedSize": 150,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "isFiltered": False,
+            "hasCompleteStepAnalyses": False,
+        },
+    )
 
     sync_resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
@@ -415,7 +475,7 @@ async def test_lazy_fetch_multi_step_populates_all_counts(
         "createdTime": "2026-03-01T00:00:00Z",
         "lastModified": "2026-03-06T00:00:00Z",
     }
-    wdk_respx.get(f"{base}/users/guest/strategies/600").respond(200, json=wdk_detail)
+    wdk_respx.get(f"{base}/users/12345/strategies/600").respond(200, json=wdk_detail)
 
     # Mock all WDK endpoints called by lazy_fetch_wdk_detail and auto-import:
     # - refreshed-dependent-params (parameter refresh)
@@ -430,15 +490,31 @@ async def test_lazy_fetch_multi_step_populates_all_counts(
         200, json={}
     )
     wdk_respx.get(url__regex=r".*/record-types/.*/searches/.*").respond(200, json={})
-    wdk_respx.post(url__regex=r".*/users/guest/steps/\d+/reports/.*").respond(
+    wdk_respx.post(url__regex=r".*/users/12345/steps/\d+/reports/.*").respond(
         200, json={"records": []}
     )
-    wdk_respx.get(url__regex=r".*/users/guest/steps/\d+$").respond(200, json={})
+    wdk_respx.get(url__regex=r".*/users/12345/steps/\d+$").respond(
+        200,
+        json={
+            "id": 100,
+            "searchName": "GenesByTaxon",
+            "searchConfig": {
+                "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
+                "wdkWeight": 0,
+            },
+            "displayName": "Organism",
+            "customName": None,
+            "estimatedSize": 150,
+            "recordClassName": "TranscriptRecordClasses.TranscriptRecordClass",
+            "isFiltered": False,
+            "hasCompleteStepAnalyses": False,
+        },
+    )
 
     # Step 1: Sync to create summary-only projection
     items = [strategy_list_item(strategy_id=600, name="Multi Step Counts")]
-    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": "guest"})
-    wdk_respx.get(f"{base}/users/guest/strategies").respond(200, json=items)
+    wdk_respx.get(f"{base}/users/current").respond(200, json={"id": 12345})
+    wdk_respx.get(f"{base}/users/12345/strategies").respond(200, json=items)
 
     sync_resp = await authed_client.post(
         "/api/v1/strategies/sync-wdk", params={"siteId": "plasmodb"}
