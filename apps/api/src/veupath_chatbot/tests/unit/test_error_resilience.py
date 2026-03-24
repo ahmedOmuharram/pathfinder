@@ -483,7 +483,7 @@ class TestOptunaMidLoopCrashes:
             )
 
     @patch(
-        "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls",
+        "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
         new_callable=AsyncMock,
     )
     async def test_trial_evaluation_failure_aborts_after_consecutive_limit(
@@ -516,7 +516,7 @@ class TestOptunaMidLoopCrashes:
         assert len(result.all_trials) <= 20
 
     @patch(
-        "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls",
+        "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
         new_callable=AsyncMock,
     )
     async def test_all_trials_fail_returns_result_with_no_best_trial(
@@ -538,7 +538,7 @@ class TestOptunaMidLoopCrashes:
             assert trial.score == 0.0
 
     @patch(
-        "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls",
+        "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
         new_callable=AsyncMock,
     )
     async def test_intermittent_failures_do_not_abort(
@@ -574,7 +574,7 @@ class TestOptunaMidLoopCrashes:
         assert result.best_trial.score > 0.0
 
     @patch(
-        "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls",
+        "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
         new_callable=AsyncMock,
     )
     async def test_empty_control_result_scores_zero(
@@ -600,7 +600,7 @@ class TestOptunaMidLoopCrashes:
             assert trial.score == 0.0
 
     @patch(
-        "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls",
+        "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
         new_callable=AsyncMock,
     )
     async def test_progress_callback_called_on_trial_failure(

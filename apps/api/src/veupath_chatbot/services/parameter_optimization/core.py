@@ -26,8 +26,10 @@ from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationResult,
     ProgressCallback,
 )
-from veupath_chatbot.services.parameter_optimization.trials import (
+from veupath_chatbot.services.parameter_optimization.sampler import (
     _create_sampler,
+)
+from veupath_chatbot.services.parameter_optimization.trials import (
     _TrialContext,
     run_trial_loop,
 )
@@ -85,18 +87,7 @@ async def optimize_search_parameters(
     study = optuna.create_study(direction="maximize", sampler=sampler)
 
     ctx = _TrialContext(
-        site_id=inp.site_id,
-        record_type=inp.record_type,
-        search_name=inp.search_name,
-        fixed_parameters=inp.fixed_parameters,
-        parameter_space=inp.parameter_space,
-        controls_search_name=inp.controls_search_name,
-        controls_param_name=inp.controls_param_name,
-        positive_controls=inp.positive_controls,
-        negative_controls=inp.negative_controls,
-        controls_value_format=inp.controls_value_format,
-        controls_extra_parameters=inp.controls_extra_parameters,
-        id_field=inp.id_field,
+        inp=inp,
         cfg=cfg,
         optimization_id=optimization_id,
         budget=budget,

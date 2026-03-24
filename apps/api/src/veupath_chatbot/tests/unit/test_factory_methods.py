@@ -14,6 +14,7 @@ from veupath_chatbot.services.experiment.helpers import ControlsContext
 from veupath_chatbot.services.experiment.types import (
     ExperimentConfig,
 )
+from veupath_chatbot.services.parameter_optimization.config import OptimizationInput
 from veupath_chatbot.services.parameter_optimization.trials import _TrialContext
 
 
@@ -187,32 +188,36 @@ class TestIntersectionConfigFromControlsContext:
 # ---------------------------------------------------------------------------
 
 
-def _make_trial_context(**overrides: object) -> _TrialContext:
+def _make_trial_context(
+    *,
+    controls_extra_parameters: dict[str, object] | None = None,
+    id_field: str | None = None,
+) -> _TrialContext:
     """Build a minimal _TrialContext for testing."""
-    defaults: dict[str, object] = {
-        "site_id": "PlasmoDB",
-        "record_type": "transcript",
-        "search_name": "GenesByTaxon",
-        "fixed_parameters": {"organism": "Plasmodium falciparum 3D7"},
-        "parameter_space": [],
-        "controls_search_name": "GeneByLocusTag",
-        "controls_param_name": "ds_gene_ids",
-        "positive_controls": ["PF3D7_0100100"],
-        "negative_controls": ["PF3D7_9999901"],
-        "controls_value_format": "newline",
-        "controls_extra_parameters": None,
-        "id_field": None,
-        "cfg": MagicMock(),
-        "optimization_id": "opt_test",
-        "budget": 10,
-        "study": optuna.create_study(direction="maximize"),
-        "progress_callback": None,
-        "check_cancelled": None,
-        "start_time": 0.0,
-        "trials": [],
-    }
-    defaults.update(overrides)
-    return _TrialContext(**defaults)  # type: ignore[arg-type]
+    inp = OptimizationInput(
+        site_id="PlasmoDB",
+        record_type="transcript",
+        search_name="GenesByTaxon",
+        fixed_parameters={"organism": "Plasmodium falciparum 3D7"},
+        parameter_space=[],
+        controls_search_name="GeneByLocusTag",
+        controls_param_name="ds_gene_ids",
+        positive_controls=["PF3D7_0100100"],
+        negative_controls=["PF3D7_9999901"],
+        controls_extra_parameters=controls_extra_parameters,
+        id_field=id_field,
+    )
+    return _TrialContext(
+        inp=inp,
+        cfg=MagicMock(),
+        optimization_id="opt_test",
+        budget=10,
+        study=optuna.create_study(direction="maximize"),
+        progress_callback=None,
+        check_cancelled=None,
+        start_time=0.0,
+        trials=[],
+    )
 
 
 class TestTrialContextBuildIntersectionConfig:

@@ -21,20 +21,27 @@ from veupath_chatbot.services.experiment.types.control_result import (
 )
 from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationConfig,
+    OptimizationInput,
     ParameterSpec,
     TrialResult,
 )
-from veupath_chatbot.services.parameter_optimization.trials import (
-    EarlyStopReason,
+from veupath_chatbot.services.parameter_optimization.builders import (
     TrialMetrics,
-    _aggregate_results,
     _build_failed_trial,
     _build_successful_trial,
-    _check_early_stop,
     _extract_trial_metrics,
+)
+from veupath_chatbot.services.parameter_optimization.early_stop import (
+    EarlyStopReason,
+    _check_early_stop,
     _should_early_stop,
-    _TrialContext,
+)
+from veupath_chatbot.services.parameter_optimization.evaluation import (
     _unpack_gather_result,
+)
+from veupath_chatbot.services.parameter_optimization.trials import (
+    _aggregate_results,
+    _TrialContext,
     run_trial_loop,
 )
 
@@ -73,7 +80,7 @@ def _make_ctx(
     """Create a minimal _TrialContext for testing."""
     cfg = OptimizationConfig(budget=budget, objective=objective, method=method)
     study = optuna.create_study(direction="maximize")
-    return _TrialContext(
+    inp = OptimizationInput(
         site_id="plasmodb",
         record_type="transcript",
         search_name="TestSearch",
@@ -90,9 +97,9 @@ def _make_ctx(
         controls_param_name="ds_gene_ids",
         positive_controls=[f"POS_{i}" for i in range(10)],
         negative_controls=[f"NEG_{i}" for i in range(8)],
-        controls_value_format="newline",
-        controls_extra_parameters=None,
-        id_field=None,
+    )
+    return _TrialContext(
+        inp=inp,
         cfg=cfg,
         optimization_id="test_opt",
         budget=budget,
@@ -403,7 +410,12 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(ctx, trials_since_improvement=0, trial_num=1) is True
+        assert _should_early_stop(
+            optimization_id=ctx.optimization_id,
+            best_trial=ctx.best_trial,
+            trials_since_improvement=0,
+            trial_num=1,
+        ) is True
 
     def test_plateau(self) -> None:
         best = TrialResult(
@@ -416,7 +428,12 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(ctx, trials_since_improvement=10, trial_num=1) is True
+        assert _should_early_stop(
+            optimization_id=ctx.optimization_id,
+            best_trial=ctx.best_trial,
+            trials_since_improvement=10,
+            trial_num=1,
+        ) is True
 
     def test_no_stop(self) -> None:
         best = TrialResult(
@@ -429,11 +446,21 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(ctx, trials_since_improvement=3, trial_num=1) is False
+        assert _should_early_stop(
+            optimization_id=ctx.optimization_id,
+            best_trial=ctx.best_trial,
+            trials_since_improvement=3,
+            trial_num=1,
+        ) is False
 
     def test_no_best_trial_no_stop(self) -> None:
         ctx = _make_ctx()
-        assert _should_early_stop(ctx, trials_since_improvement=0, trial_num=1) is False
+        assert _should_early_stop(
+            optimization_id=ctx.optimization_id,
+            best_trial=ctx.best_trial,
+            trials_since_improvement=0,
+            trial_num=1,
+        ) is False
 
     def test_score_just_below_threshold(self) -> None:
         best = TrialResult(
@@ -446,7 +473,12 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(ctx, trials_since_improvement=0, trial_num=1) is False
+        assert _should_early_stop(
+            optimization_id=ctx.optimization_id,
+            best_trial=ctx.best_trial,
+            trials_since_improvement=0,
+            trial_num=1,
+        ) is False
 
     def test_plateau_exact_boundary(self) -> None:
         best = TrialResult(
@@ -459,8 +491,18 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(ctx, trials_since_improvement=9, trial_num=1) is False
-        assert _should_early_stop(ctx, trials_since_improvement=10, trial_num=1) is True
+        assert _should_early_stop(
+            optimization_id=ctx.optimization_id,
+            best_trial=ctx.best_trial,
+            trials_since_improvement=9,
+            trial_num=1,
+        ) is False
+        assert _should_early_stop(
+            optimization_id=ctx.optimization_id,
+            best_trial=ctx.best_trial,
+            trials_since_improvement=10,
+            trial_num=1,
+        ) is True
 
 
 # ===================================================================
@@ -523,7 +565,7 @@ class TestAggregateResults:
 
 
 WDK_PATCH = (
-    "veupath_chatbot.services.parameter_optimization.trials"
+    "veupath_chatbot.services.parameter_optimization.evaluation"
     ".run_positive_negative_controls"
 )
 

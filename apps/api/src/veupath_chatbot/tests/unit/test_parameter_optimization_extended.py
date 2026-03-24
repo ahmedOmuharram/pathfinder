@@ -37,16 +37,14 @@ from veupath_chatbot.services.parameter_optimization.config import (
 from veupath_chatbot.services.parameter_optimization.core import (
     optimize_search_parameters,
 )
+from veupath_chatbot.services.parameter_optimization.sampler import (
+    _create_sampler,
+    _suggest_trial_params,
+)
 from veupath_chatbot.services.parameter_optimization.scoring import (
     _compute_pareto_frontier,
     _compute_score,
     _compute_sensitivity,
-    _to_float,
-    _to_int,
-)
-from veupath_chatbot.services.parameter_optimization.trials import (
-    _create_sampler,
-    _suggest_trial_params,
 )
 
 # ---------------------------------------------------------------------------
@@ -135,74 +133,9 @@ def _common_inp(
 
 
 WDK_PATCH = (
-    "veupath_chatbot.services.parameter_optimization.trials"
+    "veupath_chatbot.services.parameter_optimization.evaluation"
     ".run_positive_negative_controls"
 )
-
-
-# ===================================================================
-# _to_float / _to_int coercion helpers
-# ===================================================================
-
-
-class TestToFloat:
-    def test_none_returns_none(self) -> None:
-        assert _to_float(None) is None
-
-    def test_int_coerces(self) -> None:
-        assert _to_float(5) == 5.0
-        assert isinstance(_to_float(5), float)
-
-    def test_float_returns_float(self) -> None:
-        assert _to_float(3.14) == 3.14
-
-    def test_zero(self) -> None:
-        assert _to_float(0) == 0.0
-
-    def test_negative(self) -> None:
-        assert _to_float(-2.5) == -2.5
-
-    def test_string_returns_none(self) -> None:
-        assert _to_float("0.5") is None
-
-    def test_bool_coerces(self) -> None:
-        # bool is a subclass of int in Python
-        result = _to_float(True)
-        assert result == 1.0
-
-    def test_list_returns_none(self) -> None:
-        assert _to_float([1, 2]) is None
-
-    def test_dict_returns_none(self) -> None:
-        assert _to_float({"a": 1}) is None
-
-
-class TestToInt:
-    def test_none_returns_none(self) -> None:
-        assert _to_int(None) is None
-
-    def test_int_returns_int(self) -> None:
-        assert _to_int(7) == 7
-        assert isinstance(_to_int(7), int)
-
-    def test_float_truncates(self) -> None:
-        assert _to_int(3.9) == 3
-
-    def test_zero(self) -> None:
-        assert _to_int(0) == 0
-
-    def test_negative(self) -> None:
-        assert _to_int(-4) == -4
-
-    def test_string_returns_none(self) -> None:
-        assert _to_int("7") is None
-
-    def test_bool_coerces(self) -> None:
-        assert _to_int(True) == 1
-        assert _to_int(False) == 0
-
-    def test_list_returns_none(self) -> None:
-        assert _to_int([1]) is None
 
 
 # ===================================================================

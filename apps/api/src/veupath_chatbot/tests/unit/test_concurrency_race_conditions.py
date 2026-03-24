@@ -29,13 +29,17 @@ from veupath_chatbot.services.experiment.service import (
 )
 from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationConfig,
+    OptimizationInput,
     ParameterSpec,
 )
-from veupath_chatbot.services.parameter_optimization.trials import (
+from veupath_chatbot.services.parameter_optimization.evaluation import (
+    EvalRequest,
     _cache_key,
     _EvalCache,
     _evaluate_trial,
     _KeyLocks,
+)
+from veupath_chatbot.services.parameter_optimization.trials import (
     _TrialContext,
 )
 
@@ -65,7 +69,7 @@ def _make_trial_context(
 ) -> _TrialContext:
     """Build a minimal _TrialContext suitable for cache-dedup tests."""
     study = optuna.create_study(direction="maximize")
-    return _TrialContext(
+    inp = OptimizationInput(
         site_id=site_id,
         record_type=record_type,
         search_name=search_name,
@@ -77,9 +81,9 @@ def _make_trial_context(
         controls_param_name="organism",
         positive_controls=["gene_a", "gene_b"],
         negative_controls=["gene_x"],
-        controls_value_format="newline",
-        controls_extra_parameters=None,
-        id_field=None,
+    )
+    return _TrialContext(
+        inp=inp,
         cfg=OptimizationConfig(budget=10),
         optimization_id="opt_test",
         budget=10,
@@ -190,7 +194,7 @@ class TestParamOptimizationCacheDedup:
         }
 
         with patch(
-            "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls",
+            "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
             new_callable=AsyncMock,
             return_value=fake_wdk_result,
         ) as mock_controls:
@@ -198,11 +202,14 @@ class TestParamOptimizationCacheDedup:
             optimised_params: dict[str, JSONValue] = {"p": 0.5}
             trial_params: JSONObject = {"p": "0.5"}
 
+            req = EvalRequest(
+                config=ctx.build_intersection_config(trial_params),
+                positive_controls=ctx.inp.positive_controls,
+                negative_controls=ctx.inp.negative_controls,
+            )
             results = await asyncio.gather(
                 *(
-                    _evaluate_trial(
-                        ctx, trial_params, optimised_params, sem, cache, key_locks
-                    )
+                    _evaluate_trial(req, optimised_params, sem, cache, key_locks)
                     for _ in range(4)
                 )
             )
@@ -234,7 +241,7 @@ class TestParamOptimizationCacheDedup:
             }
 
         with patch(
-            "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls",
+            "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
             side_effect=counting_controls,
         ):
             param_sets: list[tuple[JSONObject, dict[str, JSONValue]]] = [
@@ -244,7 +251,17 @@ class TestParamOptimizationCacheDedup:
 
             await asyncio.gather(
                 *(
-                    _evaluate_trial(ctx, tp, op, sem, cache, key_locks)
+                    _evaluate_trial(
+                        EvalRequest(
+                            config=ctx.build_intersection_config(tp),
+                            positive_controls=ctx.inp.positive_controls,
+                            negative_controls=ctx.inp.negative_controls,
+                        ),
+                        op,
+                        sem,
+                        cache,
+                        key_locks,
+                    )
                     for tp, op in param_sets
                 )
             )
@@ -265,12 +282,17 @@ class TestParamOptimizationCacheDedup:
         cache: _EvalCache = {key: cached_result}
 
         with patch(
-            "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls",
+            "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls",
             new_callable=AsyncMock,
         ) as mock_controls:
             tp: JSONObject = {"p": "0.42"}
+            req = EvalRequest(
+                config=ctx.build_intersection_config(tp),
+                positive_controls=ctx.inp.positive_controls,
+                negative_controls=ctx.inp.negative_controls,
+            )
             result = await _evaluate_trial(
-                ctx, tp, optimised_params, sem, cache, key_locks
+                req, optimised_params, sem, cache, key_locks
             )
 
         mock_controls.assert_not_called()

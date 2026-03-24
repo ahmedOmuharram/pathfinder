@@ -294,7 +294,7 @@ class TestResultToJson:
         assert j["errorMessage"] == "all trials failed"
 
 
-WDK_PATCH = "veupath_chatbot.services.parameter_optimization.trials.run_positive_negative_controls"
+WDK_PATCH = "veupath_chatbot.services.parameter_optimization.evaluation.run_positive_negative_controls"
 
 
 class TestOptimizeSearchParameters:

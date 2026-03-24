@@ -102,6 +102,26 @@ trial runs a temporary WDK strategy and scores the result.
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: veupath_chatbot.services.parameter_optimization.sampler
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.parameter_optimization.early_stop
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.parameter_optimization.builders
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: veupath_chatbot.services.parameter_optimization.evaluation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Catalog (Parameter Validation)
 -------------------------------
 

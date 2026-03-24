@@ -5,7 +5,6 @@ import warnings
 import optuna
 
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONValue
 from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationConfig,
     ParameterSpec,
@@ -19,24 +18,6 @@ _DEFAULT_TOTAL_GENES = 20_000
 
 _MCC_ZERO_GUARD_EPSILON = 1e-10
 _MIN_COMPLETED_TRIALS = 2
-
-
-def _to_float(v: JSONValue) -> float | None:
-    """Coerce JSON value to float for numeric comparisons."""
-    if v is None:
-        return None
-    if isinstance(v, (int, float)):
-        return float(v)
-    return None
-
-
-def _to_int(v: JSONValue) -> int | None:
-    """Coerce JSON value to int for counts."""
-    if v is None:
-        return None
-    if isinstance(v, (int, float)):
-        return int(v)
-    return None
 
 
 def _score_mcc(r: float, specificity: float, raw_fpr: float) -> float:

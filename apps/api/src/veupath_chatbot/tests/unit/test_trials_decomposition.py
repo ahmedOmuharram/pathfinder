@@ -19,15 +19,18 @@ from veupath_chatbot.services.experiment.types.control_result import (
 )
 from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationConfig,
+    OptimizationInput,
     ParameterSpec,
     TrialResult,
 )
-from veupath_chatbot.services.parameter_optimization.trials import (
-    _aggregate_results,
+from veupath_chatbot.services.parameter_optimization.builders import (
     _build_failed_trial,
     _build_successful_trial,
-    _emit_trial_result,
     _extract_trial_metrics,
+)
+from veupath_chatbot.services.parameter_optimization.trials import (
+    _aggregate_results,
+    _emit_trial_result,
     _TrialContext,
 )
 
@@ -47,7 +50,7 @@ def _make_ctx(
 ) -> _TrialContext:
     """Build a _TrialContext with sensible defaults for testing."""
     study = optuna.create_study(direction="maximize")
-    return _TrialContext(
+    inp = OptimizationInput(
         site_id="plasmodb",
         record_type="transcript",
         search_name="TestSearch",
@@ -62,9 +65,9 @@ def _make_ctx(
         controls_param_name="ds_gene_ids",
         positive_controls=[f"POS_{i}" for i in range(10)],
         negative_controls=[f"NEG_{i}" for i in range(8)],
-        controls_value_format="newline",
-        controls_extra_parameters=None,
-        id_field=None,
+    )
+    return _TrialContext(
+        inp=inp,
         cfg=cfg or OptimizationConfig(objective="f1"),
         optimization_id="opt_test_123",
         budget=budget,
