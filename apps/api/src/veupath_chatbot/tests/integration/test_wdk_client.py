@@ -18,8 +18,8 @@ from httpx import Response
 
 from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
-    encode_context_param_values_for_wdk,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import encode_wdk_params
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKRecordType,
     WDKSearch,
@@ -114,7 +114,7 @@ async def test_get_refreshed_dependent_params(client: VEuPathDBClient) -> None:
         },
     ]
 
-    context = encode_context_param_values_for_wdk({
+    context = encode_wdk_params({
         "organism": ["Plasmodium falciparum 3D7"],
         "text_expression": "kinase",
     })
@@ -221,7 +221,7 @@ def test_context_param_encoding() -> None:
         "empty": None,
     }
 
-    encoded = encode_context_param_values_for_wdk(context)
+    encoded = encode_wdk_params(context)
 
     # Lists become JSON-encoded strings
     assert (

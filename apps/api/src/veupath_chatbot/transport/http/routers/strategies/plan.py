@@ -10,7 +10,7 @@ from veupath_chatbot.services.strategies.plan_normalize import (
     canonicalize_plan_parameters,
 )
 from veupath_chatbot.services.wdk import (
-    encode_context_param_values_for_wdk,
+    encode_wdk_params,
     get_strategy_api,
 )
 from veupath_chatbot.transport.http.schemas import (
@@ -35,9 +35,9 @@ async def normalize_plan(payload: PlanNormalizeRequest) -> PlanNormalizeResponse
     ) -> JSONObject:
         # Use context-dependent search details so vocab-dependent params (e.g. min/max/avg ops)
         # validate correctly when the plan already contains concrete selections.
-        # Convert params to JSONObject for encode_context_param_values_for_wdk
+        # Convert params to JSONObject for encode_wdk_params
         params_dict: JSONObject = dict(params) if isinstance(params, Mapping) else {}
-        context = encode_context_param_values_for_wdk(params_dict)
+        context = encode_wdk_params(params_dict)
         try:
             result = await api.client.get_search_details_with_params(
                 record_type,

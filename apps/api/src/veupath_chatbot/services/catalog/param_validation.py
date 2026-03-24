@@ -12,15 +12,15 @@ from veupath_chatbot.domain.parameters.specs import (
     find_missing_required_params,
 )
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.integrations.veupathdb.client import (
-    encode_context_param_values_for_wdk,
-)
 from veupath_chatbot.integrations.veupathdb.discovery import (
     DiscoveryService,
     get_discovery_service,
 )
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearchResponse,
+    encode_wdk_params,
+)
 from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
@@ -187,7 +187,7 @@ async def _resolve_search_details(
     discovery = get_discovery_service()
     try:
         wdk_client = get_wdk_client(ctx.site_id)
-        context = encode_context_param_values_for_wdk(parameters)
+        context = encode_wdk_params(parameters)
         try:
             return await wdk_client.get_search_details_with_params(
                 resolved_record_type,

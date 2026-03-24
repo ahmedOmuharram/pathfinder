@@ -11,13 +11,11 @@ from veupath_chatbot.ai.tools.query_validation import (
     search_query_error,
 )
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.integrations.veupathdb.client import (
-    encode_context_param_values_for_wdk,
-)
 from veupath_chatbot.integrations.veupathdb.factory import (
     get_strategy_api,
     get_wdk_client,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import encode_wdk_params
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -169,7 +167,7 @@ class CatalogTools:
 
         if has_context:
             client = get_wdk_client(self.site_id)
-            encoded_ctx = encode_context_param_values_for_wdk(ctx)
+            encoded_ctx = encode_wdk_params(ctx)
             result = await client.get_search_details_with_params(
                 record_type, search_name, context=encoded_ctx, expand_params=True,
             )

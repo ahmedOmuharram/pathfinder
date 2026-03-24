@@ -15,15 +15,13 @@ from veupath_chatbot.domain.strategy.ast import (
     walk_step_tree,
 )
 from veupath_chatbot.domain.strategy.ops import parse_op
-from veupath_chatbot.integrations.veupathdb.client import (
-    encode_context_param_values_for_wdk,
-)
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKSearch,
     WDKStep,
     WDKStepTree,
     WDKStrategyDetails,
+    encode_wdk_params,
 )
 from veupath_chatbot.platform.errors import AppError, DataParsingError
 from veupath_chatbot.platform.logging import get_logger
@@ -210,7 +208,7 @@ async def normalize_synced_parameters(
 
         cache_key = (record_type, search_name)
         if cache_key not in spec_cache:
-            encoded_context = encode_context_param_values_for_wdk(step.parameters or {})
+            encoded_context = encode_wdk_params(step.parameters or {})
             spec_cache[cache_key] = await _load_search_spec(
                 api, record_type, search_name, encoded_context
             )

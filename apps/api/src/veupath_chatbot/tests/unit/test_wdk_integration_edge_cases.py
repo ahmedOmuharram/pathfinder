@@ -17,8 +17,8 @@ import respx
 from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
     _convert_params_for_httpx,
-    encode_context_param_values_for_wdk,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import encode_wdk_params
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
 from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
@@ -336,29 +336,29 @@ class TestEncodeContextEdgeCases:
 
     def test_boolean_true_stringified(self) -> None:
         """Boolean True should become string "True", not "true"."""
-        result = encode_context_param_values_for_wdk({"flag": True})
-        assert result["flag"] == "True"
+        result = encode_wdk_params({"flag": True})
+        assert result["flag"] == "true"
 
     def test_boolean_false_stringified(self) -> None:
-        result = encode_context_param_values_for_wdk({"flag": False})
-        assert result["flag"] == "False"
+        result = encode_wdk_params({"flag": False})
+        assert result["flag"] == "false"
 
     def test_integer_zero_not_skipped(self) -> None:
         """0 is falsy but should not be treated as None."""
-        result = encode_context_param_values_for_wdk({"count": 0})
+        result = encode_wdk_params({"count": 0})
         assert result["count"] == "0"
 
     def test_empty_string_preserved(self) -> None:
         """Empty string is a valid value, should not be skipped."""
-        result = encode_context_param_values_for_wdk({"name": ""})
+        result = encode_wdk_params({"name": ""})
         assert result["name"] == ""
 
     def test_empty_list_encoded_as_json(self) -> None:
-        result = encode_context_param_values_for_wdk({"items": []})
+        result = encode_wdk_params({"items": []})
         assert result["items"] == "[]"
 
     def test_nested_dict_json_encoded(self) -> None:
-        result = encode_context_param_values_for_wdk(
+        result = encode_wdk_params(
             {"config": {"key": "val", "nested": [1, 2]}}
         )
         parsed = json.loads(result["config"])
@@ -366,7 +366,7 @@ class TestEncodeContextEdgeCases:
 
     def test_special_characters_in_keys(self) -> None:
         """Keys with dots/brackets used in WDK param naming."""
-        result = encode_context_param_values_for_wdk({"organism.group": "Plasmodium"})
+        result = encode_wdk_params({"organism.group": "Plasmodium"})
         assert result["organism.group"] == "Plasmodium"
 
 
@@ -632,7 +632,7 @@ class TestConvenienceMethodEdgeCases:
             p1, p2 = _patch_settings_and_ctx()
             with p1, p2:
                 # Callers are responsible for encoding; client passes through.
-                encoded = encode_context_param_values_for_wdk(
+                encoded = encode_wdk_params(
                     {"organism": ["P. falciparum", "P. vivax"]}
                 )
                 await client.get_search_details_with_params(

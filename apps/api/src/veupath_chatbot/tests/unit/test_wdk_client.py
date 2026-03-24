@@ -1,7 +1,7 @@
 """Unit tests for veupath_chatbot.integrations.veupathdb.client.
 
 Tests VEuPathDBClient HTTP methods and the helper functions
-encode_context_param_values_for_wdk and _convert_params_for_httpx.
+encode_wdk_params and _convert_params_for_httpx.
 """
 
 from unittest.mock import MagicMock, patch
@@ -13,13 +13,13 @@ import respx
 from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
     _convert_params_for_httpx,
-    encode_context_param_values_for_wdk,
 )
+from veupath_chatbot.integrations.veupathdb.wdk_models import encode_wdk_params
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType
 from veupath_chatbot.platform.errors import WDKError
 
 # ---------------------------------------------------------------------------
-# encode_context_param_values_for_wdk
+# encode_wdk_params
 # ---------------------------------------------------------------------------
 
 
@@ -27,38 +27,38 @@ class TestEncodeContextParamValues:
     """WDK expects multi-pick values as JSON-encoded strings."""
 
     def test_string_values_pass_through(self) -> None:
-        result = encode_context_param_values_for_wdk({"organism": "P. falciparum"})
+        result = encode_wdk_params({"organism": "P. falciparum"})
         assert result == {"organism": "P. falciparum"}
 
     def test_list_values_json_encoded(self) -> None:
-        result = encode_context_param_values_for_wdk(
+        result = encode_wdk_params(
             {"organism": ["P. falciparum", "P. vivax"]}
         )
         assert result["organism"] == '["P. falciparum", "P. vivax"]'
 
     def test_dict_values_json_encoded(self) -> None:
-        result = encode_context_param_values_for_wdk({"config": {"key": "value"}})
+        result = encode_wdk_params({"config": {"key": "value"}})
         assert result["config"] == '{"key": "value"}'
 
     def test_int_values_stringified(self) -> None:
-        result = encode_context_param_values_for_wdk({"count": 42})
+        result = encode_wdk_params({"count": 42})
         assert result["count"] == "42"
 
     def test_float_values_stringified(self) -> None:
-        result = encode_context_param_values_for_wdk({"pvalue": 0.05})
+        result = encode_wdk_params({"pvalue": 0.05})
         assert result["pvalue"] == "0.05"
 
     def test_none_values_skipped(self) -> None:
-        result = encode_context_param_values_for_wdk({"a": "val", "b": None})
+        result = encode_wdk_params({"a": "val", "b": None})
         assert result == {"a": "val"}
 
     def test_empty_context(self) -> None:
-        result = encode_context_param_values_for_wdk({})
+        result = encode_wdk_params({})
         assert result == {}
 
     def test_none_context(self) -> None:
         """The function uses `context or {}` so None is safe."""
-        result = encode_context_param_values_for_wdk(None)
+        result = encode_wdk_params(None)
         assert result == {}
 
 

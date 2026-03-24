@@ -11,12 +11,14 @@ from veupath_chatbot.domain.parameters.specs import (
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
-    encode_context_param_values_for_wdk,
 )
 from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearchResponse,
+    encode_wdk_params,
+)
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.errors import AppError, ErrorCode, WDKError
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
@@ -224,7 +226,7 @@ async def expand_search_details_with_params(
             fallback_response = await client.get_search_details_with_params(
                 resolved_record_type,
                 ctx.search_name,
-                encode_context_param_values_for_wdk(filtered_context),
+                encode_wdk_params(filtered_context),
                 expand_params=True,
             )
             specs = adapt_param_specs_from_search(fallback_response.search_data)
@@ -243,7 +245,7 @@ async def expand_search_details_with_params(
         client=client,
         record_type=resolved_record_type,
         search_name=ctx.search_name,
-        context_values=encode_context_param_values_for_wdk(normalized_context),
+        context_values=encode_wdk_params(normalized_context),
     )
 
 
@@ -318,7 +320,7 @@ async def get_refreshed_dependent_params(
     ``WDKError`` and the site is not already ``veupathdb``, retries against
     the portal client (``veupathdb``).
     """
-    encoded = encode_context_param_values_for_wdk(context_values)
+    encoded = encode_wdk_params(context_values)
     client = get_wdk_client(ctx.site_id)
     try:
         return await client.get_refreshed_dependent_params(
