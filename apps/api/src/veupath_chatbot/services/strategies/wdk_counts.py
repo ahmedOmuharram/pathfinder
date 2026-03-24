@@ -127,7 +127,10 @@ async def _compute_leaf_counts_parallel(
 
     tasks = [
         _count_via_anonymous_report(
-            client, record_type, step.search_name, step.wdk_parameters,
+            client,
+            record_type,
+            step.search_name,
+            step.wdk_parameters,
         )
         for step in all_steps
     ]

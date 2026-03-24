@@ -90,7 +90,13 @@ class TestWalkStepTreeNestedCombines:
         result = walk_step_tree(root)
         assert len(result) == 7
         assert [s.id for s in result] == [
-            "s1", "s2", "c_left", "s3", "s4", "c_right", "c_root"
+            "s1",
+            "s2",
+            "c_left",
+            "s3",
+            "s4",
+            "c_right",
+            "c_root",
         ]
 
     def test_walk_order_is_deterministic(self) -> None:

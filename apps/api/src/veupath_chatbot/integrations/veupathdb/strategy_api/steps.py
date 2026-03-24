@@ -156,7 +156,9 @@ class StepsMixin(StrategyAPIBase):
 
         payload: JSONObject = {
             "searchName": spec.search_name,
-            "searchConfig": search_config.model_dump(by_alias=True, exclude_defaults=True),
+            "searchConfig": search_config.model_dump(
+                by_alias=True, exclude_defaults=True
+            ),
         }
         if spec.custom_name:
             payload["customName"] = spec.custom_name
@@ -272,7 +274,9 @@ class StepsMixin(StrategyAPIBase):
 
         payload: JSONObject = {
             "searchName": spec.search_name,
-            "searchConfig": search_config.model_dump(by_alias=True, exclude_defaults=True),
+            "searchConfig": search_config.model_dump(
+                by_alias=True, exclude_defaults=True
+            ),
         }
         if spec.custom_name:
             payload["customName"] = spec.custom_name

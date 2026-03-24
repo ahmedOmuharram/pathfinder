@@ -157,5 +157,3 @@ def _compute_pareto_frontier(trials: list[TrialResult]) -> list[TrialResult]:
             frontier.append(t)
             best_fpr = fpr
     return frontier
-
-

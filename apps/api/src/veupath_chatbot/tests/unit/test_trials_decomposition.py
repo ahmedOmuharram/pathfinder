@@ -17,16 +17,16 @@ from veupath_chatbot.services.experiment.types.control_result import (
     ControlTargetData,
     ControlTestResult,
 )
+from veupath_chatbot.services.parameter_optimization.builders import (
+    _build_failed_trial,
+    _build_successful_trial,
+    _extract_trial_metrics,
+)
 from veupath_chatbot.services.parameter_optimization.config import (
     OptimizationConfig,
     OptimizationInput,
     ParameterSpec,
     TrialResult,
-)
-from veupath_chatbot.services.parameter_optimization.builders import (
-    _build_failed_trial,
-    _build_successful_trial,
-    _extract_trial_metrics,
 )
 from veupath_chatbot.services.parameter_optimization.trials import (
     _aggregate_results,

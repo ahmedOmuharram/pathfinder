@@ -8,7 +8,9 @@ from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySessi
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchConfig
 from veupath_chatbot.platform.errors import AppError, ErrorCode
 
-_VALIDATE_PARAMS = "veupath_chatbot.ai.tools.strategy_tools.edit_ops.validate_parameters"
+_VALIDATE_PARAMS = (
+    "veupath_chatbot.ai.tools.strategy_tools.edit_ops.validate_parameters"
+)
 _GET_STRATEGY_API = "veupath_chatbot.ai.tools.strategy_tools.edit_ops.get_strategy_api"
 
 
@@ -20,7 +22,9 @@ def _make_edit_ops(
     graph = session.create_graph("test", graph_id=graph_id)
     graph.record_type = "gene"
 
-    step = PlanStepNode(search_name="GenesByTaxon", parameters={"organism": "Plasmodium falciparum"})
+    step = PlanStepNode(
+        search_name="GenesByTaxon", parameters={"organism": "Plasmodium falciparum"}
+    )
     graph.add_step(step)
 
     if wdk_step_id is not None:
@@ -110,7 +114,9 @@ async def test_apply_step_updates_logs_warning_on_app_error():
     ops, graph, step = _make_edit_ops(wdk_step_id=42)
 
     mock_api = AsyncMock()
-    mock_api.update_step_search_config.side_effect = AppError(ErrorCode.WDK_ERROR, "WDK is down")
+    mock_api.update_step_search_config.side_effect = AppError(
+        ErrorCode.WDK_ERROR, "WDK is down"
+    )
 
     with (
         patch(_VALIDATE_PARAMS, new_callable=AsyncMock),

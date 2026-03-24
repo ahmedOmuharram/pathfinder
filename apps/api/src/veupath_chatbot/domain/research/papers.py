@@ -143,9 +143,7 @@ class OpenAlexRawWork(BaseModel):
         if not inv:
             return None
         pairs: list[tuple[int, str]] = [
-            (i, word)
-            for word, idxs in inv.items()
-            for i in idxs
+            (i, word) for word, idxs in inv.items() for i in idxs
         ]
         if not pairs:
             return None
@@ -155,12 +153,9 @@ class OpenAlexRawWork(BaseModel):
     def to_parsed_paper(self) -> ParsedPaper:
         """Convert to the shared normalized ParsedPaper model."""
         title = (self.title or "").strip()
-        result_url = (
-            f"https://doi.org/{self.doi}" if self.doi else self.id
-        )
+        result_url = f"https://doi.org/{self.doi}" if self.doi else self.id
         author_names = [
-            a.author.display_name for a in self.authorships
-            if a.author.display_name
+            a.author.display_name for a in self.authorships if a.author.display_name
         ]
         journal_name = (
             self.host_venue.display_name.strip()
@@ -197,6 +192,7 @@ class _CRAuthor(BaseModel):
 
 class _CRDateParts(BaseModel):
     """CrossRef date structure: ``{"date-parts": [[2021, 3, 15]]}``."""
+
     model_config = ConfigDict(extra="ignore")
     date_parts: list[list[int]] = Field(default_factory=list, alias="date-parts")
 
@@ -254,7 +250,9 @@ class EuropePmcRawResult(BaseModel):
     ``authorString`` is split in a model_validator.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True, coerce_numbers_to_str=False)
+    model_config = ConfigDict(
+        extra="ignore", populate_by_name=True, coerce_numbers_to_str=False
+    )
 
     title: str = ""
     pub_year: int | None = Field(None, alias="pubYear")

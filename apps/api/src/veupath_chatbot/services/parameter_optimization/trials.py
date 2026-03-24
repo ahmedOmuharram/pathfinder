@@ -74,7 +74,8 @@ class _TrialContext:
     best_trial: TrialResult | None = None
 
     def build_intersection_config(
-        self, target_parameters: JSONObject,
+        self,
+        target_parameters: JSONObject,
     ) -> IntersectionConfig:
         """Build an :class:`IntersectionConfig` for a trial evaluation."""
         return IntersectionConfig(
@@ -358,7 +359,9 @@ async def run_trial_loop(ctx: _TrialContext) -> OptimizationResult:
     sem = asyncio.Semaphore(_PARALLEL_CONCURRENCY)
     eval_cache: _EvalCache = {}
     eval_key_locks: _KeyLocks = {}
-    clean_fixed = {k: v for k, v in ctx.inp.fixed_parameters.items() if v not in ("", None)}
+    clean_fixed = {
+        k: v for k, v in ctx.inp.fixed_parameters.items() if v not in ("", None)
+    }
 
     try:
         trial_idx = 0
@@ -374,7 +377,8 @@ async def run_trial_loop(ctx: _TrialContext) -> OptimizationResult:
             batch_size = min(_PARALLEL_CONCURRENCY, ctx.budget - trial_idx)
             optuna_trials = [ctx.study.ask() for _ in range(batch_size)]
             batch_params = [
-                _suggest_trial_params(ot, ctx.inp.parameter_space) for ot in optuna_trials
+                _suggest_trial_params(ot, ctx.inp.parameter_space)
+                for ot in optuna_trials
             ]
 
             full_params = [{**clean_fixed, **p} for p in batch_params]

@@ -222,7 +222,13 @@ class ExportService:
         ]:
             for gene in genes:
                 writer.writerow(
-                    [gene.id, gene.name or "", gene.organism or "", gene.product or "", label]
+                    [
+                        gene.id,
+                        gene.name or "",
+                        gene.organism or "",
+                        gene.product or "",
+                        label,
+                    ]
                 )
 
         return await self._store(

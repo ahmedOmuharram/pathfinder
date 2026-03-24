@@ -10,7 +10,8 @@ from veupath_chatbot.transport.http.schemas.sse import ToolCallStartEventData
 class TestToolCallStartArguments:
     def test_dict_arguments_accepted(self) -> None:
         event = ToolCallStartEventData(
-            id="tc_1", name="search",
+            id="tc_1",
+            name="search",
             arguments={"query": "P. falciparum orthologs", "limit": 3},
         )
         assert event.arguments == {"query": "P. falciparum orthologs", "limit": 3}
@@ -21,7 +22,8 @@ class TestToolCallStartArguments:
 
     def test_nested_arguments(self) -> None:
         event = ToolCallStartEventData(
-            id="tc_1", name="search",
+            id="tc_1",
+            name="search",
             arguments={"filters": {"organism": ["P. falciparum"]}, "limit": 5},
         )
         assert event.arguments["filters"] == {"organism": ["P. falciparum"]}

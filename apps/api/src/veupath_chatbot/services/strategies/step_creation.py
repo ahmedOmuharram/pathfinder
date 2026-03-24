@@ -125,14 +125,8 @@ def _resolve_inputs_from_spec(
     secondary_input_step_id = spec.secondary_input_step_id
     operator = spec.operator
 
-    if (
-        not primary_input_step_id
-        and not secondary_input_step_id
-        and not operator
-    ):
-        left, right, op = coerce_wdk_boolean_question_params(
-            parameters=parameters
-        )
+    if not primary_input_step_id and not secondary_input_step_id and not operator:
+        left, right, op = coerce_wdk_boolean_question_params(parameters=parameters)
         if left and right and op:
             return left, right, op
 
@@ -178,20 +172,18 @@ async def create_step(
         callbacks.resolve_record_type_for_search,
     )
 
-    search_name, parsed_op, step_error = (
-        await _resolve_search_name_and_validate(
-            graph=graph,
-            site_id=site_id,
-            spec_search_name=spec.search_name,
-            inputs=_StepInputs(
-                primary=primary_input,
-                secondary=secondary_input,
-                operator=operator,
-                params=parameters,
-            ),
-            callbacks=callbacks,
-            combine_placeholder=COMBINE_PLACEHOLDER_SEARCH_NAME,
-        )
+    search_name, parsed_op, step_error = await _resolve_search_name_and_validate(
+        graph=graph,
+        site_id=site_id,
+        spec_search_name=spec.search_name,
+        inputs=_StepInputs(
+            primary=primary_input,
+            secondary=secondary_input,
+            operator=operator,
+            params=parameters,
+        ),
+        callbacks=callbacks,
+        combine_placeholder=COMBINE_PLACEHOLDER_SEARCH_NAME,
     )
     if step_error is not None:
         return _error_result(step_error)

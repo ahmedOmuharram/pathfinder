@@ -36,12 +36,14 @@ from .conftest import make_step_creation_callbacks, make_step_graph
 
 def _mock_wdk_step(step_id: int, is_valid: bool = True) -> WDKStep:
     """Build a WDKStep with the given ID and validation."""
-    return WDKStep.model_validate({
-        "id": step_id,
-        "searchName": "GenesByText",
-        "searchConfig": {"parameters": {}},
-        "validation": {"level": "RUNNABLE", "isValid": is_valid},
-    })
+    return WDKStep.model_validate(
+        {
+            "id": step_id,
+            "searchName": "GenesByText",
+            "searchConfig": {"parameters": {}},
+            "validation": {"level": "RUNNABLE", "isValid": is_valid},
+        }
+    )
 
 
 def _mock_strategy_api(
@@ -133,7 +135,10 @@ class TestLeafStepPush:
 
         call_args = api.create_step.call_args
         spec = call_args[0][0]
-        assert spec.search_config.parameters == {"num_value": "42", "bool_value": "True"}
+        assert spec.search_config.parameters == {
+            "num_value": "42",
+            "bool_value": "True",
+        }
 
     @patch(
         "veupath_chatbot.services.strategies.step_validation.validate_parameters",
@@ -283,16 +288,18 @@ class TestTransformStepPush:
         # Mock WDK client for transform validation
         mock_client = AsyncMock()
         mock_client.get_search_details = AsyncMock(
-            return_value=WDKSearchResponse.model_validate({
-                "searchData": {
-                    "urlSegment": "GenesByOrthologs",
-                    "parameters": [
-                        {"name": "input_step", "type": "input-step"},
-                        {"name": "organism", "type": "string"},
-                    ],
-                },
-                "validation": {"level": "DISPLAYABLE", "isValid": True},
-            }),
+            return_value=WDKSearchResponse.model_validate(
+                {
+                    "searchData": {
+                        "urlSegment": "GenesByOrthologs",
+                        "parameters": [
+                            {"name": "input_step", "type": "input-step"},
+                            {"name": "organism", "type": "string"},
+                        ],
+                    },
+                    "validation": {"level": "DISPLAYABLE", "isValid": True},
+                }
+            ),
         )
         mock_get_wdk.return_value = mock_client
 
@@ -339,15 +346,17 @@ class TestTransformStepPush:
 
         mock_client = AsyncMock()
         mock_client.get_search_details = AsyncMock(
-            return_value=WDKSearchResponse.model_validate({
-                "searchData": {
-                    "urlSegment": "GenesByOrthologs",
-                    "parameters": [
-                        {"name": "input_step", "type": "input-step"},
-                    ],
-                },
-                "validation": {"level": "DISPLAYABLE", "isValid": True},
-            }),
+            return_value=WDKSearchResponse.model_validate(
+                {
+                    "searchData": {
+                        "urlSegment": "GenesByOrthologs",
+                        "parameters": [
+                            {"name": "input_step", "type": "input-step"},
+                        ],
+                    },
+                    "validation": {"level": "DISPLAYABLE", "isValid": True},
+                }
+            ),
         )
         mock_get_wdk.return_value = mock_client
 

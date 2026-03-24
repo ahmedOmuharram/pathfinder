@@ -113,7 +113,11 @@ async def _run_combine_node(
         "stepId": current_step_id,
         "displayName": combine.display_name or combine.task or node_id,
     }
-    graph_id_raw = (last_response or {}).get("graphId") if isinstance(last_response, dict) else None
+    graph_id_raw = (
+        (last_response or {}).get("graphId")
+        if isinstance(last_response, dict)
+        else None
+    )
     return CombineResult(
         id=node_id,
         task=combine.task,
@@ -225,7 +229,9 @@ async def delegate_strategy_subtasks(
         }
     )
 
-    logger.info("Spawning sub-kanis", count=len(compiled.tasks), site_id=context.site_id)
+    logger.info(
+        "Spawning sub-kanis", count=len(compiled.tasks), site_id=context.site_id
+    )
     start = time.monotonic()
 
     results_by_id: dict[str, NodeResult] = {}
@@ -338,8 +344,12 @@ async def _build_delegation_response(
         "graphName": run_data.graph_name,
         "graphDescription": run_data.graph_description,
         "combines": combines_serialized,
-        "combineResults": [cr.model_dump(by_alias=True, exclude_none=True) for cr in combine_results],
-        "combineErrors": [ce.model_dump(by_alias=True, exclude_none=True) for ce in combine_errors],
+        "combineResults": [
+            cr.model_dump(by_alias=True, exclude_none=True) for cr in combine_results
+        ],
+        "combineErrors": [
+            ce.model_dump(by_alias=True, exclude_none=True) for ce in combine_errors
+        ],
         "results": validated,
         "rejected": rejected,
     }

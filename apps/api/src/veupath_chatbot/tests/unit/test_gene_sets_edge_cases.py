@@ -215,5 +215,3 @@ class TestSaveDeleteGet:
         retrieved = store.get("shared-id")
         assert retrieved is not None
         assert retrieved.name == "Version 2"
-
-

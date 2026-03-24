@@ -76,7 +76,9 @@ class CatalogTools:
         ],
         record_type: Annotated[
             str | None,
-            AIParam(desc="Filter to a specific record type (e.g., 'transcript'). Omit for all."),
+            AIParam(
+                desc="Filter to a specific record type (e.g., 'transcript'). Omit for all."
+            ),
         ] = None,
         keywords: Annotated[
             list[str] | None,
@@ -112,7 +114,9 @@ class CatalogTools:
     @ai_function()
     async def list_searches(
         self,
-        record_type: Annotated[str, AIParam(desc="Record type (e.g., 'gene', 'transcript')")],
+        record_type: Annotated[
+            str, AIParam(desc="Record type (e.g., 'gene', 'transcript')")
+        ],
     ) -> list[dict[str, str]]:
         """List all search names for a record type (names only, no descriptions).
 
@@ -169,7 +173,10 @@ class CatalogTools:
             client = get_wdk_client(self.site_id)
             encoded_ctx = encode_wdk_params(ctx)
             result = await client.get_search_details_with_params(
-                record_type, search_name, context=encoded_ctx, expand_params=True,
+                record_type,
+                search_name,
+                context=encoded_ctx,
+                expand_params=True,
             )
             for p in result.search_data.parameters or []:
                 if p.name == param_name:
@@ -179,7 +186,9 @@ class CatalogTools:
         # Fallback: fetch expanded search details
         client = get_wdk_client(self.site_id)
         details = await client.get_search_details(
-            record_type, search_name, expand_params=True,
+            record_type,
+            search_name,
+            expand_params=True,
         )
         for p in details.search_data.parameters or []:
             if p.name == param_name:

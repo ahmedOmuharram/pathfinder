@@ -19,17 +19,17 @@ from veupath_chatbot.services.experiment.types.control_result import (
     ControlTargetData,
     ControlTestResult,
 )
-from veupath_chatbot.services.parameter_optimization.config import (
-    OptimizationConfig,
-    OptimizationInput,
-    ParameterSpec,
-    TrialResult,
-)
 from veupath_chatbot.services.parameter_optimization.builders import (
     TrialMetrics,
     _build_failed_trial,
     _build_successful_trial,
     _extract_trial_metrics,
+)
+from veupath_chatbot.services.parameter_optimization.config import (
+    OptimizationConfig,
+    OptimizationInput,
+    ParameterSpec,
+    TrialResult,
 )
 from veupath_chatbot.services.parameter_optimization.early_stop import (
     EarlyStopReason,
@@ -410,12 +410,15 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(
-            optimization_id=ctx.optimization_id,
-            best_trial=ctx.best_trial,
-            trials_since_improvement=0,
-            trial_num=1,
-        ) is True
+        assert (
+            _should_early_stop(
+                optimization_id=ctx.optimization_id,
+                best_trial=ctx.best_trial,
+                trials_since_improvement=0,
+                trial_num=1,
+            )
+            is True
+        )
 
     def test_plateau(self) -> None:
         best = TrialResult(
@@ -428,12 +431,15 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(
-            optimization_id=ctx.optimization_id,
-            best_trial=ctx.best_trial,
-            trials_since_improvement=10,
-            trial_num=1,
-        ) is True
+        assert (
+            _should_early_stop(
+                optimization_id=ctx.optimization_id,
+                best_trial=ctx.best_trial,
+                trials_since_improvement=10,
+                trial_num=1,
+            )
+            is True
+        )
 
     def test_no_stop(self) -> None:
         best = TrialResult(
@@ -446,21 +452,27 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(
-            optimization_id=ctx.optimization_id,
-            best_trial=ctx.best_trial,
-            trials_since_improvement=3,
-            trial_num=1,
-        ) is False
+        assert (
+            _should_early_stop(
+                optimization_id=ctx.optimization_id,
+                best_trial=ctx.best_trial,
+                trials_since_improvement=3,
+                trial_num=1,
+            )
+            is False
+        )
 
     def test_no_best_trial_no_stop(self) -> None:
         ctx = _make_ctx()
-        assert _should_early_stop(
-            optimization_id=ctx.optimization_id,
-            best_trial=ctx.best_trial,
-            trials_since_improvement=0,
-            trial_num=1,
-        ) is False
+        assert (
+            _should_early_stop(
+                optimization_id=ctx.optimization_id,
+                best_trial=ctx.best_trial,
+                trials_since_improvement=0,
+                trial_num=1,
+            )
+            is False
+        )
 
     def test_score_just_below_threshold(self) -> None:
         best = TrialResult(
@@ -473,12 +485,15 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(
-            optimization_id=ctx.optimization_id,
-            best_trial=ctx.best_trial,
-            trials_since_improvement=0,
-            trial_num=1,
-        ) is False
+        assert (
+            _should_early_stop(
+                optimization_id=ctx.optimization_id,
+                best_trial=ctx.best_trial,
+                trials_since_improvement=0,
+                trial_num=1,
+            )
+            is False
+        )
 
     def test_plateau_exact_boundary(self) -> None:
         best = TrialResult(
@@ -491,18 +506,24 @@ class TestShouldEarlyStop:
         )
         ctx = _make_ctx()
         ctx.best_trial = best
-        assert _should_early_stop(
-            optimization_id=ctx.optimization_id,
-            best_trial=ctx.best_trial,
-            trials_since_improvement=9,
-            trial_num=1,
-        ) is False
-        assert _should_early_stop(
-            optimization_id=ctx.optimization_id,
-            best_trial=ctx.best_trial,
-            trials_since_improvement=10,
-            trial_num=1,
-        ) is True
+        assert (
+            _should_early_stop(
+                optimization_id=ctx.optimization_id,
+                best_trial=ctx.best_trial,
+                trials_since_improvement=9,
+                trial_num=1,
+            )
+            is False
+        )
+        assert (
+            _should_early_stop(
+                optimization_id=ctx.optimization_id,
+                best_trial=ctx.best_trial,
+                trials_since_improvement=10,
+                trial_num=1,
+            )
+            is True
+        )
 
 
 # ===================================================================

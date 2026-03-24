@@ -69,7 +69,9 @@ class _AnalysisToolsMixin:
         api = get_strategy_api(self.site_id)
         sorting: list[WDKSortSpec] | None = None
         if sort_attribute:
-            direction: WDKSortDirection = "DESC" if sort_direction.upper() == "DESC" else "ASC"
+            direction: WDKSortDirection = (
+                "DESC" if sort_direction.upper() == "DESC" else "ASC"
+            )
             sorting = [WDKSortSpec(attribute_name=sort_attribute, direction=direction)]
 
         answer = await api.get_step_records(

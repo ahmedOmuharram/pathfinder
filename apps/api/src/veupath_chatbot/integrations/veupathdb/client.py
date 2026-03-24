@@ -465,7 +465,9 @@ class VEuPathDBClient:
         :returns: Parsed ``WDKAnswer`` with typed ``meta`` and ``records``.
         """
         payload: JSONObject = {
-            "searchConfig": search_config.model_dump(by_alias=True, exclude_defaults=True),
+            "searchConfig": search_config.model_dump(
+                by_alias=True, exclude_defaults=True
+            ),
             "reportConfig": report_config or {},
         }
         result = await self.post(

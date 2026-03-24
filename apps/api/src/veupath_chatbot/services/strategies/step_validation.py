@@ -98,9 +98,7 @@ def _validate_secondary_input(
             graphId=graph.id,
             stepId=secondary_input_step_id,
         )
-    precond_error = _check_secondary_preconditions(
-        graph, primary_input, operator
-    )
+    precond_error = _check_secondary_preconditions(graph, primary_input, operator)
     return (None, precond_error) if precond_error else (step, None)
 
 
@@ -115,9 +113,7 @@ def _validate_inputs(
     :returns: (primary_input, secondary_input, error_or_none).
         If error is not None, the caller should return it immediately.
     """
-    primary_input, primary_error = _validate_primary_input(
-        graph, primary_input_step_id
-    )
+    primary_input, primary_error = _validate_primary_input(graph, primary_input_step_id)
     if primary_error is not None:
         return None, None, primary_error
 
@@ -257,9 +253,7 @@ async def _validate_leaf_or_transform(
         return error
 
     if is_transform:
-        return await _validate_transform_input_param(
-            rt, site_id, search_name
-        )
+        return await _validate_transform_input_param(rt, site_id, search_name)
 
     # Leaf-specific: fold-change searches with identical ref and comp samples
     # produce meaningless results.
@@ -296,9 +290,7 @@ async def _validate_transform_input_param(
     """Confirm the search accepts an input step (required for transforms)."""
     try:
         wdk = get_wdk_client(site_id)
-        response = await wdk.get_search_details(
-            rt, search_name, expand_params=True
-        )
+        response = await wdk.get_search_details(rt, search_name, expand_params=True)
     except AppError as exc:
         return tool_error(
             ErrorCode.VALIDATION_ERROR,
@@ -357,12 +349,8 @@ def _validate_cross_organism_intersect(
             "Apply organism-specific filters BEFORE any ortholog "
             "transform, not after.",
             graphId=graph.id,
-            primaryOrganisms=cast(
-                "JSONValue", sorted(primary_orgs)
-            ),
-            secondaryOrganisms=cast(
-                "JSONValue", sorted(secondary_orgs)
-            ),
+            primaryOrganisms=cast("JSONValue", sorted(primary_orgs)),
+            secondaryOrganisms=cast("JSONValue", sorted(secondary_orgs)),
         )
     return None
 
@@ -372,9 +360,7 @@ def _validate_inputs_and_roots(
     primary_input_step_id: str | None,
     secondary_input_step_id: str | None,
     operator: str | None,
-) -> tuple[
-    PlanStepNode | None, PlanStepNode | None, JSONObject | None
-]:
+) -> tuple[PlanStepNode | None, PlanStepNode | None, JSONObject | None]:
     """Resolve input steps and validate root status.
 
     Returns (primary, secondary, error).
@@ -392,11 +378,7 @@ def _validate_inputs_and_roots(
         (primary_input, primary_input_step_id),
         (secondary_input, secondary_input_step_id),
     ):
-        if (
-            step_node is not None
-            and step_id is not None
-            and step_id not in graph.roots
-        ):
+        if step_node is not None and step_id is not None and step_id not in graph.roots:
             root_error = _validate_root_status(graph, step_id)
             if root_error is not None:
                 return None, None, root_error
@@ -433,9 +415,7 @@ async def _validate_step_by_kind(
     callbacks: ValidationCallbacks,
 ) -> JSONObject | None:
     """Validate a step based on its kind (leaf/transform vs binary)."""
-    is_binary = (
-        inputs.primary is not None and inputs.secondary is not None
-    )
+    is_binary = inputs.primary is not None and inputs.secondary is not None
     if not is_binary:
         return await _validate_leaf_or_transform(
             graph=graph,
@@ -446,12 +426,8 @@ async def _validate_step_by_kind(
             callbacks=callbacks,
         )
     return (
-        _validate_cross_organism_intersect(
-            graph, inputs.primary, inputs.secondary
-        )
-        if parsed_op == CombineOp.INTERSECT
-        and inputs.primary
-        and inputs.secondary
+        _validate_cross_organism_intersect(graph, inputs.primary, inputs.secondary)
+        if parsed_op == CombineOp.INTERSECT and inputs.primary and inputs.secondary
         else None
     )
 
@@ -469,9 +445,7 @@ async def _resolve_search_name_and_validate(
 
     :returns: (search_name, parsed_op, error_or_none).
     """
-    is_binary = (
-        inputs.primary is not None and inputs.secondary is not None
-    )
+    is_binary = inputs.primary is not None and inputs.secondary is not None
     search_name, name_error = _resolve_search_name(
         graph,
         spec_search_name,

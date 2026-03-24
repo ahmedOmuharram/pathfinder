@@ -335,7 +335,9 @@ class TestRunSearchReport:
             answer = await client.run_search_report(
                 "transcript",
                 "GenesByTaxon",
-                WDKSearchConfig(parameters={"organism": '["Plasmodium falciparum 3D7"]'}),
+                WDKSearchConfig(
+                    parameters={"organism": '["Plasmodium falciparum 3D7"]'}
+                ),
             )
             assert answer.meta.total_count > 0
             assert len(answer.records) > 0
@@ -363,9 +365,7 @@ class TestConcurrentAuthIsolation:
     """
 
     @pytest.mark.asyncio
-    async def test_concurrent_requests_use_own_auth_token(
-        self, base_url: str
-    ) -> None:
+    async def test_concurrent_requests_use_own_auth_token(self, base_url: str) -> None:
         """Two concurrent requests through the SAME client must each carry
         their own Authorization cookie — never the other user's."""
         shared_client = VEuPathDBClient(base_url=base_url, timeout=5.0)

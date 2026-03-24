@@ -64,7 +64,9 @@ class StrategyGraph:
         if self.description:
             plan["description"] = self.description
         if self.step_counts:
-            plan["stepCounts"] = {k: v for k, v in self.step_counts.items() if v is not None}
+            plan["stepCounts"] = {
+                k: v for k, v in self.step_counts.items() if v is not None
+            }
         if self.wdk_step_ids:
             plan["wdkStepIds"] = dict(self.wdk_step_ids)
         return plan

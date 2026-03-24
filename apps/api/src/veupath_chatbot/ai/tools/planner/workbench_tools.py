@@ -165,7 +165,9 @@ class WorkbenchToolsMixin:
         gs = await store.aget(gene_set_id)
         if gs is None:
             if self.user_id is not None:
-                available = await store.alist_for_user(self.user_id, site_id=self.site_id)
+                available = await store.alist_for_user(
+                    self.user_id, site_id=self.site_id
+                )
             else:
                 available = await store.alist_all(site_id=self.site_id)
             return {

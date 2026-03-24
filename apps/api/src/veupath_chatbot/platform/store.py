@@ -79,7 +79,7 @@ class WriteThruStore[T: Identifiable]:
         retry=retry_if_exception_type((OSError, ConnectionError, TimeoutError)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.1, max=2),
-        reraise=True,
+        reraise=False,
     )
     async def _persist_with_retry(self, entity: T) -> None:
         vals = self._to_row(entity)
@@ -118,7 +118,7 @@ class WriteThruStore[T: Identifiable]:
         retry=retry_if_exception_type((OSError, ConnectionError, TimeoutError)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.1, max=2),
-        reraise=True,
+        reraise=False,
     )
     async def _delete_from_db_with_retry(self, entity_id: str) -> None:
         stmt = sa_delete(self._model).where(self._model.id == entity_id)

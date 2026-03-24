@@ -259,7 +259,9 @@ class TestSpecialCharacterSerialization:
         assert "<script>" in msg.content
 
     def test_strategy_name_with_special_chars(self) -> None:
-        plan = StrategyPlanPayload(record_type="gene", root=PlanStepNode(search_name="X"))
+        plan = StrategyPlanPayload(
+            record_type="gene", root=PlanStepNode(search_name="X")
+        )
         req = CreateStrategyRequest(
             name='Strategy "with quotes" & <tags>',
             siteId="plasmodb",
@@ -554,5 +556,3 @@ class TestChatMentionTypeValidation:
     def test_invalid_type_rejected(self) -> None:
         with pytest.raises(ValidationError):
             ChatMention(type="gene_set", id="x", displayName="X")  # type: ignore[arg-type]
-
-

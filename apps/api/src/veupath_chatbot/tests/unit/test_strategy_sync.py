@@ -414,9 +414,7 @@ class TestExtractCountsAndValidations:
             },
         )
         wdk_step_ids = {"step_a": 100}
-        _, validations, _ = _extract_counts_and_validations(
-            strategy_info, wdk_step_ids
-        )
+        _, validations, _ = _extract_counts_and_validations(strategy_info, wdk_step_ids)
         assert "step_a" in validations
         assert validations["step_a"].is_valid is True
 
@@ -572,9 +570,7 @@ class TestSyncStrategyErrors:
         site = FakeSite()
 
         with pytest.raises(RootResolutionError, match="No steps"):
-            await sync_strategy(
-                graph=graph, api=api, site=site, site_id="plasmodb"
-            )
+            await sync_strategy(graph=graph, api=api, site=site, site_id="plasmodb")
 
     @pytest.mark.anyio
     async def test_raises_on_multiple_roots(self) -> None:
@@ -588,9 +584,7 @@ class TestSyncStrategyErrors:
         site = FakeSite()
 
         with pytest.raises(RootResolutionError, match="subtree roots"):
-            await sync_strategy(
-                graph=graph, api=api, site=site, site_id="plasmodb"
-            )
+            await sync_strategy(graph=graph, api=api, site=site, site_id="plasmodb")
 
     @pytest.mark.anyio
     async def test_raises_on_missing_wdk_step_id(self) -> None:
@@ -602,9 +596,7 @@ class TestSyncStrategyErrors:
         site = FakeSite()
 
         with pytest.raises(StrategyCompilationError, match="no WDK step ID"):
-            await sync_strategy(
-                graph=graph, api=api, site=site, site_id="plasmodb"
-            )
+            await sync_strategy(graph=graph, api=api, site=site, site_id="plasmodb")
 
 
 # ---------------------------------------------------------------------------
@@ -651,13 +643,13 @@ class TestSyncDecorations:
         api = FakeSyncAPI()
         site = FakeSite()
 
-        await sync_strategy(
-            graph=graph, api=api, site=site, site_id="plasmodb"
-        )
+        await sync_strategy(graph=graph, api=api, site=site, site_id="plasmodb")
 
         assert len(api.applied_filters) == 1
         assert api.applied_filters[0]["step_id"] == 100
-        assert api.applied_filters[0]["filter_name"] == "matched_transcript_filter_array"
+        assert (
+            api.applied_filters[0]["filter_name"] == "matched_transcript_filter_array"
+        )
 
     @pytest.mark.anyio
     async def test_analyses_applied(self) -> None:
@@ -665,7 +657,9 @@ class TestSyncDecorations:
         step = _make_step(
             "s1",
             analyses=[
-                StepAnalysis(analysis_type="go-enrichment", parameters={"goAspect": "P"})
+                StepAnalysis(
+                    analysis_type="go-enrichment", parameters={"goAspect": "P"}
+                )
             ],
         )
         graph.add_step(step)
@@ -674,9 +668,7 @@ class TestSyncDecorations:
         api = FakeSyncAPI()
         site = FakeSite()
 
-        await sync_strategy(
-            graph=graph, api=api, site=site, site_id="plasmodb"
-        )
+        await sync_strategy(graph=graph, api=api, site=site, site_id="plasmodb")
 
         assert len(api.run_analyses) == 1
         assert api.run_analyses[0]["analysis_type"] == "go-enrichment"
@@ -694,9 +686,7 @@ class TestSyncDecorations:
         api = FakeSyncAPI()
         site = FakeSite()
 
-        await sync_strategy(
-            graph=graph, api=api, site=site, site_id="plasmodb"
-        )
+        await sync_strategy(graph=graph, api=api, site=site, site_id="plasmodb")
 
         assert len(api.run_reports) == 1
         assert api.run_reports[0]["report_name"] == "tabular"
@@ -708,9 +698,7 @@ class TestSyncDecorations:
         api = FakeSyncAPI()
         site = FakeSite()
 
-        await sync_strategy(
-            graph=graph, api=api, site=site, site_id="plasmodb"
-        )
+        await sync_strategy(graph=graph, api=api, site=site, site_id="plasmodb")
 
         assert len(api.applied_filters) == 0
         assert len(api.run_analyses) == 0

@@ -212,5 +212,3 @@ def walk_step_tree(root: PlanStepNode) -> list[PlanStepNode]:
 
     visit(root)
     return steps
-
-

@@ -48,13 +48,8 @@ async def _push_step_to_wdk(
 
     try:
         api = get_strategy_api(site_id)
-        is_binary = (
-            step.primary_input is not None
-            and step.secondary_input is not None
-        )
-        is_transform = (
-            step.primary_input is not None and not is_binary
-        )
+        is_binary = step.primary_input is not None and step.secondary_input is not None
+        is_transform = step.primary_input is not None and not is_binary
 
         if is_binary:
             wdk_step_id = await _push_combine_step(
@@ -74,7 +69,7 @@ async def _push_step_to_wdk(
             try:
                 wdk_step = await api.find_step(wdk_step_id)
                 wdk_validation = wdk_step.validation
-            except (AppError, OSError):
+            except AppError, OSError:
                 wdk_validation = None
 
     except (AppError, OSError) as exc:
@@ -118,23 +113,16 @@ async def _push_combine_step(
     Returns the WDK step ID or None if inputs are missing.
     """
     primary_wdk_id = (
-        graph.wdk_step_ids.get(step.primary_input.id)
-        if step.primary_input
-        else None
+        graph.wdk_step_ids.get(step.primary_input.id) if step.primary_input else None
     )
     secondary_wdk_id = (
         graph.wdk_step_ids.get(step.secondary_input.id)
         if step.secondary_input
         else None
     )
-    if (
-        primary_wdk_id is None
-        or secondary_wdk_id is None
-        or parsed_op is None
-    ):
+    if primary_wdk_id is None or secondary_wdk_id is None or parsed_op is None:
         logger.warning(
-            "Cannot push combine step: missing WDK input IDs "
-            "or operator",
+            "Cannot push combine step: missing WDK input IDs or operator",
             step_id=step.id,
             primary_wdk_id=primary_wdk_id,
             secondary_wdk_id=secondary_wdk_id,
@@ -168,9 +156,7 @@ async def _push_transform_step(
     Returns the WDK step ID or None if input is missing.
     """
     input_wdk_id = (
-        graph.wdk_step_ids.get(step.primary_input.id)
-        if step.primary_input
-        else None
+        graph.wdk_step_ids.get(step.primary_input.id) if step.primary_input else None
     )
     if input_wdk_id is None:
         logger.warning(

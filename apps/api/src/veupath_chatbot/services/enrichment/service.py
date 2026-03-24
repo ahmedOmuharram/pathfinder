@@ -326,7 +326,5 @@ class EnrichmentService:
                     error=error_msg,
                 )
 
-        results = list(
-            await asyncio.gather(*[_run_one(t) for t in analysis_types])
-        )
+        results = list(await asyncio.gather(*[_run_one(t) for t in analysis_types]))
         return results, errors

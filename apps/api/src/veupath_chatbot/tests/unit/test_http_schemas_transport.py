@@ -165,12 +165,16 @@ class TestExtraFieldBehavior:
 
 class TestCreateStrategyRequestConstraints:
     def test_name_min_length(self) -> None:
-        plan = StrategyPlanPayload(record_type="gene", root=PlanStepNode(search_name="X"))
+        plan = StrategyPlanPayload(
+            record_type="gene", root=PlanStepNode(search_name="X")
+        )
         with pytest.raises(ValidationError):
             CreateStrategyRequest(name="", siteId="x", plan=plan)
 
     def test_name_max_length(self) -> None:
-        plan = StrategyPlanPayload(record_type="gene", root=PlanStepNode(search_name="X"))
+        plan = StrategyPlanPayload(
+            record_type="gene", root=PlanStepNode(search_name="X")
+        )
         CreateStrategyRequest(name="a" * 255, siteId="x", plan=plan)
         with pytest.raises(ValidationError):
             CreateStrategyRequest(name="a" * 256, siteId="x", plan=plan)

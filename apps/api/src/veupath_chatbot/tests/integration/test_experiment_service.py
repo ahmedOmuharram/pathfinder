@@ -513,9 +513,7 @@ class TestErrorSetsStatus:
 
         # Even though it raised, the store should have the error experiment
         store = get_experiment_store()
-        error_exps = [
-            e for e in store._cache.values() if e.status == "error"
-        ]
+        error_exps = [e for e in store._cache.values() if e.status == "error"]
         assert len(error_exps) == 1
         assert error_exps[0].error == "WDK connection refused"
 

@@ -24,7 +24,9 @@ _MIN_TOKEN_LEN = 2
 
 def _tokenize(text: str) -> set[str]:
     """Lowercase tokenization — split on non-alphanumeric, keep tokens >= 2 chars."""
-    return {tok for tok in _TOKEN_RE.findall(text.lower()) if len(tok) >= _MIN_TOKEN_LEN}
+    return {
+        tok for tok in _TOKEN_RE.findall(text.lower()) if len(tok) >= _MIN_TOKEN_LEN
+    }
 
 
 def _score_strategy(strategy: WDKStrategySummary, query_tokens: set[str]) -> float:
@@ -61,8 +63,7 @@ def rank_public_strategies(
         return []
 
     scored = [
-        (strategy, _score_strategy(strategy, query_tokens))
-        for strategy in strategies
+        (strategy, _score_strategy(strategy, query_tokens)) for strategy in strategies
     ]
     scored = [(s, score) for s, score in scored if score > 0]
     scored.sort(key=lambda x: x[1], reverse=True)

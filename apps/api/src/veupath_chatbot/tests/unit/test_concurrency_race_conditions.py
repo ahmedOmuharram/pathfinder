@@ -291,9 +291,7 @@ class TestParamOptimizationCacheDedup:
                 positive_controls=ctx.inp.positive_controls,
                 negative_controls=ctx.inp.negative_controls,
             )
-            result = await _evaluate_trial(
-                req, optimised_params, sem, cache, key_locks
-            )
+            result = await _evaluate_trial(req, optimised_params, sem, cache, key_locks)
 
         mock_controls.assert_not_called()
         assert result == cached_result

@@ -18,10 +18,10 @@ from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
     _convert_params_for_httpx,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import encode_wdk_params
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
 from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo
 from veupath_chatbot.integrations.veupathdb.temporary_results import TemporaryResultsAPI
+from veupath_chatbot.integrations.veupathdb.wdk_models import encode_wdk_params
 from veupath_chatbot.platform.errors import WDKError
 
 # ---------------------------------------------------------------------------
@@ -358,9 +358,7 @@ class TestEncodeContextEdgeCases:
         assert result["items"] == "[]"
 
     def test_nested_dict_json_encoded(self) -> None:
-        result = encode_wdk_params(
-            {"config": {"key": "val", "nested": [1, 2]}}
-        )
+        result = encode_wdk_params({"config": {"key": "val", "nested": [1, 2]}})
         parsed = json.loads(result["config"])
         assert parsed == {"key": "val", "nested": [1, 2]}
 
@@ -632,9 +630,7 @@ class TestConvenienceMethodEdgeCases:
             p1, p2 = _patch_settings_and_ctx()
             with p1, p2:
                 # Callers are responsible for encoding; client passes through.
-                encoded = encode_wdk_params(
-                    {"organism": ["P. falciparum", "P. vivax"]}
-                )
+                encoded = encode_wdk_params({"organism": ["P. falciparum", "P. vivax"]})
                 await client.get_search_details_with_params(
                     "gene",
                     "GenesByTaxonGene",

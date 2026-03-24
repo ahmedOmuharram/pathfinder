@@ -307,7 +307,7 @@ class LiteratureSearchService:
         for src, source_payload_raw in by_source.items():
             try:
                 payload = _SourcePayload.model_validate(source_payload_raw)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
 
             for i, item in enumerate(payload.results):

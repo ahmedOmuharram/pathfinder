@@ -14,8 +14,10 @@ from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
     _convert_params_for_httpx,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import encode_wdk_params
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordType
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKRecordType,
+    encode_wdk_params,
+)
 from veupath_chatbot.platform.errors import WDKError
 
 # ---------------------------------------------------------------------------
@@ -31,9 +33,7 @@ class TestEncodeContextParamValues:
         assert result == {"organism": "P. falciparum"}
 
     def test_list_values_json_encoded(self) -> None:
-        result = encode_wdk_params(
-            {"organism": ["P. falciparum", "P. vivax"]}
-        )
+        result = encode_wdk_params({"organism": ["P. falciparum", "P. vivax"]})
         assert result["organism"] == '["P. falciparum", "P. vivax"]'
 
     def test_dict_values_json_encoded(self) -> None:

@@ -72,9 +72,7 @@ class ReportsMixin(StrategyAPIBase):
         if pagination:
             report_config["pagination"] = pagination
         if sorting:
-            report_config["sorting"] = [
-                s.model_dump(by_alias=True) for s in sorting
-            ]
+            report_config["sorting"] = [s.model_dump(by_alias=True) for s in sorting]
 
         uid = await self._get_user_id(user_id)
         return await self._standard_report(step_id, report_config, user_id=uid)

@@ -19,11 +19,11 @@ from httpx import Response
 from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import encode_wdk_params
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKRecordType,
     WDKSearch,
     WDKSearchResponse,
+    encode_wdk_params,
 )
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
@@ -114,10 +114,12 @@ async def test_get_refreshed_dependent_params(client: VEuPathDBClient) -> None:
         },
     ]
 
-    context = encode_wdk_params({
-        "organism": ["Plasmodium falciparum 3D7"],
-        "text_expression": "kinase",
-    })
+    context = encode_wdk_params(
+        {
+            "organism": ["Plasmodium falciparum 3D7"],
+            "text_expression": "kinase",
+        }
+    )
 
     route = respx.post(
         f"{BASE}/record-types/gene/searches/GenesByTaxon/refreshed-dependent-params",

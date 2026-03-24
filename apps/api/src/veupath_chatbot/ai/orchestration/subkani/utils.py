@@ -216,7 +216,11 @@ def format_dependency_context(
         dep_instructions = dep_node.instructions if dep_node else ""
         dep_result = results_by_id.get(dep_id)
 
-        dep_result_dict = dep_result.model_dump(by_alias=True, exclude_none=True) if dep_result else None
+        dep_result_dict = (
+            dep_result.model_dump(by_alias=True, exclude_none=True)
+            if dep_result
+            else None
+        )
         dep_steps: list[str] = (
             _collect_dep_steps(as_json_object(dep_result_dict), structured_steps)
             if isinstance(dep_result_dict, dict)
@@ -248,5 +252,3 @@ def format_task_context(context: JSONValue) -> str | None:
         logger.debug("Failed to serialize task context as JSON", error=str(exc))
         result = str(context).strip()
     return result or None
-
-

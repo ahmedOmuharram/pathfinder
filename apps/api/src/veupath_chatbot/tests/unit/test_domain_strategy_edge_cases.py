@@ -76,7 +76,9 @@ class TestModelValidateEdgeCases:
 
     def test_non_string_record_type_raises(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyPlanPayload.model_validate({"recordType": 42, "root": {"searchName": "S1"}})
+            StrategyPlanPayload.model_validate(
+                {"recordType": 42, "root": {"searchName": "S1"}}
+            )
 
     def test_root_is_list_raises(self) -> None:
         with pytest.raises(PydanticValidationError):
@@ -86,7 +88,9 @@ class TestModelValidateEdgeCases:
 
     def test_root_is_string_raises(self) -> None:
         with pytest.raises(PydanticValidationError):
-            StrategyPlanPayload.model_validate({"recordType": "gene", "root": "not_a_dict"})
+            StrategyPlanPayload.model_validate(
+                {"recordType": "gene", "root": "not_a_dict"}
+            )
 
     def test_invalid_operator_string(self) -> None:
         """Invalid operator string should raise PydanticValidationError."""

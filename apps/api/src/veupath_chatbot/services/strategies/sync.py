@@ -407,8 +407,7 @@ def _validate_graph(root_step: PlanStepNode, record_type: str | None) -> None:
     validation_result = validate_strategy(root_step, record_type)
     if not validation_result.valid:
         errors = [
-            {"path": e.path, "message": e.message}
-            for e in validation_result.errors
+            {"path": e.path, "message": e.message} for e in validation_result.errors
         ]
         msg = f"Strategy validation failed: {errors}"
         raise StrategyCompilationError(msg)

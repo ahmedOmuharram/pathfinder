@@ -6,7 +6,9 @@ from veupath_chatbot.services.catalog.public_strategy_search import (
 )
 
 
-def _strat(name: str, description: str = "", name_of_first_step: str = "", **kw: object) -> WDKStrategySummary:
+def _strat(
+    name: str, description: str = "", name_of_first_step: str = "", **kw: object
+) -> WDKStrategySummary:
     return WDKStrategySummary(
         strategy_id=kw.get("strategy_id", 1),
         name=name,
@@ -25,7 +27,9 @@ class TestRankPublicStrategies:
             _strat("RNA-seq gametocyte genes"),
             _strat("Another one", "gametocyte analysis"),
         ]
-        results = rank_public_strategies(strategies, query="RNA-seq gametocyte", limit=3)
+        results = rank_public_strategies(
+            strategies, query="RNA-seq gametocyte", limit=3
+        )
         assert results[0]["name"] == "RNA-seq gametocyte genes"
 
     def test_description_match_contributes(self) -> None:
@@ -72,4 +76,6 @@ class TestRankPublicStrategies:
         strategies = [_strat("Test", strategy_id=42)]
         results = rank_public_strategies(strategies, query="test", limit=3)
         assert len(results) == 1
-        assert results[0]["strategyId"] == 42  # camelCase from model_dump(by_alias=True)
+        assert (
+            results[0]["strategyId"] == 42
+        )  # camelCase from model_dump(by_alias=True)

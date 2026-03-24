@@ -612,10 +612,9 @@ class TestSearchConfigParamCoercion:
     def test_none_values_rejected(self) -> None:
         """None is not a valid WDK parameter — upstream must exclude_none."""
         import pydantic
+
         with pytest.raises(pydantic.ValidationError):
-            WDKSearchConfig.model_validate(
-                {"parameters": {"a": "x", "b": None}}
-            )
+            WDKSearchConfig.model_validate({"parameters": {"a": "x", "b": None}})
 
     def test_empty_dict(self) -> None:
         cfg = WDKSearchConfig(parameters={})

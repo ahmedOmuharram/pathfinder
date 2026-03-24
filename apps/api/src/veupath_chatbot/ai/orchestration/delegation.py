@@ -54,9 +54,7 @@ class CompiledCombine(CamelModel):
     task: str
 
 
-CompiledNode = Annotated[
-    CompiledTask | CompiledCombine, Discriminator("kind")
-]
+CompiledNode = Annotated[CompiledTask | CompiledCombine, Discriminator("kind")]
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +164,7 @@ class _PlanCompiler:
             return "task"
         return ""
 
-    def _compile_combine_node(
-        self, node: JSONObject
-    ) -> str | JSONObject:
+    def _compile_combine_node(self, node: JSONObject) -> str | JSONObject:
         """Compile a combine node into the DAG."""
         op_raw = _get_field(node, "operator", "op")
         operator = _op_value(op_raw)
@@ -193,7 +189,9 @@ class _PlanCompiler:
         display_name_raw = _get_field(node, "display_name", "displayName")
         display_name = str(display_name_raw) if display_name_raw is not None else None
         instructions_raw = _get_field(node, "instructions")
-        instructions = str(instructions_raw).strip() if instructions_raw is not None else ""
+        instructions = (
+            str(instructions_raw).strip() if instructions_raw is not None else ""
+        )
 
         signature: JSONObject = {
             "kind": "combine",

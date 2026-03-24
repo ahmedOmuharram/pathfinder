@@ -25,9 +25,7 @@ class TestRunOnStep:
                 "veupath_chatbot.services.enrichment.service.get_strategy_api",
                 return_value=MagicMock(),
             ) as mock_api,
-            patch.object(
-                svc, "_execute_analysis", new_callable=AsyncMock
-            ) as mock_exec,
+            patch.object(svc, "_execute_analysis", new_callable=AsyncMock) as mock_exec,
         ):
             mock_exec.return_value = _MOCK_RESULT
             result = await svc.run(
@@ -35,9 +33,7 @@ class TestRunOnStep:
                 step_id=42,
                 analysis_type="go_process",
             )
-            mock_exec.assert_called_once_with(
-                mock_api.return_value, 42, "go_process"
-            )
+            mock_exec.assert_called_once_with(mock_api.return_value, 42, "go_process")
             assert result.analysis_type == "go_process"
 
     @pytest.mark.asyncio
@@ -49,9 +45,7 @@ class TestRunOnStep:
                 "veupath_chatbot.services.enrichment.service.get_strategy_api",
                 return_value=MagicMock(),
             ),
-            patch.object(
-                svc, "_execute_analysis", new_callable=AsyncMock
-            ) as mock_exec,
+            patch.object(svc, "_execute_analysis", new_callable=AsyncMock) as mock_exec,
         ):
             mock_exec.return_value = _MOCK_RESULT
             await svc.run(
@@ -71,12 +65,8 @@ class TestRunOnSearch:
     async def test_creates_temp_strategy(self) -> None:
         svc = EnrichmentService()
         mock_api = MagicMock()
-        mock_api.create_step = AsyncMock(
-            return_value=MagicMock(id=99)
-        )
-        mock_api.create_strategy = AsyncMock(
-            return_value=MagicMock(id=200)
-        )
+        mock_api.create_step = AsyncMock(return_value=MagicMock(id=99))
+        mock_api.create_strategy = AsyncMock(return_value=MagicMock(id=200))
         with (
             patch(
                 "veupath_chatbot.services.enrichment.service.get_strategy_api",
@@ -86,9 +76,7 @@ class TestRunOnSearch:
                 "veupath_chatbot.services.enrichment.service.delete_temp_strategy",
                 new_callable=AsyncMock,
             ) as mock_delete,
-            patch.object(
-                svc, "_execute_analysis", new_callable=AsyncMock
-            ) as mock_exec,
+            patch.object(svc, "_execute_analysis", new_callable=AsyncMock) as mock_exec,
         ):
             mock_exec.return_value = EnrichmentResult(
                 analysis_type="pathway",
@@ -125,7 +113,9 @@ class TestRunOnSearch:
                 new_callable=AsyncMock,
             ),
             patch.object(
-                svc, "_execute_analysis", new_callable=AsyncMock,
+                svc,
+                "_execute_analysis",
+                new_callable=AsyncMock,
                 return_value=_MOCK_RESULT,
             ),
         ):
@@ -154,9 +144,7 @@ class TestRunBatch:
                 "veupath_chatbot.services.enrichment.service.get_strategy_api",
                 return_value=MagicMock(),
             ),
-            patch.object(
-                svc, "_execute_analysis", new_callable=AsyncMock
-            ) as mock_exec,
+            patch.object(svc, "_execute_analysis", new_callable=AsyncMock) as mock_exec,
         ):
             mock_exec.side_effect = [
                 EnrichmentResult(
@@ -189,9 +177,7 @@ class TestRunBatch:
                 "veupath_chatbot.services.enrichment.service.get_strategy_api",
                 return_value=MagicMock(),
             ),
-            patch.object(
-                svc, "_execute_analysis", new_callable=AsyncMock
-            ) as mock_exec,
+            patch.object(svc, "_execute_analysis", new_callable=AsyncMock) as mock_exec,
         ):
             mock_exec.side_effect = [
                 EnrichmentResult(

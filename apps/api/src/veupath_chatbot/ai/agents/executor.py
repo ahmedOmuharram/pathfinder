@@ -251,9 +251,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
             if self._auto_build_gene_set_id:
                 gs = store.get(self._auto_build_gene_set_id)
             if gs is None:
-                gs = svc.find_by_wdk_strategy(
-                    self.user_id, sync_result.wdk_strategy_id
-                )
+                gs = svc.find_by_wdk_strategy(self.user_id, sync_result.wdk_strategy_id)
 
             if gs is not None:
                 gs.wdk_strategy_id = sync_result.wdk_strategy_id

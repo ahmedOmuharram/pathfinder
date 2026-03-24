@@ -390,7 +390,9 @@ class TestSubtypeFieldsOnBase:
         assert param.max_selected_count is None  # -1 normalized to None
 
     def test_number_param_shadows_base_defaults(self) -> None:
-        param = WDKNumberParam(name="n", type="number", min=0.0, max=100.0, increment=1.0)
+        param = WDKNumberParam(
+            name="n", type="number", min=0.0, max=100.0, increment=1.0
+        )
         assert param.min == 0.0
         assert param.max == 100.0
         assert param.increment == 1.0
