@@ -172,6 +172,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sites/{siteId}/searches/{recordType}/{searchName}/refreshed-dependent-params": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Dependent Params
+         * @description Refresh dependent parameter vocabularies after a param value changes.
+         */
+        post: operations["refresh_dependent_params_api_v1_sites__siteId__searches__recordType___searchName__refreshed_dependent_params_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sites/{siteId}/organisms": {
         parameters: {
             query?: never;
@@ -2087,6 +2107,15 @@ export type components = {
             oddsRatio: number;
         };
         /**
+         * DependentParamsRequest
+         * @description Dependent parameter values request.
+         */
+        DependentParamsRequest: {
+            /** Parametername */
+            parameterName: string;
+            contextValues?: components["schemas"]["JSONObject"];
+        };
+        /**
          * EnrichmentCompareRequest
          * @description Request to compare enrichment results across experiments.
          */
@@ -3502,12 +3531,17 @@ export type components = {
         };
         /**
          * PlanStepNode
-         * @description Untyped recursive strategy node.
+         * @description Recursive strategy node.
          *
          *     Kind is inferred from structure:
          *     - combine: primary_input and secondary_input
          *     - transform: primary_input only
          *     - search: no inputs
+         *
+         *     ``parameters`` accepts ``JSONObject`` (LLM's natural output).
+         *     ``WDKSerializedParams`` applies a ``PlainSerializer`` so that
+         *     ``model_dump(exclude_none=True)`` produces WDK-compatible
+         *     ``dict[str, str]`` (``Record<string, ParameterValue>``).
          */
         "PlanStepNode-Input": {
             /** Searchname */
@@ -3532,17 +3566,24 @@ export type components = {
         };
         /**
          * PlanStepNode
-         * @description Untyped recursive strategy node.
+         * @description Recursive strategy node.
          *
          *     Kind is inferred from structure:
          *     - combine: primary_input and secondary_input
          *     - transform: primary_input only
          *     - search: no inputs
+         *
+         *     ``parameters`` accepts ``JSONObject`` (LLM's natural output).
+         *     ``WDKSerializedParams`` applies a ``PlainSerializer`` so that
+         *     ``model_dump(exclude_none=True)`` produces WDK-compatible
+         *     ``dict[str, str]`` (``Record<string, ParameterValue>``).
          */
         "PlanStepNode-Output": {
             /** Searchname */
             searchName: string;
-            parameters?: components["schemas"]["JSONObject"];
+            parameters?: {
+                [key: string]: string;
+            };
             primaryInput?: components["schemas"]["PlanStepNode-Output"] | null;
             secondaryInput?: components["schemas"]["PlanStepNode-Output"] | null;
             operator?: components["schemas"]["CombineOp"] | null;
@@ -4306,13 +4347,16 @@ export type components = {
         /**
          * StrategyUpdateEventData
          * @description Payload for ``strategy_update`` SSE events.
+         *
+         *     ``all_steps`` is ``list[JSONObject]`` (pre-serialized StepResponse dicts)
+         *     to avoid coupling this platform-level schema to service-layer types.
          */
         StrategyUpdateEventData: {
             /** Graphid */
             graphId?: string | null;
             step?: components["schemas"]["JSONObject"] | null;
             /** Allsteps */
-            allSteps?: components["schemas"]["StepResponse"][];
+            allSteps?: components["schemas"]["JSONObject"][];
         };
         /**
          * SubKaniActivityResponse
@@ -4416,9 +4460,9 @@ export type components = {
          * @description System configuration status (unauthenticated).
          */
         SystemConfigResponse: {
-            /** Chat Provider */
+            /** Chatprovider */
             chatProvider: string;
-            /** Llm Configured */
+            /** Llmconfigured */
             llmConfigured: boolean;
             providers: components["schemas"]["ProviderStatus"];
         };
@@ -4978,6 +5022,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ParamSpecsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParamSpecResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_dependent_params_api_v1_sites__siteId__searches__recordType___searchName__refreshed_dependent_params_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                siteId: string;
+                recordType: string;
+                searchName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DependentParamsRequest"];
             };
         };
         responses: {
