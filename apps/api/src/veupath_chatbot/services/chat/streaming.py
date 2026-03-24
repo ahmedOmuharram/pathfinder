@@ -14,15 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from veupath_chatbot.ai.models.pricing import estimate_cost
 from veupath_chatbot.platform.errors import ErrorCode
-from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.parsing import parse_jsonish
-from veupath_chatbot.platform.pydantic_validation import (
-    parse_pydantic_validation_error_text,
-)
-from veupath_chatbot.platform.tool_errors import tool_error
-from veupath_chatbot.platform.types import JSONArray, JSONObject
-from veupath_chatbot.services.chat.events import tool_result_to_events
-from veupath_chatbot.transport.http.schemas.sse import (
+from veupath_chatbot.platform.event_schemas import (
     AssistantDeltaEventData,
     AssistantMessageEventData,
     ErrorEventData,
@@ -32,6 +24,14 @@ from veupath_chatbot.transport.http.schemas.sse import (
     ToolCallEndEventData,
     ToolCallStartEventData,
 )
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.parsing import parse_jsonish
+from veupath_chatbot.platform.pydantic_validation import (
+    parse_pydantic_validation_error_text,
+)
+from veupath_chatbot.platform.tool_errors import tool_error
+from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.services.chat.events import tool_result_to_events
 
 logger = get_logger(__name__)
 

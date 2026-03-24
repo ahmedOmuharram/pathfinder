@@ -18,7 +18,8 @@ from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
+
+from .schemas import StrategyPlanPayload
 
 
 def _strip_combine_bq_keys(params: JSONObject) -> None:

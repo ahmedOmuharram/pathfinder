@@ -28,7 +28,7 @@ from veupath_chatbot.platform.errors import (
 )
 from veupath_chatbot.platform.logging import get_logger, setup_logging
 from veupath_chatbot.platform.redis import close_redis, init_redis
-from veupath_chatbot.platform.security import limiter
+from veupath_chatbot.platform.security import csrf_middleware, limiter
 from veupath_chatbot.transport.http.routers import (
     chat,
     control_sets,
@@ -180,6 +180,7 @@ def create_app() -> FastAPI:
             "Authorization",
             "Content-Type",
             "X-Request-ID",
+            "X-Requested-With",
             "X-VEUPATHDB-AUTH",
             "X-VEUPATHDB-AUTHORIZATION",
         ],
@@ -187,6 +188,10 @@ def create_app() -> FastAPI:
 
     # Rate limiter (slowapi)
     app.state.limiter = limiter
+
+    # CSRF protection — require X-Requested-With on state-changing requests.
+    # Registered after CORSMiddleware so OPTIONS preflight passes through.
+    app.middleware("http")(csrf_middleware)
 
     # Request ID middleware
     @app.middleware("http")

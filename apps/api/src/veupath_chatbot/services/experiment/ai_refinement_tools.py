@@ -14,16 +14,12 @@ from veupath_chatbot.domain.strategy.ops import (
     DEFAULT_COMBINE_OPERATOR,
 )
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     NewStepSpec,
-    PatchStepSpec,
     WDKDatasetConfigIdList,
     WDKDatasetIdListContent,
     WDKSearchConfig,
-    WDKStepTree,
 )
-from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import resolve_controls_param_type
 from veupath_chatbot.services.experiment.ai_analysis_helpers import (
@@ -32,6 +28,10 @@ from veupath_chatbot.services.experiment.ai_analysis_helpers import (
 from veupath_chatbot.services.experiment.metrics import (
     compute_confusion_matrix,
     compute_metrics,
+)
+from veupath_chatbot.services.experiment.refine import (
+    combine_steps,
+    combine_with_search,
 )
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
@@ -76,18 +76,20 @@ class RefinementToolsMixin:
             return {"error": "Experiment has no WDK strategy"}
 
         api = get_strategy_api(self.site_id)
-        record_type = exp.config.record_type
-
-        new_step = await api.create_step(
-            NewStepSpec(
-                search_name=search_name,
-                search_config=WDKSearchConfig(parameters=parameters),
-                custom_name=f"AI refinement: {search_name}",
-            ),
-            record_type=record_type,
+        store = get_experiment_store()
+        result = await combine_with_search(
+            api=api, exp=exp, search_name=search_name,
+            parameters=parameters, operator=operator, store=store,
         )
-
-        return await self._combine_and_update(exp, api, new_step.id, operator)
+        return cast(
+            "JSONObject",
+            {
+                "success": True,
+                "newStepId": result.new_step_id,
+                "operator": result.operator,
+                "estimatedSize": result.estimated_size,
+            },
+        )
 
     @ai_function()
     async def refine_with_gene_ids(
@@ -122,7 +124,7 @@ class RefinementToolsMixin:
             api, record_type, controls_search, controls_param
         )
 
-        params: JSONObject = {}
+        params: dict[str, str] = {}
         if param_type == "input-dataset":
             config = WDKDatasetConfigIdList(
                 source_type="idList",
@@ -142,9 +144,22 @@ class RefinementToolsMixin:
             record_type=record_type,
         )
 
-        result = await self._combine_and_update(exp, api, new_step.id, operator)
-        result["geneCount"] = len(gene_ids)
-        return result
+        store = get_experiment_store()
+        result = await combine_steps(
+            api=api, exp=exp, secondary_step_id=new_step.id,
+            operator=operator, store=store,
+            custom_name=f"AI {operator} refinement",
+        )
+        return cast(
+            "JSONObject",
+            {
+                "success": True,
+                "newStepId": result.new_step_id,
+                "operator": result.operator,
+                "estimatedSize": result.estimated_size,
+                "geneCount": len(gene_ids),
+            },
+        )
 
     @ai_function()
     async def re_evaluate_controls(self) -> JSONObject:
@@ -196,61 +211,3 @@ class RefinementToolsMixin:
             },
         )
 
-    # -- Internal helpers -------------------------------------------------
-
-    async def _combine_and_update(
-        self,
-        exp: Experiment,
-        api: StrategyAPI,
-        new_step_id: int,
-        operator: str,
-    ) -> JSONObject:
-        """Create a boolean combine step and update the experiment strategy.
-
-        :param exp: Current experiment.
-        :param api: Strategy API instance.
-        :param new_step_id: ID of the new step to combine with.
-        :param operator: Boolean operator (INTERSECT, UNION, MINUS).
-        :returns: Result dict with success status and new step info.
-        """
-        if exp.wdk_strategy_id is None:
-            msg = "exp.wdk_strategy_id must not be None"
-            raise InternalError(detail=msg)
-        if exp.wdk_step_id is None:
-            msg = "exp.wdk_step_id must not be None"
-            raise InternalError(detail=msg)
-
-        combined = await api.create_combined_step(
-            primary_step_id=exp.wdk_step_id,
-            secondary_step_id=new_step_id,
-            boolean_operator=operator,
-            record_type=exp.config.record_type,
-            spec_overrides=PatchStepSpec(custom_name=f"AI {operator} refinement"),
-        )
-        combined_id = combined.id
-
-        new_tree = WDKStepTree(
-            step_id=combined_id,
-            primary_input=WDKStepTree(step_id=exp.wdk_step_id),
-            secondary_input=WDKStepTree(step_id=new_step_id),
-        )
-        await api.update_strategy(exp.wdk_strategy_id, step_tree=new_tree)
-
-        exp.wdk_step_id = combined_id
-        store = get_experiment_store()
-        store.save(exp)
-
-        try:
-            count = await api.get_step_count(combined_id)
-        except AppError:
-            count = None
-
-        return cast(
-            "JSONObject",
-            {
-                "success": True,
-                "newStepId": combined_id,
-                "operator": operator,
-                "estimatedSize": count,
-            },
-        )

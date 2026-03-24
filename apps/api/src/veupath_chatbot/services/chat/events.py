@@ -5,8 +5,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from veupath_chatbot.domain.strategy.session import StrategyGraph
-from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.transport.http.schemas.sse import (
+from veupath_chatbot.platform.event_schemas import (
     ExecutorBuildRequestEventData,
     GraphClearedEventData,
     GraphPlanEventData,
@@ -15,7 +14,8 @@ from veupath_chatbot.transport.http.schemas.sse import (
     StrategyMetaEventData,
     StrategyUpdateEventData,
 )
-from veupath_chatbot.transport.http.schemas.steps import StepResponse
+from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.strategies.schemas import StepResponse
 
 
 class EventType(StrEnum):
@@ -120,7 +120,7 @@ def _extract_step_update(
                 id=sid,
                 kind=s.infer_kind(),
                 display_name=s.display_name or s.search_name,
-            )
+            ).model_dump(by_alias=True, exclude_none=True)
             for sid, s in graph.steps.items()
         ]
         if graph

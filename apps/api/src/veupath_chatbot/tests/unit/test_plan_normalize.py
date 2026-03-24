@@ -10,7 +10,7 @@ from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.strategies.plan_normalize import (
     canonicalize_plan_parameters,
 )
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
+from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 
 # -- Helpers ----------------------------------------------------------------
 

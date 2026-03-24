@@ -77,6 +77,7 @@ export function getAuthHeaders(opts?: {
   extra?: Record<string, string>;
 }): Record<string, string> {
   return {
+    "X-Requested-With": "XMLHttpRequest",
     ...(opts?.accept != null && opts.accept !== "" ? { Accept: opts.accept } : {}),
     ...(opts?.contentType != null && opts.contentType !== ""
       ? { "Content-Type": opts.contentType }

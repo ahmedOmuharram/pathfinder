@@ -6,11 +6,8 @@ from typing import Annotated, cast
 from fastapi import APIRouter, Depends, Query
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
-    NewStepSpec,
-    PatchStepSpec,
-    WDKSearchConfig,
     WDKSortDirection,
-    WDKStepTree,
+    encode_wdk_params,
 )
 from veupath_chatbot.platform.errors import (
     NotFoundError,
@@ -19,6 +16,10 @@ from veupath_chatbot.platform.errors import (
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.classification import classify_records
+from veupath_chatbot.services.experiment.refine import (
+    apply_transform,
+    combine_with_search,
+)
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.wdk import get_strategy_api
 from veupath_chatbot.services.wdk.step_results import StepResultsService
@@ -188,65 +189,31 @@ async def refine_experiment(
     user_id: CurrentUser,
 ) -> JSONObject:
     """Add a step to the experiment's strategy (combine, transform, etc.)."""
-    if not exp.wdk_strategy_id or not exp.wdk_step_id:
-        raise NotFoundError(title="No WDK strategy for this experiment")
-
     api = get_strategy_api(exp.config.site_id)
-    record_type = exp.config.record_type
     store = get_experiment_store()
 
+    params = encode_wdk_params(request.parameters)
+
     if request.action == "combine":
-        new_step = await api.create_step(
-            NewStepSpec(
-                search_name=request.search_name,
-                search_config=WDKSearchConfig(parameters=request.parameters),
-                custom_name=f"Refinement: {request.search_name}",
-            ),
-            record_type=record_type,
+        result = await combine_with_search(
+            api=api,
+            exp=exp,
+            search_name=request.search_name,
+            parameters=params,
+            operator=request.operator,
+            store=store,
         )
-        new_step_id = new_step.id
-
-        combined = await api.create_combined_step(
-            primary_step_id=exp.wdk_step_id,
-            secondary_step_id=new_step_id,
-            boolean_operator=request.operator,
-            record_type=record_type,
-            spec_overrides=PatchStepSpec(custom_name=f"{request.operator} refinement"),
-        )
-        combined_id = combined.id
-
-        new_tree = WDKStepTree(
-            step_id=combined_id,
-            primary_input=WDKStepTree(step_id=exp.wdk_step_id),
-            secondary_input=WDKStepTree(step_id=new_step_id),
-        )
-        await api.update_strategy(exp.wdk_strategy_id, step_tree=new_tree)
-        exp.wdk_step_id = combined_id
-        store.save(exp)
-
-        return {"success": True, "newStepId": combined_id}
+        return {"success": True, "newStepId": result.new_step_id}
 
     if request.action == "transform":
-        new_step = await api.create_transform_step(
-            NewStepSpec(
-                search_name=request.transform_name,
-                search_config=WDKSearchConfig(parameters=request.parameters),
-                custom_name=f"Transform: {request.transform_name}",
-            ),
-            input_step_id=exp.wdk_step_id,
-            record_type=record_type,
+        result = await apply_transform(
+            api=api,
+            exp=exp,
+            transform_name=request.transform_name,
+            parameters=params,
+            store=store,
         )
-        new_step_id = new_step.id
-
-        new_tree = WDKStepTree(
-            step_id=new_step_id,
-            primary_input=WDKStepTree(step_id=exp.wdk_step_id),
-        )
-        await api.update_strategy(exp.wdk_strategy_id, step_tree=new_tree)
-        exp.wdk_step_id = new_step_id
-        store.save(exp)
-
-        return {"success": True, "newStepId": new_step_id}
+        return {"success": True, "newStepId": result.new_step_id}
 
     raise ValidationError(
         title=f"Unknown refine action: {request.action}",

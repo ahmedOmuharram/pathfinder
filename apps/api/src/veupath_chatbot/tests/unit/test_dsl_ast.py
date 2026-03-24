@@ -12,7 +12,7 @@ from veupath_chatbot.domain.strategy.ast import (
     walk_step_tree,
 )
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
+from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 
 
 class TestInferKind:

@@ -32,7 +32,8 @@ from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_helpers import delete_temp_strategy
 from veupath_chatbot.services.strategies.sync import build_step_tree_from_graph
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
+
+from .schemas import StrategyPlanPayload
 
 logger = get_logger(__name__)
 

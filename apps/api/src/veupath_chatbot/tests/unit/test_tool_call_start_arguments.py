@@ -4,7 +4,7 @@ Kani's FunctionCall.kwargs returns a parsed dict from the JSON arguments string.
 The call site in streaming.py passes kwargs (always a dict), never the raw string.
 """
 
-from veupath_chatbot.transport.http.schemas.sse import ToolCallStartEventData
+from veupath_chatbot.platform.event_schemas import ToolCallStartEventData
 
 
 class TestToolCallStartArguments:

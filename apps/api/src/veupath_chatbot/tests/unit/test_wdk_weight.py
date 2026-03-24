@@ -1,7 +1,7 @@
 """Tests for wdk_weight field on PlanStepNode."""
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
+from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 
 
 class TestWdkWeightRoundTrip:

@@ -3,7 +3,8 @@
 from veupath_chatbot.domain.strategy.validate import validate_strategy
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
+
+from .schemas import StrategyPlanPayload
 
 
 def validate_plan_or_raise(plan: JSONObject) -> StrategyPlanPayload:

@@ -8,6 +8,10 @@ from kani.models import ChatRole
 
 from veupath_chatbot.ai.orchestration.delegation import CompiledNode
 from veupath_chatbot.ai.orchestration.results import NodeResult
+from veupath_chatbot.platform.event_schemas import (
+    SubKaniToolCallEndEventData,
+    SubKaniToolCallStartEventData,
+)
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.parsing import parse_jsonish
 from veupath_chatbot.platform.types import (
@@ -16,10 +20,6 @@ from veupath_chatbot.platform.types import (
     JSONValue,
     as_json_array,
     as_json_object,
-)
-from veupath_chatbot.transport.http.schemas.sse import (
-    SubKaniToolCallEndEventData,
-    SubKaniToolCallStartEventData,
 )
 
 logger = get_logger(__name__)

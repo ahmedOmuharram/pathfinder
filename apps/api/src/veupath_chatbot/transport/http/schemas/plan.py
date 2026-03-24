@@ -3,7 +3,7 @@
 from pydantic import BaseModel
 
 from veupath_chatbot.platform.types import JSONArray
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
+from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 
 
 class PlanNormalizeRequest(BaseModel):

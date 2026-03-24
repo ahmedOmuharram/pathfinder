@@ -26,6 +26,12 @@ from veupath_chatbot.persistence.models import Stream, StreamProjection
 from veupath_chatbot.persistence.repositories import StreamRepository
 from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.errors import AppError, InternalError
+from veupath_chatbot.platform.event_schemas import (
+    ErrorEventData,
+    MessageStartEventData,
+    ModelSelectedEventData,
+    UserMessageEventData,
+)
 from veupath_chatbot.platform.events import emit, read_stream_messages
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
@@ -34,12 +40,6 @@ from veupath_chatbot.services.chat.mention_context import build_mention_context
 from veupath_chatbot.services.chat.streaming import stream_chat
 from veupath_chatbot.services.chat.types import ChatContext, ChatTurnConfig
 from veupath_chatbot.services.chat.utils import parse_selected_nodes
-from veupath_chatbot.transport.http.schemas.sse import (
-    ErrorEventData,
-    MessageStartEventData,
-    ModelSelectedEventData,
-    UserMessageEventData,
-)
 
 logger = get_logger(__name__)
 

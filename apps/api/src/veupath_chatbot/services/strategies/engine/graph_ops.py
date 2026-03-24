@@ -4,10 +4,10 @@ from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.explain import explain_operation
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
+from veupath_chatbot.platform.event_schemas import GraphSnapshotContent
 from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.transport.http.schemas.sse import GraphSnapshotContent
-from veupath_chatbot.transport.http.schemas.steps import StepResponse
+from veupath_chatbot.services.strategies.schemas import StepResponse
 
 from .base import StrategyToolsBase
 from .graph_integrity import find_root_step_ids

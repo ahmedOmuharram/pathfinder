@@ -30,6 +30,11 @@ from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.ai.tools.unified_registry import UnifiedToolRegistryMixin
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.errors import AppError
+from veupath_chatbot.platform.event_schemas import (
+    GraphSnapshotContent,
+    GraphSnapshotEventData,
+    StrategyLinkEventData,
+)
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.gene_sets import GeneSetService
@@ -44,11 +49,6 @@ from veupath_chatbot.services.strategies.session_factory import build_strategy_s
 from veupath_chatbot.services.strategies.sync import (
     SyncResult,
     sync_strategy_for_site,
-)
-from veupath_chatbot.transport.http.schemas.sse import (
-    GraphSnapshotContent,
-    GraphSnapshotEventData,
-    StrategyLinkEventData,
 )
 
 logger = get_logger(__name__)

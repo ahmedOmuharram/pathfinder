@@ -26,6 +26,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 from veupath_chatbot.services.strategies.wdk_conversion import (
     build_snapshot_from_wdk,
 )
@@ -37,7 +38,6 @@ from veupath_chatbot.services.strategies.wdk_counts import (
 from veupath_chatbot.transport.http.routers.strategies._shared import (
     derive_steps_from_plan,
 )
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 # WDK-verified search names (PlasmoDB transcript record type)
 _SEARCH_TAXON = "GenesByTaxon"

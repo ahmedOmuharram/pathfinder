@@ -1,5 +1,10 @@
 """Public HTTP schema exports."""
 
+from veupath_chatbot.services.strategies.schemas import (
+    StepResponse,
+    StrategyPlanPayload,
+)
+
 from .chat import (
     ChatRequest,
     CitationResponse,
@@ -29,7 +34,6 @@ from .sites import (
 )
 from .steps import (
     RecordDetailRequest,
-    StepResponse,
 )
 from .strategies import (
     CreateStrategyRequest,
@@ -37,7 +41,6 @@ from .strategies import (
     OpenStrategyResponse,
     StepCountsRequest,
     StepCountsResponse,
-    StrategyPlanPayload,
     StrategyResponse,
     UpdateStrategyRequest,
 )

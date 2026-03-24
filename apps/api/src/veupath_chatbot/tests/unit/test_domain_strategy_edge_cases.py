@@ -29,8 +29,8 @@ from veupath_chatbot.domain.strategy.validate import (
     ValidationResult,
     validate_strategy,
 )
+from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 from veupath_chatbot.tests.fixtures.builders import make_combine, make_leaf
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
 def _leaf(step_id: str = "s1", search_name: str = "S1") -> PlanStepNode:

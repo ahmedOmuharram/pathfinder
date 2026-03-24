@@ -1,6 +1,7 @@
-"""Authentication, authorization, and rate limiting."""
+"""Authentication, authorization, rate limiting, and CSRF protection."""
 
 import time
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 from uuid import UUID
 
@@ -10,6 +11,8 @@ from fastapi.security import APIKeyCookie
 from jwt.types import Options
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import JSONResponse, Response
 
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import user_id_ctx
@@ -90,3 +93,32 @@ def create_user_token(user_id: UUID, expires_in: int = 86400) -> str:
         "exp": int(time.time()) + expires_in,
     }
     return jwt.encode(payload, settings.api_secret_key, algorithm=_JWT_ALGORITHM)
+
+
+# ---------------------------------------------------------------------------
+# CSRF protection — custom header requirement
+# ---------------------------------------------------------------------------
+
+_CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+async def csrf_middleware(
+    request: StarletteRequest,
+    call_next: Callable[[StarletteRequest], Awaitable[Response]],
+) -> Response:
+    """Require X-Requested-With header on state-changing requests.
+
+    Defense-in-depth alongside SameSite=Lax cookies. Browsers enforce that
+    cross-origin requests cannot include custom headers without a CORS
+    preflight, so a forged form submission or navigation cannot set this
+    header.
+    """
+    if (
+        request.method not in _CSRF_SAFE_METHODS
+        and not request.headers.get("X-Requested-With", "").strip()
+    ):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Missing required X-Requested-With header"},
+        )
+    return await call_next(request)

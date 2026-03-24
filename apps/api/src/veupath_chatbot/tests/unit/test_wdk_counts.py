@@ -12,6 +12,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 )
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.services.strategies import wdk_counts
+from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 from veupath_chatbot.services.strategies.wdk_counts import (
     _STEP_COUNTS_CACHE,
     _cache_counts,
@@ -19,7 +20,6 @@ from veupath_chatbot.services.strategies.wdk_counts import (
     is_leaf_only_plan,
     plan_cache_key,
 )
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
 
 def _simple_ast() -> StrategyPlanPayload:

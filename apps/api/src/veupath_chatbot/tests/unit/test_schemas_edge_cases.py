@@ -19,6 +19,10 @@ from pydantic import ValidationError
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
+from veupath_chatbot.services.strategies.schemas import (
+    StepResponse,
+    StrategyPlanPayload,
+)
 from veupath_chatbot.transport.http.schemas.chat import (
     ChatMention,
     ChatRequest,
@@ -42,13 +46,9 @@ from veupath_chatbot.transport.http.schemas.sites import (
     SearchValidationResponse,
     SiteResponse,
 )
-from veupath_chatbot.transport.http.schemas.steps import (
-    StepResponse,
-)
 from veupath_chatbot.transport.http.schemas.strategies import (
     CreateStrategyRequest,
     OpenStrategyRequest,
-    StrategyPlanPayload,
     StrategyResponse,
     UpdateStrategyRequest,
 )

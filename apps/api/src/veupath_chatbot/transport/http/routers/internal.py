@@ -3,6 +3,32 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from veupath_chatbot.platform.event_schemas import (
+    AssistantDeltaEventData,
+    AssistantMessageEventData,
+    ErrorEventData,
+    ExecutorBuildRequestEventData,
+    GeneSetSummary,
+    GraphClearedEventData,
+    GraphPlanEventData,
+    GraphSnapshotEventData,
+    MessageEndEventData,
+    MessageStartEventData,
+    ModelSelectedEventData,
+    ReasoningEventData,
+    StrategyLinkEventData,
+    StrategyMetaEventData,
+    StrategyUpdateEventData,
+    SubKaniTaskEndEventData,
+    SubKaniTaskStartEventData,
+    SubKaniToolCallEndEventData,
+    SubKaniToolCallStartEventData,
+    TokenUsagePartialEventData,
+    ToolCallEndEventData,
+    ToolCallStartEventData,
+    UserMessageEventData,
+    WorkbenchGeneSetEventData,
+)
 from veupath_chatbot.transport.http.schemas.chat import (
     CitationResponse,
     PlanningArtifactResponse,
@@ -46,32 +72,8 @@ from veupath_chatbot.transport.http.schemas.optimization import (
     OptimizationTrialData,
 )
 from veupath_chatbot.transport.http.schemas.sse import (
-    AssistantDeltaEventData,
-    AssistantMessageEventData,
     CitationsEventData,
-    ErrorEventData,
-    ExecutorBuildRequestEventData,
-    GeneSetSummary,
-    GraphClearedEventData,
-    GraphPlanEventData,
-    GraphSnapshotEventData,
-    MessageEndEventData,
-    MessageStartEventData,
-    ModelSelectedEventData,
     PlanningArtifactEventData,
-    ReasoningEventData,
-    StrategyLinkEventData,
-    StrategyMetaEventData,
-    StrategyUpdateEventData,
-    SubKaniTaskEndEventData,
-    SubKaniTaskStartEventData,
-    SubKaniToolCallEndEventData,
-    SubKaniToolCallStartEventData,
-    TokenUsagePartialEventData,
-    ToolCallEndEventData,
-    ToolCallStartEventData,
-    UserMessageEventData,
-    WorkbenchGeneSetEventData,
 )
 
 router = APIRouter(prefix="/api/v1/internal", tags=["internal"])

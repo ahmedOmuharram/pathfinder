@@ -12,9 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from veupath_chatbot.domain.strategy.plan_ast import count_plan_nodes
 from veupath_chatbot.persistence.models import StreamProjection
-from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.transport.http.schemas.sse import (
+from veupath_chatbot.platform.event_schemas import (
     AssistantMessageEventData,
     GraphPlanEventData,
     GraphSnapshotEventData,
@@ -31,6 +29,8 @@ from veupath_chatbot.transport.http.schemas.sse import (
     ToolCallStartEventData,
     UserMessageEventData,
 )
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 

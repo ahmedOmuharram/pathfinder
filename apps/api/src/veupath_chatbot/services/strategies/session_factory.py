@@ -9,7 +9,8 @@ from veupath_chatbot.domain.strategy.session import (
 )
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
+
+from .schemas import StrategyPlanPayload
 
 logger = get_logger(__name__)
 

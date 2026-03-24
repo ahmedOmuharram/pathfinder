@@ -355,17 +355,6 @@ class TestWriteThruStoreRetry:
         store = FakeStore()
         entity = FakeEntity(id="abc", name="Test")
 
-        call_count = 0
-
-        async def flaky_session_factory() -> AsyncMock:
-            nonlocal call_count
-            call_count += 1
-            if call_count < 3:
-                raise ConnectionError("DB connection lost")
-            # Third attempt succeeds
-            mock_session = AsyncMock()
-            return mock_session
-
         mock_ctx_manager = AsyncMock()
         # First two calls raise, third succeeds
         good_session = AsyncMock()

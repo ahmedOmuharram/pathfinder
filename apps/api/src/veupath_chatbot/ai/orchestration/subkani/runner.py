@@ -25,13 +25,13 @@ from veupath_chatbot.ai.orchestration.subkani.utils import consume_subkani_round
 from veupath_chatbot.ai.orchestration.types import SubkaniContext
 from veupath_chatbot.domain.strategy.session import StrategySession
 from veupath_chatbot.platform.config import Settings, get_settings
-from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray
-from veupath_chatbot.transport.http.schemas.sse import (
+from veupath_chatbot.platform.event_schemas import (
     SubKaniTaskEndEventData,
     SubKaniTaskRetryEventData,
     SubKaniTaskStartEventData,
 )
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.types import JSONArray
 
 logger = get_logger(__name__)
 

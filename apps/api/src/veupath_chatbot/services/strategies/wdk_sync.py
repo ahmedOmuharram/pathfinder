@@ -25,8 +25,8 @@ from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.wdk import get_strategy_api
-from veupath_chatbot.transport.http.schemas.strategies import StrategyPlanPayload
 
+from .schemas import StrategyPlanPayload
 from .wdk_conversion import (
     build_snapshot_from_wdk,
     normalize_synced_parameters,

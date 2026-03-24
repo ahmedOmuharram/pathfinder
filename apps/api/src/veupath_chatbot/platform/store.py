@@ -20,7 +20,6 @@ from typing import Any, Protocol, cast
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from tenacity import (
-    RetryError,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -68,9 +67,9 @@ class WriteThruStore[T: Identifiable]:
         """Upsert an entity row into the database with retry on transient failures."""
         try:
             await self._persist_with_retry(entity)
-        except RetryError:
+        except Exception:
             logger.exception(
-                "Failed to persist entity to DB after retries",
+                "Failed to persist entity to DB",
                 entity_type=self._model.__tablename__,
                 entity_id=entity.id,
             )
@@ -107,9 +106,9 @@ class WriteThruStore[T: Identifiable]:
         """Delete an entity row from the database with retry on transient failures."""
         try:
             await self._delete_from_db_with_retry(entity_id)
-        except RetryError:
+        except Exception:
             logger.exception(
-                "Failed to delete entity from DB after retries",
+                "Failed to delete entity from DB",
                 entity_type=self._model.__tablename__,
                 entity_id=entity_id,
             )

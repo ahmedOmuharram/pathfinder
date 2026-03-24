@@ -1,7 +1,7 @@
 """Unit tests for AI experiment strategy refinement tools.
 
 Tests the RefinementToolsMixin methods: refine_with_search,
-refine_with_gene_ids, re_evaluate_controls, and _combine_and_update.
+refine_with_gene_ids, and re_evaluate_controls.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -390,86 +390,6 @@ class TestReEvaluateControls:
         # After re-evaluation, gene info is bare (only ID, no metadata)
         assert exp.true_positive_genes[0].id == "g1"
         assert exp.true_positive_genes[0].name is None  # Metadata lost
-
-
-# ---------------------------------------------------------------------------
-# _combine_and_update
-# ---------------------------------------------------------------------------
-
-
-class TestCombineAndUpdate:
-    @patch("veupath_chatbot.services.experiment.ai_refinement_tools.get_strategy_api")
-    @patch("veupath_chatbot.platform.store.spawn")
-    async def test_combine_updates_step_id(
-        self, mock_spawn: MagicMock, mock_get_api: MagicMock
-    ) -> None:
-        api = AsyncMock()
-        api.create_combined_step.return_value = WDKIdentifier(id=300)
-        api.update_strategy = AsyncMock()
-        api.get_step_count.return_value = 75
-        mock_get_api.return_value = api
-
-        exp = _exp()
-        store = ExperimentStore()
-        store.save(exp)
-
-        agent = ConcreteRefinementAgent("plasmodb", exp)
-
-        with patch(
-            "veupath_chatbot.services.experiment.ai_refinement_tools.get_experiment_store",
-            return_value=store,
-        ):
-            result = await agent._combine_and_update(exp, api, 200, "INTERSECT")
-
-        assert result["success"] is True
-        assert result["newStepId"] == 300
-        assert result["estimatedSize"] == 75
-        assert exp.wdk_step_id == 300
-
-    @patch("veupath_chatbot.services.experiment.ai_refinement_tools.get_strategy_api")
-    @patch("veupath_chatbot.platform.store.spawn")
-    async def test_combine_raises_on_combined_step_failure(
-        self, mock_spawn: MagicMock, mock_get_api: MagicMock
-    ) -> None:
-        api = AsyncMock()
-        api.create_combined_step.side_effect = WDKError(detail="invalid operator")
-        mock_get_api.return_value = api
-
-        exp = _exp()
-        agent = ConcreteRefinementAgent("plasmodb", exp)
-
-        with pytest.raises(WDKError, match="invalid operator"):
-            await agent._combine_and_update(exp, api, 200, "INVALID")
-
-        # Step ID should NOT have been updated
-        assert exp.wdk_step_id == 99  # Original value
-
-    @patch("veupath_chatbot.services.experiment.ai_refinement_tools.get_strategy_api")
-    @patch("veupath_chatbot.platform.store.spawn")
-    async def test_combine_handles_count_failure(
-        self, mock_spawn: MagicMock, mock_get_api: MagicMock
-    ) -> None:
-        """If get_step_count fails, estimatedSize should be None."""
-        api = AsyncMock()
-        api.create_combined_step.return_value = WDKIdentifier(id=300)
-        api.update_strategy = AsyncMock()
-        api.get_step_count.side_effect = WDKError(detail="WDK error")
-        mock_get_api.return_value = api
-
-        exp = _exp()
-        store = ExperimentStore()
-        store.save(exp)
-
-        agent = ConcreteRefinementAgent("plasmodb", exp)
-
-        with patch(
-            "veupath_chatbot.services.experiment.ai_refinement_tools.get_experiment_store",
-            return_value=store,
-        ):
-            result = await agent._combine_and_update(exp, api, 200, "INTERSECT")
-
-        assert result["success"] is True
-        assert result["estimatedSize"] is None  # Failure handled gracefully
 
 
 # ---------------------------------------------------------------------------

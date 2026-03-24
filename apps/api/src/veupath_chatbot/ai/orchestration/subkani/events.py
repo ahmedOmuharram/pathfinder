@@ -12,14 +12,14 @@ from veupath_chatbot.ai.orchestration.results import NodeResult
 from veupath_chatbot.ai.orchestration.subkani.utils import get_round_result
 from veupath_chatbot.ai.orchestration.types import EmitEvent
 from veupath_chatbot.domain.strategy.session import StrategyGraph
-from veupath_chatbot.platform.types import JSONArray
-from veupath_chatbot.transport.http.schemas.sse import (
+from veupath_chatbot.platform.event_schemas import (
     GraphSnapshotContent,
     GraphSnapshotEventData,
     StrategyUpdateEventData,
     SubKaniTaskEndEventData,
 )
-from veupath_chatbot.transport.http.schemas.steps import StepResponse
+from veupath_chatbot.platform.types import JSONArray
+from veupath_chatbot.services.strategies.schemas import StepResponse
 
 
 @dataclass
@@ -70,7 +70,7 @@ async def _emit_step_events(
                             id=sid,
                             kind=s.infer_kind(),
                             display_name=s.display_name or s.search_name,
-                        )
+                        ).model_dump(by_alias=True, exclude_none=True)
                         for sid, s in graph.steps.items()
                     ],
                 ).model_dump(by_alias=True, exclude_none=True),

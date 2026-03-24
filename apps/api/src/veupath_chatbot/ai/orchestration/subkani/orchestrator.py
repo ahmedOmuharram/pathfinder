@@ -35,14 +35,14 @@ from veupath_chatbot.domain.strategy.metadata import derive_graph_metadata
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import AppError
-from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.tool_errors import tool_error
-from veupath_chatbot.platform.types import JSONArray, JSONObject
-from veupath_chatbot.transport.http.schemas.sse import (
+from veupath_chatbot.platform.event_schemas import (
     GraphSnapshotContent,
     GraphSnapshotEventData,
     StrategyUpdateEventData,
 )
+from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.tool_errors import tool_error
+from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 logger = get_logger(__name__)
 
