@@ -235,6 +235,21 @@ def validate_response[M: BaseModel](model: type[M], raw: object, context: str) -
         raise DataParsingError(msg) from e
 
 
+_GENERIC_ERROR = "An internal error occurred"
+
+
+def sanitize_error_for_client(exc: BaseException) -> str:
+    """Return a user-safe error message.
+
+    ``AppError`` subclasses carry intentionally user-facing titles and
+    details.  All other exception types get a generic message to prevent
+    information leakage (internal paths, SQL fragments, stack traces).
+    """
+    if isinstance(exc, AppError):
+        return str(exc)
+    return _GENERIC_ERROR
+
+
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     """Handle AppError exceptions."""
     problem = ProblemDetail(

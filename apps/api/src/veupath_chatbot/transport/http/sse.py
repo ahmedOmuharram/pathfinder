@@ -13,6 +13,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable
 
+from veupath_chatbot.platform.errors import sanitize_error_for_client
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 
@@ -65,7 +66,7 @@ async def sse_stream(
             await queue.put(
                 {
                     "type": _INTERNAL_ERROR_EVENT_TYPE,
-                    "data": {"error": str(exc)},
+                    "data": {"error": sanitize_error_for_client(exc)},
                 }
             )
 

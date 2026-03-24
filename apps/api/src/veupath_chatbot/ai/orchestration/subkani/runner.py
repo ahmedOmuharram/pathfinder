@@ -21,7 +21,10 @@ from veupath_chatbot.ai.orchestration.subkani.events import (
     _emit_task_end,
 )
 from veupath_chatbot.ai.orchestration.subkani.prompts import build_subkani_round_prompt
-from veupath_chatbot.ai.orchestration.subkani.utils import consume_subkani_round
+from veupath_chatbot.ai.orchestration.subkani.utils import (
+    SubKaniRoundResult,
+    consume_subkani_round,
+)
 from veupath_chatbot.ai.orchestration.types import SubkaniContext
 from veupath_chatbot.domain.strategy.session import StrategySession
 from veupath_chatbot.platform.config import Settings, get_settings
@@ -188,9 +191,11 @@ async def _run_subkani_retry_loop(
     roots_before: set[str] = set(graph.roots) if graph else set()
     prompt = run_state.prompt
 
+    last_round_result: SubKaniRoundResult | None = None
+
     for attempt in range(_MAX_SUBKANI_RETRIES):
         try:
-            _, round_steps, round_errors = await asyncio.wait_for(
+            round_result = await asyncio.wait_for(
                 consume_subkani_round(
                     sub_kani=run_state.sub_kani,
                     emit_event=context.emit_event,
@@ -212,8 +217,9 @@ async def _run_subkani_retry_loop(
             )
             return TaskResult(id="", task=run_state.task, notes="timeout")
 
-        last_errors = round_errors
-        created_steps.extend(round_steps)
+        last_round_result = round_result
+        last_errors = round_result.errors
+        created_steps.extend(round_result.created_steps)
         if created_steps:
             return await _finalize_successful_run(
                 run_state=run_state,
@@ -221,6 +227,7 @@ async def _run_subkani_retry_loop(
                 created_steps=created_steps,
                 emitted_step_ids=emitted_step_ids,
                 roots_before=roots_before,
+                round_result=last_round_result,
             )
 
         if attempt < _LAST_RETRY_INDEX:
@@ -261,6 +268,7 @@ async def _finalize_successful_run(
     created_steps: JSONArray,
     emitted_step_ids: set[str],
     roots_before: set[str],
+    round_result: SubKaniRoundResult | None,
 ) -> TaskResult:
     """Finalize a successful sub-kani run: emit events and return result."""
     graph = context.strategy_session.get_graph(run_state.graph_id)
@@ -287,6 +295,7 @@ async def _finalize_successful_run(
         task=run_state.task,
         subkani_model_id=run_state.subkani_model_id,
         emit_event=context.emit_event,
+        round_result=round_result,
     )
     return TaskResult(
         id="",

@@ -122,7 +122,9 @@ class TestSSEProducerErrors:
         assert len(frames) == 2
         assert "event: progress" in frames[0]
         assert "event: internal_error" in frames[1]
-        assert "Producer crashed!" in frames[1]
+        # Raw exception message must NOT leak — sanitized to generic message
+        assert "Producer crashed!" not in frames[1]
+        assert "An internal error occurred" in frames[1]
 
 
 # ---------------------------------------------------------------------------

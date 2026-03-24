@@ -7,12 +7,14 @@ from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
 from contextlib import contextmanager
 from typing import Any
 from unittest.mock import patch
+from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
 import pytest
 import redis
 import respx
+import vcr
 from fastapi import FastAPI
 from redis.asyncio import Redis
 from sqlalchemy.engine import make_url
@@ -450,34 +452,111 @@ def scripted_engine_factory() -> Callable[
 # ---------------------------------------------------------------------------
 
 
-def _scrub_auth_cookies(request):
-    """Strip auth credentials from request before recording to cassette."""
+_USER_ID_RE = re.compile(r"/users/\d+/")
+_SCRUBBED_USER_PATH = "/users/0/"
+
+# Fields to scrub from /users/current JSON response bodies.
+_PII_PATTERNS: list[tuple[str, str]] = [
+    (r'"email"\s*:\s*"[^"]*"', '"email":"test@test.local"'),
+    (r'"firstName"\s*:\s*"[^"]*"', '"firstName":"Test"'),
+    (r'"lastName"\s*:\s*"[^"]*"', '"lastName":"User"'),
+    (r'"middleName"\s*:\s*"[^"]*"', '"middleName":""'),
+    (r'"username"\s*:\s*"[^"]*"', '"username":"test-user"'),
+    (r'"organization"\s*:\s*"[^"]*"', '"organization":"Test Org"'),
+    (r'"groupName"\s*:\s*"[^"]*"', '"groupName":"Test Group"'),
+    (r'"groupType"\s*:\s*"[^"]*"', '"groupType":"research"'),
+    (r'"position"\s*:\s*"[^"]*"', '"position":"researcher"'),
+    (r'"interests"\s*:\s*"[^"]*"', '"interests":""'),
+]
+
+
+def _scrub_request(request):
+    """Scrub auth cookies and user IDs from requests before recording.
+
+    Normalizes ``/users/{numeric_id}/`` to ``/users/0/`` so that cassettes
+    are not tied to a specific WDK account.  The same normalization is
+    applied during replay via a custom VCR matcher (see ``vcr_config``).
+    """
     if "cookie" in request.headers:
         cookie = request.headers["cookie"]
         cookie = re.sub(r"Authorization=[^;]+", "Authorization=SCRUBBED", cookie)
         cookie = re.sub(r"JSESSIONID=[^;]+", "JSESSIONID=SCRUBBED", cookie)
         request.headers["cookie"] = cookie
+
+    # Normalize user ID in URL path
+    request.uri = _USER_ID_RE.sub(_SCRUBBED_USER_PATH, request.uri)
+
+    # Normalize user ID in request body (JSON payloads)
+    if request.body:
+        body = request.body
+        if isinstance(body, bytes):
+            body = body.decode("utf-8", errors="replace")
+        if isinstance(body, str):
+            request.body = _USER_ID_RE.sub(_SCRUBBED_USER_PATH, body)
+
     return request
 
 
-def _scrub_response_headers(response):
-    """Strip session cookies from response before recording to cassette."""
+def _scrub_response(response):
+    """Scrub PII from response headers and bodies before recording.
+
+    Strips Set-Cookie auth values, normalizes user IDs in Location headers,
+    and removes all PII (email, name, org) from JSON response bodies.
+    """
     headers = response.get("headers", {})
+
+    # Scrub Set-Cookie auth values
     set_cookie = headers.get("Set-Cookie")
-    if set_cookie is None:
-        return response
-    # VCRpy response dicts use str | list[str] for headers — this is
-    # internal library plumbing, not a domain boundary.
-    if isinstance(set_cookie, list):
-        headers["Set-Cookie"] = [
-            re.sub(r"(Authorization|JSESSIONID)=[^;]+", r"\1=SCRUBBED", c)
-            for c in set_cookie
-        ]
-    else:
-        headers["Set-Cookie"] = re.sub(
-            r"(Authorization|JSESSIONID)=[^;]+", r"\1=SCRUBBED", set_cookie
-        )
+    if set_cookie is not None:
+        # VCRpy response dicts use str | list[str] for headers — this is
+        # internal library plumbing, not a domain boundary.
+        if isinstance(set_cookie, list):
+            headers["Set-Cookie"] = [
+                re.sub(r"(Authorization|JSESSIONID)=[^;]+", r"\1=SCRUBBED", c)
+                for c in set_cookie
+            ]
+        else:
+            headers["Set-Cookie"] = re.sub(
+                r"(Authorization|JSESSIONID)=[^;]+", r"\1=SCRUBBED", set_cookie
+            )
+
+    # Scrub PII from response body
+    body = response.get("body", {})
+    body_str = body.get("string", "")
+    if body_str and isinstance(body_str, str):
+        # Normalize user IDs in response body (URLs, JSON references)
+        body_str = _USER_ID_RE.sub(_SCRUBBED_USER_PATH, body_str)
+        # Scrub all PII fields
+        for pattern, replacement in _PII_PATTERNS:
+            body_str = re.sub(pattern, replacement, body_str)
+        body["string"] = body_str
+
     return response
+
+
+def _normalized_path_matcher(r1, r2):
+    """VCR custom matcher: compare URL paths after normalizing user IDs.
+
+    During replay, the client requests ``/users/1214413863/steps`` but the
+    cassette has ``/users/0/steps``.  This matcher normalizes both before
+    comparing so they match.
+    """
+    p1 = _USER_ID_RE.sub(_SCRUBBED_USER_PATH, urlparse(r1.uri).path)
+    p2 = _USER_ID_RE.sub(_SCRUBBED_USER_PATH, urlparse(r2.uri).path)
+    return p1 == p2
+
+
+def _normalized_body_matcher(r1, r2):
+    """VCR custom matcher: compare request bodies after normalizing user IDs."""
+    b1 = r1.body or b""
+    b2 = r2.body or b""
+    if isinstance(b1, bytes):
+        b1 = b1.decode("utf-8", errors="replace")
+    if isinstance(b2, bytes):
+        b2 = b2.decode("utf-8", errors="replace")
+    return _USER_ID_RE.sub(_SCRUBBED_USER_PATH, b1) == _USER_ID_RE.sub(
+        _SCRUBBED_USER_PATH, b2
+    )
 
 
 @pytest.fixture(scope="session")
@@ -488,12 +567,19 @@ def vcr_config():
     built-in ``record_mode`` fixture already defaults to ``"none"`` when
     ``--record-mode`` is not passed on the CLI. Putting it in vcr_config
     would override the CLI flag, making ``--record-mode=all`` ineffective.
+
+    Custom matchers normalize ``/users/{id}/`` paths so cassettes recorded
+    with one WDK account replay correctly with a different account.
     """
+    custom_vcr = vcr.VCR()
+    custom_vcr.register_matcher("normalized_path", _normalized_path_matcher)
+    custom_vcr.register_matcher("normalized_body", _normalized_body_matcher)
+
     return {
         "cassette_library_dir": "src/veupath_chatbot/tests/cassettes",
-        "match_on": ["method", "path", "query", "body"],
-        "before_record_request": _scrub_auth_cookies,
-        "before_record_response": _scrub_response_headers,
+        "match_on": ["method", "normalized_path", "query", "normalized_body"],
+        "before_record_request": _scrub_request,
+        "before_record_response": _scrub_response,
         "decode_compressed_response": True,
         "ignore_hosts": ["test"],
     }

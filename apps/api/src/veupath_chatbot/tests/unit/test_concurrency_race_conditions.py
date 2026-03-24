@@ -113,7 +113,7 @@ class TestExperimentLockSerialisation:
             async with lock:
                 log.append(f"{name}_start")
                 # Yield control so the other task has a chance to interleave
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0)
                 log.append(f"{name}_end")
 
         await asyncio.gather(task("A"), task("B"))
@@ -134,15 +134,24 @@ class TestExperimentLockSerialisation:
     async def test_lock_allows_different_experiments(self) -> None:
         """Locks for different experiment IDs must allow overlapping work."""
         log: list[str] = []
+        # Barrier: each task signals it has started, then waits for the other
+        a_started = asyncio.Event()
+        b_started = asyncio.Event()
 
-        async def task(exp_id: str, name: str) -> None:
+        async def task(
+            exp_id: str, name: str, my_event: asyncio.Event, peer_event: asyncio.Event,
+        ) -> None:
             lock = _get_experiment_lock(exp_id)
             async with lock:
                 log.append(f"{name}_start")
-                await asyncio.sleep(0.02)
+                my_event.set()
+                await peer_event.wait()
                 log.append(f"{name}_end")
 
-        await asyncio.gather(task("exp_1", "A"), task("exp_2", "B"))
+        await asyncio.gather(
+            task("exp_1", "A", a_started, b_started),
+            task("exp_2", "B", b_started, a_started),
+        )
 
         # Both tasks should start before either finishes (overlap).
         start_indices = [i for i, e in enumerate(log) if e.endswith("_start")]

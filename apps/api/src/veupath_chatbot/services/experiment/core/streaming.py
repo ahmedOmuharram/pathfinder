@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.persistence.repositories.user import UserRepository
 from veupath_chatbot.persistence.session import async_session_factory
+from veupath_chatbot.platform.errors import sanitize_error_for_client
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.tasks import spawn
@@ -122,7 +123,7 @@ async def start_experiment(
         except Exception as exc:
             failed = True
             logger.error("Experiment failed", error=str(exc), exc_info=True)
-            await _emit_to_redis(operation_id, "experiment_error", {"error": str(exc)})
+            await _emit_to_redis(operation_id, "experiment_error", {"error": sanitize_error_for_client(exc)})
         finally:
             await _emit_to_redis(operation_id, "experiment_end", {})
             await _finalize_operation(operation_id, failed=failed)
@@ -212,7 +213,7 @@ async def start_batch_experiment(
         except Exception as exc:
             failed = True
             logger.error("Batch experiment failed", error=str(exc), exc_info=True)
-            await _emit_to_redis(operation_id, "batch_error", {"error": str(exc)})
+            await _emit_to_redis(operation_id, "batch_error", {"error": sanitize_error_for_client(exc)})
         finally:
             await _finalize_operation(operation_id, failed=failed)
 
@@ -288,7 +289,7 @@ async def start_benchmark(
         except Exception as exc:
             failed = True
             logger.error("Benchmark suite failed", error=str(exc), exc_info=True)
-            await _emit_to_redis(operation_id, "benchmark_error", {"error": str(exc)})
+            await _emit_to_redis(operation_id, "benchmark_error", {"error": sanitize_error_for_client(exc)})
         finally:
             await _finalize_operation(operation_id, failed=failed)
 

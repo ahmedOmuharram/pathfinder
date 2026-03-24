@@ -17,6 +17,7 @@ from uuid import UUID
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.persistence.repositories.control_set import ControlSetCreate
+from veupath_chatbot.platform.errors import sanitize_error_for_client
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.materialization import (
@@ -136,9 +137,9 @@ async def _process_single_seed(
                         "current": idx,
                         "total": ctx.total,
                         "name": seed.name,
-                        "error": str(exc),
+                        "error": sanitize_error_for_client(exc),
                         "elapsed": round(elapsed, 1),
-                        "message": f"[{idx}/{ctx.total}] Failed: {seed.name} — {exc}",
+                        "message": f"[{idx}/{ctx.total}] Failed: {seed.name}",
                     },
                 }
             )

@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from veupath_chatbot.platform.errors import sanitize_error_for_client
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.security import limiter
 from veupath_chatbot.platform.types import JSONObject
@@ -192,7 +193,7 @@ async def seed_strategies(
             await send(
                 {
                     "type": "seed_complete",
-                    "data": {"error": str(exc), "message": f"Seed failed: {exc}"},
+                    "data": {"error": sanitize_error_for_client(exc), "message": "Seed failed"},
                 }
             )
 

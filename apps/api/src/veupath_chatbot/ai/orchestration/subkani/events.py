@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from veupath_chatbot.ai.models.pricing import estimate_cost
 from veupath_chatbot.ai.orchestration.delegation import CompiledCombine, CompiledTask
 from veupath_chatbot.ai.orchestration.results import NodeResult
-from veupath_chatbot.ai.orchestration.subkani.utils import get_round_result
+from veupath_chatbot.ai.orchestration.subkani.utils import SubKaniRoundResult
 from veupath_chatbot.ai.orchestration.types import EmitEvent
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.event_schemas import (
@@ -94,10 +94,10 @@ async def _emit_task_end(
     task: str,
     subkani_model_id: str,
     emit_event: EmitEvent,
+    round_result: SubKaniRoundResult | None = None,
     status: str = "done",
 ) -> None:
     """Emit a subkani_task_end event with token usage."""
-    round_result = get_round_result(task)
     sub_cost = estimate_cost(
         subkani_model_id,
         prompt_tokens=round_result.prompt_tokens if round_result else 0,

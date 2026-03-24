@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from veupath_chatbot.platform.store import WriteThruStore
 
 
@@ -420,3 +422,67 @@ class TestWriteThruStoreRetry:
 
             # Should NOT raise — must catch and log after exhausting retries
             await store._delete_from_db("abc")
+
+    async def test_persist_reraises_original_exception_not_retry_error(
+        self,
+    ) -> None:
+        """After retries exhaust, _persist_with_retry must raise the original
+        exception (e.g. ConnectionError), NOT tenacity.RetryError.
+
+        reraise=True preserves diagnostic info so _persist's logger.exception
+        captures the real root cause.
+        """
+        store = FakeStore()
+        entity = FakeEntity(id="abc", name="Test")
+
+        mock_ctx_manager = AsyncMock()
+        mock_ctx_manager.__aenter__ = AsyncMock(
+            side_effect=ConnectionError("DB permanently down")
+        )
+        mock_ctx_manager.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx_manager)
+
+        mock_insert = MagicMock()
+        mock_stmt = MagicMock()
+        mock_insert.return_value = mock_stmt
+        mock_stmt.values.return_value = mock_stmt
+        mock_stmt.on_conflict_do_update.return_value = mock_stmt
+
+        with (
+            patch(
+                "veupath_chatbot.platform.store.async_session_factory",
+                mock_factory,
+            ),
+            patch("veupath_chatbot.platform.store.pg_insert", mock_insert),
+            pytest.raises(ConnectionError, match="DB permanently down"),
+        ):
+            await store._persist_with_retry(entity)
+
+    async def test_delete_reraises_original_exception_not_retry_error(
+        self,
+    ) -> None:
+        """After retries exhaust, _delete_from_db_with_retry must raise the
+        original exception, NOT tenacity.RetryError."""
+        store = FakeStore()
+
+        mock_ctx_manager = AsyncMock()
+        mock_ctx_manager.__aenter__ = AsyncMock(
+            side_effect=ConnectionError("DB permanently down")
+        )
+        mock_ctx_manager.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx_manager)
+
+        mock_delete = MagicMock()
+        mock_stmt = MagicMock()
+        mock_delete.return_value = mock_stmt
+        mock_stmt.where.return_value = mock_stmt
+
+        with (
+            patch(
+                "veupath_chatbot.platform.store.async_session_factory",
+                mock_factory,
+            ),
+            patch("veupath_chatbot.platform.store.sa_delete", mock_delete),
+            pytest.raises(ConnectionError, match="DB permanently down"),
+        ):
+            await store._delete_from_db_with_retry("abc")

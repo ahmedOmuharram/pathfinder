@@ -12,6 +12,7 @@ Focuses on:
 import asyncio
 import json
 
+from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.transport.http.sse import SSE_HEADERS, sse_stream
 
 
@@ -200,4 +201,18 @@ class TestSSETaskCancellation:
         assert len(frames) == 2
         assert "event: progress" in frames[0]
         assert "event: internal_error" in frames[1]
-        assert "producer exploded" in frames[1]
+        # Raw exception message must NOT leak — sanitized to generic message
+        assert "producer exploded" not in frames[1]
+        assert "An internal error occurred" in frames[1]
+
+    async def test_app_error_preserves_user_safe_message(self):
+        """AppError subclasses have user-facing messages that should pass through."""
+
+        async def producer(send):
+            raise WDKError("search returned invalid response")
+
+        frames = [frame async for frame in sse_stream(producer, {"end"})]
+
+        assert len(frames) == 1
+        assert "event: internal_error" in frames[0]
+        assert "VEuPathDB service error" in frames[0]

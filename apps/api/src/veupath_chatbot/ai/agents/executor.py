@@ -29,7 +29,7 @@ from veupath_chatbot.ai.tools.result_tools import ResultTools
 from veupath_chatbot.ai.tools.strategy_tools import StrategyTools
 from veupath_chatbot.ai.tools.unified_registry import UnifiedToolRegistryMixin
 from veupath_chatbot.domain.strategy.session import StrategyGraph
-from veupath_chatbot.platform.errors import AppError
+from veupath_chatbot.platform.errors import AppError, sanitize_error_for_client
 from veupath_chatbot.platform.event_schemas import (
     GraphSnapshotContent,
     GraphSnapshotEventData,
@@ -231,7 +231,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         except (AppError, OSError, RootResolutionError) as exc:
             result.message.content = _merge_auto_build(
                 result.message.text,
-                {"autoBuild": {"ok": False, "error": str(exc)}},
+                {"autoBuild": {"ok": False, "error": sanitize_error_for_client(exc)}},
             )
             logger.warning("Auto-build failed", error=str(exc))
 

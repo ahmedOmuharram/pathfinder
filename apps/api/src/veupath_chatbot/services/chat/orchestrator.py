@@ -25,7 +25,11 @@ from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.persistence.models import Stream, StreamProjection
 from veupath_chatbot.persistence.repositories import StreamRepository
 from veupath_chatbot.persistence.session import async_session_factory
-from veupath_chatbot.platform.errors import AppError, InternalError
+from veupath_chatbot.platform.errors import (
+    AppError,
+    InternalError,
+    sanitize_error_for_client,
+)
 from veupath_chatbot.platform.event_schemas import (
     ErrorEventData,
     MessageStartEventData,
@@ -389,7 +393,9 @@ async def _handle_error(
         stream_id_str,
         operation_id,
         "error",
-        ErrorEventData(error=str(error)).model_dump(by_alias=True, exclude_none=True),
+        ErrorEventData(error=sanitize_error_for_client(error)).model_dump(
+            by_alias=True, exclude_none=True
+        ),
         session=session,
     )
     await emit(

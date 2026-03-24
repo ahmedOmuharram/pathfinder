@@ -13,7 +13,7 @@ from kani.parts.reasoning import ReasoningPart
 from pydantic import BaseModel, ConfigDict, Field
 
 from veupath_chatbot.ai.models.pricing import estimate_cost
-from veupath_chatbot.platform.errors import ErrorCode
+from veupath_chatbot.platform.errors import ErrorCode, sanitize_error_for_client
 from veupath_chatbot.platform.event_schemas import (
     AssistantDeltaEventData,
     AssistantMessageEventData,
@@ -357,7 +357,9 @@ async def _produce_chat_events(
         await queue.put(
             {
                 "type": "error",
-                "data": ErrorEventData(error=str(e)).model_dump(by_alias=True),
+                "data": ErrorEventData(error=sanitize_error_for_client(e)).model_dump(
+                    by_alias=True
+                ),
             }
         )
     finally:

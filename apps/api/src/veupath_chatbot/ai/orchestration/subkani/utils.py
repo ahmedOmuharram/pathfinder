@@ -107,11 +107,10 @@ async def consume_subkani_round(
     emit_event: Callable[[JSONObject], Awaitable[None]],
     task: str,
     round_prompt: str,
-) -> tuple[str | None, JSONArray, list[str]]:
+) -> SubKaniRoundResult:
     """Run a sub-kani round and collect created steps + error strings.
 
     Also tracks token usage from the sub-kani's assistant messages.
-    Returns the accumulated result via module-level _last_round_result.
     """
     result = SubKaniRoundResult()
 
@@ -139,18 +138,7 @@ async def consume_subkani_round(
                 }
             )
 
-    # Store the result for the orchestrator to read
-    _last_round_results[task] = result
-    return result.response_text, result.created_steps, result.errors
-
-
-# Module-level storage for round results (keyed by task)
-_last_round_results: dict[str, SubKaniRoundResult] = {}
-
-
-def get_round_result(task: str) -> SubKaniRoundResult | None:
-    """Get the last round result for a task (includes token usage)."""
-    return _last_round_results.pop(task, None)
+    return result
 
 
 def _extract_step_info(
