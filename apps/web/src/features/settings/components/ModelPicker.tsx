@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { ModelCatalogEntry } from "@pathfinder/shared";
-import { ModelCatalogModal } from "@/lib/components/ModelCatalogModal";
+import { ModelCatalogModal } from "@/features/settings/components/ModelCatalogModal";
 
 interface ModelPickerProps {
   models: ModelCatalogEntry[];

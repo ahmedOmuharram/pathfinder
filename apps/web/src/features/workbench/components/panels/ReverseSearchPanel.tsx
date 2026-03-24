@@ -7,7 +7,7 @@ import { requestJson } from "@/lib/api/http";
 import { useSessionStore } from "@/state/useSessionStore";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Database } from "lucide-react";
-import { useWorkbenchStore } from "../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 interface GeneSetPickerProps {
   onSelect: (geneIds: string[]) => void;

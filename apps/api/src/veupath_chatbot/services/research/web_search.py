@@ -15,7 +15,7 @@ from veupath_chatbot.domain.research.citations import (
     ensure_unique_citation_tags,
 )
 from veupath_chatbot.platform.errors import ExternalServiceError
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.utils import (
     BROWSER_USER_AGENT,
     candidate_queries,
@@ -57,9 +57,9 @@ class _SearchDiagnostics:
         }
 
 
-def _parse_ddg_results(html: str, *, limit: int) -> JSONArray:
+def _parse_ddg_results(html: str, *, limit: int) -> list[JSONObject]:
     """Parse DuckDuckGo HTML search results into structured items."""
-    parsed: JSONArray = []
+    parsed: list[JSONObject] = []
     for m in re.finditer(
         r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
         html,
@@ -112,8 +112,7 @@ class WebSearchService:
 
         results, effective_query, diag = await self._ddg_html_search(q, limit=limit)
         if include_summary and results:
-            dict_results = [r for r in results if isinstance(r, dict)]
-            typed_results = [_WebResult.model_validate(r) for r in dict_results]
+            typed_results = [_WebResult.model_validate(r) for r in results]
             async with httpx.AsyncClient(
                 timeout=min(self._timeout, 15.0),
                 headers={
@@ -135,7 +134,7 @@ class WebSearchService:
                     ],
                     return_exceptions=True,
                 )
-            for r, typed, s in zip(dict_results, typed_results, summaries, strict=True):
+            for r, typed, s in zip(results, typed_results, summaries, strict=True):
                 # isinstance(s, str) is legitimate: asyncio.gather(return_exceptions=True)
                 # mixes str results with Exception objects in the same list.
                 summary = s.strip() if isinstance(s, str) and s.strip() else None
@@ -148,8 +147,6 @@ class WebSearchService:
 
         citations: list[JSONObject] = []
         for item_raw in results:
-            if not isinstance(item_raw, dict):
-                continue
             item = _WebResult.model_validate(item_raw)
             title = item.title or item.url or "Web result"
             snippet = item.summary or item.snippet
@@ -169,7 +166,7 @@ class WebSearchService:
             "effectiveQuery": effective_query,
             "searchAdjusted": effective_query != q,
             "searchDiagnostics": diag.to_json(),
-            "results": results,
+            "results": cast("JSONValue", results),
             "citations": cast("JSONValue", citations),
         }
         if not results and diag.blocked:
@@ -178,7 +175,7 @@ class WebSearchService:
 
     async def _ddg_html_search(
         self, q: str, *, limit: int
-    ) -> tuple[JSONArray, str, _SearchDiagnostics]:
+    ) -> tuple[list[JSONObject], str, _SearchDiagnostics]:
         """Perform DuckDuckGo HTML search with fallback query variations."""
         url = "https://html.duckduckgo.com/html/"
         headers = {

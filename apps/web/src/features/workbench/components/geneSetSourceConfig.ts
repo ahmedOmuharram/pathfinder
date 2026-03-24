@@ -1,5 +1,5 @@
 import { Database, ClipboardPaste, Upload, GitMerge, Bookmark } from "lucide-react";
-import type { GeneSet } from "../store";
+import type { GeneSet } from "@pathfinder/shared";
 
 interface SourceConfig {
   icon: React.ElementType;

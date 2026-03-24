@@ -3,7 +3,7 @@
 import { FlaskConical } from "lucide-react";
 import { CustomEnrichmentSection } from "@/features/analysis";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 export function CustomEnrichmentPanel() {
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);

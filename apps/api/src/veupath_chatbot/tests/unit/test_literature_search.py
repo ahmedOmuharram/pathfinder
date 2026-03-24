@@ -19,7 +19,8 @@ from veupath_chatbot.domain.research.citations import (
     LiteratureFilters,
     LiteratureOutputOptions,
 )
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.domain.research.papers import ParsedPaper
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.literature_search import (
     LiteratureSearchService,
 )
@@ -92,22 +93,19 @@ def _citation(
 
 
 def _source_payload(
-    results: JSONArray,
-    citations: JSONArray | None = None,
+    results: list[JSONObject],
+    citations: list[JSONObject] | None = None,
     query: str = "test",
     source: str = "europepmc",
 ) -> JSONObject:
     """Build a standard client response payload."""
     if citations is None:
-        citations = [
-            _citation(title=str(r.get("title") if isinstance(r, dict) else ""))
-            for r in results
-        ]
+        citations = [_citation(title=str(r.get("title", ""))) for r in results]
     return {
         "query": query,
         "source": source,
-        "results": results,
-        "citations": citations,
+        "results": cast("JSONValue", results),
+        "citations": cast("JSONValue", citations),
     }
 
 
@@ -584,9 +582,10 @@ class TestCitationOrdering:
         # Each citation should correspond to the result at the same index
         for i, r in enumerate(results):
             assert isinstance(r, dict)
-            assert isinstance(citations[i], dict)
+            c = citations[i]
+            assert isinstance(c, dict)
             # Both should share the same DOI
-            assert r.get("doi") == citations[i].get("doi")
+            assert r.get("doi") == c.get("doi")
 
 
 # ---------------------------------------------------------------------------
@@ -708,42 +707,42 @@ class TestAbstractTruncation:
 
 class TestDedupeKey:
     def test_pmid_takes_priority(self) -> None:
-        item: JSONObject = {
-            "pmid": "12345",
-            "doi": "10.1/x",
-            "url": "http://example.com",
-            "title": "A Paper",
-            "year": 2020,
-        }
-        assert dedupe_key(item) == "pmid:12345"
+        paper = ParsedPaper(
+            pmid="12345",
+            doi="10.1/x",
+            url="http://example.com",
+            title="A Paper",
+            year=2020,
+        )
+        assert dedupe_key(paper) == "pmid:12345"
 
     def test_doi_if_no_pmid(self) -> None:
-        item: JSONObject = {
-            "doi": "10.1234/ABC",
-            "url": "http://example.com",
-            "title": "A Paper",
-            "year": 2020,
-        }
-        assert dedupe_key(item) == "doi:10.1234/abc"
+        paper = ParsedPaper(
+            doi="10.1234/ABC",
+            url="http://example.com",
+            title="A Paper",
+            year=2020,
+        )
+        assert dedupe_key(paper) == "doi:10.1234/abc"
 
     def test_url_if_no_pmid_or_doi(self) -> None:
-        item: JSONObject = {
-            "url": "http://example.com/paper",
-            "title": "A Paper",
-            "year": 2020,
-        }
-        assert dedupe_key(item) == "url:http://example.com/paper"
+        paper = ParsedPaper(
+            url="http://example.com/paper",
+            title="A Paper",
+            year=2020,
+        )
+        assert dedupe_key(paper) == "url:http://example.com/paper"
 
     def test_title_year_fallback(self) -> None:
-        item: JSONObject = {"title": "My Paper", "year": 2022}
-        key = dedupe_key(item)
+        paper = ParsedPaper(title="My Paper", year=2022)
+        key = dedupe_key(paper)
         assert key.startswith("title:")
         assert "my paper" in key
         assert "2022" in key
 
     def test_empty_pmid_falls_through(self) -> None:
-        item: JSONObject = {"pmid": "  ", "doi": "10.1/x", "title": "P", "year": 2020}
-        assert dedupe_key(item) == "doi:10.1/x"
+        paper = ParsedPaper(pmid="  ", doi="10.1/x", title="P", year=2020)
+        assert dedupe_key(paper) == "doi:10.1/x"
 
 
 # ---------------------------------------------------------------------------
@@ -1097,39 +1096,37 @@ class TestTruncateText:
 
 class TestRerankScore:
     def test_perfect_match_high_score(self) -> None:
-        item: JSONObject = {
-            "title": "malaria vaccine",
-            "abstract": "malaria vaccine study",
-        }
-        score, parts = rerank_score("malaria vaccine", item)
+        paper = ParsedPaper(
+            title="malaria vaccine",
+            abstract="malaria vaccine study",
+        )
+        score, parts = rerank_score("malaria vaccine", paper)
         assert score > 50.0
         assert "title" in parts
         assert "abstract" in parts
         assert "journal" in parts
 
     def test_no_match_low_score(self) -> None:
-        item: JSONObject = {
-            "title": "quantum physics",
-            "abstract": "quantum entanglement",
-        }
-        score, _ = rerank_score("malaria vaccine", item)
+        paper = ParsedPaper(
+            title="quantum physics",
+            abstract="quantum entanglement",
+        )
+        score, _ = rerank_score("malaria vaccine", paper)
         # Should be a low score for completely unrelated content
         assert score < 50.0
 
     def test_empty_fields_zero_score(self) -> None:
-        item: JSONObject = {"title": "", "abstract": ""}
-        _score, parts = rerank_score("malaria", item)
+        paper = ParsedPaper()
+        _score, parts = rerank_score("malaria", paper)
         assert parts["title"] == 0.0
         assert parts["abstract"] == 0.0
 
     def test_score_weights(self) -> None:
         # Title has 0.70 weight, abstract 0.28, journal 0.02
-        item: JSONObject = {
-            "title": "malaria vaccine",
-            "abstract": "",
-            "journalTitle": "",
-        }
-        score, parts = rerank_score("malaria vaccine", item)
+        paper = ParsedPaper(
+            title="malaria vaccine",
+        )
+        score, parts = rerank_score("malaria vaccine", paper)
         # Score should be driven by title match
         assert score == pytest.approx(
             0.70 * parts["title"] + 0.28 * parts["abstract"] + 0.02 * parts["journal"],

@@ -24,7 +24,7 @@ from veupath_chatbot.services.gene_sets.types import GeneSet, GeneSetSource
 def _row_from_gene_set(gs: GeneSet) -> dict[str, object]:
     return {
         "id": gs.id,
-        "user_id": str(gs.user_id) if gs.user_id else None,
+        "user_id": gs.user_id,
         "site_id": gs.site_id,
         "name": gs.name,
         "gene_ids": gs.gene_ids,
@@ -54,7 +54,7 @@ def _gene_set_from_row(row: GeneSetRow) -> GeneSet:
     )
     return GeneSet(
         id=row.id,
-        user_id=UUID(row.user_id) if row.user_id else None,
+        user_id=row.user_id,
         site_id=row.site_id,
         name=row.name,
         gene_ids=gene_ids,
@@ -77,7 +77,7 @@ def _gene_set_from_row(row: GeneSetRow) -> GeneSet:
 
 
 async def _list_from_db(
-    user_id: str | None = None,
+    user_id: UUID | None = None,
     site_id: str | None = None,
 ) -> list[GeneSet]:
     stmt = select(GeneSetRow)
@@ -141,7 +141,7 @@ class GeneSetStore(WriteThruStore[GeneSet]):
         *,
         site_id: str | None = None,
     ) -> list[GeneSet]:
-        db_sets = await _list_from_db(user_id=str(user_id), site_id=site_id)
+        db_sets = await _list_from_db(user_id=user_id, site_id=site_id)
         return self._merge_with_cache(db_sets, user_id=user_id, site_id=site_id)
 
 

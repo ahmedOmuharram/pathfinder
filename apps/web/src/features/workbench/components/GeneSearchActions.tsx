@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { Loader2, Plus, ThumbsDown, ThumbsUp } from "lucide-react";
 import { createGeneSet } from "@/features/workbench/api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
-import { useWorkbenchStore } from "../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { Button } from "@/lib/components/ui/Button";
 import { Input } from "@/lib/components/ui/Input";
 import { SaveControlSetForm } from "./SaveControlSetForm";

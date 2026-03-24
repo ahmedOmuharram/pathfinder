@@ -7,7 +7,7 @@ import { UnifiedChatPanel } from "@/features/chat/components/UnifiedChatPanel";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
-import { useWorkbenchStore } from "@/features/workbench/store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 import { ToastContainer } from "@/app/components/ToastContainer";
 import { LoginModal } from "@/app/components/LoginModal";

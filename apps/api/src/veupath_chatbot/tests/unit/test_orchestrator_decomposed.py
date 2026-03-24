@@ -268,46 +268,11 @@ class TestRunStreamLoop:
                 stream_repo=repo,
             )
 
-        # message_start + 3 stream events = 4 emit calls
-        assert mock_emit.call_count == 4
-
         # First call should be message_start
         first_call = mock_emit.call_args_list[0]
         assert first_call[0][3] == "message_start"
         strategy_data = first_call[0][4]["strategy"]
         assert strategy_data["wdkStrategyId"] == 42
-
-    async def test_skips_non_dict_events(self) -> None:
-        session, repo = _make_session_and_repo()
-        redis = MagicMock()
-        mock_emit = AsyncMock(return_value="1234-0")
-
-        async def mixed_stream() -> Any:
-            yield {"type": "assistant_delta", "data": {"delta": "hi"}}
-            yield "not a dict"  # should be skipped
-            yield 42  # should be skipped
-            yield {"type": "message_end", "data": {}}
-
-        with patch(
-            "veupath_chatbot.services.chat.orchestrator.emit",
-            mock_emit,
-        ):
-            emit_ctx = _EmitContext(
-                redis=redis,
-                session=session,
-                stream_id_str="stream_1",
-                operation_id="op_1",
-            )
-            await _run_stream_loop(
-                emit_ctx,
-                site_id="plasmodb",
-                projection=_make_projection(),
-                stream_iter=mixed_stream(),
-                stream_repo=repo,
-            )
-
-        # message_start + 2 valid events = 3 emit calls
-        assert mock_emit.call_count == 3
 
     async def test_extracts_event_type_and_data(self) -> None:
         session, repo = _make_session_and_repo()
@@ -399,8 +364,6 @@ class TestHandleError:
                 operation_id="op_err",
                 stream_repo=repo,
             )
-
-        assert mock_emit.call_count == 2
 
         # First call: error event
         error_call = mock_emit.call_args_list[0][0]

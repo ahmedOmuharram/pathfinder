@@ -12,9 +12,9 @@ import { useSessionStore } from "@/state/useSessionStore";
 import type { ModelOverrides } from "@/state/useSettingsStore";
 import { Button } from "@/lib/components/ui/Button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui/Tooltip";
-import { ModelPicker } from "@/lib/components/ModelPicker";
 import { ReasoningToggle } from "@/lib/components/ReasoningToggle";
-import { ToolPicker } from "@/lib/components/ToolPicker";
+import { ModelPicker } from "@/features/settings/components/ModelPicker";
+import { ToolPicker } from "@/features/settings/components/ToolPicker";
 import { useMentionState } from "@/features/chat/hooks/useMentionState";
 import { MentionBadges } from "./message/MentionBadges";
 import { MentionAutocomplete } from "./message/MentionAutocomplete";
@@ -103,7 +103,7 @@ export function MessageComposer({
   );
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    (e: { preventDefault: () => void }) => {
       e.preventDefault();
       if (mentionActive === true) return;
       if (message.trim() !== "" && disabled !== true) {

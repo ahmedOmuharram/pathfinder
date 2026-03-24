@@ -4,8 +4,8 @@ import { useCallback } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Card } from "@/lib/components/ui/Card";
-import { useWorkbenchStore } from "../store/useWorkbenchStore";
-import type { PanelId } from "../store/useWorkbenchStore";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import type { PanelId } from "@/state/useWorkbenchStore";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

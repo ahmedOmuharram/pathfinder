@@ -2,7 +2,7 @@
  * Gene set export utilities.
  */
 
-import type { GeneSet } from "../store";
+import type { GeneSet } from "@pathfinder/shared";
 
 function downloadBlob(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });

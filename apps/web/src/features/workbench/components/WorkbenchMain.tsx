@@ -1,6 +1,6 @@
 "use client";
 
-import { useWorkbenchStore } from "../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { EmptyState } from "@/lib/components/ui/EmptyState";
 import { Layers } from "lucide-react";

@@ -14,7 +14,7 @@ import { WorkbenchSidebar } from "@/features/workbench/components/WorkbenchSideb
 import { GeneSearchSidebar } from "@/features/workbench/components/GeneSearchSidebar";
 import { SidebarEdgeTab } from "@/features/workbench/components/SidebarEdgeTab";
 import { listGeneSets } from "@/features/workbench/api/geneSets";
-import { useWorkbenchStore } from "@/features/workbench/store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { Button } from "@/lib/components/ui/Button";
 import {
   AlertTriangle,
@@ -66,8 +66,7 @@ export default function WorkbenchLayout({ children }: { children: ReactNode }) {
       .catch((err) => {
         console.error("[loadGeneSets]", err);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSite, veupathdbSignedIn, authLoading]);
+  }, [selectedSite, veupathdbSignedIn, authLoading, resetWorkbench, mergeGeneSets]);
 
   if (authLoading || configLoading) {
     return (

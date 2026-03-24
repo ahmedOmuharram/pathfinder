@@ -48,17 +48,23 @@ export function GeneChipInput({
   });
   const verifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastVerifiedRef = useRef<Set<string>>(new Set());
+  // Ref to read current verification state inside the effect without making it a dep
+  // (including `verification` directly would cause an infinite loop since the effect updates it).
+  const verificationRef = useRef(verification);
+  verificationRef.current = verification;
 
   // Auto-verify new gene IDs
   useEffect(() => {
     if (value.length === 0 || !siteId) return;
 
+    const currentVerification = verificationRef.current;
+
     // Find IDs that haven't been verified yet
     const unverified = value.filter(
       (id) =>
         !lastVerifiedRef.current.has(id) &&
-        !verification.resolved.has(id) &&
-        !verification.invalid.has(id),
+        !currentVerification.resolved.has(id) &&
+        !currentVerification.invalid.has(id),
     );
 
     if (unverified.length === 0) return;
@@ -75,9 +81,10 @@ export function GeneChipInput({
     verifyTimer.current = setTimeout(() => {
       void (async () => {
         try {
+          const latestVerification = verificationRef.current;
           const result = await resolveGeneIds(siteId, unverified);
-          const resolvedMap = new Map(verification.resolved);
-          const invalidSet = new Set(verification.invalid);
+          const resolvedMap = new Map(latestVerification.resolved);
+          const invalidSet = new Set(latestVerification.invalid);
           const pendingSet = new Set<string>();
 
           for (const gene of result.resolved) {
@@ -104,7 +111,7 @@ export function GeneChipInput({
     return () => {
       if (verifyTimer.current) clearTimeout(verifyTimer.current);
     };
-  }, [value, siteId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [value, siteId]);
 
   const getChipStatus = useCallback(
     (geneId: string): ChipStatus => {

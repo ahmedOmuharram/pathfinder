@@ -23,6 +23,7 @@ from .optimization import (
 )
 from .plan import PlanNormalizeRequest, PlanNormalizeResponse
 from .sites import (
+    DependentParamsRequest,
     ParamSpecResponse,
     ParamSpecsRequest,
     RecordTypeResponse,
@@ -52,6 +53,7 @@ __all__ = [
     "ChatRequest",
     "CitationResponse",
     "CreateStrategyRequest",
+    "DependentParamsRequest",
     "HealthResponse",
     "MessageResponse",
     "OpenStrategyRequest",

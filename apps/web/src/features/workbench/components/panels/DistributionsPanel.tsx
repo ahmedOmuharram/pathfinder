@@ -3,7 +3,7 @@
 import { BarChart3 } from "lucide-react";
 import { DistributionExplorer } from "@/features/analysis";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 export function DistributionsPanel() {
   const geneSets = useWorkbenchStore((s) => s.geneSets);

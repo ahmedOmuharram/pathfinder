@@ -118,7 +118,9 @@ class ExperimentRow(Base):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     site_id: Mapped[str] = mapped_column(String(100))
-    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    user_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     name: Mapped[str] = mapped_column(String(255), default="")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     data: Mapped[JSONObject] = mapped_column(JSON, default=dict)
@@ -225,7 +227,9 @@ class GeneSetRow(Base):
     __tablename__ = "gene_sets"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    user_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     site_id: Mapped[str] = mapped_column(String(100))
     name: Mapped[str] = mapped_column(String(255), default="")
     gene_ids: Mapped[JSONArray] = mapped_column(JSON, default=list)

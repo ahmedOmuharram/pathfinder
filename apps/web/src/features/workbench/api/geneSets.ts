@@ -2,9 +2,8 @@
  * Gene set API client — CRUD and set-operation endpoints.
  */
 
-import type { EnrichmentResult } from "@pathfinder/shared";
+import type { EnrichmentResult, GeneSet } from "@pathfinder/shared";
 import { requestJson } from "@/lib/api/http";
-import type { GeneSet } from "../store";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
 // ---------------------------------------------------------------------------

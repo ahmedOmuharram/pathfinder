@@ -3,20 +3,19 @@ import type {
   PlanningArtifact,
   OptimizationProgressData,
   Strategy,
-  // SSE event data types imported from shared (generated SSOT)
-  UserMessageData as SharedUserMessageData,
-  AssistantDeltaData as SharedAssistantDeltaData,
-  AssistantMessageData as SharedAssistantMessageData,
-  SubKaniTaskStartData as SharedSubKaniTaskStartData,
-  SubKaniTaskEndData as SharedSubKaniTaskEndData,
-  SubKaniToolCallStartData as SharedSubKaniToolCallStartData,
-  SubKaniToolCallEndData as SharedSubKaniToolCallEndData,
-  ModelSelectedData as SharedModelSelectedData,
-  TokenUsagePartialData as SharedTokenUsagePartialData,
-  StrategyMetaData as SharedStrategyMetaData,
-  StrategyLinkData as SharedStrategyLinkData,
-  GraphClearedData as SharedGraphClearedData,
-  ReasoningData as SharedReasoningData,
+  UserMessageData,
+  AssistantDeltaData,
+  AssistantMessageData,
+  SubKaniTaskStartData,
+  SubKaniTaskEndData,
+  SubKaniToolCallStartData,
+  SubKaniToolCallEndData,
+  ModelSelectedData,
+  TokenUsagePartialData,
+  StrategyMetaData,
+  StrategyLinkData,
+  GraphClearedData,
+  ReasoningData,
   SSEErrorData,
 } from "@pathfinder/shared";
 import type { RawSSEEvent } from "@/lib/sse";
@@ -32,22 +31,6 @@ import { z } from "zod";
 export type RawSSEData = Record<string, unknown>;
 
 /* ── Per-event data shapes ─────────────────────────────────────────── */
-// Types imported from @pathfinder/shared (generated SSOT).
-// Re-exported under original names for downstream compatibility.
-export type UserMessageData = SharedUserMessageData;
-export type AssistantDeltaData = SharedAssistantDeltaData;
-export type AssistantMessageData = SharedAssistantMessageData;
-export type SubKaniTaskStartData = SharedSubKaniTaskStartData;
-export type SubKaniTaskEndData = SharedSubKaniTaskEndData;
-export type SubKaniToolCallStartData = SharedSubKaniToolCallStartData;
-export type SubKaniToolCallEndData = SharedSubKaniToolCallEndData;
-export type ModelSelectedData = SharedModelSelectedData;
-export type TokenUsagePartialData = SharedTokenUsagePartialData;
-export type StrategyMetaData = SharedStrategyMetaData;
-export type StrategyLinkData = SharedStrategyLinkData;
-export type GraphClearedData = SharedGraphClearedData;
-export type ReasoningData = SharedReasoningData;
-
 // Types that remain local — their local shapes differ from the generated
 // equivalents (e.g., typed strategy vs JSONObject, typed step vs JSONObject).
 export type MessageStartData = {

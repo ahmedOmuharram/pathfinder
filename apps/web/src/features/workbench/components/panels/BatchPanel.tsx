@@ -15,7 +15,7 @@ import { CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME } from "../../constants";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { ParamNameSelect } from "../ParamNameSelect";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 // ---------------------------------------------------------------------------
 // Component

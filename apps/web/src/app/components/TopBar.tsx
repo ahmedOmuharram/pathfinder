@@ -4,6 +4,7 @@ import Image from "next/image";
 import { getSiteBanner } from "@/features/sites/siteBanners";
 import { SiteIcon } from "@/features/sites/components/SiteIcon";
 import { SitePicker } from "@/features/sites/components/SitePicker";
+import { SiteAuth } from "@/features/sites/components/SiteAuth";
 
 interface TopBarProps {
   selectedSite: string;
@@ -60,23 +61,14 @@ export function TopBar({ selectedSite, onSiteChange, actions }: TopBarProps) {
             <SitePicker
               value={selectedSite}
               onChange={onSiteChange}
-              showSelect
-              showVisit={false}
-              showAuth={false}
-              layout="inline"
               headerTextVariant="light"
             />
           </div>
         </div>
         <div className="flex items-center gap-3 [&_a]:text-white [&_a]:drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] [&_a:hover]:!text-primary [&_a:hover]:drop-shadow-none [&_button]:text-white [&_button]:drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] [&_button:hover]:!text-primary [&_button:hover]:drop-shadow-none [&_div.w-px]:bg-white/50">
           {actions}
-          <SitePicker
-            value={selectedSite}
-            onChange={onSiteChange}
-            showSelect={false}
-            showVisit={false}
-            showAuth
-            layout="inline"
+          <SiteAuth
+            siteId={selectedSite}
             headerTextVariant="light"
           />
         </div>

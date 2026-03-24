@@ -3,7 +3,7 @@ import type { ChatSSEEvent } from "@/lib/sse_events";
 import type { Citation } from "@pathfinder/shared";
 import { cancelOperation } from "@/lib/operationSubscribe";
 import { streamWorkbenchChat } from "../api/workbenchChatApi";
-import { useWorkbenchStore } from "../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useWorkbenchChatHistory } from "./useWorkbenchChatHistory";
 import { useWorkbenchChatAutoTrigger } from "./useWorkbenchChatAutoTrigger";
 

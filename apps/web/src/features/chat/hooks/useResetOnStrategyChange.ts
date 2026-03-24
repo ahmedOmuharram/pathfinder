@@ -38,6 +38,5 @@ export function useResetOnStrategyChange(args: {
     if (sessionRef.current) {
       sessionRef.current.consumeUndoSnapshot();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [strategyId, previousStrategyId]);
+  }, [strategyId, previousStrategyId, stopStreaming, setIsStreaming, resetThinking, setMessages, setUndoSnapshots]);
 }

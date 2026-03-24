@@ -132,14 +132,25 @@ describe("coerceMultiValue", () => {
 // ---------------------------------------------------------------------------
 // coerceParametersForSpecs
 // ---------------------------------------------------------------------------
+/** Build a ParamSpec with required fields filled in. */
+function spec(overrides: Partial<ParamSpec> & { name: string; type: string }): ParamSpec {
+  return {
+    allowEmptyValue: false,
+    countOnlyLeaves: false,
+    isNumber: false,
+    isVisible: true,
+    ...overrides,
+  };
+}
+
 describe("coerceParametersForSpecs", () => {
-  const multiSpec: ParamSpec = {
+  const multiSpec = spec({
     name: "organisms",
     type: "multi-pick",
     allowMultipleValues: true,
-  };
-  const scalarSpec: ParamSpec = { name: "threshold", type: "number" };
-  const namelessSpec: ParamSpec = { type: "hidden" };
+  });
+  const scalarSpec = spec({ name: "threshold", type: "number" });
+  const namelessSpec = spec({ name: "", type: "hidden" });
 
   it("coerces multi-param values through coerceMultiValue", () => {
     const result = coerceParametersForSpecs(

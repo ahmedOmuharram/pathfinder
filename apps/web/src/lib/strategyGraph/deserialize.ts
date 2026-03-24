@@ -4,15 +4,6 @@ import { MarkerType, Position } from "reactflow";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { inferStepKind } from "./kind";
 
-/** Minimal typed interface for dagre's Graph — avoids `any` member access. */
-interface DagreGraph {
-  setDefaultEdgeLabel(fn: () => Record<string, never>): void;
-  setGraph(opts: Record<string, unknown>): void;
-  setNode(id: string, opts: { width: number; height: number }): void;
-  setEdge(source: string, target: string): void;
-  node(id: string): { x: number; y: number; width: number; height: number } | undefined;
-}
-
 type ExistingPositions = Map<string, { x: number; y: number }>;
 type DeserializeOptions = {
   /**
@@ -72,12 +63,7 @@ export function deserializeStrategyToGraph(
   const snap = (value: number) => Math.round(value / gridSize) * gridSize;
 
   const computeDagrePositions = (): Map<string, { x: number; y: number }> => {
-    // dagre types are untyped — use explicit typing for the layout graph.
-    const dagreModule = dagre as unknown as {
-      graphlib: { Graph: new () => DagreGraph };
-      layout: (g: DagreGraph) => void;
-    };
-    const layoutGraph: DagreGraph = new dagreModule.graphlib.Graph();
+    const layoutGraph = new dagre.graphlib.Graph();
     layoutGraph.setDefaultEdgeLabel(() => ({}));
     layoutGraph.setGraph({
       rankdir: "LR",
@@ -100,7 +86,7 @@ export function deserializeStrategyToGraph(
       }
     }
 
-    dagreModule.layout(layoutGraph);
+    dagre.layout(layoutGraph);
 
     const positions = new Map<string, { x: number; y: number }>();
     for (const step of strategy.steps) {
@@ -135,10 +121,10 @@ export function deserializeStrategyToGraph(
   if (preserveExisting && existingPositions) {
     for (const step of strategy.steps) {
       const existing = existingPositions.get(step.id);
-      const dagre = dagrePositions.get(step.id);
-      if (existing && dagre) {
-        const dagreX = snap(dagre.x + offsetX);
-        const dagreY = snap(dagre.y + offsetY);
+      const dagrePos = dagrePositions.get(step.id);
+      if (existing && dagrePos) {
+        const dagreX = snap(dagrePos.x + offsetX);
+        const dagreY = snap(dagrePos.y + offsetY);
         translateX = existing.x - dagreX;
         translateY = existing.y - dagreY;
         break;

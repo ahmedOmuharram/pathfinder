@@ -12,8 +12,8 @@ import {
 import { Button } from "@/lib/components/ui/Button";
 import { deleteGeneSet } from "../api/geneSets";
 import { exportAsTxt, exportAsCsv, exportMultipleAsCsv } from "../utils/export";
-import { useWorkbenchStore } from "../store";
-import type { GeneSet } from "../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import type { GeneSet } from "@pathfinder/shared";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import {
   DropdownMenu,

@@ -19,8 +19,7 @@ import type {
   CreateFromStrategyArgs,
 } from "./geneSets";
 import { requestJson } from "@/lib/api/http";
-import type { GeneSet } from "../store";
-import type { EnrichmentResult } from "@pathfinder/shared";
+import type { EnrichmentResult, GeneSet } from "@pathfinder/shared";
 
 const mockRequestJson = vi.mocked(requestJson);
 

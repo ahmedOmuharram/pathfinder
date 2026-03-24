@@ -33,12 +33,7 @@ const storeState: Record<string, unknown> = {
 const mockStore = (selector: (s: Record<string, unknown>) => unknown) =>
   selector(storeState);
 
-vi.mock("../../store", () => ({
-  useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    mockStore(selector),
-}));
-
-vi.mock("../../store/useWorkbenchStore", () => ({
+vi.mock("@/state/useWorkbenchStore", () => ({
   useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
     mockStore(selector),
 }));

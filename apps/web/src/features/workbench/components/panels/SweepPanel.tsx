@@ -3,7 +3,7 @@
 import { TrendingUp } from "lucide-react";
 import { ThresholdSweepSection } from "@/features/analysis";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 /**
  * SweepPanel wraps the ThresholdSweepSection analysis component.

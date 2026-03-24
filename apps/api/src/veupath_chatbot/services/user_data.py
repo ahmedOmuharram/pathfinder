@@ -65,8 +65,6 @@ async def purge_user_data(
 
     Always deletes: gene sets, experiments, control sets, Redis streams.
     """
-    uid_str = str(user_id)
-
     # 1. Find all streams (for Redis + WDK cleanup)
     stream_query = select(Stream).where(Stream.user_id == user_id)
     if site_id:
@@ -104,18 +102,18 @@ async def purge_user_data(
 
     # 5. Delete gene sets, experiments, control sets
     pg_gene_sets, pg_experiments, pg_control_sets = await _purge_related_data(
-        session, uid_str, user_id, site_id
+        session, user_id, site_id
     )
 
     await session.commit()
 
     # 6. Clear in-memory caches so stale data doesn't reappear
-    _clear_gene_set_cache(user_id, site_id, uid_str)
+    _clear_gene_set_cache(user_id, site_id)
 
     strategies_handled = hard_deleted_count + dismissed_count
     logger.info(
         "Purged user data",
-        user_id=uid_str,
+        user_id=str(user_id),
         site_id=site_id,
         delete_wdk=delete_wdk,
         strategies=strategies_handled,
@@ -171,18 +169,17 @@ async def _purge_wdk_strategies(site_id: str | None, *, delete_wdk: bool) -> int
 
 async def _purge_related_data(
     session: AsyncSession,
-    uid_str: str,
     user_id: UUID,
     site_id: str | None,
 ) -> tuple[int, int, int]:
     """Delete gene sets, experiments, and control sets."""
-    gs_del = delete(GeneSetRow).where(GeneSetRow.user_id == uid_str)
+    gs_del = delete(GeneSetRow).where(GeneSetRow.user_id == user_id)
     if site_id:
         gs_del = gs_del.where(GeneSetRow.site_id == site_id)
     gr = cast("CursorResult[object]", await session.execute(gs_del))
     pg_gene_sets = gr.rowcount or 0
 
-    exp_del = delete(ExperimentRow).where(ExperimentRow.user_id == uid_str)
+    exp_del = delete(ExperimentRow).where(ExperimentRow.user_id == user_id)
     if site_id:
         exp_del = exp_del.where(ExperimentRow.site_id == site_id)
     er = cast("CursorResult[object]", await session.execute(exp_del))
@@ -197,7 +194,7 @@ async def _purge_related_data(
     return pg_gene_sets, pg_experiments, pg_control_sets
 
 
-def _clear_gene_set_cache(user_id: UUID, site_id: str | None, uid_str: str) -> None:
+def _clear_gene_set_cache(user_id: UUID, site_id: str | None) -> None:
     """Clear in-memory gene set cache entries."""
     try:
         cache = get_gene_set_store()
@@ -211,6 +208,6 @@ def _clear_gene_set_cache(user_id: UUID, site_id: str | None, uid_str: str) -> N
     except (RuntimeError, KeyError) as exc:
         logger.warning(
             "Failed to clear gene set cache during user data purge",
-            user_id=uid_str,
+            user_id=str(user_id),
             error=str(exc),
         )

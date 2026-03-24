@@ -58,6 +58,25 @@ export async function getParamSpecs(
   )) as ParamSpec[];
 }
 
+export async function refreshDependentParams(
+  siteId: string,
+  recordType: string,
+  searchName: string,
+  parameterName: string,
+  contextValues: StepParameters = {},
+): Promise<ParamSpec[]> {
+  return (await requestJsonValidated(
+    ParamSpecListSchema,
+    `/api/v1/sites/${encodeURIComponent(siteId)}/searches/${encodeURIComponent(
+      recordType,
+    )}/${encodeURIComponent(searchName)}/refreshed-dependent-params`,
+    {
+      method: "POST",
+      body: { parameterName, contextValues },
+    },
+  )) as ParamSpec[];
+}
+
 export async function validateSearchParams(
   siteId: string,
   recordType: string,

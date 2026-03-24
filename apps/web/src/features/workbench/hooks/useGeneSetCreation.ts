@@ -5,7 +5,7 @@ import type { ResolvedGene } from "@pathfinder/shared";
 import { resolveGeneIds } from "@/lib/api/genes";
 import { createGeneSet } from "../api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
-import { useWorkbenchStore } from "../store/useWorkbenchStore";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 interface UseGeneSetCreationOptions {
   onCreated: () => void;

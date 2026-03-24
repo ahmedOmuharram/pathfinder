@@ -10,59 +10,21 @@ describe("extractSpecVocabulary", () => {
     expect(extractSpecVocabulary({ vocabulary: ["a", "b"] })).toEqual(["a", "b"]);
   });
 
-  it("falls back to values when vocabulary is absent", () => {
-    expect(extractSpecVocabulary({ values: [1, 2, 3] })).toEqual([1, 2, 3]);
+  it("returns undefined when vocabulary is absent", () => {
+    expect(extractSpecVocabulary({})).toBeUndefined();
   });
 
-  it("falls back to items when vocabulary and values are absent", () => {
-    expect(extractSpecVocabulary({ items: ["x"] })).toEqual(["x"]);
+  it("returns undefined when vocabulary is null", () => {
+    expect(extractSpecVocabulary({ vocabulary: null })).toBeUndefined();
   });
 
-  it("falls back to terms", () => {
-    expect(extractSpecVocabulary({ terms: ["t1", "t2"] })).toEqual(["t1", "t2"]);
+  it("returns empty array vocabulary as-is", () => {
+    expect(extractSpecVocabulary({ vocabulary: [] })).toEqual([]);
   });
 
-  it("falls back to options", () => {
-    expect(extractSpecVocabulary({ options: [{ label: "A", value: "a" }] })).toEqual([
-      { label: "A", value: "a" },
-    ]);
-  });
-
-  it("falls back to allowedValues as last resort", () => {
-    expect(extractSpecVocabulary({ allowedValues: ["yes", "no"] })).toEqual([
-      "yes",
-      "no",
-    ]);
-  });
-
-  it("returns undefined when no vocabulary-like field is set", () => {
-    expect(extractSpecVocabulary({ name: "param", type: "string" })).toBeUndefined();
-  });
-
-  it("prefers vocabulary over values (precedence chain)", () => {
-    expect(extractSpecVocabulary({ vocabulary: ["v"], values: ["x"] })).toEqual(["v"]);
-  });
-
-  it("prefers values over items", () => {
-    expect(extractSpecVocabulary({ values: ["v"], items: ["i"] })).toEqual(["v"]);
-  });
-
-  it("handles null vocabulary gracefully (null is nullish, falls through)", () => {
-    // null is nullish so ?? will skip it... wait, null IS nullish for ??
-    // Actually spec.vocabulary ?? spec.values — if vocabulary is null, ?? falls through
-    expect(extractSpecVocabulary({ vocabulary: null, values: ["fallback"] })).toEqual([
-      "fallback",
-    ]);
-  });
-
-  it("does NOT fall through when vocabulary is 0 or empty string (non-nullish falsy)", () => {
-    // 0 and "" are not nullish (not null/undefined), so ?? returns them
-    expect(extractSpecVocabulary({ vocabulary: 0, values: ["x"] })).toBe(0);
-    expect(extractSpecVocabulary({ vocabulary: "", values: ["x"] })).toBe("");
-  });
-
-  it("returns empty array vocabulary as-is (not falling through)", () => {
-    expect(extractSpecVocabulary({ vocabulary: [], values: ["x"] })).toEqual([]);
+  it("returns object vocabulary as-is", () => {
+    const vocab = { terms: [["a", "Alpha"]], treeNodes: [] };
+    expect(extractSpecVocabulary({ vocabulary: vocab })).toEqual(vocab);
   });
 });
 

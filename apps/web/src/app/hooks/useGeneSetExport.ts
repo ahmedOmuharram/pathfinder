@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { Strategy } from "@pathfinder/shared";
 import { createGeneSetFromStrategy } from "@/features/workbench/api/geneSets";
-import type { GeneSet } from "@/features/workbench/store";
+import type { GeneSet } from "@pathfinder/shared";
 
 interface UseGeneSetExportArgs {
   addGeneSet: (geneSet: GeneSet) => void;

@@ -16,7 +16,7 @@ from veupath_chatbot.domain.research.citations import (
     ensure_unique_citation_tags,
 )
 from veupath_chatbot.domain.research.papers import ParsedPaper
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients import (
     ArxivClient,
     CrossrefClient,
@@ -46,11 +46,19 @@ class _SourcePayload(BaseModel):
     citations: list[JSONObject] = Field(default_factory=list)
 
 
+class _ScoredResult(BaseModel):
+    """Minimal model for extracting the reranking score from a result dict."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    score: float | None = None
+
+
 @dataclass
 class LiteratureResultData:
     """Aggregated result data for response assembly."""
 
-    results: JSONArray
+    results: list[JSONObject]
     citations_by_key: dict[str, JSONObject]
     by_source: dict[str, JSONObject]
     limit: int
@@ -295,12 +303,12 @@ class LiteratureSearchService:
         by_source: dict[str, JSONObject],
         options: LiteratureOutputOptions,
         filters: LiteratureFilters,
-    ) -> tuple[JSONArray, dict[str, JSONObject]]:
+    ) -> tuple[list[JSONObject], dict[str, JSONObject]]:
         """Merge, filter, and deduplicate results from all sources.
 
         Returns (filtered_results, citations_by_dedupe_key).
         """
-        filtered: JSONArray = []
+        filtered: list[JSONObject] = []
         citations_by_key: dict[str, JSONObject] = {}
         seen: set[str] = set()
 
@@ -325,7 +333,7 @@ class LiteratureSearchService:
                 if not passes_filters(item_ctx, filters):
                     continue
 
-                key = dedupe_key(item)
+                key = dedupe_key(paper)
                 if key in seen:
                     continue
                 seen.add(key)
@@ -344,12 +352,12 @@ class LiteratureSearchService:
                     {
                         **item,
                         "source": src,
-                        "authors": cast("JSONValue", authors_limited),
+                        "authors": cast("JSONValue", authors_limited or []),
                         "abstract": abstract_value,
                     }
                 )
 
-                if isinstance(c, dict):
+                if c is not None:
                     c2: JSONObject = {**c}
                     if "authors" in c2:
                         authors_list = list_str(c2["authors"])
@@ -367,45 +375,35 @@ class LiteratureSearchService:
 
     def _sort_results(
         self,
-        results: JSONArray,
+        results: list[JSONObject],
         *,
         sort: LiteratureSort,
         source: LiteratureSource,
         query: str,
-    ) -> JSONArray:
+    ) -> list[JSONObject]:
         """Sort (and optionally rerank) the filtered results."""
 
-        def get_year_key(r: JSONValue) -> tuple[bool, int]:
-            if not isinstance(r, dict):
-                return (False, 0)
-            year_raw = r.get("year")
-            year = year_raw if isinstance(year_raw, int) else None
-            return (year is not None, year if year is not None else 0)
+        def get_year_key(r: JSONObject) -> tuple[bool, int]:
+            paper = ParsedPaper.model_validate(r)
+            return (paper.year is not None, paper.year or 0)
 
-        def get_score_key(r: JSONValue) -> tuple[bool, float]:
-            if not isinstance(r, dict):
-                return (False, 0.0)
-            score_raw = r.get("score")
-            score_val = score_raw if isinstance(score_raw, (int, float)) else None
-            return (
-                score_val is not None,
-                float(score_val) if score_val is not None else 0.0,
-            )
+        def get_score_key(r: JSONObject) -> tuple[bool, float]:
+            sr = _ScoredResult.model_validate(r)
+            return (sr.score is not None, sr.score or 0.0)
 
         if results and sort == "newest":
             return sorted(results, key=get_year_key, reverse=True)
 
         # Relevance reranking only for source="all"
         if results and sort == "relevance" and source == "all":
-            scored: JSONArray = [
+            scored: list[JSONObject] = [
                 {
                     **item,
                     "score": round(score, 2),
                     "scoreParts": cast("JSONValue", parts),
                 }
                 for item in results
-                if isinstance(item, dict)
-                for score, parts in [rerank_score(query, item)]
+                for score, parts in [rerank_score(query, ParsedPaper.model_validate(item))]
             ]
             return sorted(scored, key=get_score_key, reverse=True)
 
@@ -428,14 +426,12 @@ class LiteratureSearchService:
         """Assemble the final response payload."""
         sliced = result_data.results[: result_data.limit]
 
-        def _ordered_citations(results_list: JSONArray) -> list[JSONObject]:
+        def _ordered_citations(results_list: list[JSONObject]) -> list[JSONObject]:
             ordered: list[JSONObject] = []
             for r in results_list:
-                if not isinstance(r, dict):
-                    continue
-                key = dedupe_key(r)
+                key = dedupe_key(ParsedPaper.model_validate(r))
                 c = result_data.citations_by_key.get(key)
-                if isinstance(c, dict):
+                if c is not None:
                     ordered.append(c)
             return ordered
 
@@ -458,7 +454,7 @@ class LiteratureSearchService:
                 "pmidEquals": filters.pmid_equals,
                 "requireDoi": filters.require_doi,
             },
-            "results": sliced,
+            "results": cast("JSONValue", sliced),
             "citations": cast("JSONValue", citations),
         }
 

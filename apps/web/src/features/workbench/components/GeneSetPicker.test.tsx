@@ -8,10 +8,7 @@ import type { GeneSet } from "@pathfinder/shared";
 // ---------------------------------------------------------------------------
 
 const mockUseWorkbenchStore = vi.fn();
-vi.mock("../store", () => ({
-  useWorkbenchStore: (...args: unknown[]) => mockUseWorkbenchStore(...args),
-}));
-vi.mock("../store/useWorkbenchStore", () => ({
+vi.mock("@/state/useWorkbenchStore", () => ({
   useWorkbenchStore: (...args: unknown[]) => mockUseWorkbenchStore(...args),
 }));
 

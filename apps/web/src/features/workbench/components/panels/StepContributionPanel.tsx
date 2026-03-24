@@ -9,7 +9,7 @@ import type {
   OperatorComparison,
 } from "@pathfinder/shared";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 // ---------------------------------------------------------------------------
 // Verdict badge color mapping

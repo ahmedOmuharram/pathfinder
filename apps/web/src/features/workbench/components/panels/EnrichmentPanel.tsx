@@ -6,7 +6,7 @@ import { Button } from "@/lib/components/ui/Button";
 import { EnrichmentSection } from "@/features/analysis";
 import type { EnrichmentResult } from "@pathfinder/shared";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { enrichGeneSet } from "../../api/geneSets";
 
 // ---------------------------------------------------------------------------

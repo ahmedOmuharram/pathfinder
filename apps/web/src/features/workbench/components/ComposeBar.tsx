@@ -5,7 +5,7 @@ import { ArrowRightLeft, Plus } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import { setIntersect, setUnion, setDifference } from "@/lib/utils/setOperations";
-import type { GeneSet } from "../store";
+import type { GeneSet } from "@pathfinder/shared";
 
 type Operation = "intersect" | "union" | "minus";
 

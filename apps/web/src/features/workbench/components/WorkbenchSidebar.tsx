@@ -6,7 +6,7 @@ import { ChevronLeft, Plus } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { ScrollArea } from "@/lib/components/ui/ScrollArea";
 import { TooltipProvider } from "@/lib/components/ui/Tooltip";
-import { useWorkbenchStore } from "../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { performSetOperation, createGeneSet } from "../api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
 import { GeneSetCard } from "./GeneSetCard";

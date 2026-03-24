@@ -23,7 +23,7 @@ vi.mock("@/state/useSessionStore", () => ({
 }));
 
 const mockAddGeneSet = vi.fn();
-vi.mock("../store/useWorkbenchStore", () => ({
+vi.mock("@/state/useWorkbenchStore", () => ({
   useWorkbenchStore: (
     selector: (s: { addGeneSet: typeof mockAddGeneSet }) => unknown,
   ) => selector({ addGeneSet: mockAddGeneSet }),

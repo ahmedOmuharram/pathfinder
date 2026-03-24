@@ -311,6 +311,14 @@ export const VEUPATHDB_SITES: VEuPathDBSite[] = [
     isPortal: false,
   },
   {
+    id: "trichdb",
+    name: "TrichDB",
+    displayName: "TrichDB (Trichomonas)",
+    baseUrl: "https://trichdb.org",
+    projectId: "TrichDB",
+    isPortal: false,
+  },
+  {
     id: "fungidb",
     name: "FungiDB",
     displayName: "FungiDB (Fungi)",

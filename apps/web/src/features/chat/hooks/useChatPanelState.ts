@@ -17,7 +17,7 @@ import type {
 } from "@pathfinder/shared";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { usePrevious } from "@/lib/hooks/usePrevious";
-import { getStrategy, updateStrategy as updateStrategyApi } from "@/lib/api/strategies";
+import { getStrategy, updateStrategy } from "@/lib/api/strategies";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useThinkingState } from "@/features/chat/hooks/useThinkingState";
@@ -262,7 +262,7 @@ export function useChatPanelState({
       if (proposed == null || typeof proposed !== "object" || Array.isArray(proposed))
         return;
       try {
-        await updateStrategyApi(strategyId, {
+        await updateStrategy(strategyId, {
           plan: proposed as StrategyPlan,
         });
         const full = await getStrategy(strategyId);

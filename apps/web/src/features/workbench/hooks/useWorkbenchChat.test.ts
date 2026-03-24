@@ -35,13 +35,7 @@ vi.mock("@/lib/operationSubscribe", () => ({
   cancelOperation: (...args: unknown[]) => mockCancelOperation(...args),
 }));
 
-vi.mock("../store", () => ({
-  useWorkbenchStore: Object.assign(() => null, {
-    getState: mockStoreGetState,
-  }),
-}));
-
-vi.mock("../store/useWorkbenchStore", () => ({
+vi.mock("@/state/useWorkbenchStore", () => ({
   useWorkbenchStore: Object.assign(() => null, {
     getState: mockStoreGetState,
   }),

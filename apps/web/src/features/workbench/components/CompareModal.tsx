@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Modal } from "@/lib/components/Modal";
 import { SetVenn } from "@/lib/components/SetVenn";
-import type { GeneSet } from "../store";
+import type { GeneSet } from "@pathfinder/shared";
 
 interface CompareModalProps {
   open: boolean;

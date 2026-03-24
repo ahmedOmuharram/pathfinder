@@ -55,8 +55,13 @@ class ControlSetRepository:
             select(ControlSet)
             .where(*conditions)
             .order_by(ControlSet.created_at.desc())
-            .limit(limit)
         )
+        # Apply LIMIT in SQL only when no post-fetch tag filtering is needed.
+        # When tags are provided, fetch all matching rows first so the Python
+        # filter sees the complete set, then slice to `limit` afterward.
+        if not tags:
+            stmt = stmt.limit(limit)
+
         result = await self.session.execute(stmt)
         rows = list(result.scalars().all())
 
@@ -67,6 +72,8 @@ class ControlSetRepository:
                 for r in rows
                 if tag_set.intersection(r.tags if isinstance(r.tags, list) else [])
             ]
+            rows = rows[:limit]
+
         return rows
 
     async def create(self, data: ControlSetCreate) -> ControlSet:

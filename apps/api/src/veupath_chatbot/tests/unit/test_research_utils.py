@@ -4,6 +4,7 @@ import httpx
 import respx
 
 from veupath_chatbot.domain.research.citations import LiteratureFilters
+from veupath_chatbot.domain.research.papers import ParsedPaper
 from veupath_chatbot.services.research.utils import (
     LiteratureItemContext,
     candidate_queries,
@@ -287,22 +288,22 @@ class TestFuzzyScore:
 
 class TestRerankScore:
     def test_returns_tuple_of_score_and_parts(self) -> None:
-        item = {"title": "malaria", "abstract": "about malaria", "journal": "Nature"}
-        score, parts = rerank_score("malaria", item)
+        paper = ParsedPaper(title="malaria", abstract="about malaria", journal_title="Nature")
+        score, parts = rerank_score("malaria", paper)
         assert isinstance(score, float)
         assert "title" in parts
         assert "abstract" in parts
         assert "journal" in parts
 
     def test_empty_item(self) -> None:
-        score, _parts = rerank_score("malaria", {})
+        score, _parts = rerank_score("malaria", ParsedPaper())
         assert score == 0.0
 
     def test_weights_title_higher(self) -> None:
-        item_title = {"title": "malaria", "abstract": "unrelated"}
-        item_abstract = {"title": "unrelated", "abstract": "malaria"}
-        score_title, _ = rerank_score("malaria", item_title)
-        score_abstract, _ = rerank_score("malaria", item_abstract)
+        paper_title = ParsedPaper(title="malaria", abstract="unrelated")
+        paper_abstract = ParsedPaper(title="unrelated", abstract="malaria")
+        score_title, _ = rerank_score("malaria", paper_title)
+        score_abstract, _ = rerank_score("malaria", paper_abstract)
         assert score_title > score_abstract
 
 
@@ -459,27 +460,27 @@ class TestPassesFilters:
 
 class TestDedupeKey:
     def test_prefers_pmid(self) -> None:
-        item = {
-            "pmid": "123",
-            "doi": "10/x",
-            "url": "http://x",
-            "title": "T",
-            "year": 2020,
-        }
-        assert dedupe_key(item) == "pmid:123"
+        paper = ParsedPaper(
+            pmid="123",
+            doi="10/x",
+            url="http://x",
+            title="T",
+            year=2020,
+        )
+        assert dedupe_key(paper) == "pmid:123"
 
     def test_falls_back_to_doi(self) -> None:
-        item = {"doi": "10/x", "url": "http://x", "title": "T", "year": 2020}
-        assert dedupe_key(item) == "doi:10/x"
+        paper = ParsedPaper(doi="10/x", url="http://x", title="T", year=2020)
+        assert dedupe_key(paper) == "doi:10/x"
 
     def test_falls_back_to_url(self) -> None:
-        item = {"url": "http://x", "title": "T", "year": 2020}
-        assert dedupe_key(item) == "url:http://x"
+        paper = ParsedPaper(url="http://x", title="T", year=2020)
+        assert dedupe_key(paper) == "url:http://x"
 
     def test_falls_back_to_title_year(self) -> None:
-        item = {"title": "Some Title", "year": 2020}
-        assert "title:" in dedupe_key(item)
-        assert "year:2020" in dedupe_key(item)
+        paper = ParsedPaper(title="Some Title", year=2020)
+        assert "title:" in dedupe_key(paper)
+        assert "year:2020" in dedupe_key(paper)
 
 
 # ---------------------------------------------------------------------------

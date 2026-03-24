@@ -29,6 +29,7 @@ import httpx
 import respx
 
 from veupath_chatbot.domain.research.citations import LiteratureFilters
+from veupath_chatbot.domain.research.papers import ParsedPaper
 from veupath_chatbot.services.research.clients.arxiv import ArxivClient
 from veupath_chatbot.services.research.clients.crossref import CrossrefClient
 from veupath_chatbot.services.research.clients.europepmc import EuropePmcClient
@@ -66,26 +67,26 @@ class TestMalformedDois:
 
     def test_doi_with_spaces(self) -> None:
         """DOI with leading/trailing spaces should be normalized."""
-        item = {"doi": "  10.1234/test  ", "title": "T", "year": 2020}
-        key = dedupe_key(item)
+        paper = ParsedPaper(doi="  10.1234/test  ", title="T", year=2020)
+        key = dedupe_key(paper)
         assert key == "doi:10.1234/test"
 
     def test_doi_with_unicode(self) -> None:
         """DOI containing Unicode should not crash."""
-        item = {"doi": "10.1234/t\u00e9st", "title": "T", "year": 2020}
-        key = dedupe_key(item)
+        paper = ParsedPaper(doi="10.1234/t\u00e9st", title="T", year=2020)
+        key = dedupe_key(paper)
         assert "doi:" in key
 
     def test_doi_empty_string_falls_through(self) -> None:
         """Empty DOI string should fall through to URL or title."""
-        item = {"doi": "", "url": "http://example.com", "title": "T", "year": 2020}
-        key = dedupe_key(item)
+        paper = ParsedPaper(doi="", url="http://example.com", title="T", year=2020)
+        key = dedupe_key(paper)
         assert key.startswith("url:")
 
     def test_doi_whitespace_only_falls_through(self) -> None:
         """Whitespace-only DOI should fall through."""
-        item = {"doi": "   ", "url": "http://example.com", "title": "T", "year": 2020}
-        key = dedupe_key(item)
+        paper = ParsedPaper(doi="   ", url="http://example.com", title="T", year=2020)
+        key = dedupe_key(paper)
         assert key.startswith("url:")
 
     def test_passes_filters_doi_equals_case_insensitive(self) -> None:
@@ -168,13 +169,13 @@ class TestPmidLooksLikeDoi:
 
     def test_dedupe_pmid_takes_priority_over_doi(self) -> None:
         """dedupe_key should prefer PMID over DOI."""
-        item = {
-            "pmid": "12345",
-            "doi": "10.1234/test",
-            "title": "T",
-            "year": 2020,
-        }
-        key = dedupe_key(item)
+        paper = ParsedPaper(
+            pmid="12345",
+            doi="10.1234/test",
+            title="T",
+            year=2020,
+        )
+        key = dedupe_key(paper)
         assert key == "pmid:12345"
 
 
@@ -285,8 +286,8 @@ class TestMissingDates:
 
     def test_dedupe_key_none_year(self) -> None:
         """Title-based key with None year."""
-        item = {"title": "Some Paper", "year": None}
-        key = dedupe_key(item)
+        paper = ParsedPaper(title="Some Paper")
+        key = dedupe_key(paper)
         assert "title:" in key
         assert "year:None" in key
 
@@ -332,16 +333,16 @@ class TestRerankEdgeCases:
 
     def test_rerank_all_equal_scores(self) -> None:
         """All items with identical text should get equal scores."""
-        items = [
-            {"title": "malaria", "abstract": "about malaria"},
-            {"title": "malaria", "abstract": "about malaria"},
+        papers = [
+            ParsedPaper(title="malaria", abstract="about malaria"),
+            ParsedPaper(title="malaria", abstract="about malaria"),
         ]
-        scores = [rerank_score("malaria", item)[0] for item in items]
+        scores = [rerank_score("malaria", paper)[0] for paper in papers]
         assert scores[0] == scores[1]
 
     def test_rerank_empty_result(self) -> None:
         """Empty item should score 0."""
-        score, parts = rerank_score("malaria", {})
+        score, parts = rerank_score("malaria", ParsedPaper())
         assert score == 0.0
         assert parts["title"] == 0.0
         assert parts["abstract"] == 0.0
@@ -349,19 +350,19 @@ class TestRerankEdgeCases:
 
     def test_rerank_none_title(self) -> None:
         """None title should be handled."""
-        score, _parts = rerank_score("malaria", {"title": None})
+        score, _parts = rerank_score("malaria", ParsedPaper())
         assert isinstance(score, float)
         assert not math.isnan(score)
 
     def test_rerank_none_abstract(self) -> None:
         """None abstract should be handled."""
-        score, _parts = rerank_score("malaria", {"abstract": None, "snippet": None})
+        score, _parts = rerank_score("malaria", ParsedPaper())
         assert isinstance(score, float)
         assert not math.isnan(score)
 
     def test_rerank_no_journal(self) -> None:
         """Missing journal should get 0 journal score."""
-        _score, parts = rerank_score("malaria", {"title": "malaria"})
+        _score, parts = rerank_score("malaria", ParsedPaper(title="malaria"))
         assert parts["journal"] == 0.0
 
 

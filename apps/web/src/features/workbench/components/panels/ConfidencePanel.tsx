@@ -9,7 +9,7 @@ import type {
 } from "@pathfinder/shared";
 import { requestJson } from "@/lib/api/http";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 // ---------------------------------------------------------------------------
 // Enrichment data extraction (prepares input for the backend)

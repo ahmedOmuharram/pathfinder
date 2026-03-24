@@ -69,6 +69,13 @@ sites:
     project_id: TriTrypDB
     is_portal: false
 
+  trichdb:
+    name: TrichDB
+    display_name: TrichDB (Trichomonas)
+    base_url: https://trichdb.org/trichdb/service
+    project_id: TrichDB
+    is_portal: false
+
   # Fungi
   fungidb:
     name: FungiDB

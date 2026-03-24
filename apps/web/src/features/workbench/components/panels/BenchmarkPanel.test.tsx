@@ -28,11 +28,7 @@ const storeState: Record<string, unknown> = {
   setLastExperiment: vi.fn(),
 };
 
-vi.mock("../../store", () => ({
-  useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector(storeState),
-}));
-vi.mock("../../store/useWorkbenchStore", () => ({
+vi.mock("@/state/useWorkbenchStore", () => ({
   useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector(storeState),
 }));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { GeneSet } from "../store";
+import type { GeneSet } from "@pathfinder/shared";
 import { cn } from "@/lib/utils/cn";
 import { SOURCE_CONFIG } from "./geneSetSourceConfig";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/lib/components/ui/Tooltip";

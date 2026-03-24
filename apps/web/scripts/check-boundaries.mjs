@@ -146,6 +146,8 @@ function isAllowedFeatureImport(specifier, selfFeature) {
 const CROSS_FEATURE_EXCEPTIONS = new Map([
   // workbench may import from analysis (ResultsTable exception)
   ["workbench", new Set(["analysis"])],
+  // chat may import from settings (ModelPicker, ToolPicker)
+  ["chat", new Set(["settings"])],
 ]);
 
 function checkFile(filePath) {

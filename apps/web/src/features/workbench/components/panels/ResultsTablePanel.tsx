@@ -3,7 +3,7 @@
 import { Table } from "lucide-react";
 import { ResultsTable } from "@/features/analysis/components/ResultsTable";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 export function ResultsTablePanel() {
   const geneSets = useWorkbenchStore((s) => s.geneSets);

@@ -48,6 +48,8 @@ export function useUnifiedChatDataLoading({
   // Track the previous authVersion to distinguish initial mount from auth bumps.
   const prevAuthVersionRef = useRef(authVersion);
 
+  const { applyThinkingPayload } = thinking;
+
   const applyStrategy = useCallback(
     (strategy: Strategy) => {
       const incoming = strategy.messages ?? [];
@@ -55,7 +57,7 @@ export function useUnifiedChatDataLoading({
       if (strategy.modelId != null && strategy.modelId !== "")
         setSelectedModelId(strategy.modelId);
       if (strategy.thinking != null) {
-        thinking.applyThinkingPayload(strategy.thinking);
+        applyThinkingPayload(strategy.thinking);
       }
       if (strategy.id !== "" && sessionRef.current?.snapshotApplied !== true) {
         setStrategy(strategy);
@@ -66,8 +68,7 @@ export function useUnifiedChatDataLoading({
         });
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setMessages, setSelectedModelId, setStrategy, setStrategyMeta],
+    [setMessages, setSelectedModelId, setStrategy, setStrategyMeta, applyThinkingPayload],
   );
 
   // Single unified loading effect — handles both initial load and auth retry.
@@ -133,8 +134,7 @@ export function useUnifiedChatDataLoading({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [strategyId, authVersion]);
+  }, [strategyId, authVersion, applyStrategy, setMessages, onStrategyNotFound, setApiError]);
 
   return { isLoading };
 }

@@ -47,10 +47,10 @@ interface UseOperationRecoveryArgs {
     calls: ToolCall[],
     activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> },
   ) => void;
-  setSelectedModelId?: (modelId: string | null) => void;
-  onApiError?: (msg: string) => void;
+  setSelectedModelId?: ((modelId: string | null) => void) | undefined;
+  onApiError?: ((msg: string) => void) | undefined;
   setOptimizationProgress: ChatEventContext["setOptimizationProgress"];
-  onWorkbenchGeneSet?: ChatEventContext["onWorkbenchGeneSet"];
+  onWorkbenchGeneSet?: ChatEventContext["onWorkbenchGeneSet"] | undefined;
 }
 
 /**
@@ -88,9 +88,71 @@ export function useOperationRecovery({
   const recoveredRef = useRef<string | null>(null);
   const subscriptionRef = useRef<OperationSubscription | null>(null);
 
+  // Capture all callback/value dependencies in a ref so the effect closure
+  // always sees the latest values without needing them in the dep array.
+  // This preserves the original behavior: the effect fires only on
+  // strategyId changes.
+  const callbacksRef = useRef<UseOperationRecoveryArgs>({
+    strategyId,
+    siteId,
+    isStreaming,
+    setIsStreaming,
+    setMessages,
+    setUndoSnapshots,
+    thinking,
+    currentStrategy,
+    setStrategyId,
+    addStrategy,
+    addExecutedStrategy,
+    setWdkInfo,
+    setStrategy,
+    setStrategyMeta,
+    clearStrategy,
+    addStep,
+    loadGraph,
+    parseToolArguments,
+    parseToolResult,
+    applyGraphSnapshot,
+    getStrategy,
+    attachThinkingToLastAssistant,
+    setSelectedModelId,
+    onApiError,
+    setOptimizationProgress,
+    onWorkbenchGeneSet,
+  });
+  callbacksRef.current = {
+    strategyId,
+    siteId,
+    isStreaming,
+    setIsStreaming,
+    setMessages,
+    setUndoSnapshots,
+    thinking,
+    currentStrategy,
+    setStrategyId,
+    addStrategy,
+    addExecutedStrategy,
+    setWdkInfo,
+    setStrategy,
+    setStrategyMeta,
+    clearStrategy,
+    addStep,
+    loadGraph,
+    parseToolArguments,
+    parseToolResult,
+    applyGraphSnapshot,
+    getStrategy,
+    attachThinkingToLastAssistant,
+    setSelectedModelId,
+    onApiError,
+    setOptimizationProgress,
+    onWorkbenchGeneSet,
+  };
+
   useEffect(() => {
     if (!strategyId) return;
-    if (isStreaming) return;
+    // Read isStreaming from the ref to avoid adding it as a dep.
+    if (callbacksRef.current.isStreaming) return;
     // Only recover once per strategyId to avoid re-subscribing loops.
     if (recoveredRef.current === strategyId) return;
     recoveredRef.current = strategyId;
@@ -103,10 +165,12 @@ export function useOperationRecovery({
         if (cancelled || op == null) return;
         // Pick the most recent active operation.
 
-        setIsStreaming(true);
-        thinking.reset();
+        const cb = callbacksRef.current;
 
-        const session = new StreamingSession(currentStrategy);
+        cb.setIsStreaming(true);
+        cb.thinking.reset();
+
+        const session = new StreamingSession(cb.currentStrategy);
         const streamState: ChatEventContext["streamState"] = {
           streamingAssistantIndex: null,
           streamingAssistantMessageId: null,
@@ -130,9 +194,10 @@ export function useOperationRecovery({
           onEvent: ({ type, data }) => {
             const event = parseChatSSEEvent({ type, data });
             if (!event) return;
+            const latest = callbacksRef.current;
             handleChatEvent(
               {
-                siteId,
+                siteId: latest.siteId,
                 strategyIdAtStart: strategyId,
                 toolCallsBuffer: toolCalls,
                 citationsBuffer,
@@ -141,50 +206,59 @@ export function useOperationRecovery({
                 subKaniStatusBuffer,
                 subKaniModelsBuffer,
                 subKaniTokenUsageBuffer,
-                thinking,
-                setStrategyId,
-                addStrategy,
-                addExecutedStrategy,
-                setWdkInfo,
-                setStrategy,
-                setStrategyMeta,
-                clearStrategy,
-                addStep,
-                loadGraph,
+                thinking: latest.thinking,
+                setStrategyId: latest.setStrategyId,
+                addStrategy: latest.addStrategy,
+                addExecutedStrategy: latest.addExecutedStrategy,
+                setWdkInfo: latest.setWdkInfo,
+                setStrategy: latest.setStrategy,
+                setStrategyMeta: latest.setStrategyMeta,
+                clearStrategy: latest.clearStrategy,
+                addStep: latest.addStep,
+                loadGraph: latest.loadGraph,
                 session,
-                currentStrategy,
-                setMessages,
-                setUndoSnapshots,
-                parseToolArguments,
-                parseToolResult,
-                applyGraphSnapshot,
-                getStrategy,
+                currentStrategy: latest.currentStrategy,
+                setMessages: latest.setMessages,
+                setUndoSnapshots: latest.setUndoSnapshots,
+                parseToolArguments: latest.parseToolArguments,
+                parseToolResult: latest.parseToolResult,
+                applyGraphSnapshot: latest.applyGraphSnapshot,
+                getStrategy: latest.getStrategy,
                 streamState,
-                setOptimizationProgress,
-                ...(setSelectedModelId != null ? { setSelectedModelId } : {}),
-                ...(onApiError != null ? { onApiError } : {}),
-                ...(onWorkbenchGeneSet != null ? { onWorkbenchGeneSet } : {}),
+                setOptimizationProgress: latest.setOptimizationProgress,
+                ...(latest.setSelectedModelId != null
+                  ? { setSelectedModelId: latest.setSelectedModelId }
+                  : {}),
+                ...(latest.onApiError != null
+                  ? { onApiError: latest.onApiError }
+                  : {}),
+                ...(latest.onWorkbenchGeneSet != null
+                  ? { onWorkbenchGeneSet: latest.onWorkbenchGeneSet }
+                  : {}),
               },
               event,
             );
           },
           onComplete: () => {
-            setIsStreaming(false);
+            const latest = callbacksRef.current;
+            latest.setIsStreaming(false);
             subscriptionRef.current = null;
-            thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
+            latest.thinking.finalizeToolCalls(
+              toolCalls.length > 0 ? [...toolCalls] : [],
+            );
             const activity = snapshotSubKaniActivityFromBuffers(
               subKaniCallsBuffer,
               subKaniStatusBuffer,
               subKaniModelsBuffer,
               subKaniTokenUsageBuffer,
             );
-            attachThinkingToLastAssistant(
+            latest.attachThinkingToLastAssistant(
               toolCalls.length > 0 ? [...toolCalls] : [],
               activity,
             );
           },
           onError: () => {
-            setIsStreaming(false);
+            callbacksRef.current.setIsStreaming(false);
             subscriptionRef.current = null;
           },
           endEventTypes: new Set(["message_end"]),
@@ -203,7 +277,5 @@ export function useOperationRecovery({
       // Reset so returning to this strategy (A→B→A) triggers recovery again.
       recoveredRef.current = null;
     };
-    // Only run on strategyId changes, not on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [strategyId]);
 }

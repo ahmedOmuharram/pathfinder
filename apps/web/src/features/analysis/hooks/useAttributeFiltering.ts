@@ -17,13 +17,15 @@ export function useAttributeFiltering(entityRef: EntityRef): AttributeFilteringS
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const { id: entityId, type: entityType } = entityRef;
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     setSelectedAttr("");
 
-    getAttributes(entityRef)
+    getAttributes({ id: entityId, type: entityType })
       .then(({ attributes: attrs }) => {
         if (cancelled) return;
         const displayable = attrs.filter(isDistributableAttr);
@@ -43,8 +45,7 @@ export function useAttributeFiltering(entityRef: EntityRef): AttributeFilteringS
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entityRef.id, entityRef.type]);
+  }, [entityId, entityType]);
 
   return { attributes, selectedAttr, setSelectedAttr, loading, error };
 }

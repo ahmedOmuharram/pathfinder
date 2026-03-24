@@ -8,7 +8,7 @@ import { useState, useCallback } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { ModelCatalogEntry, ModelProvider } from "@pathfinder/shared";
 import { useSettingsStore, type ModelOverrides } from "@/state/useSettingsStore";
-import { ModelPicker } from "@/lib/components/ModelPicker";
+import { ModelPicker } from "@/features/settings/components/ModelPicker";
 import { ReasoningToggle } from "@/lib/components/ReasoningToggle";
 import { Input } from "@/lib/components/ui/Input";
 import { formatCompactShort } from "@/lib/utils/format";

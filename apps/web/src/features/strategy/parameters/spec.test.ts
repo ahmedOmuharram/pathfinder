@@ -85,9 +85,11 @@ describe("isMultiParam", () => {
         allowMultipleValues: true,
         multiPick: true,
         vocabulary: ["a", "b"],
-        defaultValue: "a",
         maxSelectedCount: 10,
         minSelectedCount: 1,
+        countOnlyLeaves: false,
+        isNumber: false,
+        isVisible: true,
       };
       expect(isMultiParam(spec)).toBe(true);
     });
@@ -97,6 +99,10 @@ describe("isMultiParam", () => {
         name: "min_length",
         displayName: "Min Length",
         type: "number",
+        allowEmptyValue: false,
+        countOnlyLeaves: false,
+        isNumber: true,
+        isVisible: true,
       };
       expect(isMultiParam(spec)).toBe(false);
     });

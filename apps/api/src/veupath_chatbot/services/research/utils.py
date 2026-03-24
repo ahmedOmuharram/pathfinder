@@ -10,8 +10,9 @@ import httpx
 from rapidfuzz import fuzz
 
 from veupath_chatbot.domain.research.citations import LiteratureFilters
+from veupath_chatbot.domain.research.papers import ParsedPaper
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONValue
 
 logger = get_logger(__name__)
 
@@ -231,16 +232,16 @@ def fuzzy_score(query: str, text: str) -> float:
         return fallback_ratio(q, t)
 
 
-def rerank_score(query: str, item: JSONObject) -> tuple[float, dict[str, float]]:
+def rerank_score(query: str, paper: ParsedPaper) -> tuple[float, dict[str, float]]:
     """Calculate reranking score for a literature search result.
 
     :param query: Search query.
-    :param item: Literature result item.
+    :param paper: Parsed paper model.
     :returns: Tuple of (score, score breakdown).
     """
-    title = str(item.get("title") or "")
-    abstract = str(item.get("abstract") or item.get("snippet") or "")
-    journal = str(item.get("journalTitle") or item.get("journal") or "")
+    title = paper.title
+    abstract = paper.abstract or paper.snippet or ""
+    journal = paper.journal_title or ""
     title_s = fuzzy_score(query, title)
     abs_s = fuzzy_score(query, abstract)
     journal_s = fuzzy_score(query, journal) if journal else 0.0
@@ -292,24 +293,18 @@ def passes_filters(item: LiteratureItemContext, filters: LiteratureFilters) -> b
     return year_ok and doi_ok and exact_ok and text_ok
 
 
-def dedupe_key(item: JSONObject) -> str:
+def dedupe_key(paper: ParsedPaper) -> str:
     """Generate a deduplication key for a literature result.
 
-    :param item: Item dict.
+    Priority: pmid > doi > url > title+year fallback.
+
+    :param paper: Parsed paper model.
 
     """
-    pmid = item.get("pmid")
-    doi = item.get("doi")
-    url = item.get("url")
-    if isinstance(pmid, str) and pmid.strip():
-        key: str = f"pmid:{pmid.strip().lower()}"
-    elif isinstance(doi, str) and doi.strip():
-        key = f"doi:{doi.strip().lower()}"
-    elif isinstance(url, str) and url.strip():
-        key = f"url:{url.strip().lower()}"
-    else:
-        key = f"title:{norm_text(str(item.get('title')))}|year:{item.get('year')}"
-    return key
+    for prefix, value in [("pmid", paper.pmid), ("doi", paper.doi), ("url", paper.url)]:
+        if value and value.strip():
+            return f"{prefix}:{value.strip().lower()}"
+    return f"title:{norm_text(paper.title)}|year:{paper.year}"
 
 
 _HEAD_LIMIT = 32 * 1024  # 32 KB — more than enough to capture <head>

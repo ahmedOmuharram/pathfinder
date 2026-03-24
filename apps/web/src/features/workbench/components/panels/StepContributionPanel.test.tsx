@@ -26,12 +26,7 @@ const { storeState, mockStore } = vi.hoisted(() => {
   return { storeState, mockStore };
 });
 
-vi.mock("../../store", () => ({
-  useWorkbenchStore: mockStore,
-}));
-
-// AnalysisPanelContainer imports from the concrete module path
-vi.mock("../../store/useWorkbenchStore", () => ({
+vi.mock("@/state/useWorkbenchStore", () => ({
   useWorkbenchStore: mockStore,
 }));
 

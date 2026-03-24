@@ -5,8 +5,6 @@
 import { create } from "zustand";
 import type { Experiment, GeneSet } from "@pathfinder/shared";
 
-export type { GeneSet } from "@pathfinder/shared";
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

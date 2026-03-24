@@ -6,7 +6,7 @@ import { Button } from "@/lib/components/ui/Button";
 import { requestJson } from "@/lib/api/http";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 // ---------------------------------------------------------------------------
 // Types

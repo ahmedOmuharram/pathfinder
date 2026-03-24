@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-import type { GeneSet } from "../store";
+import type { GeneSet } from "@pathfinder/shared";
 import { exportAsTxt, exportAsCsv, exportMultipleAsCsv } from "./export";
 
 // ---------------------------------------------------------------------------

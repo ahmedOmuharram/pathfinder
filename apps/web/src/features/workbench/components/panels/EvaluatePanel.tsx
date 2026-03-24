@@ -23,7 +23,7 @@ import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { SaveControlSetForm } from "../SaveControlSetForm";
 import { ControlSetQuickPick } from "../ControlSetQuickPick";
-import { useWorkbenchStore } from "../../store";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 // ---------------------------------------------------------------------------
 // Component

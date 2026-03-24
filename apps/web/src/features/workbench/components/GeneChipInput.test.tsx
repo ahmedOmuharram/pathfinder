@@ -6,11 +6,7 @@ import type { GeneSet } from "@pathfinder/shared";
 const storeState: Record<string, unknown> = {
   geneSets: [] as GeneSet[],
 };
-vi.mock("../store", () => ({
-  useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector(storeState),
-}));
-vi.mock("../store/useWorkbenchStore", () => ({
+vi.mock("@/state/useWorkbenchStore", () => ({
   useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector(storeState),
 }));

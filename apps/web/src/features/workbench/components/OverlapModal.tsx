@@ -6,8 +6,8 @@ import { Modal } from "@/lib/components/Modal";
 import { SetVenn } from "@/lib/components/SetVenn";
 import { Button } from "@/lib/components/ui/Button";
 import { createGeneSet } from "../api/geneSets";
-import type { GeneSet } from "../store";
-import { useWorkbenchStore } from "../store";
+import type { GeneSet } from "@pathfinder/shared";
+import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useSessionStore } from "@/state/useSessionStore";
 
 interface OverlapModalProps {
