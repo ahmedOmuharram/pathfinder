@@ -30,6 +30,7 @@ describe("basePath via getAttributes", () => {
     await getAttributes({ type: "experiment", id: "exp-123" });
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/exp-123/results/attributes",
     );
   });
@@ -40,6 +41,7 @@ describe("basePath via getAttributes", () => {
     await getAttributes({ type: "gene-set", id: "gs-456" });
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/gene-sets/gs-456/results/attributes",
     );
   });
@@ -82,6 +84,7 @@ describe("getRecords", () => {
     await getRecords({ type: "experiment", id: "e1" });
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/e1/results/records",
       { query: {} },
     );
@@ -93,6 +96,7 @@ describe("getRecords", () => {
     await getRecords({ type: "experiment", id: "e1" }, { offset: 10, limit: 25 });
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/e1/results/records",
       { query: { offset: "10", limit: "25" } },
     );
@@ -104,6 +108,7 @@ describe("getRecords", () => {
     await getRecords({ type: "gene-set", id: "gs1" }, { sort: "gene_id", dir: "DESC" });
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/gene-sets/gs1/results/records",
       { query: { sort: "gene_id", dir: "DESC" } },
     );
@@ -118,6 +123,7 @@ describe("getRecords", () => {
     );
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/e1/results/records",
       { query: { attributes: "gene_id,product,organism" } },
     );
@@ -132,6 +138,7 @@ describe("getRecords", () => {
     );
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/e1/results/records",
       {
         query: {
@@ -149,7 +156,7 @@ describe("getRecords", () => {
 
     const callArgs0 = mockRequestJson.mock.calls[0];
     expect(callArgs0).toBeDefined();
-    const query = callArgs0![1]?.query as Record<string, string>;
+    const query = callArgs0![2]?.query as Record<string, string>;
     expect(query).toEqual({ offset: "0" });
     expect("limit" in query).toBe(false);
     expect("sort" in query).toBe(false);
@@ -162,7 +169,7 @@ describe("getRecords", () => {
 
     const callArgs0 = mockRequestJson.mock.calls[0];
     expect(callArgs0).toBeDefined();
-    const query = callArgs0![1]?.query as Record<string, string>;
+    const query = callArgs0![2]?.query as Record<string, string>;
     expect("attributes" in query).toBe(false);
   });
 
@@ -177,7 +184,7 @@ describe("getRecords", () => {
 
     const callArgs0 = mockRequestJson.mock.calls[0];
     expect(callArgs0).toBeDefined();
-    const query = callArgs0![1]?.query as Record<string, string>;
+    const query = callArgs0![2]?.query as Record<string, string>;
     expect(query["filterValue"]).toBe("");
   });
 
@@ -198,6 +205,7 @@ describe("getRecords", () => {
     );
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/gene-sets/gs1/results/records",
       {
         query: {
@@ -227,6 +235,7 @@ describe("getRecordDetail", () => {
     const result = await getRecordDetail({ type: "experiment", id: "e1" }, primaryKey);
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/e1/results/record",
       {
         method: "POST",
@@ -243,6 +252,7 @@ describe("getRecordDetail", () => {
     await getRecordDetail({ type: "gene-set", id: "gs1" }, primaryKey);
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/gene-sets/gs1/results/record",
       {
         method: "POST",
@@ -261,6 +271,7 @@ describe("getRecordDetail", () => {
     await getRecordDetail({ type: "experiment", id: "e1" }, primaryKey);
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/e1/results/record",
       {
         method: "POST",
@@ -295,6 +306,7 @@ describe("getDistribution", () => {
     );
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/e1/results/distributions/gene%20product",
     );
     expect(result).toEqual(mockDist);
@@ -306,6 +318,7 @@ describe("getDistribution", () => {
     await getDistribution({ type: "gene-set", id: "gs1" }, "GO/Function");
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/gene-sets/gs1/results/distributions/GO%2FFunction",
     );
   });
@@ -316,6 +329,7 @@ describe("getDistribution", () => {
     await getDistribution({ type: "experiment", id: "e1" }, "organism");
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/e1/results/distributions/organism",
     );
   });

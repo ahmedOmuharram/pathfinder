@@ -1,5 +1,6 @@
 """Application configuration using pydantic-settings."""
 
+import secrets
 import tomllib
 from functools import lru_cache
 from pathlib import Path
@@ -79,7 +80,7 @@ class Settings(BaseSettings):
     api_env: Literal["development", "staging", "production"] = "development"
     api_debug: bool = False
     api_secret_key: str = Field(
-        default="dev-only-secret-key-change-in-prod",
+        default_factory=lambda: secrets.token_urlsafe(32),
         min_length=32,
     )
     api_docs_enabled: bool = True
@@ -167,12 +168,14 @@ class Settings(BaseSettings):
 
     def model_post_init(self, __context: object) -> None:
         """Validate settings after initialization."""
-        if self.api_env != "development" and "dev-only" in self.api_secret_key:
-            msg = (
-                "API_SECRET_KEY must be set to a real secret in production and staging. "
-                "The default development key is not allowed."
-            )
-            raise ValueError(msg)
+        if self.api_env != "development":
+            placeholders = ("dev-only", "change-me", "xxxx")
+            if any(p in self.api_secret_key.lower() for p in placeholders):
+                msg = (
+                    "API_SECRET_KEY must be set to a real secret in production and staging. "
+                    "Placeholder keys are not allowed."
+                )
+                raise ValueError(msg)
 
     @classmethod
     def settings_customise_sources(

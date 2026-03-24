@@ -47,13 +47,13 @@ describe("StrategyListItemSchema", () => {
     expect(result.data?.recordType).toBe("gene");
   });
 
-  it("passes through extra fields", () => {
+  it("strips unknown fields", () => {
     const result = StrategyListItemSchema.safeParse({
       ...validStrategy,
       futureField: 42,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["futureField"]).toBe(42);
+    expect((result.data as Record<string, unknown>)["futureField"]).toBeUndefined();
   });
 
   it("rejects missing name", () => {
@@ -95,13 +95,13 @@ describe("OpenStrategyResponseSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("passes through extra fields", () => {
+  it("strips unknown fields", () => {
     const result = OpenStrategyResponseSchema.safeParse({
       strategyId: "abc",
       isNew: true,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["isNew"]).toBe(true);
+    expect((result.data as Record<string, unknown>)["isNew"]).toBeUndefined();
   });
 
   it("rejects missing strategyId", () => {
@@ -160,15 +160,13 @@ describe("NormalizePlanResponseSchema", () => {
     expect(result.data?.warnings).toBeUndefined();
   });
 
-  it("passes through extra fields", () => {
+  it("strips unknown fields", () => {
     const result = NormalizePlanResponseSchema.safeParse({
       plan: { recordType: "gene", root: { searchName: "GenesByText" } },
       metadata: { version: 2 },
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["metadata"]).toEqual({
-      version: 2,
-    });
+    expect((result.data as Record<string, unknown>)["metadata"]).toBeUndefined();
   });
 
   it("rejects missing plan field", () => {

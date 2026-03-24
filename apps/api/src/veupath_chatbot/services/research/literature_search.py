@@ -42,25 +42,26 @@ class _SourcePayload(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    results: list[JSONObject] = Field(default_factory=list)
+    results: list[ParsedPaper] = Field(default_factory=list)
     citations: list[JSONObject] = Field(default_factory=list)
+    error: str | None = None
 
 
-class _ScoredResult(BaseModel):
-    """Minimal model for extracting the reranking score from a result dict."""
+class _EnrichedPaper(ParsedPaper):
+    """ParsedPaper enriched with source tracking and optional reranking score."""
 
-    model_config = ConfigDict(extra="ignore")
-
+    source: str = ""
     score: float | None = None
+    score_parts: dict[str, float] | None = None
 
 
 @dataclass
 class LiteratureResultData:
     """Aggregated result data for response assembly."""
 
-    results: list[JSONObject]
+    results: list[_EnrichedPaper]
     citations_by_key: dict[str, JSONObject]
-    by_source: dict[str, JSONObject]
+    by_source: dict[str, _SourcePayload]
     limit: int
 
 
@@ -258,7 +259,7 @@ class LiteratureSearchService:
         limit: int,
         include_abstract: bool,
         abstract_max_chars: int,
-    ) -> dict[str, JSONObject]:
+    ) -> dict[str, _SourcePayload]:
         """Dispatch searches to all requested sources in parallel."""
         tasks = self._build_source_tasks(
             query=query,
@@ -271,24 +272,12 @@ class LiteratureSearchService:
         async def _safe(
             name: str,
             coro: collections.abc.Awaitable[JSONObject],
-        ) -> tuple[str, JSONObject]:
+        ) -> tuple[str, _SourcePayload]:
             try:
                 res = await coro
-                return (
-                    name,
-                    res if isinstance(res, dict) else {"error": "invalid_response"},
-                )
+                return (name, _SourcePayload.model_validate(res))
             except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
-                return (
-                    name,
-                    {
-                        "query": query,
-                        "source": name,
-                        "results": [],
-                        "citations": [],
-                        "error": str(exc),
-                    },
-                )
+                return (name, _SourcePayload(error=str(exc)))
 
         pairs = await asyncio.gather(*(_safe(name, coro) for name, coro in tasks))
         return dict(pairs)
@@ -300,27 +289,21 @@ class LiteratureSearchService:
     def _deduplicate_and_filter(
         self,
         *,
-        by_source: dict[str, JSONObject],
+        by_source: dict[str, _SourcePayload],
         options: LiteratureOutputOptions,
         filters: LiteratureFilters,
-    ) -> tuple[list[JSONObject], dict[str, JSONObject]]:
+    ) -> tuple[list[_EnrichedPaper], dict[str, JSONObject]]:
         """Merge, filter, and deduplicate results from all sources.
 
         Returns (filtered_results, citations_by_dedupe_key).
         """
-        filtered: list[JSONObject] = []
+        filtered: list[_EnrichedPaper] = []
         citations_by_key: dict[str, JSONObject] = {}
         seen: set[str] = set()
 
-        for src, source_payload_raw in by_source.items():
-            try:
-                payload = _SourcePayload.model_validate(source_payload_raw)
-            except ValueError, TypeError:
-                continue
-
-            for i, item in enumerate(payload.results):
+        for src, payload in by_source.items():
+            for i, paper in enumerate(payload.results):
                 c = payload.citations[i] if i < len(payload.citations) else None
-                paper = ParsedPaper.model_validate(item)
 
                 item_ctx = LiteratureItemContext(
                     title=paper.title,
@@ -342,29 +325,26 @@ class LiteratureSearchService:
                     paper.authors or None,
                     options.max_authors,
                 )
-                if options.include_abstract:
-                    abstract_value = truncate_text(
-                        paper.abstract, options.abstract_max_chars
-                    )
-                else:
-                    abstract_value = paper.abstract
+                abstract_value = (
+                    truncate_text(paper.abstract, options.abstract_max_chars)
+                    if options.include_abstract
+                    else paper.abstract
+                )
                 filtered.append(
-                    {
-                        **item,
-                        "source": src,
-                        "authors": cast("JSONValue", authors_limited or []),
-                        "abstract": abstract_value,
-                    }
+                    _EnrichedPaper(
+                        **paper.model_dump(exclude={"authors", "abstract"}),
+                        source=src,
+                        authors=authors_limited or [],
+                        abstract=abstract_value,
+                    )
                 )
 
                 if c is not None:
                     c2: JSONObject = {**c}
                     if "authors" in c2:
                         authors_list = list_str(c2["authors"])
-                        authors_limited = limit_authors(
-                            authors_list, options.max_authors
-                        )
-                        c2["authors"] = cast("JSONValue", authors_limited)
+                        al = limit_authors(authors_list, options.max_authors)
+                        c2["authors"] = cast("JSONValue", al)
                     citations_by_key[key] = c2
 
         return filtered, citations_by_key
@@ -375,37 +355,34 @@ class LiteratureSearchService:
 
     def _sort_results(
         self,
-        results: list[JSONObject],
+        results: list[_EnrichedPaper],
         *,
         sort: LiteratureSort,
         source: LiteratureSource,
         query: str,
-    ) -> list[JSONObject]:
+    ) -> list[_EnrichedPaper]:
         """Sort (and optionally rerank) the filtered results."""
-
-        def get_year_key(r: JSONObject) -> tuple[bool, int]:
-            paper = ParsedPaper.model_validate(r)
-            return (paper.year is not None, paper.year or 0)
-
-        def get_score_key(r: JSONObject) -> tuple[bool, float]:
-            sr = _ScoredResult.model_validate(r)
-            return (sr.score is not None, sr.score or 0.0)
-
         if results and sort == "newest":
-            return sorted(results, key=get_year_key, reverse=True)
+            return sorted(
+                results,
+                key=lambda r: (r.year is not None, r.year or 0),
+                reverse=True,
+            )
 
         # Relevance reranking only for source="all"
         if results and sort == "relevance" and source == "all":
-            scored: list[JSONObject] = [
-                {
-                    **item,
-                    "score": round(score, 2),
-                    "scoreParts": cast("JSONValue", parts),
-                }
-                for item in results
-                for score, parts in [rerank_score(query, ParsedPaper.model_validate(item))]
+            scored = [
+                r.model_copy(
+                    update={"score": round(score, 2), "score_parts": parts},
+                )
+                for r in results
+                for score, parts in [rerank_score(query, r)]
             ]
-            return sorted(scored, key=get_score_key, reverse=True)
+            return sorted(
+                scored,
+                key=lambda r: (r.score is not None, r.score or 0.0),
+                reverse=True,
+            )
 
         return results
 
@@ -426,16 +403,16 @@ class LiteratureSearchService:
         """Assemble the final response payload."""
         sliced = result_data.results[: result_data.limit]
 
-        def _ordered_citations(results_list: list[JSONObject]) -> list[JSONObject]:
-            ordered: list[JSONObject] = []
-            for r in results_list:
-                key = dedupe_key(ParsedPaper.model_validate(r))
-                c = result_data.citations_by_key.get(key)
-                if c is not None:
-                    ordered.append(c)
-            return ordered
+        citations: list[JSONObject] = []
+        for r in sliced:
+            c = result_data.citations_by_key.get(dedupe_key(r))
+            if c is not None:
+                citations.append(c)
 
-        citations = _ordered_citations(sliced)
+        serialized_results = [
+            r.model_dump(by_alias=True, exclude_none=True, mode="json")
+            for r in sliced
+        ]
 
         payload: JSONObject = {
             "query": query,
@@ -454,12 +431,16 @@ class LiteratureSearchService:
                 "pmidEquals": filters.pmid_equals,
                 "requireDoi": filters.require_doi,
             },
-            "results": cast("JSONValue", sliced),
+            "results": cast("JSONValue", serialized_results),
             "citations": cast("JSONValue", citations),
         }
 
         if source == "all":
-            payload["bySource"] = cast("JSONValue", result_data.by_source)
+            by_source_raw = {
+                name: p.model_dump(mode="json")
+                for name, p in result_data.by_source.items()
+            }
+            payload["bySource"] = cast("JSONValue", by_source_raw)
 
         ensure_unique_citation_tags(citations)
 

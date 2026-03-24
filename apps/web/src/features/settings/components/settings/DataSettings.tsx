@@ -11,7 +11,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { requestJson } from "@/lib/api/http";
+import { requestVoid } from "@/lib/api/http";
 import { listStrategies, deleteStrategy } from "@/lib/api/strategies";
 import { useAsyncAction } from "@/lib/utils/asyncAction";
 import { Loader2, Trash2, AlertTriangle } from "lucide-react";
@@ -41,7 +41,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
   const clearSiteData = useCallback(async () => {
     setClearing("site");
     await run(async () => {
-      await requestJson<unknown>("/api/v1/user/data", {
+      await requestVoid("/api/v1/user/data", {
         method: "DELETE",
         query: { siteId, deleteWdk: "false" },
       });
@@ -54,7 +54,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
   const clearAllLocal = useCallback(async () => {
     setClearing("all-local");
     await run(async () => {
-      await requestJson<unknown>("/api/v1/user/data", {
+      await requestVoid("/api/v1/user/data", {
         method: "DELETE",
         query: { deleteWdk: "false" },
       });
@@ -67,7 +67,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
   const clearAllWithWdk = useCallback(async () => {
     setClearing("all-wdk");
     await run(async () => {
-      await requestJson<unknown>("/api/v1/user/data", {
+      await requestVoid("/api/v1/user/data", {
         method: "DELETE",
         query: { deleteWdk: "true" },
       });

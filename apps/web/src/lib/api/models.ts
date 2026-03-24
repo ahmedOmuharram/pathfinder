@@ -1,5 +1,5 @@
 import type { ModelCatalogEntry, ReasoningEffort } from "@pathfinder/shared";
-import { requestJsonValidated } from "./http";
+import { requestJson } from "./http";
 import { ModelCatalogResponseSchema } from "./schemas/model";
 
 interface ModelCatalogResponse {
@@ -9,7 +9,7 @@ interface ModelCatalogResponse {
 }
 
 export async function listModels(): Promise<ModelCatalogResponse> {
-  return (await requestJsonValidated(
+  return (await requestJson(
     ModelCatalogResponseSchema,
     "/api/v1/models",
   )) as ModelCatalogResponse;

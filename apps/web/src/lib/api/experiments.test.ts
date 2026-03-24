@@ -3,7 +3,6 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 // Mock the http module before importing the module under test
 vi.mock("@/lib/api/http", () => ({
   requestJson: vi.fn(),
-  requestJsonValidated: vi.fn(),
   buildUrl: vi.fn((path: string) => `http://localhost:8000${path}`),
   getAuthHeaders: vi.fn((opts?: { accept?: string }) => ({
     ...(opts?.accept ? { Accept: opts.accept } : {}),
@@ -28,15 +27,15 @@ vi.mock("@/lib/api/http", () => ({
 }));
 
 import { listExperiments, seedExperiments } from "./experiments";
-import { requestJsonValidated, buildUrl, getAuthHeaders } from "@/lib/api/http";
+import { requestJson, buildUrl, getAuthHeaders } from "@/lib/api/http";
 import type { ExperimentSummary } from "@pathfinder/shared";
 
-const mockRequestJsonValidated = vi.mocked(requestJsonValidated);
+const mockRequestJson = vi.mocked(requestJson);
 const mockBuildUrl = vi.mocked(buildUrl);
 const mockGetAuthHeaders = vi.mocked(getAuthHeaders);
 
 beforeEach(() => {
-  mockRequestJsonValidated.mockReset();
+  mockRequestJson.mockReset();
   mockBuildUrl.mockReset();
   mockGetAuthHeaders.mockReset();
   // Restore default implementations
@@ -81,24 +80,24 @@ const summaryFixture: ExperimentSummary = {
 
 describe("listExperiments", () => {
   it("sends GET to /api/v1/experiments without query when no siteId", async () => {
-    mockRequestJsonValidated.mockResolvedValue([summaryFixture]);
+    mockRequestJson.mockResolvedValue([summaryFixture]);
 
     const result = await listExperiments();
 
-    expect(mockRequestJsonValidated).toHaveBeenCalledWith(
+    expect(mockRequestJson).toHaveBeenCalledWith(
       expect.anything(),
       "/api/v1/experiments",
-      { query: undefined },
+      {},
     );
     expect(result).toEqual([summaryFixture]);
   });
 
   it("includes siteId in query when provided", async () => {
-    mockRequestJsonValidated.mockResolvedValue([]);
+    mockRequestJson.mockResolvedValue([]);
 
     await listExperiments("plasmodb");
 
-    expect(mockRequestJsonValidated).toHaveBeenCalledWith(
+    expect(mockRequestJson).toHaveBeenCalledWith(
       expect.anything(),
       "/api/v1/experiments",
       { query: { siteId: "plasmodb" } },
@@ -106,19 +105,19 @@ describe("listExperiments", () => {
   });
 
   it("passes null siteId without query (treats null like undefined)", async () => {
-    mockRequestJsonValidated.mockResolvedValue([]);
+    mockRequestJson.mockResolvedValue([]);
 
     await listExperiments(null);
 
-    expect(mockRequestJsonValidated).toHaveBeenCalledWith(
+    expect(mockRequestJson).toHaveBeenCalledWith(
       expect.anything(),
       "/api/v1/experiments",
-      { query: undefined },
+      {},
     );
   });
 
   it("returns empty array when no experiments exist", async () => {
-    mockRequestJsonValidated.mockResolvedValue([]);
+    mockRequestJson.mockResolvedValue([]);
 
     const result = await listExperiments("toxodb");
     expect(result).toEqual([]);
@@ -129,14 +128,14 @@ describe("listExperiments", () => {
       summaryFixture,
       { ...summaryFixture, id: "exp-2", name: "Second Experiment" },
     ];
-    mockRequestJsonValidated.mockResolvedValue(multiple);
+    mockRequestJson.mockResolvedValue(multiple);
 
     const result = await listExperiments();
     expect(result).toHaveLength(2);
   });
 
   it("propagates API errors", async () => {
-    mockRequestJsonValidated.mockRejectedValue(new Error("Unauthorized"));
+    mockRequestJson.mockRejectedValue(new Error("Unauthorized"));
 
     await expect(listExperiments()).rejects.toThrow("Unauthorized");
   });

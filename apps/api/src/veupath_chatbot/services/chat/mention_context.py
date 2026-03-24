@@ -6,13 +6,13 @@ system prompt so the model has complete information from the start.
 """
 
 import json
-from typing import Literal
 from uuid import UUID
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, walk_step_tree
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.services.chat.types import ChatMention
 from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
     Experiment,
@@ -32,35 +32,28 @@ _MAX_DISPLAYED_ENRICHMENT_TERMS = 8
 # Strings shorter than this are too small for a meaningful "..." suffix.
 _MIN_LENGTH_FOR_ELLIPSIS = 4
 
-MentionType = Literal["strategy", "experiment"]
-
 
 async def build_mention_context(
-    mentions: list[dict[str, str]],
+    mentions: list[ChatMention],
     stream_repo: StreamRepository,
 ) -> str:
     """Build concatenated context blocks for all mentions.
 
-    :param mentions: List of ``{"type": ..., "id": ..., "displayName": ...}`` dicts.
+    :param mentions: List of ChatMention objects from the chat request.
     :param stream_repo: Repository for loading stream projections.
     :returns: Markdown context string (empty if no mentions resolved).
     """
     blocks: list[str] = []
 
     for m in mentions:
-        m_type = m.get("type")
-        m_id = m.get("id", "")
-
-        if m_type == "strategy":
-            block = await _build_strategy_context(m_id, stream_repo)
+        if m.type == "strategy":
+            block = await _build_strategy_context(m.id, stream_repo)
             if block:
                 blocks.append(block)
-        elif m_type == "experiment":
-            block = await _build_experiment_context(m_id)
+        elif m.type == "experiment":
+            block = await _build_experiment_context(m.id)
             if block:
                 blocks.append(block)
-        else:
-            logger.debug("Unknown mention type", mention_type=m_type, mention_id=m_id)
 
     return "\n\n".join(blocks)
 

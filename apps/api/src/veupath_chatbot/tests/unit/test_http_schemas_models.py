@@ -8,7 +8,7 @@ from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 from veupath_chatbot.transport.http import schemas
-from veupath_chatbot.transport.http.schemas.chat import ChatMention
+from veupath_chatbot.services.chat.types import ChatMention
 from veupath_chatbot.transport.http.schemas.experiments import (
     CreateExperimentRequest,
     CustomEnrichRequest,

@@ -21,6 +21,7 @@ import argparse
 import hashlib
 import hmac
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -33,7 +34,7 @@ import httpx
 # ---------------------------------------------------------------------------
 
 DEFAULT_API_URL = "http://localhost:8000"
-DEFAULT_SECRET_KEY = "dev-only-secret-key-change-in-prod"
+DEFAULT_SECRET_KEY = os.environ.get("API_SECRET_KEY", "")
 
 CONTROLS_SEARCH = "GeneByLocusTag"
 CONTROLS_PARAM = "ds_gene_ids"

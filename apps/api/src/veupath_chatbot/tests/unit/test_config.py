@@ -60,13 +60,13 @@ class TestSettingsDefaults:
 class TestProductionValidation:
     """Production environment should reject dev-only settings."""
 
-    def test_production_rejects_dev_secret_key(self):
-        """Production mode with the default dev secret key should raise."""
+    def test_production_rejects_placeholder_secret_key(self):
+        """Production mode with placeholder secret keys should raise."""
         with pytest.raises(ValueError, match="API_SECRET_KEY must be set"):
             Settings(
                 _env_file=None,
                 api_env="production",
-                api_secret_key="dev-only-secret-key-change-in-prod",
+                api_secret_key="change-me-32-chars-min-xxxx-xxxx",
             )
 
     def test_production_accepts_real_secret_key(self):
@@ -77,8 +77,8 @@ class TestProductionValidation:
         )
         assert s.is_production is True
 
-    def test_staging_rejects_dev_secret_key(self):
-        """Staging mode must also reject the dev-only secret key."""
+    def test_staging_rejects_placeholder_secret_key(self):
+        """Staging mode must also reject placeholder secret keys."""
         with pytest.raises(ValueError, match="API_SECRET_KEY must be set"):
             Settings(
                 _env_file=None,

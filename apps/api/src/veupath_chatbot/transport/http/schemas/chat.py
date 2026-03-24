@@ -11,20 +11,10 @@ from veupath_chatbot.platform.types import (
     ModelProvider,
     ReasoningEffort,
 )
-from veupath_chatbot.services.chat.mention_context import MentionType
+from veupath_chatbot.services.chat.types import ChatMention
 from veupath_chatbot.transport.http.schemas.optimization import (
     OptimizationProgressEventData,
 )
-
-
-class ChatMention(BaseModel):
-    """A reference to a strategy or experiment included via @-mention."""
-
-    type: MentionType
-    id: str
-    display_name: str = Field(alias="displayName")
-
-    model_config = {"populate_by_name": True}
 
 
 class ChatRequest(BaseModel):

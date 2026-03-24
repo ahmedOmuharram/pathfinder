@@ -3,7 +3,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 // Mock the http module before importing the module under test
 vi.mock("@/lib/api/http", () => ({
   requestJson: vi.fn(),
-  requestJsonValidated: vi.fn(),
+  requestVoid: vi.fn(),
   buildUrl: vi.fn((path: string) => `http://localhost:8000${path}`),
   getAuthHeaders: vi.fn(),
   APIError: class APIError extends Error {
@@ -33,12 +33,10 @@ import {
   listStrategies,
   listDismissedStrategies,
 } from "./strategies";
-import { requestJson, requestJsonValidated } from "@/lib/api/http";
-const mockRequestJsonValidated = vi.mocked(requestJsonValidated);
+import { requestJson } from "@/lib/api/http";
 const mockRequestJson = vi.mocked(requestJson);
 
 beforeEach(() => {
-  mockRequestJsonValidated.mockReset();
   mockRequestJson.mockReset();
 });
 
@@ -94,7 +92,7 @@ const fullApiResponse = {
 describe("withDefaults applied to API functions", () => {
   describe("getStrategy", () => {
     it("defaults steps to [] when API omits them", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce(responseWithoutSteps);
+      mockRequestJson.mockResolvedValueOnce(responseWithoutSteps);
 
       const result = await getStrategy(VALID_UUID);
 
@@ -102,7 +100,7 @@ describe("withDefaults applied to API functions", () => {
     });
 
     it("defaults rootStepId to null when API omits it", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce(minimalApiResponse);
+      mockRequestJson.mockResolvedValueOnce(minimalApiResponse);
 
       const result = await getStrategy(VALID_UUID);
 
@@ -112,7 +110,7 @@ describe("withDefaults applied to API functions", () => {
     it("defaults isSaved to false when API omits it", async () => {
       // Simulate an API response where isSaved is missing
       const { isSaved: _, ...withoutIsSaved } = minimalApiResponse;
-      mockRequestJsonValidated.mockResolvedValueOnce(withoutIsSaved);
+      mockRequestJson.mockResolvedValueOnce(withoutIsSaved);
 
       const result = await getStrategy(VALID_UUID);
 
@@ -120,7 +118,7 @@ describe("withDefaults applied to API functions", () => {
     });
 
     it("preserves steps when API includes them", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce(fullApiResponse);
+      mockRequestJson.mockResolvedValueOnce(fullApiResponse);
 
       const result = await getStrategy(VALID_UUID);
 
@@ -129,7 +127,7 @@ describe("withDefaults applied to API functions", () => {
     });
 
     it("preserves isSaved=true when API includes it", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce(fullApiResponse);
+      mockRequestJson.mockResolvedValueOnce(fullApiResponse);
 
       const result = await getStrategy(VALID_UUID);
 
@@ -137,7 +135,7 @@ describe("withDefaults applied to API functions", () => {
     });
 
     it("returns a complete Strategy shape with all required fields", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce(responseWithoutSteps);
+      mockRequestJson.mockResolvedValueOnce(responseWithoutSteps);
 
       const result = await getStrategy(VALID_UUID);
 
@@ -158,7 +156,7 @@ describe("withDefaults applied to API functions", () => {
 
   describe("createStrategy", () => {
     it("defaults steps to [] when API omits them", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce(responseWithoutSteps);
+      mockRequestJson.mockResolvedValueOnce(responseWithoutSteps);
 
       const result = await createStrategy({
         name: "New",
@@ -171,7 +169,7 @@ describe("withDefaults applied to API functions", () => {
     });
 
     it("preserves full response when all fields present", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce(fullApiResponse);
+      mockRequestJson.mockResolvedValueOnce(fullApiResponse);
 
       const result = await createStrategy({
         name: "New",
@@ -186,7 +184,7 @@ describe("withDefaults applied to API functions", () => {
 
   describe("updateStrategy", () => {
     it("defaults steps to [] when API omits them", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce(responseWithoutSteps);
+      mockRequestJson.mockResolvedValueOnce(responseWithoutSteps);
 
       const result = await updateStrategy(VALID_UUID, { name: "Renamed" });
 
@@ -195,7 +193,7 @@ describe("withDefaults applied to API functions", () => {
     });
 
     it("preserves full response when all fields present", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce(fullApiResponse);
+      mockRequestJson.mockResolvedValueOnce(fullApiResponse);
 
       const result = await updateStrategy(VALID_UUID, { name: "Renamed" });
 
@@ -224,7 +222,7 @@ describe("withDefaults applied to API functions", () => {
 
   describe("listStrategies", () => {
     it("applies withDefaults to each item", async () => {
-      mockRequestJsonValidated.mockResolvedValueOnce([
+      mockRequestJson.mockResolvedValueOnce([
         responseWithoutSteps,
         minimalApiResponse,
       ]);

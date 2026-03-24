@@ -167,6 +167,7 @@ describe("runCrossValidation", () => {
     const result = await runCrossValidation("exp-1", 5);
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/exp-1/cross-validate",
       {
         method: "POST",
@@ -182,6 +183,7 @@ describe("runCrossValidation", () => {
     await runCrossValidation("exp-1", 10);
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/exp-1/cross-validate",
       {
         method: "POST",
@@ -195,8 +197,8 @@ describe("runCrossValidation", () => {
 
     const result = await runCrossValidation("exp-1", 5);
 
-    expect(result.overfittingLevel).toBe("low");
-    expect(result.overfittingScore).toBe(0.1);
+    expect((result as unknown as typeof crossValidationFixture)["overfittingLevel"]).toBe("low");
+    expect((result as unknown as typeof crossValidationFixture)["overfittingScore"]).toBe(0.1);
     expect(result.folds).toHaveLength(5);
   });
 
@@ -220,10 +222,14 @@ describe("runEnrichment", () => {
     const types: EnrichmentAnalysisType[] = ["go_function", "pathway"];
     const result = await runEnrichment("exp-1", types);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1/enrich", {
-      method: "POST",
-      body: { enrichmentTypes: ["go_function", "pathway"] },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/exp-1/enrich",
+      {
+        method: "POST",
+        body: { enrichmentTypes: ["go_function", "pathway"] },
+      },
+    );
     expect(result).toEqual([enrichmentFixture]);
   });
 
@@ -232,10 +238,14 @@ describe("runEnrichment", () => {
 
     await runEnrichment("exp-1", ["go_function"]);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1/enrich", {
-      method: "POST",
-      body: { enrichmentTypes: ["go_function"] },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/exp-1/enrich",
+      {
+        method: "POST",
+        body: { enrichmentTypes: ["go_function"] },
+      },
+    );
   });
 
   it("handles empty enrichment types array", async () => {
@@ -243,10 +253,14 @@ describe("runEnrichment", () => {
 
     const result = await runEnrichment("exp-1", []);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1/enrich", {
-      method: "POST",
-      body: { enrichmentTypes: [] },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/exp-1/enrich",
+      {
+        method: "POST",
+        body: { enrichmentTypes: [] },
+      },
+    );
     expect(result).toEqual([]);
   });
 
@@ -260,8 +274,8 @@ describe("runEnrichment", () => {
     const result = await runEnrichment("exp-1", ["go_function", "go_process"]);
 
     expect(result).toHaveLength(2);
-    expect(result[0]!.analysisType).toBe("go_function");
-    expect(result[1]!.analysisType).toBe("go_process");
+    expect((result[0] as unknown as typeof enrichmentFixture)["analysisType"]).toBe("go_function");
+    expect((result[1] as unknown as typeof enrichmentFixture)["analysisType"]).toBe("go_process");
   });
 
   it("propagates errors", async () => {
@@ -283,11 +297,14 @@ describe("computeOverlap", () => {
 
     const result = await computeOverlap(["exp-1", "exp-2"]);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/overlap", {
-      method: "POST",
-      body: { experimentIds: ["exp-1", "exp-2"] },
-      query: undefined,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/overlap",
+      {
+        method: "POST",
+        body: { experimentIds: ["exp-1", "exp-2"] },
+      },
+    );
     expect(result).toEqual(overlapFixture);
   });
 
@@ -296,11 +313,15 @@ describe("computeOverlap", () => {
 
     await computeOverlap(["exp-1", "exp-2"], { orthologAware: true });
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/overlap", {
-      method: "POST",
-      body: { experimentIds: ["exp-1", "exp-2"] },
-      query: { orthologAware: "true" },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/overlap",
+      {
+        method: "POST",
+        body: { experimentIds: ["exp-1", "exp-2"] },
+        query: { orthologAware: "true" },
+      },
+    );
   });
 
   it("omits orthologAware query parameter when false", async () => {
@@ -308,11 +329,14 @@ describe("computeOverlap", () => {
 
     await computeOverlap(["exp-1", "exp-2"], { orthologAware: false });
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/overlap", {
-      method: "POST",
-      body: { experimentIds: ["exp-1", "exp-2"] },
-      query: undefined,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/overlap",
+      {
+        method: "POST",
+        body: { experimentIds: ["exp-1", "exp-2"] },
+      },
+    );
   });
 
   it("omits query when no options are provided", async () => {
@@ -320,11 +344,14 @@ describe("computeOverlap", () => {
 
     await computeOverlap(["exp-1"]);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/overlap", {
-      method: "POST",
-      body: { experimentIds: ["exp-1"] },
-      query: undefined,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/overlap",
+      {
+        method: "POST",
+        body: { experimentIds: ["exp-1"] },
+      },
+    );
   });
 
   it("handles multiple experiments", async () => {
@@ -332,11 +359,14 @@ describe("computeOverlap", () => {
 
     await computeOverlap(["exp-1", "exp-2", "exp-3"]);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/overlap", {
-      method: "POST",
-      body: { experimentIds: ["exp-1", "exp-2", "exp-3"] },
-      query: undefined,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/overlap",
+      {
+        method: "POST",
+        body: { experimentIds: ["exp-1", "exp-2", "exp-3"] },
+      },
+    );
   });
 
   it("propagates errors", async () => {
@@ -359,6 +389,7 @@ describe("compareEnrichment", () => {
     const result = await compareEnrichment(["exp-1", "exp-2"]);
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/enrichment-compare",
       {
         method: "POST",
@@ -374,6 +405,7 @@ describe("compareEnrichment", () => {
     await compareEnrichment(["exp-1", "exp-2"], "go_function");
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/enrichment-compare",
       {
         method: "POST",
@@ -387,11 +419,10 @@ describe("compareEnrichment", () => {
 
     await compareEnrichment(["exp-1", "exp-2"]);
 
-    const callBody = mockRequestJson.mock.calls[0]![1]?.body as {
-      experimentIds: string[];
-      analysisType?: string;
+    const callBody = mockRequestJson.mock.calls[0]![2] as {
+      body: { experimentIds: string[]; analysisType?: string };
     };
-    expect(callBody).not.toHaveProperty("analysisType");
+    expect(callBody.body).not.toHaveProperty("analysisType");
   });
 
   it("returns comparison rows with scores per experiment", async () => {

@@ -24,7 +24,7 @@ describe("AuthStatusResponseSchema", () => {
     expect(result.data?.name).toBeNull();
   });
 
-  it("passes through extra fields", () => {
+  it("strips unknown fields", () => {
     const result = AuthStatusResponseSchema.safeParse({
       signedIn: true,
       name: "Alice",
@@ -32,7 +32,7 @@ describe("AuthStatusResponseSchema", () => {
       role: "admin",
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["role"]).toBe("admin");
+    expect((result.data as Record<string, unknown>)["role"]).toBeUndefined();
   });
 
   it("rejects missing signedIn field", () => {
@@ -57,13 +57,13 @@ describe("AuthSuccessResponseSchema", () => {
     expect(result.data?.success).toBe(false);
   });
 
-  it("passes through extra fields", () => {
+  it("strips unknown fields", () => {
     const result = AuthSuccessResponseSchema.safeParse({
       success: true,
       message: "Logged in",
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["message"]).toBe("Logged in");
+    expect((result.data as Record<string, unknown>)["message"]).toBeUndefined();
   });
 
   it("rejects missing success field", () => {

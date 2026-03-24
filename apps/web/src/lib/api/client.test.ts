@@ -6,11 +6,11 @@ vi.mock("./http", async (importOriginal) => {
   return {
     ...actual,
     requestJson: vi.fn(),
-    requestJsonValidated: vi.fn(),
+    requestVoid: vi.fn(),
   };
 });
 
-import { requestJson, requestJsonValidated } from "./http";
+import { requestJson, requestVoid } from "./http";
 import { APIError } from "./http";
 import {
   listSites,
@@ -37,12 +37,12 @@ import {
 } from "./veupathdb-auth";
 
 const requestJsonMock = vi.mocked(requestJson);
-const requestJsonValidatedMock = vi.mocked(requestJsonValidated);
+const requestVoidMock = vi.mocked(requestVoid);
 
 describe("lib/api functions", () => {
   beforeEach(() => {
     requestJsonMock.mockReset();
-    requestJsonValidatedMock.mockReset();
+    requestVoidMock.mockReset();
   });
 
   it("getStrategy fails fast on non-UUID ids", async () => {
@@ -53,11 +53,11 @@ describe("lib/api functions", () => {
     });
   });
 
-  it("getStrategy calls requestJsonValidated for UUID ids", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce({ id: "x" });
+  it("getStrategy calls requestJson for UUID ids", async () => {
+    requestJsonMock.mockResolvedValueOnce({ id: "x" });
     const id = "00000000-0000-4000-8000-000000000000";
     await getStrategy(id);
-    expect(requestJsonValidatedMock).toHaveBeenCalledWith(
+    expect(requestJsonMock).toHaveBeenCalledWith(
       expect.anything(),
       `/api/v1/strategies/${id}`,
     );
@@ -69,37 +69,35 @@ describe("lib/api functions", () => {
   });
 
   it("listSites hits the sites endpoint", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce([]);
+    requestJsonMock.mockResolvedValueOnce([]);
     await listSites();
-    expect(requestJsonValidatedMock).toHaveBeenCalledWith(
+    expect(requestJsonMock).toHaveBeenCalledWith(
       expect.anything(),
       "/api/v1/sites",
     );
   });
 
   it("getRecordTypes encodes the site id", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce([]);
+    requestJsonMock.mockResolvedValueOnce([]);
     await getRecordTypes("foo/bar");
-    expect(requestJsonValidatedMock).toHaveBeenCalledWith(
+    expect(requestJsonMock).toHaveBeenCalledWith(
       expect.anything(),
       "/api/v1/sites/foo%2Fbar/record-types",
     );
   });
 
   it("getSearches only includes query when recordType is provided", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce([]);
+    requestJsonMock.mockResolvedValueOnce([]);
     await getSearches("plasmodb", null);
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/sites/plasmodb/searches",
-      {
-        query: undefined,
-      },
+      {},
     );
 
-    requestJsonValidatedMock.mockResolvedValueOnce([]);
+    requestJsonMock.mockResolvedValueOnce([]);
     await getSearches("plasmodb", "gene");
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/sites/plasmodb/searches",
       {
@@ -109,9 +107,9 @@ describe("lib/api functions", () => {
   });
 
   it("getParamSpecs uses POST body with contextValues and encodes url parts", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce([]);
+    requestJsonMock.mockResolvedValueOnce([]);
     await getParamSpecs("site 1", "gene/type", "my search", { a: 1 });
-    expect(requestJsonValidatedMock).toHaveBeenCalledWith(
+    expect(requestJsonMock).toHaveBeenCalledWith(
       expect.anything(),
       "/api/v1/sites/site%201/searches/gene%2Ftype/my%20search/param-specs",
       { method: "POST", body: { contextValues: { a: 1 } } },
@@ -119,9 +117,9 @@ describe("lib/api functions", () => {
   });
 
   it("validateSearchParams uses POST body with contextValues", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce({ valid: true });
+    requestJsonMock.mockResolvedValueOnce({ valid: true });
     await validateSearchParams("plasmodb", "gene", "search", { x: "y" });
-    expect(requestJsonValidatedMock).toHaveBeenCalledWith(
+    expect(requestJsonMock).toHaveBeenCalledWith(
       expect.anything(),
       "/api/v1/sites/plasmodb/searches/gene/search/validate",
       { method: "POST", body: { contextValues: { x: "y" } } },
@@ -129,9 +127,9 @@ describe("lib/api functions", () => {
   });
 
   it("listStrategies includes siteId query when provided", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce([]);
+    requestJsonMock.mockResolvedValueOnce([]);
     await listStrategies("plasmodb");
-    expect(requestJsonValidatedMock).toHaveBeenCalledWith(
+    expect(requestJsonMock).toHaveBeenCalledWith(
       expect.anything(),
       "/api/v1/strategies",
       { query: { siteId: "plasmodb" } },
@@ -139,9 +137,9 @@ describe("lib/api functions", () => {
   });
 
   it("openStrategy POSTs payload", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce({ strategyId: "x" });
+    requestJsonMock.mockResolvedValueOnce({ strategyId: "x" });
     await openStrategy({ siteId: "plasmodb", wdkStrategyId: 123 });
-    expect(requestJsonValidatedMock).toHaveBeenCalledWith(
+    expect(requestJsonMock).toHaveBeenCalledWith(
       expect.anything(),
       "/api/v1/strategies/open",
       { method: "POST", body: { siteId: "plasmodb", wdkStrategyId: 123 } },
@@ -154,25 +152,25 @@ describe("lib/api functions", () => {
       root: { searchName: "s", id: "n1", displayName: "d", parameters: {} },
       metadata: { name: "x" },
     };
-    requestJsonValidatedMock.mockResolvedValueOnce({ id: "s1" });
+    requestJsonMock.mockResolvedValueOnce({ id: "s1" });
     await createStrategy({ name: "N", siteId: "plasmodb", plan });
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/strategies",
       { method: "POST", body: { name: "N", siteId: "plasmodb", plan } },
     );
 
-    requestJsonValidatedMock.mockResolvedValueOnce({ id: "s1" });
+    requestJsonMock.mockResolvedValueOnce({ id: "s1" });
     await updateStrategy("s1", { name: "N2" });
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/strategies/s1",
       { method: "PATCH", body: { name: "N2" } },
     );
 
-    requestJsonMock.mockResolvedValueOnce(undefined);
+    requestVoidMock.mockResolvedValueOnce(undefined);
     await deleteStrategy("s1");
-    expect(requestJsonMock).toHaveBeenLastCalledWith("/api/v1/strategies/s1", {
+    expect(requestVoidMock).toHaveBeenLastCalledWith("/api/v1/strategies/s1", {
       method: "DELETE",
     });
   });
@@ -183,17 +181,17 @@ describe("lib/api functions", () => {
       root: { searchName: "s", id: "n1", displayName: "d", parameters: {} },
       metadata: { name: "x" },
     };
-    requestJsonValidatedMock.mockResolvedValueOnce({ plan });
+    requestJsonMock.mockResolvedValueOnce({ plan });
     await normalizePlan("plasmodb", plan);
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/strategies/plan/normalize",
       { method: "POST", body: { siteId: "plasmodb", plan } },
     );
 
-    requestJsonValidatedMock.mockResolvedValueOnce({ counts: {} });
+    requestJsonMock.mockResolvedValueOnce({ counts: {} });
     await computeStepCounts("plasmodb", plan);
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/strategies/step-counts",
       { method: "POST", body: { siteId: "plasmodb", plan } },
@@ -201,9 +199,9 @@ describe("lib/api functions", () => {
   });
 
   it("syncWdkStrategies calls the batch sync endpoint", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce([]);
+    requestJsonMock.mockResolvedValueOnce([]);
     await syncWdkStrategies("plasmodb");
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/strategies/sync-wdk",
       { method: "POST", query: { siteId: "plasmodb" } },
@@ -211,21 +209,21 @@ describe("lib/api functions", () => {
   });
 
   it("auth bridge endpoints forward the provided siteId", async () => {
-    requestJsonValidatedMock.mockResolvedValueOnce({
+    requestJsonMock.mockResolvedValueOnce({
       signedIn: false,
       name: null,
       email: null,
     });
     await getVeupathdbAuthStatus("plasmodb");
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/veupathdb/auth/status",
       { query: { siteId: "plasmodb" } },
     );
 
-    requestJsonValidatedMock.mockResolvedValueOnce({ success: true });
+    requestJsonMock.mockResolvedValueOnce({ success: true });
     await loginVeupathdb("a@b.com", "pw", "plasmodb");
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/veupathdb/auth/login",
       {
@@ -235,9 +233,9 @@ describe("lib/api functions", () => {
       },
     );
 
-    requestJsonValidatedMock.mockResolvedValueOnce({ success: true });
+    requestJsonMock.mockResolvedValueOnce({ success: true });
     await logoutVeupathdb("plasmodb");
-    expect(requestJsonValidatedMock).toHaveBeenLastCalledWith(
+    expect(requestJsonMock).toHaveBeenLastCalledWith(
       expect.anything(),
       "/api/v1/veupathdb/auth/logout",
       { method: "POST", query: { siteId: "plasmodb" } },

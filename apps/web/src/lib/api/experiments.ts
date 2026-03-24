@@ -7,7 +7,7 @@ import {
   APIError,
   buildUrl,
   getAuthHeaders,
-  requestJsonValidated,
+  requestJson,
 } from "@/lib/api/http";
 import { ExperimentSummaryListSchema } from "./schemas/experiment";
 
@@ -15,7 +15,7 @@ import { ExperimentSummaryListSchema } from "./schemas/experiment";
 export async function listExperiments(
   siteId?: string | null,
 ): Promise<ExperimentSummary[]> {
-  return (await requestJsonValidated(
+  return (await requestJson(
     ExperimentSummaryListSchema,
     "/api/v1/experiments",
     siteId != null && siteId !== "" ? { query: { siteId } } : {},

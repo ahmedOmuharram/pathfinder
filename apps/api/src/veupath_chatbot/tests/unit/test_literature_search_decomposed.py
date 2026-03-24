@@ -11,10 +11,13 @@ from veupath_chatbot.domain.research.citations import (
     LiteratureOutputOptions,
     LiteratureSource,
 )
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.domain.research.papers import ParsedPaper
+from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.literature_search import (
     LiteratureResultData,
     LiteratureSearchService,
+    _EnrichedPaper,
+    _SourcePayload,
 )
 
 # ---------------------------------------------------------------------------
@@ -36,30 +39,40 @@ class _MakeResultSpec:
     authors: list[str] | None = field(default=None)
     abstract: str | None = None
     journal: str | None = None
-    source: str | None = None
+    source: str = ""
     url: str | None = None
 
 
 _DEFAULT_MAKE_RESULT_SPEC = _MakeResultSpec()
 
 
-def _make_result(spec: _MakeResultSpec = _DEFAULT_MAKE_RESULT_SPEC) -> JSONObject:
-    r: JSONObject = {"title": spec.title, "year": spec.year}
-    if spec.doi is not None:
-        r["doi"] = spec.doi
-    if spec.pmid is not None:
-        r["pmid"] = spec.pmid
-    if spec.authors is not None:
-        r["authors"] = cast("JSONValue", spec.authors)
-    if spec.abstract is not None:
-        r["abstract"] = spec.abstract
-    if spec.journal is not None:
-        r["journalTitle"] = spec.journal
-    if spec.source is not None:
-        r["source"] = spec.source
-    if spec.url is not None:
-        r["url"] = spec.url
-    return r
+def _make_paper(spec: _MakeResultSpec = _DEFAULT_MAKE_RESULT_SPEC) -> ParsedPaper:
+    return ParsedPaper(
+        title=spec.title,
+        doi=spec.doi,
+        pmid=spec.pmid,
+        year=spec.year,
+        authors=spec.authors or [],
+        abstract=spec.abstract,
+        journal_title=spec.journal,
+        url=spec.url,
+    )
+
+
+def _make_enriched(
+    spec: _MakeResultSpec = _DEFAULT_MAKE_RESULT_SPEC,
+) -> _EnrichedPaper:
+    return _EnrichedPaper(
+        title=spec.title,
+        doi=spec.doi,
+        pmid=spec.pmid,
+        year=spec.year,
+        authors=spec.authors or [],
+        abstract=spec.abstract,
+        journal_title=spec.journal,
+        url=spec.url,
+        source=spec.source,
+    )
 
 
 def _make_citation(
@@ -83,15 +96,12 @@ def _make_citation(
 
 
 def _make_source_payload(
-    results: JSONArray,
-    citations: JSONArray | None = None,
-) -> JSONObject:
+    papers: list[ParsedPaper],
+    citations: list[JSONObject] | None = None,
+) -> _SourcePayload:
     if citations is None:
-        citations = [
-            _make_citation(title=str(r.get("title") if isinstance(r, dict) else ""))
-            for r in results
-        ]
-    return {"results": results, "citations": citations}
+        citations = [_make_citation(title=p.title) for p in papers]
+    return _SourcePayload(results=papers, citations=citations)
 
 
 # ---------------------------------------------------------------------------
@@ -201,217 +211,141 @@ class TestBuildSourceTasks:
 # _deduplicate_and_filter
 # ---------------------------------------------------------------------------
 
+_DEFAULT_OPTIONS = LiteratureOutputOptions(
+    include_abstract=False, abstract_max_chars=2000, max_authors=2
+)
+_DEFAULT_FILTERS = LiteratureFilters(
+    year_from=None,
+    year_to=None,
+    author_includes=None,
+    title_includes=None,
+    journal_includes=None,
+    doi_equals=None,
+    pmid_equals=None,
+    require_doi=False,
+)
+
 
 class TestDeduplicateAndFilter:
     def test_removes_duplicates_by_doi(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(_MakeResultSpec(title="Paper A", doi="10.1234/same"))
-        r2 = _make_result(_MakeResultSpec(title="Paper B", doi="10.1234/same"))
+        p1 = _make_paper(_MakeResultSpec(title="Paper A", doi="10.1234/same"))
+        p2 = _make_paper(_MakeResultSpec(title="Paper B", doi="10.1234/same"))
         c1 = _make_citation(title="Paper A", doi="10.1234/same")
         c2 = _make_citation(title="Paper B", doi="10.1234/same")
-        by_source: dict[str, JSONObject] = {
-            "europepmc": _make_source_payload([r1], [c1]),
-            "crossref": _make_source_payload([r2], [c2]),
+        by_source = {
+            "europepmc": _make_source_payload([p1], [c1]),
+            "crossref": _make_source_payload([p2], [c2]),
         }
-        filtered, _citations_by_key = service._deduplicate_and_filter(
-            by_source=by_source,
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+        filtered, _ = service._deduplicate_and_filter(
+            by_source=by_source, options=_DEFAULT_OPTIONS, filters=_DEFAULT_FILTERS
         )
         assert len(filtered) == 1
 
     def test_removes_duplicates_by_pmid(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(_MakeResultSpec(title="Paper A", doi=None, pmid="12345"))
-        r2 = _make_result(_MakeResultSpec(title="Paper B", doi=None, pmid="12345"))
-        by_source: dict[str, JSONObject] = {
-            "europepmc": _make_source_payload([r1]),
-            "pubmed": _make_source_payload([r2]),
+        p1 = _make_paper(_MakeResultSpec(title="Paper A", doi=None, pmid="12345"))
+        p2 = _make_paper(_MakeResultSpec(title="Paper B", doi=None, pmid="12345"))
+        by_source = {
+            "europepmc": _make_source_payload([p1]),
+            "pubmed": _make_source_payload([p2]),
         }
         filtered, _ = service._deduplicate_and_filter(
-            by_source=by_source,
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            by_source=by_source, options=_DEFAULT_OPTIONS, filters=_DEFAULT_FILTERS
         )
         assert len(filtered) == 1
 
     def test_keeps_unique_items(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(_MakeResultSpec(title="Paper A", doi="10.1234/a"))
-        r2 = _make_result(_MakeResultSpec(title="Paper B", doi="10.1234/b"))
-        by_source: dict[str, JSONObject] = {
-            "europepmc": _make_source_payload([r1, r2]),
+        p1 = _make_paper(_MakeResultSpec(title="Paper A", doi="10.1234/a"))
+        p2 = _make_paper(_MakeResultSpec(title="Paper B", doi="10.1234/b"))
+        by_source = {
+            "europepmc": _make_source_payload([p1, p2]),
         }
         filtered, _ = service._deduplicate_and_filter(
-            by_source=by_source,
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            by_source=by_source, options=_DEFAULT_OPTIONS, filters=_DEFAULT_FILTERS
         )
         assert len(filtered) == 2
 
     def test_applies_year_filter(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(_MakeResultSpec(title="Old", doi="10.1234/old", year=2010))
-        r2 = _make_result(_MakeResultSpec(title="New", doi="10.1234/new", year=2022))
-        by_source: dict[str, JSONObject] = {
-            "europepmc": _make_source_payload([r1, r2]),
+        p1 = _make_paper(_MakeResultSpec(title="Old", doi="10.1234/old", year=2010))
+        p2 = _make_paper(_MakeResultSpec(title="New", doi="10.1234/new", year=2022))
+        by_source = {
+            "europepmc": _make_source_payload([p1, p2]),
         }
+        filters = LiteratureFilters(
+            year_from=2015,
+            year_to=None,
+            author_includes=None,
+            title_includes=None,
+            journal_includes=None,
+            doi_equals=None,
+            pmid_equals=None,
+            require_doi=False,
+        )
         filtered, _ = service._deduplicate_and_filter(
-            by_source=by_source,
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=2015,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            by_source=by_source, options=_DEFAULT_OPTIONS, filters=filters
         )
         assert len(filtered) == 1
-        assert isinstance(filtered[0], dict)
-        assert filtered[0].get("title") == "New"
+        assert filtered[0].title == "New"
 
     def test_applies_require_doi(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(_MakeResultSpec(title="Has DOI", doi="10.1234/a"))
-        r2 = _make_result(_MakeResultSpec(title="No DOI", doi=None))
-        by_source: dict[str, JSONObject] = {
-            "europepmc": _make_source_payload([r1, r2]),
+        p1 = _make_paper(_MakeResultSpec(title="Has DOI", doi="10.1234/a"))
+        p2 = _make_paper(_MakeResultSpec(title="No DOI", doi=None))
+        by_source = {
+            "europepmc": _make_source_payload([p1, p2]),
         }
+        filters = LiteratureFilters(
+            year_from=None,
+            year_to=None,
+            author_includes=None,
+            title_includes=None,
+            journal_includes=None,
+            doi_equals=None,
+            pmid_equals=None,
+            require_doi=True,
+        )
         filtered, _ = service._deduplicate_and_filter(
-            by_source=by_source,
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=True,
-            ),
+            by_source=by_source, options=_DEFAULT_OPTIONS, filters=filters
         )
         assert len(filtered) == 1
-        assert isinstance(filtered[0], dict)
-        assert filtered[0].get("doi") == "10.1234/a"
+        assert filtered[0].doi == "10.1234/a"
 
     def test_limits_authors(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(
+        p1 = _make_paper(
             _MakeResultSpec(
                 title="Many Authors",
                 doi="10.1234/many",
                 authors=["Alice", "Bob", "Carol", "Dave"],
             )
         )
-        by_source: dict[str, JSONObject] = {
-            "europepmc": _make_source_payload([r1]),
+        by_source = {
+            "europepmc": _make_source_payload([p1]),
         }
         filtered, _ = service._deduplicate_and_filter(
-            by_source=by_source,
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            by_source=by_source, options=_DEFAULT_OPTIONS, filters=_DEFAULT_FILTERS
         )
         assert len(filtered) == 1
-        item = filtered[0]
-        assert isinstance(item, dict)
-        authors = item.get("authors")
-        assert isinstance(authors, list)
         # 2 authors + "et al."
-        assert len(authors) == 3
-        assert authors[-1] == "et al."
+        assert len(filtered[0].authors) == 3
+        assert filtered[0].authors[-1] == "et al."
 
     def test_citations_by_key_populated(self, service: LiteratureSearchService) -> None:
-        r1 = _make_result(_MakeResultSpec(title="Paper A", doi="10.1234/a"))
+        p1 = _make_paper(_MakeResultSpec(title="Paper A", doi="10.1234/a"))
         c1 = _make_citation(title="Paper A", doi="10.1234/a")
-        by_source: dict[str, JSONObject] = {
-            "europepmc": _make_source_payload([r1], [c1]),
+        by_source = {
+            "europepmc": _make_source_payload([p1], [c1]),
         }
-        _filtered, citations_by_key = service._deduplicate_and_filter(
-            by_source=by_source,
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+        _, citations_by_key = service._deduplicate_and_filter(
+            by_source=by_source, options=_DEFAULT_OPTIONS, filters=_DEFAULT_FILTERS
         )
         assert len(citations_by_key) == 1
 
     def test_skips_invalid_source_payloads(
         self, service: LiteratureSearchService
     ) -> None:
-        by_source: dict[str, JSONObject] = {
-            "europepmc": {"error": "timeout"},
+        by_source = {
+            "europepmc": _SourcePayload(error="timeout"),
         }
         filtered, citations_by_key = service._deduplicate_and_filter(
-            by_source=by_source,
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            by_source=by_source, options=_DEFAULT_OPTIONS, filters=_DEFAULT_FILTERS
         )
         assert len(filtered) == 0
         assert len(citations_by_key) == 0
@@ -424,48 +358,46 @@ class TestDeduplicateAndFilter:
 
 class TestSortResults:
     def test_newest_sort(self, service: LiteratureSearchService) -> None:
-        items: JSONArray = [
-            _make_result(_MakeResultSpec(title="Old", year=2015, doi="10.1/a")),
-            _make_result(_MakeResultSpec(title="New", year=2023, doi="10.1/b")),
-            _make_result(_MakeResultSpec(title="Mid", year=2019, doi="10.1/c")),
+        items = [
+            _make_enriched(_MakeResultSpec(title="Old", year=2015, doi="10.1/a")),
+            _make_enriched(_MakeResultSpec(title="New", year=2023, doi="10.1/b")),
+            _make_enriched(_MakeResultSpec(title="Mid", year=2019, doi="10.1/c")),
         ]
         sorted_items = service._sort_results(
             items, sort="newest", source="europepmc", query="test"
         )
-        assert isinstance(sorted_items[0], dict)
-        assert sorted_items[0].get("year") == 2023
-        assert isinstance(sorted_items[1], dict)
-        assert sorted_items[1].get("year") == 2019
-        assert isinstance(sorted_items[2], dict)
-        assert sorted_items[2].get("year") == 2015
+        assert sorted_items[0].year == 2023
+        assert sorted_items[1].year == 2019
+        assert sorted_items[2].year == 2015
 
     def test_relevance_sort_all_adds_scores(
         self, service: LiteratureSearchService
     ) -> None:
-        items: JSONArray = [
-            _make_result(_MakeResultSpec(title="malaria vaccine", doi="10.1/a")),
-            _make_result(_MakeResultSpec(title="unrelated topic", doi="10.1/b")),
+        items = [
+            _make_enriched(
+                _MakeResultSpec(title="malaria vaccine", doi="10.1/a")
+            ),
+            _make_enriched(
+                _MakeResultSpec(title="unrelated topic", doi="10.1/b")
+            ),
         ]
         sorted_items = service._sort_results(
             items, sort="relevance", source="all", query="malaria vaccine"
         )
-        # All items should have score keys
         for item in sorted_items:
-            assert isinstance(item, dict)
-            assert "score" in item
-            assert "scoreParts" in item
+            assert item.score is not None
+            assert item.score_parts is not None
 
     def test_relevance_single_source_no_scores(
         self, service: LiteratureSearchService
     ) -> None:
-        items: JSONArray = [
-            _make_result(_MakeResultSpec(title="Paper A", doi="10.1/a")),
+        items = [
+            _make_enriched(_MakeResultSpec(title="Paper A", doi="10.1/a")),
         ]
         sorted_items = service._sort_results(
             items, sort="relevance", source="europepmc", query="test"
         )
-        assert isinstance(sorted_items[0], dict)
-        assert "score" not in sorted_items[0]
+        assert sorted_items[0].score is None
 
     def test_empty_list(self, service: LiteratureSearchService) -> None:
         sorted_items = service._sort_results(
@@ -481,8 +413,8 @@ class TestSortResults:
 
 class TestBuildResponse:
     def test_response_structure(self, service: LiteratureSearchService) -> None:
-        results: JSONArray = [
-            _make_result(_MakeResultSpec(title="Paper A", doi="10.1234/a"))
+        results = [
+            _make_enriched(_MakeResultSpec(title="Paper A", doi="10.1234/a"))
         ]
         citations_by_key = {
             "doi:10.1234/a": _make_citation(title="Paper A", doi="10.1234/a")
@@ -491,19 +423,8 @@ class TestBuildResponse:
             query="test",
             source="europepmc",
             sort="relevance",
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            options=_DEFAULT_OPTIONS,
+            filters=_DEFAULT_FILTERS,
             result_data=LiteratureResultData(
                 results=results,
                 citations_by_key=citations_by_key,
@@ -521,8 +442,8 @@ class TestBuildResponse:
     def test_citations_aligned_with_results(
         self, service: LiteratureSearchService
     ) -> None:
-        r1 = _make_result(_MakeResultSpec(title="A", doi="10.1234/a"))
-        r2 = _make_result(_MakeResultSpec(title="B", doi="10.1234/b"))
+        r1 = _make_enriched(_MakeResultSpec(title="A", doi="10.1234/a"))
+        r2 = _make_enriched(_MakeResultSpec(title="B", doi="10.1234/b"))
         c1 = _make_citation(title="A", doi="10.1234/a")
         c2 = _make_citation(title="B", doi="10.1234/b")
         citations_by_key = {
@@ -533,19 +454,8 @@ class TestBuildResponse:
             query="test",
             source="europepmc",
             sort="relevance",
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            options=_DEFAULT_OPTIONS,
+            filters=_DEFAULT_FILTERS,
             result_data=LiteratureResultData(
                 results=[r1, r2],
                 citations_by_key=citations_by_key,
@@ -560,8 +470,8 @@ class TestBuildResponse:
         assert len(citations_out) == len(results_out)
 
     def test_limit_applied_to_results(self, service: LiteratureSearchService) -> None:
-        results: JSONArray = [
-            _make_result(_MakeResultSpec(title=f"Paper {i}", doi=f"10.1234/{i}"))
+        results = [
+            _make_enriched(_MakeResultSpec(title=f"Paper {i}", doi=f"10.1234/{i}"))
             for i in range(10)
         ]
         citations_by_key = {
@@ -572,19 +482,8 @@ class TestBuildResponse:
             query="test",
             source="europepmc",
             sort="relevance",
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            options=_DEFAULT_OPTIONS,
+            filters=_DEFAULT_FILTERS,
             result_data=LiteratureResultData(
                 results=results,
                 citations_by_key=citations_by_key,
@@ -600,26 +499,15 @@ class TestBuildResponse:
         assert len(citations_out) == 3
 
     def test_by_source_included_for_all(self, service: LiteratureSearchService) -> None:
-        by_source: dict[str, JSONObject] = {
-            "europepmc": {"results": [], "citations": []}
+        by_source = {
+            "europepmc": _SourcePayload()
         }
         payload = service._build_response(
             query="test",
             source="all",
             sort="relevance",
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            options=_DEFAULT_OPTIONS,
+            filters=_DEFAULT_FILTERS,
             result_data=LiteratureResultData(
                 results=[], citations_by_key={}, by_source=by_source, limit=5
             ),
@@ -633,19 +521,8 @@ class TestBuildResponse:
             query="test",
             source="europepmc",
             sort="relevance",
-            options=LiteratureOutputOptions(
-                include_abstract=False, abstract_max_chars=2000, max_authors=2
-            ),
-            filters=LiteratureFilters(
-                year_from=None,
-                year_to=None,
-                author_includes=None,
-                title_includes=None,
-                journal_includes=None,
-                doi_equals=None,
-                pmid_equals=None,
-                require_doi=False,
-            ),
+            options=_DEFAULT_OPTIONS,
+            filters=_DEFAULT_FILTERS,
             result_data=LiteratureResultData(
                 results=[], citations_by_key={}, by_source={}, limit=5
             ),

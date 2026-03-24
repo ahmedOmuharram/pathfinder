@@ -36,13 +36,13 @@ describe("ExperimentSummarySchema", () => {
     expect(result.data?.mode).toBe("multi-step");
   });
 
-  it("passes through extra fields from backend", () => {
+  it("strips unknown fields", () => {
     const result = ExperimentSummarySchema.safeParse({
       ...validSummary,
       futureField: "hello",
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["futureField"]).toBe("hello");
+    expect((result.data as Record<string, unknown>)["futureField"]).toBeUndefined();
   });
 
   it("rejects missing required fields", () => {

@@ -1,4 +1,5 @@
 import { requestJson } from "@/lib/api/http";
+import { ChatOperationResponseSchema } from "@/lib/api/schemas/streaming";
 import {
   subscribeToOperation,
   type OperationSubscription,
@@ -33,8 +34,7 @@ export async function streamChat(
   disabledTools?: string[],
 ): Promise<StreamChatResult> {
   // POST to start the chat operation.
-  const resp = await requestJson<{ operationId: string; strategyId: string }>(
-    "/api/v1/chat",
+  const resp = await requestJson(ChatOperationResponseSchema, "/api/v1/chat",
     {
       method: "POST",
       body: {

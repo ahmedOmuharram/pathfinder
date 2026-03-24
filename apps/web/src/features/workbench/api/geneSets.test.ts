@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-// Mock requestJson before importing the module under test
+// Mock requestJson and requestVoid before importing the module under test
 vi.mock("@/lib/api/http", () => ({
   requestJson: vi.fn(),
+  requestVoid: vi.fn(),
 }));
 
 import {
@@ -18,13 +19,15 @@ import type {
   SetOperationRequest,
   CreateFromStrategyArgs,
 } from "./geneSets";
-import { requestJson } from "@/lib/api/http";
+import { requestJson, requestVoid } from "@/lib/api/http";
 import type { EnrichmentResult, GeneSet } from "@pathfinder/shared";
 
 const mockRequestJson = vi.mocked(requestJson);
+const mockRequestVoid = vi.mocked(requestVoid);
 
 beforeEach(() => {
   mockRequestJson.mockReset();
+  mockRequestVoid.mockReset();
 });
 
 // ---------------------------------------------------------------------------
@@ -59,7 +62,7 @@ describe("createGeneSet", () => {
 
     const result = await createGeneSet(req);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets", {
+    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
       method: "POST",
       body: req,
     });
@@ -83,7 +86,7 @@ describe("createGeneSet", () => {
 
     await createGeneSet(req);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets", {
+    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
       method: "POST",
       body: req,
     });
@@ -113,9 +116,7 @@ describe("listGeneSets", () => {
 
     const result = await listGeneSets();
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets", {
-      query: undefined,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {});
     expect(result).toEqual([geneSetFixture]);
   });
 
@@ -124,7 +125,7 @@ describe("listGeneSets", () => {
 
     await listGeneSets("plasmodb");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets", {
+    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
       query: { siteId: "plasmodb" },
     });
   });
@@ -150,27 +151,27 @@ describe("listGeneSets", () => {
 
 describe("deleteGeneSet", () => {
   it("sends DELETE to /api/v1/gene-sets/:id", async () => {
-    mockRequestJson.mockResolvedValue(undefined);
+    mockRequestVoid.mockResolvedValue(undefined);
 
     await deleteGeneSet("gs-1");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets/gs-1", {
+    expect(mockRequestVoid).toHaveBeenCalledWith("/api/v1/gene-sets/gs-1", {
       method: "DELETE",
     });
   });
 
   it("encodes special characters in the ID", async () => {
-    mockRequestJson.mockResolvedValue(undefined);
+    mockRequestVoid.mockResolvedValue(undefined);
 
     await deleteGeneSet("gs/special");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets/gs/special", {
+    expect(mockRequestVoid).toHaveBeenCalledWith("/api/v1/gene-sets/gs/special", {
       method: "DELETE",
     });
   });
 
   it("propagates errors on deletion failure", async () => {
-    mockRequestJson.mockRejectedValue(new Error("404 Not Found"));
+    mockRequestVoid.mockRejectedValue(new Error("404 Not Found"));
 
     await expect(deleteGeneSet("nonexistent")).rejects.toThrow("404 Not Found");
   });
@@ -199,10 +200,14 @@ describe("performSetOperation", () => {
 
     const result = await performSetOperation(req);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets/operations", {
-      method: "POST",
-      body: req,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets/operations",
+      {
+        method: "POST",
+        body: req,
+      },
+    );
     expect(result).toEqual(resultSet);
   });
 
@@ -218,10 +223,14 @@ describe("performSetOperation", () => {
 
     await performSetOperation(req);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets/operations", {
-      method: "POST",
-      body: expect.objectContaining({ operation: "union" }),
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets/operations",
+      {
+        method: "POST",
+        body: expect.objectContaining({ operation: "union" }),
+      },
+    );
   });
 
   it("supports minus operation", async () => {
@@ -236,10 +245,14 @@ describe("performSetOperation", () => {
 
     await performSetOperation(req);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets/operations", {
-      method: "POST",
-      body: expect.objectContaining({ operation: "minus" }),
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets/operations",
+      {
+        method: "POST",
+        body: expect.objectContaining({ operation: "minus" }),
+      },
+    );
   });
 
   it("propagates errors", async () => {
@@ -274,10 +287,14 @@ describe("enrichGeneSet", () => {
 
     const result = await enrichGeneSet("gs-1", ["go_function", "pathway"]);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets/gs-1/enrich", {
-      method: "POST",
-      body: { enrichmentTypes: ["go_function", "pathway"] },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets/gs-1/enrich",
+      {
+        method: "POST",
+        body: { enrichmentTypes: ["go_function", "pathway"] },
+      },
+    );
     expect(result).toEqual(enrichmentResults);
   });
 
@@ -286,10 +303,14 @@ describe("enrichGeneSet", () => {
 
     await enrichGeneSet("gs-1", []);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets/gs-1/enrich", {
-      method: "POST",
-      body: { enrichmentTypes: [] },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets/gs-1/enrich",
+      {
+        method: "POST",
+        body: { enrichmentTypes: [] },
+      },
+    );
   });
 
   it("propagates errors", async () => {
@@ -322,7 +343,7 @@ describe("createGeneSetFromStrategy", () => {
 
     await createGeneSetFromStrategy(args);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets", {
+    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
       method: "POST",
       body: {
         name: "From Strategy",
@@ -349,7 +370,7 @@ describe("createGeneSetFromStrategy", () => {
 
     await createGeneSetFromStrategy(args);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets", {
+    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
       method: "POST",
       body: expect.objectContaining({
         geneIds: [],
@@ -369,11 +390,11 @@ describe("createGeneSetFromStrategy", () => {
 
     await createGeneSetFromStrategy(args);
 
-    const body = mockRequestJson.mock.calls[0]![1]?.body as CreateGeneSetRequest;
-    expect(body.wdkStepId).toBeUndefined();
-    expect(body.searchName).toBeUndefined();
-    expect(body.recordType).toBeUndefined();
-    expect(body.parameters).toBeUndefined();
+    const body = mockRequestJson.mock.calls[0]![2] as { body: CreateGeneSetRequest };
+    expect(body.body.wdkStepId).toBeUndefined();
+    expect(body.body.searchName).toBeUndefined();
+    expect(body.body.recordType).toBeUndefined();
+    expect(body.body.parameters).toBeUndefined();
   });
 
   it("propagates errors from createGeneSet", async () => {

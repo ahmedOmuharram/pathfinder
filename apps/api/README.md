@@ -154,7 +154,7 @@ Settings are loaded from:
 Common env vars:
 
 - `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` if using those providers)
-- `API_SECRET_KEY` (32+ chars)
+- `API_SECRET_KEY` (32+ chars; optional in dev — a random key is auto-generated if unset)
 - `DATABASE_URL` (defaults to PostgreSQL on `localhost:5432` if unset)
 - `DEFAULT_MODEL_ID`, `DEFAULT_REASONING_EFFORT` (optional; defaults are `openai/gpt-4.1` and `medium`)
 ### Run locally (no Docker)

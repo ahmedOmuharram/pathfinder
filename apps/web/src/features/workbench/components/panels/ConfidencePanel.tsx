@@ -8,6 +8,7 @@ import type {
   GeneConfidenceScore,
 } from "@pathfinder/shared";
 import { requestJson } from "@/lib/api/http";
+import { GeneConfidenceScoreListSchema } from "@/lib/api/schemas/confidence";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
@@ -94,7 +95,8 @@ export function ConfidencePanel() {
       );
 
       try {
-        const data = await requestJson<GeneConfidenceScore[]>(
+        const data = await requestJson(
+          GeneConfidenceScoreListSchema,
           "/api/v1/gene-sets/confidence",
           {
             method: "POST",

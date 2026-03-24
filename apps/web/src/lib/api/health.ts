@@ -1,9 +1,9 @@
-import { requestJsonValidated } from "./http";
+import { requestJson } from "./http";
 import {
   SystemConfigResponseSchema,
   type SystemConfigResponse,
 } from "./schemas/health";
 
 export async function getSystemConfig(): Promise<SystemConfigResponse> {
-  return await requestJsonValidated(SystemConfigResponseSchema, "/health/config");
+  return await requestJson(SystemConfigResponseSchema, "/health/config");
 }

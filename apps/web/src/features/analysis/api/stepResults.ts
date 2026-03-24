@@ -6,15 +6,20 @@
  * gene sets via the `EntityRef` discriminated union.
  */
 
+import type { z } from "zod";
 import { requestJson } from "@/lib/api/http";
-import type {
-  RecordAttribute,
-  RecordDetail,
-  RecordsResponse,
-  DistributionResponse,
-} from "@/lib/types/wdk";
+import {
+  AttributesResponseSchema,
+  RecordAttributeSchema,
+  RecordsResponseSchema,
+  RecordDetailSchema,
+  DistributionResponseSchema,
+} from "@/lib/api/schemas/step-results";
 
-export type { RecordAttribute, RecordsResponse };
+export type RecordAttribute = z.infer<typeof RecordAttributeSchema>;
+export type RecordsResponse = z.infer<typeof RecordsResponseSchema>;
+export type RecordDetail = z.infer<typeof RecordDetailSchema>;
+export type DistributionResponse = z.infer<typeof DistributionResponseSchema>;
 
 export type EntityRef =
   | { type: "experiment"; id: string }
@@ -26,10 +31,8 @@ function basePath(ref: EntityRef): string {
     : `/api/v1/gene-sets/${ref.id}`;
 }
 
-export function getAttributes(
-  ref: EntityRef,
-): Promise<{ attributes: RecordAttribute[]; recordType: string }> {
-  return requestJson(`${basePath(ref)}/results/attributes`);
+export function getAttributes(ref: EntityRef) {
+  return requestJson(AttributesResponseSchema, `${basePath(ref)}/results/attributes`);
 }
 
 export function getRecords(
@@ -43,7 +46,7 @@ export function getRecords(
     filterAttribute?: string;
     filterValue?: string;
   },
-): Promise<RecordsResponse> {
+) {
   const query: Record<string, string> = {};
   if (opts?.offset != null) query["offset"] = String(opts.offset);
   if (opts?.limit != null) query["limit"] = String(opts.limit);
@@ -54,7 +57,7 @@ export function getRecords(
   if (opts?.filterAttribute != null && opts.filterAttribute !== "")
     query["filterAttribute"] = opts.filterAttribute;
   if (opts?.filterValue != null) query["filterValue"] = opts.filterValue;
-  return requestJson<RecordsResponse>(`${basePath(ref)}/results/records`, {
+  return requestJson(RecordsResponseSchema, `${basePath(ref)}/results/records`, {
     query,
   });
 }
@@ -62,18 +65,16 @@ export function getRecords(
 export function getRecordDetail(
   ref: EntityRef,
   primaryKey: { name: string; value: string }[],
-): Promise<RecordDetail> {
-  return requestJson<RecordDetail>(`${basePath(ref)}/results/record`, {
+) {
+  return requestJson(RecordDetailSchema, `${basePath(ref)}/results/record`, {
     method: "POST",
     body: { primaryKey },
   });
 }
 
-export function getDistribution(
-  ref: EntityRef,
-  attributeName: string,
-): Promise<DistributionResponse> {
-  return requestJson<DistributionResponse>(
+export function getDistribution(ref: EntityRef, attributeName: string) {
+  return requestJson(
+    DistributionResponseSchema,
     `${basePath(ref)}/results/distributions/${encodeURIComponent(attributeName)}`,
   );
 }

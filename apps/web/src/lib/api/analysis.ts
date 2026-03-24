@@ -2,7 +2,7 @@
  * Shared analysis API types and functions -- used by both workbench and analysis features.
  */
 
-import { requestJsonValidated } from "@/lib/api/http";
+import { requestJson } from "@/lib/api/http";
 import { CustomEnrichmentResultSchema } from "./schemas/analysis";
 
 // ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ export async function runCustomEnrichment(
   geneSetName: string,
   geneIds: string[],
 ): Promise<CustomEnrichmentResult> {
-  return (await requestJsonValidated(
+  return (await requestJson(
     CustomEnrichmentResultSchema,
     `/api/v1/experiments/${experimentId}/custom-enrich`,
     { method: "POST", body: { geneSetName, geneIds } },

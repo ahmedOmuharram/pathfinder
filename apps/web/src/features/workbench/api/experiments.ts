@@ -1,23 +1,28 @@
 import type { Experiment } from "@pathfinder/shared";
-import { requestBlob, requestJson } from "@/lib/api/http";
+import { requestBlob, requestJson, requestVoid } from "@/lib/api/http";
+import { ExperimentSchema } from "@/lib/api/schemas/experiment";
+import { RefineResponseSchema } from "@/lib/api/schemas/analysis";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
 export async function getExperiment(experimentId: string): Promise<Experiment> {
-  return await requestJson<Experiment>(`/api/v1/experiments/${experimentId}`);
+  const raw = await requestJson(ExperimentSchema, `/api/v1/experiments/${experimentId}`);
+  return raw as unknown as Experiment;
 }
 
 export async function deleteExperiment(experimentId: string): Promise<void> {
-  await requestJson(`/api/v1/experiments/${experimentId}`, { method: "DELETE" });
+  await requestVoid(`/api/v1/experiments/${experimentId}`, { method: "DELETE" });
 }
 
 export async function updateExperimentNotes(
   experimentId: string,
   notes: string,
 ): Promise<Experiment> {
-  return await requestJson<Experiment>(`/api/v1/experiments/${experimentId}`, {
-    method: "PATCH",
-    body: { notes },
-  });
+  const raw = await requestJson(
+    ExperimentSchema,
+    `/api/v1/experiments/${experimentId}`,
+    { method: "PATCH", body: { notes } },
+  );
+  return raw as unknown as Experiment;
 }
 
 export async function exportExperiment(
@@ -46,15 +51,19 @@ export async function refineExperiment(
   action: "combine" | "transform",
   config: RefineConfig,
 ): Promise<{ success: boolean; newStepId?: number }> {
-  return await requestJson(`/api/v1/experiments/${experimentId}/refine`, {
-    method: "POST",
-    body: { action, ...config },
-  });
+  const raw = await requestJson(
+    RefineResponseSchema,
+    `/api/v1/experiments/${experimentId}/refine`,
+    { method: "POST", body: { action, ...config } },
+  );
+  return { success: raw.success, ...(raw.newStepId != null ? { newStepId: raw.newStepId } : {}) };
 }
 
 export async function reEvaluateExperiment(experimentId: string): Promise<Experiment> {
-  return await requestJson<Experiment>(
+  const raw = await requestJson(
+    ExperimentSchema,
     `/api/v1/experiments/${experimentId}/re-evaluate`,
     { method: "POST" },
   );
+  return raw as unknown as Experiment;
 }

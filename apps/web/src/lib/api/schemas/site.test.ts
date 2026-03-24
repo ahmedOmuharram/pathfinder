@@ -31,10 +31,10 @@ describe("VEuPathDBSiteSchema", () => {
     expect(result.data?.id).toBe("plasmodb");
   });
 
-  it("passes through extra fields", () => {
+  it("strips unknown fields", () => {
     const result = VEuPathDBSiteSchema.safeParse({ ...validSite, region: "global" });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["region"]).toBe("global");
+    expect((result.data as Record<string, unknown>)["region"]).toBeUndefined();
   });
 
   it("rejects missing isPortal", () => {

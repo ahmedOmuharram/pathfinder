@@ -16,13 +16,13 @@ describe("OrganismListResponseSchema", () => {
     expect(result.data?.organisms).toEqual(["P. falciparum", "P. vivax"]);
   });
 
-  it("passes through extra fields", () => {
+  it("strips unknown fields", () => {
     const result = OrganismListResponseSchema.safeParse({
       organisms: [],
       totalCount: 0,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["totalCount"]).toBe(0);
+    expect((result.data as Record<string, unknown>)["totalCount"]).toBeUndefined();
   });
 
   it("rejects missing organisms field", () => {

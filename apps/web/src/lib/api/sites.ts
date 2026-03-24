@@ -5,7 +5,7 @@ import type {
   SearchValidationResponse,
   VEuPathDBSite,
 } from "@pathfinder/shared";
-import { requestJsonValidated } from "./http";
+import { requestJson } from "./http";
 import {
   VEuPathDBSiteListSchema,
   ParamSpecListSchema,
@@ -16,14 +16,14 @@ import {
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
 export async function listSites(): Promise<VEuPathDBSite[]> {
-  return (await requestJsonValidated(
+  return (await requestJson(
     VEuPathDBSiteListSchema,
     "/api/v1/sites",
   )) as VEuPathDBSite[];
 }
 
 export async function getRecordTypes(siteId: string): Promise<RecordType[]> {
-  return (await requestJsonValidated(
+  return (await requestJson(
     RecordTypeListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/record-types`,
   )) as RecordType[];
@@ -33,7 +33,7 @@ export async function getSearches(
   siteId: string,
   recordType?: string | null,
 ): Promise<Search[]> {
-  return (await requestJsonValidated(
+  return (await requestJson(
     SearchListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches`,
     recordType != null && recordType !== "" ? { query: { recordType } } : {},
@@ -46,7 +46,7 @@ export async function getParamSpecs(
   searchName: string,
   contextValues: StepParameters = {},
 ): Promise<ParamSpec[]> {
-  return (await requestJsonValidated(
+  return (await requestJson(
     ParamSpecListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches/${encodeURIComponent(
       recordType,
@@ -65,7 +65,7 @@ export async function refreshDependentParams(
   parameterName: string,
   contextValues: StepParameters = {},
 ): Promise<ParamSpec[]> {
-  return (await requestJsonValidated(
+  return (await requestJson(
     ParamSpecListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches/${encodeURIComponent(
       recordType,
@@ -83,7 +83,7 @@ export async function validateSearchParams(
   searchName: string,
   contextValues: StepParameters = {},
 ): Promise<SearchValidationResponse> {
-  return (await requestJsonValidated(
+  return (await requestJson(
     SearchValidationResponseSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches/${encodeURIComponent(
       recordType,

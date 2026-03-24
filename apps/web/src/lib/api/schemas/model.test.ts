@@ -23,13 +23,13 @@ describe("ModelCatalogEntrySchema", () => {
     expect(result.data?.id).toBe("openai/gpt-5");
   });
 
-  it("passes through extra fields", () => {
+  it("strips unknown fields", () => {
     const result = ModelCatalogEntrySchema.safeParse({
       ...validEntry,
       maxTokens: 128000,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["maxTokens"]).toBe(128000);
+    expect((result.data as Record<string, unknown>)["maxTokens"]).toBeUndefined();
   });
 
   it("rejects invalid provider enum", () => {
@@ -62,13 +62,13 @@ describe("ModelCatalogResponseSchema", () => {
     expect(result.data?.default).toBe("openai/gpt-5");
   });
 
-  it("passes through extra fields", () => {
+  it("strips unknown fields", () => {
     const result = ModelCatalogResponseSchema.safeParse({
       ...validResponse,
       version: 2,
     });
     expect(result.success).toBe(true);
-    expect((result.data as Record<string, unknown>)["version"]).toBe(2);
+    expect((result.data as Record<string, unknown>)["version"]).toBeUndefined();
   });
 
   it("rejects invalid reasoningEffort enum", () => {

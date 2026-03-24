@@ -1,5 +1,5 @@
 import { AppError } from "@/lib/errors/AppError";
-import { requestJsonValidated } from "./http";
+import { requestJson } from "./http";
 import { AuthStatusResponseSchema, AuthSuccessResponseSchema } from "./schemas/auth";
 
 // VEuPathDB auth bridge
@@ -9,7 +9,7 @@ export async function getVeupathdbAuthStatus(siteId: string): Promise<{
   name?: string | null;
   email?: string | null;
 }> {
-  const raw = await requestJsonValidated(
+  const raw = await requestJson(
     AuthStatusResponseSchema,
     `/api/v1/veupathdb/auth/status`,
     { query: { siteId } },
@@ -29,7 +29,7 @@ export async function loginVeupathdb(
   if (!email || !password) {
     throw new AppError("Email and password are required.", "INVARIANT_VIOLATION");
   }
-  return await requestJsonValidated(
+  return await requestJson(
     AuthSuccessResponseSchema,
     `/api/v1/veupathdb/auth/login`,
     {
@@ -41,7 +41,7 @@ export async function loginVeupathdb(
 }
 
 export async function logoutVeupathdb(siteId: string): Promise<{ success: boolean }> {
-  return await requestJsonValidated(
+  return await requestJson(
     AuthSuccessResponseSchema,
     `/api/v1/veupathdb/auth/logout`,
     { method: "POST", query: { siteId } },
@@ -53,7 +53,7 @@ export async function logoutVeupathdb(siteId: string): Promise<{ success: boolea
  * Called on page load when the internal token is missing/expired.
  */
 export async function refreshAuth(siteId: string): Promise<{ success: boolean }> {
-  return await requestJsonValidated(
+  return await requestJson(
     AuthSuccessResponseSchema,
     `/api/v1/veupathdb/auth/refresh`,
     { method: "POST", query: { siteId } },

@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 // Mock http module before importing the module under test
 vi.mock("@/lib/api/http", () => ({
   requestJson: vi.fn(),
+  requestVoid: vi.fn(),
   requestBlob: vi.fn(),
 }));
 
@@ -14,7 +15,7 @@ import {
   refineExperiment,
   reEvaluateExperiment,
 } from "./experiments";
-import { requestJson, requestBlob } from "@/lib/api/http";
+import { requestJson, requestVoid, requestBlob } from "@/lib/api/http";
 import type {
   Experiment,
   ExperimentConfig,
@@ -22,10 +23,12 @@ import type {
 } from "@pathfinder/shared";
 
 const mockRequestJson = vi.mocked(requestJson);
+const mockRequestVoid = vi.mocked(requestVoid);
 const mockRequestBlob = vi.mocked(requestBlob);
 
 beforeEach(() => {
   mockRequestJson.mockReset();
+  mockRequestVoid.mockReset();
   mockRequestBlob.mockReset();
 });
 
@@ -118,7 +121,10 @@ describe("getExperiment", () => {
 
     const result = await getExperiment("exp-1");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1");
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/exp-1",
+    );
     expect(result).toEqual(experimentFixture);
   });
 
@@ -153,17 +159,17 @@ describe("getExperiment", () => {
 
 describe("deleteExperiment", () => {
   it("sends DELETE to /api/v1/experiments/:id", async () => {
-    mockRequestJson.mockResolvedValue(undefined);
+    mockRequestVoid.mockResolvedValue(undefined);
 
     await deleteExperiment("exp-1");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1", {
+    expect(mockRequestVoid).toHaveBeenCalledWith("/api/v1/experiments/exp-1", {
       method: "DELETE",
     });
   });
 
   it("propagates errors on deletion failure", async () => {
-    mockRequestJson.mockRejectedValue(new Error("403 Forbidden"));
+    mockRequestVoid.mockRejectedValue(new Error("403 Forbidden"));
 
     await expect(deleteExperiment("exp-1")).rejects.toThrow("403 Forbidden");
   });
@@ -180,10 +186,14 @@ describe("updateExperimentNotes", () => {
 
     const result = await updateExperimentNotes("exp-1", "Updated notes");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1", {
-      method: "PATCH",
-      body: { notes: "Updated notes" },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/exp-1",
+      {
+        method: "PATCH",
+        body: { notes: "Updated notes" },
+      },
+    );
     expect(result.notes).toBe("Updated notes");
   });
 
@@ -193,10 +203,14 @@ describe("updateExperimentNotes", () => {
 
     await updateExperimentNotes("exp-1", "");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1", {
-      method: "PATCH",
-      body: { notes: "" },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/exp-1",
+      {
+        method: "PATCH",
+        body: { notes: "" },
+      },
+    );
   });
 
   it("propagates errors", async () => {
@@ -309,15 +323,19 @@ describe("refineExperiment", () => {
 
     const response = await refineExperiment("exp-1", "combine", config);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1/refine", {
-      method: "POST",
-      body: {
-        action: "combine",
-        searchName: "GeneByOrthologs",
-        parameters: { organism: "P. vivax" },
-        operator: "intersect",
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/exp-1/refine",
+      {
+        method: "POST",
+        body: {
+          action: "combine",
+          searchName: "GeneByOrthologs",
+          parameters: { organism: "P. vivax" },
+          operator: "intersect",
+        },
       },
-    });
+    );
     expect(response).toEqual(result);
   });
 
@@ -331,13 +349,17 @@ describe("refineExperiment", () => {
 
     await refineExperiment("exp-1", "transform", config);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1/refine", {
-      method: "POST",
-      body: {
-        action: "transform",
-        stepId: 7,
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/exp-1/refine",
+      {
+        method: "POST",
+        body: {
+          action: "transform",
+          stepId: 7,
+        },
       },
-    });
+    );
   });
 
   it("spreads additional config properties into the body", async () => {
@@ -350,13 +372,17 @@ describe("refineExperiment", () => {
 
     await refineExperiment("exp-1", "combine", config);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/experiments/exp-1/refine", {
-      method: "POST",
-      body: expect.objectContaining({
-        action: "combine",
-        customField: "custom-value",
-      }),
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/experiments/exp-1/refine",
+      {
+        method: "POST",
+        body: expect.objectContaining({
+          action: "combine",
+          customField: "custom-value",
+        }),
+      },
+    );
   });
 
   it("propagates errors", async () => {
@@ -379,6 +405,7 @@ describe("reEvaluateExperiment", () => {
     const result = await reEvaluateExperiment("exp-1");
 
     expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
       "/api/v1/experiments/exp-1/re-evaluate",
       { method: "POST" },
     );
@@ -394,7 +421,7 @@ describe("reEvaluateExperiment", () => {
 
     const result = await reEvaluateExperiment("exp-1");
 
-    expect(result.metrics?.f1Score).toBe(0.92);
+    expect((result as unknown as typeof updated).metrics?.f1Score).toBe(0.92);
   });
 
   it("propagates errors", async () => {

@@ -57,7 +57,7 @@ describe("features/chat/stream", () => {
 
     // requestJson was called with correct params
     expect(requestJsonMock).toHaveBeenCalledTimes(1);
-    const [path, args] = requestJsonMock.mock.calls[0] as [string, { body?: unknown }];
+    const [, path, args] = requestJsonMock.mock.calls[0] as [unknown, string, { body?: unknown }];
     expect(path).toBe("/api/v1/chat");
     expect(args.body).toMatchObject({
       message: "hello",

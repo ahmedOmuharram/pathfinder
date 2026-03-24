@@ -23,7 +23,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 )
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
-from veupath_chatbot.services.chat.types import ChatTurnConfig
+from veupath_chatbot.services.chat.types import ChatMention, ChatTurnConfig
 from veupath_chatbot.services.control_tests import IntersectionConfig
 from veupath_chatbot.services.experiment.robustness import BootstrapOptions
 from veupath_chatbot.services.experiment.types import DEFAULT_K_VALUES
@@ -72,7 +72,7 @@ class TestChatTurnConfig:
         provider: ModelProvider = "anthropic"
         effort: ReasoningEffort = "high"
         cfg = ChatTurnConfig(
-            mentions=[{"id": "gene1", "type": "gene"}],
+            mentions=[ChatMention(type="strategy", id="gene1", displayName="Gene 1")],
             disable_rag=True,
             disabled_tools=["search_literature"],
             provider_override=provider,
@@ -96,9 +96,9 @@ class TestChatTurnConfig:
         assert cfg.reasoning_budget == 1024
 
     def test_mentions_preserved(self) -> None:
-        mentions = [{"id": "PF3D7_0100100", "type": "gene"}]
-        cfg = ChatTurnConfig(mentions=mentions)
-        assert cfg.mentions == mentions
+        mention = ChatMention(type="strategy", id="PF3D7_0100100", displayName="Gene")
+        cfg = ChatTurnConfig(mentions=[mention])
+        assert cfg.mentions == [mention]
 
     def test_disable_rag_flag(self) -> None:
         cfg = ChatTurnConfig(disable_rag=True)

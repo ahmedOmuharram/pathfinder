@@ -35,9 +35,7 @@ async def chat(
         stream_repo=stream_repo,
     )
     config = ChatTurnConfig(
-        mentions=[m.model_dump(by_alias=True) for m in body.mentions]
-        if body.mentions
-        else None,
+        mentions=body.mentions or None,
         disable_rag=body.disable_rag,
         disabled_tools=body.disabled_tools,
         provider_override=body.provider,

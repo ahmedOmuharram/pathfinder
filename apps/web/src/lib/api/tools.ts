@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requestJsonValidated } from "./http";
+import { requestJson } from "./http";
 
 const ToolItemSchema = z
   .object({
@@ -17,6 +17,6 @@ const ToolListResponseSchema = z
 export type ToolItem = z.infer<typeof ToolItemSchema>;
 
 export async function listTools(): Promise<ToolItem[]> {
-  const res = await requestJsonValidated(ToolListResponseSchema, "/api/v1/tools");
+  const res = await requestJson(ToolListResponseSchema, "/api/v1/tools");
   return res.tools;
 }

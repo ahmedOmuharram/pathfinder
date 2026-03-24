@@ -13,7 +13,8 @@ from pydantic import ValidationError
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
-from veupath_chatbot.transport.http.schemas.chat import ChatMention, ChatRequest
+from veupath_chatbot.services.chat.types import ChatMention
+from veupath_chatbot.transport.http.schemas.chat import ChatRequest
 from veupath_chatbot.transport.http.schemas.experiments import (
     BenchmarkControlSet,
     CreateBatchExperimentRequest,

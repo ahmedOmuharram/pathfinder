@@ -1,7 +1,7 @@
 /**
  * Shared Zod schema helpers for API response validation.
  *
- * Convention: schemas in this layer are *permissive* — they use `.passthrough()`
+ * Convention: schemas in this layer are *permissive* — they use .passthrough()
  * on objects so the backend can add new fields without breaking the frontend.
  */
 import { z } from "zod";

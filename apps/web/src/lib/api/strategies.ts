@@ -1,5 +1,5 @@
 import type { StrategyPlan, Strategy } from "@pathfinder/shared";
-import { APIError, requestJson, requestJsonValidated } from "./http";
+import { APIError, requestJson, requestVoid } from "./http";
 import {
   NormalizePlanResponseSchema,
   OpenStrategyResponseSchema,
@@ -25,7 +25,7 @@ function withDefaults(
 }
 
 export async function listStrategies(siteId?: string | null): Promise<Strategy[]> {
-  const raw = await requestJsonValidated(
+  const raw = await requestJson(
     StrategyListItemListSchema,
     "/api/v1/strategies",
     siteId != null && siteId !== "" ? { query: { siteId } } : {},
@@ -38,7 +38,7 @@ export async function listStrategies(siteId?: string | null): Promise<Strategy[]
  * summary list for this site.
  */
 export async function syncWdkStrategies(siteId: string): Promise<Strategy[]> {
-  const raw = await requestJsonValidated(
+  const raw = await requestJson(
     StrategyListItemListSchema,
     "/api/v1/strategies/sync-wdk",
     { method: "POST", query: { siteId } },
@@ -51,7 +51,7 @@ export async function openStrategy(payload: {
   strategyId?: string;
   wdkStrategyId?: number;
 }): Promise<{ strategyId: string }> {
-  return await requestJsonValidated(
+  return await requestJson(
     OpenStrategyResponseSchema,
     "/api/v1/strategies/open",
     { method: "POST", body: payload },
@@ -74,7 +74,7 @@ export async function getStrategy(strategyId: string): Promise<Strategy> {
       data: { detail: "strategyId must be a UUID" },
     });
   }
-  const raw = await requestJsonValidated(
+  const raw = await requestJson(
     StrategySchema,
     `/api/v1/strategies/${strategyId}`,
   );
@@ -86,7 +86,7 @@ export async function createStrategy(args: {
   siteId: string;
   plan: StrategyPlan;
 }): Promise<Strategy> {
-  const raw = await requestJsonValidated(StrategySchema, "/api/v1/strategies", {
+  const raw = await requestJson(StrategySchema, "/api/v1/strategies", {
     method: "POST",
     body: args,
   });
@@ -102,7 +102,7 @@ export async function updateStrategy(
     isSaved?: boolean;
   },
 ): Promise<Strategy> {
-  const raw = await requestJsonValidated(
+  const raw = await requestJson(
     StrategySchema,
     `/api/v1/strategies/${strategyId}`,
     {
@@ -117,7 +117,7 @@ export async function deleteStrategy(
   strategyId: string,
   deleteFromWdk?: boolean,
 ): Promise<void> {
-  await requestJson<void>(
+  await requestVoid(
     `/api/v1/strategies/${strategyId}`,
     deleteFromWdk === true
       ? { method: "DELETE", query: { deleteFromWdk: "true" } }
@@ -129,7 +129,7 @@ export async function normalizePlan(
   siteId: string,
   plan: StrategyPlan,
 ): Promise<{ plan: StrategyPlan; warnings?: unknown[] | null }> {
-  const raw = await requestJsonValidated(
+  const raw = await requestJson(
     NormalizePlanResponseSchema,
     "/api/v1/strategies/plan/normalize",
     { method: "POST", body: { siteId, plan } },
@@ -138,7 +138,8 @@ export async function normalizePlan(
 }
 
 export async function restoreStrategy(strategyId: string): Promise<Strategy> {
-  const raw = await requestJson<Record<string, unknown>>(
+  const raw = await requestJson(
+    StrategySchema,
     `/api/v1/strategies/${strategyId}/restore`,
     { method: "POST" },
   );
@@ -146,7 +147,8 @@ export async function restoreStrategy(strategyId: string): Promise<Strategy> {
 }
 
 export async function listDismissedStrategies(siteId: string): Promise<Strategy[]> {
-  const raw = await requestJson<Record<string, unknown>[]>(
+  const raw = await requestJson(
+    StrategyListItemListSchema,
     "/api/v1/strategies/dismissed",
     { query: { siteId } },
   );
@@ -157,7 +159,7 @@ export async function computeStepCounts(
   siteId: string,
   plan: StrategyPlan,
 ): Promise<{ counts: Record<string, number | null> }> {
-  return await requestJsonValidated(
+  return await requestJson(
     StepCountsResponseSchema,
     "/api/v1/strategies/step-counts",
     { method: "POST", body: { siteId, plan } },

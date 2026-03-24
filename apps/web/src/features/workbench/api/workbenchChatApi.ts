@@ -1,4 +1,10 @@
 import { requestJson } from "@/lib/api/http";
+import {
+  WorkbenchChatResponseSchema,
+  WorkbenchChatMessageSchema,
+  WorkbenchChatMessageListSchema,
+} from "@/lib/api/schemas/workbench-chat";
+import type { z } from "zod";
 import type { ChatSSEEvent } from "@/lib/sse_events";
 import type { RawSSEData } from "@/lib/sse_events";
 import { parseChatSSEEvent } from "@/lib/sse_events";
@@ -8,19 +14,8 @@ import {
   type SubscribeOptions,
 } from "@/lib/operationSubscribe";
 
-interface WorkbenchChatResponse {
-  operationId: string;
-  streamId: string;
-}
-
-interface WorkbenchChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  messageId?: string;
-  timestamp?: string;
-  toolCalls?: unknown[];
-  citations?: unknown[];
-}
+type WorkbenchChatResponse = z.infer<typeof WorkbenchChatResponseSchema>;
+type WorkbenchChatMessage = z.infer<typeof WorkbenchChatMessageSchema>;
 
 async function postWorkbenchChat(
   experimentId: string,
@@ -30,7 +25,8 @@ async function postWorkbenchChat(
 ): Promise<WorkbenchChatResponse> {
   const body: { message: string; siteId: string; model?: string } = { message, siteId };
   if (options?.model != null) body.model = options.model;
-  return requestJson<WorkbenchChatResponse>(
+  return requestJson(
+    WorkbenchChatResponseSchema,
     `/api/v1/experiments/${experimentId}/chat`,
     {
       method: "POST",
@@ -43,7 +39,8 @@ async function postWorkbenchChat(
 export async function getWorkbenchChatMessages(
   experimentId: string,
 ): Promise<WorkbenchChatMessage[]> {
-  return requestJson<WorkbenchChatMessage[]>(
+  return requestJson(
+    WorkbenchChatMessageListSchema,
     `/api/v1/experiments/${experimentId}/chat/messages`,
   );
 }

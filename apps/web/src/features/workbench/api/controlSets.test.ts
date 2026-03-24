@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-// Mock requestJson and requestBlob before importing the module under test
+// Mock requestJson, requestVoid, and requestBlob before importing the module under test
 vi.mock("@/lib/api/http", () => ({
   requestJson: vi.fn(),
+  requestVoid: vi.fn(),
   requestBlob: vi.fn(),
 }));
 
@@ -13,14 +14,16 @@ import {
   deleteControlSet,
   getExperimentReport,
 } from "./controlSets";
-import { requestJson, requestBlob } from "@/lib/api/http";
+import { requestJson, requestVoid, requestBlob } from "@/lib/api/http";
 import type { ControlSet } from "@pathfinder/shared";
 
 const mockRequestJson = vi.mocked(requestJson);
+const mockRequestVoid = vi.mocked(requestVoid);
 const mockRequestBlob = vi.mocked(requestBlob);
 
 beforeEach(() => {
   mockRequestJson.mockReset();
+  mockRequestVoid.mockReset();
   mockRequestBlob.mockReset();
 });
 
@@ -54,9 +57,13 @@ describe("listControlSets", () => {
 
     const result = await listControlSets("plasmodb");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/control-sets", {
-      query: { siteId: "plasmodb" },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/control-sets",
+      {
+        query: { siteId: "plasmodb" },
+      },
+    );
     expect(result).toEqual([controlSetFixture]);
   });
 
@@ -98,7 +105,10 @@ describe("getControlSet", () => {
 
     const result = await getControlSet("cs-1");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/control-sets/cs-1");
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/control-sets/cs-1",
+    );
     expect(result).toEqual(controlSetFixture);
   });
 
@@ -138,10 +148,14 @@ describe("createControlSet", () => {
 
     const result = await createControlSet(body);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/control-sets", {
-      method: "POST",
-      body,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/control-sets",
+      {
+        method: "POST",
+        body,
+      },
+    );
     expect(result).toEqual(controlSetFixture);
   });
 
@@ -162,10 +176,14 @@ describe("createControlSet", () => {
 
     await createControlSet(body);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/control-sets", {
-      method: "POST",
-      body,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/control-sets",
+      {
+        method: "POST",
+        body,
+      },
+    );
   });
 
   it("handles empty positive and negative ID lists", async () => {
@@ -185,13 +203,17 @@ describe("createControlSet", () => {
 
     await createControlSet(body);
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/control-sets", {
-      method: "POST",
-      body: expect.objectContaining({
-        positiveIds: [],
-        negativeIds: [],
-      }),
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/control-sets",
+      {
+        method: "POST",
+        body: expect.objectContaining({
+          positiveIds: [],
+          negativeIds: [],
+        }),
+      },
+    );
   });
 
   it("propagates errors", async () => {
@@ -215,17 +237,17 @@ describe("createControlSet", () => {
 
 describe("deleteControlSet", () => {
   it("sends DELETE to /api/v1/control-sets/:id", async () => {
-    mockRequestJson.mockResolvedValue(undefined);
+    mockRequestVoid.mockResolvedValue(undefined);
 
     await deleteControlSet("cs-1");
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/control-sets/cs-1", {
+    expect(mockRequestVoid).toHaveBeenCalledWith("/api/v1/control-sets/cs-1", {
       method: "DELETE",
     });
   });
 
   it("propagates errors on deletion failure", async () => {
-    mockRequestJson.mockRejectedValue(new Error("403 Forbidden"));
+    mockRequestVoid.mockRejectedValue(new Error("403 Forbidden"));
 
     await expect(deleteControlSet("cs-1")).rejects.toThrow("403 Forbidden");
   });

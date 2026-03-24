@@ -4,6 +4,7 @@ import type {
   ExperimentProgressData,
 } from "@pathfinder/shared";
 import { requestJson } from "@/lib/api/http";
+import { OperationIdResponseSchema } from "@/lib/api/schemas/streaming";
 import {
   subscribeToOperation,
   type OperationSubscription,
@@ -180,7 +181,7 @@ export async function createExperimentStream(
   config: PartialConfig,
   handlers: ExperimentSSEHandler,
 ): Promise<OperationSubscription> {
-  const resp = await requestJson<{ operationId: string }>("/api/v1/experiments", {
+  const resp = await requestJson(OperationIdResponseSchema, "/api/v1/experiments", {
     method: "POST",
     body: serializeExperimentConfig(config),
   });
@@ -220,7 +221,7 @@ export async function createBatchExperimentStream(
     onError?: (error: string) => void;
   },
 ): Promise<OperationSubscription> {
-  const resp = await requestJson<{ operationId: string }>("/api/v1/experiments/batch", {
+  const resp = await requestJson(OperationIdResponseSchema, "/api/v1/experiments/batch", {
     method: "POST",
     body: {
       base: serializeExperimentConfig(base),
@@ -265,7 +266,8 @@ export async function createBenchmarkStream(
     onError?: (error: string) => void;
   },
 ): Promise<OperationSubscription> {
-  const resp = await requestJson<{ operationId: string }>(
+  const resp = await requestJson(
+    OperationIdResponseSchema,
     "/api/v1/experiments/benchmark",
     {
       method: "POST",

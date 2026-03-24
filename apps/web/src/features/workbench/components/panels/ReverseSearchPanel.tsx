@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { requestJson } from "@/lib/api/http";
+import { ReverseSearchResultListSchema, ReverseSearchResultSchema } from "@/lib/api/schemas/reverse-search";
+import type { z } from "zod";
 import { useSessionStore } from "@/state/useSessionStore";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
@@ -13,16 +15,7 @@ import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 // Types
 // ---------------------------------------------------------------------------
 
-interface ReverseSearchResult {
-  geneSetId: string;
-  name: string;
-  searchName: string | null;
-  recall: number;
-  precision: number;
-  f1: number;
-  resultCount: number;
-  overlapCount: number;
-}
+type ReverseSearchResult = z.infer<typeof ReverseSearchResultSchema>;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -60,7 +53,8 @@ export function ReverseSearchPanel() {
     setResults([]);
 
     try {
-      const data = await requestJson<ReverseSearchResult[]>(
+      const data = await requestJson(
+        ReverseSearchResultListSchema,
         "/api/v1/gene-sets/reverse-search",
         {
           method: "POST",

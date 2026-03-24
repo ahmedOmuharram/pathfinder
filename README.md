@@ -116,7 +116,7 @@ Examples:
 Docker Compose will pick up variables from a repo-root `.env` file (if present) and/or your shell environment. In practice your `.env` should contain **at least**:
 
 - **API**
-  - `API_SECRET_KEY` (32+ chars)
+  - `API_SECRET_KEY` (32+ chars; optional in dev — a random key is auto-generated if unset, but sessions won't persist across restarts)
   - At least one LLM provider key:
     - `OPENAI_API_KEY` — default provider (`gpt-4.1`)
     - `ANTHROPIC_API_KEY` — use with `chat_provider=anthropic` (default model: `claude-sonnet-4-6`)

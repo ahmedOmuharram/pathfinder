@@ -3,7 +3,9 @@
  */
 
 import type { EnrichmentResult, GeneSet } from "@pathfinder/shared";
-import { requestJson } from "@/lib/api/http";
+import { requestJson, requestVoid } from "@/lib/api/http";
+import { GeneSetSchema, GeneSetListSchema } from "@/lib/api/schemas/gene-set";
+import { EnrichmentResultListSchema } from "@/lib/api/schemas/analysis";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
 // ---------------------------------------------------------------------------
@@ -35,32 +37,32 @@ export interface SetOperationRequest {
 
 /** Create a new gene set. */
 export function createGeneSet(req: CreateGeneSetRequest): Promise<GeneSet> {
-  return requestJson<GeneSet>("/api/v1/gene-sets", {
+  return requestJson(GeneSetSchema, "/api/v1/gene-sets", {
     method: "POST",
     body: req,
-  });
+  }) as Promise<GeneSet>;
 }
 
 /** List gene sets, optionally filtered by site. */
 export function listGeneSets(siteId?: string): Promise<GeneSet[]> {
-  return requestJson<GeneSet[]>("/api/v1/gene-sets", {
+  return requestJson(GeneSetListSchema, "/api/v1/gene-sets", {
     ...(siteId != null && siteId !== "" ? { query: { siteId } } : {}),
-  });
+  }) as Promise<GeneSet[]>;
 }
 
 /** Delete a gene set by ID. */
 export function deleteGeneSet(id: string): Promise<void> {
-  return requestJson<void>(`/api/v1/gene-sets/${id}`, {
+  return requestVoid(`/api/v1/gene-sets/${id}`, {
     method: "DELETE",
   });
 }
 
 /** Perform a set operation (intersect, union, minus) across gene sets. */
 export function performSetOperation(req: SetOperationRequest): Promise<GeneSet> {
-  return requestJson<GeneSet>("/api/v1/gene-sets/operations", {
+  return requestJson(GeneSetSchema, "/api/v1/gene-sets/operations", {
     method: "POST",
     body: req,
-  });
+  }) as Promise<GeneSet>;
 }
 
 /** Run enrichment analysis on a gene set. */
@@ -68,10 +70,10 @@ export function enrichGeneSet(
   id: string,
   types: string[],
 ): Promise<EnrichmentResult[]> {
-  return requestJson<EnrichmentResult[]>(`/api/v1/gene-sets/${id}/enrich`, {
+  return requestJson(EnrichmentResultListSchema, `/api/v1/gene-sets/${id}/enrich`, {
     method: "POST",
     body: { enrichmentTypes: types },
-  });
+  }) as unknown as Promise<EnrichmentResult[]>;
 }
 
 // ---------------------------------------------------------------------------

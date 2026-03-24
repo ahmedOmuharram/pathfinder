@@ -1,15 +1,21 @@
-import type {
-  CrossValidationResult,
-  EnrichmentAnalysisType,
-  EnrichmentResult,
-} from "@pathfinder/shared";
+import type { EnrichmentAnalysisType } from "@pathfinder/shared";
 import { requestJson } from "@/lib/api/http";
+import {
+  CrossValidationResultSchema,
+  EnrichmentResultListSchema,
+  OverlapResultSchema,
+  EnrichmentCompareResultSchema,
+} from "@/lib/api/schemas/analysis";
+import type { z } from "zod";
+
+export type OverlapResult = z.infer<typeof OverlapResultSchema>;
+export type EnrichmentCompareResult = z.infer<typeof EnrichmentCompareResultSchema>;
 
 export async function runCrossValidation(
   experimentId: string,
   kFolds: number,
-): Promise<CrossValidationResult> {
-  return await requestJson(`/api/v1/experiments/${experimentId}/cross-validate`, {
+): Promise<z.infer<typeof CrossValidationResultSchema>> {
+  return await requestJson(CrossValidationResultSchema, `/api/v1/experiments/${experimentId}/cross-validate`, {
     method: "POST",
     body: { kFolds },
   });
@@ -18,45 +24,11 @@ export async function runCrossValidation(
 export async function runEnrichment(
   experimentId: string,
   enrichmentTypes: EnrichmentAnalysisType[],
-): Promise<EnrichmentResult[]> {
-  return await requestJson(`/api/v1/experiments/${experimentId}/enrich`, {
+): Promise<z.infer<typeof EnrichmentResultListSchema>> {
+  return await requestJson(EnrichmentResultListSchema, `/api/v1/experiments/${experimentId}/enrich`, {
     method: "POST",
     body: { enrichmentTypes },
   });
-}
-
-export interface OverlapResult {
-  experimentIds: string[];
-  experimentLabels: Record<string, string>;
-  pairwise: {
-    experimentA: string;
-    experimentB: string;
-    labelA: string;
-    labelB: string;
-    sizeA: number;
-    sizeB: number;
-    intersection: number;
-    union: number;
-    jaccard: number;
-    sharedGenes: string[];
-    uniqueA: string[];
-    uniqueB: string[];
-  }[];
-  perExperiment: {
-    experimentId: string;
-    label: string;
-    totalGenes: number;
-    uniqueGenes: number;
-    sharedGenes: number;
-  }[];
-  universalGenes: string[];
-  totalUniqueGenes: number;
-  geneMembership: {
-    geneId: string;
-    foundIn: number;
-    totalExperiments: number;
-    experiments: string[];
-  }[];
 }
 
 export async function computeOverlap(
@@ -66,32 +38,19 @@ export async function computeOverlap(
   const query: Record<string, string> = {};
   if (opts?.orthologAware === true) query["orthologAware"] = "true";
   const hasQuery = Object.keys(query).length > 0;
-  return await requestJson<OverlapResult>("/api/v1/experiments/overlap", {
+  return await requestJson(OverlapResultSchema, "/api/v1/experiments/overlap", {
     method: "POST",
     body: { experimentIds },
     ...(hasQuery ? { query } : {}),
   });
 }
 
-export interface EnrichmentCompareResult {
-  experimentIds: string[];
-  experimentLabels: Record<string, string>;
-  rows: {
-    termKey: string;
-    termName: string;
-    analysisType: string;
-    scores: Record<string, number | null>;
-    maxScore: number;
-    experimentCount: number;
-  }[];
-  totalTerms: number;
-}
-
 export async function compareEnrichment(
   experimentIds: string[],
   analysisType?: string,
 ): Promise<EnrichmentCompareResult> {
-  return await requestJson<EnrichmentCompareResult>(
+  return await requestJson(
+    EnrichmentCompareResultSchema,
     "/api/v1/experiments/enrichment-compare",
     {
       method: "POST",

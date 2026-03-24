@@ -21,7 +21,7 @@ from veupath_chatbot.services.chat.orchestrator import (
     _run_stream_loop,
     _TurnRequest,
 )
-from veupath_chatbot.services.chat.types import ChatTurnConfig
+from veupath_chatbot.services.chat.types import ChatMention, ChatTurnConfig
 
 # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -141,7 +141,7 @@ class TestBuildAgentContext:
 
     async def test_builds_mention_context_when_mentions_provided(self) -> None:
         projection = _make_projection()
-        mentions = [{"type": "step", "id": "step_1"}]
+        mentions = [ChatMention(type="strategy", id="step_1", displayName="Step 1")]
         mock_build = AsyncMock(return_value="Step 1 context")
 
         with (

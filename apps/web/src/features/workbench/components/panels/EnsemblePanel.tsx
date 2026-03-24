@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import { Layers, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { requestJson } from "@/lib/api/http";
+import { EnsembleScoreListSchema, EnsembleScoreSchema } from "@/lib/api/schemas/ensemble";
+import type { z } from "zod";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
@@ -12,13 +14,7 @@ import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 // Types
 // ---------------------------------------------------------------------------
 
-interface EnsembleScore {
-  geneId: string;
-  frequency: number;
-  count: number;
-  total: number;
-  inPositives: boolean;
-}
+type EnsembleScore = z.infer<typeof EnsembleScoreSchema>;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -54,7 +50,7 @@ export function EnsemblePanel() {
     setResults(null);
 
     try {
-      const data = await requestJson<EnsembleScore[]>("/api/v1/gene-sets/ensemble", {
+      const data = await requestJson(EnsembleScoreListSchema, "/api/v1/gene-sets/ensemble", {
         method: "POST",
         body: {
           geneSetIds: selectedSetIds,
