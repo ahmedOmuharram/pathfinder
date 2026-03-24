@@ -12,9 +12,7 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "zod": "^4.3.6"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^25.3.5",
     "openapi-typescript": "^7.13.0",
@@ -28,10 +26,6 @@
     "./types": {
       "import": "./dist/types.js",
       "types": "./dist/types.d.ts"
-    },
-    "./zod": {
-      "import": "./dist/zod.js",
-      "types": "./dist/zod.d.ts"
     }
   }
 }

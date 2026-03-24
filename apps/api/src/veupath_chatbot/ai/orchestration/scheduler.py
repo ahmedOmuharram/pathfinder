@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from veupath_chatbot.ai.orchestration.delegation import CompiledNode
-from veupath_chatbot.ai.orchestration.results import NodeResult
+from veupath_chatbot.ai.orchestration.results import NodeResult, TaskResult
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
-from veupath_chatbot.platform.types import JSONArray, JSONObject
+from veupath_chatbot.platform.types import JSONArray
 
 logger = get_logger(__name__)
 
@@ -156,21 +156,17 @@ def partition_task_results(
     for result_value in results:
         if not isinstance(result_value, dict):
             continue
-        result: JSONObject = result_value
-        steps_value = result.get("steps")
-        steps: JSONArray = (
-            list(steps_value) if isinstance(steps_value, list) else []
-        )
-        if not steps:
-            _add_rejected_result(result, validated, rejected)
+        item = TaskResult.model_validate(result_value)
+        if not item.steps:
+            _add_rejected_result(item, validated, rejected)
             continue
 
         validated.append(
             {
-                "id": result.get("id"),
-                "task": result.get("task"),
-                "steps": steps,
-                "notes": result.get("notes"),
+                "id": item.id,
+                "task": item.task,
+                "steps": list(item.steps),
+                "notes": item.notes,
             }
         )
 
@@ -178,7 +174,7 @@ def partition_task_results(
 
 
 def _add_rejected_result(
-    result: JSONObject,
+    item: TaskResult,
     validated: JSONArray,
     rejected: JSONArray,
 ) -> None:
@@ -187,15 +183,13 @@ def _add_rejected_result(
         "NO_STEPS_CREATED",
         "No steps created for the subtask.",
     )
-    id_value = result.get("id")
-    task_value = result.get("task")
-    payload.update({"id": id_value, "task": task_value})
+    payload.update({"id": item.id, "task": item.task})
     rejected.append(payload)
     validated.append(
         {
-            "id": id_value,
-            "task": task_value,
+            "id": item.id,
+            "task": item.task,
             "steps": [],
-            "notes": result.get("notes"),
+            "notes": item.notes,
         }
     )

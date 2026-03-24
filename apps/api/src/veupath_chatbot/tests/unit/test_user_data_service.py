@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStrategySummary
 from veupath_chatbot.services.user_data import (
     PurgeResult,
     _purge_wdk_strategies,
@@ -119,7 +120,10 @@ class TestPurgeWdkStrategies:
     async def test_deletes_strategies_when_enabled(self) -> None:
         mock_api = AsyncMock()
         mock_api.list_strategies = AsyncMock(
-            return_value=[{"strategyId": 1}, {"strategyId": 2}]
+            return_value=[
+                WDKStrategySummary(strategy_id=1, name="s1", root_step_id=10),
+                WDKStrategySummary(strategy_id=2, name="s2", root_step_id=20),
+            ]
         )
         mock_api.delete_strategy = AsyncMock()
 

@@ -2,9 +2,11 @@
 
 import asyncio
 import re
+from dataclasses import dataclass, field
 from typing import cast
 
 import httpx
+from pydantic import BaseModel, ConfigDict
 
 from veupath_chatbot.domain.research.citations import (
     Citation,
@@ -26,6 +28,33 @@ from veupath_chatbot.services.research.utils import (
 # DuckDuckGo sometimes returns very short or empty snippets; replace
 # them with the fetched page summary for a more useful search result.
 _MIN_SNIPPET_LENGTH = 40
+
+
+class _WebResult(BaseModel):
+    """Typed web search result for field extraction."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    title: str = ""
+    url: str | None = None
+    snippet: str | None = None
+    summary: str | None = None
+
+
+@dataclass
+class _SearchDiagnostics:
+    """Mutable diagnostics tracker for DuckDuckGo search attempts."""
+
+    blocked: bool = False
+    attempts: int = 0
+    status_codes: list[int] = field(default_factory=list)
+
+    def to_json(self) -> JSONObject:
+        return {
+            "blocked": self.blocked,
+            "attempts": self.attempts,
+            "statusCodes": cast("JSONValue", list(self.status_codes)),
+        }
 
 
 def _parse_ddg_results(html: str, *, limit: int) -> JSONArray:
@@ -84,6 +113,7 @@ class WebSearchService:
         results, effective_query, diag = await self._ddg_html_search(q, limit=limit)
         if include_summary and results:
             dict_results = [r for r in results if isinstance(r, dict)]
+            typed_results = [_WebResult.model_validate(r) for r in dict_results]
             async with httpx.AsyncClient(
                 timeout=min(self._timeout, 15.0),
                 headers={
@@ -98,42 +128,37 @@ class WebSearchService:
                     *[
                         fetch_page_summary(
                             client,
-                            r.get("url"),
+                            typed.url,
                             max_chars=summary_max_chars,
                         )
-                        for r in dict_results
+                        for typed in typed_results
                     ],
                     return_exceptions=True,
                 )
-            for r, s in zip(dict_results, summaries, strict=True):
+            for r, typed, s in zip(dict_results, typed_results, summaries, strict=True):
+                # isinstance(s, str) is legitimate: asyncio.gather(return_exceptions=True)
+                # mixes str results with Exception objects in the same list.
                 summary = s.strip() if isinstance(s, str) and s.strip() else None
                 r["summary"] = cast("JSONValue", summary)
-                snip = r.get("snippet")
                 if (
-                    (not isinstance(snip, str))
-                    or len(snip.strip()) < _MIN_SNIPPET_LENGTH
+                    not typed.snippet
+                    or len(typed.snippet.strip()) < _MIN_SNIPPET_LENGTH
                 ) and summary:
                     r["snippet"] = cast("JSONValue", summary)
 
         citations: list[JSONObject] = []
-        for item in results:
-            if not isinstance(item, dict):
+        for item_raw in results:
+            if not isinstance(item_raw, dict):
                 continue
-            title_raw = item.get("title")
-            url_raw = item.get("url")
-            title = (
-                title_raw
-                if isinstance(title_raw, str)
-                else (url_raw if isinstance(url_raw, str) else "Web result")
-            )
-            snippet_raw = item.get("summary") or item.get("snippet")
-            snippet = snippet_raw if isinstance(snippet_raw, str) else None
+            item = _WebResult.model_validate(item_raw)
+            title = item.title or item.url or "Web result"
+            snippet = item.summary or item.snippet
             citations.append(
                 Citation(
                     id=_new_citation_id("web"),
                     source="web",
                     title=title,
-                    url=url_raw if isinstance(url_raw, str) else None,
+                    url=item.url,
                     snippet=snippet,
                     accessed_at=_now_iso(),
                 ).model_dump(by_alias=True, exclude_none=True, mode="json")
@@ -143,17 +168,17 @@ class WebSearchService:
             "query": q,
             "effectiveQuery": effective_query,
             "searchAdjusted": effective_query != q,
-            "searchDiagnostics": diag,
+            "searchDiagnostics": diag.to_json(),
             "results": results,
             "citations": cast("JSONValue", citations),
         }
-        if not results and isinstance(diag, dict) and diag.get("blocked") is True:
+        if not results and diag.blocked:
             payload["error"] = "search_blocked"
         return payload
 
     async def _ddg_html_search(
         self, q: str, *, limit: int
-    ) -> tuple[JSONArray, str, JSONObject]:
+    ) -> tuple[JSONArray, str, _SearchDiagnostics]:
         """Perform DuckDuckGo HTML search with fallback query variations."""
         url = "https://html.duckduckgo.com/html/"
         headers = {
@@ -162,11 +187,7 @@ class WebSearchService:
             "Accept-Language": "en-US,en;q=0.9",
         }
 
-        diag: JSONObject = {
-            "blocked": False,
-            "attempts": 0,
-            "statusCodes": cast("JSONValue", []),
-        }
+        diag = _SearchDiagnostics()
         last_html = ""
         try:
             async with httpx.AsyncClient(
@@ -176,21 +197,11 @@ class WebSearchService:
                     resp = await client.get(
                         url, params={"q": cand}, follow_redirects=True
                     )
-                    attempts_raw = diag.get("attempts")
-                    attempts = (
-                        int(attempts_raw)
-                        if isinstance(attempts_raw, (int, float))
-                        else 0
-                    )
-                    diag["attempts"] = attempts + 1
-                    status_codes_raw = diag.get("statusCodes")
-                    if isinstance(status_codes_raw, list):
-                        status_codes_raw.append(resp.status_code)
-                    else:
-                        diag["statusCodes"] = cast("JSONValue", [resp.status_code])
+                    diag.attempts += 1
+                    diag.status_codes.append(resp.status_code)
                     last_html = resp.text or ""
                     if looks_blocked(resp.status_code, last_html):
-                        diag["blocked"] = True
+                        diag.blocked = True
                         continue
                     results = _parse_ddg_results(last_html, limit=limit)
                     if results:
@@ -199,6 +210,6 @@ class WebSearchService:
             service = "DuckDuckGo (web search)"
             raise ExternalServiceError(service, str(exc)) from exc
 
-        if last_html and not diag.get("blocked"):
+        if last_html and not diag.blocked:
             return _parse_ddg_results(last_html, limit=limit), q, diag
         return [], q, diag

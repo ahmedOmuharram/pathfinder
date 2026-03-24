@@ -33,8 +33,7 @@ Sub-agent tools are the **same as the main agent's tools**, except you do **not*
 
 ### Execution / outputs (only if your delegated task explicitly asks)
 
-- `preview_results(step_id, limit?, graph_id?)`
-- `get_result_count(wdk_step_id)`
+- `get_estimated_size(wdk_step_id, wdk_strategy_id?)` — get result count for a built step
 - `get_download_url(wdk_step_id, format?, attributes?)`
 - `get_sample_records(wdk_step_id, limit?)`
 

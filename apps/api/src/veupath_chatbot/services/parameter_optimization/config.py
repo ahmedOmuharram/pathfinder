@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from veupath_chatbot.platform.pydantic_base import (
     CamelModel,
@@ -149,9 +149,10 @@ class OptimizationResult(CamelModel):
     total_time_seconds: RoundedFloat2
     status: str  # completed | cancelled | error
     error_message: str | None = None
+    total_trials: int = 0
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def total_trials(self) -> int:
-        """Number of trials (derived from all_trials)."""
-        return len(self.all_trials)
+    @model_validator(mode="after")
+    def _compute_total_trials(self) -> Self:
+        """Derive total_trials from all_trials at construction time."""
+        self.total_trials = len(self.all_trials)
+        return self

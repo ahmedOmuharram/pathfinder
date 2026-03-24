@@ -40,6 +40,20 @@ logger = get_logger(__name__)
 _HTTP_SERVER_ERROR = 500
 
 
+def _inject_auth_cookie(request: httpx.Request, auth_token: str) -> None:
+    """Append an ``Authorization`` cookie to a built request.
+
+    Modifies only the per-request :class:`httpx.Request` object — never the
+    shared :class:`httpx.AsyncClient` cookie jar — so concurrent requests
+    with different auth tokens cannot interfere with each other.
+    """
+    existing = request.headers.get("cookie", "")
+    auth_cookie = f"Authorization={auth_token}"
+    if existing:
+        request.headers["cookie"] = f"{existing}; {auth_cookie}"
+    else:
+        request.headers["cookie"] = auth_cookie
+
 
 def _convert_params_for_httpx(
     params: JSONObject | None,
@@ -123,7 +137,9 @@ class VEuPathDBClient:
                 )
             return self._client
 
-    async def _init_wdk_session(self, client: httpx.AsyncClient) -> None:
+    async def _init_wdk_session(
+        self, client: httpx.AsyncClient, auth_token: str
+    ) -> None:
         """Initialize a server-side WDK session (JSESSIONID).
 
         WDK process queries (e.g. GenesByOrthologPattern) require a Tomcat
@@ -132,7 +148,9 @@ class VEuPathDBClient:
         """
         webapp_url = self.base_url.replace("/service", "/app")
         try:
-            await client.get(webapp_url, timeout=10)
+            request = client.build_request("GET", webapp_url, timeout=10)
+            _inject_auth_cookie(request, auth_token)
+            await client.send(request)
             logger.debug(
                 "WDK session initialized",
                 jsessionid=bool(client.cookies.get("JSESSIONID")),
@@ -141,10 +159,16 @@ class VEuPathDBClient:
             logger.debug("Failed to initialize WDK session (non-fatal)")
 
     async def close(self) -> None:
-        """Close HTTP client."""
+        """Close HTTP client and reset session state.
+
+        The JSESSIONID lives on the httpx client's cookie jar, so a new
+        client must re-initialize the WDK session to avoid process queries
+        silently returning 0 results.
+        """
         if self._client and not self._client.is_closed:
             await self._client.aclose()
             self._client = None
+        self._session_initialized = False
 
     @retry(
         retry=retry_if_exception_type(
@@ -182,21 +206,22 @@ class VEuPathDBClient:
                 or settings.veupathdb_auth_token
             )
             # WDK authenticates via an ``Authorization`` cookie (not a header).
-            # Set the cookie on the client instance (not per-request) because
-            # httpx has deprecated per-request ``cookies=``.
-            if auth_token:
-                client.cookies.set("Authorization", auth_token)
-            # Initialize WDK session on first authenticated request.
+            # Inject per-request into the built Request object to avoid
+            # mutating the shared client cookie jar (which would race
+            # between concurrent users on the same site).
             if auth_token and not self._session_initialized:
                 self._session_initialized = True
-                await self._init_wdk_session(client)
+                await self._init_wdk_session(client, auth_token)
             httpx_params = _convert_params_for_httpx(params)
-            response = await client.request(
+            request = client.build_request(
                 method=method,
                 url=path,
                 params=httpx_params,
                 json=json,
             )
+            if auth_token:
+                _inject_auth_cookie(request, auth_token)
+            response = await client.send(request)
             response.raise_for_status()
             if not response.content or not response.text.strip():
                 return None

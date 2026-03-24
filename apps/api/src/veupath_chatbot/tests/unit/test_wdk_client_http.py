@@ -6,6 +6,7 @@ Uses respx to mock outbound HTTP and verify:
 - JSESSIONID initialization on first authenticated request
 - Empty response handling
 - Auth cookie (not header) per WDK contract
+- Concurrent auth isolation (no cookie jar race)
 
 WDK contracts validated:
 - Authorization via cookie, not header
@@ -14,12 +15,15 @@ WDK contracts validated:
 - 4xx → immediate WDKError (no retry)
 """
 
+import asyncio
+
 import httpx
 import pytest
 import respx
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchConfig
+from veupath_chatbot.platform.context import veupathdb_auth_token_ctx
 from veupath_chatbot.platform.errors import DataParsingError, WDKError
 from veupath_chatbot.tests.fixtures.wdk_responses import (
     search_details_response,
@@ -179,6 +183,34 @@ class TestJsessionIdInit:
             assert app_route.call_count == 1, "Session init should happen only once"
 
     @pytest.mark.asyncio
+    async def test_session_reinit_after_close(
+        self, authed_client: VEuPathDBClient
+    ) -> None:
+        """After close(), new client must re-initialize JSESSIONID.
+
+        Bug: close() sets _client=None but leaves _session_initialized=True.
+        Next request creates a fresh httpx.AsyncClient (no cookies) but skips
+        _init_wdk_session because the flag is still True → process queries
+        silently return 0 results.
+        """
+        with respx.mock:
+            app_route = respx.get("https://plasmodb.org/plasmo/app").respond(200)
+            respx.get(f"{authed_client.base_url}/data").respond(200, json={"ok": True})
+
+            # First request: session init fires
+            await authed_client.get("/data")
+            assert app_route.call_count == 1
+
+            # Close destroys the httpx client (and its cookies)
+            await authed_client.close()
+
+            # Second request after close: must re-initialize session
+            await authed_client.get("/data")
+            assert app_route.call_count == 2, (
+                "After close(), session must be re-initialized on next request"
+            )
+
+    @pytest.mark.asyncio
     async def test_unauthenticated_skips_session_init(
         self, client: VEuPathDBClient
     ) -> None:
@@ -316,3 +348,56 @@ class TestRunSearchReport:
             ).respond(200, json={"not": "an answer"})
             with pytest.raises(DataParsingError, match="Unexpected WDK answer"):
                 await client.run_search_report("transcript", "Bad", WDKSearchConfig())
+
+
+# ── Concurrent auth isolation ────────────────────────────────────
+
+
+class TestConcurrentAuthIsolation:
+    """Verify that concurrent requests with different auth tokens
+    never cross-contaminate.
+
+    Regression test for B2: shared httpx client cookie jar race.
+    Before fix, ``client.cookies.set("Authorization", token)`` mutated
+    a shared singleton — two concurrent users could swap tokens.
+    """
+
+    @pytest.mark.asyncio
+    async def test_concurrent_requests_use_own_auth_token(
+        self, base_url: str
+    ) -> None:
+        """Two concurrent requests through the SAME client must each carry
+        their own Authorization cookie — never the other user's."""
+        shared_client = VEuPathDBClient(base_url=base_url, timeout=5.0)
+        shared_client._session_initialized = True  # skip init for this test
+
+        # Barrier so both tasks send their request at the same instant
+        barrier = asyncio.Barrier(2)
+        observed_tokens: dict[str, str] = {}
+
+        async def make_request(user: str, token: str) -> None:
+            veupathdb_auth_token_ctx.set(token)
+            await barrier.wait()
+            with respx.mock:
+                route = respx.get(f"{base_url}/data").respond(200, json={})
+                await shared_client.get("/data")
+                cookie_header = route.calls[0].request.headers.get("cookie", "")
+                observed_tokens[user] = cookie_header
+
+        user_a = asyncio.create_task(make_request("alice", "token-alice"))
+        user_b = asyncio.create_task(make_request("bob", "token-bob"))
+        await asyncio.gather(user_a, user_b)
+
+        assert "token-alice" in observed_tokens["alice"], (
+            f"Alice's request should carry token-alice, got: {observed_tokens['alice']}"
+        )
+        assert "token-bob" in observed_tokens["bob"], (
+            f"Bob's request should carry token-bob, got: {observed_tokens['bob']}"
+        )
+        # Critical: Alice must NOT have Bob's token and vice versa
+        assert "token-bob" not in observed_tokens["alice"], (
+            "RACE CONDITION: Alice's request carried Bob's token!"
+        )
+        assert "token-alice" not in observed_tokens["bob"], (
+            "RACE CONDITION: Bob's request carried Alice's token!"
+        )

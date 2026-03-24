@@ -340,3 +340,152 @@ class TestWriteThruStoreDbMethods:
             entity = FakeEntity(id="x", name="Y")
             store.save(entity)
             assert store.get("x") is entity
+
+
+# ---------------------------------------------------------------------------
+# Retry & resilience tests
+# ---------------------------------------------------------------------------
+
+
+class TestWriteThruStoreRetry:
+    """Tests for retry behavior on transient DB failures."""
+
+    async def test_persist_retries_on_transient_failure(self) -> None:
+        """_persist should retry on transient DB errors before giving up."""
+        store = FakeStore()
+        entity = FakeEntity(id="abc", name="Test")
+
+        call_count = 0
+
+        async def flaky_session_factory() -> AsyncMock:
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise ConnectionError("DB connection lost")
+            # Third attempt succeeds
+            mock_session = AsyncMock()
+            return mock_session
+
+        mock_ctx_manager = AsyncMock()
+        # First two calls raise, third succeeds
+        good_session = AsyncMock()
+        mock_ctx_manager.__aenter__ = AsyncMock(
+            side_effect=[
+                ConnectionError("DB connection lost"),
+                ConnectionError("DB connection lost"),
+                good_session,
+            ]
+        )
+        mock_ctx_manager.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx_manager)
+
+        with (
+            patch(
+                "veupath_chatbot.platform.store.async_session_factory",
+                mock_factory,
+            ),
+            patch("veupath_chatbot.platform.store.pg_insert") as mock_insert,
+        ):
+            mock_stmt = MagicMock()
+            mock_insert.return_value = mock_stmt
+            mock_stmt.values.return_value = mock_stmt
+            mock_stmt.on_conflict_do_update.return_value = mock_stmt
+
+            await store._persist(entity)
+
+            # Should have been called 3 times (2 failures + 1 success)
+            assert mock_factory.call_count == 3
+            good_session.execute.assert_called_once()
+            good_session.commit.assert_called_once()
+
+    async def test_persist_gives_up_after_max_retries(self) -> None:
+        """_persist should log after exhausting all retry attempts."""
+        store = FakeStore()
+        entity = FakeEntity(id="abc", name="Test")
+
+        mock_ctx_manager = AsyncMock()
+        mock_ctx_manager.__aenter__ = AsyncMock(
+            side_effect=ConnectionError("DB permanently down")
+        )
+        mock_ctx_manager.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx_manager)
+
+        with (
+            patch(
+                "veupath_chatbot.platform.store.async_session_factory",
+                mock_factory,
+            ),
+            patch("veupath_chatbot.platform.store.pg_insert") as mock_insert,
+            patch("veupath_chatbot.platform.store.logger") as mock_logger,
+        ):
+            mock_stmt = MagicMock()
+            mock_insert.return_value = mock_stmt
+            mock_stmt.values.return_value = mock_stmt
+            mock_stmt.on_conflict_do_update.return_value = mock_stmt
+
+            await store._persist(entity)  # Should not raise
+
+            # Should have retried multiple times
+            assert mock_factory.call_count > 1
+            mock_logger.exception.assert_called_once()
+
+    async def test_delete_from_db_retries_on_transient_failure(self) -> None:
+        """_delete_from_db should retry on transient errors."""
+        store = FakeStore()
+
+        good_session = AsyncMock()
+        mock_ctx_manager = AsyncMock()
+        mock_ctx_manager.__aenter__ = AsyncMock(
+            side_effect=[
+                ConnectionError("DB connection lost"),
+                good_session,
+            ]
+        )
+        mock_ctx_manager.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx_manager)
+
+        with (
+            patch(
+                "veupath_chatbot.platform.store.async_session_factory",
+                mock_factory,
+            ),
+            patch("veupath_chatbot.platform.store.sa_delete") as mock_delete,
+        ):
+            mock_stmt = MagicMock()
+            mock_delete.return_value = mock_stmt
+            mock_stmt.where.return_value = mock_stmt
+
+            await store._delete_from_db("abc")
+
+            assert mock_factory.call_count == 2
+            good_session.execute.assert_called_once()
+            good_session.commit.assert_called_once()
+
+    async def test_delete_from_db_logs_on_final_failure(self) -> None:
+        """_delete_from_db should log after exhausting retries, not raise."""
+        store = FakeStore()
+
+        mock_ctx_manager = AsyncMock()
+        mock_ctx_manager.__aenter__ = AsyncMock(
+            side_effect=ConnectionError("DB permanently down")
+        )
+        mock_ctx_manager.__aexit__ = AsyncMock(return_value=False)
+        mock_factory = MagicMock(return_value=mock_ctx_manager)
+
+        with (
+            patch(
+                "veupath_chatbot.platform.store.async_session_factory",
+                mock_factory,
+            ),
+            patch("veupath_chatbot.platform.store.sa_delete") as mock_delete,
+            patch("veupath_chatbot.platform.store.logger") as mock_logger,
+        ):
+            mock_stmt = MagicMock()
+            mock_delete.return_value = mock_stmt
+            mock_stmt.where.return_value = mock_stmt
+
+            # Should NOT raise — must catch and log
+            await store._delete_from_db("abc")
+
+            assert mock_factory.call_count > 1
+            mock_logger.exception.assert_called_once()

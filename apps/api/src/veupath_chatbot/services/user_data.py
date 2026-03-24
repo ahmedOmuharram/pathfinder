@@ -154,20 +154,16 @@ async def _purge_wdk_strategies(site_id: str | None, *, delete_wdk: bool) -> int
             api = get_strategy_api(purge_site)
             wdk_strategies = await api.list_strategies()
             for wdk_strat in wdk_strategies:
-                if not isinstance(wdk_strat, dict):
-                    continue
-                wdk_id = wdk_strat.get("strategyId")
-                if wdk_id is not None:
-                    try:
-                        await api.delete_strategy(int(str(wdk_id)))
-                        wdk_deleted += 1
-                    except (ValueError, RuntimeError) as exc:
-                        logger.warning(
-                            "Failed to delete WDK strategy during user data purge",
-                            wdk_strategy_id=wdk_id,
-                            site=purge_site,
-                            error=str(exc),
-                        )
+                try:
+                    await api.delete_strategy(wdk_strat.strategy_id)
+                    wdk_deleted += 1
+                except (ValueError, RuntimeError) as exc:
+                    logger.warning(
+                        "Failed to delete WDK strategy during user data purge",
+                        wdk_strategy_id=wdk_strat.strategy_id,
+                        site=purge_site,
+                        error=str(exc),
+                    )
         except (ValueError, RuntimeError) as exc:
             logger.debug("WDK purge skipped for site", site=purge_site, error=str(exc))
     return wdk_deleted

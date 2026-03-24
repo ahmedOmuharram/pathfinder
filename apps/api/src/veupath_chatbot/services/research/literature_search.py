@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import ClassVar, Literal, cast
 
 import httpx
+from pydantic import BaseModel, ConfigDict, Field
 
 from veupath_chatbot.domain.research.citations import (
     LiteratureFilters,
@@ -14,6 +15,7 @@ from veupath_chatbot.domain.research.citations import (
     LiteratureSource,
     ensure_unique_citation_tags,
 )
+from veupath_chatbot.domain.research.papers import ParsedPaper
 from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
 from veupath_chatbot.services.research.clients import (
     ArxivClient,
@@ -33,6 +35,15 @@ from veupath_chatbot.services.research.utils import (
     rerank_score,
     truncate_text,
 )
+
+
+class _SourcePayload(BaseModel):
+    """Typed model for parsing a source's response payload."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    results: list[JSONObject] = Field(default_factory=list)
+    citations: list[JSONObject] = Field(default_factory=list)
 
 
 @dataclass
@@ -293,46 +304,23 @@ class LiteratureSearchService:
         citations_by_key: dict[str, JSONObject] = {}
         seen: set[str] = set()
 
-        for src, source_payload in by_source.items():
-            results = (
-                source_payload.get("results")
-                if isinstance(source_payload, dict)
-                else None
-            )
-            citations = (
-                source_payload.get("citations")
-                if isinstance(source_payload, dict)
-                else None
-            )
-            if not isinstance(results, list) or not isinstance(citations, list):
+        for src, source_payload_raw in by_source.items():
+            try:
+                payload = _SourcePayload.model_validate(source_payload_raw)
+            except (ValueError, TypeError):
                 continue
 
-            for i, item in enumerate(results):
-                if not isinstance(item, dict):
-                    continue
-                c = citations[i] if i < len(citations) else None
-                title = str(item.get("title") or "").strip()
-                authors = (
-                    item.get("authors")
-                    if isinstance(item.get("authors"), list)
-                    else None
-                )
-                year_raw = item.get("year")
-                year = year_raw if isinstance(year_raw, int) else None
-                doi_raw = item.get("doi")
-                doi = doi_raw if isinstance(doi_raw, str) else None
-                pmid_raw = item.get("pmid")
-                pmid = pmid_raw if isinstance(pmid_raw, str) else None
-                journal = item.get("journalTitle") or item.get("journal")
-                journal = str(journal).strip() if journal is not None else None
+            for i, item in enumerate(payload.results):
+                c = payload.citations[i] if i < len(payload.citations) else None
+                paper = ParsedPaper.model_validate(item)
 
                 item_ctx = LiteratureItemContext(
-                    title=title,
-                    authors=list_str(authors) if authors is not None else None,
-                    year=year,
-                    doi=doi,
-                    pmid=pmid,
-                    journal=journal,
+                    title=paper.title,
+                    authors=paper.authors or None,
+                    year=paper.year,
+                    doi=paper.doi,
+                    pmid=paper.pmid,
+                    journal=paper.journal_title,
                 )
                 if not passes_filters(item_ctx, filters):
                     continue
@@ -343,22 +331,15 @@ class LiteratureSearchService:
                 seen.add(key)
 
                 authors_limited = limit_authors(
-                    list_str(authors) if authors else None,
+                    paper.authors or None,
                     options.max_authors,
                 )
-                abstract_raw = item.get("abstract")
-                abstract_value: str | None
                 if options.include_abstract:
-                    abstract_str = (
-                        abstract_raw if isinstance(abstract_raw, str) else None
-                    )
                     abstract_value = truncate_text(
-                        abstract_str, options.abstract_max_chars
+                        paper.abstract, options.abstract_max_chars
                     )
                 else:
-                    abstract_value = (
-                        abstract_raw if isinstance(abstract_raw, str) else None
-                    )
+                    abstract_value = paper.abstract
                 filtered.append(
                     {
                         **item,
@@ -370,9 +351,8 @@ class LiteratureSearchService:
 
                 if isinstance(c, dict):
                     c2: JSONObject = {**c}
-                    authors_raw = c2.get("authors")
-                    if authors_raw is not None:
-                        authors_list = list_str(authors_raw)
+                    if "authors" in c2:
+                        authors_list = list_str(c2["authors"])
                         authors_limited = limit_authors(
                             authors_list, options.max_authors
                         )
@@ -485,11 +465,6 @@ class LiteratureSearchService:
         if source == "all":
             payload["bySource"] = cast("JSONValue", result_data.by_source)
 
-        citations_raw = payload.get("citations")
-        if isinstance(citations_raw, list):
-            citations_list: list[JSONObject] = [
-                c for c in citations_raw if isinstance(c, dict)
-            ]
-            ensure_unique_citation_tags(citations_list)
+        ensure_unique_citation_tags(citations)
 
         return payload

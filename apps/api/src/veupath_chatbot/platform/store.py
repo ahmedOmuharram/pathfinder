@@ -19,6 +19,13 @@ from typing import Any, Protocol, cast
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from tenacity import (
+    RetryError,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.logging import get_logger
@@ -58,26 +65,35 @@ class WriteThruStore[T: Identifiable]:
     # -- DB helpers (derived from _model / _to_row / _from_row) ----------------
 
     async def _persist(self, entity: T) -> None:
-        """Upsert an entity row into the database."""
+        """Upsert an entity row into the database with retry on transient failures."""
         try:
-            vals = self._to_row(entity)
-            stmt = (
-                pg_insert(self._model)
-                .values(**vals)
-                .on_conflict_do_update(
-                    index_elements=[self._model.id],
-                    set_={k: v for k, v in vals.items() if k != "id"},
-                )
-            )
-            async with async_session_factory() as session:
-                await session.execute(stmt)
-                await session.commit()
-        except Exception:
+            await self._persist_with_retry(entity)
+        except RetryError:
             logger.exception(
-                "Failed to persist entity to DB",
+                "Failed to persist entity to DB after retries",
                 entity_type=self._model.__tablename__,
                 entity_id=entity.id,
             )
+
+    @retry(
+        retry=retry_if_exception_type((OSError, ConnectionError, TimeoutError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=0.1, max=2),
+        reraise=True,
+    )
+    async def _persist_with_retry(self, entity: T) -> None:
+        vals = self._to_row(entity)
+        stmt = (
+            pg_insert(self._model)
+            .values(**vals)
+            .on_conflict_do_update(
+                index_elements=[self._model.id],
+                set_={k: v for k, v in vals.items() if k != "id"},
+            )
+        )
+        async with async_session_factory() as session:
+            await session.execute(stmt)
+            await session.commit()
 
     async def _load(self, entity_id: str) -> T | None:
         """Load a single entity from the database by primary key."""
@@ -88,7 +104,23 @@ class WriteThruStore[T: Identifiable]:
             return self._from_row(row)
 
     async def _delete_from_db(self, entity_id: str) -> None:
-        """Delete an entity row from the database."""
+        """Delete an entity row from the database with retry on transient failures."""
+        try:
+            await self._delete_from_db_with_retry(entity_id)
+        except RetryError:
+            logger.exception(
+                "Failed to delete entity from DB after retries",
+                entity_type=self._model.__tablename__,
+                entity_id=entity_id,
+            )
+
+    @retry(
+        retry=retry_if_exception_type((OSError, ConnectionError, TimeoutError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=0.1, max=2),
+        reraise=True,
+    )
+    async def _delete_from_db_with_retry(self, entity_id: str) -> None:
         stmt = sa_delete(self._model).where(self._model.id == entity_id)
         async with async_session_factory() as session:
             await session.execute(stmt)

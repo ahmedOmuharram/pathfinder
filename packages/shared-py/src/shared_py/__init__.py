@@ -1,50 +1,7 @@
-"""Shared Pydantic models for Pathfinder."""
+"""Shared defaults for Pathfinder."""
 
-from shared_py.models import (
-    CombineOperator,
-    ColocationParams,
-    SearchNode,
-    CombineNode,
-    TransformNode,
-    PlanNode,
-    StrategyPlan,
-    VEuPathDBSite,
-    SearchParameter,
-    Search,
-    RecordType,
-    Step,
-    Strategy,
-    StrategySummary,
-    Message,
-    Conversation,
-    ChatRequest,
-    PreviewRequest,
-    PreviewResponse,
-    DownloadRequest,
-    DownloadResponse,
-)
+from shared_py.defaults import DEFAULT_STREAM_NAME
 
 __all__ = [
-    "CombineOperator",
-    "ColocationParams",
-    "SearchNode",
-    "CombineNode",
-    "TransformNode",
-    "PlanNode",
-    "StrategyPlan",
-    "VEuPathDBSite",
-    "SearchParameter",
-    "Search",
-    "RecordType",
-    "Step",
-    "Strategy",
-    "StrategySummary",
-    "Message",
-    "Conversation",
-    "ChatRequest",
-    "PreviewRequest",
-    "PreviewResponse",
-    "DownloadRequest",
-    "DownloadResponse",
+    "DEFAULT_STREAM_NAME",
 ]
-

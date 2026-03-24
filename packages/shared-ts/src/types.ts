@@ -168,49 +168,6 @@ export const CombineOperatorBadgeLabels: Record<CombineOperator, string> = {
   UNION: "OR (UNION)",
 };
 
-/**
- * Maps WDK bq_operator values to canonical CombineOperator.
- * WDK uses INTERSECT, UNION, MINUS, RMINUS, LMINUS, LONLY, RONLY.
- */
-export const WDK_OPERATOR_TO_COMBINE: Record<string, CombineOperator> = {
-  INTERSECT: CombineOperator.INTERSECT,
-  UNION: CombineOperator.UNION,
-  MINUS: CombineOperator.MINUS,
-  LMINUS: CombineOperator.MINUS,
-  RMINUS: CombineOperator.RMINUS,
-  LONLY: CombineOperator.LONLY,
-  RONLY: CombineOperator.RONLY,
-};
-
-export const CombineOperatorShortLabels: Record<CombineOperator, string> = {
-  INTERSECT: "Intersect",
-  MINUS: "Minus",
-  RMINUS: "Minus",
-  LONLY: "Left only",
-  RONLY: "Right only",
-  COLOCATE: "Colocate",
-  UNION: "Union",
-};
-
-export const DEFAULT_COMBINE_OPERATOR: CombineOperator = "INTERSECT";
-
-/** WDK-specific short labels when operator comes from bq_operator. */
-export const WDK_OPERATOR_SHORT_LABELS: Record<string, string> = {
-  ...CombineOperatorShortLabels,
-  LMINUS: "Minus",
-};
-
-export function getOperatorDisplayLabel(wdkOperator: string | null | undefined): string {
-  if (!wdkOperator) return "";
-  const norm = String(wdkOperator).toUpperCase();
-  return WDK_OPERATOR_SHORT_LABELS[norm] ?? norm;
-}
-
-export function wdkOperatorToCombine(wdkOperator: string | null | undefined): CombineOperator {
-  if (!wdkOperator) return DEFAULT_COMBINE_OPERATOR;
-  const norm = String(wdkOperator).toUpperCase();
-  return WDK_OPERATOR_TO_COMBINE[norm] ?? DEFAULT_COMBINE_OPERATOR;
-}
 
 // Strategy Plan DSL (AST)
 
@@ -389,8 +346,6 @@ export const VEUPATHDB_SITES: VEuPathDBSite[] = [
 
 // Chat Types
 
-export type MessageRole = "user" | "assistant" | "system";
-
 export type ModelProvider = "openai" | "anthropic" | "google" | "ollama" | "mock";
 export type ReasoningEffort = "none" | "low" | "medium" | "high";
 
@@ -413,37 +368,7 @@ export type Message = components["schemas"]["MessageResponse"] & {
   mentions?: ChatMention[];
 };
 
-export interface Conversation {
-  id: string;
-  siteId: string;
-  title?: string;
-  messages: Message[];
-  strategyId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export type StepKind = "search" | "transform" | "combine";
-
-// Search parameter validation/specs (UI-facing)
-
-export interface SearchDetailsResponse {
-  searchData?: Record<string, unknown>;
-  validation?: Record<string, unknown>;
-  searchConfig?: Record<string, unknown>;
-  parameters?: Record<string, unknown>[];
-  paramMap?: Record<string, unknown>;
-  question?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-export type DependentParamsResponse = Record<string, unknown>[];
-
-export interface PushResult {
-  wdkStrategyId: number;
-  wdkUrl: string;
-}
-
 
 // Parameter Optimisation
 
@@ -492,47 +417,6 @@ export interface SSEEvent {
   data: unknown;
 }
 
-export interface ContentDeltaEvent {
-  type: "content_delta";
-  data: { delta: string };
-}
-
-export interface ToolCallStartEvent {
-  type: "tool_call_start";
-  data: { id: string; name: string };
-}
-
-export interface ToolCallEndEvent {
-  type: "tool_call_end";
-  data: { id: string; result: string };
-}
-
-// Result Types
-
-export interface PreviewRequest {
-  strategyId: string;
-  stepId: string;
-  limit?: number;
-}
-
-export interface PreviewResponse {
-  totalCount: number;
-  records: Record<string, unknown>[];
-  columns: string[];
-}
-
-export interface DownloadRequest {
-  strategyId: string;
-  stepId: string;
-  format: "csv" | "json" | "tab";
-  attributes?: string[];
-}
-
-export interface DownloadResponse {
-  downloadUrl: string;
-  expiresAt: string;
-}
-
 // Experiment Lab Types
 
 export type ExperimentMode = "single" | "multi-step" | "import";
@@ -551,36 +435,7 @@ export type ExperimentStatus =
   | "error"
   | "cancelled";
 
-export type ExperimentProgressPhase =
-  | "started"
-  | "evaluating"
-  | "optimizing"
-  | "cross_validating"
-  | "enriching"
-  | "step_analysis"
-  | "completed"
-  | "error";
-
-// Gene Set Types
-
-export type GeneSetSource = "strategy" | "paste" | "upload" | "derived" | "saved";
-
-// Rank-based evaluation types
-
-export type ControlSetSource = "paper" | "curation" | "db_build" | "other";
-
 export type StepContributionVerdict = "essential" | "helpful" | "neutral" | "harmful";
-
-export type StepAnalysisPhase =
-  | "step_evaluation"
-  | "operator_comparison"
-  | "contribution"
-  | "sensitivity";
-
 
 // Classification for control test results
 export type Classification = "TP" | "FP" | "FN" | "TN";
-
-// Chat @-Mention References
-
-export type ChatMentionType = "strategy" | "experiment";

@@ -8,7 +8,7 @@ scheduler and response builder.
 
 from typing import Literal
 
-from pydantic import Field, computed_field
+from pydantic import Field
 
 from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONArray
@@ -28,7 +28,6 @@ class TaskResult(CamelModel):
     error: str | None = None
     ok: bool | None = None
 
-    @computed_field  # type: ignore[prop-decorator]
     @property
     def output_step_id(self) -> str | None:
         return self.subtree_root
@@ -49,7 +48,6 @@ class CombineResult(CamelModel):
     ok: bool | None = None
     missing: list[str] | None = None
 
-    @computed_field  # type: ignore[prop-decorator]
     @property
     def output_step_id(self) -> str | None:
         return self.step_id

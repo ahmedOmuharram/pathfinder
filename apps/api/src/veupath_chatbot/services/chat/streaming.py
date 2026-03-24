@@ -10,6 +10,7 @@ from uuid import uuid4
 from kani import Kani
 from kani.models import ChatRole
 from kani.parts.reasoning import ReasoningPart
+from pydantic import BaseModel, ConfigDict, Field
 
 from veupath_chatbot.ai.models.pricing import estimate_cost
 from veupath_chatbot.platform.errors import ErrorCode
@@ -35,17 +36,53 @@ from veupath_chatbot.transport.http.schemas.sse import (
 logger = get_logger(__name__)
 
 
+# ── Pydantic models for provider-specific usage extraction ────────────
+
+
+class _OaiTokenDetails(BaseModel):
+    """Token details from OpenAI Chat or Responses API."""
+
+    model_config = ConfigDict(extra="ignore")
+    cached_tokens: int = 0
+
+
+class _OaiUsage(BaseModel):
+    """OpenAI usage — tries both Chat and Responses API field names."""
+
+    model_config = ConfigDict(extra="ignore")
+    input_tokens_details: _OaiTokenDetails | None = None
+    prompt_tokens_details: _OaiTokenDetails | None = None
+
+    @property
+    def cached_tokens(self) -> int:
+        details = self.input_tokens_details or self.prompt_tokens_details
+        return details.cached_tokens if details else 0
+
+
+class _SubkaniEndData(BaseModel):
+    """Token metrics from a subkani_task_end event."""
+
+    model_config = ConfigDict(extra="ignore")
+    prompt_tokens: int = Field(0, alias="promptTokens")
+    completion_tokens: int = Field(0, alias="completionTokens")
+    llm_call_count: int = Field(0, alias="llmCallCount")
+
+
+class _SubkaniEvent(BaseModel):
+    """Minimal model for subkani SSE event type checking."""
+
+    model_config = ConfigDict(extra="ignore")
+    type: str = ""
+    data: JSONObject = Field(default_factory=dict)
+
+
 def _cached_tokens_openai(extra: dict[str, object]) -> int:
     """Extract cached tokens from OpenAI usage (Chat Completions or Responses API)."""
-    oai_usage = extra.get("openai_usage")
-    if not oai_usage or not isinstance(oai_usage, dict):
+    raw_oai = extra.get("openai_usage")
+    if not raw_oai or not isinstance(raw_oai, dict):
         return 0
-    for key in ("input_tokens_details", "prompt_tokens_details"):
-        details = oai_usage.get(key)
-        ct = details.get("cached_tokens") if isinstance(details, dict) else None
-        if ct:
-            return int(ct)
-    return 0
+    oai_usage = _OaiUsage.model_validate(raw_oai)
+    return oai_usage.cached_tokens
 
 
 def _cached_tokens_anthropic(extra: dict[str, object]) -> int:
@@ -117,12 +154,10 @@ def _accumulate_subkani_metrics(
     metrics: dict[str, int | float], end_data: JSONObject
 ) -> None:
     """Add sub-kani token counts from a task_end event into running metrics."""
-    pt = end_data.get("promptTokens", 0)
-    ct = end_data.get("completionTokens", 0)
-    lc = end_data.get("llmCallCount", 0)
-    metrics["subkani_prompt"] += int(pt) if isinstance(pt, (int, float)) else 0
-    metrics["subkani_completion"] += int(ct) if isinstance(ct, (int, float)) else 0
-    metrics["subkani_calls"] += int(lc) if isinstance(lc, (int, float)) else 0
+    data = _SubkaniEndData.model_validate(end_data)
+    metrics["subkani_prompt"] += data.prompt_tokens
+    metrics["subkani_completion"] += data.completion_tokens
+    metrics["subkani_calls"] += data.llm_call_count
 
 
 async def _handle_function_stream(
@@ -185,10 +220,9 @@ def _maybe_accumulate_subkani(
     event: JSONObject, metrics: dict[str, int | float]
 ) -> None:
     """If *event* is a subkani_task_end, accumulate its token counts into *metrics*."""
-    if event.get("type") == "subkani_task_end":
-        end_data = event.get("data", {})
-        if isinstance(end_data, dict):
-            _accumulate_subkani_metrics(metrics, end_data)
+    parsed = _SubkaniEvent.model_validate(event)
+    if parsed.type == "subkani_task_end":
+        _accumulate_subkani_metrics(metrics, parsed.data)
 
 
 @dataclass
