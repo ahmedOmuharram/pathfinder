@@ -136,9 +136,7 @@ class RefinementToolsMixin:
         new_step = await api.create_step(
             NewStepSpec(
                 search_name=controls_search,
-                search_config=WDKSearchConfig(
-                    parameters={k: str(v) for k, v in params.items() if v is not None},
-                ),
+                search_config=WDKSearchConfig(parameters=params),
                 custom_name=f"AI gene list ({len(gene_ids)} genes)",
             ),
             record_type=record_type,

@@ -1,7 +1,7 @@
 """Results endpoints: records, record detail, attributes, distributions, refine."""
 
 from dataclasses import dataclass
-from typing import Annotated, Literal, cast
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Query
 
@@ -9,6 +9,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     PatchStepSpec,
     WDKSearchConfig,
+    WDKSortDirection,
     WDKStepTree,
 )
 from veupath_chatbot.platform.errors import (
@@ -42,7 +43,7 @@ class RecordQueryParams:
     offset: int = Query(0, ge=0)
     limit: int = Query(50, ge=1, le=500)
     sort: str | None = None
-    sort_dir: Literal["ASC", "DESC"] = Query("ASC", alias="dir")
+    sort_dir: Annotated[WDKSortDirection, Query(alias="dir")] = "ASC"
     attributes: str | None = None
     filter_attribute: str | None = Query(None, alias="filterAttribute")
     filter_value: str | None = Query(None, alias="filterValue")
@@ -198,13 +199,7 @@ async def refine_experiment(
         new_step = await api.create_step(
             NewStepSpec(
                 search_name=request.search_name,
-                search_config=WDKSearchConfig(
-                    parameters={
-                        k: str(v)
-                        for k, v in request.parameters.items()
-                        if v is not None
-                    },
-                ),
+                search_config=WDKSearchConfig(parameters=request.parameters),
                 custom_name=f"Refinement: {request.search_name}",
             ),
             record_type=record_type,
@@ -235,13 +230,7 @@ async def refine_experiment(
         new_step = await api.create_transform_step(
             NewStepSpec(
                 search_name=request.transform_name,
-                search_config=WDKSearchConfig(
-                    parameters={
-                        k: str(v)
-                        for k, v in request.parameters.items()
-                        if v is not None
-                    },
-                ),
+                search_config=WDKSearchConfig(parameters=request.parameters),
                 custom_name=f"Transform: {request.transform_name}",
             ),
             input_step_id=exp.wdk_step_id,

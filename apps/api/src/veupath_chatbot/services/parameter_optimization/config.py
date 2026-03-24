@@ -1,15 +1,20 @@
 """Configuration types for parameter optimization.
 
 Defines the parameter specification, optimization config, trial result,
-and optimization result dataclasses, as well as type aliases for callbacks.
+and optimization result types, as well as type aliases for callbacks.
 """
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
+from veupath_chatbot.platform.pydantic_base import (
+    CamelModel,
+    RoundedFloat,
+    RoundedFloat2,
+)
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.helpers import ProgressCallback
 from veupath_chatbot.services.experiment.types import (
@@ -90,13 +95,20 @@ class OptimizationConfig:
     the optimiser strongly prefer tighter results."""
 
 
-@dataclass(frozen=True, slots=True)
-class TrialResult:
+class TrialResult(CamelModel):
+    """A single optimization trial result.
+
+    Frozen CamelModel — serializes to camelCase with RoundedFloat (4 dp)
+    for score/recall/fpr fields.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
     trial_number: int
     parameters: dict[str, JSONValue]
-    score: float
-    recall: float | None
-    false_positive_rate: float | None
+    score: RoundedFloat
+    recall: RoundedFloat | None
+    false_positive_rate: RoundedFloat | None
     estimated_size: int | None
     positive_hits: int | None = None
     negative_hits: int | None = None
@@ -122,13 +134,24 @@ class OptimizationInput:
     id_field: str | None = None
 
 
-@dataclass(slots=True)
-class OptimizationResult:
+class OptimizationResult(CamelModel):
+    """Full optimization result.
+
+    CamelModel — serializes to camelCase.  ``total_trials`` is computed
+    from ``len(all_trials)`` so callers never need to pass it explicitly.
+    """
+
     optimization_id: str
     best_trial: TrialResult | None
     all_trials: list[TrialResult]
     pareto_frontier: list[TrialResult]
     sensitivity: dict[str, float]
-    total_time_seconds: float
+    total_time_seconds: RoundedFloat2
     status: str  # completed | cancelled | error
     error_message: str | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def total_trials(self) -> int:
+        """Number of trials (derived from all_trials)."""
+        return len(self.all_trials)

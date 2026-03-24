@@ -13,7 +13,6 @@ from veupath_chatbot.ai.orchestration.delegation import (
     CompiledTask,
     DelegationPlan,
     build_delegation_plan,
-    compiled_node_to_dict,
 )
 from veupath_chatbot.ai.orchestration.results import (
     CombineResult,
@@ -326,10 +325,10 @@ async def _build_delegation_response(
         )
 
     tasks_serialized: JSONArray = [
-        compiled_node_to_dict(t) for t in run_data.normalized
+        t.model_dump(by_alias=True, mode="json") for t in run_data.normalized
     ]
     combines_serialized: JSONArray = [
-        compiled_node_to_dict(c) for c in run_data.normalized_combines
+        c.model_dump(by_alias=True, mode="json") for c in run_data.normalized_combines
     ]
 
     return {

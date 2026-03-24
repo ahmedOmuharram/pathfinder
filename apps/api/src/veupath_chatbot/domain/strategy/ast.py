@@ -5,6 +5,10 @@ from uuid import uuid4
 from pydantic import Field, ValidationError, model_validator
 
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSerializedParams,
+    encode_wdk_params,
+)
 from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -135,18 +139,27 @@ class StepReport(CamelModel):
 
 
 class PlanStepNode(CamelModel):
-    """Untyped recursive strategy node.
+    """Recursive strategy node.
 
     Kind is inferred from structure:
     - combine: primary_input and secondary_input
     - transform: primary_input only
     - search: no inputs
 
-
+    ``parameters`` accepts ``JSONObject`` (LLM's natural output).
+    ``WDKSerializedParams`` applies a ``PlainSerializer`` so that
+    ``model_dump(exclude_none=True)`` produces WDK-compatible
+    ``dict[str, str]`` (``Record<string, ParameterValue>``).
     """
 
     search_name: str
-    parameters: JSONObject = Field(default_factory=dict)
+    parameters: WDKSerializedParams = Field(default_factory=dict)
+
+    @property
+    def wdk_parameters(self) -> dict[str, str]:
+        """Parameters encoded to WDK's ``Record<string, string>``."""
+        return encode_wdk_params(self.parameters)
+
     primary_input: PlanStepNode | None = None
     secondary_input: PlanStepNode | None = None
     operator: CombineOp | None = None

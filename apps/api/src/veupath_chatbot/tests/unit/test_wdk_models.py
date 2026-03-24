@@ -597,3 +597,30 @@ class TestWDKAnswerTypedRecords:
         assert answer.records[0].attributes["gene_source_id"] == "PF3D7_0100100"
         assert answer.records[0].display_name == "PF3D7_0100100"
         assert answer.records[1].id == [{"name": "source_id", "value": "PF3D7_0200200"}]
+
+
+# ---------------------------------------------------------------------------
+# WDKSearchConfig parameter coercion
+# ---------------------------------------------------------------------------
+class TestSearchConfigParamCoercion:
+    def test_mixed_types_coerced_to_strings(self) -> None:
+        cfg = WDKSearchConfig.model_validate(
+            {"parameters": {"a": 1, "b": "hello", "c": 3.14}}
+        )
+        assert cfg.parameters == {"a": "1", "b": "hello", "c": "3.14"}
+
+    def test_none_values_rejected(self) -> None:
+        """None is not a valid WDK parameter — upstream must exclude_none."""
+        import pydantic
+        with pytest.raises(pydantic.ValidationError):
+            WDKSearchConfig.model_validate(
+                {"parameters": {"a": "x", "b": None}}
+            )
+
+    def test_empty_dict(self) -> None:
+        cfg = WDKSearchConfig(parameters={})
+        assert cfg.parameters == {}
+
+    def test_already_strings_unchanged(self) -> None:
+        cfg = WDKSearchConfig(parameters={"org": "Plasmodium falciparum"})
+        assert cfg.parameters == {"org": "Plasmodium falciparum"}

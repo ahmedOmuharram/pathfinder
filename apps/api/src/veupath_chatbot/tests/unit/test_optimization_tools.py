@@ -546,16 +546,10 @@ class TestSuccessfulOptimization:
 
     async def test_returns_json_string(self) -> None:
         tools = _TestableTools()
-        with (
-            patch(
-                "veupath_chatbot.ai.tools.planner.optimization_tools.optimize_search_parameters",
-                new_callable=AsyncMock,
-            ) as mock_opt,
-            patch(
-                "veupath_chatbot.ai.tools.planner.optimization_tools.result_to_json",
-                return_value={"best": {"score": 0.9}},
-            ),
-        ):
+        with patch(
+            "veupath_chatbot.ai.tools.planner.optimization_tools.optimize_search_parameters",
+            new_callable=AsyncMock,
+        ) as mock_opt:
             mock_opt.return_value = _mock_opt_result()
             result = await tools.optimize_search_parameters(
                 target=_valid_target(),
@@ -564,7 +558,8 @@ class TestSuccessfulOptimization:
 
         assert isinstance(result, str)
         parsed = json.loads(result)
-        assert parsed["best"] == {"score": 0.9}
+        assert parsed["status"] == "completed"
+        assert parsed["bestTrial"]["score"] == 0.5
         assert "downloads" in parsed
         assert parsed["downloads"]["expiresInSeconds"] == 600
         assert parsed["downloads"]["json"].startswith("/api/v1/exports/")

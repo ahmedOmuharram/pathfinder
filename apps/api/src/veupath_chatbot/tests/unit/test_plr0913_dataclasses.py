@@ -4,6 +4,7 @@ import json
 from unittest.mock import AsyncMock
 
 import pytest
+from pydantic import ValidationError
 
 from veupath_chatbot.ai.tools.planner.optimization_tools import (
     OptimizationControls,
@@ -186,7 +187,7 @@ class TestOptimizationStartedEvent:
             objective="f1",
             positive_controls_count=10,
             negative_controls_count=5,
-            param_space_json=[{"name": "fold_change", "type": "numeric"}],
+            parameter_space=[{"name": "fold_change", "type": "numeric"}],
         )
         assert ev.optimization_id == "opt-abc123"
         assert ev.search_name == "GenesByExpressionTwoChannel"
@@ -195,7 +196,7 @@ class TestOptimizationStartedEvent:
         assert ev.objective == "f1"
         assert ev.positive_controls_count == 10
         assert ev.negative_controls_count == 5
-        assert ev.param_space_json == [{"name": "fold_change", "type": "numeric"}]
+        assert ev.parameter_space == [{"name": "fold_change", "type": "numeric"}]
 
     def test_is_frozen(self) -> None:
         ev = OptimizationStartedEvent(
@@ -206,9 +207,9 @@ class TestOptimizationStartedEvent:
             objective="recall",
             positive_controls_count=0,
             negative_controls_count=0,
-            param_space_json=[],
+            parameter_space=[],
         )
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValidationError):
             ev.budget = 10  # type: ignore[misc]
 
     @pytest.mark.asyncio
@@ -226,7 +227,7 @@ class TestOptimizationStartedEvent:
             objective="f1",
             positive_controls_count=8,
             negative_controls_count=4,
-            param_space_json=[{"name": "fc", "type": "numeric"}],
+            parameter_space=[{"name": "fc", "type": "numeric"}],
         )
         await emit_started(callback, ev)
 
@@ -258,7 +259,7 @@ class TestTrialProgressEvent:
             optimization_id="opt-2",
             trial_num=3,
             budget=20,
-            trial_json={"trial_number": 3, "score": 0.75},
+            trial=trial_result,
             best_trial=trial_result,
             recent_trials=[trial_result],
         )
@@ -273,11 +274,18 @@ class TestTrialProgressEvent:
             optimization_id="x",
             trial_num=1,
             budget=5,
-            trial_json={},
+            trial=TrialResult(
+                trial_number=1,
+                parameters={},
+                score=0.0,
+                recall=None,
+                false_positive_rate=None,
+                estimated_size=None,
+            ),
             best_trial=None,
             recent_trials=[],
         )
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValidationError):
             ev.trial_num = 99  # type: ignore[misc]
 
     @pytest.mark.asyncio
@@ -291,7 +299,14 @@ class TestTrialProgressEvent:
             optimization_id="opt-3",
             trial_num=5,
             budget=20,
-            trial_json={"trial_number": 5, "score": 0.65},
+            trial=TrialResult(
+                trial_number=5,
+                parameters={},
+                score=0.65,
+                recall=None,
+                false_positive_rate=None,
+                estimated_size=None,
+            ),
             best_trial=None,
             recent_trials=[],
         )
@@ -322,31 +337,31 @@ class TestOptimizationCompletedEvent:
             optimization_id="opt-done",
             status="completed",
             budget=10,
-            trials=[t],
+            all_trials=[t],
             best_trial=t,
-            pareto=[t],
+            pareto_frontier=[t],
             sensitivity={"fc": 0.4},
-            elapsed=32.5,
+            total_time_seconds=32.5,
         )
         assert ev.optimization_id == "opt-done"
         assert ev.status == "completed"
-        assert len(ev.trials) == 1
+        assert len(ev.all_trials) == 1
         assert ev.best_trial is t
         assert ev.sensitivity == {"fc": 0.4}
-        assert ev.elapsed == 32.5
+        assert ev.total_time_seconds == 32.5
 
     def test_is_frozen(self) -> None:
         ev = OptimizationCompletedEvent(
             optimization_id="x",
             status="completed",
             budget=5,
-            trials=[],
+            all_trials=[],
             best_trial=None,
-            pareto=[],
+            pareto_frontier=[],
             sensitivity={},
-            elapsed=1.0,
+            total_time_seconds=1.0,
         )
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValidationError):
             ev.status = "error"  # type: ignore[misc]
 
     @pytest.mark.asyncio
@@ -360,11 +375,11 @@ class TestOptimizationCompletedEvent:
             optimization_id="opt-final",
             status="completed",
             budget=10,
-            trials=[],
+            all_trials=[],
             best_trial=None,
-            pareto=[],
+            pareto_frontier=[],
             sensitivity={"param_a": 0.3},
-            elapsed=45.1,
+            total_time_seconds=45.1,
         )
         await emit_completed(callback, ev)
 
@@ -669,16 +684,18 @@ class TestOptimizationControlsModel:
         c = OptimizationControls(
             controls_search_name="GenesByLocusTag",
             controls_param_name="ds_gene_ids",
+            positive_controls=["PF3D7_0100100"],
         )
         assert c.controls_search_name == "GenesByLocusTag"
         assert c.controls_param_name == "ds_gene_ids"
-        assert c.positive_controls is None
+        assert c.positive_controls == ["PF3D7_0100100"]
         assert c.negative_controls is None
 
     def test_defaults(self) -> None:
         c = OptimizationControls(
             controls_search_name="S",
             controls_param_name="p",
+            negative_controls=["NEG1"],
         )
         assert c.controls_value_format == "newline"
         assert c.controls_extra_parameters_json is None

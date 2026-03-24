@@ -1,8 +1,7 @@
 """Parameter optimization for VEuPathDB searches.
 
-Re-exports the public API so existing ``from
-veupath_chatbot.services.parameter_optimization import ...`` statements
-continue to work unchanged.
+Re-exports the public API so callers can do
+``from veupath_chatbot.services.parameter_optimization import ...``.
 """
 
 from veupath_chatbot.services.parameter_optimization.config import (
@@ -18,15 +17,6 @@ from veupath_chatbot.services.parameter_optimization.config import (
 from veupath_chatbot.services.parameter_optimization.core import (
     optimize_search_parameters,
 )
-from veupath_chatbot.services.parameter_optimization.scoring import (
-    OptimizationResultResponse,
-    TrialResultResponse,
-    _compute_pareto_frontier,
-    _compute_score,
-    _compute_sensitivity,
-    _trial_to_json,
-    result_to_json,
-)
 
 __all__ = [
     "CancelCheck",
@@ -34,15 +24,8 @@ __all__ = [
     "OptimizationInput",
     "OptimizationMethod",
     "OptimizationResult",
-    "OptimizationResultResponse",
     "ParameterSpec",
     "ProgressCallback",
     "TrialResult",
-    "TrialResultResponse",
-    "_compute_pareto_frontier",
-    "_compute_score",
-    "_compute_sensitivity",
-    "_trial_to_json",
     "optimize_search_parameters",
-    "result_to_json",
 ]

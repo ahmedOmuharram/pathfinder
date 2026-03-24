@@ -1,7 +1,6 @@
 """HTTP client for VEuPathDB WDK REST API with retries and cookies."""
 
 import asyncio
-import json
 from collections.abc import Mapping, Sequence
 from typing import cast
 
@@ -40,28 +39,6 @@ logger = get_logger(__name__)
 
 _HTTP_SERVER_ERROR = 500
 
-
-def encode_context_param_values_for_wdk(context: JSONObject) -> dict[str, str]:
-    """Encode contextParamValues in the format WDK expects.
-
-    WDK's ``ParameterValues`` is ``Record<string, string>`` — all values must be
-    strings.  Multi-pick values (lists, dicts) are JSON-encoded to strings
-    (e.g. ``'["a","b"]'``).
-
-    :param context: Context dict (may contain non-string values).
-    :returns: Encoded context with all values as strings.
-    """
-    encoded: dict[str, str] = {}
-    for k, v in (context or {}).items():
-        if v is None:
-            continue
-        if isinstance(v, str):
-            encoded[k] = v
-        elif isinstance(v, (list, dict)):
-            encoded[k] = json.dumps(v)
-        else:
-            encoded[k] = str(v)
-    return encoded
 
 
 def _convert_params_for_httpx(
@@ -388,7 +365,7 @@ class VEuPathDBClient:
         """Get detailed search configuration using provided parameters.
 
         :param context: WDK-encoded parameter values (all values must be strings).
-            Use :func:`encode_context_param_values_for_wdk` to encode non-string
+            Use :func:`encode_wdk_params` to encode non-string
             values before calling.
         """
         params: JSONObject | None = {"expandParams": "true"} if expand_params else None
@@ -413,7 +390,7 @@ class VEuPathDBClient:
         """Refresh dependent params using WDK's refreshed-dependent-params endpoint.
 
         :param context: WDK-encoded parameter values (all values must be strings).
-            Use :func:`encode_context_param_values_for_wdk` to encode non-string
+            Use :func:`encode_wdk_params` to encode non-string
             values before calling.
         """
         raw = await self.post(

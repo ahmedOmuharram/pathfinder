@@ -29,7 +29,6 @@ from veupath_chatbot.services.parameter_optimization import (
     OptimizationMethod,
     ParameterSpec,
     optimize_search_parameters,
-    result_to_json,
 )
 
 _MAX_BUDGET = 50
@@ -307,7 +306,7 @@ class OptimizationToolsMixin:
             check_cancelled=(cancel_event.is_set if cancel_event is not None else None),
         )
 
-        result_json = result_to_json(result)
+        result_json = result.model_dump(by_alias=True, mode="json")
         await _attach_export(result_json, inp.search_name)
         return json.dumps(result_json)
 

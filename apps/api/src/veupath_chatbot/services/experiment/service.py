@@ -80,7 +80,6 @@ from veupath_chatbot.services.parameter_optimization import (
     OptimizationInput,
     ParameterSpec,
     optimize_search_parameters,
-    result_to_json,
 )
 
 logger = get_logger(__name__)
@@ -430,7 +429,7 @@ async def _phase_optimize_parameters(
         progress_callback=_opt_progress,
     )
 
-    experiment.optimization_result = result_to_json(opt_result)
+    experiment.optimization_result = opt_result.model_dump(by_alias=True, mode="json")
 
     if opt_result.best_trial:
         optimized_params = dict(config.parameters)

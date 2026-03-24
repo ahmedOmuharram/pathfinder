@@ -5,10 +5,11 @@ All business logic lives in ``services.gene_sets.operations``.
 """
 
 from dataclasses import dataclass
-from typing import Annotated, Literal, cast, get_args
+from typing import Annotated, cast, get_args
 
 from fastapi import APIRouter, Depends, Query, Request
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSortDirection
 from veupath_chatbot.platform.errors import (
     InternalError,
     NotFoundError,
@@ -28,6 +29,7 @@ from veupath_chatbot.services.gene_sets.ensemble import (
 from veupath_chatbot.services.gene_sets.operations import (
     GeneSetService,
     GeneSetWdkContext,
+    SetOperation,
 )
 from veupath_chatbot.services.gene_sets.reverse_search import (
     GeneSetCandidate,
@@ -45,7 +47,6 @@ from veupath_chatbot.transport.http.schemas.gene_sets import (
     GeneSetResponse,
     ReverseSearchRequest,
     ReverseSearchResultItem,
-    SetOperation,
     SetOperationRequest,
 )
 from veupath_chatbot.transport.http.schemas.steps import RecordDetailRequest
@@ -66,7 +67,7 @@ class RecordQueryParams:
     offset: int = Query(0, ge=0)
     limit: int = Query(50, ge=1, le=500)
     sort: str | None = None
-    sort_dir: Literal["ASC", "DESC"] = Query("ASC", alias="dir")
+    sort_dir: Annotated[WDKSortDirection, Query(alias="dir")] = "ASC"
     attributes: str | None = None
     filter_attribute: str | None = Query(None, alias="filterAttribute")
     filter_value: str | None = Query(None, alias="filterValue")

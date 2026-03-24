@@ -5,10 +5,12 @@ into a strict, executable shape.
 """
 
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
-from typing import cast
+from typing import Annotated, Literal, cast
+
+from pydantic import ConfigDict, Discriminator
 
 from veupath_chatbot.domain.strategy.ops import CombineOp, parse_op
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import (
     JSONArray,
@@ -24,10 +26,12 @@ _REQUIRED_COMBINE_INPUTS = 2
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class CompiledTask:
+class CompiledTask(CamelModel):
     """A validated, flat task node in the delegation DAG."""
 
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["task"] = "task"
     id: str
     task: str
     instructions: str
@@ -35,10 +39,12 @@ class CompiledTask:
     depends_on: tuple[str, ...]
 
 
-@dataclass(frozen=True)
-class CompiledCombine:
+class CompiledCombine(CamelModel):
     """A validated, flat combine node in the delegation DAG."""
 
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["combine"] = "combine"
     id: str
     operator: CombineOp
     inputs: tuple[str, str]
@@ -48,20 +54,9 @@ class CompiledCombine:
     task: str
 
 
-CompiledNode = CompiledTask | CompiledCombine
-
-
-def compiled_node_to_dict(node: CompiledNode) -> JSONObject:
-    """Serialize a compiled node to a JSON-compatible dict."""
-    raw = asdict(node)
-    if isinstance(node, CompiledTask):
-        raw["kind"] = "task"
-    else:
-        raw["kind"] = "combine"
-        raw["operator"] = node.operator.value
-        raw["inputs"] = list(node.inputs)
-    raw["depends_on"] = list(node.depends_on)
-    return raw
+CompiledNode = Annotated[
+    CompiledTask | CompiledCombine, Discriminator("kind")
+]
 
 
 # ---------------------------------------------------------------------------
@@ -69,8 +64,9 @@ def compiled_node_to_dict(node: CompiledNode) -> JSONObject:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class DelegationPlan:
+class DelegationPlan(CamelModel):
+    model_config = ConfigDict(frozen=True)
+
     goal: str
     tasks: list[CompiledTask]
     combines: list[CompiledCombine]
@@ -414,13 +410,13 @@ def build_delegation_plan(
         )
 
     if not isinstance(plan, dict):
-        compiler_result: str | JSONObject = plan_error(
+        return plan_error(
             "plan is required when delegating.",
             "Provide a nested plan object as 'plan'.",
         )
-    else:
-        compiler = _PlanCompiler(goal)
-        compiler_result = compiler.compile_node(plan)
+
+    compiler = _PlanCompiler(goal)
+    compiler_result = compiler.compile_node(plan)
 
     if isinstance(compiler_result, dict):
         return compiler_result

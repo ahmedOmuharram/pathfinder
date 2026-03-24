@@ -59,7 +59,7 @@ async def _materialize_step_tree(
         )
 
     search_name = node.search_name
-    parameters = node.parameters
+    parameters = node.wdk_parameters
     display_name = node.display_name or search_name
 
     if primary_tree is not None and secondary_tree is not None:
@@ -97,11 +97,7 @@ async def _materialize_step_tree(
             step = await api.create_transform_step(
                 NewStepSpec(
                     search_name="GenesBySpanLogic",
-                    search_config=WDKSearchConfig(
-                        parameters={
-                            k: str(v) for k, v in coloc_params.items() if v is not None
-                        },
-                    ),
+                    search_config=WDKSearchConfig(parameters=coloc_params),
                     custom_name=display_name,
                 ),
                 input_step_id=primary_tree.step_id,
@@ -123,11 +119,7 @@ async def _materialize_step_tree(
         step = await api.create_transform_step(
             NewStepSpec(
                 search_name=search_name,
-                search_config=WDKSearchConfig(
-                    parameters={
-                        k: str(v) for k, v in parameters.items() if v is not None
-                    },
-                ),
+                search_config=WDKSearchConfig(parameters=parameters),
                 custom_name=display_name,
             ),
             input_step_id=primary_tree.step_id,
@@ -138,9 +130,7 @@ async def _materialize_step_tree(
     step = await api.create_step(
         NewStepSpec(
             search_name=search_name,
-            search_config=WDKSearchConfig(
-                parameters={k: str(v) for k, v in parameters.items() if v is not None},
-            ),
+            search_config=WDKSearchConfig(parameters=parameters),
             custom_name=display_name,
         ),
         record_type=record_type,
@@ -185,11 +175,7 @@ async def _persist_experiment_strategy(
             NewStepSpec(
                 search_name=config.search_name,
                 search_config=WDKSearchConfig(
-                    parameters={
-                        k: str(v)
-                        for k, v in (config.parameters or {}).items()
-                        if v is not None
-                    },
+                    parameters=config.parameters or {},
                 ),
                 custom_name=f"Experiment: {config.name}",
             ),

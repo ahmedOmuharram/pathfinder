@@ -35,7 +35,6 @@ from veupath_chatbot.services.parameter_optimization.scoring import (
     _compute_pareto_frontier,
     _compute_score,
     _compute_sensitivity,
-    _trial_to_json,
 )
 
 logger = get_logger(__name__)
@@ -302,19 +301,16 @@ async def _emit_trial_result(
     if not ctx.progress_callback:
         return
 
-    trial_json = _trial_to_json(trial_result)
-    if wdk_error:
-        trial_json = {**trial_json, "error": wdk_error}
-
     await emit_trial_progress(
         ctx.progress_callback,
         TrialProgressEvent(
             optimization_id=ctx.optimization_id,
             trial_num=trial_num,
             budget=ctx.budget,
-            trial_json=trial_json,
+            trial=trial_result,
             best_trial=ctx.best_trial,
             recent_trials=ctx.trials[-5:],
+            wdk_error=wdk_error,
         ),
     )
 

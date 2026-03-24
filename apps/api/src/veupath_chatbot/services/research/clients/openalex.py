@@ -1,7 +1,5 @@
 """OpenAlex API client."""
 
-from typing import cast
-
 import httpx
 
 from veupath_chatbot.domain.research.citations import (
@@ -9,6 +7,7 @@ from veupath_chatbot.domain.research.citations import (
     _new_citation_id,
     _now_iso,
 )
+from veupath_chatbot.domain.research.papers import OpenAlexRawWork
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
@@ -44,73 +43,21 @@ class OpenAlexClient(StandardClient):
     ) -> tuple[JSONObject, JSONObject] | None:
         if not isinstance(raw, dict):
             return None
-        item = raw
 
-        title = str(item.get("title") or "").strip()
-        year_i = item.get("publication_year")
-        year = (
-            int(year_i)
-            if isinstance(year_i, (int, str)) and str(year_i).isdigit()
-            else None
-        )
-        doi = item.get("doi")
-        doi = str(doi).replace("https://doi.org/", "") if isinstance(doi, str) else None
-        id_val = item.get("id")
-        url_item: str | None = id_val if isinstance(id_val, str) else None
+        parsed = OpenAlexRawWork.model_validate(raw).to_parsed_paper()
+        parsed.abstract = truncate_text(parsed.abstract, abstract_max_chars)
+        parsed.snippet = parsed.abstract or parsed.journal_title
 
-        journal: str | None = None
-        hv = item.get("host_venue")
-        if isinstance(hv, dict):
-            jname = hv.get("display_name")
-            journal = str(jname).strip() if isinstance(jname, str) else None
-
-        authors: list[str] | None = None
-        auths = item.get("authorships")
-        if isinstance(auths, list):
-            authors = []
-            for a in auths:
-                if not isinstance(a, dict):
-                    continue
-                au = a.get("author")
-                if isinstance(au, dict) and au.get("display_name"):
-                    authors.append(str(au.get("display_name")))
-
-        abstract: str | None = None
-        inv = item.get("abstract_inverted_index")
-        if isinstance(inv, dict):
-            pairs: list[tuple[int, str]] = [
-                (i, word)
-                for word, idxs in inv.items()
-                if isinstance(word, str) and isinstance(idxs, list)
-                for i in idxs
-                if isinstance(i, int)
-            ]
-            if pairs:
-                pairs.sort(key=lambda x: x[0])
-                abstract = " ".join(w for _, w in pairs)
-        abstract = truncate_text(abstract, abstract_max_chars)
-
-        result_url = f"https://doi.org/{doi}" if doi else url_item
-
-        result: JSONObject = {
-            "title": title,
-            "year": year,
-            "doi": doi,
-            "url": result_url,
-            "authors": cast("JSONValue", authors),
-            "journalTitle": journal,
-            "abstract": abstract,
-            "snippet": abstract or journal,
-        }
+        result = parsed.model_dump(by_alias=True, mode="json")
         citation = Citation(
             id=_new_citation_id("openalex"),
             source="openalex",
-            title=title or (url_item or "OpenAlex result"),
-            url=result_url,
-            authors=authors,
-            year=year,
-            doi=doi,
-            snippet=abstract or journal,
+            title=parsed.title or (parsed.url or "OpenAlex result"),
+            url=parsed.url,
+            authors=parsed.authors or None,
+            year=parsed.year,
+            doi=parsed.doi,
+            snippet=parsed.abstract or parsed.journal_title,
             accessed_at=_now_iso(),
         ).model_dump(by_alias=True, exclude_none=True, mode="json")
         return result, citation

@@ -1,14 +1,11 @@
 """HTTP request/response schemas for gene sets."""
 
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.enrichment.types import EnrichmentAnalysisType
+from veupath_chatbot.services.gene_sets.operations import SetOperation
 from veupath_chatbot.services.gene_sets.types import GeneSetSource
-
-SetOperation = Literal["intersect", "union", "minus"]
 
 
 class CreateGeneSetRequest(BaseModel):

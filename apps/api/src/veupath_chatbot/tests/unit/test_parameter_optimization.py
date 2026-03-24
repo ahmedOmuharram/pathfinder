@@ -22,11 +22,12 @@ from veupath_chatbot.services.parameter_optimization import (
     OptimizationResult,
     ParameterSpec,
     TrialResult,
+    optimize_search_parameters,
+)
+from veupath_chatbot.services.parameter_optimization.scoring import (
     _compute_pareto_frontier,
     _compute_score,
     _compute_sensitivity,
-    optimize_search_parameters,
-    result_to_json,
 )
 
 
@@ -270,7 +271,7 @@ class TestResultToJson:
             total_time_seconds=5.5,
             status="completed",
         )
-        j = result_to_json(result)
+        j = result.model_dump(by_alias=True, mode="json")
         assert j.get("status") == "completed"
         best = j.get("bestTrial")
         assert isinstance(best, dict)
@@ -288,7 +289,7 @@ class TestResultToJson:
             status="error",
             error_message="all trials failed",
         )
-        j = result_to_json(result)
+        j = result.model_dump(by_alias=True, mode="json")
         assert j["bestTrial"] is None
         assert j["errorMessage"] == "all trials failed"
 

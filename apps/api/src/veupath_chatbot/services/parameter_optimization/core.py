@@ -78,7 +78,7 @@ async def optimize_search_parameters(
                 objective=cfg.objective,
                 positive_controls_count=len(inp.positive_controls or []),
                 negative_controls_count=len(inp.negative_controls or []),
-                param_space_json=param_space_json,
+                parameter_space=param_space_json,
             ),
         )
 
@@ -116,11 +116,11 @@ async def optimize_search_parameters(
                 optimization_id=optimization_id,
                 status=result.status,
                 budget=budget,
-                trials=result.all_trials,
+                all_trials=result.all_trials,
                 best_trial=result.best_trial,
-                pareto=result.pareto_frontier,
+                pareto_frontier=result.pareto_frontier,
                 sensitivity=result.sensitivity,
-                elapsed=result.total_time_seconds,
+                total_time_seconds=result.total_time_seconds,
             ),
         )
 

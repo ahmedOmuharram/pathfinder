@@ -20,7 +20,6 @@ from veupath_chatbot.domain.strategy.ast import (
 from veupath_chatbot.domain.strategy.ops import get_wdk_operator
 from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
-    encode_context_param_values_for_wdk,
 )
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
@@ -50,7 +49,7 @@ async def _count_via_anonymous_report(
     client: VEuPathDBClient,
     record_type: str,
     search_name: str,
-    parameters: JSONObject,
+    parameters: dict[str, str],
 ) -> int | None:
     """Get result count for a single search using the anonymous report endpoint.
 
@@ -58,7 +57,7 @@ async def _count_via_anonymous_report(
     with ``numRecords: 0`` returns only ``meta.totalCount`` -- no step or
     strategy creation needed. Returns ``None`` on failure.
     """
-    config = WDKSearchConfig(parameters=encode_context_param_values_for_wdk(parameters))
+    config = WDKSearchConfig(parameters=parameters)
     report_config: JSONObject = {"pagination": {"offset": 0, "numRecords": 0}}
     try:
         answer = await client.run_search_report(
@@ -128,7 +127,7 @@ async def _compute_leaf_counts_parallel(
 
     tasks = [
         _count_via_anonymous_report(
-            client, record_type, step.search_name, step.parameters or {}
+            client, record_type, step.search_name, step.wdk_parameters,
         )
         for step in all_steps
     ]
@@ -144,7 +143,7 @@ async def _create_wdk_step(
 ) -> int | None:
     """Create a single WDK step and return its WDK ID, or None on failure."""
     kind = step.infer_kind()
-    params = {k: str(v) for k, v in step.parameters.items() if v is not None}
+    params = step.wdk_parameters
     try:
         if kind == "search":
             result = await api.create_step(

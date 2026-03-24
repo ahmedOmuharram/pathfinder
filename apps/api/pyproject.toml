@@ -155,10 +155,14 @@ known-first-party = ["veupath_chatbot"]
 python_version = "3.14"
 strict = true
 mypy_path = "stubs"
+plugins = ["pydantic.mypy"]
 warn_return_any = true
 warn_unused_ignores = true
 disable_error_code = ["import-untyped", "untyped-decorator"]
 exclude = ["scripts/", "docs/", "src/veupath_chatbot/tests/"]
+
+[tool.pydantic-mypy]
+init_typed = false
 
 [[tool.mypy.overrides]]
 module = "veupath_chatbot.tests.*"

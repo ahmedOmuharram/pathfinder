@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSortDirection
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.types import (
     ControlValueFormat,
@@ -106,7 +107,7 @@ class CreateExperimentRequest(BaseModel):
     )
     max_list_size: int | None = Field(default=None, alias="maxListSize")
     sort_attribute: str | None = Field(default=None, alias="sortAttribute")
-    sort_direction: Literal["ASC", "DESC"] = Field(default="ASC", alias="sortDirection")
+    sort_direction: WDKSortDirection = Field(default="ASC", alias="sortDirection")
     parent_experiment_id: str | None = Field(default=None, alias="parentExperimentId")
     target_gene_ids: list[str] | None = Field(default=None, alias="targetGeneIds")
     model_config = {"populate_by_name": True}

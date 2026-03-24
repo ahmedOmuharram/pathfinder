@@ -1,7 +1,5 @@
 """Europe PMC API client."""
 
-from typing import cast
-
 import httpx
 
 from veupath_chatbot.domain.research.citations import (
@@ -9,6 +7,7 @@ from veupath_chatbot.domain.research.citations import (
     _new_citation_id,
     _now_iso,
 )
+from veupath_chatbot.domain.research.papers import EuropePmcRawResult
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
@@ -53,71 +52,21 @@ class EuropePmcClient(StandardClient):
     ) -> tuple[JSONObject, JSONObject] | None:
         if not isinstance(raw, dict):
             return None
-        item = raw
 
-        title_raw = item.get("title")
-        title = title_raw.strip() if isinstance(title_raw, str) else ""
+        parsed = EuropePmcRawResult.model_validate(raw).to_parsed_paper()
+        parsed.abstract = truncate_text(parsed.abstract, abstract_max_chars)
 
-        year_i: int | None
-        try:
-            pub_year = item.get("pubYear")
-            if pub_year is not None and isinstance(pub_year, (int, str)):
-                if isinstance(pub_year, str) and pub_year.isdigit():
-                    year_i = int(pub_year)
-                elif isinstance(pub_year, int):
-                    year_i = pub_year
-                else:
-                    year_i = None
-            else:
-                year_i = None
-        except ValueError, TypeError:
-            year_i = None
-
-        doi_val = item.get("doi")
-        doi: str | None = doi_val if isinstance(doi_val, str) else None
-        pmid_val = item.get("pmid")
-        pmid: str | None = pmid_val if isinstance(pmid_val, str) else None
-        author_str = item.get("authorString")
-        authors = (
-            [a.strip() for a in author_str.split(",") if a.strip()]
-            if isinstance(author_str, str)
-            else None
-        )
-        journal = item.get("journalTitle")
-        journal = journal.strip() if isinstance(journal, str) else None
-
-        link: str | None = None
-        if doi:
-            link = f"https://doi.org/{doi}"
-        elif pmid:
-            link = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
-
-        abstract = item.get("abstractText")
-        abstract = truncate_text(
-            abstract if isinstance(abstract, str) else None, abstract_max_chars
-        )
-
-        result: JSONObject = {
-            "title": title,
-            "year": year_i,
-            "doi": doi,
-            "pmid": pmid,
-            "url": link,
-            "authors": cast("JSONValue", authors),
-            "journalTitle": journal,
-            "abstract": abstract,
-            "snippet": journal,
-        }
+        result = parsed.model_dump(by_alias=True, mode="json")
         citation = Citation(
             id=_new_citation_id("epmc"),
             source="europepmc",
-            title=title or (link or "Europe PMC result"),
-            url=link,
-            authors=authors,
-            year=year_i,
-            doi=doi,
-            pmid=pmid,
-            snippet=abstract or journal,
+            title=parsed.title or (parsed.url or "Europe PMC result"),
+            url=parsed.url,
+            authors=parsed.authors or None,
+            year=parsed.year,
+            doi=parsed.doi,
+            pmid=parsed.pmid,
+            snippet=parsed.abstract or parsed.journal_title,
             accessed_at=_now_iso(),
         ).model_dump(by_alias=True, exclude_none=True, mode="json")
         return result, citation

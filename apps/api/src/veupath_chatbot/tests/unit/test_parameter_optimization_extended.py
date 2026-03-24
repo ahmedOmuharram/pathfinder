@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 import optuna
 import pytest
+from pydantic import ValidationError
 
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.experiment.types.control_result import (
@@ -42,8 +43,6 @@ from veupath_chatbot.services.parameter_optimization.scoring import (
     _compute_sensitivity,
     _to_float,
     _to_int,
-    _trial_to_json,
-    result_to_json,
 )
 from veupath_chatbot.services.parameter_optimization.trials import (
     _create_sampler,
@@ -603,7 +602,7 @@ class TestComputeSensitivityExtended:
 
 
 # ===================================================================
-# _trial_to_json
+# TrialResult.model_dump (replaces _trial_to_json)
 # ===================================================================
 
 
@@ -621,7 +620,7 @@ class TestTrialToJson:
             total_positives=10,
             total_negatives=8,
         )
-        j = _trial_to_json(t)
+        j = t.model_dump(by_alias=True, mode="json")
         assert j["trialNumber"] == 3
         assert j["parameters"] == {"fc": 2.5}
         assert j["score"] == round(0.87654, 4)
@@ -644,7 +643,7 @@ class TestTrialToJson:
             positive_hits=None,
             negative_hits=None,
         )
-        j = _trial_to_json(t)
+        j = t.model_dump(by_alias=True, mode="json")
         assert j["recall"] is None
         assert j["falsePositiveRate"] is None
         assert j["estimatedSize"] is None
@@ -654,23 +653,23 @@ class TestTrialToJson:
     def test_parameters_is_a_copy(self) -> None:
         original = {"fc": 4.0}
         t = _trial(parameters=original)
-        j = _trial_to_json(t)
+        j = t.model_dump(by_alias=True, mode="json")
         assert j["parameters"] is not original
         assert j["parameters"] == original
 
     def test_score_rounding(self) -> None:
         t = _trial(score=0.123456789)
-        j = _trial_to_json(t)
+        j = t.model_dump(by_alias=True, mode="json")
         assert j["score"] == 0.1235
 
     def test_recall_rounding(self) -> None:
         t = _trial(recall=0.999999)
-        j = _trial_to_json(t)
+        j = t.model_dump(by_alias=True, mode="json")
         assert j["recall"] == 1.0
 
 
 # ===================================================================
-# result_to_json
+# OptimizationResult.model_dump (replaces result_to_json)
 # ===================================================================
 
 
@@ -686,7 +685,7 @@ class TestResultToJsonExtended:
             status="error",
             error_message="Something broke",
         )
-        j = result_to_json(result)
+        j = result.model_dump(by_alias=True, mode="json")
         assert j["status"] == "error"
         assert j["errorMessage"] == "Something broke"
         assert j["bestTrial"] is None
@@ -704,7 +703,7 @@ class TestResultToJsonExtended:
             total_time_seconds=3.456,
             status="cancelled",
         )
-        j = result_to_json(result)
+        j = result.model_dump(by_alias=True, mode="json")
         assert j["status"] == "cancelled"
         assert j["totalTrials"] == 1
         assert j["totalTimeSeconds"] == 3.46
@@ -720,7 +719,7 @@ class TestResultToJsonExtended:
             total_time_seconds=10.0,
             status="completed",
         )
-        j = result_to_json(result)
+        j = result.model_dump(by_alias=True, mode="json")
         expected_keys = {
             "optimizationId",
             "status",
@@ -745,7 +744,7 @@ class TestResultToJsonExtended:
             total_time_seconds=5.0,
             status="completed",
         )
-        j = result_to_json(result)
+        j = result.model_dump(by_alias=True, mode="json")
         assert j["totalTrials"] == 5
         assert len(j["allTrials"]) == 5
         assert len(j["paretoFrontier"]) == 2
@@ -817,7 +816,7 @@ class TestParameterSpec:
 class TestTrialResultDataclass:
     def test_frozen(self) -> None:
         t = _trial()
-        with pytest.raises(AttributeError):
+        with pytest.raises(ValidationError):
             t.score = 1.0  # type: ignore[misc]
 
     def test_defaults(self) -> None:
@@ -1096,7 +1095,7 @@ class TestCallbacks:
                 objective="f1",
                 positive_controls_count=10,
                 negative_controls_count=5,
-                param_space_json=[{"name": "fc", "type": "numeric"}],
+                parameter_space=[{"name": "fc", "type": "numeric"}],
             ),
         )
 
@@ -1135,7 +1134,7 @@ class TestCallbacks:
                 optimization_id="opt_1",
                 trial_num=2,
                 budget=30,
-                trial_json=_trial_to_json(_trial(trial_number=2, score=0.7)),
+                trial=_trial(trial_number=2, score=0.7),
                 best_trial=best,
                 recent_trials=recent,
             ),
@@ -1170,7 +1169,7 @@ class TestCallbacks:
                 optimization_id="opt_1",
                 trial_num=1,
                 budget=10,
-                trial_json={"trialNumber": 1},
+                trial=_trial(trial_number=1, score=0.0),
                 best_trial=None,
                 recent_trials=[],
             ),
@@ -1216,11 +1215,11 @@ class TestCallbacks:
                 optimization_id="opt_done",
                 status="completed",
                 budget=30,
-                trials=[t],
+                all_trials=[t],
                 best_trial=t,
-                pareto=[t],
+                pareto_frontier=[t],
                 sensitivity={"fc": 0.8},
-                elapsed=12.345,
+                total_time_seconds=12.345,
             ),
         )
 
@@ -1256,11 +1255,11 @@ class TestCallbacks:
                 optimization_id="opt_none",
                 status="error",
                 budget=10,
-                trials=[],
+                all_trials=[],
                 best_trial=None,
-                pareto=[],
+                pareto_frontier=[],
                 sensitivity={},
-                elapsed=0.5,
+                total_time_seconds=0.5,
             ),
         )
 
