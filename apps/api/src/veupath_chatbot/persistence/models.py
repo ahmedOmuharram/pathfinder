@@ -59,8 +59,8 @@ class Base(DeclarativeBase):
     """Base class for all models."""
 
     type_annotation_map: ClassVar[dict[type, type]] = {
-        JSONObject: JSON,
-        JSONArray: JSON,
+        dict: JSON,
+        list: JSON,
         UUID: GUID,
     }
 

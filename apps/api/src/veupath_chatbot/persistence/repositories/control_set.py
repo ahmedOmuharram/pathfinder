@@ -3,7 +3,8 @@
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import cast, or_, select
+from sqlalchemy.dialects.postgresql import JSONB, array
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from veupath_chatbot.persistence.models import ControlSet
@@ -51,30 +52,20 @@ class ControlSetRepository:
         else:
             conditions.append(ControlSet.is_public.is_(True))
 
+        if tags:
+            conditions.append(
+                cast(ControlSet.tags, JSONB).has_any(array(tags))
+            )
+
         stmt = (
             select(ControlSet)
             .where(*conditions)
             .order_by(ControlSet.created_at.desc())
+            .limit(limit)
         )
-        # Apply LIMIT in SQL only when no post-fetch tag filtering is needed.
-        # When tags are provided, fetch all matching rows first so the Python
-        # filter sees the complete set, then slice to `limit` afterward.
-        if not tags:
-            stmt = stmt.limit(limit)
 
         result = await self.session.execute(stmt)
-        rows = list(result.scalars().all())
-
-        if tags:
-            tag_set = set(tags)
-            rows = [
-                r
-                for r in rows
-                if tag_set.intersection(r.tags if isinstance(r.tags, list) else [])
-            ]
-            rows = rows[:limit]
-
-        return rows
+        return list(result.scalars().all())
 
     async def create(self, data: ControlSetCreate) -> ControlSet:
         """Create a new control set."""
