@@ -1,5 +1,6 @@
 """PubMed API client."""
 
+import asyncio
 import re
 from typing import cast
 
@@ -11,6 +12,7 @@ from veupath_chatbot.domain.research.citations import (
     _now_iso,
 )
 from veupath_chatbot.platform.errors import ExternalServiceError
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
@@ -18,6 +20,11 @@ from veupath_chatbot.services.research.clients._base import (
     build_response,
 )
 from veupath_chatbot.services.research.utils import strip_tags, truncate_text
+
+logger = get_logger(__name__)
+
+_MAX_RETRIES = 3
+_BACKOFF_BASE_S = 1.0
 
 
 class PubmedClient(BaseClient):
@@ -38,12 +45,31 @@ class PubmedClient(BaseClient):
         include_abstract: bool,
         abstract_max_chars: int,
     ) -> JSONObject:
-        """Search PubMed."""
-        raw_items = await self._fetch_raw(
-            query,
-            limit=limit,
-            include_abstract=include_abstract,
-        )
+        """Search PubMed with retry on 429."""
+        last_exc: Exception | None = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                raw_items = await self._fetch_raw(
+                    query,
+                    limit=limit,
+                    include_abstract=include_abstract,
+                )
+                break
+            except ExternalServiceError as exc:
+                last_exc = exc
+                if "429" in str(exc):
+                    wait = _BACKOFF_BASE_S * (2 ** attempt)
+                    logger.warning(
+                        "PubMed 429, retrying",
+                        attempt=attempt + 1,
+                        wait_s=wait,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                raise
+        else:
+            raise ExternalServiceError("PubMed", str(last_exc))
+
         if not raw_items:
             return build_response(
                 query=query, source="pubmed", results=[], citations=[]

@@ -12,6 +12,7 @@ from veupath_chatbot.domain.research.citations import (
     _now_iso,
 )
 from veupath_chatbot.platform.errors import ExternalServiceError
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     BaseClient,
@@ -23,6 +24,11 @@ from veupath_chatbot.services.research.utils import (
     fetch_page_summary,
     strip_tags,
 )
+
+logger = get_logger(__name__)
+
+_MAX_RETRIES = 3
+_BACKOFF_BASE_S = 2.0
 
 
 class PreprintClient(BaseClient):
@@ -46,8 +52,27 @@ class PreprintClient(BaseClient):
         include_abstract: bool,
         abstract_max_chars: int,
     ) -> JSONObject:
-        """Search preprint sites using DuckDuckGo."""
-        raw_items = await self._fetch_raw(query, site=site, limit=limit)
+        """Search preprint sites using DuckDuckGo with retry on 429."""
+        last_exc: Exception | None = None
+        raw_items: list[JSONValue] = []
+        for attempt in range(_MAX_RETRIES):
+            try:
+                raw_items = await self._fetch_raw(query, site=site, limit=limit)
+                break
+            except ExternalServiceError as exc:
+                last_exc = exc
+                if "429" in str(exc):
+                    wait = _BACKOFF_BASE_S * (2 ** attempt)
+                    logger.warning(
+                        "DuckDuckGo 429, retrying",
+                        attempt=attempt + 1,
+                        wait_s=wait,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                raise
+        else:
+            raise ExternalServiceError("DuckDuckGo", str(last_exc))
         self._current_source: Literal["biorxiv", "medrxiv"] = source
         results, citations = self._build_results(
             raw_items, abstract_max_chars=abstract_max_chars

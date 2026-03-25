@@ -73,7 +73,7 @@ class LiteratureSearchService:
         self._europepmc = EuropePmcClient(timeout_seconds=timeout_seconds)
         self._crossref = CrossrefClient(timeout_seconds=timeout_seconds)
         self._openalex = OpenAlexClient(timeout_seconds=timeout_seconds)
-        # self._semanticscholar = SemanticScholarClient(timeout_seconds=timeout_seconds)  # disabled: S2 rate-limits without API key
+        self._semanticscholar = SemanticScholarClient(timeout_seconds=timeout_seconds)
         self._pubmed = PubmedClient(timeout_seconds=timeout_seconds)
         self._arxiv = ArxivClient(timeout_seconds=timeout_seconds)
         self._preprint = PreprintClient(timeout_seconds=timeout_seconds)
@@ -177,7 +177,7 @@ class LiteratureSearchService:
         "europepmc",
         "crossref",
         "openalex",
-        # "semanticscholar",  # disabled: S2 rate-limits without API key
+        "semanticscholar",
         "pubmed",
         "arxiv",
         "biorxiv",
@@ -224,7 +224,7 @@ class LiteratureSearchService:
             "europepmc": self._europepmc,
             "crossref": self._crossref,
             "openalex": self._openalex,
-            # "semanticscholar": self._semanticscholar,  # disabled: S2 rate-limits without API key
+            "semanticscholar": self._semanticscholar,
             "arxiv": self._arxiv,
         }
         if name in standard_sources:

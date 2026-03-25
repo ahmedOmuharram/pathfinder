@@ -22,6 +22,7 @@ class ArxivClient(StandardClient):
     """Client for arXiv API."""
 
     _source_name = "arxiv"
+    _backoff_base_s = 3.0  # arXiv rate limit is 1 req / 3 seconds
 
     async def _fetch_raw(self, query: str, *, limit: int) -> list[JSONValue]:
         url = "http://export.arxiv.org/api/query"
@@ -38,8 +39,7 @@ class ArxivClient(StandardClient):
                 resp.raise_for_status()
                 xml = resp.text or ""
         except httpx.HTTPError as exc:
-            service = "arXiv"
-            raise ExternalServiceError(service, str(exc)) from exc
+            raise ExternalServiceError("arXiv", str(exc)) from exc
         entries = re.findall(
             r"<entry>(.*?)</entry>", xml, flags=re.IGNORECASE | re.DOTALL
         )

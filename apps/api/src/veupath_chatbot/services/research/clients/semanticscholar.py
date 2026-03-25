@@ -1,6 +1,5 @@
 """Semantic Scholar API client."""
 
-import asyncio
 import os
 
 import httpx
@@ -12,18 +11,12 @@ from veupath_chatbot.domain.research.citations import (
 )
 from veupath_chatbot.domain.research.papers import SemanticScholarRawPaper
 from veupath_chatbot.platform.errors import ExternalServiceError
-from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
 )
 from veupath_chatbot.services.research.utils import truncate_text
-
-logger = get_logger(__name__)
-
-_MAX_RETRIES = 3
-_BACKOFF_BASE_S = 1.0
 
 
 class SemanticScholarClient(StandardClient):
@@ -43,39 +36,17 @@ class SemanticScholarClient(StandardClient):
         if api_key:
             headers["x-api-key"] = api_key
 
-        last_exc: Exception | None = None
-        for attempt in range(_MAX_RETRIES):
-            try:
-                async with httpx.AsyncClient(
-                    timeout=self._timeout, headers=headers
-                ) as client:
-                    resp = await client.get(url, params=params, follow_redirects=True)
-                    if resp.status_code == 429:
-                        wait = _BACKOFF_BASE_S * (2 ** attempt)
-                        logger.warning(
-                            "Semantic Scholar 429, retrying",
-                            attempt=attempt + 1,
-                            wait_s=wait,
-                        )
-                        await asyncio.sleep(wait)
-                        continue
-                    resp.raise_for_status()
-                    payload = resp.json()
-                    items = payload.get("data", []) if isinstance(payload, dict) else []
-                    return list(items)
-            except httpx.HTTPError as exc:
-                last_exc = exc
-                if attempt < _MAX_RETRIES - 1:
-                    wait = _BACKOFF_BASE_S * (2 ** attempt)
-                    logger.warning(
-                        "Semantic Scholar request failed, retrying",
-                        attempt=attempt + 1,
-                        wait_s=wait,
-                        error=str(exc),
-                    )
-                    await asyncio.sleep(wait)
-
-        raise ExternalServiceError("Semantic Scholar", str(last_exc))
+        try:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, headers=headers
+            ) as client:
+                resp = await client.get(url, params=params, follow_redirects=True)
+                resp.raise_for_status()
+                payload = resp.json()
+        except httpx.HTTPError as exc:
+            raise ExternalServiceError("Semantic Scholar", str(exc)) from exc
+        items = payload.get("data", []) if isinstance(payload, dict) else []
+        return list(items)
 
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
