@@ -1,0 +1,400 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - trichdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - Authorization=SCRUBBED
+    method: GET
+    uri: https://trichdb.org/trichdb/app
+  response:
+    body:
+      string: "<!doctype html>\n<html lang=\"en\">\n  <head>\n        <title>TrichDB</title>\n
+        \   <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width,
+        initial-scale=1\"/>\n    <link href=\"/trichdb/images/TrichDB/favicon.ico\"
+        type=\"image/x-icon\" rel=\"shortcut icon\"/>\n    <script>\n            window.__asset_path_remove_me_please__
+        = \"/trichdb/bundles/\";\n\n            window.__SITE_CONFIG__ = {\n                requireLogin:
+        \"true\" === \"true\",\n        rootElement: \"#wdk-container\",\n        rootUrl:
+        \"/trichdb/app\",\n        endpoint: \"/trichdb/service\",\n        projectId:
+        \"TrichDB\",\n        webAppUrl: \"/trichdb\",\n        facebookUrl: \"https://facebook.com/pages/EuPathDB/133123003429972\",\n
+        \       twitterUrl: \"https://twitter.com/VEuPathDB\",\n        twitterUrl2:
+        \"\",\n        youtubeUrl: \"https://youtube.com/user/EuPathDB/playlists\",\n
+        \       discordUrl: \"\",\n        linkedinUrl: \"https://www.linkedin.com/company/veupathdb/\",\n
+        \       redditUrl: \"https://www.reddit.com/r/BRC_users/\",\n        vimeoUrl:
+        \"\",\n        blueskyUrl: \"https://veupathdb.bsky.social\",\n        communitySite:
+        \"//static-content.veupathdb.org/\",\n        siteSearchServiceUrl: \"/site-search\",\n
+        \               useEda: \"true\" === \"true\",\n        edaExampleAnalysesAuthor:
+        \"1926010\",\n        edaServiceUrl: \"/eda\",\n                edaEnableFullScreenApps:
+        \"true\" === \"true\",\n                        useUserDatasetsWorkspace:
+        \"true\" === \"false\",\n        communityDatasetsEnabled: \"true\" === \"False\",\n
+        \       showExtraMetadata: \"\",\n        datasetImportUrl: \"/dataset-import\",\n
+        \       userDatasetsUploadTypes: \"genelist,bigwigfiles,rnaseq\",\n                showUnreleasedData:
+        \"true\" === \"False\",\n        showSubscriptionProds: \"true\" === \"true\",\n
+        \               vdiServiceUrl: \"/vdi\",\n                aiExpressionQualtricsId:
+        \"SV_38C4ZX1JxLi2SEe\",\n              };\n    </script>\n          <script
+        async src=\"https://www.googletagmanager.com/gtag/js?id=G-2BLNTZTNYS\"></script>\n
+        \     <script>\n        window.dataLayer = window.dataLayer || [];\n        function
+        gtag(){dataLayer.push(arguments);}\n        gtag('js', new Date());\n        gtag('config',
+        'G-2BLNTZTNYS');\n      </script>                    <script charset=\"utf8\"
+        src=\"/trichdb/bundles/site-client.bundle-2855daaa36ef5f279cf394d5f7a66bf0.js\"
+        ></script>\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css\"/>\n
+        \   <link rel=\"stylesheet\" type=\"text/css\" href=\"/trichdb/bundles/site-client.bundle-2855daaa36ef5f279cf394d5f7a66bf0.css\"/>\n
+        \ </head>\n    <body class=\"vpdb-Body\">\n    <div class=\"main-stack\">\n
+        \     <div id=\"wdk-container\">\n                  Loading...\n              </div>\n
+        \   </div>            <script>\n        ((window.gitter = {}).chat = {}).options
+        = {\n          room: 'VEuPathDB-genomic/community'\n        };\n        document.addEventListener(\n
+        \         'gitter-sidecar-instance-started', \n          function gitterSidecarHack()
+        {\n            const gitterBtn = document.querySelector('.gitter-open-chat-button');\n
+        \           const gitterAside = document.querySelector('.gitter-chat-embed');\n\n
+        \           // we want to hide the aside and any loading indicators when button
+        is clicked\n            gitterAside.style.display = 'none';\n            document.querySelector('.gitter-chat-embed-loading-wrapper').style.display
+        = 'none';\n\n            if (gitterBtn.baseURI.includes('embed-record')) {\n
+        \             gitterBtn.style.display = 'none';\n            }\n\n            gitterBtn.addEventListener(\n
+        \             'click', \n              function openGitterInNewTab(e) {\n
+        \               e.stopPropagation();\n                e.preventDefault();\n
+        \               window.open('https://app.gitter.im/#/room/#VEuPathDB-genomic_community:gitter.im',
+        \"VEuPathDBGitterForum\");\n              }, \n              true\n            );\n\n
+        \           gitterAside.addEventListener(\n              'gitter-chat-toggle',
+        \n              function keepGitterBtnVisible() {\n                // we want
+        the chat button to remain visible when clicked\n                gitterBtn.classList.remove('is-collapsed');\n
+        \             }\n            )\n          }\n        );\n        // Prioritize
+        loading application data over this script\n        setTimeout(2000, function
+        loadSideCar() {\n          const scriptTag = document.createElement('script');\n
+        \         scriptTag.src = 'https://cdn.jsdelivr.net/npm/gitter-sidecar@1.5.0/dist/sidecar.min.js';\n
+        \         document.head.appendChild(scriptTag);\n        });\n      </script>
+        \ </body>\n</html>\n"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/html
+      Date:
+      - Wed, 25 Mar 2026 05:34:45 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - JSESSIONID=SCRUBBED; Path=/; Secure
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4513'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - trichdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://trichdb.org/trichdb/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["T.
+        vaginalis"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Trichomonadida","term":"Trichomonadida"},"children":[{"data":{"display":"Trichomonas
+        vaginalis G3","term":"Trichomonas vaginalis G3"},"children":[]},{"data":{"display":"Trichomonas
+        vaginalis G3 2022","term":"Trichomonas vaginalis G3 2022"},"children":[]}]},{"data":{"display":"Tritrichomonadida","term":"Tritrichomonadida"},"children":[{"data":{"display":"Dientamoebidae","term":"Dientamoebidae"},"children":[{"data":{"display":"Histomonas
+        meleagridis 2922-C6/04-10x","term":"Histomonas meleagridis 2922-C6/04-10x"},"children":[]},{"data":{"display":"Histomonas
+        meleagridis 2922-C6/04-290x","term":"Histomonas meleagridis 2922-C6/04-290x"},"children":[]}]},{"data":{"display":"Tritrichomonadidae","term":"Tritrichomonadidae"},"children":[{"data":{"display":"Tritrichomonas
+        foetus strain K","term":"Tritrichomonas foetus strain K"},"children":[]}]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["T.
+        vaginalis"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["T.
+        vaginalis"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:45 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '3757'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - trichdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://trichdb.org/trichdb/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["T.
+        vaginalis"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Trichomonadida","term":"Trichomonadida"},"children":[{"data":{"display":"Trichomonas
+        vaginalis G3","term":"Trichomonas vaginalis G3"},"children":[]},{"data":{"display":"Trichomonas
+        vaginalis G3 2022","term":"Trichomonas vaginalis G3 2022"},"children":[]}]},{"data":{"display":"Tritrichomonadida","term":"Tritrichomonadida"},"children":[{"data":{"display":"Dientamoebidae","term":"Dientamoebidae"},"children":[{"data":{"display":"Histomonas
+        meleagridis 2922-C6/04-10x","term":"Histomonas meleagridis 2922-C6/04-10x"},"children":[]},{"data":{"display":"Histomonas
+        meleagridis 2922-C6/04-290x","term":"Histomonas meleagridis 2922-C6/04-290x"},"children":[]}]},{"data":{"display":"Tritrichomonadidae","term":"Tritrichomonadidae"},"children":[{"data":{"display":"Tritrichomonas
+        foetus strain K","term":"Tritrichomonas foetus strain K"},"children":[]}]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["T.
+        vaginalis"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["T.
+        vaginalis"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:45 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '3757'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - trichdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://trichdb.org/trichdb/service/users/current
+  response:
+    body:
+      string: '{"isGuest":false,"id":1216062453,"email":"test@test.local","properties":{"organizationType":"academic","firstName":"Test","lastName":"User","country":"US","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:45 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '382'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchName":"GenesByTaxon","searchConfig":{"parameters":{"organism":"[\"Trichomonas
+      vaginalis G3\"]"}}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '105'
+      Content-Type:
+      - application/json
+      Host:
+      - trichdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://trichdb.org/trichdb/service/users/99913691069/steps
+  response:
+    body:
+      string: '{"id":438868843}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:45 GMT
+      Location:
+      - https://trichdb.org/trichdb/service/users/99913691069/steps
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"vcr-test","isPublic":false,"isSaved":false,"stepTree":{"stepId":438868843}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '84'
+      Content-Type:
+      - application/json
+      Host:
+      - trichdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://trichdb.org/trichdb/service/users/99913691069/strategies
+  response:
+    body:
+      string: '{"id":330143183}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:46 GMT
+      Location:
+      - https://trichdb.org/trichdb/service/users/99913691069/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"reportConfig":{"pagination":{"offset":0,"numRecords":3}}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '59'
+      Content-Type:
+      - application/json
+      Host:
+      - trichdb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://trichdb.org/trichdb/service/users/99913691069/steps/438868843/reports/standard
+  response:
+    body:
+      string: '{"records":[{"tables":{},"displayName":"TVAG_000010","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"TVAG_000010"},{"name":"source_id","value":"rna_TVAG_000010-1"},{"name":"project_id","value":"TrichDB"}],"tableErrors":[]},{"tables":{},"displayName":"TVAG_000020","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"TVAG_000020"},{"name":"source_id","value":"rna_TVAG_000020-1"},{"name":"project_id","value":"TrichDB"}],"tableErrors":[]},{"tables":{},"displayName":"TVAG_000030","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"TVAG_000030"},{"name":"source_id","value":"rna_TVAG_000030-1"},{"name":"project_id","value":"TrichDB"}],"tableErrors":[]}],"meta":{"displayViewTotalCount":98611,"tables":[],"pagination":{"offset":0,"numRecords":3},"cachePreviouslyExisted":true,"viewTotalCount":98611,"sorting":[],"recordClassName":"transcript","responseCount":3,"attributes":[],"totalCount":98611,"displayTotalCount":98611}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Disposition:
+      - inline
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:46 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '1136'
+    status:
+      code: 200
+      message: OK
+version: 1

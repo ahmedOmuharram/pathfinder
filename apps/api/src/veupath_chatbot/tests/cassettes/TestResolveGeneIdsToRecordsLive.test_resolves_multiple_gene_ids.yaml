@@ -1,0 +1,142 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216456493,"email":"test@test.local","properties":{"organizationType":"","firstName":"Test","lastName":"User","country":"","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:26:19 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"sourceType":"idList","sourceContent":{"ids":["PF3D7_1222600","PF3D7_1031000","PF3D7_0709000"]}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '97'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/users/999212883200/datasets
+  response:
+    body:
+      string: '{"id":223302543}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:26:20 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchConfig":{"parameters":{"ds_gene_ids":"223302543"}},"reportConfig":{"attributes":["primary_key","gene_source_id","gene_name","gene_product","gene_type","organism","gene_location_text","gene_previous_ids"],"tables":[]}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '225'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/plasmo/service/record-types/transcript/searches/GeneByLocusTag/reports/standard
+  response:
+    body:
+      string: '{"records":[{"tables":{},"displayName":"PF3D7_0709000","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{"gene_name":"CRT","gene_location_text":"Pf3D7_07_v3:402,385..406,341(+)","gene_previous_ids":"Previous
+        IDs: MAL7P1.27","gene_type":"protein coding gene","organism":"<i>Plasmodium
+        falciparum 3D7<\/i>","gene_source_id":"PF3D7_0709000","gene_product":"chloroquine
+        resistance transporter","primary_key":"PF3D7_0709000"},"id":[{"name":"gene_source_id","value":"PF3D7_0709000"},{"name":"source_id","value":"PF3D7_0709000.1"},{"name":"project_id","value":"PlasmoDB"}],"tableErrors":[]},{"tables":{},"displayName":"PF3D7_1031000","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{"gene_name":"P25","gene_location_text":"Pf3D7_10_v3:1,253,373..1,254,412(-)","gene_previous_ids":"Previous
+        IDs: PF10_0303","gene_type":"protein coding gene","organism":"<i>Plasmodium
+        falciparum 3D7<\/i>","gene_source_id":"PF3D7_1031000","gene_product":"ookinete
+        surface protein P25","primary_key":"PF3D7_1031000"},"id":[{"name":"gene_source_id","value":"PF3D7_1031000"},{"name":"source_id","value":"PF3D7_1031000.1"},{"name":"project_id","value":"PlasmoDB"}],"tableErrors":[]},{"tables":{},"displayName":"PF3D7_1222600","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{"gene_name":"AP2-G","gene_location_text":"Pf3D7_12_v3:906,714..914,983(+)","gene_previous_ids":"Previous
+        IDs: 2277.t00217;MAL12P1.217;PFL1085w","gene_type":"protein coding gene","organism":"<i>Plasmodium
+        falciparum 3D7<\/i>","gene_source_id":"PF3D7_1222600","gene_product":"AP2
+        domain transcription factor AP2-G","primary_key":"PF3D7_1222600"},"id":[{"name":"gene_source_id","value":"PF3D7_1222600"},{"name":"source_id","value":"PF3D7_1222600.1"},{"name":"project_id","value":"PlasmoDB"}],"tableErrors":[]}],"meta":{"displayViewTotalCount":3,"tables":[],"pagination":{"offset":0,"numRecords":-1},"cachePreviouslyExisted":true,"viewTotalCount":3,"sorting":[],"recordClassName":"transcript","responseCount":3,"attributes":["primary_key","gene_source_id","gene_name","gene_product","gene_type","organism","gene_location_text","gene_previous_ids"],"totalCount":3,"displayTotalCount":3}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Disposition:
+      - inline
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:26:20 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '2219'
+    status:
+      code: 200
+      message: OK
+version: 1

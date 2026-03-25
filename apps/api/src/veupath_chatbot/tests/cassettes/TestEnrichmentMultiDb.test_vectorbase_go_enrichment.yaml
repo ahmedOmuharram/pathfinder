@@ -1,0 +1,1014 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216457173,"email":"test@test.local","properties":{"organizationType":"","firstName":"Test","lastName":"User","country":"","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:10 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"sourceType":"idList","sourceContent":{"ids":["AGAP000002","AGAP000005","AGAP000007","AGAP000008","AGAP000009","AGAP000010","AGAP000011","AGAP000012","AGAP000013","AGAP000014","AGAP000015","AGAP000016","AGAP000017","AGAP000018","AGAP000019","AGAP000021","AGAP000022","AGAP000023","AGAP000025","AGAP000028","AGAP000029","AGAP000032","AGAP000033","AGAP000035","AGAP000037","AGAP000038","AGAP000039","AGAP000040","AGAP000041","AGAP000042","AGAP000043","AGAP000044","AGAP000045","AGAP000046","AGAP000047","AGAP000048","AGAP000049","AGAP000050","AGAP000051","AGAP000052","AGAP000053","AGAP000054","AGAP000055","AGAP000056","AGAP000057","AGAP000058","AGAP000059","AGAP000060","AGAP000061","AGAP000062"]}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '699'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/datasets
+  response:
+    body:
+      string: '{"id":223302793}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:11 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/record-types/transcript/searches/GeneByLocusTag?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find a gene by its ID.","urlSegment":"GeneByLocusTag","dynamicAttributes":[{"isInReport":true,"formats":[],"truncateTo":100,"displayName":"Input
+        ID","name":"input_id","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"STRING","tools":{"reports":[],"filters":[]},"properties":{"organisms":["FILL"],"specificAttribution":[]}},{"isInReport":true,"formats":[],"truncateTo":100,"displayName":"Input
+        Order","name":"dataset_order","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"STRING","tools":{"reports":[],"filters":[]},"properties":{"organisms":["FILL"],"specificAttribution":[]}},{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["FILL"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"dataset_order","direction":"ASC"},{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"List
+        of IDs","fullName":"GeneQuestions.GeneByLocusTag","description":"Find genes
+        based on Gene ID(s). <br><br>\n           \n           <ul>\n\t        <li>Enter
+        one or more gene ID(s) by typing or pasting, \n                    or upload
+        a plain text file containing a list of IDs.\n\t\t    IDs can be delimited
+        by a comma, semicolon, new-line or space.\n\t\t    For example, a list can
+        be in the following form:\n\t\t    ''NCU06658, NCU06659, Ndisc8579_106685''.</li>\n\t\t<li>The
+        IDs you provide can contain * as a wild-card. For example,\n\t\t    searching
+        for XP_001350415* will identify XP_001350415.1,\n\t\t    XP_001350415.2, etc.</li>\n\t\t<li>Importantly,
+        it is possible that some IDs in your list will not be \n                    found
+        in the database due to annotation changes or unavailable\n                    ID
+        mapping. At present, we do not have a mechanism to inform you which IDs \n                    from
+        your input list were not found in the database.</li>\n           </ul>","defaultAttributes":["primary_key","dataset_order","organism","gene_location_text","gene_product","gene_type","input_id"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["ds_gene_ids"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"IDs
+        List","paramNames":["ds_gene_ids"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GeneByLocusTag","defaultSummaryView":"_default","parameters":[{"displayName":"Gene
+        ID input set","parsers":[{"displayName":"List","name":"list","description":"The
+        input is a list of records, one record in each row, and each record can have
+        multiple columns."}],"isVisible":true,"type":"input-dataset","help":"Input
+        a set of gene IDs, or upload a file. <br><br>\n            \n            IDs
+        can be delimited by a comma, semicolon, space, or new-line.<br><br>\n            \n            It
+        is possible that some IDs in your list will not be found in the database \n            due
+        to annotation changes or unavailable ID mapping. At present, we do not \n            have
+        a mechanism to inform you which IDs from your input list fail to  match \n            IDs
+        in the database.","dependentParams":[],"isReadOnly":false,"allowEmptyValue":false,"name":"ds_gene_ids","recordClassName":"transcript","initialDisplayValue":"","defaultIdList":"AGAP004730","properties":{"organisms":["FILL"],"specificAttribution":[]},"group":"empty"}],"properties":{"organisms":["FILL"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:11 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4680'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216457173,"email":"test@test.local","properties":{"organizationType":"","firstName":"Test","lastName":"User","country":"","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:11 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchName":"GeneByLocusTag","searchConfig":{"parameters":{"ds_gene_ids":"223302793"}},"customName":"Enrichment
+      target"}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '122'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/steps
+  response:
+    body:
+      string: '{"id":438874953}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:11 GMT
+      Location:
+      - https://vectorbase.org/vectorbase/service/users/999233065207/steps
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"__pathfinder_internal__:Pathfinder enrichment analysis","isPublic":false,"isSaved":false,"stepTree":{"stepId":438874953}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '130'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/strategies
+  response:
+    body:
+      string: '{"id":330145963}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:12 GMT
+      Location:
+      - https://vectorbase.org/vectorbase/service/users/999233065207/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216457173,"email":"test@test.local","properties":{"organizationType":"","firstName":"Test","lastName":"User","country":"","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:12 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/steps/438874953/analysis-types/go-enrichment
+  response:
+    body:
+      string: '{"searchData":{"paramNames":["organism","goAssociationsOntologies","goEvidenceCodes","goSubset","pValueCutoff"],"isCacheable":false,"displayName":"Gene
+        Ontology Enrichment","releaseVersion":"22","name":"go-enrichment","description":"<p>The
+        Gene Ontology (GO) is a public resource that develops organism \n            independent
+        ontologies (structured controlled vocabularies) that describe \n            a
+        gene&rsquo;s molecular function, cellular component or biological processes.
+        \n            GO Terms are associated with genes as a form of annotation.
+        \n            This tool looks for enriched GO terms &#8212; GO terms that
+        appear in the genes of \n            your search result (subset) more frequently
+        than they do in the set of all genes \n            for that organism (background).\n           </p>\n           <p>For
+        statistical reasons, this analysis can only be performed on a set of genes
+        \n             from a single organism. If your gene result contains genes
+        from several organisms, \n             use the Filter Table to limit your
+        gene result. Then choose an Ontology, a GO Association \n             Source,
+        and a P-Value Cutoff and click Submit.\n           </p>\n           <p> By
+        selecting GOSlim_generic_only for the GO subset parameter the background dataset\n             and
+        the gene list will be limited to GO terms from the GO Slim generic subset.
+        \n           </p>\n           <p>Hover over the help icon <div class=\"HelpTrigger\"><i
+        class=\"fa fa-question-circle\"></i></div>\n             next to each parameter
+        for more information about that parameter.\n           </p>","groups":[{"displayType":"hidden","displayName":"","name":"_hidden","description":"","isVisible":false,"parameters":[]},{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism","goAssociationsOntologies","goEvidenceCodes","goSubset","pValueCutoff"]}],"customThumbnail":"wdkCustomization/images/go-analysis-logo.png","shortDescription":"Find
+        Gene Ontology terms that are enriched in your gene result.","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":1,"isVisible":true,"type":"single-pick-vocabulary","help":"Choose
+        an organism to run the enrichment analysis on.   To see all organisms, select
+        ''All results'' filter above. \n  (Only organisms with enrichment results
+        are shown here).","dependentParams":[],"displayType":"select","isReadOnly":false,"vocabulary":[["Anopheles
+        gambiae PEST","Anopheles gambiae PEST",null]],"allowEmptyValue":false,"name":"organism","initialDisplayValue":"Anopheles
+        gambiae PEST","properties":{"organisms":["FILL"],"specificAttribution":[]},"group":"empty"},{"displayName":"Ontology","minSelectedCount":1,"maxSelectedCount":1,"isVisible":true,"type":"single-pick-vocabulary","help":"Choose
+        the Ontology that you are interested in analyzing. Only terms from this ontology
+        will be considered during the enrichment analysis.\nThe ontologies are three
+        structured, controlled vocabularies that describe gene products in terms of
+        their related biological processes, cellular components and molecular functions.
+        For statistical reasons, only one ontology may be analyzed at once. If you
+        are interested in more than one, run separate GO enrichment analyses.","dependentParams":[],"displayType":"checkBox","isReadOnly":false,"vocabulary":[["Molecular
+        Function","Molecular Function",null],["Cellular Component","Cellular Component",null],["Biological
+        Process","Biological Process",null]],"allowEmptyValue":false,"name":"goAssociationsOntologies","initialDisplayValue":"Molecular
+        Function","properties":{"organisms":["FILL"],"specificAttribution":[]},"group":"empty"},{"displayName":"Evidence","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"A
+        GO Evidence Code of IEA is assigned to a computationally assigned association.All
+        others have some degree of curation","dependentParams":[],"displayType":"checkBox","isReadOnly":false,"vocabulary":[["Computed","Computed",null],["Curated","Curated",null]],"allowEmptyValue":false,"name":"goEvidenceCodes","initialDisplayValue":"[\"Computed\",\"Curated\"]","properties":{"organisms":["FILL"],"specificAttribution":[]},"group":"empty"},{"displayName":"Limit
+        to GO Slim terms","minSelectedCount":1,"maxSelectedCount":1,"isVisible":true,"type":"single-pick-vocabulary","help":"Choose
+        Yes to limit enrichment analysis based on terms that are in the GO Slim generic
+        subset. This will limit both the background and the gene list of interest.","dependentParams":[],"displayType":"checkBox","isReadOnly":false,"vocabulary":[["No","No",null],["Yes","Yes",null]],"allowEmptyValue":false,"name":"goSubset","initialDisplayValue":"No","properties":{"organisms":["FILL"],"specificAttribution":[]},"group":"empty"},{"max":1.0,"displayName":"P-Value
+        cutoff","increment":0.01,"isVisible":true,"type":"number","help":"Choose the
+        P-Value Cutoff that a GO term must meet before it is considered enriched in
+        your gene result. The P-value is a statistical measure of the likelihood that
+        a certain GO term appears among the genes in your results more often than
+        it appears in the set of all genes for that organism (background).","dependentParams":[],"isReadOnly":false,"min":0.0,"allowEmptyValue":false,"name":"pValueCutoff","initialDisplayValue":"0.05","properties":{"organisms":["FILL"],"specificAttribution":[]},"group":"empty"}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:16 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '5473'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"reportConfig":{"pagination":{"offset":0,"numRecords":0}}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '59'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/steps/438874953/reports/standard
+  response:
+    body:
+      string: '{"records":[],"meta":{"displayViewTotalCount":45,"tables":[],"pagination":{"offset":0,"numRecords":0},"cachePreviouslyExisted":true,"viewTotalCount":62,"sorting":[],"recordClassName":"transcript","responseCount":0,"attributes":[],"totalCount":62,"displayTotalCount":45}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Disposition:
+      - inline
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:16 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '270'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"analysisName":"go-enrichment","parameters":{"organism":"[\"Anopheles
+      gambiae PEST\"]","goAssociationsOntologies":"[\"Biological Process\"]","goEvidenceCodes":"[\"Computed\",\"Curated\"]","goSubset":"[\"No\"]","pValueCutoff":"0.05"}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '234'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/steps/438874953/analyses
+  response:
+    body:
+      string: '{"displayName":"Gene Ontology Enrichment","stepId":438874953,"analysisId":203551143,"description":"<p>The
+        Gene Ontology (GO) is a public resource that develops organism \n            independent
+        ontologies (structured controlled vocabularies) that describe \n            a
+        gene&rsquo;s molecular function, cellular component or biological processes.
+        \n            GO Terms are associated with genes as a form of annotation.
+        \n            This tool looks for enriched GO terms &#8212; GO terms that
+        appear in the genes of \n            your search result (subset) more frequently
+        than they do in the set of all genes \n            for that organism (background).\n           </p>\n           <p>For
+        statistical reasons, this analysis can only be performed on a set of genes
+        \n             from a single organism. If your gene result contains genes
+        from several organisms, \n             use the Filter Table to limit your
+        gene result. Then choose an Ontology, a GO Association \n             Source,
+        and a P-Value Cutoff and click Submit.\n           </p>\n           <p> By
+        selecting GOSlim_generic_only for the GO subset parameter the background dataset\n             and
+        the gene list will be limited to GO terms from the GO Slim generic subset.
+        \n           </p>\n           <p>Hover over the help icon <div class=\"HelpTrigger\"><i
+        class=\"fa fa-question-circle\"></i></div>\n             next to each parameter
+        for more information about that parameter.\n           </p>","shortDescription":"Find
+        Gene Ontology terms that are enriched in your gene result.","parameters":{"goAssociationsOntologies":"Biological
+        Process","organism":"Anopheles gambiae PEST","goSubset":"No","pValueCutoff":"0.05","goEvidenceCodes":"[\"Computed\",\"Curated\"]"},"validation":{"level":"RUNNABLE","isValid":true},"analysisName":"go-enrichment","status":"CREATED"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:17 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '1845'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '0'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/steps/438874953/analyses/203551143/result
+  response:
+    body:
+      string: '{"status":"COMPLETE"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '21'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:19 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/steps/438874953/analyses/203551143/result/status
+  response:
+    body:
+      string: '{"status":"COMPLETE"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:23 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '21'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/steps/438874953/analyses/203551143/result
+  response:
+    body:
+      string: '{"headerRow":{"bonferroni":"Bonferroni","resultGenes":"Genes in your
+        result with this term","goId":"GO ID","goTerm":"GO Term","oddsRatio":"Odds
+        ratio","foldEnrich":"Fold enrichment","pValue":"P-value","percentInResult":"Percent
+        of bkgd Genes in your result","benjamini":"Benjamini","bgdGenes":"Genes in
+        the bkgd with this term"},"goSubset":["No"],"resultData":[{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000007,AGAP000032,AGAP029508,&autoRun=1''>3<\/a>","goId":"GO:0098609","goTerm":"cell-cell
+        adhesion","oddsRatio":"10.63","foldEnrich":"9.62","pValue":"0.00367525180739","percentInResult":"3.9","benjamini":"0.10325872165","bgdGenes":"76"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0035418","goTerm":"protein
+        localization to synapse","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:1902414","goTerm":"protein
+        localization to cell junction","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0099638","goTerm":"endosome
+        to plasma membrane protein transport","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0098887","goTerm":"neurotransmitter
+        receptor transport, endosome to postsynaptic membrane","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0098969","goTerm":"neurotransmitter
+        receptor transport to postsynaptic membrane","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0098968","goTerm":"neurotransmitter
+        receptor transport postsynaptic membrane to endosome","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0062237","goTerm":"protein
+        localization to postsynapse","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:1903539","goTerm":"protein
+        localization to postsynaptic membrane","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:1902946","goTerm":"protein
+        localization to early endosome","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0099639","goTerm":"neurotransmitter
+        receptor transport, endosome to plasma membrane","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0098877","goTerm":"neurotransmitter
+        receptor transport to plasma membrane","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0036010","goTerm":"protein
+        localization to endosome","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000042,&autoRun=1''>1<\/a>","goId":"GO:0034772","goTerm":"histone
+        H4-K20 dimethylation","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000011,&autoRun=1''>1<\/a>","goId":"GO:0009082","goTerm":"branched-chain
+        amino acid biosynthetic process","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:1903540","goTerm":"establishment
+        of protein localization to postsynaptic membrane","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000011,&autoRun=1''>1<\/a>","goId":"GO:0009099","goTerm":"valine
+        biosynthetic process","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000011,&autoRun=1''>1<\/a>","goId":"GO:0009098","goTerm":"leucine
+        biosynthetic process","oddsRatio":"inf","foldEnrich":"243.77","pValue":"0.00410218161481","percentInResult":"100.0","benjamini":"0.10325872165","bgdGenes":"1"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000009,AGAP000022,AGAP000025,AGAP000033,AGAP000037,AGAP000038,AGAP000039,AGAP000040,AGAP000044,AGAP000046,AGAP000048,AGAP029508,&autoRun=1''>13<\/a>","goId":"GO:0051179","goTerm":"localization","oddsRatio":"2.52","foldEnrich":"2.06","pValue":"0.0070955730342","percentInResult":"0.8","benjamini":"0.10325872165","bgdGenes":"1539"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,AGAP000056,AGAP000058,AGAP000061,&autoRun=1''>4<\/a>","goId":"GO:0045893","goTerm":"positive
+        regulation of transcription, DNA-templated","oddsRatio":"5.52","foldEnrich":"5.03","pValue":"0.00800879386837","percentInResult":"2.1","benjamini":"0.10325872165","bgdGenes":"194"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000048,&autoRun=1''>2<\/a>","goId":"GO:0016477","goTerm":"cell
+        migration","oddsRatio":"16.36","foldEnrich":"14.77","pValue":"0.00801050062822","percentInResult":"6.1","benjamini":"0.10325872165","bgdGenes":"33"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0000032","goTerm":"cell
+        wall mannoprotein biosynthetic process","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0044036","goTerm":"cell
+        wall macromolecule metabolic process","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0044038","goTerm":"cell
+        wall macromolecule biosynthetic process","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000042,&autoRun=1''>1<\/a>","goId":"GO:0034770","goTerm":"histone
+        H4-K20 methylation","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0042546","goTerm":"cell
+        wall biogenesis","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0031506","goTerm":"cell
+        wall glycoprotein biosynthetic process","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0070589","goTerm":"cellular
+        component macromolecule biosynthetic process","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000048,&autoRun=1''>1<\/a>","goId":"GO:0031111","goTerm":"negative
+        regulation of microtubule polymerization or depolymerization","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0071554","goTerm":"cell
+        wall organization or biogenesis","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,&autoRun=1''>1<\/a>","goId":"GO:0046621","goTerm":"negative
+        regulation of organ growth","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000012,&autoRun=1''>1<\/a>","goId":"GO:0006437","goTerm":"tyrosyl-tRNA
+        aminoacylation","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0099637","goTerm":"neurotransmitter
+        receptor transport","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0006057","goTerm":"mannoprotein
+        biosynthetic process","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0006056","goTerm":"mannoprotein
+        metabolic process","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000048,&autoRun=1''>1<\/a>","goId":"GO:0007026","goTerm":"negative
+        regulation of microtubule depolymerization","oddsRatio":"248.4","foldEnrich":"121.89","pValue":"0.00818791625419","percentInResult":"50.0","benjamini":"0.10325872165","bgdGenes":"2"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000009,AGAP000015,AGAP000018,AGAP000029,AGAP000032,AGAP000035,AGAP000038,AGAP000044,AGAP000045,AGAP000048,AGAP000049,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>18<\/a>","goId":"GO:0050789","goTerm":"regulation
+        of biological process","oddsRatio":"2.23","foldEnrich":"1.72","pValue":"0.00859692584895","percentInResult":"0.7","benjamini":"0.10548660366","bgdGenes":"2549"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000009,AGAP000015,AGAP000018,AGAP000029,AGAP000032,AGAP000035,AGAP000038,AGAP000044,AGAP000045,AGAP000048,AGAP000049,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,AGAP029508,&autoRun=1''>19<\/a>","goId":"GO:0065007","goTerm":"biological
+        regulation","oddsRatio":"2.16","foldEnrich":"1.65","pValue":"0.0103379994583","percentInResult":"0.7","benjamini":"0.119433501857","bgdGenes":"2802"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,AGAP000056,AGAP000058,AGAP000061,&autoRun=1''>4<\/a>","goId":"GO:1903508","goTerm":"positive
+        regulation of nucleic acid-templated transcription","oddsRatio":"5.06","foldEnrich":"4.62","pValue":"0.0106850522327","percentInResult":"1.9","benjamini":"0.119433501857","bgdGenes":"211"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000009,AGAP000015,AGAP000018,AGAP000029,AGAP000032,AGAP000035,AGAP000038,AGAP000044,AGAP000045,AGAP000048,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>17<\/a>","goId":"GO:0050794","goTerm":"regulation
+        of cellular process","oddsRatio":"2.17","foldEnrich":"1.71","pValue":"0.011698067928","percentInResult":"0.7","benjamini":"0.119433501857","bgdGenes":"2418"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0099072","goTerm":"regulation
+        of postsynaptic membrane neurotransmitter receptor levels","oddsRatio":"124.19","foldEnrich":"81.26","pValue":"0.0122572683325","percentInResult":"33.3","benjamini":"0.119433501857","bgdGenes":"3"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000042,&autoRun=1''>1<\/a>","goId":"GO:0018027","goTerm":"peptidyl-lysine
+        dimethylation","oddsRatio":"124.19","foldEnrich":"81.26","pValue":"0.0122572683325","percentInResult":"33.3","benjamini":"0.119433501857","bgdGenes":"3"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000009,&autoRun=1''>1<\/a>","goId":"GO:0002791","goTerm":"regulation
+        of peptide secretion","oddsRatio":"124.19","foldEnrich":"81.26","pValue":"0.0122572683325","percentInResult":"33.3","benjamini":"0.119433501857","bgdGenes":"3"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000009,&autoRun=1''>1<\/a>","goId":"GO:0050708","goTerm":"regulation
+        of protein secretion","oddsRatio":"124.19","foldEnrich":"81.26","pValue":"0.0122572683325","percentInResult":"33.3","benjamini":"0.119433501857","bgdGenes":"3"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0009298","goTerm":"GDP-mannose
+        biosynthetic process","oddsRatio":"124.19","foldEnrich":"81.26","pValue":"0.0122572683325","percentInResult":"33.3","benjamini":"0.119433501857","bgdGenes":"3"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,&autoRun=1''>1<\/a>","goId":"GO:0046620","goTerm":"regulation
+        of organ growth","oddsRatio":"124.19","foldEnrich":"81.26","pValue":"0.0122572683325","percentInResult":"33.3","benjamini":"0.119433501857","bgdGenes":"3"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000015,AGAP000048,&autoRun=1''>4<\/a>","goId":"GO:0048583","goTerm":"regulation
+        of response to stimulus","oddsRatio":"4.78","foldEnrich":"4.37","pValue":"0.0128872602242","percentInResult":"1.8","benjamini":"0.119433501857","bgdGenes":"223"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>8<\/a>","goId":"GO:0006355","goTerm":"regulation
+        of transcription, DNA-templated","oddsRatio":"2.81","foldEnrich":"2.47","pValue":"0.0138231053159","percentInResult":"1.0","benjamini":"0.119433501857","bgdGenes":"790"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000038,AGAP000045,AGAP000048,&autoRun=1''>3<\/a>","goId":"GO:0007267","goTerm":"cell-cell
+        signaling","oddsRatio":"6.33","foldEnrich":"5.85","pValue":"0.0144562008855","percentInResult":"2.4","benjamini":"0.119433501857","bgdGenes":"125"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>8<\/a>","goId":"GO:1903506","goTerm":"regulation
+        of nucleic acid-templated transcription","oddsRatio":"2.79","foldEnrich":"2.45","pValue":"0.0145228805478","percentInResult":"1.0","benjamini":"0.119433501857","bgdGenes":"797"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>8<\/a>","goId":"GO:2001141","goTerm":"regulation
+        of RNA biosynthetic process","oddsRatio":"2.78","foldEnrich":"2.44","pValue":"0.0146249490536","percentInResult":"1.0","benjamini":"0.119433501857","bgdGenes":"798"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000007,AGAP000032,AGAP029508,&autoRun=1''>3<\/a>","goId":"GO:0007155","goTerm":"cell
+        adhesion","oddsRatio":"6.28","foldEnrich":"5.8","pValue":"0.0147669900041","percentInResult":"2.4","benjamini":"0.119433501857","bgdGenes":"126"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000007,AGAP000032,AGAP029508,&autoRun=1''>3<\/a>","goId":"GO:0022610","goTerm":"biological
+        adhesion","oddsRatio":"6.28","foldEnrich":"5.8","pValue":"0.0147669900041","percentInResult":"2.4","benjamini":"0.119433501857","bgdGenes":"126"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,&autoRun=1''>1<\/a>","goId":"GO:0035330","goTerm":"regulation
+        of hippo signaling","oddsRatio":"82.78","foldEnrich":"60.94","pValue":"0.0163103020157","percentInResult":"25.0","benjamini":"0.119433501857","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0043113","goTerm":"receptor
+        clustering","oddsRatio":"82.78","foldEnrich":"60.94","pValue":"0.0163103020157","percentInResult":"25.0","benjamini":"0.119433501857","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000011,&autoRun=1''>1<\/a>","goId":"GO:0006551","goTerm":"leucine
+        metabolic process","oddsRatio":"82.78","foldEnrich":"60.94","pValue":"0.0163103020157","percentInResult":"25.0","benjamini":"0.119433501857","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0019673","goTerm":"GDP-mannose
+        metabolic process","oddsRatio":"82.78","foldEnrich":"60.94","pValue":"0.0163103020157","percentInResult":"25.0","benjamini":"0.119433501857","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0045197","goTerm":"establishment
+        or maintenance of epithelial cell apical/basal polarity","oddsRatio":"82.78","foldEnrich":"60.94","pValue":"0.0163103020157","percentInResult":"25.0","benjamini":"0.119433501857","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000048,&autoRun=1''>1<\/a>","goId":"GO:0031114","goTerm":"regulation
+        of microtubule depolymerization","oddsRatio":"82.78","foldEnrich":"60.94","pValue":"0.0163103020157","percentInResult":"25.0","benjamini":"0.119433501857","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000011,&autoRun=1''>1<\/a>","goId":"GO:0006573","goTerm":"valine
+        metabolic process","oddsRatio":"82.78","foldEnrich":"60.94","pValue":"0.0163103020157","percentInResult":"25.0","benjamini":"0.119433501857","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0061245","goTerm":"establishment
+        or maintenance of bipolar cell polarity","oddsRatio":"82.78","foldEnrich":"60.94","pValue":"0.0163103020157","percentInResult":"25.0","benjamini":"0.119433501857","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0035088","goTerm":"establishment
+        or maintenance of apical/basal cell polarity","oddsRatio":"82.78","foldEnrich":"60.94","pValue":"0.0163103020157","percentInResult":"25.0","benjamini":"0.119433501857","bgdGenes":"4"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000048,&autoRun=1''>2<\/a>","goId":"GO:0048870","goTerm":"cell
+        motility","oddsRatio":"10.33","foldEnrich":"9.56","pValue":"0.0184633638987","percentInResult":"3.9","benjamini":"0.123167665035","bgdGenes":"51"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000048,&autoRun=1''>2<\/a>","goId":"GO:0051674","goTerm":"localization
+        of cell","oddsRatio":"10.33","foldEnrich":"9.56","pValue":"0.0184633638987","percentInResult":"3.9","benjamini":"0.123167665035","bgdGenes":"51"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000015,AGAP000029,AGAP000048,AGAP000049,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>11<\/a>","goId":"GO:0019222","goTerm":"regulation
+        of metabolic process","oddsRatio":"2.31","foldEnrich":"1.98","pValue":"0.0185182584498","percentInResult":"0.8","benjamini":"0.123167665035","bgdGenes":"1356"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000007,AGAP000048,&autoRun=1''>3<\/a>","goId":"GO:0040011","goTerm":"locomotion","oddsRatio":"5.72","foldEnrich":"5.3","pValue":"0.0187936222468","percentInResult":"2.2","benjamini":"0.123167665035","bgdGenes":"138"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000048,AGAP000049,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>10<\/a>","goId":"GO:0051171","goTerm":"regulation
+        of nitrogen compound metabolic process","oddsRatio":"2.39","foldEnrich":"2.07","pValue":"0.0189594651076","percentInResult":"0.8","benjamini":"0.123167665035","bgdGenes":"1180"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000009,AGAP000022,AGAP000025,AGAP000033,AGAP000037,AGAP000038,AGAP000039,AGAP000040,AGAP000044,AGAP000046,AGAP029508,&autoRun=1''>11<\/a>","goId":"GO:0006810","goTerm":"transport","oddsRatio":"2.3","foldEnrich":"1.97","pValue":"0.019089893728","percentInResult":"0.8","benjamini":"0.123167665035","bgdGenes":"1362"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000048,AGAP000049,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>10<\/a>","goId":"GO:0080090","goTerm":"regulation
+        of primary metabolic process","oddsRatio":"2.36","foldEnrich":"2.05","pValue":"0.0202275991392","percentInResult":"0.8","benjamini":"0.123167665035","bgdGenes":"1192"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,&autoRun=1''>1<\/a>","goId":"GO:0045089","goTerm":"positive
+        regulation of innate immune response","oddsRatio":"62.08","foldEnrich":"48.75","pValue":"0.0203470812282","percentInResult":"20.0","benjamini":"0.123167665035","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,&autoRun=1''>1<\/a>","goId":"GO:0002833","goTerm":"positive
+        regulation of response to biotic stimulus","oddsRatio":"62.08","foldEnrich":"48.75","pValue":"0.0203470812282","percentInResult":"20.0","benjamini":"0.123167665035","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,&autoRun=1''>1<\/a>","goId":"GO:0050778","goTerm":"positive
+        regulation of immune response","oddsRatio":"62.08","foldEnrich":"48.75","pValue":"0.0203470812282","percentInResult":"20.0","benjamini":"0.123167665035","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,&autoRun=1''>1<\/a>","goId":"GO:0031349","goTerm":"positive
+        regulation of defense response","oddsRatio":"62.08","foldEnrich":"48.75","pValue":"0.0203470812282","percentInResult":"20.0","benjamini":"0.123167665035","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0097120","goTerm":"receptor
+        localization to synapse","oddsRatio":"62.08","foldEnrich":"48.75","pValue":"0.0203470812282","percentInResult":"20.0","benjamini":"0.123167665035","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,&autoRun=1''>1<\/a>","goId":"GO:0032103","goTerm":"positive
+        regulation of response to external stimulus","oddsRatio":"62.08","foldEnrich":"48.75","pValue":"0.0203470812282","percentInResult":"20.0","benjamini":"0.123167665035","bgdGenes":"5"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000009,AGAP000022,AGAP000025,AGAP000033,AGAP000037,AGAP000038,AGAP000039,AGAP000040,AGAP000044,AGAP000046,AGAP029508,&autoRun=1''>11<\/a>","goId":"GO:0051234","goTerm":"establishment
+        of localization","oddsRatio":"2.25","foldEnrich":"1.93","pValue":"0.0216171820513","percentInResult":"0.8","benjamini":"0.129134219096","bgdGenes":"1387"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000007,AGAP000032,&autoRun=1''>2<\/a>","goId":"GO:0098742","goTerm":"cell-cell
+        adhesion via plasma-membrane adhesion molecules","oddsRatio":"9.37","foldEnrich":"8.71","pValue":"0.0220151108189","percentInResult":"3.6","benjamini":"0.129803380672","bgdGenes":"56"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000007,&autoRun=1''>1<\/a>","goId":"GO:0070593","goTerm":"dendrite
+        self-avoidance","oddsRatio":"49.66","foldEnrich":"40.63","pValue":"0.0243676696465","percentInResult":"16.7","benjamini":"0.133288217102","bgdGenes":"6"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000010,&autoRun=1''>1<\/a>","goId":"GO:0046337","goTerm":"phosphatidylethanolamine
+        metabolic process","oddsRatio":"49.66","foldEnrich":"40.63","pValue":"0.0243676696465","percentInResult":"16.7","benjamini":"0.133288217102","bgdGenes":"6"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000007,&autoRun=1''>1<\/a>","goId":"GO:0008038","goTerm":"neuron
+        recognition","oddsRatio":"49.66","foldEnrich":"40.63","pValue":"0.0243676696465","percentInResult":"16.7","benjamini":"0.133288217102","bgdGenes":"6"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,&autoRun=1''>1<\/a>","goId":"GO:0002684","goTerm":"positive
+        regulation of immune system process","oddsRatio":"49.66","foldEnrich":"40.63","pValue":"0.0243676696465","percentInResult":"16.7","benjamini":"0.133288217102","bgdGenes":"6"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000032,&autoRun=1''>1<\/a>","goId":"GO:0007157","goTerm":"heterophilic
+        cell-cell adhesion via plasma membrane cell adhesion molecules","oddsRatio":"49.66","foldEnrich":"40.63","pValue":"0.0243676696465","percentInResult":"16.7","benjamini":"0.133288217102","bgdGenes":"6"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000010,&autoRun=1''>1<\/a>","goId":"GO:0006646","goTerm":"phosphatidylethanolamine
+        biosynthetic process","oddsRatio":"49.66","foldEnrich":"40.63","pValue":"0.0243676696465","percentInResult":"16.7","benjamini":"0.133288217102","bgdGenes":"6"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>8<\/a>","goId":"GO:0051252","goTerm":"regulation
+        of RNA metabolic process","oddsRatio":"2.48","foldEnrich":"2.2","pValue":"0.0261673890097","percentInResult":"0.9","benjamini":"0.141428507267","bgdGenes":"888"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>8<\/a>","goId":"GO:2000112","goTerm":"regulation
+        of cellular macromolecule biosynthetic process","oddsRatio":"2.44","foldEnrich":"2.17","pValue":"0.0280896307023","percentInResult":"0.9","benjamini":"0.142637665307","bgdGenes":"900"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000048,&autoRun=1''>2<\/a>","goId":"GO:0050793","goTerm":"regulation
+        of developmental process","oddsRatio":"8.16","foldEnrich":"7.62","pValue":"0.0282322812092","percentInResult":"3.1","benjamini":"0.142637665307","bgdGenes":"64"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,&autoRun=1''>1<\/a>","goId":"GO:0048640","goTerm":"negative
+        regulation of developmental growth","oddsRatio":"41.38","foldEnrich":"34.82","pValue":"0.0283721307034","percentInResult":"14.3","benjamini":"0.142637665307","bgdGenes":"7"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000007,&autoRun=1''>1<\/a>","goId":"GO:0008037","goTerm":"cell
+        recognition","oddsRatio":"41.38","foldEnrich":"34.82","pValue":"0.0283721307034","percentInResult":"14.3","benjamini":"0.142637665307","bgdGenes":"7"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,&autoRun=1''>1<\/a>","goId":"GO:0002831","goTerm":"regulation
+        of response to biotic stimulus","oddsRatio":"41.38","foldEnrich":"34.82","pValue":"0.0283721307034","percentInResult":"14.3","benjamini":"0.142637665307","bgdGenes":"7"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,&autoRun=1''>1<\/a>","goId":"GO:0045088","goTerm":"regulation
+        of innate immune response","oddsRatio":"41.38","foldEnrich":"34.82","pValue":"0.0283721307034","percentInResult":"14.3","benjamini":"0.142637665307","bgdGenes":"7"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>8<\/a>","goId":"GO:0019219","goTerm":"regulation
+        of nucleobase-containing compound metabolic process","oddsRatio":"2.42","foldEnrich":"2.15","pValue":"0.0290873026206","percentInResult":"0.9","benjamini":"0.142637665307","bgdGenes":"906"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,AGAP000056,AGAP000061,&autoRun=1''>3<\/a>","goId":"GO:0045944","goTerm":"positive
+        regulation of transcription by RNA polymerase II","oddsRatio":"4.78","foldEnrich":"4.46","pValue":"0.0294183483177","percentInResult":"1.8","benjamini":"0.142637665307","bgdGenes":"164"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>8<\/a>","goId":"GO:0010556","goTerm":"regulation
+        of macromolecule biosynthetic process","oddsRatio":"2.41","foldEnrich":"2.15","pValue":"0.0295954007993","percentInResult":"0.9","benjamini":"0.142637665307","bgdGenes":"909"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000035,AGAP000048,&autoRun=1''>2<\/a>","goId":"GO:0051493","goTerm":"regulation
+        of cytoskeleton organization","oddsRatio":"7.9","foldEnrich":"7.39","pValue":"0.029884752798","percentInResult":"3.0","benjamini":"0.142637665307","bgdGenes":"66"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>8<\/a>","goId":"GO:0031326","goTerm":"regulation
+        of cellular biosynthetic process","oddsRatio":"2.39","foldEnrich":"2.13","pValue":"0.0306302959332","percentInResult":"0.9","benjamini":"0.142637665307","bgdGenes":"915"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>8<\/a>","goId":"GO:0009889","goTerm":"regulation
+        of biosynthetic process","oddsRatio":"2.39","foldEnrich":"2.12","pValue":"0.031157161671","percentInResult":"0.9","benjamini":"0.142637665307","bgdGenes":"918"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000044,&autoRun=1''>1<\/a>","goId":"GO:0043277","goTerm":"apoptotic
+        cell clearance","oddsRatio":"35.47","foldEnrich":"30.47","pValue":"0.0323605275916","percentInResult":"12.5","benjamini":"0.142637665307","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000018,&autoRun=1''>1<\/a>","goId":"GO:0048015","goTerm":"phosphatidylinositol-mediated
+        signaling","oddsRatio":"35.47","foldEnrich":"30.47","pValue":"0.0323605275916","percentInResult":"12.5","benjamini":"0.142637665307","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000005,&autoRun=1''>1<\/a>","goId":"GO:0031347","goTerm":"regulation
+        of defense response","oddsRatio":"35.47","foldEnrich":"30.47","pValue":"0.0323605275916","percentInResult":"12.5","benjamini":"0.142637665307","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000048,&autoRun=1''>1<\/a>","goId":"GO:0030178","goTerm":"negative
+        regulation of Wnt signaling pathway","oddsRatio":"35.47","foldEnrich":"30.47","pValue":"0.0323605275916","percentInResult":"12.5","benjamini":"0.142637665307","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000008,&autoRun=1''>1<\/a>","goId":"GO:0009408","goTerm":"response
+        to heat","oddsRatio":"35.47","foldEnrich":"30.47","pValue":"0.0323605275916","percentInResult":"12.5","benjamini":"0.142637665307","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,&autoRun=1''>1<\/a>","goId":"GO:0045926","goTerm":"negative
+        regulation of growth","oddsRatio":"35.47","foldEnrich":"30.47","pValue":"0.0323605275916","percentInResult":"12.5","benjamini":"0.142637665307","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000048,&autoRun=1''>1<\/a>","goId":"GO:0090090","goTerm":"negative
+        regulation of canonical Wnt signaling pathway","oddsRatio":"35.47","foldEnrich":"30.47","pValue":"0.0323605275916","percentInResult":"12.5","benjamini":"0.142637665307","bgdGenes":"8"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000005,AGAP000029,AGAP000048,AGAP000049,AGAP000056,AGAP000057,AGAP000058,AGAP000061,AGAP000062,&autoRun=1''>10<\/a>","goId":"GO:0060255","goTerm":"regulation
+        of macromolecule metabolic process","oddsRatio":"2.15","foldEnrich":"1.88","pValue":"0.0338575150854","percentInResult":"0.8","benjamini":"0.147801075469","bgdGenes":"1295"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000018,&autoRun=1''>1<\/a>","goId":"GO:0048017","goTerm":"inositol
+        lipid-mediated signaling","oddsRatio":"31.03","foldEnrich":"27.09","pValue":"0.0363329232618","percentInResult":"11.1","benjamini":"0.149955883281","bgdGenes":"9"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000032,&autoRun=1''>1<\/a>","goId":"GO:0007229","goTerm":"integrin-mediated
+        signaling pathway","oddsRatio":"31.03","foldEnrich":"27.09","pValue":"0.0363329232618","percentInResult":"11.1","benjamini":"0.149955883281","bgdGenes":"9"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000009,&autoRun=1''>1<\/a>","goId":"GO:0070201","goTerm":"regulation
+        of establishment of protein localization","oddsRatio":"31.03","foldEnrich":"27.09","pValue":"0.0363329232618","percentInResult":"11.1","benjamini":"0.149955883281","bgdGenes":"9"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,&autoRun=1''>1<\/a>","goId":"GO:0048638","goTerm":"regulation
+        of developmental growth","oddsRatio":"31.03","foldEnrich":"27.09","pValue":"0.0363329232618","percentInResult":"11.1","benjamini":"0.149955883281","bgdGenes":"9"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0061951","goTerm":"establishment
+        of protein localization to plasma membrane","oddsRatio":"31.03","foldEnrich":"27.09","pValue":"0.0363329232618","percentInResult":"11.1","benjamini":"0.149955883281","bgdGenes":"9"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000009,&autoRun=1''>1<\/a>","goId":"GO:0051223","goTerm":"regulation
+        of protein transport","oddsRatio":"31.03","foldEnrich":"27.09","pValue":"0.0363329232618","percentInResult":"11.1","benjamini":"0.149955883281","bgdGenes":"9"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000015,AGAP000048,&autoRun=1''>3<\/a>","goId":"GO:0009966","goTerm":"regulation
+        of signal transduction","oddsRatio":"4.37","foldEnrich":"4.09","pValue":"0.036730622924","percentInResult":"1.7","benjamini":"0.150231556824","bgdGenes":"179"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000009,AGAP000037,AGAP000044,AGAP029508,&autoRun=1''>4<\/a>","goId":"GO:0016192","goTerm":"vesicle-mediated
+        transport","oddsRatio":"3.32","foldEnrich":"3.09","pValue":"0.0398551821181","percentInResult":"1.3","benjamini":"0.158782782359","bgdGenes":"316"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000011,&autoRun=1''>1<\/a>","goId":"GO:0009081","goTerm":"branched-chain
+        amino acid metabolic process","oddsRatio":"27.58","foldEnrich":"24.38","pValue":"0.0402893804215","percentInResult":"10.0","benjamini":"0.158782782359","bgdGenes":"10"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000008,&autoRun=1''>1<\/a>","goId":"GO:0009266","goTerm":"response
+        to temperature stimulus","oddsRatio":"27.58","foldEnrich":"24.38","pValue":"0.0402893804215","percentInResult":"10.0","benjamini":"0.158782782359","bgdGenes":"10"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000048,&autoRun=1''>1<\/a>","goId":"GO:0031110","goTerm":"regulation
+        of microtubule polymerization or depolymerization","oddsRatio":"27.58","foldEnrich":"24.38","pValue":"0.0402893804215","percentInResult":"10.0","benjamini":"0.158782782359","bgdGenes":"10"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000010,AGAP000018,&autoRun=1''>2<\/a>","goId":"GO:0046474","goTerm":"glycerophospholipid
+        biosynthetic process","oddsRatio":"6.65","foldEnrich":"6.25","pValue":"0.0405700501183","percentInResult":"2.6","benjamini":"0.158782782359","bgdGenes":"78"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000007,AGAP000048,&autoRun=1''>3<\/a>","goId":"GO:0006928","goTerm":"movement
+        of cell or subcellular component","oddsRatio":"4.17","foldEnrich":"3.91","pValue":"0.0409799044057","percentInResult":"1.6","benjamini":"0.159016039318","bgdGenes":"187"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000022,AGAP000025,AGAP000033,AGAP000040,AGAP000046,AGAP029508,&autoRun=1''>6<\/a>","goId":"GO:0071702","goTerm":"organic
+        substance transport","oddsRatio":"2.55","foldEnrich":"2.33","pValue":"0.0417436640768","percentInResult":"1.0","benjamini":"0.160013666116","bgdGenes":"628"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000015,AGAP000032,AGAP000048,&autoRun=1''>3<\/a>","goId":"GO:0007166","goTerm":"cell
+        surface receptor signaling pathway","oddsRatio":"4.11","foldEnrich":"3.85","pValue":"0.0426353216732","percentInResult":"1.6","benjamini":"0.160013666116","bgdGenes":"190"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000038,AGAP000045,&autoRun=1''>2<\/a>","goId":"GO:0007268","goTerm":"chemical
+        synaptic transmission","oddsRatio":"6.39","foldEnrich":"6.02","pValue":"0.0434369435333","percentInResult":"2.5","benjamini":"0.160013666116","bgdGenes":"81"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000038,AGAP000045,&autoRun=1''>2<\/a>","goId":"GO:0098916","goTerm":"anterograde
+        trans-synaptic signaling","oddsRatio":"6.39","foldEnrich":"6.02","pValue":"0.0434369435333","percentInResult":"2.5","benjamini":"0.160013666116","bgdGenes":"81"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000044,&autoRun=1''>1<\/a>","goId":"GO:0006909","goTerm":"phagocytosis","oddsRatio":"24.82","foldEnrich":"22.16","pValue":"0.0442299615398","percentInResult":"9.1","benjamini":"0.160013666116","bgdGenes":"11"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP029508,&autoRun=1''>1<\/a>","goId":"GO:0032456","goTerm":"endocytic
+        recycling","oddsRatio":"24.82","foldEnrich":"22.16","pValue":"0.0442299615398","percentInResult":"9.1","benjamini":"0.160013666116","bgdGenes":"11"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,&autoRun=1''>1<\/a>","goId":"GO:0051093","goTerm":"negative
+        regulation of developmental process","oddsRatio":"24.82","foldEnrich":"22.16","pValue":"0.0442299615398","percentInResult":"9.1","benjamini":"0.160013666116","bgdGenes":"11"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,&autoRun=1''>1<\/a>","goId":"GO:0051241","goTerm":"negative
+        regulation of multicellular organismal process","oddsRatio":"24.82","foldEnrich":"22.16","pValue":"0.0442299615398","percentInResult":"9.1","benjamini":"0.160013666116","bgdGenes":"11"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000002,AGAP000015,&autoRun=1''>2<\/a>","goId":"GO:1902531","goTerm":"regulation
+        of intracellular signal transduction","oddsRatio":"6.31","foldEnrich":"5.95","pValue":"0.0444090791423","percentInResult":"2.4","benjamini":"0.160013666116","bgdGenes":"82"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000038,AGAP000045,&autoRun=1''>2<\/a>","goId":"GO:0099537","goTerm":"trans-synaptic
+        signaling","oddsRatio":"6.23","foldEnrich":"5.87","pValue":"0.0453893331327","percentInResult":"2.4","benjamini":"0.162257931041","bgdGenes":"83"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000038,AGAP000045,&autoRun=1''>2<\/a>","goId":"GO:0099536","goTerm":"synaptic
+        signaling","oddsRatio":"6.16","foldEnrich":"5.8","pValue":"0.0463776259343","percentInResult":"2.4","benjamini":"0.164495641986","bgdGenes":"84"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000053,&autoRun=1''>1<\/a>","goId":"GO:0009226","goTerm":"nucleotide-sugar
+        biosynthetic process","oddsRatio":"22.56","foldEnrich":"20.31","pValue":"0.0481547288459","percentInResult":"8.3","benjamini":"0.166391041679","bgdGenes":"12"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000048,&autoRun=1''>1<\/a>","goId":"GO:0043242","goTerm":"negative
+        regulation of protein-containing complex disassembly","oddsRatio":"22.56","foldEnrich":"20.31","pValue":"0.0481547288459","percentInResult":"8.3","benjamini":"0.166391041679","bgdGenes":"12"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000048,&autoRun=1''>1<\/a>","goId":"GO:1901880","goTerm":"negative
+        regulation of protein depolymerization","oddsRatio":"22.56","foldEnrich":"20.31","pValue":"0.0481547288459","percentInResult":"8.3","benjamini":"0.166391041679","bgdGenes":"12"},{"bonferroni":"1.0","resultGenes":"<a
+        href=''/a/app/search/transcript/GeneByLocusTag?param.ds_gene_ids.idList=AGAP000010,AGAP000018,&autoRun=1''>2<\/a>","goId":"GO:0045017","goTerm":"glycerolipid
+        biosynthetic process","oddsRatio":"6.01","foldEnrich":"5.67","pValue":"0.048378012118","percentInResult":"2.3","benjamini":"0.166391041679","bgdGenes":"86"}],"revidoInputList":"GO:0098609
+        0.00367525180739\nGO:0035418 0.00410218161481\nGO:1902414 0.00410218161481\nGO:0099638
+        0.00410218161481\nGO:0098887 0.00410218161481\nGO:0098969 0.00410218161481\nGO:0098968
+        0.00410218161481\nGO:0062237 0.00410218161481\nGO:1903539 0.00410218161481\nGO:1902946
+        0.00410218161481\nGO:0099639 0.00410218161481\nGO:0098877 0.00410218161481\nGO:0036010
+        0.00410218161481\nGO:0034772 0.00410218161481\nGO:0009082 0.00410218161481\nGO:1903540
+        0.00410218161481\nGO:0009099 0.00410218161481\nGO:0009098 0.00410218161481\nGO:0051179
+        0.0070955730342\nGO:0045893 0.00800879386837\nGO:0016477 0.00801050062822\nGO:0000032
+        0.00818791625419\nGO:0044036 0.00818791625419\nGO:0044038 0.00818791625419\nGO:0034770
+        0.00818791625419\nGO:0042546 0.00818791625419\nGO:0031506 0.00818791625419\nGO:0070589
+        0.00818791625419\nGO:0031111 0.00818791625419\nGO:0071554 0.00818791625419\nGO:0046621
+        0.00818791625419\nGO:0006437 0.00818791625419\nGO:0099637 0.00818791625419\nGO:0006057
+        0.00818791625419\nGO:0006056 0.00818791625419\nGO:0007026 0.00818791625419\nGO:0050789
+        0.00859692584895\nGO:0065007 0.0103379994583\nGO:1903508 0.0106850522327\nGO:0050794
+        0.011698067928\nGO:0099072 0.0122572683325\nGO:0018027 0.0122572683325\nGO:0002791
+        0.0122572683325\nGO:0050708 0.0122572683325\nGO:0009298 0.0122572683325\nGO:0046620
+        0.0122572683325\nGO:0048583 0.0128872602242\nGO:0006355 0.0138231053159\nGO:0007267
+        0.0144562008855\nGO:1903506 0.0145228805478\nGO:2001141 0.0146249490536\nGO:0007155
+        0.0147669900041\nGO:0022610 0.0147669900041\nGO:0035330 0.0163103020157\nGO:0043113
+        0.0163103020157\nGO:0006551 0.0163103020157\nGO:0019673 0.0163103020157\nGO:0045197
+        0.0163103020157\nGO:0031114 0.0163103020157\nGO:0006573 0.0163103020157\nGO:0061245
+        0.0163103020157\nGO:0035088 0.0163103020157\nGO:0048870 0.0184633638987\nGO:0051674
+        0.0184633638987\nGO:0019222 0.0185182584498\nGO:0040011 0.0187936222468\nGO:0051171
+        0.0189594651076\nGO:0006810 0.019089893728\nGO:0080090 0.0202275991392\nGO:0045089
+        0.0203470812282\nGO:0002833 0.0203470812282\nGO:0050778 0.0203470812282\nGO:0031349
+        0.0203470812282\nGO:0097120 0.0203470812282\nGO:0032103 0.0203470812282\nGO:0051234
+        0.0216171820513\nGO:0098742 0.0220151108189\nGO:0070593 0.0243676696465\nGO:0046337
+        0.0243676696465\nGO:0008038 0.0243676696465\nGO:0002684 0.0243676696465\nGO:0007157
+        0.0243676696465\nGO:0006646 0.0243676696465\nGO:0051252 0.0261673890097\nGO:2000112
+        0.0280896307023\nGO:0050793 0.0282322812092\nGO:0048640 0.0283721307034\nGO:0008037
+        0.0283721307034\nGO:0002831 0.0283721307034\nGO:0045088 0.0283721307034\nGO:0019219
+        0.0290873026206\nGO:0045944 0.0294183483177\nGO:0010556 0.0295954007993\nGO:0051493
+        0.029884752798\nGO:0031326 0.0306302959332\nGO:0009889 0.031157161671\nGO:0043277
+        0.0323605275916\nGO:0048015 0.0323605275916\nGO:0031347 0.0323605275916\nGO:0030178
+        0.0323605275916\nGO:0009408 0.0323605275916\nGO:0045926 0.0323605275916\nGO:0090090
+        0.0323605275916\nGO:0060255 0.0338575150854\nGO:0048017 0.0363329232618\nGO:0007229
+        0.0363329232618\nGO:0070201 0.0363329232618\nGO:0048638 0.0363329232618\nGO:0061951
+        0.0363329232618\nGO:0051223 0.0363329232618\nGO:0009966 0.036730622924\nGO:0016192
+        0.0398551821181\nGO:0009081 0.0402893804215\nGO:0009266 0.0402893804215\nGO:0031110
+        0.0402893804215\nGO:0046474 0.0405700501183\nGO:0006928 0.0409799044057\nGO:0071702
+        0.0417436640768\nGO:0007166 0.0426353216732\nGO:0007268 0.0434369435333\nGO:0098916
+        0.0434369435333\nGO:0006909 0.0442299615398\nGO:0032456 0.0442299615398\nGO:0051093
+        0.0442299615398\nGO:0051241 0.0442299615398\nGO:1902531 0.0444090791423\nGO:0099537
+        0.0453893331327\nGO:0099536 0.0463776259343\nGO:0009226 0.0481547288459\nGO:0043242
+        0.0481547288459\nGO:1901880 0.0481547288459\nGO:0045017 0.048378012118\n","contextHash":"7ec911163d19fa8a344684ca2b1c67a9","hiddenDownloadPath":"hiddenGoEnrichmentResult.tsv","downloadUrl":"https://vectorbase.org/vectorbase/service/users/999233065207/steps/438874953/analyses/203551143/resources","goTermBaseUrl":"http://amigo.geneontology.org/amigo/term/","accessToken":"b14123a396938f40","headerDescription":{"bonferroni":"Bonferroni
+        adjusted p-value","resultGenes":"Number of genes with this term in your result","goId":"Gene
+        Ontology ID","goTerm":"Gene Ontology Term","oddsRatio":"Odds ratio statistic
+        from the Fisher''s exact test","foldEnrich":"The percent of genes with this
+        term in your result divided by the percent of genes with this term in the
+        background","pValue":"P-value from Fisher''s exact test","percentInResult":"Of
+        the genes in the background with this term, the percent that are present in
+        your result","benjamini":"Benjamini-Hochberg false discovery rate (FDR)","bgdGenes":"Number
+        of genes with this term in the background"},"downloadPath":"goEnrichmentResult.tsv","imageDownloadPath":"goCloud.png","evidenceCodes":["Computed","Curated"],"goOntologies":["Biological
+        Process"],"pvalueCutoff":"0.05","propertiesUrl":"https://vectorbase.org/vectorbase/service/users/999233065207/steps/438874953/analyses/203551143/properties"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:29:24 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '53815'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - vectorbase.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: DELETE
+    uri: https://vectorbase.org/vectorbase/service/users/999233065207/strategies/330145963
+  response:
+    body:
+      string: ''
+    headers:
+      Connection:
+      - keep-alive
+      Date:
+      - Wed, 25 Mar 2026 07:29:24 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 204
+      message: No Content
+version: 1

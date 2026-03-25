@@ -1,0 +1,41 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://plasmodb.org/plasmo/service/record-types
+  response:
+    body:
+      string: '["transcript","gene","organism","popsetSequence","sample","genomic-sequence","genomic-segment","snp","snp-chip","est","pathway","compound","blast-est-ontology","blast-orf-ontology","file","build","junction","long_read_transcript","dfile","metrics","dataset-release-notes","legacy-dataset","dataset"]'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:38 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '299'
+    status:
+      code: 200
+      message: OK
+version: 1

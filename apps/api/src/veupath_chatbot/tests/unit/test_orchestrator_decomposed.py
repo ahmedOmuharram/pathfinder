@@ -368,7 +368,7 @@ class TestHandleError:
         # First call: error event
         error_call = mock_emit.call_args_list[0][0]
         assert error_call[3] == "error"
-        assert error_call[4]["error"] == "Something broke"
+        assert error_call[4]["error"] == "An internal error occurred"
 
         # Second call: message_end
         end_call = mock_emit.call_args_list[1][0]

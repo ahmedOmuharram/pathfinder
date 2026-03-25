@@ -1,0 +1,1388 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - Authorization=SCRUBBED
+    method: GET
+    uri: https://fungidb.org/fungidb/app
+  response:
+    body:
+      string: "<!doctype html>\n<html lang=\"en\">\n  <head>\n        <title>FungiDB</title>\n
+        \   <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width,
+        initial-scale=1\"/>\n    <link href=\"/fungidb/images/FungiDB/favicon.ico\"
+        type=\"image/x-icon\" rel=\"shortcut icon\"/>\n    <script>\n            window.__asset_path_remove_me_please__
+        = \"/fungidb/bundles/\";\n\n            window.__SITE_CONFIG__ = {\n                requireLogin:
+        \"true\" === \"true\",\n        rootElement: \"#wdk-container\",\n        rootUrl:
+        \"/fungidb/app\",\n        endpoint: \"/fungidb/service\",\n        projectId:
+        \"FungiDB\",\n        webAppUrl: \"/fungidb\",\n        facebookUrl: \"https://facebook.com/pages/FungiDB/169472636469487\",\n
+        \       twitterUrl: \"https://twitter.com/VEuPathDB\",\n        twitterUrl2:
+        \"https://twitter.com/FungiDB\",\n        youtubeUrl: \"https://youtube.com/user/EuPathDB/playlists\",\n
+        \       discordUrl: \"\",\n        linkedinUrl: \"https://www.linkedin.com/company/veupathdb/\",\n
+        \       redditUrl: \"https://www.reddit.com/r/BRC_users/\",\n        vimeoUrl:
+        \"\",\n        blueskyUrl: \"https://veupathdb.bsky.social\",\n        communitySite:
+        \"//static-content.veupathdb.org/\",\n        siteSearchServiceUrl: \"/site-search\",\n
+        \               useEda: \"true\" === \"true\",\n        edaExampleAnalysesAuthor:
+        \"1926010\",\n        edaServiceUrl: \"/eda\",\n                edaEnableFullScreenApps:
+        \"true\" === \"true\",\n                        useUserDatasetsWorkspace:
+        \"true\" === \"false\",\n        communityDatasetsEnabled: \"true\" === \"False\",\n
+        \       showExtraMetadata: \"\",\n        datasetImportUrl: \"/dataset-import\",\n
+        \       userDatasetsUploadTypes: \"genelist,bigwigfiles,rnaseq\",\n                showUnreleasedData:
+        \"true\" === \"False\",\n        showSubscriptionProds: \"true\" === \"true\",\n
+        \               vdiServiceUrl: \"/vdi\",\n                aiExpressionQualtricsId:
+        \"SV_38C4ZX1JxLi2SEe\",\n              };\n    </script>\n          <script
+        async src=\"https://www.googletagmanager.com/gtag/js?id=G-T5LY8KEW92\"></script>\n
+        \     <script>\n        window.dataLayer = window.dataLayer || [];\n        function
+        gtag(){dataLayer.push(arguments);}\n        gtag('js', new Date());\n        gtag('config',
+        'G-T5LY8KEW92');\n      </script>                    <script charset=\"utf8\"
+        src=\"/fungidb/bundles/site-client.bundle-5dd533215af55185becbef56c0b99802.js\"
+        ></script>\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css\"/>\n
+        \   <link rel=\"stylesheet\" type=\"text/css\" href=\"/fungidb/bundles/site-client.bundle-5dd533215af55185becbef56c0b99802.css\"/>\n
+        \ </head>\n    <body class=\"vpdb-Body\">\n    <div class=\"main-stack\">\n
+        \     <div id=\"wdk-container\">\n                  Loading...\n              </div>\n
+        \   </div>            <script>\n        ((window.gitter = {}).chat = {}).options
+        = {\n          room: 'VEuPathDB-genomic/community'\n        };\n        document.addEventListener(\n
+        \         'gitter-sidecar-instance-started', \n          function gitterSidecarHack()
+        {\n            const gitterBtn = document.querySelector('.gitter-open-chat-button');\n
+        \           const gitterAside = document.querySelector('.gitter-chat-embed');\n\n
+        \           // we want to hide the aside and any loading indicators when button
+        is clicked\n            gitterAside.style.display = 'none';\n            document.querySelector('.gitter-chat-embed-loading-wrapper').style.display
+        = 'none';\n\n            if (gitterBtn.baseURI.includes('embed-record')) {\n
+        \             gitterBtn.style.display = 'none';\n            }\n\n            gitterBtn.addEventListener(\n
+        \             'click', \n              function openGitterInNewTab(e) {\n
+        \               e.stopPropagation();\n                e.preventDefault();\n
+        \               window.open('https://app.gitter.im/#/room/#VEuPathDB-genomic_community:gitter.im',
+        \"VEuPathDBGitterForum\");\n              }, \n              true\n            );\n\n
+        \           gitterAside.addEventListener(\n              'gitter-chat-toggle',
+        \n              function keepGitterBtnVisible() {\n                // we want
+        the chat button to remain visible when clicked\n                gitterBtn.classList.remove('is-collapsed');\n
+        \             }\n            )\n          }\n        );\n        // Prioritize
+        loading application data over this script\n        setTimeout(2000, function
+        loadSideCar() {\n          const scriptTag = document.createElement('script');\n
+        \         scriptTag.src = 'https://cdn.jsdelivr.net/npm/gitter-sidecar@1.5.0/dist/sidecar.min.js';\n
+        \         document.head.appendChild(scriptTag);\n        });\n      </script>
+        \ </body>\n</html>\n"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/html
+      Date:
+      - Wed, 25 Mar 2026 05:35:11 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - JSESSIONID=SCRUBBED; Path=/; Secure
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4539'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://fungidb.org/fungidb/service/users/current
+  response:
+    body:
+      string: '{"isGuest":false,"id":1216062453,"email":"test@test.local","properties":{"organizationType":"academic","firstName":"Test","lastName":"User","country":"US","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:35:11 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '382'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://fungidb.org/fungidb/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["Saccharomyces
+        cerevisiae S288C"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Fungi","term":"Fungi"},"children":[{"data":{"display":"Ascomycota","term":"Ascomycota"},"children":[{"data":{"display":"Dothideomycetes","term":"Dothideomycetes"},"children":[{"data":{"display":"Botryosphaeriales","term":"Botryosphaeriales"},"children":[{"data":{"display":"Macrophomina
+        phaseolina MS6","term":"Macrophomina phaseolina MS6"},"children":[]}]},{"data":{"display":"Gloniaceae","term":"Gloniaceae"},"children":[{"data":{"display":"Cenococcum
+        geophilum 1.58","term":"Cenococcum geophilum 1.58"},"children":[]}]},{"data":{"display":"Mycosphaerellales","term":"Mycosphaerellales"},"children":[{"data":{"display":"Mycosphaerellaceae","term":"Mycosphaerellaceae"},"children":[{"data":{"display":"Pseudocercospora","term":"Pseudocercospora"},"children":[{"data":{"display":"Pseudocercospora
+        fijiensis CIRAD86","term":"Pseudocercospora fijiensis CIRAD86"},"children":[]}]},{"data":{"display":"Zymoseptoria","term":"Zymoseptoria"},"children":[{"data":{"display":"Zymoseptoria
+        tritici IPO323","term":"Zymoseptoria tritici IPO323"},"children":[]},{"data":{"display":"Zymoseptoria
+        tritici ST99CH_3D1","term":"Zymoseptoria tritici ST99CH_3D1"},"children":[]}]}]},{"data":{"display":"Teratosphaeriaceae","term":"Teratosphaeriaceae"},"children":[{"data":{"display":"Hortaea
+        werneckii EXF-2000","term":"Hortaea werneckii EXF-2000"},"children":[]}]}]},{"data":{"display":"Pleosporales","term":"Pleosporales"},"children":[{"data":{"display":"Leptosphaeriaceae","term":"Leptosphaeriaceae"},"children":[{"data":{"display":"Plenodomus
+        lingam JN3","term":"Plenodomus lingam JN3"},"children":[]}]},{"data":{"display":"Phaeosphaeriaceae","term":"Phaeosphaeriaceae"},"children":[{"data":{"display":"Parastagonospora
+        nodorum SN15","term":"Parastagonospora nodorum SN15"},"children":[]}]},{"data":{"display":"Pleosporaceae","term":"Pleosporaceae"},"children":[{"data":{"display":"Alternaria","term":"Alternaria"},"children":[{"data":{"display":"Alternaria
+        alternata SRC1lrK2f","term":"Alternaria alternata SRC1lrK2f"},"children":[]}]},{"data":{"display":"Curvularia","term":"Curvularia"},"children":[{"data":{"display":"Curvularia
+        clavata yc1106","term":"Curvularia clavata yc1106"},"children":[]}]}]}]},{"data":{"display":"Venturiales","term":"Venturiales"},"children":[{"data":{"display":"Verruconis
+        gallopava strain CBS 43764","term":"Verruconis gallopava strain CBS 43764"},"children":[]}]}]},{"data":{"display":"Eurotiomycetes","term":"Eurotiomycetes"},"children":[{"data":{"display":"Chaetothyriales","term":"Chaetothyriales"},"children":[{"data":{"display":"Chaetothyriales
+        sp.","term":"Chaetothyriales sp."},"children":[{"data":{"display":"Chaetothyriales
+        sp. CBS 132003","term":"Chaetothyriales sp. CBS 132003"},"children":[]}]},{"data":{"display":"Cyphellophoraceae","term":"Cyphellophoraceae"},"children":[{"data":{"display":"Cyphellophora
+        europaea CBS 101466","term":"Cyphellophora europaea CBS 101466"},"children":[]}]},{"data":{"display":"Herpotrichiellaceae","term":"Herpotrichiellaceae"},"children":[{"data":{"display":"Cladophialophora","term":"Cladophialophora"},"children":[{"data":{"display":"Cladophialophora
+        bantiana","term":"Cladophialophora bantiana"},"children":[{"data":{"display":"Cladophialophora
+        bantiana CBS 173.52","term":"Cladophialophora bantiana CBS 173.52"},"children":[]}]},{"data":{"display":"Cladophialophora
+        carrionii","term":"Cladophialophora carrionii"},"children":[{"data":{"display":"Cladophialophora
+        carrionii CBS 160.54","term":"Cladophialophora carrionii CBS 160.54"},"children":[]},{"data":{"display":"Cladophialophora
+        carrionii KSF","term":"Cladophialophora carrionii KSF"},"children":[]}]},{"data":{"display":"Cladophialophora
+        immunda","term":"Cladophialophora immunda"},"children":[{"data":{"display":"Cladophialophora
+        immunda strain CBS 83496","term":"Cladophialophora immunda strain CBS 83496"},"children":[]}]},{"data":{"display":"Cladophialophora
+        psammophila","term":"Cladophialophora psammophila"},"children":[{"data":{"display":"Cladophialophora
+        psammophila CBS 110553","term":"Cladophialophora psammophila CBS 110553"},"children":[]}]},{"data":{"display":"Cladophialophora
+        yegresii","term":"Cladophialophora yegresii"},"children":[{"data":{"display":"Cladophialophora
+        yegresii CBS 114405","term":"Cladophialophora yegresii CBS 114405"},"children":[]}]}]},{"data":{"display":"Exophiala","term":"Exophiala"},"children":[{"data":{"display":"Exophiala
+        aquamarina","term":"Exophiala aquamarina"},"children":[{"data":{"display":"Exophiala
+        aquamarina CBS 119918","term":"Exophiala aquamarina CBS 119918"},"children":[]}]},{"data":{"display":"Exophiala
+        dermatitidis","term":"Exophiala dermatitidis"},"children":[{"data":{"display":"Exophiala
+        dermatitidis NIH/UT8656","term":"Exophiala dermatitidis NIH/UT8656"},"children":[]}]},{"data":{"display":"Exophiala
+        mesophila","term":"Exophiala mesophila"},"children":[{"data":{"display":"Exophiala
+        mesophila strain CBS 40295","term":"Exophiala mesophila strain CBS 40295"},"children":[]}]},{"data":{"display":"Exophiala
+        oligosperma","term":"Exophiala oligosperma"},"children":[{"data":{"display":"Exophiala
+        oligosperma strain CBS 72588","term":"Exophiala oligosperma strain CBS 72588"},"children":[]}]},{"data":{"display":"Exophiala
+        spinifera","term":"Exophiala spinifera"},"children":[{"data":{"display":"Exophiala
+        spinifera CBS 89968","term":"Exophiala spinifera CBS 89968"},"children":[]}]}]},{"data":{"display":"Fonsecaea","term":"Fonsecaea"},"children":[{"data":{"display":"Fonsecaea
+        multimorphosa","term":"Fonsecaea multimorphosa"},"children":[{"data":{"display":"Fonsecaea
+        multimorphosa CBS 102226","term":"Fonsecaea multimorphosa CBS 102226"},"children":[]}]},{"data":{"display":"Fonsecaea
+        pedrosoi","term":"Fonsecaea pedrosoi"},"children":[{"data":{"display":"Fonsecaea
+        pedrosoi CBS 271.37","term":"Fonsecaea pedrosoi CBS 271.37"},"children":[]}]}]},{"data":{"display":"Phialophora","term":"Phialophora"},"children":[{"data":{"display":"Phialophora
+        attinorum CBS 131958","term":"Phialophora attinorum CBS 131958"},"children":[]}]},{"data":{"display":"Rhinocladiella","term":"Rhinocladiella"},"children":[{"data":{"display":"Rhinocladiella
+        mackenziei CBS 650.93","term":"Rhinocladiella mackenziei CBS 650.93"},"children":[]}]}]}]},{"data":{"display":"Eurotiales","term":"Eurotiales"},"children":[{"data":{"display":"Aspergillaceae","term":"Aspergillaceae"},"children":[{"data":{"display":"Aspergillus","term":"Aspergillus"},"children":[{"data":{"display":"Aspergillus
+        aculeatus","term":"Aspergillus aculeatus"},"children":[{"data":{"display":"Aspergillus
+        aculeatus ATCC 16872","term":"Aspergillus aculeatus ATCC 16872"},"children":[]}]},{"data":{"display":"Aspergillus
+        brasiliensis","term":"Aspergillus brasiliensis"},"children":[{"data":{"display":"Aspergillus
+        brasiliensis CBS 101740","term":"Aspergillus brasiliensis CBS 101740"},"children":[]}]},{"data":{"display":"Aspergillus
+        campestris","term":"Aspergillus campestris"},"children":[{"data":{"display":"Aspergillus
+        campestris IBT 28561","term":"Aspergillus campestris IBT 28561"},"children":[]}]},{"data":{"display":"Aspergillus
+        carbonarius","term":"Aspergillus carbonarius"},"children":[{"data":{"display":"Aspergillus
+        carbonarius ITEM 5010","term":"Aspergillus carbonarius ITEM 5010"},"children":[]}]},{"data":{"display":"Aspergillus
+        clavatus","term":"Aspergillus clavatus"},"children":[{"data":{"display":"Aspergillus
+        clavatus NRRL 1","term":"Aspergillus clavatus NRRL 1"},"children":[]}]},{"data":{"display":"Aspergillus
+        cristatus","term":"Aspergillus cristatus"},"children":[{"data":{"display":"Aspergillus
+        cristatus GZAAS20.1005","term":"Aspergillus cristatus GZAAS20.1005"},"children":[]}]},{"data":{"display":"Aspergillus
+        ellipticus","term":"Aspergillus ellipticus"},"children":[{"data":{"display":"Aspergillus
+        ellipticus CBS 707.79","term":"Aspergillus ellipticus CBS 707.79"},"children":[]}]},{"data":{"display":"Aspergillus
+        eucalypticola","term":"Aspergillus eucalypticola"},"children":[{"data":{"display":"Aspergillus
+        eucalypticola CBS 122712","term":"Aspergillus eucalypticola CBS 122712"},"children":[]}]},{"data":{"display":"Aspergillus
+        fijiensis","term":"Aspergillus fijiensis"},"children":[{"data":{"display":"Aspergillus
+        fijiensis CBS 313.89","term":"Aspergillus fijiensis CBS 313.89"},"children":[]}]},{"data":{"display":"Aspergillus
+        fischeri","term":"Aspergillus fischeri"},"children":[{"data":{"display":"Aspergillus
+        fischeri NRRL 181","term":"Aspergillus fischeri NRRL 181"},"children":[]}]},{"data":{"display":"Aspergillus
+        flavus","term":"Aspergillus flavus"},"children":[{"data":{"display":"Aspergillus
+        flavus NRRL3357","term":"Aspergillus flavus NRRL3357"},"children":[]},{"data":{"display":"Aspergillus
+        flavus NRRL3357 2020","term":"Aspergillus flavus NRRL3357 2020"},"children":[]}]},{"data":{"display":"Aspergillus
+        fumigatus","term":"Aspergillus fumigatus"},"children":[{"data":{"display":"Aspergillus
+        fumigatus A1163","term":"Aspergillus fumigatus A1163"},"children":[]},{"data":{"display":"Aspergillus
+        fumigatus Af293","term":"Aspergillus fumigatus Af293"},"children":[]}]},{"data":{"display":"Aspergillus
+        glaucus","term":"Aspergillus glaucus"},"children":[{"data":{"display":"Aspergillus
+        glaucus CBS 516.65","term":"Aspergillus glaucus CBS 516.65"},"children":[]}]},{"data":{"display":"Aspergillus
+        heteromorphus","term":"Aspergillus heteromorphus"},"children":[{"data":{"display":"Aspergillus
+        heteromorphus CBS 117.55","term":"Aspergillus heteromorphus CBS 117.55"},"children":[]}]},{"data":{"display":"Aspergillus
+        homomorphus","term":"Aspergillus homomorphus"},"children":[{"data":{"display":"Aspergillus
+        homomorphus CBS 101889","term":"Aspergillus homomorphus CBS 101889"},"children":[]}]},{"data":{"display":"Aspergillus
+        ibericus","term":"Aspergillus ibericus"},"children":[{"data":{"display":"Aspergillus
+        ibericus CBS 121593","term":"Aspergillus ibericus CBS 121593"},"children":[]}]},{"data":{"display":"Aspergillus
+        lentulus","term":"Aspergillus lentulus"},"children":[{"data":{"display":"Aspergillus
+        lentulus strain IFM 54703","term":"Aspergillus lentulus strain IFM 54703"},"children":[]}]},{"data":{"display":"Aspergillus
+        luchuensis","term":"Aspergillus luchuensis"},"children":[{"data":{"display":"Aspergillus
+        luchuensis CBS 106.47","term":"Aspergillus luchuensis CBS 106.47"},"children":[]},{"data":{"display":"Aspergillus
+        luchuensis IFO 4308","term":"Aspergillus luchuensis IFO 4308"},"children":[]}]},{"data":{"display":"Aspergillus
+        nidulans","term":"Aspergillus nidulans"},"children":[{"data":{"display":"Aspergillus
+        nidulans FGSC A4","term":"Aspergillus nidulans FGSC A4"},"children":[]}]},{"data":{"display":"Aspergillus
+        niger","term":"Aspergillus niger"},"children":[{"data":{"display":"Aspergillus
+        niger ATCC 1015","term":"Aspergillus niger ATCC 1015"},"children":[]},{"data":{"display":"Aspergillus
+        niger ATCC 13496","term":"Aspergillus niger ATCC 13496"},"children":[]},{"data":{"display":"Aspergillus
+        niger CBS 513.88","term":"Aspergillus niger CBS 513.88"},"children":[]},{"data":{"display":"Aspergillus
+        niger strain N402 (ATCC64974)","term":"Aspergillus niger strain N402 (ATCC64974)"},"children":[]}]},{"data":{"display":"Aspergillus
+        novofumigatus","term":"Aspergillus novofumigatus"},"children":[{"data":{"display":"Aspergillus
+        novofumigatus IBT 16806","term":"Aspergillus novofumigatus IBT 16806"},"children":[]}]},{"data":{"display":"Aspergillus
+        ochraceoroseus","term":"Aspergillus ochraceoroseus"},"children":[{"data":{"display":"Aspergillus
+        ochraceoroseus IBT 24754","term":"Aspergillus ochraceoroseus IBT 24754"},"children":[]}]},{"data":{"display":"Aspergillus
+        oryzae","term":"Aspergillus oryzae"},"children":[{"data":{"display":"Aspergillus
+        oryzae RIB40","term":"Aspergillus oryzae RIB40"},"children":[]}]},{"data":{"display":"Aspergillus
+        parasiticus","term":"Aspergillus parasiticus"},"children":[{"data":{"display":"Aspergillus
+        parasiticus CBS 117618","term":"Aspergillus parasiticus CBS 117618"},"children":[]}]},{"data":{"display":"Aspergillus
+        sclerotiicarbonarius","term":"Aspergillus sclerotiicarbonarius"},"children":[{"data":{"display":"Aspergillus
+        sclerotiicarbonarius CBS 121057","term":"Aspergillus sclerotiicarbonarius
+        CBS 121057"},"children":[]}]},{"data":{"display":"Aspergillus steynii","term":"Aspergillus
+        steynii"},"children":[{"data":{"display":"Aspergillus steynii IBT 23096","term":"Aspergillus
+        steynii IBT 23096"},"children":[]}]},{"data":{"display":"Aspergillus sydowii","term":"Aspergillus
+        sydowii"},"children":[{"data":{"display":"Aspergillus sydowii CBS 593.65","term":"Aspergillus
+        sydowii CBS 593.65"},"children":[]}]},{"data":{"display":"Aspergillus tanneri","term":"Aspergillus
+        tanneri"},"children":[{"data":{"display":"Aspergillus tanneri NIH1004","term":"Aspergillus
+        tanneri NIH1004"},"children":[]}]},{"data":{"display":"Aspergillus terreus","term":"Aspergillus
+        terreus"},"children":[{"data":{"display":"Aspergillus terreus NIH2624","term":"Aspergillus
+        terreus NIH2624"},"children":[]}]},{"data":{"display":"Aspergillus thermomutatus","term":"Aspergillus
+        thermomutatus"},"children":[{"data":{"display":"Aspergillus thermomutatus
+        strain HMR AF 39","term":"Aspergillus thermomutatus strain HMR AF 39"},"children":[]}]},{"data":{"display":"Aspergillus
+        tubingensis","term":"Aspergillus tubingensis"},"children":[{"data":{"display":"Aspergillus
+        tubingensis CBS 134.48","term":"Aspergillus tubingensis CBS 134.48"},"children":[]}]},{"data":{"display":"Aspergillus
+        uvarum","term":"Aspergillus uvarum"},"children":[{"data":{"display":"Aspergillus
+        uvarum CBS 121591","term":"Aspergillus uvarum CBS 121591"},"children":[]}]},{"data":{"display":"Aspergillus
+        versicolor","term":"Aspergillus versicolor"},"children":[{"data":{"display":"Aspergillus
+        versicolor CBS 583.65","term":"Aspergillus versicolor CBS 583.65"},"children":[]}]},{"data":{"display":"Aspergillus
+        wentii","term":"Aspergillus wentii"},"children":[{"data":{"display":"Aspergillus
+        wentii DTO 134E9","term":"Aspergillus wentii DTO 134E9"},"children":[]}]}]},{"data":{"display":"Penicilliopsis","term":"Penicilliopsis"},"children":[{"data":{"display":"Penicilliopsis
+        zonata CBS 506.65","term":"Penicilliopsis zonata CBS 506.65"},"children":[]}]},{"data":{"display":"Penicillium","term":"Penicillium"},"children":[{"data":{"display":"Penicillium
+        digitatum","term":"Penicillium digitatum"},"children":[{"data":{"display":"Penicillium
+        digitatum Pd1","term":"Penicillium digitatum Pd1"},"children":[]}]},{"data":{"display":"Penicillium
+        expansum","term":"Penicillium expansum"},"children":[{"data":{"display":"Penicillium
+        expansum d1","term":"Penicillium expansum d1"},"children":[]}]},{"data":{"display":"Penicillium
+        rubens","term":"Penicillium rubens"},"children":[{"data":{"display":"Penicillium
+        rubens Wisconsin 54-1255","term":"Penicillium rubens Wisconsin 54-1255"},"children":[]}]}]}]},{"data":{"display":"Thermoascaceae","term":"Thermoascaceae"},"children":[{"data":{"display":"Paecilomyces
+        variotii CBS 101075","term":"Paecilomyces variotii CBS 101075"},"children":[]}]},{"data":{"display":"Trichocomaceae","term":"Trichocomaceae"},"children":[{"data":{"display":"Talaromyces
+        marneffei","term":"Talaromyces marneffei"},"children":[{"data":{"display":"Talaromyces
+        marneffei ATCC 18224","term":"Talaromyces marneffei ATCC 18224"},"children":[]}]},{"data":{"display":"Talaromyces
+        stipitatus","term":"Talaromyces stipitatus"},"children":[{"data":{"display":"Talaromyces
+        stipitatus ATCC 10500","term":"Talaromyces stipitatus ATCC 10500"},"children":[]}]}]}]},{"data":{"display":"Onygenales","term":"Onygenales"},"children":[{"data":{"display":"Ajellomycetaceae","term":"Ajellomycetaceae"},"children":[{"data":{"display":"Blastomyces","term":"Blastomyces"},"children":[{"data":{"display":"Blastomyces
+        dermatitidis","term":"Blastomyces dermatitidis"},"children":[{"data":{"display":"Blastomyces
+        dermatitidis ATCC 26199","term":"Blastomyces dermatitidis ATCC 26199"},"children":[]},{"data":{"display":"Blastomyces
+        dermatitidis ER-3","term":"Blastomyces dermatitidis ER-3"},"children":[]}]},{"data":{"display":"Blastomyces
+        gilchristii","term":"Blastomyces gilchristii"},"children":[{"data":{"display":"Blastomyces
+        gilchristii SLH14081","term":"Blastomyces gilchristii SLH14081"},"children":[]}]},{"data":{"display":"Blastomyces
+        percursus","term":"Blastomyces percursus"},"children":[{"data":{"display":"Blastomyces
+        percursus strain EI222","term":"Blastomyces percursus strain EI222"},"children":[]}]}]},{"data":{"display":"Emergomyces","term":"Emergomyces"},"children":[{"data":{"display":"Emergomyces
+        africanus","term":"Emergomyces africanus"},"children":[{"data":{"display":"Emergomyces
+        africanus CBS 136260","term":"Emergomyces africanus CBS 136260"},"children":[]}]},{"data":{"display":"Emergomyces
+        pasteurianus","term":"Emergomyces pasteurianus"},"children":[{"data":{"display":"Emergomyces
+        pasteurianus Ep9510","term":"Emergomyces pasteurianus Ep9510"},"children":[]}]}]},{"data":{"display":"Emmonsia","term":"Emmonsia"},"children":[{"data":{"display":"Emmonsia
+        crescens UAMH 3008","term":"Emmonsia crescens UAMH 3008"},"children":[]}]},{"data":{"display":"Histoplasma","term":"Histoplasma"},"children":[{"data":{"display":"Histoplasma
+        capsulatum G184AR","term":"Histoplasma capsulatum G184AR"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum G186AR","term":"Histoplasma capsulatum G186AR"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum G217B","term":"Histoplasma capsulatum G217B"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum H143","term":"Histoplasma capsulatum H143"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum H88","term":"Histoplasma capsulatum H88"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum NAm1","term":"Histoplasma capsulatum NAm1"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum WU24","term":"Histoplasma capsulatum WU24"},"children":[]}]}]},{"data":{"display":"Arthrodermataceae","term":"Arthrodermataceae"},"children":[{"data":{"display":"Microsporum","term":"Microsporum"},"children":[{"data":{"display":"Microsporum
+        canis CBS 113480","term":"Microsporum canis CBS 113480"},"children":[]}]},{"data":{"display":"Nannizzia","term":"Nannizzia"},"children":[{"data":{"display":"Nannizzia
+        gypsea CBS 118893","term":"Nannizzia gypsea CBS 118893"},"children":[]}]},{"data":{"display":"Trichophyton","term":"Trichophyton"},"children":[{"data":{"display":"Trichophyton
+        equinum","term":"Trichophyton equinum"},"children":[{"data":{"display":"Trichophyton
+        equinum CBS 127.97","term":"Trichophyton equinum CBS 127.97"},"children":[]}]},{"data":{"display":"Trichophyton
+        mentagrophytes","term":"Trichophyton mentagrophytes"},"children":[{"data":{"display":"Trichophyton
+        mentagrophytes TIMM 2789","term":"Trichophyton mentagrophytes TIMM 2789"},"children":[]}]},{"data":{"display":"Trichophyton
+        rubrum","term":"Trichophyton rubrum"},"children":[{"data":{"display":"Trichophyton
+        rubrum CBS 118892","term":"Trichophyton rubrum CBS 118892"},"children":[]}]},{"data":{"display":"Trichophyton
+        tonsurans","term":"Trichophyton tonsurans"},"children":[{"data":{"display":"Trichophyton
+        tonsurans CBS 112818","term":"Trichophyton tonsurans CBS 112818"},"children":[]}]}]}]},{"data":{"display":"Ascosphaeraceae","term":"Ascosphaeraceae"},"children":[{"data":{"display":"Ascosphaera
+        apis ARSEF 7405","term":"Ascosphaera apis ARSEF 7405"},"children":[]}]},{"data":{"display":"Coccidioides","term":"Coccidioides"},"children":[{"data":{"display":"Coccidioides
+        immitis","term":"Coccidioides immitis"},"children":[{"data":{"display":"Coccidioides
+        immitis H538.4","term":"Coccidioides immitis H538.4"},"children":[]},{"data":{"display":"Coccidioides
+        immitis RS","term":"Coccidioides immitis RS"},"children":[]},{"data":{"display":"Coccidioides
+        immitis WA_211","term":"Coccidioides immitis WA_211"},"children":[]}]},{"data":{"display":"Coccidioides
+        posadasii","term":"Coccidioides posadasii"},"children":[{"data":{"display":"Coccidioides
+        posadasii C735 delta SOWgp","term":"Coccidioides posadasii C735 delta SOWgp"},"children":[]},{"data":{"display":"Coccidioides
+        posadasii RMSCC 3488","term":"Coccidioides posadasii RMSCC 3488"},"children":[]},{"data":{"display":"Coccidioides
+        posadasii str. Silveira","term":"Coccidioides posadasii str. Silveira"},"children":[]},{"data":{"display":"Coccidioides
+        posadasii strain Silveira 2022","term":"Coccidioides posadasii strain Silveira
+        2022"},"children":[]}]}]},{"data":{"display":"Onygenaceae","term":"Onygenaceae"},"children":[{"data":{"display":"Uncinocarpus
+        reesii 1704","term":"Uncinocarpus reesii 1704"},"children":[]}]},{"data":{"display":"Paracoccidioides","term":"Paracoccidioides"},"children":[{"data":{"display":"Paracoccidioides
+        brasiliensis","term":"Paracoccidioides brasiliensis"},"children":[{"data":{"display":"Paracoccidioides
+        brasiliensis Pb03","term":"Paracoccidioides brasiliensis Pb03"},"children":[]},{"data":{"display":"Paracoccidioides
+        brasiliensis Pb18","term":"Paracoccidioides brasiliensis Pb18"},"children":[]}]},{"data":{"display":"Paracoccidioides
+        lutzii","term":"Paracoccidioides lutzii"},"children":[{"data":{"display":"Paracoccidioides
+        lutzii Pb01","term":"Paracoccidioides lutzii Pb01"},"children":[]}]}]}]}]},{"data":{"display":"Leotiomycetes","term":"Leotiomycetes"},"children":[{"data":{"display":"Erysiphales","term":"Erysiphales"},"children":[{"data":{"display":"Blumeria","term":"Blumeria"},"children":[{"data":{"display":"Blumeria
+        graminis","term":"Blumeria graminis"},"children":[{"data":{"display":"Blumeria
+        graminis f. sp. triticale THUN-12","term":"Blumeria graminis f. sp. triticale
+        THUN-12"},"children":[]},{"data":{"display":"Blumeria graminis f. sp. tritici
+        96224","term":"Blumeria graminis f. sp. tritici 96224"},"children":[]}]},{"data":{"display":"Blumeria
+        hordei","term":"Blumeria hordei"},"children":[{"data":{"display":"Blumeria
+        hordei strain RACE1","term":"Blumeria hordei strain RACE1"},"children":[]}]}]},{"data":{"display":"Podosphaera","term":"Podosphaera"},"children":[{"data":{"display":"Podosphaera
+        aphanis DRCT72020","term":"Podosphaera aphanis DRCT72020"},"children":[]}]}]},{"data":{"display":"Helotiales","term":"Helotiales"},"children":[{"data":{"display":"Botrytis","term":"Botrytis"},"children":[{"data":{"display":"Botrytis
+        cinerea B05.10","term":"Botrytis cinerea B05.10"},"children":[]}]},{"data":{"display":"Monilinia","term":"Monilinia"},"children":[{"data":{"display":"Monilinia
+        fructicola CPMC6","term":"Monilinia fructicola CPMC6"},"children":[]}]},{"data":{"display":"Sclerotinia","term":"Sclerotinia"},"children":[{"data":{"display":"Sclerotinia
+        sclerotiorum 1980 UF-70","term":"Sclerotinia sclerotiorum 1980 UF-70"},"children":[]}]}]},{"data":{"display":"Pseudeurotiaceae","term":"Pseudeurotiaceae"},"children":[{"data":{"display":"Pseudogymnoascus
+        destructans 20631-21","term":"Pseudogymnoascus destructans 20631-21"},"children":[]}]}]},{"data":{"display":"Orbiliomycetes","term":"Orbiliomycetes"},"children":[{"data":{"display":"Arthrobotrys
+        flagrans CBS H-5679","term":"Arthrobotrys flagrans CBS H-5679"},"children":[]}]},{"data":{"display":"Pezizomycetes","term":"Pezizomycetes"},"children":[{"data":{"display":"Pyronema
+        omphalodes CBS 100304","term":"Pyronema omphalodes CBS 100304"},"children":[]}]},{"data":{"display":"Pneumocystidomycetes","term":"Pneumocystidomycetes"},"children":[{"data":{"display":"Pneumocystis
+        canis","term":"Pneumocystis canis"},"children":[{"data":{"display":"Pneumocystis
+        canis CanA","term":"Pneumocystis canis CanA"},"children":[]}]},{"data":{"display":"Pneumocystis
+        carinii","term":"Pneumocystis carinii"},"children":[{"data":{"display":"Pneumocystis
+        carinii B80","term":"Pneumocystis carinii B80"},"children":[]}]},{"data":{"display":"Pneumocystis
+        jirovecii","term":"Pneumocystis jirovecii"},"children":[{"data":{"display":"Pneumocystis
+        jirovecii RU7","term":"Pneumocystis jirovecii RU7"},"children":[]},{"data":{"display":"Pneumocystis
+        jirovecii SE8","term":"Pneumocystis jirovecii SE8"},"children":[]}]},{"data":{"display":"Pneumocystis
+        murina","term":"Pneumocystis murina"},"children":[{"data":{"display":"Pneumocystis
+        murina B123","term":"Pneumocystis murina B123"},"children":[]}]},{"data":{"display":"Pneumocystis
+        oryctolagi","term":"Pneumocystis oryctolagi"},"children":[{"data":{"display":"Pneumocystis
+        oryctolagi CS1","term":"Pneumocystis oryctolagi CS1"},"children":[]}]},{"data":{"display":"Pneumocystis
+        sp. ''macacae''","term":"Pneumocystis sp. ''macacae''"},"children":[{"data":{"display":"Pneumocystis
+        sp. macacae isolate P2C","term":"Pneumocystis sp. macacae isolate P2C"},"children":[]}]},{"data":{"display":"Pneumocystis
+        wakefieldiae","term":"Pneumocystis wakefieldiae"},"children":[{"data":{"display":"Pneumocystis
+        wakefieldiae 2A","term":"Pneumocystis wakefieldiae 2A"},"children":[]}]}]},{"data":{"display":"Saccharomycetes","term":"Saccharomycetes"},"children":[{"data":{"display":"Debaryomycetaceae","term":"Debaryomycetaceae"},"children":[{"data":{"display":"Candida","term":"Candida"},"children":[{"data":{"display":"Candida
+        albicans","term":"Candida albicans"},"children":[{"data":{"display":"Candida
+        albicans SC5314","term":"Candida albicans SC5314"},"children":[]},{"data":{"display":"Candida
+        albicans SC5314_B","term":"Candida albicans SC5314_B"},"children":[]},{"data":{"display":"Candida
+        albicans WO-1","term":"Candida albicans WO-1"},"children":[]}]},{"data":{"display":"Candida
+        dubliniensis","term":"Candida dubliniensis"},"children":[{"data":{"display":"Candida
+        dubliniensis CD36","term":"Candida dubliniensis CD36"},"children":[]}]},{"data":{"display":"Candida
+        metapsilosis","term":"Candida metapsilosis"},"children":[{"data":{"display":"Candida
+        metapsilosis BP57","term":"Candida metapsilosis BP57"},"children":[]}]},{"data":{"display":"Candida
+        parapsilosis","term":"Candida parapsilosis"},"children":[{"data":{"display":"Candida
+        parapsilosis CDC317","term":"Candida parapsilosis CDC317"},"children":[]}]},{"data":{"display":"Candida
+        tropicalis","term":"Candida tropicalis"},"children":[{"data":{"display":"Candida
+        tropicalis MYA-3404","term":"Candida tropicalis MYA-3404"},"children":[]},{"data":{"display":"Candida
+        tropicalis MYA-3404 2020","term":"Candida tropicalis MYA-3404 2020"},"children":[]}]}]},{"data":{"display":"Debaryomyces","term":"Debaryomyces"},"children":[{"data":{"display":"Debaryomyces
+        fabryi","term":"Debaryomyces fabryi"},"children":[{"data":{"display":"Debaryomyces
+        fabryi CBS 789","term":"Debaryomyces fabryi CBS 789"},"children":[]}]},{"data":{"display":"Debaryomyces
+        hansenii","term":"Debaryomyces hansenii"},"children":[{"data":{"display":"Debaryomyces
+        hansenii CBS767","term":"Debaryomyces hansenii CBS767"},"children":[]}]}]},{"data":{"display":"Lodderomyces","term":"Lodderomyces"},"children":[{"data":{"display":"Lodderomyces
+        elongisporus NRRL YB-4239","term":"Lodderomyces elongisporus NRRL YB-4239"},"children":[]}]},{"data":{"display":"Meyerozyma","term":"Meyerozyma"},"children":[{"data":{"display":"Meyerozyma
+        guilliermondii ATCC 6260","term":"Meyerozyma guilliermondii ATCC 6260"},"children":[]}]}]},{"data":{"display":"Dipodascaceae","term":"Dipodascaceae"},"children":[{"data":{"display":"Yarrowia
+        lipolytica CLIB122","term":"Yarrowia lipolytica CLIB122"},"children":[]},{"data":{"display":"Yarrowia
+        lipolytica CLIB89 (W29)","term":"Yarrowia lipolytica CLIB89 (W29)"},"children":[]}]},{"data":{"display":"Diutina","term":"Diutina"},"children":[{"data":{"display":"Diutina
+        rugosa CBS 613","term":"Diutina rugosa CBS 613"},"children":[]}]},{"data":{"display":"Metschnikowiaceae","term":"Metschnikowiaceae"},"children":[{"data":{"display":"Clavispora
+        lusitaniae","term":"Clavispora lusitaniae"},"children":[{"data":{"display":"Clavispora
+        lusitaniae ATCC 42720","term":"Clavispora lusitaniae ATCC 42720"},"children":[]}]},{"data":{"display":"[Candida]
+        auris","term":"[Candida] auris"},"children":[{"data":{"display":"Candida auris
+        strain 6684","term":"Candida auris strain 6684"},"children":[]},{"data":{"display":"Candida
+        auris strain B11220","term":"Candida auris strain B11220"},"children":[]},{"data":{"display":"Candida
+        auris strain B11221","term":"Candida auris strain B11221"},"children":[]},{"data":{"display":"Candida
+        auris strain B11243","term":"Candida auris strain B11243"},"children":[]},{"data":{"display":"Candida
+        auris strain B11245","term":"Candida auris strain B11245"},"children":[]},{"data":{"display":"Candida
+        auris strain B8441","term":"Candida auris strain B8441"},"children":[]}]},{"data":{"display":"[Candida]
+        duobushaemulonis","term":"[Candida] duobushaemulonis"},"children":[{"data":{"display":"Candida
+        duobushaemulonis strain B09383","term":"Candida duobushaemulonis strain B09383"},"children":[]}]},{"data":{"display":"[Candida]
+        haemuloni","term":"[Candida] haemuloni"},"children":[{"data":{"display":"Candida
+        haemulonis B11899","term":"Candida haemulonis B11899"},"children":[]}]},{"data":{"display":"[Candida]
+        pseudohaemulonis","term":"[Candida] pseudohaemulonis"},"children":[{"data":{"display":"Candida
+        pseudohaemulonii strain B12108","term":"Candida pseudohaemulonii strain B12108"},"children":[]}]}]},{"data":{"display":"Phaffomycetaceae","term":"Phaffomycetaceae"},"children":[{"data":{"display":"Cyberlindnera
+        fabianii 65","term":"Cyberlindnera fabianii 65"},"children":[]}]},{"data":{"display":"Pichiaceae","term":"Pichiaceae"},"children":[{"data":{"display":"Pichia
+        kudriavzevii strain CBS573","term":"Pichia kudriavzevii strain CBS573"},"children":[]}]},{"data":{"display":"Saccharomycetaceae","term":"Saccharomycetaceae"},"children":[{"data":{"display":"Kluyveromyces","term":"Kluyveromyces"},"children":[{"data":{"display":"Kluyveromyces
+        lactis","term":"Kluyveromyces lactis"},"children":[{"data":{"display":"Kluyveromyces
+        lactis NRRL Y-1140","term":"Kluyveromyces lactis NRRL Y-1140"},"children":[]}]},{"data":{"display":"Kluyveromyces
+        marxianus","term":"Kluyveromyces marxianus"},"children":[{"data":{"display":"Kluyveromyces
+        marxianus DMKU3-1042","term":"Kluyveromyces marxianus DMKU3-1042"},"children":[]}]}]},{"data":{"display":"Nakaseomyces","term":"Nakaseomyces"},"children":[{"data":{"display":"Nakaseomyces
+        glabratus BG2","term":"Nakaseomyces glabratus BG2"},"children":[]},{"data":{"display":"Nakaseomyces
+        glabratus BG3993","term":"Nakaseomyces glabratus BG3993"},"children":[]},{"data":{"display":"Nakaseomyces
+        glabratus CBS 138","term":"Nakaseomyces glabratus CBS 138"},"children":[]},{"data":{"display":"Nakaseomyces
+        glabratus CBS138 2020","term":"Nakaseomyces glabratus CBS138 2020"},"children":[]},{"data":{"display":"Nakaseomyces
+        glabratus DSY562","term":"Nakaseomyces glabratus DSY562"},"children":[]}]},{"data":{"display":"Saccharomyces","term":"Saccharomyces"},"children":[{"data":{"display":"Saccharomyces
+        cerevisiae","term":"Saccharomyces cerevisiae"},"children":[{"data":{"display":"Saccharomyces
+        cerevisiae S288C","term":"Saccharomyces cerevisiae S288C"},"children":[]}]},{"data":{"display":"Saccharomyces
+        paradoxus","term":"Saccharomyces paradoxus"},"children":[{"data":{"display":"Saccharomyces
+        paradoxus CBS432","term":"Saccharomyces paradoxus CBS432"},"children":[]}]}]}]},{"data":{"display":"Saccharomycodaceae","term":"Saccharomycodaceae"},"children":[{"data":{"display":"Hanseniaspora","term":"Hanseniaspora"},"children":[{"data":{"display":"Hanseniaspora
+        guilliermondii","term":"Hanseniaspora guilliermondii"},"children":[{"data":{"display":"Hanseniaspora
+        guilliermondii strain UTAD222","term":"Hanseniaspora guilliermondii strain
+        UTAD222"},"children":[]}]},{"data":{"display":"Hanseniaspora uvarum","term":"Hanseniaspora
+        uvarum"},"children":[{"data":{"display":"Hanseniaspora uvarum strain AWRI3580","term":"Hanseniaspora
+        uvarum strain AWRI3580"},"children":[]}]}]},{"data":{"display":"Saccharomycodes","term":"Saccharomycodes"},"children":[{"data":{"display":"Saccharomycodes
+        ludwigii UTAD17","term":"Saccharomycodes ludwigii UTAD17"},"children":[]}]}]},{"data":{"display":"Trichomonascaceae","term":"Trichomonascaceae"},"children":[{"data":{"display":"Trichomonascus
+        ciferrii CBS 4856","term":"Trichomonascus ciferrii CBS 4856"},"children":[]}]}]},{"data":{"display":"Schizosaccharomycetes","term":"Schizosaccharomycetes"},"children":[{"data":{"display":"Schizosaccharomyces
+        japonicus","term":"Schizosaccharomyces japonicus"},"children":[{"data":{"display":"Schizosaccharomyces
+        japonicus yFS275","term":"Schizosaccharomyces japonicus yFS275"},"children":[]}]},{"data":{"display":"Schizosaccharomyces
+        octosporus","term":"Schizosaccharomyces octosporus"},"children":[{"data":{"display":"Schizosaccharomyces
+        octosporus yFS286","term":"Schizosaccharomyces octosporus yFS286"},"children":[]}]},{"data":{"display":"Schizosaccharomyces
+        pombe","term":"Schizosaccharomyces pombe"},"children":[{"data":{"display":"Schizosaccharomyces
+        pombe 972h-","term":"Schizosaccharomyces pombe 972h-"},"children":[]}]}]},{"data":{"display":"Sordariomycetes","term":"Sordariomycetes"},"children":[{"data":{"display":"Glomerellales","term":"Glomerellales"},"children":[{"data":{"display":"Glomerellaceae","term":"Glomerellaceae"},"children":[{"data":{"display":"Colletotrichum
+        graminicola","term":"Colletotrichum graminicola"},"children":[{"data":{"display":"Colletotrichum
+        graminicola M1.001","term":"Colletotrichum graminicola M1.001"},"children":[]}]},{"data":{"display":"Colletotrichum
+        higginsianum","term":"Colletotrichum higginsianum"},"children":[{"data":{"display":"Colletotrichum
+        higginsianum IMI 349063","term":"Colletotrichum higginsianum IMI 349063"},"children":[]}]}]},{"data":{"display":"Plectosphaerellaceae","term":"Plectosphaerellaceae"},"children":[{"data":{"display":"Verticillium
+        dahliae JR2","term":"Verticillium dahliae JR2"},"children":[]}]}]},{"data":{"display":"Hypocreales","term":"Hypocreales"},"children":[{"data":{"display":"Clavicipitaceae","term":"Clavicipitaceae"},"children":[{"data":{"display":"Claviceps","term":"Claviceps"},"children":[{"data":{"display":"Claviceps
+        purpurea 20.1","term":"Claviceps purpurea 20.1"},"children":[]}]},{"data":{"display":"Metarhizium","term":"Metarhizium"},"children":[{"data":{"display":"Metarhizium
+        anisopliae ARSEF 549","term":"Metarhizium anisopliae ARSEF 549"},"children":[]}]}]},{"data":{"display":"Cordycipitaceae","term":"Cordycipitaceae"},"children":[{"data":{"display":"Cordyceps
+        militaris ATCC 34164","term":"Cordyceps militaris ATCC 34164"},"children":[]},{"data":{"display":"Cordyceps
+        militaris CM01","term":"Cordyceps militaris CM01"},"children":[]}]},{"data":{"display":"Hypocreaceae","term":"Hypocreaceae"},"children":[{"data":{"display":"Trichoderma
+        reesei","term":"Trichoderma reesei"},"children":[{"data":{"display":"Trichoderma
+        reesei QM6a","term":"Trichoderma reesei QM6a"},"children":[]},{"data":{"display":"Trichoderma
+        reesei QM6a 2017","term":"Trichoderma reesei QM6a 2017"},"children":[]}]},{"data":{"display":"Trichoderma
+        virens","term":"Trichoderma virens"},"children":[{"data":{"display":"Trichoderma
+        virens Gv29-8","term":"Trichoderma virens Gv29-8"},"children":[]}]}]},{"data":{"display":"Nectriaceae","term":"Nectriaceae"},"children":[{"data":{"display":"Fusarium
+        circinatum","term":"Fusarium circinatum"},"children":[{"data":{"display":"Fusarium
+        circinatum NRRL 25331","term":"Fusarium circinatum NRRL 25331"},"children":[]}]},{"data":{"display":"Fusarium
+        fujikuroi","term":"Fusarium fujikuroi"},"children":[{"data":{"display":"Fusarium
+        fujikuroi IMI 58289","term":"Fusarium fujikuroi IMI 58289"},"children":[]}]},{"data":{"display":"Fusarium
+        graminearum","term":"Fusarium graminearum"},"children":[{"data":{"display":"Fusarium
+        graminearum PH-1","term":"Fusarium graminearum PH-1"},"children":[]}]},{"data":{"display":"Fusarium
+        mangiferae","term":"Fusarium mangiferae"},"children":[{"data":{"display":"Fusarium
+        mangiferae MRC7560","term":"Fusarium mangiferae MRC7560"},"children":[]}]},{"data":{"display":"Fusarium
+        odoratissimum","term":"Fusarium odoratissimum"},"children":[{"data":{"display":"Fusarium
+        odoratissimum NRRL 54006","term":"Fusarium odoratissimum NRRL 54006"},"children":[]},{"data":{"display":"Fusarium
+        odoratissimum strain race 4","term":"Fusarium odoratissimum strain race 4"},"children":[]}]},{"data":{"display":"Fusarium
+        oxysporum","term":"Fusarium oxysporum"},"children":[{"data":{"display":"Fusarium
+        oxysporum Fo47","term":"Fusarium oxysporum Fo47"},"children":[]},{"data":{"display":"Fusarium
+        oxysporum NRRL 32931","term":"Fusarium oxysporum NRRL 32931"},"children":[]},{"data":{"display":"Fusarium
+        oxysporum f. sp. conglutinans Fo5176","term":"Fusarium oxysporum f. sp. conglutinans
+        Fo5176"},"children":[]},{"data":{"display":"Fusarium oxysporum f. sp. cubense
+        race 1","term":"Fusarium oxysporum f. sp. cubense race 1"},"children":[]},{"data":{"display":"Fusarium
+        oxysporum f. sp. lycopersici 4287","term":"Fusarium oxysporum f. sp. lycopersici
+        4287"},"children":[]},{"data":{"display":"Fusarium oxysporum f. sp. melonis
+        26406","term":"Fusarium oxysporum f. sp. melonis 26406"},"children":[]}]},{"data":{"display":"Fusarium
+        proliferatum","term":"Fusarium proliferatum"},"children":[{"data":{"display":"Fusarium
+        proliferatum ET1","term":"Fusarium proliferatum ET1"},"children":[]},{"data":{"display":"Fusarium
+        proliferatum strain NRRL62905","term":"Fusarium proliferatum strain NRRL62905"},"children":[]}]},{"data":{"display":"Fusarium
+        solani","term":"Fusarium solani"},"children":[{"data":{"display":"Fusarium
+        solani FSSC 5 MPI-SDFR-AT-0091","term":"Fusarium solani FSSC 5 MPI-SDFR-AT-0091"},"children":[]}]},{"data":{"display":"Fusarium
+        vanettenii","term":"Fusarium vanettenii"},"children":[{"data":{"display":"Fusarium
+        vanettenii 77-13-4","term":"Fusarium vanettenii 77-13-4"},"children":[]}]},{"data":{"display":"Fusarium
+        verticillioides","term":"Fusarium verticillioides"},"children":[{"data":{"display":"Fusarium
+        verticillioides 7600","term":"Fusarium verticillioides 7600"},"children":[]}]}]},{"data":{"display":"Stachybotryaceae","term":"Stachybotryaceae"},"children":[{"data":{"display":"Stachybotrys
+        chartarum IBT 40293","term":"Stachybotrys chartarum IBT 40293"},"children":[]}]}]},{"data":{"display":"Magnaporthales","term":"Magnaporthales"},"children":[{"data":{"display":"Magnaporthaceae","term":"Magnaporthaceae"},"children":[{"data":{"display":"Gaeumannomyces","term":"Gaeumannomyces"},"children":[{"data":{"display":"Gaeumannomyces
+        tritici R3-111a-1","term":"Gaeumannomyces tritici R3-111a-1"},"children":[]}]},{"data":{"display":"Magnaporthiopsis","term":"Magnaporthiopsis"},"children":[{"data":{"display":"Magnaporthiopsis
+        poae ATCC 64411","term":"Magnaporthiopsis poae ATCC 64411"},"children":[]}]}]},{"data":{"display":"Pyriculariaceae","term":"Pyriculariaceae"},"children":[{"data":{"display":"Pyricularia
+        oryzae","term":"Pyricularia oryzae"},"children":[{"data":{"display":"Pyricularia
+        oryzae 70-15","term":"Pyricularia oryzae 70-15"},"children":[]},{"data":{"display":"Pyricularia
+        oryzae BR32","term":"Pyricularia oryzae BR32"},"children":[]}]},{"data":{"display":"Pyricularia
+        pennisetigena","term":"Pyricularia pennisetigena"},"children":[{"data":{"display":"Pyricularia
+        pennisetigena Br36","term":"Pyricularia pennisetigena Br36"},"children":[]}]}]}]},{"data":{"display":"Microascales","term":"Microascales"},"children":[{"data":{"display":"Lomentospora","term":"Lomentospora"},"children":[{"data":{"display":"Lomentospora
+        prolificans JHH-5317","term":"Lomentospora prolificans JHH-5317"},"children":[]}]},{"data":{"display":"Scedosporium","term":"Scedosporium"},"children":[{"data":{"display":"Scedosporium
+        apiospermum IHEM 14462","term":"Scedosporium apiospermum IHEM 14462"},"children":[]}]}]},{"data":{"display":"Ophiostomatales","term":"Ophiostomatales"},"children":[{"data":{"display":"Ophiostoma","term":"Ophiostoma"},"children":[{"data":{"display":"Ophiostoma
+        piceae UAMH 11346","term":"Ophiostoma piceae UAMH 11346"},"children":[]}]},{"data":{"display":"Raffaelea","term":"Raffaelea"},"children":[{"data":{"display":"Raffaelea
+        lauricola RL4","term":"Raffaelea lauricola RL4"},"children":[]}]},{"data":{"display":"Sporothrix","term":"Sporothrix"},"children":[{"data":{"display":"Sporothrix
+        brasiliensis","term":"Sporothrix brasiliensis"},"children":[{"data":{"display":"Sporothrix
+        brasiliensis 5110","term":"Sporothrix brasiliensis 5110"},"children":[]}]},{"data":{"display":"Sporothrix
+        schenckii","term":"Sporothrix schenckii"},"children":[{"data":{"display":"Sporothrix
+        schenckii 1099-18","term":"Sporothrix schenckii 1099-18"},"children":[]}]}]}]},{"data":{"display":"Sordariales","term":"Sordariales"},"children":[{"data":{"display":"Chaetomiaceae","term":"Chaetomiaceae"},"children":[{"data":{"display":"Chaetomium","term":"Chaetomium"},"children":[{"data":{"display":"Chaetomium
+        globosum CBS 148.51","term":"Chaetomium globosum CBS 148.51"},"children":[]}]},{"data":{"display":"Podospora","term":"Podospora"},"children":[{"data":{"display":"Podospora
+        anserina","term":"Podospora anserina"},"children":[{"data":{"display":"Podospora
+        anserina S mat+","term":"Podospora anserina S mat+"},"children":[]}]},{"data":{"display":"Podospora
+        comata","term":"Podospora comata"},"children":[{"data":{"display":"Podospora
+        comata strain T mat+","term":"Podospora comata strain T mat+"},"children":[]}]}]},{"data":{"display":"Thermothelomyces","term":"Thermothelomyces"},"children":[{"data":{"display":"Thermothelomyces
+        thermophilus ATCC 42464","term":"Thermothelomyces thermophilus ATCC 42464"},"children":[]}]}]},{"data":{"display":"Madurella","term":"Madurella"},"children":[{"data":{"display":"Madurella
+        mycetomatis mm55","term":"Madurella mycetomatis mm55"},"children":[]}]},{"data":{"display":"Sordariaceae","term":"Sordariaceae"},"children":[{"data":{"display":"Neurospora","term":"Neurospora"},"children":[{"data":{"display":"Neurospora
+        crassa","term":"Neurospora crassa"},"children":[{"data":{"display":"Neurospora
+        crassa OR74A","term":"Neurospora crassa OR74A"},"children":[]}]},{"data":{"display":"Neurospora
+        discreta","term":"Neurospora discreta"},"children":[{"data":{"display":"Neurospora
+        discreta FGSC 8579","term":"Neurospora discreta FGSC 8579"},"children":[]}]},{"data":{"display":"Neurospora
+        tetrasperma","term":"Neurospora tetrasperma"},"children":[{"data":{"display":"Neurospora
+        tetrasperma FGSC 2508","term":"Neurospora tetrasperma FGSC 2508"},"children":[]}]}]},{"data":{"display":"Sordaria","term":"Sordaria"},"children":[{"data":{"display":"Sordaria
+        macrospora k-hell","term":"Sordaria macrospora k-hell"},"children":[]}]}]}]},{"data":{"display":"Xylariales","term":"Xylariales"},"children":[{"data":{"display":"Xylaria
+        arbuscula CBS 124340","term":"Xylaria arbuscula CBS 124340"},"children":[]}]}]},{"data":{"display":"Taphrinomycetes","term":"Taphrinomycetes"},"children":[{"data":{"display":"Taphrina
+        deformans PYCC 5710","term":"Taphrina deformans PYCC 5710"},"children":[]}]}]},{"data":{"display":"Basidiomycota","term":"Basidiomycota"},"children":[{"data":{"display":"Agaricomycetes","term":"Agaricomycetes"},"children":[{"data":{"display":"Agaricales","term":"Agaricales"},"children":[{"data":{"display":"Pleurotaceae","term":"Pleurotaceae"},"children":[{"data":{"display":"Pleurotus
+        ostreatus PC15","term":"Pleurotus ostreatus PC15"},"children":[]},{"data":{"display":"Pleurotus
+        ostreatus PC9","term":"Pleurotus ostreatus PC9"},"children":[]}]},{"data":{"display":"Psathyrellaceae","term":"Psathyrellaceae"},"children":[{"data":{"display":"Coprinopsis
+        cinerea #326","term":"Coprinopsis cinerea #326"},"children":[]},{"data":{"display":"Coprinopsis
+        cinerea okayama7#130","term":"Coprinopsis cinerea okayama7#130"},"children":[]}]},{"data":{"display":"Schizophyllaceae","term":"Schizophyllaceae"},"children":[{"data":{"display":"Schizophyllum
+        commune H4-8","term":"Schizophyllum commune H4-8"},"children":[]}]}]},{"data":{"display":"Hymenochaetales","term":"Hymenochaetales"},"children":[{"data":{"display":"Rickenella
+        mellea Ricmel1","term":"Rickenella mellea Ricmel1"},"children":[]}]},{"data":{"display":"Polyporales","term":"Polyporales"},"children":[{"data":{"display":"Phanerochaetaceae","term":"Phanerochaetaceae"},"children":[{"data":{"display":"Phanerochaete
+        chrysosporium RP-78","term":"Phanerochaete chrysosporium RP-78"},"children":[]}]},{"data":{"display":"Polyporaceae","term":"Polyporaceae"},"children":[{"data":{"display":"Lentinus
+        tigrinus ALCF2SS1-7","term":"Lentinus tigrinus ALCF2SS1-7"},"children":[]}]}]}]},{"data":{"display":"Malasseziomycetes","term":"Malasseziomycetes"},"children":[{"data":{"display":"Malassezia
+        globosa","term":"Malassezia globosa"},"children":[{"data":{"display":"Malassezia
+        globosa CBS 7966","term":"Malassezia globosa CBS 7966"},"children":[]}]},{"data":{"display":"Malassezia
+        pachydermatis","term":"Malassezia pachydermatis"},"children":[{"data":{"display":"Malassezia
+        pachydermatis CBS 1879","term":"Malassezia pachydermatis CBS 1879"},"children":[]}]},{"data":{"display":"Malassezia
+        restricta","term":"Malassezia restricta"},"children":[{"data":{"display":"Malassezia
+        restricta CBS 7877","term":"Malassezia restricta CBS 7877"},"children":[]},{"data":{"display":"Malassezia
+        restricta KCTC 27527","term":"Malassezia restricta KCTC 27527"},"children":[]}]},{"data":{"display":"Malassezia
+        sympodialis","term":"Malassezia sympodialis"},"children":[{"data":{"display":"Malassezia
+        sympodialis ATCC 42132","term":"Malassezia sympodialis ATCC 42132"},"children":[]}]}]},{"data":{"display":"Pucciniomycetes","term":"Pucciniomycetes"},"children":[{"data":{"display":"Hemileia","term":"Hemileia"},"children":[{"data":{"display":"Hemileia
+        vastatrix Race XXXIII","term":"Hemileia vastatrix Race XXXIII"},"children":[]}]},{"data":{"display":"Melampsoraceae","term":"Melampsoraceae"},"children":[{"data":{"display":"Melampsora
+        larici-populina 98AG31","term":"Melampsora larici-populina 98AG31"},"children":[]}]},{"data":{"display":"Pucciniaceae","term":"Pucciniaceae"},"children":[{"data":{"display":"Puccinia
+        graminis","term":"Puccinia graminis"},"children":[{"data":{"display":"Puccinia
+        graminis f. sp. tritici CRL 75-36-700-3","term":"Puccinia graminis f. sp.
+        tritici CRL 75-36-700-3"},"children":[]}]},{"data":{"display":"Puccinia sorghi","term":"Puccinia
+        sorghi"},"children":[{"data":{"display":"Puccinia sorghi strain RO10H11247","term":"Puccinia
+        sorghi strain RO10H11247"},"children":[]}]},{"data":{"display":"Puccinia striiformis","term":"Puccinia
+        striiformis"},"children":[{"data":{"display":"Puccinia striiformis 93TX-2","term":"Puccinia
+        striiformis 93TX-2"},"children":[]},{"data":{"display":"Puccinia striiformis
+        strain 93-210","term":"Puccinia striiformis strain 93-210"},"children":[]}]},{"data":{"display":"Puccinia
+        triticina","term":"Puccinia triticina"},"children":[{"data":{"display":"Puccinia
+        triticina 1-1 BBBD Race 1","term":"Puccinia triticina 1-1 BBBD Race 1"},"children":[]}]}]}]},{"data":{"display":"Tremellomycetes","term":"Tremellomycetes"},"children":[{"data":{"display":"Tremellales","term":"Tremellales"},"children":[{"data":{"display":"Cryptococcaceae","term":"Cryptococcaceae"},"children":[{"data":{"display":"Cryptococcus","term":"Cryptococcus"},"children":[{"data":{"display":"Cryptococcus
+        cf. gattii","term":"Cryptococcus cf. gattii"},"children":[{"data":{"display":"Cryptococcus
+        cf. gattii MF34","term":"Cryptococcus cf. gattii MF34"},"children":[]}]},{"data":{"display":"Cryptococcus
+        depauperatus","term":"Cryptococcus depauperatus"},"children":[{"data":{"display":"Cryptococcus
+        depauperatus CBS 7841","term":"Cryptococcus depauperatus CBS 7841"},"children":[]},{"data":{"display":"Cryptococcus
+        depauperatus CBS 7855","term":"Cryptococcus depauperatus CBS 7855"},"children":[]}]},{"data":{"display":"Cryptococcus
+        gattii VGI","term":"Cryptococcus gattii VGI"},"children":[{"data":{"display":"Cryptococcus
+        gattii EJB2","term":"Cryptococcus gattii EJB2"},"children":[]},{"data":{"display":"Cryptococcus
+        gattii NT-10","term":"Cryptococcus gattii NT-10"},"children":[]},{"data":{"display":"Cryptococcus
+        gattii WM276","term":"Cryptococcus gattii WM276"},"children":[]}]},{"data":{"display":"Cryptococcus
+        gattii VGII","term":"Cryptococcus gattii VGII"},"children":[{"data":{"display":"Cryptococcus
+        gattii VGII R265","term":"Cryptococcus gattii VGII R265"},"children":[]}]},{"data":{"display":"Cryptococcus
+        gattii VGIII","term":"Cryptococcus gattii VGIII"},"children":[{"data":{"display":"Cryptococcus
+        gattii CA1873","term":"Cryptococcus gattii CA1873"},"children":[]}]},{"data":{"display":"Cryptococcus
+        gattii VGIV","term":"Cryptococcus gattii VGIV"},"children":[{"data":{"display":"Cryptococcus
+        gattii VGIV IND107","term":"Cryptococcus gattii VGIV IND107"},"children":[]}]},{"data":{"display":"Cryptococcus
+        neoformans","term":"Cryptococcus neoformans"},"children":[{"data":{"display":"Cryptococcus
+        neoformans strain:VNII","term":"Cryptococcus neoformans strain:VNII"},"children":[]},{"data":{"display":"Cryptococcus
+        neoformans var. grubii H99","term":"Cryptococcus neoformans var. grubii H99"},"children":[]},{"data":{"display":"Cryptococcus
+        neoformans var. grubii KN99","term":"Cryptococcus neoformans var. grubii KN99"},"children":[]},{"data":{"display":"Cryptococcus
+        neoformans var. neoformans B-3501A","term":"Cryptococcus neoformans var. neoformans
+        B-3501A"},"children":[]},{"data":{"display":"Cryptococcus neoformans var.
+        neoformans JEC21","term":"Cryptococcus neoformans var. neoformans JEC21"},"children":[]}]}]},{"data":{"display":"Kwoniella","term":"Kwoniella"},"children":[{"data":{"display":"Kwoniella
+        bestiolae","term":"Kwoniella bestiolae"},"children":[{"data":{"display":"Kwoniella
+        bestiolae CBS 10118","term":"Kwoniella bestiolae CBS 10118"},"children":[]}]},{"data":{"display":"Kwoniella
+        dejecticola","term":"Kwoniella dejecticola"},"children":[{"data":{"display":"Kwoniella
+        dejecticola CBS 10117","term":"Kwoniella dejecticola CBS 10117"},"children":[]}]},{"data":{"display":"Kwoniella
+        heveanensis","term":"Kwoniella heveanensis"},"children":[{"data":{"display":"Kwoniella
+        heveanensis CBS 569","term":"Kwoniella heveanensis CBS 569"},"children":[]}]},{"data":{"display":"Kwoniella
+        mangrovensis","term":"Kwoniella mangrovensis"},"children":[{"data":{"display":"Kwoniella
+        mangroviensis CBS 8507","term":"Kwoniella mangroviensis CBS 8507"},"children":[]}]}]}]},{"data":{"display":"Tremellaceae","term":"Tremellaceae"},"children":[{"data":{"display":"Tremella
+        mesenterica DSM 1558","term":"Tremella mesenterica DSM 1558"},"children":[]}]}]},{"data":{"display":"Trichosporonales","term":"Trichosporonales"},"children":[{"data":{"display":"Trichosporon
+        asahii var. asahii CBS 2479","term":"Trichosporon asahii var. asahii CBS 2479"},"children":[]}]}]},{"data":{"display":"Ustilaginomycetes","term":"Ustilaginomycetes"},"children":[{"data":{"display":"Sporisorium","term":"Sporisorium"},"children":[{"data":{"display":"Sporisorium
+        reilianum SRZ2","term":"Sporisorium reilianum SRZ2"},"children":[]}]},{"data":{"display":"Ustilago","term":"Ustilago"},"children":[{"data":{"display":"Ustilago
+        maydis 521","term":"Ustilago maydis 521"},"children":[]}]}]}]},{"data":{"display":"Blastocladiomycota","term":"Blastocladiomycota"},"children":[{"data":{"display":"Allomyces
+        macrogynus ATCC 38327","term":"Allomyces macrogynus ATCC 38327"},"children":[]}]},{"data":{"display":"Chytridiomycota","term":"Chytridiomycota"},"children":[{"data":{"display":"Rhizophydiales","term":"Rhizophydiales"},"children":[{"data":{"display":"Batrachochytrium
+        dendrobatidis","term":"Batrachochytrium dendrobatidis"},"children":[{"data":{"display":"Batrachochytrium
+        dendrobatidis JEL423","term":"Batrachochytrium dendrobatidis JEL423"},"children":[]}]},{"data":{"display":"Batrachochytrium
+        salamandrivorans","term":"Batrachochytrium salamandrivorans"},"children":[{"data":{"display":"Batrachochytrium
+        salamandrivorans BS","term":"Batrachochytrium salamandrivorans BS"},"children":[]}]}]},{"data":{"display":"Spizellomycetales","term":"Spizellomycetales"},"children":[{"data":{"display":"Spizellomyces
+        punctatus DAOM BR117","term":"Spizellomyces punctatus DAOM BR117"},"children":[]}]},{"data":{"display":"Synchytriales","term":"Synchytriales"},"children":[{"data":{"display":"Synchytrium
+        endobioticum MB42","term":"Synchytrium endobioticum MB42"},"children":[]}]}]},{"data":{"display":"Mucoromycota","term":"Mucoromycota"},"children":[{"data":{"display":"Glomeromycetes","term":"Glomeromycetes"},"children":[{"data":{"display":"Rhizophagus
+        irregularis A1 (DAOM-664342)","term":"Rhizophagus irregularis A1 (DAOM-664342)"},"children":[]},{"data":{"display":"Rhizophagus
+        irregularis C2","term":"Rhizophagus irregularis C2"},"children":[]},{"data":{"display":"Rhizophagus
+        irregularis DAOM 181602=DAOM 197198","term":"Rhizophagus irregularis DAOM
+        181602=DAOM 197198"},"children":[]}]},{"data":{"display":"Mucoromycetes","term":"Mucoromycetes"},"children":[{"data":{"display":"Lichtheimiaceae","term":"Lichtheimiaceae"},"children":[{"data":{"display":"Lichtheimia
+        corymbifera JMRC:FSU:9682","term":"Lichtheimia corymbifera JMRC:FSU:9682"},"children":[]}]},{"data":{"display":"Mucoraceae","term":"Mucoraceae"},"children":[{"data":{"display":"Mucor
+        circinelloides","term":"Mucor circinelloides"},"children":[{"data":{"display":"Mucor
+        circinelloides 1006PhL","term":"Mucor circinelloides 1006PhL"},"children":[]}]},{"data":{"display":"Mucor
+        lusitanicus","term":"Mucor lusitanicus"},"children":[{"data":{"display":"Mucor
+        lusitanicus CBS 277.49","term":"Mucor lusitanicus CBS 277.49"},"children":[]}]}]},{"data":{"display":"Phycomycetaceae","term":"Phycomycetaceae"},"children":[{"data":{"display":"Phycomyces
+        blakesleeanus NRRL 1555(-)","term":"Phycomyces blakesleeanus NRRL 1555(-)"},"children":[]}]},{"data":{"display":"Rhizopodaceae","term":"Rhizopodaceae"},"children":[{"data":{"display":"Rhizopus
+        delemar","term":"Rhizopus delemar"},"children":[{"data":{"display":"Rhizopus
+        delemar RA 99-880","term":"Rhizopus delemar RA 99-880"},"children":[]}]},{"data":{"display":"Rhizopus
+        microsporus","term":"Rhizopus microsporus"},"children":[{"data":{"display":"Rhizopus
+        microsporus var. microsporus ATCC 52814","term":"Rhizopus microsporus var.
+        microsporus ATCC 52814"},"children":[]}]}]}]}]}]},{"data":{"display":"Oomycota","term":"Oomycota"},"children":[{"data":{"display":"Albuginales","term":"Albuginales"},"children":[{"data":{"display":"Albugo
+        candida","term":"Albugo candida"},"children":[{"data":{"display":"Albugo candida
+        2VRR","term":"Albugo candida 2VRR"},"children":[]}]},{"data":{"display":"Albugo
+        laibachii","term":"Albugo laibachii"},"children":[{"data":{"display":"Albugo
+        laibachii Nc14","term":"Albugo laibachii Nc14"},"children":[]}]}]},{"data":{"display":"Peronosporales","term":"Peronosporales"},"children":[{"data":{"display":"Bremia","term":"Bremia"},"children":[{"data":{"display":"Bremia
+        lactucae strain SF5","term":"Bremia lactucae strain SF5"},"children":[]}]},{"data":{"display":"Hyaloperonospora","term":"Hyaloperonospora"},"children":[{"data":{"display":"Hyaloperonospora
+        arabidopsidis Emoy2","term":"Hyaloperonospora arabidopsidis Emoy2"},"children":[]}]},{"data":{"display":"Peronospora","term":"Peronospora"},"children":[{"data":{"display":"Peronospora
+        effusa R13","term":"Peronospora effusa R13"},"children":[]}]},{"data":{"display":"Phytophthora","term":"Phytophthora"},"children":[{"data":{"display":"Phytophthora
+        cactorum","term":"Phytophthora cactorum"},"children":[{"data":{"display":"Phytophthora
+        cactorum 10300","term":"Phytophthora cactorum 10300"},"children":[]}]},{"data":{"display":"Phytophthora
+        capsici","term":"Phytophthora capsici"},"children":[{"data":{"display":"Phytophthora
+        capsici LT1534","term":"Phytophthora capsici LT1534"},"children":[]}]},{"data":{"display":"Phytophthora
+        cinnamomi","term":"Phytophthora cinnamomi"},"children":[{"data":{"display":"Phytophthora
+        cinnamomi GKB4","term":"Phytophthora cinnamomi GKB4"},"children":[]}]},{"data":{"display":"Phytophthora
+        infestans","term":"Phytophthora infestans"},"children":[{"data":{"display":"Phytophthora
+        infestans T30-4","term":"Phytophthora infestans T30-4"},"children":[]}]},{"data":{"display":"Phytophthora
+        palmivora","term":"Phytophthora palmivora"},"children":[{"data":{"display":"Phytophthora
+        palmivora var. palmivora strain sbr112.9","term":"Phytophthora palmivora var.
+        palmivora strain sbr112.9"},"children":[]}]},{"data":{"display":"Phytophthora
+        parasitica","term":"Phytophthora parasitica"},"children":[{"data":{"display":"Phytophthora
+        parasitica INRA-310","term":"Phytophthora parasitica INRA-310"},"children":[]}]},{"data":{"display":"Phytophthora
+        ramorum","term":"Phytophthora ramorum"},"children":[{"data":{"display":"Phytophthora
+        ramorum 14567","term":"Phytophthora ramorum 14567"},"children":[]},{"data":{"display":"Phytophthora
+        ramorum strain Pr102","term":"Phytophthora ramorum strain Pr102"},"children":[]}]},{"data":{"display":"Phytophthora
+        sojae","term":"Phytophthora sojae"},"children":[{"data":{"display":"Phytophthora
+        sojae strain P6497","term":"Phytophthora sojae strain P6497"},"children":[]}]}]}]},{"data":{"display":"Pythiales","term":"Pythiales"},"children":[{"data":{"display":"Globisporangium","term":"Globisporangium"},"children":[{"data":{"display":"Globisporangium
+        irregulare","term":"Globisporangium irregulare"},"children":[{"data":{"display":"Globisporangium
+        irregulare DAOM BR486","term":"Globisporangium irregulare DAOM BR486"},"children":[]}]},{"data":{"display":"Globisporangium
+        iwayamae","term":"Globisporangium iwayamae"},"children":[{"data":{"display":"Globisporangium
+        iwayamae DAOM BR242034","term":"Globisporangium iwayamae DAOM BR242034"},"children":[]}]},{"data":{"display":"Globisporangium
+        ultimum","term":"Globisporangium ultimum"},"children":[{"data":{"display":"Globisporangium
+        ultimum DAOM BR144","term":"Globisporangium ultimum DAOM BR144"},"children":[]},{"data":{"display":"Globisporangium
+        ultimum var. sporangiiferum BR650","term":"Globisporangium ultimum var. sporangiiferum
+        BR650"},"children":[]}]}]},{"data":{"display":"Phytopythium","term":"Phytopythium"},"children":[{"data":{"display":"Phytopythium
+        vexans DAOM BR484","term":"Phytopythium vexans DAOM BR484"},"children":[]}]},{"data":{"display":"Pythium","term":"Pythium"},"children":[{"data":{"display":"Pythium
+        aphanidermatum","term":"Pythium aphanidermatum"},"children":[{"data":{"display":"Pythium
+        aphanidermatum DAOM BR444","term":"Pythium aphanidermatum DAOM BR444"},"children":[]}]},{"data":{"display":"Pythium
+        arrhenomanes","term":"Pythium arrhenomanes"},"children":[{"data":{"display":"Pythium
+        arrhenomanes ATCC 12531","term":"Pythium arrhenomanes ATCC 12531"},"children":[]}]},{"data":{"display":"Pythium
+        insidiosum","term":"Pythium insidiosum"},"children":[{"data":{"display":"Pythium
+        insidiosum Pi-s","term":"Pythium insidiosum Pi-s"},"children":[]}]}]}]},{"data":{"display":"Saprolegniales","term":"Saprolegniales"},"children":[{"data":{"display":"Aphanomyces","term":"Aphanomyces"},"children":[{"data":{"display":"Aphanomyces
+        astaci","term":"Aphanomyces astaci"},"children":[{"data":{"display":"Aphanomyces
+        astaci strain APO3","term":"Aphanomyces astaci strain APO3"},"children":[]}]},{"data":{"display":"Aphanomyces
+        euteiches","term":"Aphanomyces euteiches"},"children":[{"data":{"display":"Aphanomyces
+        euteiches MF1","term":"Aphanomyces euteiches MF1"},"children":[]}]},{"data":{"display":"Aphanomyces
+        invadans","term":"Aphanomyces invadans"},"children":[{"data":{"display":"Aphanomyces
+        invadans NJM9701","term":"Aphanomyces invadans NJM9701"},"children":[]}]}]},{"data":{"display":"Saprolegnia","term":"Saprolegnia"},"children":[{"data":{"display":"Saprolegnia
+        diclina","term":"Saprolegnia diclina"},"children":[{"data":{"display":"Saprolegnia
+        diclina VS20","term":"Saprolegnia diclina VS20"},"children":[]}]},{"data":{"display":"Saprolegnia
+        parasitica","term":"Saprolegnia parasitica"},"children":[{"data":{"display":"Saprolegnia
+        parasitica CBS 223.65","term":"Saprolegnia parasitica CBS 223.65"},"children":[]}]}]}]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["Saccharomyces
+        cerevisiae S288C"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["Saccharomyces
+        cerevisiae S288C"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:35:11 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '62648'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://fungidb.org/fungidb/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["Saccharomyces
+        cerevisiae S288C"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Fungi","term":"Fungi"},"children":[{"data":{"display":"Ascomycota","term":"Ascomycota"},"children":[{"data":{"display":"Dothideomycetes","term":"Dothideomycetes"},"children":[{"data":{"display":"Botryosphaeriales","term":"Botryosphaeriales"},"children":[{"data":{"display":"Macrophomina
+        phaseolina MS6","term":"Macrophomina phaseolina MS6"},"children":[]}]},{"data":{"display":"Gloniaceae","term":"Gloniaceae"},"children":[{"data":{"display":"Cenococcum
+        geophilum 1.58","term":"Cenococcum geophilum 1.58"},"children":[]}]},{"data":{"display":"Mycosphaerellales","term":"Mycosphaerellales"},"children":[{"data":{"display":"Mycosphaerellaceae","term":"Mycosphaerellaceae"},"children":[{"data":{"display":"Pseudocercospora","term":"Pseudocercospora"},"children":[{"data":{"display":"Pseudocercospora
+        fijiensis CIRAD86","term":"Pseudocercospora fijiensis CIRAD86"},"children":[]}]},{"data":{"display":"Zymoseptoria","term":"Zymoseptoria"},"children":[{"data":{"display":"Zymoseptoria
+        tritici IPO323","term":"Zymoseptoria tritici IPO323"},"children":[]},{"data":{"display":"Zymoseptoria
+        tritici ST99CH_3D1","term":"Zymoseptoria tritici ST99CH_3D1"},"children":[]}]}]},{"data":{"display":"Teratosphaeriaceae","term":"Teratosphaeriaceae"},"children":[{"data":{"display":"Hortaea
+        werneckii EXF-2000","term":"Hortaea werneckii EXF-2000"},"children":[]}]}]},{"data":{"display":"Pleosporales","term":"Pleosporales"},"children":[{"data":{"display":"Leptosphaeriaceae","term":"Leptosphaeriaceae"},"children":[{"data":{"display":"Plenodomus
+        lingam JN3","term":"Plenodomus lingam JN3"},"children":[]}]},{"data":{"display":"Phaeosphaeriaceae","term":"Phaeosphaeriaceae"},"children":[{"data":{"display":"Parastagonospora
+        nodorum SN15","term":"Parastagonospora nodorum SN15"},"children":[]}]},{"data":{"display":"Pleosporaceae","term":"Pleosporaceae"},"children":[{"data":{"display":"Alternaria","term":"Alternaria"},"children":[{"data":{"display":"Alternaria
+        alternata SRC1lrK2f","term":"Alternaria alternata SRC1lrK2f"},"children":[]}]},{"data":{"display":"Curvularia","term":"Curvularia"},"children":[{"data":{"display":"Curvularia
+        clavata yc1106","term":"Curvularia clavata yc1106"},"children":[]}]}]}]},{"data":{"display":"Venturiales","term":"Venturiales"},"children":[{"data":{"display":"Verruconis
+        gallopava strain CBS 43764","term":"Verruconis gallopava strain CBS 43764"},"children":[]}]}]},{"data":{"display":"Eurotiomycetes","term":"Eurotiomycetes"},"children":[{"data":{"display":"Chaetothyriales","term":"Chaetothyriales"},"children":[{"data":{"display":"Chaetothyriales
+        sp.","term":"Chaetothyriales sp."},"children":[{"data":{"display":"Chaetothyriales
+        sp. CBS 132003","term":"Chaetothyriales sp. CBS 132003"},"children":[]}]},{"data":{"display":"Cyphellophoraceae","term":"Cyphellophoraceae"},"children":[{"data":{"display":"Cyphellophora
+        europaea CBS 101466","term":"Cyphellophora europaea CBS 101466"},"children":[]}]},{"data":{"display":"Herpotrichiellaceae","term":"Herpotrichiellaceae"},"children":[{"data":{"display":"Cladophialophora","term":"Cladophialophora"},"children":[{"data":{"display":"Cladophialophora
+        bantiana","term":"Cladophialophora bantiana"},"children":[{"data":{"display":"Cladophialophora
+        bantiana CBS 173.52","term":"Cladophialophora bantiana CBS 173.52"},"children":[]}]},{"data":{"display":"Cladophialophora
+        carrionii","term":"Cladophialophora carrionii"},"children":[{"data":{"display":"Cladophialophora
+        carrionii CBS 160.54","term":"Cladophialophora carrionii CBS 160.54"},"children":[]},{"data":{"display":"Cladophialophora
+        carrionii KSF","term":"Cladophialophora carrionii KSF"},"children":[]}]},{"data":{"display":"Cladophialophora
+        immunda","term":"Cladophialophora immunda"},"children":[{"data":{"display":"Cladophialophora
+        immunda strain CBS 83496","term":"Cladophialophora immunda strain CBS 83496"},"children":[]}]},{"data":{"display":"Cladophialophora
+        psammophila","term":"Cladophialophora psammophila"},"children":[{"data":{"display":"Cladophialophora
+        psammophila CBS 110553","term":"Cladophialophora psammophila CBS 110553"},"children":[]}]},{"data":{"display":"Cladophialophora
+        yegresii","term":"Cladophialophora yegresii"},"children":[{"data":{"display":"Cladophialophora
+        yegresii CBS 114405","term":"Cladophialophora yegresii CBS 114405"},"children":[]}]}]},{"data":{"display":"Exophiala","term":"Exophiala"},"children":[{"data":{"display":"Exophiala
+        aquamarina","term":"Exophiala aquamarina"},"children":[{"data":{"display":"Exophiala
+        aquamarina CBS 119918","term":"Exophiala aquamarina CBS 119918"},"children":[]}]},{"data":{"display":"Exophiala
+        dermatitidis","term":"Exophiala dermatitidis"},"children":[{"data":{"display":"Exophiala
+        dermatitidis NIH/UT8656","term":"Exophiala dermatitidis NIH/UT8656"},"children":[]}]},{"data":{"display":"Exophiala
+        mesophila","term":"Exophiala mesophila"},"children":[{"data":{"display":"Exophiala
+        mesophila strain CBS 40295","term":"Exophiala mesophila strain CBS 40295"},"children":[]}]},{"data":{"display":"Exophiala
+        oligosperma","term":"Exophiala oligosperma"},"children":[{"data":{"display":"Exophiala
+        oligosperma strain CBS 72588","term":"Exophiala oligosperma strain CBS 72588"},"children":[]}]},{"data":{"display":"Exophiala
+        spinifera","term":"Exophiala spinifera"},"children":[{"data":{"display":"Exophiala
+        spinifera CBS 89968","term":"Exophiala spinifera CBS 89968"},"children":[]}]}]},{"data":{"display":"Fonsecaea","term":"Fonsecaea"},"children":[{"data":{"display":"Fonsecaea
+        multimorphosa","term":"Fonsecaea multimorphosa"},"children":[{"data":{"display":"Fonsecaea
+        multimorphosa CBS 102226","term":"Fonsecaea multimorphosa CBS 102226"},"children":[]}]},{"data":{"display":"Fonsecaea
+        pedrosoi","term":"Fonsecaea pedrosoi"},"children":[{"data":{"display":"Fonsecaea
+        pedrosoi CBS 271.37","term":"Fonsecaea pedrosoi CBS 271.37"},"children":[]}]}]},{"data":{"display":"Phialophora","term":"Phialophora"},"children":[{"data":{"display":"Phialophora
+        attinorum CBS 131958","term":"Phialophora attinorum CBS 131958"},"children":[]}]},{"data":{"display":"Rhinocladiella","term":"Rhinocladiella"},"children":[{"data":{"display":"Rhinocladiella
+        mackenziei CBS 650.93","term":"Rhinocladiella mackenziei CBS 650.93"},"children":[]}]}]}]},{"data":{"display":"Eurotiales","term":"Eurotiales"},"children":[{"data":{"display":"Aspergillaceae","term":"Aspergillaceae"},"children":[{"data":{"display":"Aspergillus","term":"Aspergillus"},"children":[{"data":{"display":"Aspergillus
+        aculeatus","term":"Aspergillus aculeatus"},"children":[{"data":{"display":"Aspergillus
+        aculeatus ATCC 16872","term":"Aspergillus aculeatus ATCC 16872"},"children":[]}]},{"data":{"display":"Aspergillus
+        brasiliensis","term":"Aspergillus brasiliensis"},"children":[{"data":{"display":"Aspergillus
+        brasiliensis CBS 101740","term":"Aspergillus brasiliensis CBS 101740"},"children":[]}]},{"data":{"display":"Aspergillus
+        campestris","term":"Aspergillus campestris"},"children":[{"data":{"display":"Aspergillus
+        campestris IBT 28561","term":"Aspergillus campestris IBT 28561"},"children":[]}]},{"data":{"display":"Aspergillus
+        carbonarius","term":"Aspergillus carbonarius"},"children":[{"data":{"display":"Aspergillus
+        carbonarius ITEM 5010","term":"Aspergillus carbonarius ITEM 5010"},"children":[]}]},{"data":{"display":"Aspergillus
+        clavatus","term":"Aspergillus clavatus"},"children":[{"data":{"display":"Aspergillus
+        clavatus NRRL 1","term":"Aspergillus clavatus NRRL 1"},"children":[]}]},{"data":{"display":"Aspergillus
+        cristatus","term":"Aspergillus cristatus"},"children":[{"data":{"display":"Aspergillus
+        cristatus GZAAS20.1005","term":"Aspergillus cristatus GZAAS20.1005"},"children":[]}]},{"data":{"display":"Aspergillus
+        ellipticus","term":"Aspergillus ellipticus"},"children":[{"data":{"display":"Aspergillus
+        ellipticus CBS 707.79","term":"Aspergillus ellipticus CBS 707.79"},"children":[]}]},{"data":{"display":"Aspergillus
+        eucalypticola","term":"Aspergillus eucalypticola"},"children":[{"data":{"display":"Aspergillus
+        eucalypticola CBS 122712","term":"Aspergillus eucalypticola CBS 122712"},"children":[]}]},{"data":{"display":"Aspergillus
+        fijiensis","term":"Aspergillus fijiensis"},"children":[{"data":{"display":"Aspergillus
+        fijiensis CBS 313.89","term":"Aspergillus fijiensis CBS 313.89"},"children":[]}]},{"data":{"display":"Aspergillus
+        fischeri","term":"Aspergillus fischeri"},"children":[{"data":{"display":"Aspergillus
+        fischeri NRRL 181","term":"Aspergillus fischeri NRRL 181"},"children":[]}]},{"data":{"display":"Aspergillus
+        flavus","term":"Aspergillus flavus"},"children":[{"data":{"display":"Aspergillus
+        flavus NRRL3357","term":"Aspergillus flavus NRRL3357"},"children":[]},{"data":{"display":"Aspergillus
+        flavus NRRL3357 2020","term":"Aspergillus flavus NRRL3357 2020"},"children":[]}]},{"data":{"display":"Aspergillus
+        fumigatus","term":"Aspergillus fumigatus"},"children":[{"data":{"display":"Aspergillus
+        fumigatus A1163","term":"Aspergillus fumigatus A1163"},"children":[]},{"data":{"display":"Aspergillus
+        fumigatus Af293","term":"Aspergillus fumigatus Af293"},"children":[]}]},{"data":{"display":"Aspergillus
+        glaucus","term":"Aspergillus glaucus"},"children":[{"data":{"display":"Aspergillus
+        glaucus CBS 516.65","term":"Aspergillus glaucus CBS 516.65"},"children":[]}]},{"data":{"display":"Aspergillus
+        heteromorphus","term":"Aspergillus heteromorphus"},"children":[{"data":{"display":"Aspergillus
+        heteromorphus CBS 117.55","term":"Aspergillus heteromorphus CBS 117.55"},"children":[]}]},{"data":{"display":"Aspergillus
+        homomorphus","term":"Aspergillus homomorphus"},"children":[{"data":{"display":"Aspergillus
+        homomorphus CBS 101889","term":"Aspergillus homomorphus CBS 101889"},"children":[]}]},{"data":{"display":"Aspergillus
+        ibericus","term":"Aspergillus ibericus"},"children":[{"data":{"display":"Aspergillus
+        ibericus CBS 121593","term":"Aspergillus ibericus CBS 121593"},"children":[]}]},{"data":{"display":"Aspergillus
+        lentulus","term":"Aspergillus lentulus"},"children":[{"data":{"display":"Aspergillus
+        lentulus strain IFM 54703","term":"Aspergillus lentulus strain IFM 54703"},"children":[]}]},{"data":{"display":"Aspergillus
+        luchuensis","term":"Aspergillus luchuensis"},"children":[{"data":{"display":"Aspergillus
+        luchuensis CBS 106.47","term":"Aspergillus luchuensis CBS 106.47"},"children":[]},{"data":{"display":"Aspergillus
+        luchuensis IFO 4308","term":"Aspergillus luchuensis IFO 4308"},"children":[]}]},{"data":{"display":"Aspergillus
+        nidulans","term":"Aspergillus nidulans"},"children":[{"data":{"display":"Aspergillus
+        nidulans FGSC A4","term":"Aspergillus nidulans FGSC A4"},"children":[]}]},{"data":{"display":"Aspergillus
+        niger","term":"Aspergillus niger"},"children":[{"data":{"display":"Aspergillus
+        niger ATCC 1015","term":"Aspergillus niger ATCC 1015"},"children":[]},{"data":{"display":"Aspergillus
+        niger ATCC 13496","term":"Aspergillus niger ATCC 13496"},"children":[]},{"data":{"display":"Aspergillus
+        niger CBS 513.88","term":"Aspergillus niger CBS 513.88"},"children":[]},{"data":{"display":"Aspergillus
+        niger strain N402 (ATCC64974)","term":"Aspergillus niger strain N402 (ATCC64974)"},"children":[]}]},{"data":{"display":"Aspergillus
+        novofumigatus","term":"Aspergillus novofumigatus"},"children":[{"data":{"display":"Aspergillus
+        novofumigatus IBT 16806","term":"Aspergillus novofumigatus IBT 16806"},"children":[]}]},{"data":{"display":"Aspergillus
+        ochraceoroseus","term":"Aspergillus ochraceoroseus"},"children":[{"data":{"display":"Aspergillus
+        ochraceoroseus IBT 24754","term":"Aspergillus ochraceoroseus IBT 24754"},"children":[]}]},{"data":{"display":"Aspergillus
+        oryzae","term":"Aspergillus oryzae"},"children":[{"data":{"display":"Aspergillus
+        oryzae RIB40","term":"Aspergillus oryzae RIB40"},"children":[]}]},{"data":{"display":"Aspergillus
+        parasiticus","term":"Aspergillus parasiticus"},"children":[{"data":{"display":"Aspergillus
+        parasiticus CBS 117618","term":"Aspergillus parasiticus CBS 117618"},"children":[]}]},{"data":{"display":"Aspergillus
+        sclerotiicarbonarius","term":"Aspergillus sclerotiicarbonarius"},"children":[{"data":{"display":"Aspergillus
+        sclerotiicarbonarius CBS 121057","term":"Aspergillus sclerotiicarbonarius
+        CBS 121057"},"children":[]}]},{"data":{"display":"Aspergillus steynii","term":"Aspergillus
+        steynii"},"children":[{"data":{"display":"Aspergillus steynii IBT 23096","term":"Aspergillus
+        steynii IBT 23096"},"children":[]}]},{"data":{"display":"Aspergillus sydowii","term":"Aspergillus
+        sydowii"},"children":[{"data":{"display":"Aspergillus sydowii CBS 593.65","term":"Aspergillus
+        sydowii CBS 593.65"},"children":[]}]},{"data":{"display":"Aspergillus tanneri","term":"Aspergillus
+        tanneri"},"children":[{"data":{"display":"Aspergillus tanneri NIH1004","term":"Aspergillus
+        tanneri NIH1004"},"children":[]}]},{"data":{"display":"Aspergillus terreus","term":"Aspergillus
+        terreus"},"children":[{"data":{"display":"Aspergillus terreus NIH2624","term":"Aspergillus
+        terreus NIH2624"},"children":[]}]},{"data":{"display":"Aspergillus thermomutatus","term":"Aspergillus
+        thermomutatus"},"children":[{"data":{"display":"Aspergillus thermomutatus
+        strain HMR AF 39","term":"Aspergillus thermomutatus strain HMR AF 39"},"children":[]}]},{"data":{"display":"Aspergillus
+        tubingensis","term":"Aspergillus tubingensis"},"children":[{"data":{"display":"Aspergillus
+        tubingensis CBS 134.48","term":"Aspergillus tubingensis CBS 134.48"},"children":[]}]},{"data":{"display":"Aspergillus
+        uvarum","term":"Aspergillus uvarum"},"children":[{"data":{"display":"Aspergillus
+        uvarum CBS 121591","term":"Aspergillus uvarum CBS 121591"},"children":[]}]},{"data":{"display":"Aspergillus
+        versicolor","term":"Aspergillus versicolor"},"children":[{"data":{"display":"Aspergillus
+        versicolor CBS 583.65","term":"Aspergillus versicolor CBS 583.65"},"children":[]}]},{"data":{"display":"Aspergillus
+        wentii","term":"Aspergillus wentii"},"children":[{"data":{"display":"Aspergillus
+        wentii DTO 134E9","term":"Aspergillus wentii DTO 134E9"},"children":[]}]}]},{"data":{"display":"Penicilliopsis","term":"Penicilliopsis"},"children":[{"data":{"display":"Penicilliopsis
+        zonata CBS 506.65","term":"Penicilliopsis zonata CBS 506.65"},"children":[]}]},{"data":{"display":"Penicillium","term":"Penicillium"},"children":[{"data":{"display":"Penicillium
+        digitatum","term":"Penicillium digitatum"},"children":[{"data":{"display":"Penicillium
+        digitatum Pd1","term":"Penicillium digitatum Pd1"},"children":[]}]},{"data":{"display":"Penicillium
+        expansum","term":"Penicillium expansum"},"children":[{"data":{"display":"Penicillium
+        expansum d1","term":"Penicillium expansum d1"},"children":[]}]},{"data":{"display":"Penicillium
+        rubens","term":"Penicillium rubens"},"children":[{"data":{"display":"Penicillium
+        rubens Wisconsin 54-1255","term":"Penicillium rubens Wisconsin 54-1255"},"children":[]}]}]}]},{"data":{"display":"Thermoascaceae","term":"Thermoascaceae"},"children":[{"data":{"display":"Paecilomyces
+        variotii CBS 101075","term":"Paecilomyces variotii CBS 101075"},"children":[]}]},{"data":{"display":"Trichocomaceae","term":"Trichocomaceae"},"children":[{"data":{"display":"Talaromyces
+        marneffei","term":"Talaromyces marneffei"},"children":[{"data":{"display":"Talaromyces
+        marneffei ATCC 18224","term":"Talaromyces marneffei ATCC 18224"},"children":[]}]},{"data":{"display":"Talaromyces
+        stipitatus","term":"Talaromyces stipitatus"},"children":[{"data":{"display":"Talaromyces
+        stipitatus ATCC 10500","term":"Talaromyces stipitatus ATCC 10500"},"children":[]}]}]}]},{"data":{"display":"Onygenales","term":"Onygenales"},"children":[{"data":{"display":"Ajellomycetaceae","term":"Ajellomycetaceae"},"children":[{"data":{"display":"Blastomyces","term":"Blastomyces"},"children":[{"data":{"display":"Blastomyces
+        dermatitidis","term":"Blastomyces dermatitidis"},"children":[{"data":{"display":"Blastomyces
+        dermatitidis ATCC 26199","term":"Blastomyces dermatitidis ATCC 26199"},"children":[]},{"data":{"display":"Blastomyces
+        dermatitidis ER-3","term":"Blastomyces dermatitidis ER-3"},"children":[]}]},{"data":{"display":"Blastomyces
+        gilchristii","term":"Blastomyces gilchristii"},"children":[{"data":{"display":"Blastomyces
+        gilchristii SLH14081","term":"Blastomyces gilchristii SLH14081"},"children":[]}]},{"data":{"display":"Blastomyces
+        percursus","term":"Blastomyces percursus"},"children":[{"data":{"display":"Blastomyces
+        percursus strain EI222","term":"Blastomyces percursus strain EI222"},"children":[]}]}]},{"data":{"display":"Emergomyces","term":"Emergomyces"},"children":[{"data":{"display":"Emergomyces
+        africanus","term":"Emergomyces africanus"},"children":[{"data":{"display":"Emergomyces
+        africanus CBS 136260","term":"Emergomyces africanus CBS 136260"},"children":[]}]},{"data":{"display":"Emergomyces
+        pasteurianus","term":"Emergomyces pasteurianus"},"children":[{"data":{"display":"Emergomyces
+        pasteurianus Ep9510","term":"Emergomyces pasteurianus Ep9510"},"children":[]}]}]},{"data":{"display":"Emmonsia","term":"Emmonsia"},"children":[{"data":{"display":"Emmonsia
+        crescens UAMH 3008","term":"Emmonsia crescens UAMH 3008"},"children":[]}]},{"data":{"display":"Histoplasma","term":"Histoplasma"},"children":[{"data":{"display":"Histoplasma
+        capsulatum G184AR","term":"Histoplasma capsulatum G184AR"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum G186AR","term":"Histoplasma capsulatum G186AR"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum G217B","term":"Histoplasma capsulatum G217B"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum H143","term":"Histoplasma capsulatum H143"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum H88","term":"Histoplasma capsulatum H88"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum NAm1","term":"Histoplasma capsulatum NAm1"},"children":[]},{"data":{"display":"Histoplasma
+        capsulatum WU24","term":"Histoplasma capsulatum WU24"},"children":[]}]}]},{"data":{"display":"Arthrodermataceae","term":"Arthrodermataceae"},"children":[{"data":{"display":"Microsporum","term":"Microsporum"},"children":[{"data":{"display":"Microsporum
+        canis CBS 113480","term":"Microsporum canis CBS 113480"},"children":[]}]},{"data":{"display":"Nannizzia","term":"Nannizzia"},"children":[{"data":{"display":"Nannizzia
+        gypsea CBS 118893","term":"Nannizzia gypsea CBS 118893"},"children":[]}]},{"data":{"display":"Trichophyton","term":"Trichophyton"},"children":[{"data":{"display":"Trichophyton
+        equinum","term":"Trichophyton equinum"},"children":[{"data":{"display":"Trichophyton
+        equinum CBS 127.97","term":"Trichophyton equinum CBS 127.97"},"children":[]}]},{"data":{"display":"Trichophyton
+        mentagrophytes","term":"Trichophyton mentagrophytes"},"children":[{"data":{"display":"Trichophyton
+        mentagrophytes TIMM 2789","term":"Trichophyton mentagrophytes TIMM 2789"},"children":[]}]},{"data":{"display":"Trichophyton
+        rubrum","term":"Trichophyton rubrum"},"children":[{"data":{"display":"Trichophyton
+        rubrum CBS 118892","term":"Trichophyton rubrum CBS 118892"},"children":[]}]},{"data":{"display":"Trichophyton
+        tonsurans","term":"Trichophyton tonsurans"},"children":[{"data":{"display":"Trichophyton
+        tonsurans CBS 112818","term":"Trichophyton tonsurans CBS 112818"},"children":[]}]}]}]},{"data":{"display":"Ascosphaeraceae","term":"Ascosphaeraceae"},"children":[{"data":{"display":"Ascosphaera
+        apis ARSEF 7405","term":"Ascosphaera apis ARSEF 7405"},"children":[]}]},{"data":{"display":"Coccidioides","term":"Coccidioides"},"children":[{"data":{"display":"Coccidioides
+        immitis","term":"Coccidioides immitis"},"children":[{"data":{"display":"Coccidioides
+        immitis H538.4","term":"Coccidioides immitis H538.4"},"children":[]},{"data":{"display":"Coccidioides
+        immitis RS","term":"Coccidioides immitis RS"},"children":[]},{"data":{"display":"Coccidioides
+        immitis WA_211","term":"Coccidioides immitis WA_211"},"children":[]}]},{"data":{"display":"Coccidioides
+        posadasii","term":"Coccidioides posadasii"},"children":[{"data":{"display":"Coccidioides
+        posadasii C735 delta SOWgp","term":"Coccidioides posadasii C735 delta SOWgp"},"children":[]},{"data":{"display":"Coccidioides
+        posadasii RMSCC 3488","term":"Coccidioides posadasii RMSCC 3488"},"children":[]},{"data":{"display":"Coccidioides
+        posadasii str. Silveira","term":"Coccidioides posadasii str. Silveira"},"children":[]},{"data":{"display":"Coccidioides
+        posadasii strain Silveira 2022","term":"Coccidioides posadasii strain Silveira
+        2022"},"children":[]}]}]},{"data":{"display":"Onygenaceae","term":"Onygenaceae"},"children":[{"data":{"display":"Uncinocarpus
+        reesii 1704","term":"Uncinocarpus reesii 1704"},"children":[]}]},{"data":{"display":"Paracoccidioides","term":"Paracoccidioides"},"children":[{"data":{"display":"Paracoccidioides
+        brasiliensis","term":"Paracoccidioides brasiliensis"},"children":[{"data":{"display":"Paracoccidioides
+        brasiliensis Pb03","term":"Paracoccidioides brasiliensis Pb03"},"children":[]},{"data":{"display":"Paracoccidioides
+        brasiliensis Pb18","term":"Paracoccidioides brasiliensis Pb18"},"children":[]}]},{"data":{"display":"Paracoccidioides
+        lutzii","term":"Paracoccidioides lutzii"},"children":[{"data":{"display":"Paracoccidioides
+        lutzii Pb01","term":"Paracoccidioides lutzii Pb01"},"children":[]}]}]}]}]},{"data":{"display":"Leotiomycetes","term":"Leotiomycetes"},"children":[{"data":{"display":"Erysiphales","term":"Erysiphales"},"children":[{"data":{"display":"Blumeria","term":"Blumeria"},"children":[{"data":{"display":"Blumeria
+        graminis","term":"Blumeria graminis"},"children":[{"data":{"display":"Blumeria
+        graminis f. sp. triticale THUN-12","term":"Blumeria graminis f. sp. triticale
+        THUN-12"},"children":[]},{"data":{"display":"Blumeria graminis f. sp. tritici
+        96224","term":"Blumeria graminis f. sp. tritici 96224"},"children":[]}]},{"data":{"display":"Blumeria
+        hordei","term":"Blumeria hordei"},"children":[{"data":{"display":"Blumeria
+        hordei strain RACE1","term":"Blumeria hordei strain RACE1"},"children":[]}]}]},{"data":{"display":"Podosphaera","term":"Podosphaera"},"children":[{"data":{"display":"Podosphaera
+        aphanis DRCT72020","term":"Podosphaera aphanis DRCT72020"},"children":[]}]}]},{"data":{"display":"Helotiales","term":"Helotiales"},"children":[{"data":{"display":"Botrytis","term":"Botrytis"},"children":[{"data":{"display":"Botrytis
+        cinerea B05.10","term":"Botrytis cinerea B05.10"},"children":[]}]},{"data":{"display":"Monilinia","term":"Monilinia"},"children":[{"data":{"display":"Monilinia
+        fructicola CPMC6","term":"Monilinia fructicola CPMC6"},"children":[]}]},{"data":{"display":"Sclerotinia","term":"Sclerotinia"},"children":[{"data":{"display":"Sclerotinia
+        sclerotiorum 1980 UF-70","term":"Sclerotinia sclerotiorum 1980 UF-70"},"children":[]}]}]},{"data":{"display":"Pseudeurotiaceae","term":"Pseudeurotiaceae"},"children":[{"data":{"display":"Pseudogymnoascus
+        destructans 20631-21","term":"Pseudogymnoascus destructans 20631-21"},"children":[]}]}]},{"data":{"display":"Orbiliomycetes","term":"Orbiliomycetes"},"children":[{"data":{"display":"Arthrobotrys
+        flagrans CBS H-5679","term":"Arthrobotrys flagrans CBS H-5679"},"children":[]}]},{"data":{"display":"Pezizomycetes","term":"Pezizomycetes"},"children":[{"data":{"display":"Pyronema
+        omphalodes CBS 100304","term":"Pyronema omphalodes CBS 100304"},"children":[]}]},{"data":{"display":"Pneumocystidomycetes","term":"Pneumocystidomycetes"},"children":[{"data":{"display":"Pneumocystis
+        canis","term":"Pneumocystis canis"},"children":[{"data":{"display":"Pneumocystis
+        canis CanA","term":"Pneumocystis canis CanA"},"children":[]}]},{"data":{"display":"Pneumocystis
+        carinii","term":"Pneumocystis carinii"},"children":[{"data":{"display":"Pneumocystis
+        carinii B80","term":"Pneumocystis carinii B80"},"children":[]}]},{"data":{"display":"Pneumocystis
+        jirovecii","term":"Pneumocystis jirovecii"},"children":[{"data":{"display":"Pneumocystis
+        jirovecii RU7","term":"Pneumocystis jirovecii RU7"},"children":[]},{"data":{"display":"Pneumocystis
+        jirovecii SE8","term":"Pneumocystis jirovecii SE8"},"children":[]}]},{"data":{"display":"Pneumocystis
+        murina","term":"Pneumocystis murina"},"children":[{"data":{"display":"Pneumocystis
+        murina B123","term":"Pneumocystis murina B123"},"children":[]}]},{"data":{"display":"Pneumocystis
+        oryctolagi","term":"Pneumocystis oryctolagi"},"children":[{"data":{"display":"Pneumocystis
+        oryctolagi CS1","term":"Pneumocystis oryctolagi CS1"},"children":[]}]},{"data":{"display":"Pneumocystis
+        sp. ''macacae''","term":"Pneumocystis sp. ''macacae''"},"children":[{"data":{"display":"Pneumocystis
+        sp. macacae isolate P2C","term":"Pneumocystis sp. macacae isolate P2C"},"children":[]}]},{"data":{"display":"Pneumocystis
+        wakefieldiae","term":"Pneumocystis wakefieldiae"},"children":[{"data":{"display":"Pneumocystis
+        wakefieldiae 2A","term":"Pneumocystis wakefieldiae 2A"},"children":[]}]}]},{"data":{"display":"Saccharomycetes","term":"Saccharomycetes"},"children":[{"data":{"display":"Debaryomycetaceae","term":"Debaryomycetaceae"},"children":[{"data":{"display":"Candida","term":"Candida"},"children":[{"data":{"display":"Candida
+        albicans","term":"Candida albicans"},"children":[{"data":{"display":"Candida
+        albicans SC5314","term":"Candida albicans SC5314"},"children":[]},{"data":{"display":"Candida
+        albicans SC5314_B","term":"Candida albicans SC5314_B"},"children":[]},{"data":{"display":"Candida
+        albicans WO-1","term":"Candida albicans WO-1"},"children":[]}]},{"data":{"display":"Candida
+        dubliniensis","term":"Candida dubliniensis"},"children":[{"data":{"display":"Candida
+        dubliniensis CD36","term":"Candida dubliniensis CD36"},"children":[]}]},{"data":{"display":"Candida
+        metapsilosis","term":"Candida metapsilosis"},"children":[{"data":{"display":"Candida
+        metapsilosis BP57","term":"Candida metapsilosis BP57"},"children":[]}]},{"data":{"display":"Candida
+        parapsilosis","term":"Candida parapsilosis"},"children":[{"data":{"display":"Candida
+        parapsilosis CDC317","term":"Candida parapsilosis CDC317"},"children":[]}]},{"data":{"display":"Candida
+        tropicalis","term":"Candida tropicalis"},"children":[{"data":{"display":"Candida
+        tropicalis MYA-3404","term":"Candida tropicalis MYA-3404"},"children":[]},{"data":{"display":"Candida
+        tropicalis MYA-3404 2020","term":"Candida tropicalis MYA-3404 2020"},"children":[]}]}]},{"data":{"display":"Debaryomyces","term":"Debaryomyces"},"children":[{"data":{"display":"Debaryomyces
+        fabryi","term":"Debaryomyces fabryi"},"children":[{"data":{"display":"Debaryomyces
+        fabryi CBS 789","term":"Debaryomyces fabryi CBS 789"},"children":[]}]},{"data":{"display":"Debaryomyces
+        hansenii","term":"Debaryomyces hansenii"},"children":[{"data":{"display":"Debaryomyces
+        hansenii CBS767","term":"Debaryomyces hansenii CBS767"},"children":[]}]}]},{"data":{"display":"Lodderomyces","term":"Lodderomyces"},"children":[{"data":{"display":"Lodderomyces
+        elongisporus NRRL YB-4239","term":"Lodderomyces elongisporus NRRL YB-4239"},"children":[]}]},{"data":{"display":"Meyerozyma","term":"Meyerozyma"},"children":[{"data":{"display":"Meyerozyma
+        guilliermondii ATCC 6260","term":"Meyerozyma guilliermondii ATCC 6260"},"children":[]}]}]},{"data":{"display":"Dipodascaceae","term":"Dipodascaceae"},"children":[{"data":{"display":"Yarrowia
+        lipolytica CLIB122","term":"Yarrowia lipolytica CLIB122"},"children":[]},{"data":{"display":"Yarrowia
+        lipolytica CLIB89 (W29)","term":"Yarrowia lipolytica CLIB89 (W29)"},"children":[]}]},{"data":{"display":"Diutina","term":"Diutina"},"children":[{"data":{"display":"Diutina
+        rugosa CBS 613","term":"Diutina rugosa CBS 613"},"children":[]}]},{"data":{"display":"Metschnikowiaceae","term":"Metschnikowiaceae"},"children":[{"data":{"display":"Clavispora
+        lusitaniae","term":"Clavispora lusitaniae"},"children":[{"data":{"display":"Clavispora
+        lusitaniae ATCC 42720","term":"Clavispora lusitaniae ATCC 42720"},"children":[]}]},{"data":{"display":"[Candida]
+        auris","term":"[Candida] auris"},"children":[{"data":{"display":"Candida auris
+        strain 6684","term":"Candida auris strain 6684"},"children":[]},{"data":{"display":"Candida
+        auris strain B11220","term":"Candida auris strain B11220"},"children":[]},{"data":{"display":"Candida
+        auris strain B11221","term":"Candida auris strain B11221"},"children":[]},{"data":{"display":"Candida
+        auris strain B11243","term":"Candida auris strain B11243"},"children":[]},{"data":{"display":"Candida
+        auris strain B11245","term":"Candida auris strain B11245"},"children":[]},{"data":{"display":"Candida
+        auris strain B8441","term":"Candida auris strain B8441"},"children":[]}]},{"data":{"display":"[Candida]
+        duobushaemulonis","term":"[Candida] duobushaemulonis"},"children":[{"data":{"display":"Candida
+        duobushaemulonis strain B09383","term":"Candida duobushaemulonis strain B09383"},"children":[]}]},{"data":{"display":"[Candida]
+        haemuloni","term":"[Candida] haemuloni"},"children":[{"data":{"display":"Candida
+        haemulonis B11899","term":"Candida haemulonis B11899"},"children":[]}]},{"data":{"display":"[Candida]
+        pseudohaemulonis","term":"[Candida] pseudohaemulonis"},"children":[{"data":{"display":"Candida
+        pseudohaemulonii strain B12108","term":"Candida pseudohaemulonii strain B12108"},"children":[]}]}]},{"data":{"display":"Phaffomycetaceae","term":"Phaffomycetaceae"},"children":[{"data":{"display":"Cyberlindnera
+        fabianii 65","term":"Cyberlindnera fabianii 65"},"children":[]}]},{"data":{"display":"Pichiaceae","term":"Pichiaceae"},"children":[{"data":{"display":"Pichia
+        kudriavzevii strain CBS573","term":"Pichia kudriavzevii strain CBS573"},"children":[]}]},{"data":{"display":"Saccharomycetaceae","term":"Saccharomycetaceae"},"children":[{"data":{"display":"Kluyveromyces","term":"Kluyveromyces"},"children":[{"data":{"display":"Kluyveromyces
+        lactis","term":"Kluyveromyces lactis"},"children":[{"data":{"display":"Kluyveromyces
+        lactis NRRL Y-1140","term":"Kluyveromyces lactis NRRL Y-1140"},"children":[]}]},{"data":{"display":"Kluyveromyces
+        marxianus","term":"Kluyveromyces marxianus"},"children":[{"data":{"display":"Kluyveromyces
+        marxianus DMKU3-1042","term":"Kluyveromyces marxianus DMKU3-1042"},"children":[]}]}]},{"data":{"display":"Nakaseomyces","term":"Nakaseomyces"},"children":[{"data":{"display":"Nakaseomyces
+        glabratus BG2","term":"Nakaseomyces glabratus BG2"},"children":[]},{"data":{"display":"Nakaseomyces
+        glabratus BG3993","term":"Nakaseomyces glabratus BG3993"},"children":[]},{"data":{"display":"Nakaseomyces
+        glabratus CBS 138","term":"Nakaseomyces glabratus CBS 138"},"children":[]},{"data":{"display":"Nakaseomyces
+        glabratus CBS138 2020","term":"Nakaseomyces glabratus CBS138 2020"},"children":[]},{"data":{"display":"Nakaseomyces
+        glabratus DSY562","term":"Nakaseomyces glabratus DSY562"},"children":[]}]},{"data":{"display":"Saccharomyces","term":"Saccharomyces"},"children":[{"data":{"display":"Saccharomyces
+        cerevisiae","term":"Saccharomyces cerevisiae"},"children":[{"data":{"display":"Saccharomyces
+        cerevisiae S288C","term":"Saccharomyces cerevisiae S288C"},"children":[]}]},{"data":{"display":"Saccharomyces
+        paradoxus","term":"Saccharomyces paradoxus"},"children":[{"data":{"display":"Saccharomyces
+        paradoxus CBS432","term":"Saccharomyces paradoxus CBS432"},"children":[]}]}]}]},{"data":{"display":"Saccharomycodaceae","term":"Saccharomycodaceae"},"children":[{"data":{"display":"Hanseniaspora","term":"Hanseniaspora"},"children":[{"data":{"display":"Hanseniaspora
+        guilliermondii","term":"Hanseniaspora guilliermondii"},"children":[{"data":{"display":"Hanseniaspora
+        guilliermondii strain UTAD222","term":"Hanseniaspora guilliermondii strain
+        UTAD222"},"children":[]}]},{"data":{"display":"Hanseniaspora uvarum","term":"Hanseniaspora
+        uvarum"},"children":[{"data":{"display":"Hanseniaspora uvarum strain AWRI3580","term":"Hanseniaspora
+        uvarum strain AWRI3580"},"children":[]}]}]},{"data":{"display":"Saccharomycodes","term":"Saccharomycodes"},"children":[{"data":{"display":"Saccharomycodes
+        ludwigii UTAD17","term":"Saccharomycodes ludwigii UTAD17"},"children":[]}]}]},{"data":{"display":"Trichomonascaceae","term":"Trichomonascaceae"},"children":[{"data":{"display":"Trichomonascus
+        ciferrii CBS 4856","term":"Trichomonascus ciferrii CBS 4856"},"children":[]}]}]},{"data":{"display":"Schizosaccharomycetes","term":"Schizosaccharomycetes"},"children":[{"data":{"display":"Schizosaccharomyces
+        japonicus","term":"Schizosaccharomyces japonicus"},"children":[{"data":{"display":"Schizosaccharomyces
+        japonicus yFS275","term":"Schizosaccharomyces japonicus yFS275"},"children":[]}]},{"data":{"display":"Schizosaccharomyces
+        octosporus","term":"Schizosaccharomyces octosporus"},"children":[{"data":{"display":"Schizosaccharomyces
+        octosporus yFS286","term":"Schizosaccharomyces octosporus yFS286"},"children":[]}]},{"data":{"display":"Schizosaccharomyces
+        pombe","term":"Schizosaccharomyces pombe"},"children":[{"data":{"display":"Schizosaccharomyces
+        pombe 972h-","term":"Schizosaccharomyces pombe 972h-"},"children":[]}]}]},{"data":{"display":"Sordariomycetes","term":"Sordariomycetes"},"children":[{"data":{"display":"Glomerellales","term":"Glomerellales"},"children":[{"data":{"display":"Glomerellaceae","term":"Glomerellaceae"},"children":[{"data":{"display":"Colletotrichum
+        graminicola","term":"Colletotrichum graminicola"},"children":[{"data":{"display":"Colletotrichum
+        graminicola M1.001","term":"Colletotrichum graminicola M1.001"},"children":[]}]},{"data":{"display":"Colletotrichum
+        higginsianum","term":"Colletotrichum higginsianum"},"children":[{"data":{"display":"Colletotrichum
+        higginsianum IMI 349063","term":"Colletotrichum higginsianum IMI 349063"},"children":[]}]}]},{"data":{"display":"Plectosphaerellaceae","term":"Plectosphaerellaceae"},"children":[{"data":{"display":"Verticillium
+        dahliae JR2","term":"Verticillium dahliae JR2"},"children":[]}]}]},{"data":{"display":"Hypocreales","term":"Hypocreales"},"children":[{"data":{"display":"Clavicipitaceae","term":"Clavicipitaceae"},"children":[{"data":{"display":"Claviceps","term":"Claviceps"},"children":[{"data":{"display":"Claviceps
+        purpurea 20.1","term":"Claviceps purpurea 20.1"},"children":[]}]},{"data":{"display":"Metarhizium","term":"Metarhizium"},"children":[{"data":{"display":"Metarhizium
+        anisopliae ARSEF 549","term":"Metarhizium anisopliae ARSEF 549"},"children":[]}]}]},{"data":{"display":"Cordycipitaceae","term":"Cordycipitaceae"},"children":[{"data":{"display":"Cordyceps
+        militaris ATCC 34164","term":"Cordyceps militaris ATCC 34164"},"children":[]},{"data":{"display":"Cordyceps
+        militaris CM01","term":"Cordyceps militaris CM01"},"children":[]}]},{"data":{"display":"Hypocreaceae","term":"Hypocreaceae"},"children":[{"data":{"display":"Trichoderma
+        reesei","term":"Trichoderma reesei"},"children":[{"data":{"display":"Trichoderma
+        reesei QM6a","term":"Trichoderma reesei QM6a"},"children":[]},{"data":{"display":"Trichoderma
+        reesei QM6a 2017","term":"Trichoderma reesei QM6a 2017"},"children":[]}]},{"data":{"display":"Trichoderma
+        virens","term":"Trichoderma virens"},"children":[{"data":{"display":"Trichoderma
+        virens Gv29-8","term":"Trichoderma virens Gv29-8"},"children":[]}]}]},{"data":{"display":"Nectriaceae","term":"Nectriaceae"},"children":[{"data":{"display":"Fusarium
+        circinatum","term":"Fusarium circinatum"},"children":[{"data":{"display":"Fusarium
+        circinatum NRRL 25331","term":"Fusarium circinatum NRRL 25331"},"children":[]}]},{"data":{"display":"Fusarium
+        fujikuroi","term":"Fusarium fujikuroi"},"children":[{"data":{"display":"Fusarium
+        fujikuroi IMI 58289","term":"Fusarium fujikuroi IMI 58289"},"children":[]}]},{"data":{"display":"Fusarium
+        graminearum","term":"Fusarium graminearum"},"children":[{"data":{"display":"Fusarium
+        graminearum PH-1","term":"Fusarium graminearum PH-1"},"children":[]}]},{"data":{"display":"Fusarium
+        mangiferae","term":"Fusarium mangiferae"},"children":[{"data":{"display":"Fusarium
+        mangiferae MRC7560","term":"Fusarium mangiferae MRC7560"},"children":[]}]},{"data":{"display":"Fusarium
+        odoratissimum","term":"Fusarium odoratissimum"},"children":[{"data":{"display":"Fusarium
+        odoratissimum NRRL 54006","term":"Fusarium odoratissimum NRRL 54006"},"children":[]},{"data":{"display":"Fusarium
+        odoratissimum strain race 4","term":"Fusarium odoratissimum strain race 4"},"children":[]}]},{"data":{"display":"Fusarium
+        oxysporum","term":"Fusarium oxysporum"},"children":[{"data":{"display":"Fusarium
+        oxysporum Fo47","term":"Fusarium oxysporum Fo47"},"children":[]},{"data":{"display":"Fusarium
+        oxysporum NRRL 32931","term":"Fusarium oxysporum NRRL 32931"},"children":[]},{"data":{"display":"Fusarium
+        oxysporum f. sp. conglutinans Fo5176","term":"Fusarium oxysporum f. sp. conglutinans
+        Fo5176"},"children":[]},{"data":{"display":"Fusarium oxysporum f. sp. cubense
+        race 1","term":"Fusarium oxysporum f. sp. cubense race 1"},"children":[]},{"data":{"display":"Fusarium
+        oxysporum f. sp. lycopersici 4287","term":"Fusarium oxysporum f. sp. lycopersici
+        4287"},"children":[]},{"data":{"display":"Fusarium oxysporum f. sp. melonis
+        26406","term":"Fusarium oxysporum f. sp. melonis 26406"},"children":[]}]},{"data":{"display":"Fusarium
+        proliferatum","term":"Fusarium proliferatum"},"children":[{"data":{"display":"Fusarium
+        proliferatum ET1","term":"Fusarium proliferatum ET1"},"children":[]},{"data":{"display":"Fusarium
+        proliferatum strain NRRL62905","term":"Fusarium proliferatum strain NRRL62905"},"children":[]}]},{"data":{"display":"Fusarium
+        solani","term":"Fusarium solani"},"children":[{"data":{"display":"Fusarium
+        solani FSSC 5 MPI-SDFR-AT-0091","term":"Fusarium solani FSSC 5 MPI-SDFR-AT-0091"},"children":[]}]},{"data":{"display":"Fusarium
+        vanettenii","term":"Fusarium vanettenii"},"children":[{"data":{"display":"Fusarium
+        vanettenii 77-13-4","term":"Fusarium vanettenii 77-13-4"},"children":[]}]},{"data":{"display":"Fusarium
+        verticillioides","term":"Fusarium verticillioides"},"children":[{"data":{"display":"Fusarium
+        verticillioides 7600","term":"Fusarium verticillioides 7600"},"children":[]}]}]},{"data":{"display":"Stachybotryaceae","term":"Stachybotryaceae"},"children":[{"data":{"display":"Stachybotrys
+        chartarum IBT 40293","term":"Stachybotrys chartarum IBT 40293"},"children":[]}]}]},{"data":{"display":"Magnaporthales","term":"Magnaporthales"},"children":[{"data":{"display":"Magnaporthaceae","term":"Magnaporthaceae"},"children":[{"data":{"display":"Gaeumannomyces","term":"Gaeumannomyces"},"children":[{"data":{"display":"Gaeumannomyces
+        tritici R3-111a-1","term":"Gaeumannomyces tritici R3-111a-1"},"children":[]}]},{"data":{"display":"Magnaporthiopsis","term":"Magnaporthiopsis"},"children":[{"data":{"display":"Magnaporthiopsis
+        poae ATCC 64411","term":"Magnaporthiopsis poae ATCC 64411"},"children":[]}]}]},{"data":{"display":"Pyriculariaceae","term":"Pyriculariaceae"},"children":[{"data":{"display":"Pyricularia
+        oryzae","term":"Pyricularia oryzae"},"children":[{"data":{"display":"Pyricularia
+        oryzae 70-15","term":"Pyricularia oryzae 70-15"},"children":[]},{"data":{"display":"Pyricularia
+        oryzae BR32","term":"Pyricularia oryzae BR32"},"children":[]}]},{"data":{"display":"Pyricularia
+        pennisetigena","term":"Pyricularia pennisetigena"},"children":[{"data":{"display":"Pyricularia
+        pennisetigena Br36","term":"Pyricularia pennisetigena Br36"},"children":[]}]}]}]},{"data":{"display":"Microascales","term":"Microascales"},"children":[{"data":{"display":"Lomentospora","term":"Lomentospora"},"children":[{"data":{"display":"Lomentospora
+        prolificans JHH-5317","term":"Lomentospora prolificans JHH-5317"},"children":[]}]},{"data":{"display":"Scedosporium","term":"Scedosporium"},"children":[{"data":{"display":"Scedosporium
+        apiospermum IHEM 14462","term":"Scedosporium apiospermum IHEM 14462"},"children":[]}]}]},{"data":{"display":"Ophiostomatales","term":"Ophiostomatales"},"children":[{"data":{"display":"Ophiostoma","term":"Ophiostoma"},"children":[{"data":{"display":"Ophiostoma
+        piceae UAMH 11346","term":"Ophiostoma piceae UAMH 11346"},"children":[]}]},{"data":{"display":"Raffaelea","term":"Raffaelea"},"children":[{"data":{"display":"Raffaelea
+        lauricola RL4","term":"Raffaelea lauricola RL4"},"children":[]}]},{"data":{"display":"Sporothrix","term":"Sporothrix"},"children":[{"data":{"display":"Sporothrix
+        brasiliensis","term":"Sporothrix brasiliensis"},"children":[{"data":{"display":"Sporothrix
+        brasiliensis 5110","term":"Sporothrix brasiliensis 5110"},"children":[]}]},{"data":{"display":"Sporothrix
+        schenckii","term":"Sporothrix schenckii"},"children":[{"data":{"display":"Sporothrix
+        schenckii 1099-18","term":"Sporothrix schenckii 1099-18"},"children":[]}]}]}]},{"data":{"display":"Sordariales","term":"Sordariales"},"children":[{"data":{"display":"Chaetomiaceae","term":"Chaetomiaceae"},"children":[{"data":{"display":"Chaetomium","term":"Chaetomium"},"children":[{"data":{"display":"Chaetomium
+        globosum CBS 148.51","term":"Chaetomium globosum CBS 148.51"},"children":[]}]},{"data":{"display":"Podospora","term":"Podospora"},"children":[{"data":{"display":"Podospora
+        anserina","term":"Podospora anserina"},"children":[{"data":{"display":"Podospora
+        anserina S mat+","term":"Podospora anserina S mat+"},"children":[]}]},{"data":{"display":"Podospora
+        comata","term":"Podospora comata"},"children":[{"data":{"display":"Podospora
+        comata strain T mat+","term":"Podospora comata strain T mat+"},"children":[]}]}]},{"data":{"display":"Thermothelomyces","term":"Thermothelomyces"},"children":[{"data":{"display":"Thermothelomyces
+        thermophilus ATCC 42464","term":"Thermothelomyces thermophilus ATCC 42464"},"children":[]}]}]},{"data":{"display":"Madurella","term":"Madurella"},"children":[{"data":{"display":"Madurella
+        mycetomatis mm55","term":"Madurella mycetomatis mm55"},"children":[]}]},{"data":{"display":"Sordariaceae","term":"Sordariaceae"},"children":[{"data":{"display":"Neurospora","term":"Neurospora"},"children":[{"data":{"display":"Neurospora
+        crassa","term":"Neurospora crassa"},"children":[{"data":{"display":"Neurospora
+        crassa OR74A","term":"Neurospora crassa OR74A"},"children":[]}]},{"data":{"display":"Neurospora
+        discreta","term":"Neurospora discreta"},"children":[{"data":{"display":"Neurospora
+        discreta FGSC 8579","term":"Neurospora discreta FGSC 8579"},"children":[]}]},{"data":{"display":"Neurospora
+        tetrasperma","term":"Neurospora tetrasperma"},"children":[{"data":{"display":"Neurospora
+        tetrasperma FGSC 2508","term":"Neurospora tetrasperma FGSC 2508"},"children":[]}]}]},{"data":{"display":"Sordaria","term":"Sordaria"},"children":[{"data":{"display":"Sordaria
+        macrospora k-hell","term":"Sordaria macrospora k-hell"},"children":[]}]}]}]},{"data":{"display":"Xylariales","term":"Xylariales"},"children":[{"data":{"display":"Xylaria
+        arbuscula CBS 124340","term":"Xylaria arbuscula CBS 124340"},"children":[]}]}]},{"data":{"display":"Taphrinomycetes","term":"Taphrinomycetes"},"children":[{"data":{"display":"Taphrina
+        deformans PYCC 5710","term":"Taphrina deformans PYCC 5710"},"children":[]}]}]},{"data":{"display":"Basidiomycota","term":"Basidiomycota"},"children":[{"data":{"display":"Agaricomycetes","term":"Agaricomycetes"},"children":[{"data":{"display":"Agaricales","term":"Agaricales"},"children":[{"data":{"display":"Pleurotaceae","term":"Pleurotaceae"},"children":[{"data":{"display":"Pleurotus
+        ostreatus PC15","term":"Pleurotus ostreatus PC15"},"children":[]},{"data":{"display":"Pleurotus
+        ostreatus PC9","term":"Pleurotus ostreatus PC9"},"children":[]}]},{"data":{"display":"Psathyrellaceae","term":"Psathyrellaceae"},"children":[{"data":{"display":"Coprinopsis
+        cinerea #326","term":"Coprinopsis cinerea #326"},"children":[]},{"data":{"display":"Coprinopsis
+        cinerea okayama7#130","term":"Coprinopsis cinerea okayama7#130"},"children":[]}]},{"data":{"display":"Schizophyllaceae","term":"Schizophyllaceae"},"children":[{"data":{"display":"Schizophyllum
+        commune H4-8","term":"Schizophyllum commune H4-8"},"children":[]}]}]},{"data":{"display":"Hymenochaetales","term":"Hymenochaetales"},"children":[{"data":{"display":"Rickenella
+        mellea Ricmel1","term":"Rickenella mellea Ricmel1"},"children":[]}]},{"data":{"display":"Polyporales","term":"Polyporales"},"children":[{"data":{"display":"Phanerochaetaceae","term":"Phanerochaetaceae"},"children":[{"data":{"display":"Phanerochaete
+        chrysosporium RP-78","term":"Phanerochaete chrysosporium RP-78"},"children":[]}]},{"data":{"display":"Polyporaceae","term":"Polyporaceae"},"children":[{"data":{"display":"Lentinus
+        tigrinus ALCF2SS1-7","term":"Lentinus tigrinus ALCF2SS1-7"},"children":[]}]}]}]},{"data":{"display":"Malasseziomycetes","term":"Malasseziomycetes"},"children":[{"data":{"display":"Malassezia
+        globosa","term":"Malassezia globosa"},"children":[{"data":{"display":"Malassezia
+        globosa CBS 7966","term":"Malassezia globosa CBS 7966"},"children":[]}]},{"data":{"display":"Malassezia
+        pachydermatis","term":"Malassezia pachydermatis"},"children":[{"data":{"display":"Malassezia
+        pachydermatis CBS 1879","term":"Malassezia pachydermatis CBS 1879"},"children":[]}]},{"data":{"display":"Malassezia
+        restricta","term":"Malassezia restricta"},"children":[{"data":{"display":"Malassezia
+        restricta CBS 7877","term":"Malassezia restricta CBS 7877"},"children":[]},{"data":{"display":"Malassezia
+        restricta KCTC 27527","term":"Malassezia restricta KCTC 27527"},"children":[]}]},{"data":{"display":"Malassezia
+        sympodialis","term":"Malassezia sympodialis"},"children":[{"data":{"display":"Malassezia
+        sympodialis ATCC 42132","term":"Malassezia sympodialis ATCC 42132"},"children":[]}]}]},{"data":{"display":"Pucciniomycetes","term":"Pucciniomycetes"},"children":[{"data":{"display":"Hemileia","term":"Hemileia"},"children":[{"data":{"display":"Hemileia
+        vastatrix Race XXXIII","term":"Hemileia vastatrix Race XXXIII"},"children":[]}]},{"data":{"display":"Melampsoraceae","term":"Melampsoraceae"},"children":[{"data":{"display":"Melampsora
+        larici-populina 98AG31","term":"Melampsora larici-populina 98AG31"},"children":[]}]},{"data":{"display":"Pucciniaceae","term":"Pucciniaceae"},"children":[{"data":{"display":"Puccinia
+        graminis","term":"Puccinia graminis"},"children":[{"data":{"display":"Puccinia
+        graminis f. sp. tritici CRL 75-36-700-3","term":"Puccinia graminis f. sp.
+        tritici CRL 75-36-700-3"},"children":[]}]},{"data":{"display":"Puccinia sorghi","term":"Puccinia
+        sorghi"},"children":[{"data":{"display":"Puccinia sorghi strain RO10H11247","term":"Puccinia
+        sorghi strain RO10H11247"},"children":[]}]},{"data":{"display":"Puccinia striiformis","term":"Puccinia
+        striiformis"},"children":[{"data":{"display":"Puccinia striiformis 93TX-2","term":"Puccinia
+        striiformis 93TX-2"},"children":[]},{"data":{"display":"Puccinia striiformis
+        strain 93-210","term":"Puccinia striiformis strain 93-210"},"children":[]}]},{"data":{"display":"Puccinia
+        triticina","term":"Puccinia triticina"},"children":[{"data":{"display":"Puccinia
+        triticina 1-1 BBBD Race 1","term":"Puccinia triticina 1-1 BBBD Race 1"},"children":[]}]}]}]},{"data":{"display":"Tremellomycetes","term":"Tremellomycetes"},"children":[{"data":{"display":"Tremellales","term":"Tremellales"},"children":[{"data":{"display":"Cryptococcaceae","term":"Cryptococcaceae"},"children":[{"data":{"display":"Cryptococcus","term":"Cryptococcus"},"children":[{"data":{"display":"Cryptococcus
+        cf. gattii","term":"Cryptococcus cf. gattii"},"children":[{"data":{"display":"Cryptococcus
+        cf. gattii MF34","term":"Cryptococcus cf. gattii MF34"},"children":[]}]},{"data":{"display":"Cryptococcus
+        depauperatus","term":"Cryptococcus depauperatus"},"children":[{"data":{"display":"Cryptococcus
+        depauperatus CBS 7841","term":"Cryptococcus depauperatus CBS 7841"},"children":[]},{"data":{"display":"Cryptococcus
+        depauperatus CBS 7855","term":"Cryptococcus depauperatus CBS 7855"},"children":[]}]},{"data":{"display":"Cryptococcus
+        gattii VGI","term":"Cryptococcus gattii VGI"},"children":[{"data":{"display":"Cryptococcus
+        gattii EJB2","term":"Cryptococcus gattii EJB2"},"children":[]},{"data":{"display":"Cryptococcus
+        gattii NT-10","term":"Cryptococcus gattii NT-10"},"children":[]},{"data":{"display":"Cryptococcus
+        gattii WM276","term":"Cryptococcus gattii WM276"},"children":[]}]},{"data":{"display":"Cryptococcus
+        gattii VGII","term":"Cryptococcus gattii VGII"},"children":[{"data":{"display":"Cryptococcus
+        gattii VGII R265","term":"Cryptococcus gattii VGII R265"},"children":[]}]},{"data":{"display":"Cryptococcus
+        gattii VGIII","term":"Cryptococcus gattii VGIII"},"children":[{"data":{"display":"Cryptococcus
+        gattii CA1873","term":"Cryptococcus gattii CA1873"},"children":[]}]},{"data":{"display":"Cryptococcus
+        gattii VGIV","term":"Cryptococcus gattii VGIV"},"children":[{"data":{"display":"Cryptococcus
+        gattii VGIV IND107","term":"Cryptococcus gattii VGIV IND107"},"children":[]}]},{"data":{"display":"Cryptococcus
+        neoformans","term":"Cryptococcus neoformans"},"children":[{"data":{"display":"Cryptococcus
+        neoformans strain:VNII","term":"Cryptococcus neoformans strain:VNII"},"children":[]},{"data":{"display":"Cryptococcus
+        neoformans var. grubii H99","term":"Cryptococcus neoformans var. grubii H99"},"children":[]},{"data":{"display":"Cryptococcus
+        neoformans var. grubii KN99","term":"Cryptococcus neoformans var. grubii KN99"},"children":[]},{"data":{"display":"Cryptococcus
+        neoformans var. neoformans B-3501A","term":"Cryptococcus neoformans var. neoformans
+        B-3501A"},"children":[]},{"data":{"display":"Cryptococcus neoformans var.
+        neoformans JEC21","term":"Cryptococcus neoformans var. neoformans JEC21"},"children":[]}]}]},{"data":{"display":"Kwoniella","term":"Kwoniella"},"children":[{"data":{"display":"Kwoniella
+        bestiolae","term":"Kwoniella bestiolae"},"children":[{"data":{"display":"Kwoniella
+        bestiolae CBS 10118","term":"Kwoniella bestiolae CBS 10118"},"children":[]}]},{"data":{"display":"Kwoniella
+        dejecticola","term":"Kwoniella dejecticola"},"children":[{"data":{"display":"Kwoniella
+        dejecticola CBS 10117","term":"Kwoniella dejecticola CBS 10117"},"children":[]}]},{"data":{"display":"Kwoniella
+        heveanensis","term":"Kwoniella heveanensis"},"children":[{"data":{"display":"Kwoniella
+        heveanensis CBS 569","term":"Kwoniella heveanensis CBS 569"},"children":[]}]},{"data":{"display":"Kwoniella
+        mangrovensis","term":"Kwoniella mangrovensis"},"children":[{"data":{"display":"Kwoniella
+        mangroviensis CBS 8507","term":"Kwoniella mangroviensis CBS 8507"},"children":[]}]}]}]},{"data":{"display":"Tremellaceae","term":"Tremellaceae"},"children":[{"data":{"display":"Tremella
+        mesenterica DSM 1558","term":"Tremella mesenterica DSM 1558"},"children":[]}]}]},{"data":{"display":"Trichosporonales","term":"Trichosporonales"},"children":[{"data":{"display":"Trichosporon
+        asahii var. asahii CBS 2479","term":"Trichosporon asahii var. asahii CBS 2479"},"children":[]}]}]},{"data":{"display":"Ustilaginomycetes","term":"Ustilaginomycetes"},"children":[{"data":{"display":"Sporisorium","term":"Sporisorium"},"children":[{"data":{"display":"Sporisorium
+        reilianum SRZ2","term":"Sporisorium reilianum SRZ2"},"children":[]}]},{"data":{"display":"Ustilago","term":"Ustilago"},"children":[{"data":{"display":"Ustilago
+        maydis 521","term":"Ustilago maydis 521"},"children":[]}]}]}]},{"data":{"display":"Blastocladiomycota","term":"Blastocladiomycota"},"children":[{"data":{"display":"Allomyces
+        macrogynus ATCC 38327","term":"Allomyces macrogynus ATCC 38327"},"children":[]}]},{"data":{"display":"Chytridiomycota","term":"Chytridiomycota"},"children":[{"data":{"display":"Rhizophydiales","term":"Rhizophydiales"},"children":[{"data":{"display":"Batrachochytrium
+        dendrobatidis","term":"Batrachochytrium dendrobatidis"},"children":[{"data":{"display":"Batrachochytrium
+        dendrobatidis JEL423","term":"Batrachochytrium dendrobatidis JEL423"},"children":[]}]},{"data":{"display":"Batrachochytrium
+        salamandrivorans","term":"Batrachochytrium salamandrivorans"},"children":[{"data":{"display":"Batrachochytrium
+        salamandrivorans BS","term":"Batrachochytrium salamandrivorans BS"},"children":[]}]}]},{"data":{"display":"Spizellomycetales","term":"Spizellomycetales"},"children":[{"data":{"display":"Spizellomyces
+        punctatus DAOM BR117","term":"Spizellomyces punctatus DAOM BR117"},"children":[]}]},{"data":{"display":"Synchytriales","term":"Synchytriales"},"children":[{"data":{"display":"Synchytrium
+        endobioticum MB42","term":"Synchytrium endobioticum MB42"},"children":[]}]}]},{"data":{"display":"Mucoromycota","term":"Mucoromycota"},"children":[{"data":{"display":"Glomeromycetes","term":"Glomeromycetes"},"children":[{"data":{"display":"Rhizophagus
+        irregularis A1 (DAOM-664342)","term":"Rhizophagus irregularis A1 (DAOM-664342)"},"children":[]},{"data":{"display":"Rhizophagus
+        irregularis C2","term":"Rhizophagus irregularis C2"},"children":[]},{"data":{"display":"Rhizophagus
+        irregularis DAOM 181602=DAOM 197198","term":"Rhizophagus irregularis DAOM
+        181602=DAOM 197198"},"children":[]}]},{"data":{"display":"Mucoromycetes","term":"Mucoromycetes"},"children":[{"data":{"display":"Lichtheimiaceae","term":"Lichtheimiaceae"},"children":[{"data":{"display":"Lichtheimia
+        corymbifera JMRC:FSU:9682","term":"Lichtheimia corymbifera JMRC:FSU:9682"},"children":[]}]},{"data":{"display":"Mucoraceae","term":"Mucoraceae"},"children":[{"data":{"display":"Mucor
+        circinelloides","term":"Mucor circinelloides"},"children":[{"data":{"display":"Mucor
+        circinelloides 1006PhL","term":"Mucor circinelloides 1006PhL"},"children":[]}]},{"data":{"display":"Mucor
+        lusitanicus","term":"Mucor lusitanicus"},"children":[{"data":{"display":"Mucor
+        lusitanicus CBS 277.49","term":"Mucor lusitanicus CBS 277.49"},"children":[]}]}]},{"data":{"display":"Phycomycetaceae","term":"Phycomycetaceae"},"children":[{"data":{"display":"Phycomyces
+        blakesleeanus NRRL 1555(-)","term":"Phycomyces blakesleeanus NRRL 1555(-)"},"children":[]}]},{"data":{"display":"Rhizopodaceae","term":"Rhizopodaceae"},"children":[{"data":{"display":"Rhizopus
+        delemar","term":"Rhizopus delemar"},"children":[{"data":{"display":"Rhizopus
+        delemar RA 99-880","term":"Rhizopus delemar RA 99-880"},"children":[]}]},{"data":{"display":"Rhizopus
+        microsporus","term":"Rhizopus microsporus"},"children":[{"data":{"display":"Rhizopus
+        microsporus var. microsporus ATCC 52814","term":"Rhizopus microsporus var.
+        microsporus ATCC 52814"},"children":[]}]}]}]}]}]},{"data":{"display":"Oomycota","term":"Oomycota"},"children":[{"data":{"display":"Albuginales","term":"Albuginales"},"children":[{"data":{"display":"Albugo
+        candida","term":"Albugo candida"},"children":[{"data":{"display":"Albugo candida
+        2VRR","term":"Albugo candida 2VRR"},"children":[]}]},{"data":{"display":"Albugo
+        laibachii","term":"Albugo laibachii"},"children":[{"data":{"display":"Albugo
+        laibachii Nc14","term":"Albugo laibachii Nc14"},"children":[]}]}]},{"data":{"display":"Peronosporales","term":"Peronosporales"},"children":[{"data":{"display":"Bremia","term":"Bremia"},"children":[{"data":{"display":"Bremia
+        lactucae strain SF5","term":"Bremia lactucae strain SF5"},"children":[]}]},{"data":{"display":"Hyaloperonospora","term":"Hyaloperonospora"},"children":[{"data":{"display":"Hyaloperonospora
+        arabidopsidis Emoy2","term":"Hyaloperonospora arabidopsidis Emoy2"},"children":[]}]},{"data":{"display":"Peronospora","term":"Peronospora"},"children":[{"data":{"display":"Peronospora
+        effusa R13","term":"Peronospora effusa R13"},"children":[]}]},{"data":{"display":"Phytophthora","term":"Phytophthora"},"children":[{"data":{"display":"Phytophthora
+        cactorum","term":"Phytophthora cactorum"},"children":[{"data":{"display":"Phytophthora
+        cactorum 10300","term":"Phytophthora cactorum 10300"},"children":[]}]},{"data":{"display":"Phytophthora
+        capsici","term":"Phytophthora capsici"},"children":[{"data":{"display":"Phytophthora
+        capsici LT1534","term":"Phytophthora capsici LT1534"},"children":[]}]},{"data":{"display":"Phytophthora
+        cinnamomi","term":"Phytophthora cinnamomi"},"children":[{"data":{"display":"Phytophthora
+        cinnamomi GKB4","term":"Phytophthora cinnamomi GKB4"},"children":[]}]},{"data":{"display":"Phytophthora
+        infestans","term":"Phytophthora infestans"},"children":[{"data":{"display":"Phytophthora
+        infestans T30-4","term":"Phytophthora infestans T30-4"},"children":[]}]},{"data":{"display":"Phytophthora
+        palmivora","term":"Phytophthora palmivora"},"children":[{"data":{"display":"Phytophthora
+        palmivora var. palmivora strain sbr112.9","term":"Phytophthora palmivora var.
+        palmivora strain sbr112.9"},"children":[]}]},{"data":{"display":"Phytophthora
+        parasitica","term":"Phytophthora parasitica"},"children":[{"data":{"display":"Phytophthora
+        parasitica INRA-310","term":"Phytophthora parasitica INRA-310"},"children":[]}]},{"data":{"display":"Phytophthora
+        ramorum","term":"Phytophthora ramorum"},"children":[{"data":{"display":"Phytophthora
+        ramorum 14567","term":"Phytophthora ramorum 14567"},"children":[]},{"data":{"display":"Phytophthora
+        ramorum strain Pr102","term":"Phytophthora ramorum strain Pr102"},"children":[]}]},{"data":{"display":"Phytophthora
+        sojae","term":"Phytophthora sojae"},"children":[{"data":{"display":"Phytophthora
+        sojae strain P6497","term":"Phytophthora sojae strain P6497"},"children":[]}]}]}]},{"data":{"display":"Pythiales","term":"Pythiales"},"children":[{"data":{"display":"Globisporangium","term":"Globisporangium"},"children":[{"data":{"display":"Globisporangium
+        irregulare","term":"Globisporangium irregulare"},"children":[{"data":{"display":"Globisporangium
+        irregulare DAOM BR486","term":"Globisporangium irregulare DAOM BR486"},"children":[]}]},{"data":{"display":"Globisporangium
+        iwayamae","term":"Globisporangium iwayamae"},"children":[{"data":{"display":"Globisporangium
+        iwayamae DAOM BR242034","term":"Globisporangium iwayamae DAOM BR242034"},"children":[]}]},{"data":{"display":"Globisporangium
+        ultimum","term":"Globisporangium ultimum"},"children":[{"data":{"display":"Globisporangium
+        ultimum DAOM BR144","term":"Globisporangium ultimum DAOM BR144"},"children":[]},{"data":{"display":"Globisporangium
+        ultimum var. sporangiiferum BR650","term":"Globisporangium ultimum var. sporangiiferum
+        BR650"},"children":[]}]}]},{"data":{"display":"Phytopythium","term":"Phytopythium"},"children":[{"data":{"display":"Phytopythium
+        vexans DAOM BR484","term":"Phytopythium vexans DAOM BR484"},"children":[]}]},{"data":{"display":"Pythium","term":"Pythium"},"children":[{"data":{"display":"Pythium
+        aphanidermatum","term":"Pythium aphanidermatum"},"children":[{"data":{"display":"Pythium
+        aphanidermatum DAOM BR444","term":"Pythium aphanidermatum DAOM BR444"},"children":[]}]},{"data":{"display":"Pythium
+        arrhenomanes","term":"Pythium arrhenomanes"},"children":[{"data":{"display":"Pythium
+        arrhenomanes ATCC 12531","term":"Pythium arrhenomanes ATCC 12531"},"children":[]}]},{"data":{"display":"Pythium
+        insidiosum","term":"Pythium insidiosum"},"children":[{"data":{"display":"Pythium
+        insidiosum Pi-s","term":"Pythium insidiosum Pi-s"},"children":[]}]}]}]},{"data":{"display":"Saprolegniales","term":"Saprolegniales"},"children":[{"data":{"display":"Aphanomyces","term":"Aphanomyces"},"children":[{"data":{"display":"Aphanomyces
+        astaci","term":"Aphanomyces astaci"},"children":[{"data":{"display":"Aphanomyces
+        astaci strain APO3","term":"Aphanomyces astaci strain APO3"},"children":[]}]},{"data":{"display":"Aphanomyces
+        euteiches","term":"Aphanomyces euteiches"},"children":[{"data":{"display":"Aphanomyces
+        euteiches MF1","term":"Aphanomyces euteiches MF1"},"children":[]}]},{"data":{"display":"Aphanomyces
+        invadans","term":"Aphanomyces invadans"},"children":[{"data":{"display":"Aphanomyces
+        invadans NJM9701","term":"Aphanomyces invadans NJM9701"},"children":[]}]}]},{"data":{"display":"Saprolegnia","term":"Saprolegnia"},"children":[{"data":{"display":"Saprolegnia
+        diclina","term":"Saprolegnia diclina"},"children":[{"data":{"display":"Saprolegnia
+        diclina VS20","term":"Saprolegnia diclina VS20"},"children":[]}]},{"data":{"display":"Saprolegnia
+        parasitica","term":"Saprolegnia parasitica"},"children":[{"data":{"display":"Saprolegnia
+        parasitica CBS 223.65","term":"Saprolegnia parasitica CBS 223.65"},"children":[]}]}]}]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["Saccharomyces
+        cerevisiae S288C"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["Saccharomyces
+        cerevisiae S288C"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:35:11 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '62648'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://fungidb.org/fungidb/service/users/current
+  response:
+    body:
+      string: '{"isGuest":false,"id":1216062453,"email":"test@test.local","properties":{"organizationType":"academic","firstName":"Test","lastName":"User","country":"US","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:35:12 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '382'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchName":"GenesByTaxon","searchConfig":{"parameters":{"organism":"[\"Macrophomina
+      phaseolina MS6\"]"}}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '108'
+      Content-Type:
+      - application/json
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://fungidb.org/fungidb/service/users/99913691069/steps
+  response:
+    body:
+      string: '{"id":438868983}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:35:12 GMT
+      Location:
+      - https://fungidb.org/fungidb/service/users/99913691069/steps
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"vcr-test","isPublic":false,"isSaved":false,"stepTree":{"stepId":438868983}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '84'
+      Content-Type:
+      - application/json
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://fungidb.org/fungidb/service/users/99913691069/strategies
+  response:
+    body:
+      string: '{"id":330143283}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:35:12 GMT
+      Location:
+      - https://fungidb.org/fungidb/service/users/99913691069/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"reportConfig":{"pagination":{"offset":0,"numRecords":5}}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '59'
+      Content-Type:
+      - application/json
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://fungidb.org/fungidb/service/users/99913691069/steps/438868983/reports/standard
+  response:
+    body:
+      string: '{"records":[{"tables":{},"displayName":"MPH_00001","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"MPH_00001"},{"name":"source_id","value":"MPH_00001_t1"},{"name":"project_id","value":"FungiDB"}],"tableErrors":[]},{"tables":{},"displayName":"MPH_00002","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"MPH_00002"},{"name":"source_id","value":"MPH_00002_t1"},{"name":"project_id","value":"FungiDB"}],"tableErrors":[]},{"tables":{},"displayName":"MPH_00003","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"MPH_00003"},{"name":"source_id","value":"MPH_00003_t1"},{"name":"project_id","value":"FungiDB"}],"tableErrors":[]},{"tables":{},"displayName":"MPH_00004","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"MPH_00004"},{"name":"source_id","value":"MPH_00004_t1"},{"name":"project_id","value":"FungiDB"}],"tableErrors":[]},{"tables":{},"displayName":"MPH_00005","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"MPH_00005"},{"name":"source_id","value":"MPH_00005_t1"},{"name":"project_id","value":"FungiDB"}],"tableErrors":[]}],"meta":{"displayViewTotalCount":14712,"tables":[],"pagination":{"offset":0,"numRecords":5},"cachePreviouslyExisted":true,"viewTotalCount":14712,"sorting":[],"recordClassName":"transcript","responseCount":5,"attributes":[],"totalCount":14712,"displayTotalCount":14712}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Disposition:
+      - inline
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:35:12 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '1661'
+    status:
+      code: 200
+      message: OK
+version: 1

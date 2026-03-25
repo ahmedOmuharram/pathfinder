@@ -1,0 +1,75 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Host:
+      - piroplasmadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://piroplasmadb.org/piro/service/record-types/transcript/searches/GeneByLocusTag
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find a gene by its ID.","urlSegment":"GeneByLocusTag","dynamicAttributes":[{"isInReport":true,"formats":[],"truncateTo":100,"displayName":"Input
+        ID","name":"input_id","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"STRING","tools":{"reports":[],"filters":[]},"properties":{"specificAttribution":[]}},{"isInReport":true,"formats":[],"truncateTo":100,"displayName":"Input
+        Order","name":"dataset_order","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"STRING","tools":{"reports":[],"filters":[]},"properties":{"specificAttribution":[]}},{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"dataset_order","direction":"ASC"},{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"List
+        of IDs","fullName":"GeneQuestions.GeneByLocusTag","description":"Find genes
+        based on Gene ID(s). <br><br>\n           \n           <ul>\n\t        <li>Enter
+        one or more gene ID(s) by typing or pasting, \n                    or upload
+        a plain text file containing a list of IDs.\n\t\t    IDs can be delimited
+        by a comma, semicolon, new-line or space.\n\t\t    For example, a list can
+        be in the following form:\n\t\t    ''NCU06658, NCU06659, Ndisc8579_106685''.</li>\n\t\t<li>The
+        IDs you provide can contain * as a wild-card. For example,\n\t\t    searching
+        for XP_001350415* will identify XP_001350415.1,\n\t\t    XP_001350415.2, etc.</li>\n\t\t<li>Importantly,
+        it is possible that some IDs in your list will not be \n                    found
+        in the database due to annotation changes or unavailable\n                    ID
+        mapping. At present, we do not have a mechanism to inform you which IDs \n                    from
+        your input list were not found in the database.</li>\n           </ul>","defaultAttributes":["primary_key","dataset_order","organism","gene_location_text","gene_product","gene_type","input_id"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["ds_gene_ids"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"IDs
+        List","paramNames":["ds_gene_ids"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GeneByLocusTag","defaultSummaryView":"_default","parameters":[{"displayName":"Gene
+        ID input set","parsers":[{"displayName":"List","name":"list","description":"The
+        input is a list of records, one record in each row, and each record can have
+        multiple columns."}],"isVisible":true,"type":"input-dataset","help":"Input
+        a set of gene IDs, or upload a file. <br><br>\n            \n            IDs
+        can be delimited by a comma, semicolon, space, or new-line.<br><br>\n            \n            It
+        is possible that some IDs in your list will not be found in the database \n            due
+        to annotation changes or unavailable ID mapping. At present, we do not \n            have
+        a mechanism to inform you which IDs from your input list fail to  match \n            IDs
+        in the database.","dependentParams":[],"isReadOnly":false,"allowEmptyValue":false,"name":"ds_gene_ids","recordClassName":"transcript","initialDisplayValue":"","defaultIdList":"TA14985","properties":{"specificAttribution":[]},"group":"empty"}],"properties":{"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:27:04 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4572'
+    status:
+      code: 200
+      message: OK
+version: 1

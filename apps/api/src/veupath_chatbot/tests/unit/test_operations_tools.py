@@ -179,15 +179,15 @@ class TestGraphStateConsistency:
 
         # Before delete: single root
         result = await ops_graph.validate_graph_structure(graph_id="g1")
-        assert result["ok"] is True
-        assert result["rootCount"] == 1
+        assert result.ok is True
+        assert result.root_count == 1
 
         # Delete step C -- cascades to combine_all, leaving combine_ab as root
         await ops_edit.delete_step(step_id=step_c.id, graph_id="g1")
 
         result = await ops_graph.validate_graph_structure(graph_id="g1")
-        assert result["rootCount"] == 1
-        assert combine_ab.id in result["rootStepIds"]
+        assert result.root_count == 1
+        assert combine_ab.id in result.root_step_ids
 
 
 # ---------------------------------------------------------------------------
@@ -205,8 +205,8 @@ class TestEmptyGraphEdgeCases:
     async def test_validate_empty_graph(self):
         ops, _ = _make_graph_ops(with_steps=False)
         result = await ops.validate_graph_structure(graph_id="g1")
-        assert result["ok"] is False
-        assert any(e["code"] == "EMPTY_GRAPH" for e in result["errors"])
+        assert result.ok is False
+        assert any(e["code"] == "EMPTY_GRAPH" for e in result.errors)
 
     async def test_ensure_single_output_on_empty_graph(self):
         ops, _ = _make_graph_ops(with_steps=False)

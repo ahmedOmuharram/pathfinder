@@ -1,0 +1,87 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - cryptodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://cryptodb.org/cryptodb/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216456993,"email":"test@test.local","properties":{"organizationType":"","firstName":"Test","lastName":"User","country":"","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:28:02 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"sourceType":"idList","sourceContent":{"ids":["cgd1_10","cgd1_100","cgd1_1000","cgd1_1010","cgd1_1023","cgd1_1040","cgd1_1050","cgd1_1060","cgd1_1063","cgd1_1070","cgd1_1080","cgd1_1090","cgd1_110","cgd1_1100","cgd1_1110","cgd1_1120","cgd1_1130","cgd1_1140","cgd1_1150","cgd1_1160","cgd1_1170","cgd1_1180","cgd1_120","cgd1_1200","cgd1_1210","cgd1_1220","cgd1_1230","cgd1_1240","cgd1_1250","cgd1_1260","Cgd2_140","Cgd2_1810","Cgd2_2990","Cgd3_2720","Cgd3_4320","Cgd5_1900","Cgd5_2965","Cgd5_40","Cgd5_540","Cgd6_2540","Cgd6_280","Cgd6_4720","Cgd6_4723","Cgd7_2213","Cgd7_260","Cgd7_5103","Cgd7_760","Cgd8_1200","Cgd8_1390","cgd1_1190"]}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '637'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - cryptodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://cryptodb.org/cryptodb/service/users/999109579089/datasets
+  response:
+    body:
+      string: '{"id":223302703}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:28:03 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

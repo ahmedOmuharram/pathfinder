@@ -1,3 +1,6 @@
+# Test credentials (never commit)
+.env.test
+
 # Dependencies
 node_modules/
 .yarn/*

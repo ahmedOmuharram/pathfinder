@@ -1,0 +1,418 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - giardiadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - Authorization=SCRUBBED
+    method: GET
+    uri: https://giardiadb.org/giardiadb/app
+  response:
+    body:
+      string: "<!doctype html>\n<html lang=\"en\">\n  <head>\n        <title>GiardiaDB</title>\n
+        \   <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width,
+        initial-scale=1\"/>\n    <link href=\"/giardiadb/images/GiardiaDB/favicon.ico\"
+        type=\"image/x-icon\" rel=\"shortcut icon\"/>\n    <script>\n            window.__asset_path_remove_me_please__
+        = \"/giardiadb/bundles/\";\n\n            window.__SITE_CONFIG__ = {\n                requireLogin:
+        \"true\" === \"true\",\n        rootElement: \"#wdk-container\",\n        rootUrl:
+        \"/giardiadb/app\",\n        endpoint: \"/giardiadb/service\",\n        projectId:
+        \"GiardiaDB\",\n        webAppUrl: \"/giardiadb\",\n        facebookUrl: \"https://facebook.com/pages/EuPathDB/133123003429972\",\n
+        \       twitterUrl: \"https://twitter.com/VEuPathDB\",\n        twitterUrl2:
+        \"\",\n        youtubeUrl: \"https://youtube.com/user/EuPathDB/playlists\",\n
+        \       discordUrl: \"\",\n        linkedinUrl: \"https://www.linkedin.com/company/veupathdb/\",\n
+        \       redditUrl: \"https://www.reddit.com/r/BRC_users/\",\n        vimeoUrl:
+        \"\",\n        blueskyUrl: \"https://veupathdb.bsky.social\",\n        communitySite:
+        \"//static-content.veupathdb.org/\",\n        siteSearchServiceUrl: \"/site-search\",\n
+        \               useEda: \"true\" === \"true\",\n        edaExampleAnalysesAuthor:
+        \"1926010\",\n        edaServiceUrl: \"/eda\",\n                edaEnableFullScreenApps:
+        \"true\" === \"true\",\n                        useUserDatasetsWorkspace:
+        \"true\" === \"false\",\n        communityDatasetsEnabled: \"true\" === \"False\",\n
+        \       showExtraMetadata: \"\",\n        datasetImportUrl: \"/dataset-import\",\n
+        \       userDatasetsUploadTypes: \"genelist,bigwigfiles,rnaseq\",\n                showUnreleasedData:
+        \"true\" === \"False\",\n        showSubscriptionProds: \"true\" === \"true\",\n
+        \               vdiServiceUrl: \"/vdi\",\n                aiExpressionQualtricsId:
+        \"SV_38C4ZX1JxLi2SEe\",\n              };\n    </script>\n          <script
+        async src=\"https://www.googletagmanager.com/gtag/js?id=G-S99L0G6ZPD\"></script>\n
+        \     <script>\n        window.dataLayer = window.dataLayer || [];\n        function
+        gtag(){dataLayer.push(arguments);}\n        gtag('js', new Date());\n        gtag('config',
+        'G-S99L0G6ZPD');\n      </script>                    <script charset=\"utf8\"
+        src=\"/giardiadb/bundles/site-client.bundle-2a739d81f73252e29220bef284ff715a.js\"
+        ></script>\n    <link rel=\"stylesheet\" type=\"text/css\" href=\"https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css\"/>\n
+        \   <link rel=\"stylesheet\" type=\"text/css\" href=\"/giardiadb/bundles/site-client.bundle-2a739d81f73252e29220bef284ff715a.css\"/>\n
+        \ </head>\n    <body class=\"vpdb-Body\">\n    <div class=\"main-stack\">\n
+        \     <div id=\"wdk-container\">\n                  Loading...\n              </div>\n
+        \   </div>            <script>\n        ((window.gitter = {}).chat = {}).options
+        = {\n          room: 'VEuPathDB-genomic/community'\n        };\n        document.addEventListener(\n
+        \         'gitter-sidecar-instance-started', \n          function gitterSidecarHack()
+        {\n            const gitterBtn = document.querySelector('.gitter-open-chat-button');\n
+        \           const gitterAside = document.querySelector('.gitter-chat-embed');\n\n
+        \           // we want to hide the aside and any loading indicators when button
+        is clicked\n            gitterAside.style.display = 'none';\n            document.querySelector('.gitter-chat-embed-loading-wrapper').style.display
+        = 'none';\n\n            if (gitterBtn.baseURI.includes('embed-record')) {\n
+        \             gitterBtn.style.display = 'none';\n            }\n\n            gitterBtn.addEventListener(\n
+        \             'click', \n              function openGitterInNewTab(e) {\n
+        \               e.stopPropagation();\n                e.preventDefault();\n
+        \               window.open('https://app.gitter.im/#/room/#VEuPathDB-genomic_community:gitter.im',
+        \"VEuPathDBGitterForum\");\n              }, \n              true\n            );\n\n
+        \           gitterAside.addEventListener(\n              'gitter-chat-toggle',
+        \n              function keepGitterBtnVisible() {\n                // we want
+        the chat button to remain visible when clicked\n                gitterBtn.classList.remove('is-collapsed');\n
+        \             }\n            )\n          }\n        );\n        // Prioritize
+        loading application data over this script\n        setTimeout(2000, function
+        loadSideCar() {\n          const scriptTag = document.createElement('script');\n
+        \         scriptTag.src = 'https://cdn.jsdelivr.net/npm/gitter-sidecar@1.5.0/dist/sidecar.min.js';\n
+        \         document.head.appendChild(scriptTag);\n        });\n      </script>
+        \ </body>\n</html>\n"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/html
+      Date:
+      - Wed, 25 Mar 2026 05:34:46 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - JSESSIONID=SCRUBBED; Path=/; Secure
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4533'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - giardiadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://giardiadb.org/giardiadb/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["G.
+        lamblia"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Fornicata","term":"Fornicata"},"children":[{"data":{"display":"Giardia","term":"Giardia"},"children":[{"data":{"display":"Giardia
+        Assemblage A","term":"Giardia Assemblage A"},"children":[{"data":{"display":"Giardia
+        Assemblage A isolate WB","term":"Giardia Assemblage A isolate WB"},"children":[]},{"data":{"display":"Giardia
+        Assemblage A isolate WB 2019","term":"Giardia Assemblage A isolate WB 2019"},"children":[]},{"data":{"display":"Giardia
+        Assemblage A2 isolate DH","term":"Giardia Assemblage A2 isolate DH"},"children":[]}]},{"data":{"display":"Giardia
+        Assemblage B","term":"Giardia Assemblage B"},"children":[{"data":{"display":"Giardia
+        Assemblage B isolate BAH15c1","term":"Giardia Assemblage B isolate BAH15c1"},"children":[]},{"data":{"display":"Giardia
+        Assemblage B isolate GS","term":"Giardia Assemblage B isolate GS"},"children":[]},{"data":{"display":"Giardia
+        Assemblage B isolate GS_B","term":"Giardia Assemblage B isolate GS_B"},"children":[]}]},{"data":{"display":"Giardia
+        Assemblage E","term":"Giardia Assemblage E"},"children":[{"data":{"display":"Giardia
+        Assemblage E isolate P15","term":"Giardia Assemblage E isolate P15"},"children":[]}]},{"data":{"display":"Giardia
+        muris","term":"Giardia muris"},"children":[{"data":{"display":"Giardia muris
+        strain Roberts-Thomson","term":"Giardia muris strain Roberts-Thomson"},"children":[]}]}]},{"data":{"display":"Spironucleus","term":"Spironucleus"},"children":[{"data":{"display":"Spironucleus
+        salmonicida ATCC50377","term":"Spironucleus salmonicida ATCC50377"},"children":[]}]}]},{"data":{"display":"Preaxostyla","term":"Preaxostyla"},"children":[{"data":{"display":"Monocercomonoides
+        exilis PA203","term":"Monocercomonoides exilis PA203"},"children":[]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["G.
+        lamblia"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["G.
+        lamblia"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:46 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4623'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - giardiadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://giardiadb.org/giardiadb/service/record-types/transcript/searches/GenesByTaxon?expandParams=true
+  response:
+    body:
+      string: '{"searchData":{"summary":"Find all genes from one or more species/organism.","urlSegment":"GenesByTaxon","dynamicAttributes":[{"help":"The
+        *search result weight*. This is the sum of the weights you specified for individual
+        searches that found this record.   The more searches that found this record
+        the higher will be its weight.  To give a search a weight, click \"Use Weights\"
+        on the search page, and provide the desired weight.","isInReport":true,"formats":[{"isInReport":true,"displayName":"Histogram","name":"wdk_weight-histogram","description":"Display
+        a histogram of weight distribution","scopes":[],"type":"histogram"}],"truncateTo":100,"displayName":"Search
+        Weight","name":"wdk_weight","isSortable":true,"isDisplayable":true,"isRemovable":true,"columnDataType":"NUMBER","tools":{"reports":[],"filters":[]},"properties":{"organisms":["G.
+        lamblia"],"specificAttribution":[]}}],"defaultSorting":[{"attributeName":"organism","direction":"ASC"},{"attributeName":"gene_location_text","direction":"ASC"}],"isAnalyzable":true,"displayName":"Organism","fullName":"GeneQuestions.GenesByTaxon","description":"Find
+        all genes from one or more species/organism.","defaultAttributes":["primary_key","organism","gene_location_text","gene_product"],"groups":[{"displayType":"empty","displayName":"","name":"empty","description":"","isVisible":true,"parameters":["organism"]}],"filters":[{"isViewOnly":false,"name":"organismFilter"},{"displayName":"Transcripts","isViewOnly":false,"name":"matched_transcript_filter_array"},{"isViewOnly":false,"name":"genesByPathway"}],"shortDisplayName":"Organism","paramNames":["organism"],"isCacheable":true,"outputRecordClassName":"transcript","noSummaryOnSingleRecord":false,"queryName":"GenesByTaxon","defaultSummaryView":"_default","parameters":[{"displayName":"Organism","minSelectedCount":1,"maxSelectedCount":-1,"isVisible":true,"type":"multi-pick-vocabulary","help":"Select
+        organism(s) you wish to query against. Click the [+] to expand taxon groupings.","depthExpanded":0,"dependentParams":[],"displayType":"treeBox","isReadOnly":false,"vocabulary":{"data":{"display":"@@fake@@","term":"@@fake@@"},"children":[{"data":{"display":"Fornicata","term":"Fornicata"},"children":[{"data":{"display":"Giardia","term":"Giardia"},"children":[{"data":{"display":"Giardia
+        Assemblage A","term":"Giardia Assemblage A"},"children":[{"data":{"display":"Giardia
+        Assemblage A isolate WB","term":"Giardia Assemblage A isolate WB"},"children":[]},{"data":{"display":"Giardia
+        Assemblage A isolate WB 2019","term":"Giardia Assemblage A isolate WB 2019"},"children":[]},{"data":{"display":"Giardia
+        Assemblage A2 isolate DH","term":"Giardia Assemblage A2 isolate DH"},"children":[]}]},{"data":{"display":"Giardia
+        Assemblage B","term":"Giardia Assemblage B"},"children":[{"data":{"display":"Giardia
+        Assemblage B isolate BAH15c1","term":"Giardia Assemblage B isolate BAH15c1"},"children":[]},{"data":{"display":"Giardia
+        Assemblage B isolate GS","term":"Giardia Assemblage B isolate GS"},"children":[]},{"data":{"display":"Giardia
+        Assemblage B isolate GS_B","term":"Giardia Assemblage B isolate GS_B"},"children":[]}]},{"data":{"display":"Giardia
+        Assemblage E","term":"Giardia Assemblage E"},"children":[{"data":{"display":"Giardia
+        Assemblage E isolate P15","term":"Giardia Assemblage E isolate P15"},"children":[]}]},{"data":{"display":"Giardia
+        muris","term":"Giardia muris"},"children":[{"data":{"display":"Giardia muris
+        strain Roberts-Thomson","term":"Giardia muris strain Roberts-Thomson"},"children":[]}]}]},{"data":{"display":"Spironucleus","term":"Spironucleus"},"children":[{"data":{"display":"Spironucleus
+        salmonicida ATCC50377","term":"Spironucleus salmonicida ATCC50377"},"children":[]}]}]},{"data":{"display":"Preaxostyla","term":"Preaxostyla"},"children":[{"data":{"display":"Monocercomonoides
+        exilis PA203","term":"Monocercomonoides exilis PA203"},"children":[]}]}]},"allowEmptyValue":false,"name":"organism","countOnlyLeaves":true,"initialDisplayValue":"[]","properties":{"organisms":["G.
+        lamblia"],"specificAttribution":[],"organismProperties":["pruneNodesWithSingleExtendingChild","showOnlyPreferredOrganisms","highlightReferenceOrganisms"]},"group":"empty"}],"properties":{"organisms":["G.
+        lamblia"],"specificAttribution":[]},"summaryViewPlugins":[{"displayName":"Gene
+        Results","name":"_default","description":"View transcripts."},{"displayName":"Genome
+        View","name":"genomic-view","description":"View your hits mapped to their
+        corresponding largest assembled genomic DNA segment, often a chromosome, but\n
+        sometimes a contig or scaffold."}]},"validation":{"level":"DISPLAYABLE","isValid":true}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:47 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '4623'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - giardiadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: GET
+    uri: https://giardiadb.org/giardiadb/service/users/current
+  response:
+    body:
+      string: '{"isGuest":false,"id":1216062453,"email":"test@test.local","properties":{"organizationType":"academic","firstName":"Test","lastName":"User","country":"US","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:47 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '382'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"searchName":"GenesByTaxon","searchConfig":{"parameters":{"organism":"[\"Giardia
+      Assemblage A isolate WB\"]"}}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '112'
+      Content-Type:
+      - application/json
+      Host:
+      - giardiadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://giardiadb.org/giardiadb/service/users/99913691069/steps
+  response:
+    body:
+      string: '{"id":438868853}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:47 GMT
+      Location:
+      - https://giardiadb.org/giardiadb/service/users/99913691069/steps
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"name":"vcr-test","isPublic":false,"isSaved":false,"stepTree":{"stepId":438868853}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '84'
+      Content-Type:
+      - application/json
+      Host:
+      - giardiadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://giardiadb.org/giardiadb/service/users/99913691069/strategies
+  response:
+    body:
+      string: '{"id":330143193}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:47 GMT
+      Location:
+      - https://giardiadb.org/giardiadb/service/users/99913691069/strategies
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"reportConfig":{"pagination":{"offset":0,"numRecords":50}}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '60'
+      Content-Type:
+      - application/json
+      Host:
+      - giardiadb.org
+      User-Agent:
+      - python-httpx/0.28.1
+      cookie:
+      - JSESSIONID=SCRUBBED; Authorization=SCRUBBED
+    method: POST
+    uri: https://giardiadb.org/giardiadb/service/users/99913691069/steps/438868853/reports/standard
+  response:
+    body:
+      string: '{"records":[{"tables":{},"displayName":"GL50803_10008","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10008"},{"name":"source_id","value":"GL50803_10008-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10010","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10010"},{"name":"source_id","value":"GL50803_10010-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10013","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10013"},{"name":"source_id","value":"GL50803_10013-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10014","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10014"},{"name":"source_id","value":"GL50803_10014-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10016","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10016"},{"name":"source_id","value":"GL50803_10016-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10019","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10019"},{"name":"source_id","value":"GL50803_10019-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10025","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10025"},{"name":"source_id","value":"GL50803_10025-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10027","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10027"},{"name":"source_id","value":"GL50803_10027-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100283","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100283"},{"name":"source_id","value":"GL50803_100283-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100327","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100327"},{"name":"source_id","value":"GL50803_100327-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10033","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10033"},{"name":"source_id","value":"GL50803_10033-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10034","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10034"},{"name":"source_id","value":"GL50803_10034-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10036","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10036"},{"name":"source_id","value":"GL50803_10036-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10038","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10038"},{"name":"source_id","value":"GL50803_10038-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100411","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100411"},{"name":"source_id","value":"GL50803_100411-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100413","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100413"},{"name":"source_id","value":"GL50803_100413-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10042","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10042"},{"name":"source_id","value":"GL50803_10042-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100464","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100464"},{"name":"source_id","value":"GL50803_100464-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100472","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100472"},{"name":"source_id","value":"GL50803_100472-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100507","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100507"},{"name":"source_id","value":"GL50803_100507-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10051","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10051"},{"name":"source_id","value":"GL50803_10051-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100530","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100530"},{"name":"source_id","value":"GL50803_100530-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100536","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100536"},{"name":"source_id","value":"GL50803_100536-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10055","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10055"},{"name":"source_id","value":"GL50803_10055-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10056","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10056"},{"name":"source_id","value":"GL50803_10056-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100580","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100580"},{"name":"source_id","value":"GL50803_100580-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10062","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10062"},{"name":"source_id","value":"GL50803_10062-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10063","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10063"},{"name":"source_id","value":"GL50803_10063-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100635","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100635"},{"name":"source_id","value":"GL50803_100635-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100637","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100637"},{"name":"source_id","value":"GL50803_100637-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10066","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10066"},{"name":"source_id","value":"GL50803_10066-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10069","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10069"},{"name":"source_id","value":"GL50803_10069-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100703","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100703"},{"name":"source_id","value":"GL50803_100703-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10073","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10073"},{"name":"source_id","value":"GL50803_10073-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100733","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100733"},{"name":"source_id","value":"GL50803_100733-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100745","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100745"},{"name":"source_id","value":"GL50803_100745-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10079","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10079"},{"name":"source_id","value":"GL50803_10079-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100827","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100827"},{"name":"source_id","value":"GL50803_100827-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100845","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100845"},{"name":"source_id","value":"GL50803_100845-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100851","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100851"},{"name":"source_id","value":"GL50803_100851-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100864","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100864"},{"name":"source_id","value":"GL50803_100864-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100877","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100877"},{"name":"source_id","value":"GL50803_100877-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10088","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10088"},{"name":"source_id","value":"GL50803_10088-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100887","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100887"},{"name":"source_id","value":"GL50803_100887-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100888","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100888"},{"name":"source_id","value":"GL50803_100888-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100900","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100900"},{"name":"source_id","value":"GL50803_100900-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100906","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100906"},{"name":"source_id","value":"GL50803_100906-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10091","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10091"},{"name":"source_id","value":"GL50803_10091-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_10095","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_10095"},{"name":"source_id","value":"GL50803_10095-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]},{"tables":{},"displayName":"GL50803_100955","recordClassName":"TranscriptRecordClasses.TranscriptRecordClass","attributes":{},"id":[{"name":"gene_source_id","value":"GL50803_100955"},{"name":"source_id","value":"GL50803_100955-t26_1"},{"name":"project_id","value":"GiardiaDB"}],"tableErrors":[]}],"meta":{"displayViewTotalCount":9747,"tables":[],"pagination":{"offset":0,"numRecords":50},"cachePreviouslyExisted":true,"viewTotalCount":9747,"sorting":[],"recordClassName":"transcript","responseCount":50,"attributes":[],"totalCount":9747,"displayTotalCount":9747}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Disposition:
+      - inline
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 05:34:48 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '15004'
+    status:
+      code: 200
+      message: OK
+version: 1

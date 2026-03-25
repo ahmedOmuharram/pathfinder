@@ -1,0 +1,87 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: GET
+    uri: https://fungidb.org/fungidb/service/users/current
+  response:
+    body:
+      string: '{"isGuest":true,"id":1216457003,"email":"test@test.local","properties":{"organizationType":"","firstName":"Test","lastName":"User","country":"","groupName":"Test
+        Group","groupType":"research","subscriptionToken":"","organization":"Test
+        Org","middleName":"","position":"researcher","interests":"","username":"test-user"}}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:28:03 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - Authorization=SCRUBBED;Version=1;Path=/;Max-Age=94608000
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      Transfer-Encoding:
+      - chunked
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '267'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"sourceType":"idList","sourceContent":{"ids":["Afu1g00100","Afu1g00110","Afu1g00120","Afu1g00130","Afu1g00140","Afu1g00150","Afu1g00160","Afu1g00170","Afu1g00180","Afu1g00200","Afu1g00210","Afu1g00220","Afu1g00230","Afu1g00240","Afu1g00250","Afu1g00270","Afu1g00280","Afu1g00290","Afu1g00300","Afu1g00310","Afu1g00320","Afu1g00330","Afu1g00340","Afu1g00350","Afu1g00390","Afu1g00400","Afu1g00410","Afu1g00420","Afu1g00440","Afu1g00450","Afu1g00460","Afu1g00470","Afu1g00480","Afu1g00490","Afu1g00500","Afu1g00510","Afu1g00520","Afu1g00530","Afu1g00540","Afu1g00550","Afu1g00560","Afu1g00570","Afu1g00580","Afu1g00590","Afu1g00610","Afu1g00620","Afu1g00630","Afu1g00640","Afu1g00650","Afu1g00660"]}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '699'
+      Content-Type:
+      - application/json
+      Cookie:
+      - Authorization=SCRUBBED
+      Host:
+      - fungidb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://fungidb.org/fungidb/service/users/999199183745/datasets
+  response:
+    body:
+      string: '{"id":223302713}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '16'
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:28:04 GMT
+      Server:
+      - nginx/1.26.1
+      Set-Cookie:
+      - wdk_check_auth=;Version=1;Path=/;Max-Age=0
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

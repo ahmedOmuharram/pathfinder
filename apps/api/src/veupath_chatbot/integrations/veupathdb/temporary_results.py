@@ -37,9 +37,10 @@ class TemporaryResultsAPI(StrategyAPIBase):
             # WDK expects "reportName" here; using "reporterName" triggers
             # 400: JSONObject["reportName"] not found.
             "reportName": reporter,
+            # WDK requires reportConfig even when empty — omitting it triggers
+            # 400: JSONObject["reportConfig"] not found.
+            "reportConfig": format_config or {},
         }
-        if format_config:
-            payload["reportConfig"] = format_config
 
         logger.info(
             "Creating temporary result",

@@ -110,9 +110,9 @@ async def test_validate_graph_single_root_ok():
 
     result = await ops.validate_graph_structure(graph_id="g1")
 
-    assert result["ok"] is True
-    assert result["rootCount"] == 1
-    assert result["errors"] == []
+    assert result.ok is True
+    assert result.root_count == 1
+    assert result.errors == []
 
 
 async def test_validate_graph_multiple_roots_reports_error():
@@ -120,10 +120,10 @@ async def test_validate_graph_multiple_roots_reports_error():
 
     result = await ops.validate_graph_structure(graph_id="g1")
 
-    assert result["ok"] is False
-    assert result["rootCount"] == 2
-    assert len(result["errors"]) > 0
-    assert result["errors"][0]["code"] == "MULTIPLE_ROOTS"
+    assert result.ok is False
+    assert result.root_count == 2
+    assert len(result.errors) > 0
+    assert result.errors[0]["code"] == "MULTIPLE_ROOTS"
 
 
 async def test_validate_graph_suggests_union_for_multiple_roots():
@@ -131,9 +131,9 @@ async def test_validate_graph_suggests_union_for_multiple_roots():
 
     result = await ops.validate_graph_structure(graph_id="g1")
 
-    assert "suggestedFix" in result
-    assert result["suggestedFix"]["action"] == "UNION_ROOTS"
-    assert result["suggestedFix"]["operator"] == "UNION"
+    assert result.suggested_fix is not None
+    assert result.suggested_fix["action"] == "UNION_ROOTS"
+    assert result.suggested_fix["operator"] == "UNION"
 
 
 async def test_validate_empty_graph():
@@ -141,8 +141,8 @@ async def test_validate_empty_graph():
 
     result = await ops.validate_graph_structure(graph_id="g1")
 
-    assert result["ok"] is False
-    assert any(e["code"] == "EMPTY_GRAPH" for e in result["errors"])
+    assert result.ok is False
+    assert any(e["code"] == "EMPTY_GRAPH" for e in result.errors)
 
 
 async def test_validate_graph_includes_snapshot():
@@ -150,10 +150,9 @@ async def test_validate_graph_includes_snapshot():
 
     result = await ops.validate_graph_structure(graph_id="g1")
 
-    assert "graphSnapshot" in result
-    snapshot = result["graphSnapshot"]
-    assert snapshot["graphId"] == "g1"
-    assert len(snapshot["steps"]) == 3
+    assert result.graph_snapshot is not None
+    assert result.graph_snapshot["graphId"] == "g1"
+    assert len(result.graph_snapshot["steps"]) == 3
 
 
 # -- ensure_single_output --

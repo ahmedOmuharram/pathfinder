@@ -525,7 +525,7 @@ async def test_handle_error_emits_error_and_message_end(
     # Verify the error event contains the error message
     error_entries = [e for e in entries if e[1][b"type"] == b"error"]
     error_data = json.loads(error_entries[0][1][b"data"])
-    assert "LLM provider timeout" in error_data["error"]
+    assert error_data["error"] == "An internal error occurred"
 
     # Verify operation status is "failed"
     async with async_session_factory() as session:

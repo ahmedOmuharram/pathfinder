@@ -575,7 +575,7 @@ class TestConvenienceMethodEdgeCases:
     """Edge cases for the client's high-level WDK methods."""
 
     async def test_get_step_view_filters_correct_path(self) -> None:
-        """View filters are extracted from step GET /users/{uid}/steps/{sid}."""
+        """Filters are extracted from step GET /users/{uid}/steps/{sid}."""
         client = VEuPathDBClient("https://example.com/service")
 
         with respx.mock(assert_all_called=False) as router:
@@ -587,7 +587,7 @@ class TestConvenienceMethodEdgeCases:
                     "searchName": "GenesByTextSearch",
                     "searchConfig": {
                         "parameters": {},
-                        "viewFilters": [
+                        "filters": [
                             {"name": "f1", "value": {}, "disabled": False},
                         ],
                     },

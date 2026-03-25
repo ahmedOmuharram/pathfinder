@@ -1,0 +1,1652 @@
+interactions:
+- request:
+    body: '{"searchText":"kinase","pagination":{"offset":0,"numRecords":50},"restrictToProject":"PlasmoDB","documentTypeFilter":{"documentType":"gene"}}'
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '141'
+      Content-Type:
+      - application/json
+      Host:
+      - plasmodb.org
+      User-Agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://plasmodb.org/site-search
+  response:
+    body:
+      string: "{\n  \"documentTypes\": [\n    {\n      \"displayName\": \"News\",\n
+        \     \"displayNamePlural\": \"News\",\n      \"count\": 0,\n      \"searchFields\":
+        [{\n        \"isSubtitle\": false,\n        \"displayName\": \"Content\",\n
+        \       \"name\": \"TEXT__news_content\",\n        \"term\": \"content\"\n
+        \     }],\n      \"id\": \"news\",\n      \"hasOrganismField\": false,\n      \"summaryFields\":
+        [],\n      \"isWdkRecordType\": false\n    },\n    {\n      \"displayName\":
+        \"Popset isolate sequence\",\n      \"displayNamePlural\": \"Popset isolate
+        sequences\",\n      \"count\": 0,\n      \"wdkSearchName\": \"PopsetIsolatesByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Curated geographic location\",\n          \"name\": \"TEXT__popsetSequence_curated_geographic_location\",\n
+        \         \"term\": \"curated_geographic_location\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Curated isolation
+        source\",\n          \"name\": \"TEXT__popsetSequence_curated_isolation_source\",\n
+        \         \"term\": \"curated_isolation_source\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Description\",\n
+        \         \"name\": \"TEXT__popsetSequence_description\",\n          \"term\":
+        \"description\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Geographic location\",\n          \"name\": \"TEXT__popsetSequence_geographic_location\",\n
+        \         \"term\": \"geographic_location\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Host\",\n          \"name\": \"TEXT__popsetSequence_specific_host\",\n
+        \         \"term\": \"specific_host\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Isolation source\",\n          \"name\":
+        \"TEXT__popsetSequence_isolation_source\",\n          \"term\": \"isolation_source\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Note\",\n          \"name\": \"TEXT__popsetSequence_note\",\n          \"term\":
+        \"note\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Organism\",\n          \"name\": \"TEXT__popsetSequence_organism\",\n          \"term\":
+        \"organism\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Popset\",\n          \"name\": \"TEXT__popsetSequence_popset\",\n          \"term\":
+        \"popset\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Popset ID\",\n          \"name\": \"TEXT__popsetSequence_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Product\",\n          \"name\": \"TEXT__popsetSequence_product\",\n
+        \         \"term\": \"product\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"References\",\n          \"name\": \"MULTITEXT__popsetSequence_References\",\n
+        \         \"term\": \"References\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Strain\",\n          \"name\": \"TEXT__popsetSequence_strain\",\n
+        \         \"term\": \"strain\"\n        }\n      ],\n      \"id\": \"popsetSequence\",\n
+        \     \"hasOrganismField\": false,\n      \"summaryFields\": [\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Description\",\n
+        \         \"name\": \"TEXT__popsetSequence_description\",\n          \"term\":
+        \"description\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Geographic location\",\n          \"name\": \"TEXT__popsetSequence_geographic_location\",\n
+        \         \"term\": \"geographic_location\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Product\",\n          \"name\": \"TEXT__popsetSequence_product\",\n
+        \         \"term\": \"product\"\n        }\n      ],\n      \"isWdkRecordType\":
+        true\n    },\n    {\n      \"displayName\": \"Organism\",\n      \"displayNamePlural\":
+        \"Organisms\",\n      \"count\": 0,\n      \"wdkSearchName\": \"OrganismsByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Data source\",\n          \"name\": \"TEXT__organism_data_source\",\n          \"term\":
+        \"data_source\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Genome sequencing and annotation\",\n          \"name\":
+        \"MULTITEXT__organism_GenomeSequencingAndAnnotationAttribution\",\n          \"term\":
+        \"GenomeSequencingAndAnnotationAttribution\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Genome version history\",\n          \"name\":
+        \"MULTITEXT__organism_GenomeVersionHistory\",\n          \"term\": \"GenomeVersionHistory\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Organism\",\n          \"name\": \"TEXT__organism_organism_full\",\n          \"term\":
+        \"organism_full\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Organism ID\",\n          \"name\": \"TEXT__organism_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Species\",\n          \"name\": \"TEXT__organism_species\",\n
+        \         \"term\": \"species\"\n        }\n      ],\n      \"id\": \"organism\",\n
+        \     \"hasOrganismField\": true,\n      \"summaryFields\": [],\n      \"isWdkRecordType\":
+        true\n    },\n    {\n      \"displayName\": \"Gene\",\n      \"displayNamePlural\":
+        \"Genes\",\n      \"count\": 721184,\n      \"wdkSearchName\": \"GenesByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Apollo Annotations\",\n          \"name\": \"MULTITEXT__gene_apolloCommentContent\",\n
+        \         \"term\": \"apolloCommentContent\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"EC descriptions and numbers\",\n          \"name\":
+        \"MULTITEXT__gene_ECNumbers\",\n          \"term\": \"ECNumbers\"\n        },\n
+        \       {\n          \"isSubtitle\": false,\n          \"displayName\": \"Epitopes
+        from IEDB\",\n          \"name\": \"MULTITEXT__gene_Epitopes\",\n          \"term\":
+        \"Epitopes\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"External links\",\n          \"name\": \"MULTITEXT__gene_GeneLinkouts\",\n
+        \         \"term\": \"GeneLinkouts\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Gene ID\",\n          \"name\": \"TEXT__gene_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Gene name or symbol\",\n          \"name\":
+        \"TEXT__gene_name\",\n          \"term\": \"name\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Gene type\",\n
+        \         \"name\": \"TEXT__gene_gene_type\",\n          \"term\": \"gene_type\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"GeneModel Characteristics\",\n          \"name\": \"MULTITEXT__gene_GeneModelCharacteristics\",\n
+        \         \"term\": \"GeneModelCharacteristics\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Genomic sequence
+        ID\",\n          \"name\": \"TEXT__gene_sequence_id\",\n          \"term\":
+        \"sequence_id\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"GO terms\",\n          \"name\": \"MULTITEXT__gene_GOTerms\",\n
+        \         \"term\": \"GOTerms\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"InterPro domains\",\n          \"name\":
+        \"MULTITEXT__gene_InterPro\",\n          \"term\": \"InterPro\"\n        },\n
+        \       {\n          \"isSubtitle\": false,\n          \"displayName\": \"Metabolic
+        pathways\",\n          \"name\": \"MULTITEXT__gene_MetabolicPathways\",\n
+        \         \"term\": \"MetabolicPathways\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Names, IDs, and aliases\",\n          \"name\":
+        \"MULTITEXT__gene_Alias\",\n          \"term\": \"Alias\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Notes from
+        annotators\",\n          \"name\": \"MULTITEXT__gene_Notes\",\n          \"term\":
+        \"Notes\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Organism\",\n          \"name\": \"TEXT__gene_organism_full\",\n          \"term\":
+        \"organism_full\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Ortholog group\",\n          \"name\": \"TEXT__gene_orthomcl_name\",\n
+        \         \"term\": \"orthomcl_name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Orthologs\",\n          \"name\": \"MULTITEXT__gene_Orthologs\",\n
+        \         \"term\": \"Orthologs\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"PDB chains\",\n          \"name\": \"MULTITEXT__gene_PdbSimilarities\",\n
+        \         \"term\": \"PdbSimilarities\"\n        },\n        {\n          \"isSubtitle\":
+        true,\n          \"displayName\": \"Product description\",\n          \"name\":
+        \"TEXT__gene_product\",\n          \"term\": \"product\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Product descriptions
+        (all)\",\n          \"name\": \"MULTITEXT__gene_Products\",\n          \"term\":
+        \"Products\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"PubMed\",\n          \"name\": \"MULTITEXT__gene_PubMed\",\n          \"term\":
+        \"PubMed\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Rodent malaria phenotype\",\n          \"name\": \"MULTITEXT__gene_RodMalPhenotype\",\n
+        \         \"term\": \"RodMalPhenotype\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Sequence Ontology ID\",\n          \"name\":
+        \"TEXT__gene_so_id\",\n          \"term\": \"so_id\"\n        },\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Sequence Ontology
+        term\",\n          \"name\": \"TEXT__gene_so_term_name\",\n          \"term\":
+        \"so_term_name\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Transcripts\",\n          \"name\": \"MULTITEXT__gene_GeneTranscripts\",\n
+        \         \"term\": \"GeneTranscripts\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"User comments\",\n          \"name\":
+        \"MULTITEXT__gene_UserCommentContent\",\n          \"term\": \"UserCommentContent\"\n
+        \       }\n      ],\n      \"id\": \"gene\",\n      \"hasOrganismField\":
+        true,\n      \"summaryFields\": [\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Gene name or symbol\",\n          \"name\": \"TEXT__gene_name\",\n
+        \         \"term\": \"name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Gene type\",\n          \"name\": \"TEXT__gene_gene_type\",\n
+        \         \"term\": \"gene_type\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Organism\",\n          \"name\": \"TEXT__gene_organism_full\",\n
+        \         \"term\": \"organism_full\"\n        },\n        {\n          \"isSubtitle\":
+        true,\n          \"displayName\": \"Product description\",\n          \"name\":
+        \"TEXT__gene_product\",\n          \"term\": \"product\"\n        }\n      ],\n
+        \     \"isWdkRecordType\": true\n    },\n    {\n      \"displayName\": \"EST\",\n
+        \     \"displayNamePlural\": \"ESTs\",\n      \"count\": 0,\n      \"wdkSearchName\":
+        \"EstsByText\",\n      \"searchFields\": [\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"EST ID\",\n          \"name\": \"TEXT__est_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Library\",\n          \"name\": \"TEXT__est_dbest_name\",\n
+        \         \"term\": \"dbest_name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Organism\",\n          \"name\": \"TEXT__est_organism\",\n
+        \         \"term\": \"organism\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Reference\",\n          \"name\": \"MULTITEXT__est_ReferenceInfo\",\n
+        \         \"term\": \"ReferenceInfo\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Stage\",\n          \"name\": \"TEXT__est_stage\",\n
+        \         \"term\": \"stage\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Vector\",\n          \"name\": \"TEXT__est_vector\",\n
+        \         \"term\": \"vector\"\n        }\n      ],\n      \"id\": \"est\",\n
+        \     \"hasOrganismField\": false,\n      \"summaryFields\": [\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Library\",\n
+        \         \"name\": \"TEXT__est_dbest_name\",\n          \"term\": \"dbest_name\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Organism\",\n          \"name\": \"TEXT__est_organism\",\n          \"term\":
+        \"organism\"\n        }\n      ],\n      \"isWdkRecordType\": true\n    },\n
+        \   {\n      \"displayName\": \"Genomic sequence\",\n      \"displayNamePlural\":
+        \"Genomic sequences\",\n      \"count\": 0,\n      \"wdkSearchName\": \"GenomicSeqByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Description\",\n          \"name\": \"TEXT__genomic-sequence_description\",\n
+        \         \"term\": \"description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"GenBank\",\n          \"name\": \"TEXT__genomic-sequence_genbank_accession\",\n
+        \         \"term\": \"genbank_accession\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Organism\",\n          \"name\": \"TEXT__genomic-sequence_organism_full\",\n
+        \         \"term\": \"organism_full\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Previous IDs and aliases\",\n          \"name\":
+        \"MULTITEXT__genomic-sequence_Aliases\",\n          \"term\": \"Aliases\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Sequence ID\",\n          \"name\": \"TEXT__genomic-sequence_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Sequence type\",\n          \"name\":
+        \"TEXT__genomic-sequence_sequence_type\",\n          \"term\": \"sequence_type\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"User Comments\",\n          \"name\": \"MULTITEXT__genomic-sequence_userCommentContent\",\n
+        \         \"term\": \"userCommentContent\"\n        }\n      ],\n      \"id\":
+        \"genomic-sequence\",\n      \"hasOrganismField\": true,\n      \"summaryFields\":
+        [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Description\",\n          \"name\": \"TEXT__genomic-sequence_description\",\n
+        \         \"term\": \"description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Organism\",\n          \"name\": \"TEXT__genomic-sequence_organism_full\",\n
+        \         \"term\": \"organism_full\"\n        }\n      ],\n      \"isWdkRecordType\":
+        true\n    },\n    {\n      \"displayName\": \"Compound\",\n      \"displayNamePlural\":
+        \"Compounds\",\n      \"count\": 0,\n      \"wdkSearchName\": \"CompoundsByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Associated metabolic pathways\",\n          \"name\": \"MULTITEXT__compound_MetabolicPathways\",\n
+        \         \"term\": \"MetabolicPathways\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"ChEBI ID\",\n          \"name\": \"TEXT__compound_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Definition\",\n          \"name\": \"TEXT__compound_definition\",\n
+        \         \"term\": \"definition\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"IUPAC names\",\n          \"name\": \"MULTITEXT__compound_IupacNames\",\n
+        \         \"term\": \"IupacNames\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Metabolic pathway reactions\",\n          \"name\":
+        \"MULTITEXT__compound_MetabolicPathwaysReactions\",\n          \"term\": \"MetabolicPathwaysReactions\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Molecular formula\",\n          \"name\": \"TEXT__compound_formula\",\n
+        \         \"term\": \"formula\"\n        },\n        {\n          \"isSubtitle\":
+        true,\n          \"displayName\": \"Name\",\n          \"name\": \"TEXT__compound_compound_name\",\n
+        \         \"term\": \"compound_name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Properties\",\n          \"name\": \"MULTITEXT__compound_Properties\",\n
+        \         \"term\": \"Properties\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Secondary IDs\",\n          \"name\":
+        \"MULTITEXT__compound_SecondaryIds\",\n          \"term\": \"SecondaryIds\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Synonyms\",\n          \"name\": \"MULTITEXT__compound_Synonyms\",\n          \"term\":
+        \"Synonyms\"\n        }\n      ],\n      \"id\": \"compound\",\n      \"hasOrganismField\":
+        false,\n      \"summaryFields\": [\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Definition\",\n          \"name\": \"TEXT__compound_definition\",\n
+        \         \"term\": \"definition\"\n        },\n        {\n          \"isSubtitle\":
+        true,\n          \"displayName\": \"Name\",\n          \"name\": \"TEXT__compound_compound_name\",\n
+        \         \"term\": \"compound_name\"\n        }\n      ],\n      \"isWdkRecordType\":
+        true\n    },\n    {\n      \"displayName\": \"General info pages\",\n      \"displayNamePlural\":
+        \"General info pages\",\n      \"count\": 0,\n      \"searchFields\": [{\n
+        \       \"isSubtitle\": false,\n        \"displayName\": \"Content\",\n        \"name\":
+        \"TEXT__general_content\",\n        \"term\": \"content\"\n      }],\n      \"id\":
+        \"general\",\n      \"hasOrganismField\": false,\n      \"summaryFields\":
+        [],\n      \"isWdkRecordType\": false\n    },\n    {\n      \"displayName\":
+        \"Search\",\n      \"displayNamePlural\": \"Searches\",\n      \"count\":
+        0,\n      \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Record type\",\n          \"name\": \"TEXT__search_record-type\",\n
+        \         \"term\": \"record-type\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Search description\",\n          \"name\":
+        \"TEXT__search_description\",\n          \"term\": \"description\"\n        },\n
+        \       {\n          \"isSubtitle\": false,\n          \"displayName\": \"Search
+        name\",\n          \"name\": \"TEXT__search_displayName\",\n          \"term\":
+        \"displayName\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Search summary\",\n          \"name\": \"TEXT__search_summary\",\n
+        \         \"term\": \"summary\"\n        }\n      ],\n      \"id\": \"search\",\n
+        \     \"hasOrganismField\": false,\n      \"summaryFields\": [{\n        \"isSubtitle\":
+        false,\n        \"displayName\": \"Search summary\",\n        \"name\": \"TEXT__search_summary\",\n
+        \       \"term\": \"summary\"\n      }],\n      \"isWdkRecordType\": false\n
+        \   },\n    {\n      \"displayName\": \"Workshop exercise\",\n      \"displayNamePlural\":
+        \"Workshop exercises\",\n      \"count\": 0,\n      \"searchFields\": [{\n
+        \       \"isSubtitle\": false,\n        \"displayName\": \"Content\",\n        \"name\":
+        \"TEXT__workshop-exercise_content\",\n        \"term\": \"content\"\n      }],\n
+        \     \"id\": \"workshop-exercise\",\n      \"hasOrganismField\": false,\n
+        \     \"summaryFields\": [],\n      \"isWdkRecordType\": false\n    },\n    {\n
+        \     \"displayName\": \"Field sample\",\n      \"displayNamePlural\": \"Field
+        samples\",\n      \"count\": 0,\n      \"searchFields\": [\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Citations\",\n          \"name\": \"MULTITEXT__popbio_citations\",\n
+        \         \"term\": \"citations\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Collection ID\",\n          \"name\":
+        \"TEXT__popbio_collection_id\",\n          \"term\": \"collection_id\"\n        },\n
+        \       {\n          \"isSubtitle\": false,\n          \"displayName\": \"Collection
+        location\",\n          \"name\": \"TEXT__popbio_collection_location\",\n          \"term\":
+        \"collection_location\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Collection protocols\",\n          \"name\":
+        \"MULTITEXT__popbio_collection_protocols\",\n          \"term\": \"collection_protocols\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Description\",\n          \"name\": \"TEXT__popbio_computed_description\",\n
+        \         \"term\": \"computed_description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"PopBio Study ID\",\n          \"name\":
+        \"MULTITEXT__popbio_project_ids\",\n          \"term\": \"project_ids\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Sample ID\",\n          \"name\": \"TEXT__popbio_sample_id\",\n          \"term\":
+        \"sample_id\"\n        },\n        {\n          \"isSubtitle\": true,\n          \"displayName\":
+        \"Sample name\",\n          \"name\": \"TEXT__popbio_sample_name\",\n          \"term\":
+        \"sample_name\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Species\",\n          \"name\": \"TEXT__popbio_species\",\n
+        \         \"term\": \"species\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Tags\",\n          \"name\": \"MULTITEXT__popbio_tags\",\n
+        \         \"term\": \"tags\"\n        }\n      ],\n      \"id\": \"popbio-sample\",\n
+        \     \"hasOrganismField\": false,\n      \"summaryFields\": [\n        {\n
+        \         \"isSubtitle\": false,\n          \"displayName\": \"Description\",\n
+        \         \"name\": \"TEXT__popbio_computed_description\",\n          \"term\":
+        \"computed_description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"PopBio Study ID\",\n          \"name\":
+        \"MULTITEXT__popbio_project_ids\",\n          \"term\": \"project_ids\"\n
+        \       },\n        {\n          \"isSubtitle\": true,\n          \"displayName\":
+        \"Sample name\",\n          \"name\": \"TEXT__popbio_sample_name\",\n          \"term\":
+        \"sample_name\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Species\",\n          \"name\": \"TEXT__popbio_species\",\n
+        \         \"term\": \"species\"\n        }\n      ],\n      \"isWdkRecordType\":
+        false\n    },\n    {\n      \"displayName\": \"Metabolic pathway\",\n      \"displayNamePlural\":
+        \"Metabolic pathways\",\n      \"count\": 0,\n      \"wdkSearchName\": \"PathwaysByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Associated compounds\",\n          \"name\": \"MULTITEXT__pathway_Compounds\",\n
+        \         \"term\": \"Compounds\"\n        },\n        {\n          \"isSubtitle\":
+        true,\n          \"displayName\": \"Pathway\",\n          \"name\": \"TEXT__pathway_name\",\n
+        \         \"term\": \"name\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Pathway ID\",\n          \"name\": \"TEXT__pathway_primary_key\",\n
+        \         \"term\": \"primary_key\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Pathway source\",\n          \"name\":
+        \"TEXT__pathway_pathway_source_text\",\n          \"term\": \"pathway_source_text\"\n
+        \       }\n      ],\n      \"id\": \"pathway\",\n      \"hasOrganismField\":
+        false,\n      \"summaryFields\": [{\n        \"isSubtitle\": true,\n        \"displayName\":
+        \"Pathway\",\n        \"name\": \"TEXT__pathway_name\",\n        \"term\":
+        \"name\"\n      }],\n      \"isWdkRecordType\": true\n    },\n    {\n      \"displayName\":
+        \"Tutorial\",\n      \"displayNamePlural\": \"Tutorials\",\n      \"count\":
+        0,\n      \"searchFields\": [{\n        \"isSubtitle\": false,\n        \"displayName\":
+        \"Content\",\n        \"name\": \"TEXT__tutorial_content\",\n        \"term\":
+        \"content\"\n      }],\n      \"id\": \"tutorial\",\n      \"hasOrganismField\":
+        false,\n      \"summaryFields\": [],\n      \"isWdkRecordType\": false\n    },\n
+        \   {\n      \"displayName\": \"Data set\",\n      \"displayNamePlural\":
+        \"Data sets\",\n      \"count\": 0,\n      \"wdkSearchName\": \"DatasetsByText\",\n
+        \     \"searchFields\": [\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Acknowledgement\",\n          \"name\": \"TEXT__dataset_acknowledgement\",\n
+        \         \"term\": \"acknowledgement\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Associated publications\",\n          \"name\":
+        \"MULTITEXT__dataset_Publications\",\n          \"term\": \"Publications\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Category\",\n          \"name\": \"TEXT__dataset_newcategory\",\n          \"term\":
+        \"newcategory\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Description\",\n          \"name\": \"TEXT__dataset_description\",\n
+        \         \"term\": \"description\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"External resources\",\n          \"name\":
+        \"MULTITEXT__dataset_ExternalResources\",\n          \"term\": \"ExternalResources\"\n
+        \       },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Name\",\n          \"name\": \"TEXT__dataset_primary_key\",\n          \"term\":
+        \"primary_key\"\n        },\n        {\n          \"isSubtitle\": false,\n
+        \         \"displayName\": \"Organisms\",\n          \"name\": \"MULTITEXT__dataset_Organisms\",\n
+        \         \"term\": \"Organisms\"\n        },\n        {\n          \"isSubtitle\":
+        false,\n          \"displayName\": \"Principal Investigator and Collaborators\",\n
+        \         \"name\": \"MULTITEXT__dataset_Contacts\",\n          \"term\":
+        \"Contacts\"\n        },\n        {\n          \"isSubtitle\": false,\n          \"displayName\":
+        \"Summary\",\n          \"name\": \"TEXT__dataset_summary\",\n          \"term\":
+        \"summary\"\n        }\n      ],\n      \"id\": \"dataset\",\n      \"hasOrganismField\":
+        true,\n      \"summaryFields\": [{\n        \"isSubtitle\": false,\n        \"displayName\":
+        \"Summary\",\n        \"name\": \"TEXT__dataset_summary\",\n        \"term\":
+        \"summary\"\n      }],\n      \"isWdkRecordType\": true\n    }\n  ],\n  \"fieldCounts\":
+        {\n    \"MULTITEXT__gene_Alias\": 0,\n    \"TEXT__gene_sequence_id\": 0,\n
+        \   \"TEXT__gene_product\": 135548,\n    \"MULTITEXT__gene_Epitopes\": 0,\n
+        \   \"TEXT__gene_name\": 0,\n    \"TEXT__gene_primary_key\": 0,\n    \"TEXT__gene_gene_type\":
+        0,\n    \"TEXT__gene_organism_full\": 0,\n    \"TEXT__gene_so_id\": 0,\n    \"MULTITEXT__gene_GOTerms\":
+        202127,\n    \"MULTITEXT__gene_RodMalPhenotype\": 119,\n    \"MULTITEXT__gene_PubMed\":
+        22427,\n    \"MULTITEXT__gene_ECNumbers\": 121056,\n    \"MULTITEXT__gene_GeneLinkouts\":
+        55,\n    \"TEXT__gene_orthomcl_name\": 0,\n    \"MULTITEXT__gene_MetabolicPathways\":
+        0,\n    \"MULTITEXT__gene_GeneModelCharacteristics\": 0,\n    \"MULTITEXT__gene_Products\":
+        135851,\n    \"MULTITEXT__gene_InterPro\": 246212,\n    \"MULTITEXT__gene_UserCommentContent\":
+        1471,\n    \"MULTITEXT__gene_GeneTranscripts\": 0,\n    \"MULTITEXT__gene_Orthologs\":
+        603983,\n    \"MULTITEXT__gene_apolloCommentContent\": 2,\n    \"TEXT__gene_so_term_name\":
+        0,\n    \"MULTITEXT__gene_PdbSimilarities\": 171488,\n    \"MULTITEXT__gene_Notes\":
+        4504\n  },\n  \"categories\": [\n    {\n      \"documentTypes\": [\n        \"gene\",\n
+        \       \"genomic-sequence\"\n      ],\n      \"name\": \"Genome\"\n    },\n
+        \   {\n      \"documentTypes\": [\"organism\"],\n      \"name\": \"Organism\"\n
+        \   },\n    {\n      \"documentTypes\": [\"est\"],\n      \"name\": \"Transcriptomics\"\n
+        \   },\n    {\n      \"documentTypes\": [\n        \"popsetSequence\",\n        \"popbio-sample\"\n
+        \     ],\n      \"name\": \"Population biology\"\n    },\n    {\n      \"documentTypes\":
+        [\n        \"pathway\",\n        \"compound\"\n      ],\n      \"name\": \"Metabolism\"\n
+        \   },\n    {\n      \"documentTypes\": [\n        \"dataset\",\n        \"search\"\n
+        \     ],\n      \"name\": \"Data access\"\n    },\n    {\n      \"documentTypes\":
+        [\n        \"tutorial\",\n        \"workshop-exercise\"\n      ],\n      \"name\":
+        \"Instructional\"\n    },\n    {\n      \"documentTypes\": [\n        \"news\",\n
+        \       \"general\"\n      ],\n      \"name\": \"About\"\n    }\n  ],\n  \"organismCounts\":
+        {\n    \"Trypanosoma cruzi strain CL Brener\": 192,\n    \"Aspergillus carbonarius
+        ITEM 5010\": 1390,\n    \"Aedes aegypti LVP_AGWG\": 1315,\n    \"Bremia lactucae
+        strain SF5\": 1068,\n    \"Leishmania sp. Ghana MHOM/GH/2012/GH5\": 513,\n
+        \   \"Plasmodium blacklocki G01\": 300,\n    \"Blumeria graminis f. sp. triticale
+        THUN-12\": 936,\n    \"Fusarium oxysporum f. sp. cubense race 1\": 1779,\n
+        \   \"Hamiltosporidium tvaerminnensis IL-G-3\": 782,\n    \"Anopheles coluzzii
+        Mali-NIH\": 1293,\n    \"Cyclospora cayetanensis strain CHN_HEN01\": 433,\n
+        \   \"Anopheles cruzii AcruBR1\": 1217,\n    \"Encephalitozoon cuniculi GB-M1\":
+        125,\n    \"Malassezia sympodialis ATCC 42132\": 550,\n    \"Encephalitozoon
+        intestinalis ATCC 50506\": 119,\n    \"Giardia Assemblage B isolate GS_B\":
+        1524,\n    \"Coccidioides posadasii C735 delta SOWgp\": 1055,\n    \"Metarhizium
+        anisopliae ARSEF 549\": 1418,\n    \"Monilinia fructicola CPMC6\": 1011,\n
+        \   \"Vitrella brassicaformis CCMP3155\": 1743,\n    \"Trypanosoma cruzi strain
+        G\": 1468,\n    \"Spizellomyces punctatus DAOM BR117\": 1010,\n    \"Encephalitozoon
+        romaleae SJ-2008\": 118,\n    \"Eimeria maxima Weybridge\": 386,\n    \"Enterocytozoon
+        hepatopenaei EHP-ID16\": 0,\n    \"Lodderomyces elongisporus NRRL YB-4239\":
+        718,\n    \"Acanthamoeba astronyxis Unknown\": 0,\n    \"Trypanosoma cruzi
+        strain Y\": 0,\n    \"Babesia divergens strain Rouen 1987\": 0,\n    \"Trypanosoma
+        cruzi JR cl. 4\": 0,\n    \"Plasmodium falciparum ML01\": 329,\n    \"Aspergillus
+        novofumigatus IBT 16806\": 1274,\n    \"Trypanosoma congolense Tc1/148\":
+        0,\n    \"Anopheles maculatus maculatus3\": 1627,\n    \"Plasmodium gaboni
+        strain G01\": 311,\n    \"Cimex lectularius Harlan\": 1163,\n    \"Leishmania
+        gerbilli strain LEM452\": 573,\n    \"Cryptococcus gattii CA1873\": 643,\n
+        \   \"Saprolegnia parasitica CBS 223.65\": 2353,\n    \"Toxoplasma gondii
+        FOU\": 585,\n    \"Anopheles maculipalpis AmacGA1\": 1178,\n    \"Trypanosoma
+        cruzi CL Brener Non-Esmeraldo-like\": 795,\n    \"Cryptococcus neoformans
+        var. grubii H99 2018\": 0,\n    \"Acanthamoeba triangularis SH621\": 0,\n
+        \   \"Glossina morsitans Yale\": 1127,\n    \"Hyalomma asiaticum Hyas-2018\":
+        1358,\n    \"Candida pseudohaemulonii strain B12108\": 650,\n    \"Plasmodium
+        vivax PAM\": 310,\n    \"Trypanosoma cruzi CL Brener Esmeraldo-like\": 795,\n
+        \   \"Plasmodium ovale wallikeri PowCR01\": 292,\n    \"Entamoeba histolytica
+        HM-3:IMSS\": 857,\n    \"Blumeria hordei strain RACE1\": 829,\n    \"Edhazardia
+        aedis USNM 41457\": 120,\n    \"Hepatospora eriocheir strain canceri\": 87,\n
+        \   \"Cordyceps militaris CM01\": 1242,\n    \"Rhizophagus irregularis C2\":
+        3595,\n    \"Fusarium graminearum DAOM 233423\": 0,\n    \"Giardia Assemblage
+        D isolate DID\": 0,\n    \"Eimeria mitis Houghton\": 403,\n    \"Aspergillus
+        steynii IBT 23096\": 1551,\n    \"Candida albicans SC5314_B\": 713,\n    \"Cenococcum
+        geophilum 1.58\": 2229,\n    \"Schizosaccharomyces pombe 972h-\": 1005,\n
+        \   \"Schizophyllum commune H4-8\": 1473,\n    \"Candida metapsilosis BP57\":
+        722,\n    \"Neospora caninum Liverpool\": 454,\n    \"Aspergillus oryzae RIB40\":
+        1514,\n    \"Trypanosoma cruzi Y C6\": 1822,\n    \"Histomonas meleagridis
+        2922-C6/04-290x\": 1236,\n    \"Metarhizium acridum CQMa 102\": 0,\n    \"Besnoitia
+        besnoiti strain Bb-Ger1\": 514,\n    \"Macrophomina phaseolina MS6\": 1374,\n
+        \   \"Puccinia triticina 1-1 BBBD Race 1\": 1524,\n    \"Culex quinquefasciatus
+        Johannesburg\": 1548,\n    \"Nakaseomyces glabratus CBS138 2020\": 677,\n
+        \   \"Pneumocystis canis CanA\": 392,\n    \"Pseudogymnoascus destructans
+        20631-21\": 1141,\n    \"Sclerotinia sclerotiorum 1980 UF-70\": 1248,\n    \"Aspergillus
+        fijiensis CBS 313.89\": 1384,\n    \"Aedes albopictus Foshan\": 1844,\n    \"Aspergillus
+        thermomutatus strain HMR AF 39\": 1215,\n    \"Cryptococcus neoformans var.
+        grubii H99\": 809,\n    \"Allomyces macrogynus ATCC 38327\": 2085,\n    \"Kwoniella
+        heveanensis CBS 569\": 746,\n    \"Rhizopus delemar RA 99-880\": 2806,\n    \"Kwoniella
+        bestiolae CBS 10118\": 805,\n    \"Phytophthora plurivora AV1007\": 0,\n    \"Naegleria
+        lovaniensis strain ATCC 30569\": 1640,\n    \"Canis lupus familiaris isolate
+        SID07034\": 2335,\n    \"Ordospora colligata OC4\": 111,\n    \"Neospora caninum
+        Liverpool 2019\": 459,\n    \"Nakaseomyces glabratus BG2\": 655,\n    \"Plasmodium
+        falciparum KH02\": 336,\n    \"Plasmodium falciparum KH01\": 324,\n    \"Plasmodium
+        vivax PvW1\": 309,\n    \"Plasmodium knowlesi strain Malayan Strain Pk1 A\":
+        304,\n    \"Enterocytozoon hepatopenaei strain TH1\": 112,\n    \"Anopheles
+        funestus FUMOZ\": 1238,\n    \"Mastigamoeba balamuthi ATCC 30984\": 1710,\n
+        \   \"Naegleria fowleri strain ATCC 30894\": 1440,\n    \"Sporothrix brasiliensis
+        5110\": 1160,\n    \"Glossina palpalis IAEA\": 1478,\n    \"Paracoccidioides
+        brasiliensis Pb03\": 1014,\n    \"Cryptococcus neoformans var. neoformans
+        XL280\": 0,\n    \"Coccidioides posadasii RMSCC 3700\": 0,\n    \"Crithidia
+        fasciculata strain Cf-Cl\": 645,\n    \"Trypanosoma melophagium St. Kilda\":
+        712,\n    \"Acanthamoeba sp T4b-type\": 0,\n    \"Coccidioides posadasii CPA
+        0020\": 0,\n    \"Nosema granulosis Ou3-Ou53\": 241,\n    \"Aspergillus glaucus
+        CBS 516.65\": 1428,\n    \"Entamoeba histolytica Rahman\": 0,\n    \"Naegleria
+        gruberi strain NEG-M\": 1908,\n    \"Aedes albopictus C6/36 cell line\": 2848,\n
+        \   \"Hortaea werneckii EXF-2000\": 1845,\n    \"Monocercomonoides exilis
+        PA203\": 2137,\n    \"Puccinia graminis f. sp. tritici CRL 75-36-700-3\":
+        1615,\n    \"Anopheles coustani AcouGA1\": 1254,\n    \"Bos taurus breed Hereford\":
+        2561,\n    \"Trichomonascus ciferrii CBS 4856\": 808,\n    \"Acanthamoeba
+        castellanii Ma\": 0,\n    \"Hepatospora eriocheir strain GB1\": 82,\n    \"Sporisorium
+        reilianum SRZ2\": 680,\n    \"Parastagonospora nodorum SN15\": 1457,\n    \"Coccidioides
+        posadasii CPA 0001\": 0,\n    \"Fusarium graminearum PH-1\": 1485,\n    \"Babesia
+        microti strain ATCC 30222\": 0,\n    \"Trichophyton tonsurans CBS 112818\":
+        1105,\n    \"Tubulinosema ratisbonensis Franzen\": 141,\n    \"Plasmodium
+        praefalciparum strain G01\": 377,\n    \"Plasmodium brasilianum strain Bolivian
+        I\": 311,\n    \"Vittaforma corneae ATCC 50505\": 134,\n    \"Paracoccidioides
+        brasiliensis Pb18\": 1011,\n    \"Rhizophagus irregularis A1 (DAOM-664342)\":
+        3506,\n    \"Fusarium odoratissimum NRRL 54006\": 1748,\n    \"Toxoplasma
+        gondii ME49\": 492,\n    \"Aspergillus ochraceoroseus IBT 24754\": 1090,\n
+        \   \"Candida auris strain B8441\": 682,\n    \"Ordospora colligata GB-EP-1\":
+        112,\n    \"Trachipleistophora hominis Unknown strain\": 128,\n    \"Schizosaccharomyces
+        octosporus yFS286\": 605,\n    \"Exophiala oligosperma strain CBS 72588\":
+        1391,\n    \"Cavia porcellus 2N\": 2314,\n    \"Malassezia restricta KCTC
+        27527\": 531,\n    \"Sarcoptes scabiei Arlian\": 897,\n    \"Ixodes persulcatus
+        Iper-2018\": 1492,\n    \"Coccidioides posadasii str. Silveira\": 1207,\n
+        \   \"Cryptococcus neoformans var. grubii KN99\": 670,\n    \"Phlebotomus
+        papatasi M1\": 1091,\n    \"Pediculus humanus USDA\": 1022,\n    \"Anopheles
+        christyi ACHKN1017\": 1121,\n    \"Podospora anserina S mat+\": 1292,\n    \"Coccidioides
+        posadasii CPA 0066\": 0,\n    \"Babesia sp. Xinjiang Xinjiang\": 270,\n    \"Trypanosoma
+        cruzi Bug2148\": 0,\n    \"Anopheles stephensi SDA-500\": 1317,\n    \"Fusarium
+        vanettenii 77-13-4\": 1832,\n    \"Giardia Assemblage E isolate P15\": 877,\n
+        \   \"Uncinocarpus reesii 1704\": 1115,\n    \"Acanthamoeba sp. SK_2022b\":
+        0,\n    \"Nematocida displodere strain JUm2807\": 118,\n    \"Acanthamoeba
+        sp. SK_2022c\": 0,\n    \"Aspergillus homomorphus CBS 101889\": 1327,\n    \"Acanthamoeba
+        sp. SK_2022a\": 0,\n    \"Leptomonas seymouri ATCC 30220\": 570,\n    \"Candida
+        haemulonis B11899\": 664,\n    \"Anopheles minimus MINIMUS1\": 1268,\n    \"Paratrypanosoma
+        confusum CUL13\": 599,\n    \"Plasmodium vinckei Cameroon EL\": 280,\n    \"Pneumocystis
+        jirovecii RU7\": 439,\n    \"Anopheles sinensis China\": 1495,\n    \"Haemaphysalis
+        longicornis HaeL-2018\": 1654,\n    \"Aspergillus luchuensis CBS 106.47\":
+        1502,\n    \"Aspergillus parasiticus CBS 117618\": 1616,\n    \"Penicilliopsis
+        zonata CBS 506.65\": 1246,\n    \"Pyricularia oryzae BR32\": 1406,\n    \"Toxoplasma
+        gondii MAS\": 562,\n    \"Endotrypanum monterogeii strain LV88\": 706,\n    \"Leishmania
+        enriettii MCAV/BR/2001/CUR178\": 515,\n    \"Rhodnius prolixus CDC\": 1241,\n
+        \   \"Giardia Assemblage B isolate GS\": 684,\n    \"Babesia bigemina strain
+        BOND\": 985,\n    \"Toxoplasma gondii strain ME49xCTG F1 S27\": 0,\n    \"Plasmodium
+        chabaudi chabaudi\": 301,\n    \"Trichomonas vaginalis G3 2022\": 12530,\n
+        \   \"Plasmodium gaboni strain SY75\": 304,\n    \"Histoplasma capsulatum
+        NAm1\": 1334,\n    \"Babesia microti strain GreenwichYale_Lab_strain_1\":
+        0,\n    \"Cryptosporidium ryanae 45019\": 386,\n    \"Amphiamblys sp. WSBS2006\":
+        231,\n    \"Entamoeba nuttalli P19\": 767,\n    \"Claviceps purpurea 20.1\":
+        1228,\n    \"Giardia assemblage A isolate AS175\": 0,\n    \"Cystoisospora
+        suis strain Wien I\": 554,\n    \"Anopheles merus MAF\": 1208,\n    \"Anncaliia
+        algerae PRA339\": 136,\n    \"Cryptosporidium hominis 37999\": 0,\n    \"Plasmodium
+        coatneyi Hackeri\": 310,\n    \"Cryptosporidium hominis UKH1\": 0,\n    \"Hyaloperonospora
+        arabidopsidis Emoy2\": 1272,\n    \"Encephalitozoon hellem Swiss\": 122,\n
+        \   \"Coccidioides immitis H538.4\": 1227,\n    \"Leishmania tropica L590\":
+        589,\n    \"Malassezia restricta CBS 7877\": 518,\n    \"Aphanomyces euteiches
+        MF1\": 2417,\n    \"Plasmodium reichenowi G01\": 362,\n    \"Plasmodium falciparum
+        IT\": 328,\n    \"Penicillium digitatum Pd1\": 1116,\n    \"Leishmania braziliensis
+        MHOM/BR/75/M2903\": 603,\n    \"Leishmania braziliensis MHOM/BR/75/M2904\":
+        617,\n    \"Schizosaccharomyces japonicus yFS275\": 624,\n    \"Cryptococcus
+        gattii VGII R265\": 663,\n    \"Pneumocystis wakefieldiae 2A\": 407,\n    \"Nannizzia
+        gypsea CBS 118893\": 1151,\n    \"Amauroascus mutatus isolate UAMH 3576\":
+        0,\n    \"Blastomyces percursus strain EI222\": 1498,\n    \"Cyberlindnera
+        fabianii 65\": 685,\n    \"Leishmania orientalis MHOM/TH/2014/LSCM4\": 513,\n
+        \   \"Entamoeba histolytica KU50\": 0,\n    \"Entamoeba dispar SAW760\": 1015,\n
+        \   \"Entamoeba histolytica HM-1:IMSS-A\": 778,\n    \"Plasmodium vinckei
+        vinckei strain vinckei\": 276,\n    \"Entamoeba histolytica HM-1:IMSS-B\":
+        779,\n    \"Anopheles coluzzii Ngousso\": 1246,\n    \"Talaromyces stipitatus
+        ATCC 10500\": 1807,\n    \"Cryptococcus cf. gattii MF34\": 662,\n    \"Hemileia
+        vastatrix Race XXXIII\": 846,\n    \"Eimeria falciformis Bayer Haberkorn 1970\":
+        408,\n    \"Entamoeba histolytica KU48\": 0,\n    \"Penicillium expansum d1\":
+        1324,\n    \"Puccinia striiformis f. sp. tritici PST-130\": 0,\n    \"Plasmodium
+        falciparum SN01\": 330,\n    \"Talaromyces marneffei ATCC 18224\": 1307,\n
+        \   \"Encephalitozoon cuniculi EC1\": 117,\n    \"Encephalitozoon cuniculi
+        EC2\": 117,\n    \"Leishmania enriettii strain LEM3045\": 614,\n    \"Triatoma
+        infestans isolate FIOC_28\": 0,\n    \"Vavraia culicis subsp. floridensis\":
+        127,\n    \"Encephalitozoon cuniculi EC3\": 118,\n    \"Trypanosoma brucei
+        Lister strain 427\": 575,\n    \"Stomoxys calcitrans USDA\": 1310,\n    \"Anncaliia
+        algerae PRA109\": 177,\n    \"Cucumispora dikerogammari Dv6\": 98,\n    \"Plenodomus
+        lingam JN3\": 1133,\n    \"Anopheles farauti FAR1\": 1216,\n    \"Chaetomium
+        globosum CBS 148.51\": 1296,\n    \"Nematocida major JUm2507\": 108,\n    \"Drosophila
+        melanogaster iso-1\": 1296,\n    \"Toxoplasma gondii CtCo5\": 0,\n    \"Aspergillus
+        niger ATCC 1015\": 1420,\n    \"Aspergillus eucalypticola CBS 122712\": 1368,\n
+        \   \"Penicillium rubens Wisconsin 54-1255\": 1494,\n    \"Amblyomma maculatum
+        SK-2019\": 0,\n    \"Phytophthora capsici LT1534\": 2927,\n    \"Debaryomyces
+        hansenii CBS767\": 772,\n    \"Saccharomyces paradoxus CBS432\": 644,\n    \"Nematocida
+        ausubeli ERTm6\": 105,\n    \"Nematocida ausubeli ERTm2\": 107,\n    \"Entamoeba
+        histolytica KU27\": 894,\n    \"Rhodotorula toruloides NBRC 0880\": 0,\n    \"Giardia
+        Assemblage B isolate BAH15c1\": 754,\n    \"Plasmodium falciparum Dd2\": 331,\n
+        \   \"Kluyveromyces lactis NRRL Y-1140\": 607,\n    \"Histomonas meleagridis
+        2922-C6/04-10x\": 1236,\n    \"Phycomyces blakesleeanus NRRL 1555(-)\": 3132,\n
+        \   \"Candida albicans SC5314\": 773,\n    \"Anopheles epiroticus Epiroticus2\":
+        1303,\n    \"Phlebotomus papatasi Israel\": 1061,\n    \"Saccharomyces cerevisiae
+        S288C\": 2732,\n    \"Cordyceps militaris ATCC 34164\": 1234,\n    \"Fusarium
+        mangiferae MRC7560\": 1773,\n    \"Leishmania major strain Friedlin\": 621,\n
+        \   \"Anopheles dirus WRAIR2\": 1294,\n    \"Cryptosporidium hominis UdeA01\":
+        404,\n    \"Rhizopus microsporus var. microsporus ATCC 52814\": 1985,\n    \"Verticillium
+        dahliae JR2\": 1210,\n    \"Trypanosoma cruzi strain S162a\": 0,\n    \"Rickenella
+        mellea Ricmel1\": 1996,\n    \"Coprinopsis cinerea #326\": 1385,\n    \"Anopheles
+        gambiae Pimperena\": 0,\n    \"Nosema bombycis CQ1\": 212,\n    \"Aspergillus
+        luchuensis IFO 4308\": 1472,\n    \"Melampsora larici-populina 98AG31\": 1728,\n
+        \   \"Blumeria graminis f. sp. tritici 96224\": 1075,\n    \"Cryptosporidium
+        andersoni isolate 30847\": 393,\n    \"Ordospora colligata NO-V-7\": 112,\n
+        \   \"Pyronema omphalodes CBS 100304\": 1237,\n    \"Paecilomyces variotii
+        CBS 101075\": 1255,\n    \"Pleurotus ostreatus PC9\": 1307,\n    \"Sarcocystis
+        neurona SN3\": 326,\n    \"Candida albicans WO-1\": 730,\n    \"Saprolegnia
+        diclina VS20\": 2124,\n    \"Macaca mulatta isolate AG07107\": 2535,\n    \"Aspergillus
+        ibericus CBS 121593\": 1424,\n    \"Trypanosoma congolense IL3000\": 730,\n
+        \   \"Plasmodium yoelii yoelii YM\": 289,\n    \"Cryptosporidium tyzzeri isolate
+        UGA55\": 402,\n    \"Toxoplasma gondii VEG\": 489,\n    \"Trypanosoma congolense
+        IL3000 2019\": 626,\n    \"Coccidioides immitis RMSCC 3703\": 0,\n    \"Scedosporium
+        apiospermum IHEM 14462\": 1132,\n    \"Phytophthora sojae strain P6497\":
+        3533,\n    \"Toxoplasma gondii p89\": 560,\n    \"Anopheles merus MAF 2021\":
+        1465,\n    \"Enterospora canceri strain GB1\": 98,\n    \"Plasmodium ovale
+        curtisi GH01\": 316,\n    \"Cryptosporidium ubiquitum isolate 39726\": 386,\n
+        \   \"Plasmodium inui San Antonio 1\": 290,\n    \"Aspergillus fumigatus Af293\":
+        1252,\n    \"Trypanosoma brucei brucei TREU927\": 1139,\n    \"Plasmodium
+        billcollinsi G01\": 310,\n    \"Trypanosoma cruzi strain S15\": 0,\n    \"Babesia
+        divergens strain 1802A\": 433,\n    \"Culicoides sonorensis PIR-s-3\": 1528,\n
+        \   \"Plasmodium malariae UG01\": 331,\n    \"Spironucleus salmonicida ATCC50377\":
+        795,\n    \"Babesia ovata strain Miyake\": 1298,\n    \"Pichia kudriavzevii
+        strain CBS5147\": 0,\n    \"Theileria orientalis Goon Nure\": 218,\n    \"Trypanosoma
+        cruzi strain S11\": 0,\n    \"Aspergillus niger CBS 513.88\": 1469,\n    \"Anopheles
+        marshallii AmarGA1\": 1203,\n    \"Anopheles stephensi UCISS2018\": 1267,\n
+        \   \"Toxoplasma gondii COUG\": 578,\n    \"Coccidioides posadasii RMSCC 3488\":
+        1197,\n    \"Leishmania panamensis strain MHOM/PA/94/PSC-1\": 553,\n    \"Tremella
+        mesenterica DSM 1558\": 749,\n    \"Plasmodium knowlesi strain A1H1\": 295,\n
+        \   \"Acanthamoeba quina Vil3\": 0,\n    \"Talaromyces marneffei TM4\": 0,\n
+        \   \"Phytophthora parasitica INRA-310\": 2666,\n    \"Amauroascus niger isolate
+        UAMH 3544\": 0,\n    \"Gregarina niphandrodes Unknown strain\": 342,\n    \"Acanthamoeba
+        culbertsoni A1\": 0,\n    \"Cryptosporidium hominis isolate 30976\": 401,\n
+        \   \"Aspergillus terreus NIH2624\": 1341,\n    \"Plasmodium vivax Sal-1\":
+        326,\n    \"Eimeria necatrix Houghton\": 445,\n    \"Aspergillus heteromorphus
+        CBS 117.55\": 1225,\n    \"Trypanosoma cruzi Sylvio X10/1\": 1060,\n    \"Hamiltosporidium
+        magnivora IL-BN-2\": 254,\n    \"Aspergillus campestris IBT 28561\": 1196,\n
+        \   \"Plasmodium falciparum GB4\": 337,\n    \"Blastomyces gilchristii SLH14081\":
+        1206,\n    \"Aspergillus sydowii CBS 593.65\": 1534,\n    \"Eimeria praecox
+        Houghton\": 317,\n    \"Naegleria lovaniensis NL_76_15_250\": 0,\n    \"Aphanomyces
+        invadans NJM9701\": 1454,\n    \"Mus musculus C57BL6J\": 3022,\n    \"Coccidioides
+        immitis RS\": 1202,\n    \"Dictyostelium discoideum AX4\": 949,\n    \"Anopheles
+        aquasalis AaquGF1\": 1200,\n    \"Fusarium oxysporum f. sp. lycopersici 4287\":
+        2096,\n    \"Chrysosporium queenslandicum isolate CBS 280.77\": 0,\n    \"Naegleria
+        fowleri ATCC 30863\": 1289,\n    \"Encephalitozoon hellem ATCC 50504\": 119,\n
+        \   \"Trichophyton rubrum CBS 118892\": 1108,\n    \"Phytophthora cactorum
+        10300\": 2958,\n    \"Verruconis gallopava strain CBS 43764\": 1080,\n    \"Aspergillus
+        sclerotiicarbonarius CBS 121057\": 1543,\n    \"Entamoeba moshkovskii Laredo\":
+        1725,\n    \"Trypanosoma cruzi strain CL\": 3795,\n    \"Nosema apis BRL 01\":
+        271,\n    \"Acanthamoeba castellanii str. Neff 2021\": 0,\n    \"Anopheles
+        coluzzii MOPTI\": 1270,\n    \"Aspergillus niger strain LDM3\": 0,\n    \"Malassezia
+        pachydermatis CBS 1879\": 519,\n    \"Leishmania sp. Namibia MPRO/NA/1975/252/LV425\":
+        511,\n    \"Hanseniaspora guilliermondii strain UTAD222\": 512,\n    \"Aspergillus
+        niger ATCC 13496\": 1415,\n    \"Biomphalaria glabrata XG47\": 2193,\n    \"Meyerozyma
+        guilliermondii ATCC 6260\": 738,\n    \"Anopheles arabiensis Dongola\": 1281,\n
+        \   \"Pleurotus ostreatus PC15\": 1296,\n    \"Cytauxzoon felis strain Winnie\":
+        235,\n    \"Leishmania mexicana MHOM/GT/2001/U1103\": 596,\n    \"Malassezia
+        globosa CBS 7966\": 552,\n    \"Phytophthora ramorum strain Pr102\": 1916,\n
+        \   \"Leishmania turanica strain LEM423\": 570,\n    \"Theileria orientalis
+        Fish Creek\": 232,\n    \"Babesia ovis Selcuk\": 400,\n    \"Trypanosoma cruzi
+        marinkellei strain B7\": 1664,\n    \"Cryptosporidium sp. chipmunk LX-2015\":
+        0,\n    \"Sporothrix schenckii 1099-18\": 1122,\n    \"Anopheles coluzzii
+        AcolN3\": 1244,\n    \"Spraguea lophii 42_110\": 198,\n    \"Aspergillus lentulus
+        strain IFM 54703\": 1162,\n    \"Plasmodium vivax-like Pvl01\": 286,\n    \"Microsporidium
+        sp. FI-F-10\": 108,\n    \"Apiotrichum montevideense JCM 9937\": 0,\n    \"Plasmodium
+        falciparum SD01\": 327,\n    \"Aspergillus flavus NRRL3357\": 1610,\n    \"Alternaria
+        alternata SRC1lrK2f\": 1324,\n    \"Babesia microti strain Naushon\": 0,\n
+        \   \"Trypanosoma cruzi Brazil A4\": 1679,\n    \"Cyclospora cayetanensis
+        isolate NF1_C8\": 417,\n    \"Leptomonas pyrrhocoris H10\": 708,\n    \"Trichosporon
+        asahii var. asahii CBS 2479\": 757,\n    \"Acanthamoeba lugdunensis L3a\":
+        0,\n    \"Rhinocladiella mackenziei CBS 650.93\": 1386,\n    \"Giardia Assemblage
+        A isolate WB Calgary\": 0,\n    \"Dictyostelium purpureum QSDP1\": 933,\n
+        \   \"Paracoccidioides lutzii Pb01\": 1051,\n    \"Theileria orientalis strain
+        Shintoku\": 257,\n    \"Balamuthia mandrillaris CDC-V039\": 0,\n    \"Anncaliia
+        algerae Undeen\": 0,\n    \"Rhipicephalus annulatus KleinGrass\": 0,\n    \"Giardia
+        muris strain Roberts-Thomson\": 1000,\n    \"Ixodes scapularis PalLabHiFi\":
+        2027,\n    \"Puccinia striiformis strain 93-210\": 1716,\n    \"Giardia Assemblage
+        A isolate CIA\": 0,\n    \"Plasmodium yoelii yoelii 17XNL\": 300,\n    \"Macaca
+        fascicularis REF\": 2577,\n    \"Trichoderma virens Gv29-8\": 1560,\n    \"Madurella
+        mycetomatis mm55\": 1380,\n    \"Emergomyces orientalis 5z489\": 0,\n    \"Phlebotomus
+        argentipes India\": 1098,\n    \"Fonsecaea pedrosoi CBS 271.37\": 1477,\n
+        \   \"Cryptococcus gattii WM276\": 679,\n    \"Hamiltosporidium tvaerminnensis
+        OER-3-3\": 0,\n    \"Pythium insidiosum Pi-s\": 1984,\n    \"Clavispora lusitaniae
+        ATCC 42720\": 705,\n    \"Kwoniella dejecticola CBS 10117\": 780,\n    \"Cryptococcus
+        gattii NT-10\": 660,\n    \"Phanerochaete chrysosporium RP-78\": 1291,\n    \"Anopheles
+        funestus AfunGA1\": 1228,\n    \"Naganishia albida NRRL Y-1402\": 0,\n    \"Magnaporthiopsis
+        poae ATCC 64411\": 1304,\n    \"Eimeria brunetti Houghton\": 441,\n    \"Plasmodium
+        falciparum TG01\": 356,\n    \"Leishmania amazonensis MHOM/BR/71973/M2269\":
+        542,\n    \"Cryptosporidium hominis isolate TU502_2012\": 403,\n    \"Enterocytozoon
+        bieneusi H348\": 169,\n    \"Globisporangium iwayamae DAOM BR242034\": 1935,\n
+        \   \"Plasmodium vivax PvSY56\": 0,\n    \"Epichloe festucae Fl1\": 0,\n    \"Dermacentor
+        silvarum Dsil-2018\": 1643,\n    \"Giardia Assemblage A2 isolate DH\": 883,\n
+        \   \"Emergomyces africanus CBS 136260\": 1202,\n    \"Leishmania infantum
+        JPCM5\": 595,\n    \"Emmonsia crescens UAMH 3008\": 1430,\n    \"Acanthamoeba
+        castellanii str. Neff\": 15005,\n    \"Ixodes scapularis Wikel\": 1368,\n
+        \   \"Plasmodium yoelii yoelii 17X\": 309,\n    \"Giardia Assemblage A isolate
+        WB\": 971,\n    \"Thermothelomyces thermophilus ATCC 42464\": 1091,\n    \"Theileria
+        annulata strain Ankara\": 234,\n    \"Homo sapiens REF\": 3348,\n    \"Acanthamoeba
+        rhysodes Singh\": 0,\n    \"Glossina austeni TTRI\": 1433,\n    \"Trypanosoma
+        cruzi strain 231\": 0,\n    \"Coccidioides posadasii RMSCC 2133\": 0,\n    \"Nematocida
+        parisii ERTm1\": 113,\n    \"Acanthamoeba palestinensis Reich\": 0,\n    \"Nematocida
+        parisii ERTm3\": 111,\n    \"Dermacentor andersoni qqDerAnde1.2\": 1424,\n
+        \   \"Dermacentor andersoni qqDerAnde1.1\": 0,\n    \"Beauveria bassiana HN6\":
+        0,\n    \"Candida tropicalis MYA-3404 2020\": 746,\n    \"Epichloe glyceriae
+        E277\": 0,\n    \"Plasmodium cynomolgi strain B\": 305,\n    \"Toxoplasma
+        gondii GAB2-2007-GAL-DOM2\": 510,\n    \"Lutzomyia longipalpis Jacobina\":
+        1030,\n    \"Plasmodium falciparum GA01\": 322,\n    \"Histoplasma capsulatum
+        H143\": 1207,\n    \"Phytophthora infestans T30-4\": 2159,\n    \"Anopheles
+        moucheti AmouCM1\": 1256,\n    \"Cladophialophora bantiana CBS 173.52\": 1448,\n
+        \   \"Plasmodium cynomolgi strain M\": 308,\n    \"Pichia kudriavzevii strain
+        CBS573\": 648,\n    \"Pneumocystis murina B123\": 441,\n    \"Cryptosporidium
+        muris RN66\": 394,\n    \"Musca domestica aabys 2023\": 1574,\n    \"Aspergillus
+        nidulans FGSC A4\": 1335,\n    \"Trypanosoma cruzi Sylvio X10/1-2012\": 1589,\n
+        \   \"Plasmodium falciparum NF166\": 306,\n    \"Chaetothyriales sp. CBS 132003\":
+        776,\n    \"Cyphellophora europaea CBS 101466\": 1233,\n    \"Glossina pallidipes
+        IAEA\": 1364,\n    \"Exophiala dermatitidis NIH/UT8656\": 1101,\n    \"Cladophialophora
+        carrionii KSF\": 1231,\n    \"Plasmodium yoelii yoelii 17XNL 2023\": 276,\n
+        \   \"Leishmania donovani CL-SL\": 615,\n    \"Ixodes scapularis ISE6\": 1304,\n
+        \   \"Botrytis cinerea B05.10\": 1171,\n    \"Exophiala spinifera CBS 89968\":
+        1412,\n    \"Babesia microti strain ATCC PRA-99\": 0,\n    \"Anopheles stephensi
+        Indian\": 1257,\n    \"Lichtheimia corymbifera JMRC:FSU:9682\": 1538,\n    \"Trypanosoma
+        cruzi strain Ycl6\": 0,\n    \"Plasmodium adleri G01\": 318,\n    \"Ophiostoma
+        piceae UAMH 11346\": 1157,\n    \"Encephalitozoon cuniculi EcunIII-L\": 117,\n
+        \   \"Ixodes ricinus Charles River\": 0,\n    \"Podospora comata strain T
+        mat+\": 1218,\n    \"Trichoderma atroviride strain JCM 9410\": 0,\n    \"Trypanosoma
+        brucei EATRO1125\": 566,\n    \"Zymoseptoria tritici IPO323\": 1220,\n    \"Coccidioides
+        posadasii RMSCC 1037\": 0,\n    \"Trypanosoma cruzi strain Ycl2\": 0,\n    \"Coccidioides
+        posadasii RMSCC 1038\": 0,\n    \"Trypanosoma cruzi strain Ycl4\": 0,\n    \"Aspergillus
+        niger strain N402 (ATCC64974)\": 1511,\n    \"Candida duobushaemulonis strain
+        B09383\": 643,\n    \"Neurospora discreta FGSC 8579\": 920,\n    \"Toxoplasma
+        gondii VAND\": 523,\n    \"Giardia Assemblage B isolate GS Calgary\": 0,\n
+        \   \"Gaeumannomyces tritici R3-111a-1\": 1487,\n    \"Porcisia hertigi MCOE/PA/1965/C119\":
+        528,\n    \"Aspergillus flavus NRRL3357 2020\": 1603,\n    \"Gallus gallus
+        isolate bGalGal1\": 1806,\n    \"Nakaseomyces glabratus BG3993\": 668,\n    \"Cryptosporidium
+        meleagridis strain UKMEL1\": 397,\n    \"Aedes aegypti Aag2\": 0,\n    \"Acanthamoeba
+        mauritaniensis 1652\": 0,\n    \"Trypanosoma cruzi strain S92a\": 0,\n    \"Acanthamoeba
+        lenticulata PD2S\": 0,\n    \"Neurospora crassa OR74A\": 2800,\n    \"Aspergillus
+        cristatus GZAAS20.1005\": 1393,\n    \"Eimeria acervulina Houghton\": 416,\n
+        \   \"Nosema ceranae BRL\": 111,\n    \"Trypanosoma cruzi Tula cl2\": 0,\n
+        \   \"Taphrina deformans PYCC 5710\": 564,\n    \"Leishmania martiniquensis
+        MHOM/TH/2012/LSCM1\": 516,\n    \"Rhipicephalus sanguineus Rsan-2018\": 1652,\n
+        \   \"Plasmodium falciparum KE01\": 320,\n    \"Histoplasma capsulatum WU24\":
+        1148,\n    \"Stachybotrys chartarum IBT 40293\": 1357,\n    \"Dictyocoela
+        muelleri Ou54\": 178,\n    \"Toxoplasma gondii TgCatPRC2\": 571,\n    \"Toxoplasma
+        gondii RH-88\": 483,\n    \"Cryptococcus depauperatus CBS 7841\": 686,\n    \"Raffaelea
+        lauricola RL4\": 1324,\n    \"Glossina fuscipes IAEA\": 1474,\n    \"Byssoonygena
+        ceratinophila isolate UAMH 5669\": 0,\n    \"Pneumocystis oryctolagi CS1\":
+        385,\n    \"Naganishia albida JCM2334\": 0,\n    \"Blastomyces dermatitidis
+        ATCC 26199\": 1194,\n    \"Plasmodium falciparum 3D7\": 373,\n    \"Neurospora
+        tetrasperma FGSC 2508\": 974,\n    \"Saccharomycodes ludwigii UTAD17\": 528,\n
+        \   \"Bodo saltans strain Lake Konstanz\": 1642,\n    \"Cryptococcus depauperatus
+        CBS 7855\": 692,\n    \"Batrachochytrium dendrobatidis JEL423\": 877,\n    \"Leptotrombidium
+        deliense UoL-UT\": 1305,\n    \"Anopheles bellator AbelBR1\": 1161,\n    \"Coccidioides
+        immitis WA_211\": 1137,\n    \"Dictyocoela roeselum Ou19\": 68,\n    \"Cladophialophora
+        carrionii CBS 160.54\": 1170,\n    \"Pneumocystis carinii B80\": 436,\n    \"Aspergillus
+        tubingensis CBS 134.48\": 1416,\n    \"Globisporangium ultimum DAOM BR144\":
+        1541,\n    \"Hammondia hammondi strain H.H.34\": 458,\n    \"Pneumocystis
+        sp. macacae isolate P2C\": 406,\n    \"Coprinopsis cinerea okayama7#130\":
+        1287,\n    \"Mitosporidium daphniae UGP3\": 233,\n    \"Trypanosoma vivax
+        Y486\": 783,\n    \"Lichtheimia ramosa KPH11\": 0,\n    \"Plasmodium falciparum
+        7G8 2019\": 323,\n    \"Fusarium proliferatum ET1\": 1771,\n    \"Fusarium
+        odoratissimum strain race 4\": 1621,\n    \"Histoplasma capsulatum G217B\":
+        1026,\n    \"Trypanosoma theileri isolate Edinburgh\": 833,\n    \"Exophiala
+        mesophila strain CBS 40295\": 1076,\n    \"Glossina brevipalpis IAEA\": 1284,\n
+        \   \"Fusarium circinatum NRRL 25331\": 1600,\n    \"Plasmodium vinckei lentum
+        DE\": 290,\n    \"Trichophyton equinum CBS 127.97\": 1082,\n    \"Aspergillus
+        brasiliensis CBS 101740\": 1527,\n    \"Theileria parva strain Muguga\": 246,\n
+        \   \"Trypanosoma cruzi strain Esmeraldo\": 0,\n    \"Hamiltosporidium tvaerminnensis
+        FI-OER-3-3\": 269,\n    \"Toxoplasma gondii GT1\": 491,\n    \"Lomentospora
+        prolificans JHH-5317\": 1034,\n    \"Plasmodium knowlesi strain H\": 314,\n
+        \   \"Aspergillus aculeatus ATCC 16872\": 1308,\n    \"Rattus norvegicus BN/NHsdMcwi\":
+        2908,\n    \"Kwoniella mangroviensis CBS 8507\": 789,\n    \"Lutzomyia longipalpis
+        M1\": 1152,\n    \"Coccidioides immitis RMSCC 2394\": 0,\n    \"Arthrobotrys
+        flagrans CBS H-5679\": 1112,\n    \"Aspergillus tanneri NIH1004\": 1417,\n
+        \   \"Leishmania arabica strain LEM1108\": 576,\n    \"Anopheles darlingi
+        Coari\": 1161,\n    \"Leishmania donovani strain LV9\": 529,\n    \"Plasmodium
+        falciparum GN01\": 328,\n    \"Angomonas deanei strain Cavalho ATCC PRA-265\":
+        667,\n    \"Cladophialophora psammophila CBS 110553\": 1567,\n    \"Rhipicephalus
+        microplus Rmic-2018\": 1490,\n    \"Toxoplasma gondii TgCATBr5\": 0,\n    \"Pseudocercospora
+        fijiensis CIRAD86\": 1183,\n    \"Theileria equi strain WA\": 264,\n    \"Toxoplasma
+        gondii TgCATBr9\": 550,\n    \"Antonospora locustae CLX\": 0,\n    \"Leishmania
+        donovani BPK282A1\": 564,\n    \"Anopheles arabiensis DONGOLA 2021\": 1271,\n
+        \   \"Cryptococcus neoformans strain:VNII\": 679,\n    \"Plasmodium falciparum
+        7G8\": 328,\n    \"Podosphaera aphanis DRCT72020\": 1889,\n    \"Sabethes
+        cyaneus ScyaPA1\": 1231,\n    \"Coccidioides posadasii strain Silveira 2022\":
+        1194,\n    \"Leishmania major strain LV39c5\": 617,\n    \"Synchytrium endobioticum
+        MB42\": 798,\n    \"Fusarium oxysporum NRRL 32931\": 1817,\n    \"Aphanomyces
+        astaci strain APO3\": 1477,\n    \"Fusarium solani FSSC 5 MPI-SDFR-AT-0091\":
+        1912,\n    \"Anopheles culicifacies A-37\": 1422,\n    \"Toxoplasma gondii
+        CAST\": 551,\n    \"Anopheles albimanus STECLA 2020\": 1205,\n    \"Culex
+        quinquefasciatus JHB 2020\": 1350,\n    \"Toxoplasma gondii RH 2016\": 0,\n
+        \   \"Aspergillus versicolor CBS 583.65\": 1444,\n    \"Plasmodium vivax P01\":
+        313,\n    \"Mucor lusitanicus CBS 277.49\": 1516,\n    \"Lentinus tigrinus
+        ALCF2SS1-7\": 1586,\n    \"Plasmodium vinckei brucechwatti DA\": 284,\n    \"Histoplasma
+        capsulatum H88\": 1091,\n    \"Anopheles atroparvus EBRO\": 1311,\n    \"Babesia
+        duncani strain WA1 2023\": 260,\n    \"Toxoplasma gondii RUB\": 577,\n    \"Babesia
+        duncani strain WA1\": 0,\n    \"Anopheles sinensis SINENSIS\": 1290,\n    \"Plasmodium
+        fragile strain nilgiri\": 366,\n    \"Anopheles quadriannulatus SANGWE\":
+        1288,\n    \"Plasmodium vinckei vinckei CY\": 287,\n    \"Yarrowia lipolytica
+        CLIB89 (W29)\": 748,\n    \"Trichoderma reesei QM6a 2017\": 1164,\n    \"Aspergillus
+        clavatus NRRL 1\": 1124,\n    \"Blastocrithidia nonstop P57\": 0,\n    \"Colletotrichum
+        graminicola M1.001\": 1228,\n    \"Cryptosporidium baileyi TAMU-09Q1\": 0,\n
+        \   \"Thelohania contejeani T1\": 510,\n    \"Exophiala aquamarina CBS 119918\":
+        1521,\n    \"Entamoeba histolytica HM-1:IMSS\": 957,\n    \"Biomphalaria glabrata
+        BB02\": 2072,\n    \"Leishmania donovani HU3\": 592,\n    \"Acanthamoeba sp
+        Galka\": 0,\n    \"Anopheles gambiae Ifakara\": 1256,\n    \"Giardia Assemblage
+        A isolate WB 2019\": 857,\n    \"Trypanosoma brucei gambiense DAL972\": 563,\n
+        \   \"Sarcocystis neurona SO SN1\": 392,\n    \"Musca domestica aabys\": 1401,\n
+        \   \"Cryptococcus gattii VGIV IND107\": 653,\n    \"Yarrowia lipolytica CLIB122\":
+        746,\n    \"Babesia microti strain RI\": 226,\n    \"Cladophialophora immunda
+        strain CBS 83496\": 1541,\n    \"Trypanosoma cruzi strain S154a\": 0,\n    \"Fonsecaea
+        multimorphosa CBS 102226\": 1448,\n    \"Blechomonas ayalai B08-376\": 553,\n
+        \   \"Fusarium napiforme NRRL 25196\": 0,\n    \"Puccinia striiformis 93TX-2\":
+        1596,\n    \"Entamoeba invadens IP1\": 1991,\n    \"Plasmodium vinckei petteri
+        CR 2020\": 283,\n    \"Leishmania panamensis MHOM/COL/81/L13\": 580,\n    \"Fusarium
+        oxysporum Fo47\": 1888,\n    \"Fusarium oxysporum f. sp. melonis 26406\":
+        1962,\n    \"Pyricularia pennisetigena Br36\": 1159,\n    \"Anopheles ziemanni
+        AzieGA1\": 1225,\n    \"Plasmodium vinckei petteri strain CR\": 278,\n    \"Trypanosoma
+        cruzi Dm28c 2014\": 1231,\n    \"Trypanosoma cruzi Dm28c 2018\": 1815,\n    \"Trypanosoma
+        cruzi Dm28c 2017\": 957,\n    \"Cryptococcus gattii EJB2\": 663,\n    \"Phialophora
+        attinorum CBS 131958\": 1222,\n    \"Globisporangium irregulare DAOM BR486\":
+        1653,\n    \"Trypanosoma grayi ANR4\": 812,\n    \"Anopheles nili AnilCM1\":
+        1170,\n    \"Curvularia clavata yc1106\": 1253,\n    \"Babesia caballi USDA-D6B2\":
+        1319,\n    \"Albugo candida 2VRR\": 1364,\n    \"Xylaria arbuscula CBS 124340\":
+        1539,\n    \"Hepatocystis sp. ex Piliocolobus tephrosceles 2019\": 334,\n
+        \   \"Albugo laibachii Nc14\": 1475,\n    \"Plasmodium falciparum NF54\":
+        312,\n    \"Candida auris strain 6684\": 651,\n    \"Plasmodium reichenowi
+        CDC\": 361,\n    \"Colletotrichum higginsianum IMI 349063\": 1462,\n    \"Babesia
+        bovis T2Bo\": 373,\n    \"Nakaseomyces glabratus CBS 138\": 676,\n    \"Leishmania
+        major strain SD 75.1\": 593,\n    \"Pythium arrhenomanes ATCC 12531\": 1739,\n
+        \   \"Trichomonas vaginalis G3\": 16821,\n    \"Aedes albopictus Foshan FPA\":
+        2703,\n    \"Aspergillus fumigatus A1163\": 1157,\n    \"Anopheles albimanus
+        STECLA\": 1219,\n    \"Toxoplasma gondii ARI\": 587,\n    \"Babesia microti
+        Nan_Hs_2011_N11-50\": 0,\n    \"Cryptosporidium parvum 2022\": 0,\n    \"Candida
+        parapsilosis CDC317\": 719,\n    \"Diutina rugosa CBS 613\": 685,\n    \"Plasmodium
+        falciparum CD01\": 318,\n    \"Leishmania amazonensis strain PH8\": 566,\n
+        \   \"Blastomyces dermatitidis ER-3\": 1161,\n    \"Ordospora colligata FI-SK-17-1\":
+        112,\n    \"Leishmania donovani strain BHU 1220\": 0,\n    \"Trypanosoma cruzi
+        TCC\": 3204,\n    \"Plasmodium relictum SGS1-like\": 320,\n    \"Plasmodium
+        berghei ANKA\": 309,\n    \"Fusarium fujikuroi IMI 58289\": 1618,\n    \"Babesia
+        microti strain GI\": 0,\n    \"Chromera velia CCMP2878\": 2619,\n    \"Plasmodium
+        gallinaceum 8A\": 352,\n    \"Apophysomyces variabilis NCCPF 102052\": 0,\n
+        \   \"Candida auris strain B11243\": 672,\n    \"Candida auris strain B11245\":
+        701,\n    \"Zymoseptoria tritici ST99CH_3D1\": 1237,\n    \"Anopheles melas
+        CM1001059_A\": 1521,\n    \"Rhizophagus irregularis DAOM 181602=DAOM 197198\":
+        3977,\n    \"Entamoeba histolytica DS4-868\": 0,\n    \"Trypanosoma equiperdum
+        OVI\": 505,\n    \"Pythium aphanidermatum DAOM BR444\": 1491,\n    \"Trypanosoma
+        cruzi Berenice\": 1687,\n    \"Fusarium oxysporum f. sp. conglutinans Fo5176\":
+        2042,\n    \"Cladophialophora yegresii CBS 114405\": 1155,\n    \"Kluyveromyces
+        marxianus DMKU3-1042\": 600,\n    \"Phytophthora palmivora var. palmivora
+        strain sbr112.9\": 3866,\n    \"Nematocida ironsii ERTm5\": 112,\n    \"Plasmodium
+        falciparum NF135.C10\": 318,\n    \"Balamuthia mandrillaris strain 2046\":
+        0,\n    \"Anopheles darlingi AdarGF1\": 1182,\n    \"Trichoderma reesei QM6a\":
+        1113,\n    \"Trypanosoma evansi strain STIB 805\": 620,\n    \"Ascosphaera
+        apis ARSEF 7405\": 781,\n    \"Sordaria macrospora k-hell\": 1062,\n    \"Nakaseomyces
+        glabratus DSY562\": 673,\n    \"Batrachochytrium salamandrivorans BS\": 1089,\n
+        \   \"Mucor circinelloides 1006PhL\": 1635,\n    \"Debaryomyces fabryi CBS
+        789\": 761,\n    \"Leishmania major Friedlin 2021\": 603,\n    \"Histoplasma
+        capsulatum G184AR\": 1088,\n    \"Fusarium proliferatum strain NRRL62905\":
+        1698,\n    \"Eimeria tenella strain Houghton\": 475,\n    \"Trichomonas tenax
+        strain NIH4 ATCC 30207\": 0,\n    \"Cryptosporidium bovis isolate 45015\":
+        378,\n    \"Microsporum canis CBS 113480\": 1245,\n    \"Candida tropicalis
+        MYA-3404\": 753,\n    \"Myotis myotis mMyoMyo1\": 1811,\n    \"Leishmania
+        tarentolae Parrot-TarII\": 567,\n    \"Anopheles gambiae PEST\": 1316,\n    \"Candida
+        dubliniensis CD36\": 720,\n    \"Ustilago maydis 521\": 704,\n    \"Emergomyces
+        pasteurianus Ep9510\": 1306,\n    \"Cryptosporidium sp. chipmunk genotype
+        I strain 37763\": 391,\n    \"Aspergillus ellipticus CBS 707.79\": 1505,\n
+        \   \"Aspergillus fischeri NRRL 181\": 1268,\n    \"Trichophyton mentagrophytes
+        TIMM 2789\": 1091,\n    \"Cryptosporidium parvum IOWA-ATCC\": 398,\n    \"Eimeria
+        tenella Houghton 2021\": 510,\n    \"Pseudoloma neurophilia strain MK1\":
+        133,\n    \"Fusarium verticillioides 7600\": 1700,\n    \"Pyricularia oryzae
+        70-15\": 1188,\n    \"Trypanosoma cruzi strain S44a\": 0,\n    \"Acanthamoeba
+        sp Incertae sedis\": 0,\n    \"Cryptosporidium hominis TU502\": 391,\n    \"Hamiltosporidium
+        magnivora BE-OM-2\": 360,\n    \"Leishmania aethiopica L147\": 576,\n    \"Puccinia
+        sorghi strain RO10H11247\": 1659,\n    \"Aspergillus uvarum CBS 121591\":
+        1384,\n    \"Leishmania martiniquensis LEM2494\": 570,\n    \"Candida auris
+        strain B11220\": 673,\n    \"Globisporangium ultimum var. sporangiiferum BR650\":
+        1678,\n    \"Trypanosoma rangeli SC58\": 564,\n    \"Candida auris strain
+        B11221\": 697,\n    \"Cryptococcus neoformans var. neoformans JEC21\": 700,\n
+        \   \"Naegleria fowleri strain Ty\": 1130,\n    \"Plasmodium falciparum HB3\":
+        329,\n    \"Nosema ceranae strain PA08_1199\": 128,\n    \"Trypanosoma cruzi
+        strain S23b\": 0,\n    \"Leishmania tarentolae Parrot Tar II 2019\": 600,\n
+        \   \"Giardia intestinalis Beaver\": 0,\n    \"Pneumocystis jirovecii SE8\":
+        450,\n    \"Cryptosporidium parvum Iowa II\": 405,\n    \"Tritrichomonas foetus
+        strain K\": 3638,\n    \"Phytophthora cinnamomi GKB4\": 2835,\n    \"Phytophthora
+        ramorum 14567\": 1916,\n    \"Phytopythium vexans DAOM BR484\": 1630,\n    \"Porospora
+        cf. gigantea A\": 422,\n    \"Peronospora effusa R13\": 1008,\n    \"Glossina
+        fuscipes IAEA 2018\": 1194,\n    \"Trypanosoma brucei Lister strain 427 2018\":
+        1032,\n    \"Haemoproteus tartakovskyi strain SISKIN1\": 331,\n    \"Leishmania
+        braziliensis MHOM/BR/75/M2904 2019\": 536,\n    \"Nosema ceranae BRL01\":
+        113,\n    \"Hanseniaspora uvarum strain AWRI3580\": 507,\n    \"Histoplasma
+        capsulatum G186AR\": 1087,\n    \"Porospora cf. gigantea B\": 435,\n    \"Aspergillus
+        wentii DTO 134E9\": 1531,\n    \"Cryptococcus neoformans var. neoformans B-3501A\":
+        681,\n    \"Acanthamoeba castellanii C3\": 0\n  },\n  \"searchResults\": {\n
+        \   \"documents\": [\n      {\n        \"score\": 43.70384,\n        \"organism\":
+        \"[\\\"Cryptococcus gattii WM276\\\"]\",\n        \"wdkPrimaryKeyString\":
+        \"CGB_I0230W\",\n        \"documentType\": \"gene\",\n        \"summaryFieldData\":
+        {\n          \"TEXT__gene_product\": \"MAP kinase kinase kinase, MAP kinase
+        kinase kinase, putative\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Cryptococcus gattii
+        WM276\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Protein <em>kinase<\\/em> domain-containing protein [Source:UniProtKB/TrEMBL;Acc:A0A167N5T1]\"],\n
+        \         \"TEXT__gene_product\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        putative\"],\n          \"autocomplete\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        putative\"],\n          \"MULTITEXT__gene_GOTerms\": [\"protein <em>kinase<\\/em>
+        activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\": [\"SERINE/THREONINE
+        PROTEIN <em>KINASE<\\/em> 25\"],\n          \"MULTITEXT__gene_Products\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"CGB_I0230W\"]\n
+        \     },\n      {\n        \"score\": 43.228912,\n        \"organism\": \"[\\\"Cordyceps
+        militaris ATCC 34164\\\"]\",\n        \"wdkPrimaryKeyString\": \"A9K55_006619\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Cordyceps militaris
+        ATCC 34164\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"map <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"TEXT__gene_product\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"autocomplete\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_PdbSimilarities\": [\"MITOGEN-ACTIVATED PROTEIN
+        <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em> 5\"],\n          \"MULTITEXT__gene_Products\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"A9K55_006619\"]\n
+        \     },\n      {\n        \"score\": 43.228912,\n        \"organism\": \"[\\\"Aspergillus
+        niger ATCC 1015\\\"]\",\n        \"wdkPrimaryKeyString\": \"ASPNIDRAFT2_1098583\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Aspergillus niger
+        ATCC 1015\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> [Source:UniProtKB/TrEMBL;Acc:A0A0D1XVN9]\"],\n
+        \         \"TEXT__gene_product\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"autocomplete\": [\"MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_PdbSimilarities\": [\"MITOGEN-ACTIVATED PROTEIN
+        <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em> 5\"],\n          \"MULTITEXT__gene_Products\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"ASPNIDRAFT2_1098583\"]\n
+        \     },\n      {\n        \"score\": 43.228912,\n        \"organism\": \"[\\\"Blumeria
+        hordei strain RACE1\\\"]\",\n        \"wdkPrimaryKeyString\": \"BLGHR1_14631\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Blumeria hordei
+        strain RACE1\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Ortholog(s) have MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        activity, MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        activity, structural constituent of cell wall activity\"],\n          \"TEXT__gene_product\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"autocomplete\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"MITOGEN-ACTIVATED PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"BLGHR1_14631\"]\n      },\n      {\n
+        \       \"score\": 43.228912,\n        \"organism\": \"[\\\"Colletotrichum
+        higginsianum IMI 349063\\\"]\",\n        \"wdkPrimaryKeyString\": \"CH63R_01379\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"Map kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Colletotrichum higginsianum
+        IMI 349063\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, variant\"],\n
+        \         \"TEXT__gene_product\": [\"Map <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"autocomplete\": [\"Map <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"MITOGEN-ACTIVATED PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"Map <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"CH63R_01379\"]\n      },\n      {\n
+        \       \"score\": 43.228912,\n        \"organism\": \"[\\\"Fusarium graminearum
+        PH-1\\\"]\",\n        \"wdkPrimaryKeyString\": \"FGRAMPH1_01G20041\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"map kinase kinase kinase\",\n          \"TEXT__gene_name\": \"Bck1\",\n
+        \         \"TEXT__gene_gene_type\": \"protein coding gene\",\n          \"TEXT__gene_organism_full\":
+        \"Fusarium graminearum PH-1\"\n        },\n        \"foundInFields\": {\n
+        \         \"MULTITEXT__gene_UserCommentContent\": [\"<em>Kinase<\\/em>|Submitted
+        by scrubbed@test.local (https://scabusa.org/FgMutantDB) with corresponding
+        researcher Jin-Rong Xu (scrubbed@test.local (JRX); scrubbed@test.local (ZK))|FgMutantDB
+        FgMutantDB(USDA-ARS)\"],\n          \"MULTITEXT__gene_Orthologs\": [\"Protein
+        <em>kinase<\\/em> domain-containing protein [Source:UniProtKB/TrEMBL;Acc:A0A9Q8Z103]\"],\n
+        \         \"TEXT__gene_product\": [\"map <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"autocomplete\": [\"map <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"MITOGEN-ACTIVATED PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"map <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"FGRAMPH1_01G20041\"]\n      },\n      {\n
+        \       \"score\": 43.228912,\n        \"organism\": \"[\\\"Parastagonospora
+        nodorum SN15\\\"]\",\n        \"wdkPrimaryKeyString\": \"JI435_071960\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Parastagonospora
+        nodorum SN15\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> SskB, putative\"],\n
+        \         \"TEXT__gene_product\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"autocomplete\": [\"MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_PdbSimilarities\": [\"MITOGEN-ACTIVATED PROTEIN
+        <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em> 5\"],\n          \"MULTITEXT__gene_Products\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"JI435_071960\"]\n
+        \     },\n      {\n        \"score\": 43.228912,\n        \"organism\": \"[\\\"Podosphaera
+        aphanis DRCT72020\\\"]\",\n        \"wdkPrimaryKeyString\": \"K3495_g6012\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Podosphaera aphanis
+        DRCT72020\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Ortholog(s) have MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        activity, actin binding, protein <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"autocomplete\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_PdbSimilarities\": [\"MITOGEN-ACTIVATED PROTEIN
+        <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em> 5\"],\n          \"MULTITEXT__gene_ECNumbers\":
+        [\"Mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n
+        \         \"MULTITEXT__gene_Products\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"K3495_g6012\"]\n      },\n      {\n
+        \       \"score\": 43.228912,\n        \"organism\": \"[\\\"Lichtheimia corymbifera
+        JMRC:FSU:9682\\\"]\",\n        \"wdkPrimaryKeyString\": \"LCOR_02371.1\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"map kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Lichtheimia corymbifera
+        JMRC:FSU:9682\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> [Source:UniProtKB/TrEMBL;Acc:A0A0V1Q556]\"],\n
+        \         \"TEXT__gene_product\": [\"map <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"autocomplete\": [\"map <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"MITOGEN-ACTIVATED PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"map <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"LCOR_02371.1\"]\n      },\n      {\n
+        \       \"score\": 43.228912,\n        \"organism\": \"[\\\"Metarhizium anisopliae
+        ARSEF 549\\\"]\",\n        \"wdkPrimaryKeyString\": \"MAN_08473\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Metarhizium anisopliae
+        ARSEF 549\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"PaASK1 MAPKK <em>kinase<\\/em> encoded by the PaASK1 gene\"],\n          \"TEXT__gene_product\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"autocomplete\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"MITOGEN-ACTIVATED PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"MAN_08473\"]\n      },\n      {\n        \"score\":
+        43.228912,\n        \"organism\": \"[\\\"Naegleria fowleri ATCC 30863\\\"]\",\n
+        \       \"wdkPrimaryKeyString\": \"NF0067790\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"map kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria fowleri
+        ATCC 30863\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"map <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"TEXT__gene_product\":
+        [\"map <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"autocomplete\":
+        [\"map <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_Products\":
+        [\"map <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"]\n        },\n
+        \       \"primaryKey\": [\"NF0067790\"]\n      },\n      {\n        \"score\":
+        43.228912,\n        \"organism\": \"[\\\"Pleurotus ostreatus PC9\\\"]\",\n
+        \       \"wdkPrimaryKeyString\": \"PC9H_001330\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase\",\n          \"TEXT__gene_name\": \"ANKK1\",\n
+        \         \"TEXT__gene_gene_type\": \"protein coding gene\",\n          \"TEXT__gene_organism_full\":
+        \"Pleurotus ostreatus PC9\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"TKL protein <em>kinase<\\/em>, variant 2\"],\n          \"TEXT__gene_product\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"autocomplete\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Serine/threonine-protein <em>kinase<\\/em> CTR1\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"PC9H_001330\"]\n
+        \     },\n      {\n        \"score\": 43.228912,\n        \"organism\": \"[\\\"Sporothrix
+        brasiliensis 5110\\\"]\",\n        \"wdkPrimaryKeyString\": \"SPBR_06322\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"map kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Sporothrix brasiliensis
+        5110\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"similar to cAMP-dependent protein <em>kinase<\\/em>\"],\n          \"TEXT__gene_product\":
+        [\"map <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"autocomplete\":
+        [\"map <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"MITOGEN-ACTIVATED PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"map <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"SPBR_06322\"]\n      },\n      {\n
+        \       \"score\": 43.228912,\n        \"organism\": \"[\\\"Trichophyton mentagrophytes
+        TIMM 2789\\\"]\",\n        \"wdkPrimaryKeyString\": \"TMEN_3607\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Trichophyton mentagrophytes
+        TIMM 2789\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        putative\"],\n          \"TEXT__gene_product\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"autocomplete\": [\"MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_PdbSimilarities\": [\"MITOGEN-ACTIVATED PROTEIN
+        <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em> 5\"],\n          \"MULTITEXT__gene_Products\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"TMEN_3607\"]\n
+        \     },\n      {\n        \"score\": 43.228912,\n        \"organism\": \"[\\\"Trichophyton
+        mentagrophytes TIMM 2789\\\"]\",\n        \"wdkPrimaryKeyString\": \"TMEN_5105\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase\",\n          \"TEXT__gene_gene_type\": \"protein
+        coding gene\",\n          \"TEXT__gene_organism_full\": \"Trichophyton mentagrophytes
+        TIMM 2789\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> (Bck1), putative\"],\n
+        \         \"TEXT__gene_product\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"autocomplete\": [\"MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"MITOGEN-ACTIVATED PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"TMEN_5105\"]\n      },\n      {\n        \"score\":
+        42.917812,\n        \"organism\": \"[\\\"Aspergillus nidulans FGSC A4\\\"]\",\n
+        \       \"wdkPrimaryKeyString\": \"AN5674\",\n        \"documentType\": \"gene\",\n
+        \       \"summaryFieldData\": {\n          \"TEXT__gene_product\": \"MAP kinase,
+        kinase, kinase, kinase (MAPKKKK)\",\n          \"TEXT__gene_name\": \"mst1\",\n
+        \         \"TEXT__gene_gene_type\": \"protein coding gene\",\n          \"TEXT__gene_organism_full\":
+        \"Aspergillus nidulans FGSC A4\"\n        },\n        \"foundInFields\": {\n
+        \         \"MULTITEXT__gene_Orthologs\": [\"Protein <em>kinase<\\/em> domain-containing
+        protein [Source:UniProtKB/TrEMBL;Acc:A0A0D2A3E3]\"],\n          \"TEXT__gene_product\":
+        [\"MAP <em>kinase<\\/em>, <em>kinase<\\/em>, <em>kinase<\\/em>, <em>kinase<\\/em>
+        (MAPKKKK)\"],\n          \"autocomplete\": [\"MAP <em>kinase<\\/em>, <em>kinase<\\/em>,
+        <em>kinase<\\/em>, <em>kinase<\\/em> (MAPKKKK)\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"SERINE/THREONINE PROTEIN <em>KINASE<\\/em> 25\"],\n          \"MULTITEXT__gene_Products\":
+        [\"MAP <em>kinase<\\/em>, <em>kinase<\\/em>, <em>kinase<\\/em>, <em>kinase<\\/em>
+        (MAPKKKK)\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"AN5674\"]\n      },\n      {\n        \"score\":
+        42.917812,\n        \"organism\": \"[\\\"Trichomonas vaginalis G3 2022\\\"]\",\n
+        \       \"wdkPrimaryKeyString\": \"TVAGG3_0061740\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase kinase protein\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Trichomonas
+        vaginalis G3 2022\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        protein\"],\n          \"TEXT__gene_product\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> protein\"],\n          \"autocomplete\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        protein\"],\n          \"MULTITEXT__gene_GOTerms\": [\"protein <em>kinase<\\/em>
+        activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\": [\"SERINE/THREONINE
+        PROTEIN <em>KINASE<\\/em> 25\"],\n          \"MULTITEXT__gene_ECNumbers\":
+        [\"Non-specific serine/threonine protein <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_Products\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        protein\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"TVAGG3_0061740\"]\n      },\n      {\n
+        \       \"score\": 42.917812,\n        \"organism\": \"[\\\"Trichomonas vaginalis
+        G3 2022\\\"]\",\n        \"wdkPrimaryKeyString\": \"TVAGG3_0440790\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase kinase protein\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Trichomonas
+        vaginalis G3 2022\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        protein\"],\n          \"TEXT__gene_product\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> protein\"],\n          \"autocomplete\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        protein\"],\n          \"MULTITEXT__gene_GOTerms\": [\"protein <em>kinase<\\/em>
+        activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\": [\"Protein <em>kinase<\\/em>
+        C, theta type\"],\n          \"MULTITEXT__gene_Products\": [\"MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> protein\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"TVAGG3_0440790\"]\n
+        \     },\n      {\n        \"score\": 42.917812,\n        \"organism\": \"[\\\"Trichomonas
+        vaginalis G3 2022\\\"]\",\n        \"wdkPrimaryKeyString\": \"TVAGG3_0543510\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"MAP kinase kinase kinase kinase protein\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Trichomonas
+        vaginalis G3 2022\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        protein\"],\n          \"TEXT__gene_product\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> protein\"],\n          \"autocomplete\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        protein\"],\n          \"MULTITEXT__gene_GOTerms\": [\"MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Serine/threonine <em>kinase<\\/em> 24 (STE20 homolog, yeast)\"],\n          \"MULTITEXT__gene_ECNumbers\":
+        [\"Non-specific serine/threonine protein <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_Products\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        protein\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"TVAGG3_0543510\"]\n      },\n      {\n
+        \       \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_014330\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"SERINE/THREONINE PROTEIN <em>KINASE<\\/em> 25\"],\n          \"MULTITEXT__gene_Products\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_014330\"]\n
+        \     },\n      {\n        \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_015840\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"mitogen-activated protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_015840\"]\n
+        \     },\n      {\n        \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_027520\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"NHL domain-containing protein <em>kinase<\\/em>\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Serine/threonine-protein <em>kinase<\\/em> ULK1\"],\n          \"MULTITEXT__gene_Products\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_027520\"]\n
+        \     },\n      {\n        \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_028880\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"SERINE/THREONINE-PROTEIN <em>KINASE<\\/em> 10\"],\n          \"MULTITEXT__gene_Products\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_028880\"]\n
+        \     },\n      {\n        \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_034810\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_Products\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_034810\"]\n
+        \     },\n      {\n        \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_042310\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Protein <em>kinase<\\/em> domain, PB1 domain, Kelch repeat type 1 domain-containing
+        protein\"],\n          \"TEXT__gene_product\": [\"mitogen-activated protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"STE20-LIKE SERINE/THREONINE-PROTEIN <em>KINASE<\\/em>\"],\n          \"MULTITEXT__gene_ECNumbers\":
+        [\"Mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n
+        \         \"MULTITEXT__gene_Products\": [\"mitogen-activated protein <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_042310\"]\n      },\n      {\n
+        \       \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_043050\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Protein <em>kinase<\\/em> domain-containing protein\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_Products\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_043050\"]\n
+        \     },\n      {\n        \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_043600\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Calcium-dependent protein <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_Products\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_043600\"]\n
+        \     },\n      {\n        \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_045530\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"MITOGEN-ACTIVATED PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"mitogen-activated protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_045530\"]\n
+        \     },\n      {\n        \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_050590\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Protein <em>kinase<\\/em> domain-containing protein\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"MITOGEN-ACTIVATED PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> <em>KINASE<\\/em>
+        5\"],\n          \"MULTITEXT__gene_Products\": [\"mitogen-activated protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, MAP <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_050590\"]\n
+        \     },\n      {\n        \"score\": 41.571793,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_060950\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_Products\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"]\n        },\n
+        \       \"primaryKey\": [\"NfTy_060950\"]\n      },\n      {\n        \"score\":
+        41.571793,\n        \"organism\": \"[\\\"Naegleria fowleri strain Ty\\\"]\",\n
+        \       \"wdkPrimaryKeyString\": \"NfTy_081050\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"mitogen-activated protein kinase kinase kinase, MAP kinase kinase kinase
+        activity\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Naegleria fowleri strain Ty\"\n
+        \       },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Protein <em>kinase<\\/em> domain-containing protein\"],\n          \"TEXT__gene_product\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"STE20-LIKE SERINE/THREONINE-PROTEIN <em>KINASE<\\/em>\"],\n          \"MULTITEXT__gene_Products\":
+        [\"mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_081050\"]\n
+        \     },\n      {\n        \"score\": 41.48509,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_016990\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"serine threonine kinase, MAP kinase kinase kinase kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"serine threonine <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"serine threonine <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"serine threonine <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Serine/threonine <em>kinase<\\/em> 24 (STE20 homolog, yeast)\"],\n          \"MULTITEXT__gene_Products\":
+        [\"serine threonine <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_016990\"]\n
+        \     },\n      {\n        \"score\": 41.48509,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_089210\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"serine threonine kinase, MAP kinase kinase kinase kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"serine threonine <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\":
+        [\"serine threonine <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"autocomplete\":
+        [\"serine threonine <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Serine/threonine <em>kinase<\\/em> 24 (STE20 homolog, yeast)\"],\n          \"MULTITEXT__gene_ECNumbers\":
+        [\"Mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n
+        \         \"MULTITEXT__gene_Products\": [\"serine threonine <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_089210\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Cryptococcus gattii
+        WM276\\\"]\",\n        \"wdkPrimaryKeyString\": \"CGB_A8570W\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"map kinase kinase , MAP kinase kinase, putative\",\n          \"TEXT__gene_name\":
+        \"PBS2\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Cryptococcus gattii WM276\"\n        },\n
+        \       \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\": [\"mitogen-activated
+        protein <em>kinase<\\/em> <em>kinase<\\/em>\"],\n          \"TEXT__gene_product\":
+        [\"map <em>kinase<\\/em> <em>kinase<\\/em> , MAP <em>kinase<\\/em> <em>kinase<\\/em>,
+        putative\"],\n          \"autocomplete\": [\"map <em>kinase<\\/em> <em>kinase<\\/em>
+        , MAP <em>kinase<\\/em> <em>kinase<\\/em>, putative\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Dual specificity mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em>
+        1\"],\n          \"MULTITEXT__gene_Products\": [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>,
+        putative\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"CGB_A8570W\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Cryptococcus gattii
+        WM276\\\"]\",\n        \"wdkPrimaryKeyString\": \"CGB_C3420C\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"map kinase kinase, MAP kinase kinase, putative\",\n          \"TEXT__gene_name\":
+        \"STE7\",\n          \"TEXT__gene_gene_type\": \"protein coding gene\",\n
+        \         \"TEXT__gene_organism_full\": \"Cryptococcus gattii WM276\"\n        },\n
+        \       \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\": [\"Protein
+        <em>kinase<\\/em> domain-containing protein [Source:UniProtKB/TrEMBL;Acc:A0A0D2BK32]\"],\n
+        \         \"TEXT__gene_product\": [\"map <em>kinase<\\/em> <em>kinase<\\/em>,
+        MAP <em>kinase<\\/em> <em>kinase<\\/em>, putative\"],\n          \"autocomplete\":
+        [\"map <em>kinase<\\/em> <em>kinase<\\/em>, MAP <em>kinase<\\/em> <em>kinase<\\/em>,
+        putative\"],\n          \"MULTITEXT__gene_GOTerms\": [\"protein <em>kinase<\\/em>
+        activity\"],\n          \"MULTITEXT__gene_PubMed\": [\"A MAP <em>kinase<\\/em>
+        cascade composed of cell type specific and non-specific elements controls
+        mating and differentiation of the fungal pathogen Cryptococcus neoformans.\"],\n
+        \         \"MULTITEXT__gene_PdbSimilarities\": [\"DUAL SPECIFICITY MITOGEN-ACTIVATED
+        PROTEIN <em>KINASE<\\/em> <em>KINASE<\\/em> 1\"],\n          \"MULTITEXT__gene_Products\":
+        [\"MAP <em>kinase<\\/em> <em>kinase<\\/em>, putative\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"CGB_C3420C\"]\n
+        \     },\n      {\n        \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_001620\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Serine/threonine-protein <em>kinase<\\/em> B-raf\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_001620\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_001990\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>
+        9\"],\n          \"MULTITEXT__gene_Products\": [\"protein <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_001990\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_004500\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Serine-threonine/tyrosine-protein <em>kinase<\\/em>, catalytic domain-containing
+        protein\"],\n          \"TEXT__gene_product\": [\"protein <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n
+        \         \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"TAK1 <em>kinase<\\/em> - TAB1 chimera fusion protein\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_004500\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_006840\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em>\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_ECNumbers\":
+        [\"Mitogen-activated protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>\"],\n
+        \         \"MULTITEXT__gene_Products\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\":
+        [\"Prot_<em>kinase<\\/em>_dom\"]\n        },\n        \"primaryKey\": [\"NfTy_006840\"]\n
+        \     },\n      {\n        \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_008960\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"TAK1 <em>kinase<\\/em> - TAB1 chimera fusion protein\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_008960\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_009180\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"]\n        },\n        \"primaryKey\": [\"NfTy_009180\"]\n
+        \     },\n      {\n        \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_011820\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"B-Raf proto-oncogene serine/threonine-protein <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_011820\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_012210\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Protein <em>kinase<\\/em> domain, Serine-threonine/tyrosine-protein <em>kinase<\\/em>,
+        catalytic domain-containing protein\"],\n          \"TEXT__gene_product\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_GOTerms\": [\"protein <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_PdbSimilarities\": [\"TAK1 <em>kinase<\\/em> -
+        TAB1 chimera fusion protein\"],\n          \"MULTITEXT__gene_Products\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_012210\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_014940\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"]\n        },\n        \"primaryKey\": [\"NfTy_014940\"]\n
+        \     },\n      {\n        \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria
+        fowleri strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_016400\",\n
+        \       \"documentType\": \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"B-Raf proto-oncogene serine/threonine-protein <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_016400\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_017850\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"Serine/threonine-protein <em>kinase<\\/em> CTR1\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_017850\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_018150\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_GOTerms\":
+        [\"protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_PdbSimilarities\":
+        [\"PROTEIN (C-TERMINAL SRC <em>KINASE<\\/em>)\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_018150\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_022280\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"Protein <em>kinase<\\/em> domain, Serine-threonine/tyrosine-protein <em>kinase<\\/em>,
+        catalytic domain-containing protein\"],\n          \"TEXT__gene_product\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_GOTerms\": [\"protein <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_PdbSimilarities\": [\"TYROSINE-PROTEIN <em>KINASE<\\/em>
+        ABL2\"],\n          \"MULTITEXT__gene_Products\": [\"protein <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_022280\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_024410\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"serine threonine protein <em>kinase<\\/em>\"],\n          \"TEXT__gene_product\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em>
+        <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_GOTerms\": [\"protein <em>kinase<\\/em> activity\"],\n
+        \         \"MULTITEXT__gene_PdbSimilarities\": [\"B-Raf proto-oncogene serine/threonine-protein
+        <em>kinase<\\/em>\"],\n          \"MULTITEXT__gene_Products\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"MULTITEXT__gene_InterPro\": [\"Prot_<em>kinase<\\/em>_dom\"]\n
+        \       },\n        \"primaryKey\": [\"NfTy_024410\"]\n      },\n      {\n
+        \       \"score\": 41.355705,\n        \"organism\": \"[\\\"Naegleria fowleri
+        strain Ty\\\"]\",\n        \"wdkPrimaryKeyString\": \"NfTy_024930\",\n        \"documentType\":
+        \"gene\",\n        \"summaryFieldData\": {\n          \"TEXT__gene_product\":
+        \"protein kinase kinase kinase, protein kinase activity\",\n          \"TEXT__gene_gene_type\":
+        \"protein coding gene\",\n          \"TEXT__gene_organism_full\": \"Naegleria
+        fowleri strain Ty\"\n        },\n        \"foundInFields\": {\n          \"MULTITEXT__gene_Orthologs\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"],\n          \"TEXT__gene_product\": [\"protein
+        <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein <em>kinase<\\/em>
+        activity\"],\n          \"autocomplete\": [\"protein <em>kinase<\\/em> <em>kinase<\\/em>
+        <em>kinase<\\/em>, protein <em>kinase<\\/em> activity\"],\n          \"MULTITEXT__gene_Products\":
+        [\"protein <em>kinase<\\/em> <em>kinase<\\/em> <em>kinase<\\/em>, protein
+        <em>kinase<\\/em> activity\"]\n        },\n        \"primaryKey\": [\"NfTy_024930\"]\n
+        \     }\n    ],\n    \"totalCount\": 721184\n  }\n}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Mar 2026 07:26:12 GMT
+      Server:
+      - nginx/1.26.1
+      Transfer-Encoding:
+      - chunked
+      Via:
+      - 1.0 w1.plasmodb.org
+      X-FRAME-OPTIONS:
+      - SAMEORIGIN
+      content-length:
+      - '125444'
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -482,29 +482,35 @@ class VEuPathDBClient:
     async def get_step_view_filters(
         self, user_id: str, step_id: int
     ) -> list[WDKFilterValue]:
-        """Get viewFilters from a step's searchConfig.
+        """Get filters from a step's searchConfig.
 
-        WDK stores filters as ``searchConfig.viewFilters`` on the step resource.
-        There is no dedicated ``/filter`` endpoint.
+        WDK stores filters as ``searchConfig.filters`` on the step resource.
+        The ``viewFilters`` field exists but is not exposed for modification
+        by the WDK REST API schema, so we use ``filters`` for both read
+        and write.
         """
         raw = await self.get(f"/users/{user_id}/steps/{step_id}")
         step = WDKStep.model_validate(raw)
-        return list(step.search_config.view_filters)
+        return list(step.search_config.filters)
 
     async def update_step_view_filters(
         self, user_id: str, step_id: int, filters: list[WDKFilterValue]
     ) -> JSONValue:
-        """Update a step's viewFilters via PATCH on the step resource.
+        """Update a step's viewFilters via PUT on the search-config endpoint.
 
-        WDK manages filters through ``answerSpec.viewFilters``. The PATCH
-        body is ``{"answerSpec": {"viewFilters": [...]}}``.
+        WDK's JSON schemas don't expose ``viewFilters`` for direct
+        modification.  The ``filters`` array in the search-config PUT
+        body (``wdk.answer.answer-spec-request`` schema) is the public
+        API for setting filter specifications on a step.
         """
-        return await self.patch(
-            f"/users/{user_id}/steps/{step_id}",
+        raw = await self.get(f"/users/{user_id}/steps/{step_id}")
+        step = WDKStep.model_validate(raw)
+        return await self.put(
+            f"/users/{user_id}/steps/{step_id}/search-config",
             json={
-                "answerSpec": {
-                    "viewFilters": [f.model_dump(by_alias=True) for f in filters],
-                },
+                "parameters": step.search_config.parameters,
+                "filters": [f.model_dump(by_alias=True) for f in filters],
+                "wdkWeight": step.search_config.wdk_weight,
             },
         )
 
