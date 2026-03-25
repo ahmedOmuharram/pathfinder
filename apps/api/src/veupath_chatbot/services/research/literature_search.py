@@ -435,13 +435,6 @@ class LiteratureSearchService:
             "citations": cast("JSONValue", citations),
         }
 
-        if source == "all":
-            by_source_raw = {
-                name: p.model_dump(mode="json")
-                for name, p in result_data.by_source.items()
-            }
-            payload["bySource"] = cast("JSONValue", by_source_raw)
-
         ensure_unique_citation_tags(citations)
 
         return payload

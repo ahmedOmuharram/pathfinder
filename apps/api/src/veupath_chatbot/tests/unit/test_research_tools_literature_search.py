@@ -105,7 +105,7 @@ async def test_literature_search_all_sources_with_filters_year_and_author() -> N
     sort_value = out.get("sort")
     assert isinstance(sort_value, str)
     assert sort_value == "relevance"
-    assert "bySource" in out
+    assert "bySource" not in out
     filters_value = out.get("filters")
     assert isinstance(filters_value, dict)
     year_from_value = filters_value.get("yearFrom")

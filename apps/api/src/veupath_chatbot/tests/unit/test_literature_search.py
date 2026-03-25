@@ -215,12 +215,9 @@ class TestErrorTolerance:
         results = result["results"]
         assert isinstance(results, list)
         assert len(results) >= 1
-        # The failed source should appear in bySource with an error
-        by_source = result.get("bySource")
-        assert isinstance(by_source, dict)
-        crossref_data = by_source.get("crossref")
-        assert isinstance(crossref_data, dict)
-        assert "error" in crossref_data
+        # bySource is no longer included in the response (token savings).
+        # The failed source should not prevent valid results from appearing.
+        assert "bySource" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -1190,15 +1187,7 @@ class TestSearchCombinedFilters:
         assert filters["yearTo"] == 2024
         assert filters["requireDoi"] is True
 
-    async def test_by_source_only_in_all_mode(self) -> None:
-        svc = _make_service()
-        payload = _source_payload([], source="europepmc")
-        _patch_client(svc, "_europepmc", payload)
-
-        result = await svc.search("malaria", source="europepmc")
-        assert "bySource" not in result
-
-    async def test_by_source_present_in_all_mode(self) -> None:
+    async def test_by_source_never_in_response(self) -> None:
         svc = _make_service()
         empty = _source_payload([], source="any")
         _patch_client(svc, "_europepmc", empty)
@@ -1210,4 +1199,4 @@ class TestSearchCombinedFilters:
         _patch_client(svc, "_preprint", empty)
 
         result = await svc.search("malaria", source="all")
-        assert "bySource" in result
+        assert "bySource" not in result

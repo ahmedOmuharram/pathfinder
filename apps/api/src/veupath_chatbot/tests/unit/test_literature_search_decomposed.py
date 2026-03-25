@@ -498,7 +498,7 @@ class TestBuildResponse:
         assert len(results_out) == 3
         assert len(citations_out) == 3
 
-    def test_by_source_included_for_all(self, service: LiteratureSearchService) -> None:
+    def test_by_source_never_in_response(self, service: LiteratureSearchService) -> None:
         by_source = {
             "europepmc": _SourcePayload()
         }
@@ -510,21 +510,6 @@ class TestBuildResponse:
             filters=_DEFAULT_FILTERS,
             result_data=LiteratureResultData(
                 results=[], citations_by_key={}, by_source=by_source, limit=5
-            ),
-        )
-        assert "bySource" in payload
-
-    def test_by_source_excluded_for_single(
-        self, service: LiteratureSearchService
-    ) -> None:
-        payload = service._build_response(
-            query="test",
-            source="europepmc",
-            sort="relevance",
-            options=_DEFAULT_OPTIONS,
-            filters=_DEFAULT_FILTERS,
-            result_data=LiteratureResultData(
-                results=[], citations_by_key={}, by_source={}, limit=5
             ),
         )
         assert "bySource" not in payload
