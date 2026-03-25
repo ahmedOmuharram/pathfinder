@@ -29,21 +29,74 @@ class GoldStrategyResult:
     gene_ids: list[str]
 
 
+async def _provision_datasets(
+    api: Any,
+    step_tree: dict[str, Any],
+    dataset_gene_ids: dict[str, list[str]] | None,
+) -> None:
+    """Create WDK datasets for any ds_gene_ids params and replace IDs in-place.
+
+    Gold strategies may reference user-specific dataset IDs (e.g. curated
+    gene ID lists). This function creates fresh datasets under the current
+    user and patches the step tree with the new IDs.
+    """
+    if not dataset_gene_ids:
+        return
+
+    from veupath_chatbot.integrations.veupathdb.wdk_models import (
+        WDKDatasetConfigIdList,
+        WDKDatasetIdListContent,
+    )
+
+    # Create each dataset and build old->new ID mapping
+    id_map: dict[str, str] = {}
+    for param_name, gene_ids in dataset_gene_ids.items():
+        config = WDKDatasetConfigIdList(
+            source_type="idList",
+            source_content=WDKDatasetIdListContent(ids=gene_ids),
+        )
+        new_id = await api.create_dataset(config)
+        id_map[param_name] = str(new_id)
+        logger.info(
+            "Created dataset for gold strategy",
+            param_name=param_name,
+            gene_count=len(gene_ids),
+            dataset_id=new_id,
+        )
+
+    # Walk the step tree and replace dataset IDs
+    def _patch(node: dict[str, Any]) -> None:
+        params = node.get("parameters", {})
+        for param_name, new_id in id_map.items():
+            if param_name in params:
+                params[param_name] = new_id
+        if node.get("primaryInput"):
+            _patch(node["primaryInput"])
+        if node.get("secondaryInput"):
+            _patch(node["secondaryInput"])
+
+    _patch(step_tree)
+
+
 async def build_gold_strategy(
     *,
     gold_id: str,
     site_id: str,
     record_type: str,
     step_tree: dict[str, Any],
+    dataset_gene_ids: dict[str, list[str]] | None = None,
 ) -> GoldStrategyResult:
     """Materialize a gold strategy AST on WDK and fetch all result gene IDs.
 
-    1. Recursively creates WDK steps from the step tree.
-    2. Wraps them in a WDK strategy.
-    3. Fetches all gene IDs from the root step via standard report.
-    4. Returns the gene IDs plus WDK IDs.
+    1. Provisions any user-specific datasets (gene ID lists).
+    2. Recursively creates WDK steps from the step tree.
+    3. Wraps them in a WDK strategy.
+    4. Fetches all gene IDs from the root step via standard report.
+    5. Returns the gene IDs plus WDK IDs.
     """
     api = get_strategy_api(site_id)
+
+    await _provision_datasets(api, step_tree, dataset_gene_ids)
 
     tree_node = PlanStepNode.model_validate(step_tree)
     root_tree = await _materialize_step_tree(

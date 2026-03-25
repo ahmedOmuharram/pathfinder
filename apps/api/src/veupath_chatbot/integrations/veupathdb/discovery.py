@@ -59,6 +59,9 @@ class SearchCatalog:
         self._record_types: list[WDKRecordType] = []
         self._searches: dict[str, list[WDKSearch]] = {}
         self._search_details: dict[str, WDKSearchResponse] = {}
+        self._dataset_summaries: dict[str, str] = {}
+        self._dataset_contacts: dict[str, str] = {}
+        self._semantic_index: object | None = None
         self._loaded = False
         self._lock = asyncio.Lock()
 
@@ -78,18 +81,89 @@ class SearchCatalog:
                     client, record_types, expanded_supported=expanded_supported
                 )
 
+                await self._load_dataset_metadata(client)
+                self._build_semantic_index()
+
                 self._loaded = True
                 logger.info(
                     "Search catalog loaded",
                     site_id=self.site_id,
                     record_types=len(self._record_types),
                     total_searches=sum(len(s) for s in self._searches.values()),
+                    datasets=len(self._dataset_summaries),
                 )
             except (AppError, OSError, RuntimeError) as e:
                 logger.exception(
                     "Failed to load catalog", site_id=self.site_id, error=str(e)
                 )
                 raise
+
+    async def _load_dataset_metadata(self, client: VEuPathDBClient) -> None:
+        """Fetch all dataset summaries and contacts in one call."""
+        try:
+            report_config = {
+                "attributes": ["primary_key", "summary", "contact"],
+            }
+            answer = await client.post(
+                "/record-types/dataset/searches/AllDatasets/reports/standard",
+                json={"reportConfig": report_config},
+            )
+            if not isinstance(answer, dict):
+                return
+            for record in answer.get("records", []):
+                if not isinstance(record, dict):
+                    continue
+                pk_parts = record.get("id", [])
+                ds_id = ""
+                for part in pk_parts:
+                    if isinstance(part, dict) and part.get("name") == "dataset_id":
+                        ds_id = str(part.get("value", ""))
+                        break
+                if not ds_id and pk_parts:
+                    ds_id = str(pk_parts[0].get("value", ""))
+                attrs = record.get("attributes", {})
+                summary = attrs.get("summary")
+                contact = attrs.get("contact")
+                if ds_id and summary:
+                    self._dataset_summaries[ds_id] = str(summary)
+                if ds_id and contact:
+                    self._dataset_contacts[ds_id] = str(contact)
+            logger.info(
+                "Dataset metadata loaded",
+                site_id=self.site_id,
+                datasets=len(self._dataset_summaries),
+            )
+        except Exception:
+            logger.warning(
+                "Failed to load dataset metadata (non-fatal)",
+                site_id=self.site_id,
+                exc_info=True,
+            )
+
+    def _build_semantic_index(self) -> None:
+        """Build semantic search index from cached searches + dataset metadata."""
+        try:
+            from veupath_chatbot.services.catalog.semantic_index import (
+                SemanticSearchIndex,
+            )
+
+            index = SemanticSearchIndex()
+            index.build(
+                self._searches,
+                dataset_summaries=self._dataset_summaries,
+                dataset_contacts=self._dataset_contacts,
+            )
+            self._semantic_index = index
+        except Exception:
+            logger.warning(
+                "Failed to build semantic index (non-fatal)",
+                site_id=self.site_id,
+                exc_info=True,
+            )
+
+    def get_semantic_index(self):
+        """Get the semantic search index, or None if not available."""
+        return self._semantic_index
 
     async def _populate_from_record_types(
         self,

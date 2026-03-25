@@ -32,6 +32,9 @@ class BuildGoldRequest(BaseModel):
     site_id: str = Field(alias="siteId")
     record_type: str = Field(default="gene", alias="recordType")
     step_tree: dict[str, Any] = Field(alias="stepTree")
+    dataset_gene_ids: dict[str, list[str]] | None = Field(
+        default=None, alias="datasetGeneIds"
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -57,6 +60,7 @@ async def build_gold_strategy_endpoint(
         site_id=request.site_id,
         record_type=request.record_type,
         step_tree=request.step_tree,
+        dataset_gene_ids=request.dataset_gene_ids,
     )
     return BuildGoldResponse(
         goldId=result.gold_id,

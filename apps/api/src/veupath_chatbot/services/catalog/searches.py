@@ -402,6 +402,9 @@ async def _apply_site_search_bonus(
         logger.debug("Site-search merge failed (non-fatal)")
 
 
+_SEMANTIC_BOOST = 15.0  # Max boost from semantic similarity (scaled by cosine)
+
+
 async def search_for_searches(
     site_id: str,
     record_type: str | list[str] | None,
@@ -413,8 +416,8 @@ async def search_for_searches(
     """Find searches matching a query and/or keywords.
 
     Uses field-weighted scoring with IDF, keyword boosting against search
-    names, chooser filtering, and result annotation. Site-search results
-    are merged in when available.
+    names, chooser filtering, result annotation, and semantic similarity
+    from a sentence-transformer index over enriched search descriptions.
     """
     kw_list = keywords or []
     discovery = get_discovery_service()
@@ -428,6 +431,9 @@ async def search_for_searches(
     scored = _score_candidates(candidates, terms, kw_list)
 
     await _apply_site_search_bonus(scored, site_id, query, limit)
+
+    # --- Semantic similarity boost ---
+    await _apply_semantic_bonus(scored, discovery, site_id, query, record_types)
 
     # --- Sort by score desc, then record type priority ---
     scored.sort(
@@ -450,6 +456,80 @@ async def search_for_searches(
             break
 
     return result
+
+
+async def _apply_semantic_bonus(
+    scored: list[tuple[float, SearchMatch]],
+    discovery: DiscoveryService,
+    site_id: str,
+    query: str,
+    record_types: list[str],
+) -> None:
+    """Boost scored entries by semantic similarity from the sentence-transformer index."""
+    if not query:
+        return
+    try:
+        catalog = await discovery.get_catalog(site_id)
+        index = catalog.get_semantic_index()
+        if index is None:
+            return
+
+        from veupath_chatbot.services.catalog.semantic_index import (
+            SemanticSearchIndex,
+        )
+
+        if not isinstance(index, SemanticSearchIndex):
+            return
+
+        rt_set = set(record_types)
+        sem_results = index.query(query, top_k=50)
+        sem_scores: dict[str, float] = {}
+        for search_name, rt, sim in sem_results:
+            if rt in rt_set or not rt_set:
+                sem_scores[search_name] = sim
+
+        for i, (sc, entry) in enumerate(scored):
+            sim = sem_scores.get(entry.name, 0.0)
+            if sim > 0.0:
+                scored[i] = (sc + _SEMANTIC_BOOST * sim, entry)
+
+        # Also inject high-similarity searches that weren't in keyword candidates
+        existing_names = {entry.name for _, entry in scored}
+        for search_name, rt, sim in sem_results:
+            if search_name in existing_names:
+                continue
+            if rt not in rt_set and rt_set:
+                continue
+            if sim < 0.3:
+                continue
+            # Find the search object to build a SearchMatch
+            search = catalog.find_search(rt, search_name)
+            if search is None:
+                continue
+            display = search.display_name or search.url_segment
+            category = ""
+            dc = search.properties.get("displayCategory", [])
+            if dc:
+                category = str(dc[0])
+            returns = ""
+            rc = search.output_record_class_name
+            if rc:
+                rc_lower = rc.lower()
+                for key, label in _RECORD_CLASS_LABELS.items():
+                    if key in rc_lower:
+                        returns = label
+                        break
+            entry = SearchMatch(
+                name=search.url_segment,
+                display_name=display,
+                description=search.description,
+                record_type=rt,
+                category=category,
+                returns=returns,
+            )
+            scored.append((_SEMANTIC_BOOST * sim, entry))
+    except Exception:
+        logger.debug("Semantic bonus failed (non-fatal)", exc_info=True)
 
 
 async def find_record_type_for_search(ctx: SearchContext) -> str:
