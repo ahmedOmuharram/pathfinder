@@ -10,6 +10,7 @@ from veupath_chatbot.ai.tools.strategy_tools.attachment_ops import (
 )
 from veupath_chatbot.ai.tools.strategy_tools.edit_ops import StrategyEditOps
 from veupath_chatbot.ai.tools.strategy_tools.graph_ops import StrategyGraphOps
+from veupath_chatbot.ai.tools.strategy_tools.operations import StrategyTools
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
@@ -209,7 +210,10 @@ class TestEmptyGraphEdgeCases:
         assert any(e["code"] == "EMPTY_GRAPH" for e in result.errors)
 
     async def test_ensure_single_output_on_empty_graph(self):
-        ops, _ = _make_graph_ops(with_steps=False)
+        session = StrategySession("plasmodb")
+        graph = session.create_graph("test", graph_id="g1")
+        graph.record_type = "gene"
+        ops = StrategyTools(session)
         result = await ops.ensure_single_output(graph_id="g1")
         # Should propagate the validation error
         assert result["ok"] is False

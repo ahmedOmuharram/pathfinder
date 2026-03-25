@@ -1,6 +1,6 @@
 """Tests for ai.tools.strategy_tools.graph_ops -- AI-exposed graph inspection tools."""
 
-from veupath_chatbot.ai.tools.strategy_tools.graph_ops import StrategyGraphOps
+from veupath_chatbot.ai.tools.strategy_tools.operations import StrategyTools
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import StrategySession
@@ -8,7 +8,7 @@ from veupath_chatbot.domain.strategy.session import StrategySession
 
 def _make_graph_ops(
     *, with_steps: bool = True, connect: bool = False
-) -> tuple[StrategyGraphOps, list[str]]:
+) -> tuple[StrategyTools, list[str]]:
     session = StrategySession("plasmodb")
     graph = session.create_graph("test", graph_id="g1")
     graph.record_type = "gene"
@@ -33,8 +33,7 @@ def _make_graph_ops(
             graph.add_step(combine)
             step_ids.append(combine.id)
 
-    ops = StrategyGraphOps.__new__(StrategyGraphOps)
-    ops.session = session
+    ops = StrategyTools(session)
     return ops, step_ids
 
 

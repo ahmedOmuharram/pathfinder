@@ -35,6 +35,7 @@ from veupath_chatbot.platform.event_schemas import (
 )
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray
+from veupath_chatbot.services.strategies.schemas import StepResponse
 
 logger = get_logger(__name__)
 
@@ -183,7 +184,7 @@ async def _run_subkani_retry_loop(
     context: SubkaniContext,
 ) -> TaskResult:
     """Execute the sub-kani with retry logic for no-step results."""
-    created_steps: JSONArray = []
+    created_steps: list[StepResponse] = []
     emitted_step_ids: set[str] = set()
     last_errors: list[str] = []
 
@@ -265,7 +266,7 @@ async def _finalize_successful_run(
     *,
     run_state: SubkaniRunState,
     context: SubkaniContext,
-    created_steps: JSONArray,
+    created_steps: list[StepResponse],
     emitted_step_ids: set[str],
     roots_before: set[str],
     round_result: SubKaniRoundResult | None,
@@ -297,10 +298,13 @@ async def _finalize_successful_run(
         emit_event=context.emit_event,
         round_result=round_result,
     )
+    steps_json: JSONArray = [
+        s.model_dump(by_alias=True, exclude_none=True) for s in created_steps
+    ]
     return TaskResult(
         id="",
         task=run_state.task,
-        steps=created_steps,
+        steps=steps_json,
         notes="created",
         subtree_root=subtree_root,
     )

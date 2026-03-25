@@ -4,7 +4,7 @@ import json
 from collections.abc import Awaitable, Callable
 
 from kani import Kani
-from kani.models import ChatRole
+from kani.models import ChatMessage, ChatRole
 
 from veupath_chatbot.ai.orchestration.delegation import CompiledNode
 from veupath_chatbot.ai.orchestration.results import NodeResult
@@ -21,8 +21,12 @@ from veupath_chatbot.platform.types import (
     as_json_array,
     as_json_object,
 )
+from veupath_chatbot.services.strategies.schemas import StepResponse
 
 logger = get_logger(__name__)
+
+# Tool names whose results represent created steps.
+_STEP_CREATING_TOOLS = frozenset({"create_step", "create_combined_step", "create_transform_step"})
 
 
 class SubKaniRoundResult:
@@ -39,16 +43,16 @@ class SubKaniRoundResult:
 
     def __init__(self) -> None:
         self.response_text: str | None = None
-        self.created_steps: JSONArray = []
+        self.created_steps: list[StepResponse] = []
         self.errors: list[str] = []
         self.prompt_tokens: int = 0
         self.completion_tokens: int = 0
         self.llm_call_count: int = 0
 
 
-def _extract_token_usage(message: object, result: SubKaniRoundResult) -> None:
+def _extract_token_usage(message: ChatMessage, result: SubKaniRoundResult) -> None:
     """Extract token usage from a kani assistant message."""
-    extra = getattr(message, "extra", {})
+    extra = message.extra
     if not isinstance(extra, dict):
         return
     oai_usage = extra.get("openai_usage")
@@ -63,14 +67,16 @@ def _extract_token_usage(message: object, result: SubKaniRoundResult) -> None:
 
 
 async def _emit_tool_call_starts(
-    message: object,
+    message: ChatMessage,
     task: str,
     emit_event: Callable[[JSONObject], Awaitable[None]],
+    pending_tool_names: dict[str, str],
 ) -> None:
-    """Emit subkani_tool_call_start events for tool calls in message."""
+    """Emit subkani_tool_call_start events and track tool_call_id → tool name."""
     if not message.tool_calls:
         return
     for tc in message.tool_calls:
+        pending_tool_names[tc.id] = tc.function.name
         await emit_event(
             {
                 "type": "subkani_tool_call_start",
@@ -78,7 +84,7 @@ async def _emit_tool_call_starts(
                     task=task,
                     id=tc.id,
                     name=tc.function.name,
-                    arguments=tc.function.kwargs,
+                    arguments=json.loads(tc.function.arguments),
                 ).model_dump(by_alias=True, exclude_none=True),
             }
         )
@@ -86,11 +92,16 @@ async def _emit_tool_call_starts(
 
 def _process_function_result(
     parsed: JSONObject,
+    tool_name: str | None,
     result: SubKaniRoundResult,
 ) -> None:
     """Process a parsed function result for step creation and errors."""
-    if parsed.get("stepId"):
-        result.created_steps.append(parsed)
+    if tool_name in _STEP_CREATING_TOOLS:
+        try:
+            step = StepResponse.model_validate(parsed)
+            result.created_steps.append(step)
+        except ValueError:
+            logger.debug("Failed to parse step response", tool_name=tool_name)
     if parsed.get("ok") is False:
         result.errors.append(
             str(parsed.get("message") or parsed.get("code") or "tool error")
@@ -113,20 +124,22 @@ async def consume_subkani_round(
     Also tracks token usage from the sub-kani's assistant messages.
     """
     result = SubKaniRoundResult()
+    pending_tool_names: dict[str, str] = {}
 
     async for message in sub_kani.full_round(round_prompt):
         if message.role == ChatRole.ASSISTANT:
             result.llm_call_count += 1
             _extract_token_usage(message, result)
-            await _emit_tool_call_starts(message, task, emit_event)
+            await _emit_tool_call_starts(message, task, emit_event, pending_tool_names)
             if message.text:
                 result.response_text = message.text
 
         if message.role == ChatRole.FUNCTION:
+            tool_name = pending_tool_names.pop(message.tool_call_id or "", None)
             content_text = message.content if isinstance(message.content, str) else None
             parsed = parse_jsonish(content_text)
             if isinstance(parsed, dict):
-                _process_function_result(parsed, result)
+                _process_function_result(parsed, tool_name, result)
             await emit_event(
                 {
                     "type": "subkani_tool_call_end",
@@ -145,7 +158,7 @@ def _extract_step_info(
     step: JSONObject,
 ) -> tuple[str | None, str | None]:
     """Extract step ID and display name from a step dict."""
-    step_id_value = step.get("stepId") or step.get("id")
+    step_id_value = step.get("id")
     step_id = str(step_id_value) if step_id_value is not None else None
     name_value = (
         step.get("displayName")

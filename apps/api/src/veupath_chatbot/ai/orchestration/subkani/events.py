@@ -13,12 +13,9 @@ from veupath_chatbot.ai.orchestration.subkani.utils import SubKaniRoundResult
 from veupath_chatbot.ai.orchestration.types import EmitEvent
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.event_schemas import (
-    GraphSnapshotContent,
-    GraphSnapshotEventData,
     StrategyUpdateEventData,
     SubKaniTaskEndEventData,
 )
-from veupath_chatbot.platform.types import JSONArray
 from veupath_chatbot.services.strategies.schemas import StepResponse
 
 
@@ -38,7 +35,7 @@ class DelegationRunData:
 
 async def _emit_step_events(
     *,
-    created_steps: JSONArray,
+    created_steps: list[StepResponse],
     emitted_step_ids: set[str],
     graph: StrategyGraph | None,
     graph_id: str | None,
@@ -48,23 +45,17 @@ async def _emit_step_events(
     if graph is None:
         return
 
-    for step_value in created_steps:
-        if not isinstance(step_value, dict):
+    for step in created_steps:
+        if step.id in emitted_step_ids:
             continue
-        step = step_value
-        step_id_raw = step.get("stepId")
-        step_id = step_id_raw if isinstance(step_id_raw, str) else None
-        if not step_id or step_id in emitted_step_ids:
-            continue
-        emitted_step_ids.add(step_id)
-        graph_id_raw = step.get("graphId")
-        graph_id_str = graph_id_raw if isinstance(graph_id_raw, str) else graph_id
+        emitted_step_ids.add(step.id)
+        step_dict = step.model_dump(by_alias=True, exclude_none=True)
         await emit_event(
             {
                 "type": "strategy_update",
                 "data": StrategyUpdateEventData(
-                    graph_id=graph_id_str,
-                    step=step,
+                    graph_id=graph_id,
+                    step=step_dict,
                     all_steps=[
                         StepResponse(
                             id=sid,
@@ -76,17 +67,6 @@ async def _emit_step_events(
                 ).model_dump(by_alias=True, exclude_none=True),
             }
         )
-        snapshot_raw = step.get("graphSnapshot")
-        snapshot = snapshot_raw if isinstance(snapshot_raw, dict) else None
-        if snapshot:
-            await emit_event(
-                {
-                    "type": "graph_snapshot",
-                    "data": GraphSnapshotEventData(
-                        graph_snapshot=GraphSnapshotContent.model_validate(snapshot),
-                    ).model_dump(by_alias=True, exclude_none=True),
-                }
-            )
 
 
 async def _emit_task_end(

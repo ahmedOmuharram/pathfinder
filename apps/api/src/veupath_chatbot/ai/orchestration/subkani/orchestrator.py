@@ -107,7 +107,7 @@ async def _run_combine_node(
                 ).model_dump(by_alias=True, exclude_none=True),
             }
         )
-        current_step_id = response.get("stepId") or current_step_id
+        current_step_id = response.get("id") or current_step_id
 
     step_payload: JSONObject = {
         "stepId": current_step_id,
