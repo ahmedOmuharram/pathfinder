@@ -39,8 +39,14 @@ constraint-dependencies = [
     "pyasn1>=0.6.3",  # CVE-2026-30922
 ]
 
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.uv.sources]
 pathfinder-shared = { path = "../../packages/shared-py", editable = true }
+torch = { index = "pytorch-cpu" }
 
 [project.optional-dependencies]
 dev = [

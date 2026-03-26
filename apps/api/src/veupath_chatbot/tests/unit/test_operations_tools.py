@@ -56,13 +56,13 @@ class TestErrorResponseFormat:
 
     async def test_graph_not_found_has_ok_false(self):
         ops, _ = _make_graph_ops(with_steps=False)
-        await ops.list_current_steps(graph_id="nonexistent")
+        await ops.get_strategy(graph_id="nonexistent")
         # _get_graph falls back to active graph, so this should succeed.
         # But if session has no graph at all:
         session = StrategySession("plasmodb")
         ops2 = StrategyGraphOps.__new__(StrategyGraphOps)
         ops2.session = session
-        result2 = await ops2.list_current_steps(graph_id="missing")
+        result2 = await ops2.get_strategy(graph_id="missing")
         assert result2["ok"] is False
         assert "code" in result2
         assert isinstance(result2["code"], str)
@@ -73,14 +73,6 @@ class TestErrorResponseFormat:
         assert result["ok"] is False
         assert result["code"] == "STEP_NOT_FOUND"
         assert "message" in result
-
-    async def test_rename_step_not_found_has_consistent_format(self):
-        ops, _ = _make_edit_ops()
-        result = await ops.rename_step(
-            step_id="nonexistent", new_name="X", graph_id="g1"
-        )
-        assert result["ok"] is False
-        assert result["code"] == "STEP_NOT_FOUND"
 
     async def test_update_step_not_found_has_consistent_format(self):
         ops, _ = _make_edit_ops()
@@ -199,7 +191,7 @@ class TestGraphStateConsistency:
 class TestEmptyGraphEdgeCases:
     async def test_list_steps_on_empty_graph(self):
         ops, _graph = _make_graph_ops(with_steps=False)
-        result = await ops.list_current_steps(graph_id="g1")
+        result = await ops.get_strategy(graph_id="g1", summary_only=False)
         assert result["stepCount"] == 0
         assert result["steps"] == []
 
@@ -300,25 +292,6 @@ class TestUpdateStepTransformValidation:
 
 
 # ---------------------------------------------------------------------------
-# BUG: rename_step uses _with_plan_payload instead of _with_full_graph
-# ---------------------------------------------------------------------------
-
-
-class TestRenameStepResponseFormat:
-    """Verify rename_step includes graphSnapshot like other edit methods."""
-
-    async def test_rename_step_includes_graph_snapshot(self):
-        ops, graph = _make_edit_ops()
-        step_ids = list(graph.steps.keys())
-
-        result = await ops.rename_step(
-            step_id=step_ids[0], new_name="Renamed", graph_id="g1"
-        )
-        assert result["ok"] is True
-        assert "graphSnapshot" in result
-
-
-# ---------------------------------------------------------------------------
 # clear_strategy resets WDK state
 # ---------------------------------------------------------------------------
 
@@ -363,7 +336,7 @@ class TestGetGraphFallback:
     async def test_wrong_graph_id_falls_back_to_active(self):
         ops, _graph = _make_graph_ops()
         # Passing a wrong graph ID still returns data from the active graph
-        result = await ops.list_current_steps(graph_id="wrong_id")
+        result = await ops.get_strategy(graph_id="wrong_id")
         assert result["graphId"] == "g1"
         assert result["stepCount"] == 2
 
@@ -371,7 +344,7 @@ class TestGetGraphFallback:
         session = StrategySession("plasmodb")
         ops = StrategyGraphOps.__new__(StrategyGraphOps)
         ops.session = session
-        result = await ops.list_current_steps(graph_id="any")
+        result = await ops.get_strategy(graph_id="any")
         assert result["ok"] is False
         assert result["code"] == "NOT_FOUND"
 
@@ -385,12 +358,6 @@ class TestStepIdEdgeCases:
     async def test_empty_string_step_id_for_delete(self):
         ops, _ = _make_edit_ops()
         result = await ops.delete_step(step_id="", graph_id="g1")
-        assert result["ok"] is False
-        assert result["code"] == "STEP_NOT_FOUND"
-
-    async def test_empty_string_step_id_for_rename(self):
-        ops, _ = _make_edit_ops()
-        result = await ops.rename_step(step_id="", new_name="X", graph_id="g1")
         assert result["ok"] is False
         assert result["code"] == "STEP_NOT_FOUND"
 

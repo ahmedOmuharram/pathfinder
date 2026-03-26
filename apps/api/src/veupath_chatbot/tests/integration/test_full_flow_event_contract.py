@@ -174,7 +174,7 @@ class TestMultiTurnPersistence:
             [
                 ScriptedTurn(
                     tool_calls=[
-                        ScriptedToolCall("list_current_steps", {}),
+                        ScriptedToolCall("get_strategy", {"summary_only": False}),
                     ]
                 ),
                 ScriptedTurn(

@@ -144,55 +144,6 @@ async def test_clear_strategy_with_confirmation():
     assert graph.last_step_id is None
 
 
-# -- get_strategy_summary --
-
-
-async def test_get_strategy_summary_with_strategy():
-    session, graph = _make_session_with_graph(strategy_name="My Strategy")
-    tools = ConversationTools(session)
-
-    result = await tools.get_strategy_summary(graph_id=graph.id)
-
-    assert result["hasStrategy"] is True
-    assert result["name"] == "My Strategy"
-    assert result["recordType"] == "gene"
-    assert result["stepCount"] == 1
-
-
-async def test_get_strategy_summary_without_strategy():
-    session, graph = _make_session_with_graph(with_strategy=False)
-    # Add a loose step without a strategy
-    step = PlanStepNode(search_name="GenesByText", parameters={})
-    graph.add_step(step)
-    tools = ConversationTools(session)
-
-    result = await tools.get_strategy_summary(graph_id=graph.id)
-
-    # Now the graph has steps, so it has a strategy
-    assert result["hasStrategy"] is True
-
-
-async def test_get_strategy_summary_empty_graph():
-    session, graph = _make_session_with_graph(with_strategy=False)
-    tools = ConversationTools(session)
-
-    result = await tools.get_strategy_summary(graph_id=graph.id)
-
-    assert result["hasStrategy"] is False
-    assert result["stepCount"] == 0
-    assert "No complete strategy" in str(result["message"])
-
-
-async def test_get_strategy_summary_graph_not_found():
-    session = StrategySession("plasmodb")
-    tools = ConversationTools(session)
-
-    result = await tools.get_strategy_summary(graph_id="missing")
-
-    assert result["ok"] is False
-    assert result["code"] == "NOT_FOUND"
-
-
 # -- edge case: user_id --
 
 

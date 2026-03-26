@@ -109,7 +109,7 @@ class ExperimentToolsMixin:
             AIParam(
                 desc=(
                     "WDK step ID from a built strategy to test against. "
-                    "Get the step ID from list_current_steps (wdkStepId field on the root step)."
+                    "Get the step ID from get_strategy(summary_only=false) (wdkStepId field on the root step)."
                 )
             ),
         ],

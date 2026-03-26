@@ -144,30 +144,6 @@ async def test_undo_with_history():
     assert result["ok"] is True
 
 
-# -- rename_step --
-
-
-async def test_rename_step_updates_display_name():
-    ops, graph = _make_edit_ops()
-    step_ids = list(graph.steps.keys())
-
-    result = await ops.rename_step(
-        step_id=step_ids[0], new_name="Renamed Step", graph_id="g1"
-    )
-
-    assert result["ok"] is True
-    assert graph.steps[step_ids[0]].display_name == "Renamed Step"
-
-
-async def test_rename_step_not_found():
-    ops, _graph = _make_edit_ops()
-
-    result = await ops.rename_step(step_id="nonexistent", new_name="X", graph_id="g1")
-
-    assert result["ok"] is False
-    assert result["code"] == "STEP_NOT_FOUND"
-
-
 # -- update_step --
 
 

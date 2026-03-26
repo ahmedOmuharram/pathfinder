@@ -147,7 +147,6 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
             "delete_step",
             "undo_last_change",
             "ensure_single_output",
-            "rename_step",
             "add_step_filter",
             "add_step_analysis",
             "add_step_report",

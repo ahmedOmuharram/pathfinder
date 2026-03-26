@@ -23,6 +23,7 @@ from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.text import strip_html_tags
 from veupath_chatbot.services.catalog.models import SearchMatch
+from veupath_chatbot.services.catalog.semantic_index import SemanticSearchIndex
 
 logger = get_logger(__name__)
 
@@ -211,7 +212,7 @@ def _parse_site_search_doc(doc: SiteSearchDocument) -> SearchMatch | None:
     display_name = strip_html_tags(display) or search_name
 
     descs = (
-        found.get("TEXT__search_description") or found.get("TEXT__search_summary") or []
+        found.get("TEXT__search_summary") or found.get("TEXT__search_description") or []
     )
     desc_val = str(descs[0]) if descs else ""
     description = strip_html_tags(desc_val)
@@ -341,22 +342,14 @@ def _score_candidates(
         dc = s.properties.get("displayCategory", [])
         if dc:
             category = str(dc[0])
-        returns = ""
-        rc = s.output_record_class_name
-        if rc:
-            rc_lower = rc.lower()
-            for key, label in _RECORD_CLASS_LABELS.items():
-                if key in rc_lower:
-                    returns = label
-                    break
 
         entry = SearchMatch(
             name=s.url_segment,
             display_name=display,
-            description=desc,
+            description=s.summary or desc,
             record_type=rt_name,
             category=category,
-            returns=returns,
+            returns=_resolve_returns(s.output_record_class_name),
         )
         scored.append((sc, entry))
     return scored
@@ -458,6 +451,38 @@ async def search_for_searches(
     return result
 
 
+_MIN_SEMANTIC_SIM = 0.3  # Minimum cosine similarity for semantic injection
+
+
+def _build_search_match(search: WDKSearch, rt: str) -> SearchMatch:
+    """Build a SearchMatch from a WDKSearch for semantic injection."""
+    display = search.display_name or search.url_segment
+    category = ""
+    dc = search.properties.get("displayCategory", [])
+    if dc:
+        category = str(dc[0])
+    returns = _resolve_returns(search.output_record_class_name)
+    return SearchMatch(
+        name=search.url_segment,
+        display_name=display,
+        description=search.summary or search.description,
+        record_type=rt,
+        category=category,
+        returns=returns,
+    )
+
+
+def _resolve_returns(output_record_class_name: str) -> str:
+    """Map a WDK output record class name to a human-readable label."""
+    if not output_record_class_name:
+        return ""
+    rc_lower = output_record_class_name.lower()
+    for key, label in _RECORD_CLASS_LABELS.items():
+        if key in rc_lower:
+            return label
+    return ""
+
+
 async def _apply_semantic_bonus(
     scored: list[tuple[float, SearchMatch]],
     discovery: DiscoveryService,
@@ -471,64 +496,34 @@ async def _apply_semantic_bonus(
     try:
         catalog = await discovery.get_catalog(site_id)
         index = catalog.get_semantic_index()
-        if index is None:
-            return
-
-        from veupath_chatbot.services.catalog.semantic_index import (
-            SemanticSearchIndex,
-        )
-
         if not isinstance(index, SemanticSearchIndex):
             return
 
         rt_set = set(record_types)
         sem_results = index.query(query, top_k=50)
-        sem_scores: dict[str, float] = {}
-        for search_name, rt, sim in sem_results:
-            if rt in rt_set or not rt_set:
-                sem_scores[search_name] = sim
+        sem_scores = {
+            name: sim
+            for name, rt, sim in sem_results
+            if rt in rt_set or not rt_set
+        }
 
         for i, (sc, entry) in enumerate(scored):
             sim = sem_scores.get(entry.name, 0.0)
             if sim > 0.0:
                 scored[i] = (sc + _SEMANTIC_BOOST * sim, entry)
 
-        # Also inject high-similarity searches that weren't in keyword candidates
+        # Inject high-similarity searches that weren't in keyword candidates
         existing_names = {entry.name for _, entry in scored}
         for search_name, rt, sim in sem_results:
-            if search_name in existing_names:
+            if search_name in existing_names or sim < _MIN_SEMANTIC_SIM:
                 continue
             if rt not in rt_set and rt_set:
                 continue
-            if sim < 0.3:
-                continue
-            # Find the search object to build a SearchMatch
             search = catalog.find_search(rt, search_name)
             if search is None:
                 continue
-            display = search.display_name or search.url_segment
-            category = ""
-            dc = search.properties.get("displayCategory", [])
-            if dc:
-                category = str(dc[0])
-            returns = ""
-            rc = search.output_record_class_name
-            if rc:
-                rc_lower = rc.lower()
-                for key, label in _RECORD_CLASS_LABELS.items():
-                    if key in rc_lower:
-                        returns = label
-                        break
-            entry = SearchMatch(
-                name=search.url_segment,
-                display_name=display,
-                description=search.description,
-                record_type=rt,
-                category=category,
-                returns=returns,
-            )
-            scored.append((_SEMANTIC_BOOST * sim, entry))
-    except Exception:
+            scored.append((_SEMANTIC_BOOST * sim, _build_search_match(search, rt)))
+    except (AppError, OSError, ValueError, TypeError):
         logger.debug("Semantic bonus failed (non-fatal)", exc_info=True)
 
 

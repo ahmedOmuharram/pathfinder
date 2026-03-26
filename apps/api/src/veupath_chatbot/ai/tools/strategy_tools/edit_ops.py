@@ -82,22 +82,6 @@ class StrategyEditOps(StrategyToolsHelpers):
             tool_error(ErrorCode.VALIDATION_ERROR, "Nothing to undo", graphId=graph.id),
         )
 
-    @ai_function()
-    async def rename_step(
-        self,
-        step_id: Annotated[str, AIParam(desc="Step ID to rename")],
-        new_name: Annotated[str, AIParam(desc="New display name")],
-        graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
-    ) -> JSONObject:
-        """Rename a step with a new display name."""
-        result = self._get_graph_and_step(graph_id, step_id)
-        if isinstance(result, dict):
-            return result
-        graph, step = result
-
-        step.display_name = new_name
-        return self._step_ok_response(graph, step)
-
     async def _apply_step_updates(
         self,
         graph: StrategyGraph,

@@ -14,6 +14,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_parameters import (
 )
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.catalog.vocab_rendering import (
+    _MAX_VOCAB_ENTRIES,
     allowed_values,
     render_vocab_tree,
 )
@@ -83,7 +84,41 @@ def _build_typed_controls_map(
     return controls
 
 
-def _format_typed_param(
+def _format_vocabulary(
+    param: WDKParameter,
+    base: WDKBaseParameter,
+    info: JSONObject,
+) -> None:
+    """Add vocabulary fields (allowedValues / allowedValues_tree) to *info*."""
+    vocabulary: JSONValue = None
+    if isinstance(param, WDKEnumParam):
+        vocabulary = param.vocabulary
+
+    if base.type == "multi-pick-vocabulary" and isinstance(vocabulary, dict):
+        tree_lines = render_vocab_tree(vocabulary, max_lines=80)
+        if tree_lines:
+            tree_text = "\n".join(tree_lines)
+            truncated = any("(truncated)" in line for line in tree_lines)
+            suffix = "\n(Pass a parent node to auto-select all its children)"
+            if truncated:
+                suffix += (
+                    "\nNote: tree truncated — many more values exist. "
+                    "Use the exact value you need; it does not have to appear above."
+                )
+            info["allowedValues_tree"] = cast("JSONValue", tree_text + suffix)
+    elif vocabulary is not None:
+        vocab_for_allowed = vocabulary if isinstance(vocabulary, (dict, list)) else None
+        allowed_entries = allowed_values(vocab_for_allowed)
+        if allowed_entries:
+            info["allowedValues"] = cast("JSONValue", allowed_entries)
+            if len(allowed_entries) >= _MAX_VOCAB_ENTRIES:
+                info["allowedValues_note"] = (
+                    f"Showing first {_MAX_VOCAB_ENTRIES} of many values (list truncated). "
+                    "Use the exact value/ID you need; it does not have to appear in this list."
+                )
+
+
+def format_typed_param(
     param: WDKParameter,
     depends_on: dict[str, list[str]],
     controls: dict[str, list[str]],
@@ -104,24 +139,7 @@ def _format_typed_param(
         "help": help_text,
     }
 
-    # Extract vocabulary from enum params.
-    vocabulary: JSONValue = None
-    if isinstance(param, WDKEnumParam):
-        vocabulary = param.vocabulary
-
-    if base.type == "multi-pick-vocabulary" and isinstance(vocabulary, dict):
-        tree_lines = render_vocab_tree(vocabulary, max_lines=80)
-        if tree_lines:
-            info["allowedValues_tree"] = cast(
-                "JSONValue",
-                "\n".join(tree_lines)
-                + "\n(Pass a parent node to auto-select all its children)",
-            )
-    elif vocabulary is not None:
-        vocab_for_allowed = vocabulary if isinstance(vocabulary, (dict, list)) else None
-        allowed_entries = allowed_values(vocab_for_allowed)
-        if allowed_entries:
-            info["allowedValues"] = cast("JSONValue", allowed_entries)
+    _format_vocabulary(param, base, info)
 
     if base.initial_display_value is not None:
         info["defaultValue"] = base.initial_display_value
@@ -157,7 +175,7 @@ def format_param_info_typed(params: list[WDKParameter]) -> list[JSONObject]:
     depends_on = _build_typed_dependency_map(params)
     controls = _build_typed_controls_map(params)
     return [
-        _format_typed_param(p, depends_on, controls)
+        format_typed_param(p, depends_on, controls)
         for p in params
         if p.name not in _PHYLETIC_STRUCTURAL_PARAMS
     ]

@@ -28,7 +28,7 @@ def build_subkani_round_prompt(
         "\n## Rules (must-follow)\n"
         "- Use tools; do not guess search names, parameter keys, or IDs.\n"
         "- If dependency context provides step ids, prefer using them over creating duplicates.\n"
-        "- If dependency context is missing/empty and you need graph state, call `list_current_steps()` first.\n"
+        "- If dependency context is missing/empty and you need graph state, call `get_strategy(summary_only=false)` first.\n"
         "- Always include `graph_id` in graph-editing tool calls.\n"
         "- Do not create a binary step unless the task explicitly instructs you AND provides both input step IDs.\n"
         "- If the task says modify/update/rename, update the existing step instead of creating a new step.\n"
@@ -49,7 +49,7 @@ def build_subkani_round_prompt(
         "   - If the step depends on a prior step, set `primary_input_step_id`.\n"
         "   - If the step needs a binary operator (UNION/INTERSECT/MINUS/COLOCATE), set `secondary_input_step_id` + `operator`.\n"
         "3. If editing:\n"
-        "   - Use `update_step` and/or `rename_step` for the specified step ids.\n"
+        "   - Use `update_step` for the specified step ids (use `display_name` to rename).\n"
     )
 
     parts.append(

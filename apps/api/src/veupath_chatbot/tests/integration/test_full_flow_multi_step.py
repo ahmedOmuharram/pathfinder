@@ -41,7 +41,7 @@ def _parse_tool_result(result_str: object) -> object:
 
 
 def _step_id_from_list_result(result_data: object) -> object | None:
-    """Extract the first step ID from a list_current_steps result.
+    """Extract the first step ID from a get_strategy result.
 
     :param result_data: Parsed tool result (dict or list).
     :returns: Step ID value, or None.
@@ -60,13 +60,13 @@ def _step_id_from_list_result(result_data: object) -> object | None:
 
 
 def _extract_step_id_from_stream(r1) -> object | None:
-    """Extract the first step ID from list_current_steps calls or strategy_update events.
+    """Extract the first step ID from get_strategy calls or strategy_update events.
 
     :param r1: ChatStreamResult from the first phase.
     :returns: Step ID value, or None.
     """
     for start, end in r1.tool_calls:
-        if start.data.get("name") == "list_current_steps":
+        if start.data.get("name") == "get_strategy":
             result_data = _parse_tool_result(end.data.get("result", "{}"))
             sid = _step_id_from_list_result(result_data)
             if sid is not None:
@@ -168,7 +168,7 @@ class TestCombineIntersect:
         # Step 6: list steps to get IDs for the combine
         ScriptedTurn(
             tool_calls=[
-                ScriptedToolCall("list_current_steps", {}),
+                ScriptedToolCall("get_strategy", {"summary_only": False}),
             ]
         ),
         # Step 7 is dynamically scripted — we can't hardcode step IDs.
@@ -262,7 +262,7 @@ class TestSearchPlusTransform:
         # List steps to get the step ID for transform input
         ScriptedTurn(
             tool_calls=[
-                ScriptedToolCall("list_current_steps", {}),
+                ScriptedToolCall("get_strategy", {"summary_only": False}),
             ]
         ),
         # Get ortholog transform parameters
@@ -280,7 +280,7 @@ class TestSearchPlusTransform:
     ]
 
     # We need a dynamic turn for the transform — the step ID comes from create_step.
-    # We'll add it via a callback approach: after the list_current_steps tool returns,
+    # We'll add it via a callback approach: after the get_strategy tool returns,
     # the next turn uses the step ID from that result.
     # For the scripted engine, we use a placeholder and rely on the test to work.
 
@@ -310,7 +310,7 @@ class TestSearchPlusTransform:
             ),
             ScriptedTurn(
                 tool_calls=[
-                    ScriptedToolCall("list_current_steps", {}),
+                    ScriptedToolCall("get_strategy", {"summary_only": False}),
                 ]
             ),
             ScriptedTurn(
@@ -330,7 +330,7 @@ class TestSearchPlusTransform:
         strategy_id = r1.strategy_id
         assert strategy_id
 
-        # Extract the step ID from list_current_steps result
+        # Extract the step ID from get_strategy result
         step_id = _extract_step_id_from_stream(r1)
         assert step_id, "Could not determine step ID for transform input"
 
@@ -443,7 +443,7 @@ class TestThreeStepStrategy:
             ),
             ScriptedTurn(
                 tool_calls=[
-                    ScriptedToolCall("list_current_steps", {}),
+                    ScriptedToolCall("get_strategy", {"summary_only": False}),
                 ]
             ),
             ScriptedTurn(content="Created two search steps. I'll now combine them."),

@@ -4,6 +4,8 @@ import asyncio
 import threading
 from collections.abc import Sequence
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
@@ -14,6 +16,54 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 )
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
+
+# ---------------------------------------------------------------------------
+# Models for parsing the WDK dataset report (AllDatasets/reports/standard)
+# ---------------------------------------------------------------------------
+
+
+class _PkPart(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: str = ""
+    value: str = ""
+
+
+class _DatasetAttributes(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    summary: str | None = None
+    contact: str | None = None
+
+
+class _DatasetRecord(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: list[_PkPart] = Field(default_factory=list)
+    attributes: _DatasetAttributes = Field(default_factory=_DatasetAttributes)
+
+    @property
+    def dataset_id(self) -> str:
+        for part in self.id:
+            if part.name == "dataset_id":
+                return part.value
+        return self.id[0].value if self.id else ""
+
+    def populate(
+        self,
+        summaries: dict[str, str],
+        contacts: dict[str, str],
+    ) -> None:
+        """Write this record's summary/contact into the provided dicts."""
+        ds_id = self.dataset_id
+        if not ds_id:
+            return
+        if self.attributes.summary:
+            summaries[ds_id] = self.attributes.summary
+        if self.attributes.contact:
+            contacts[ds_id] = self.attributes.contact
+
+
+class _DatasetReport(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    records: list[_DatasetRecord] = Field(default_factory=list)
 
 logger = get_logger(__name__)
 
@@ -108,32 +158,15 @@ class SearchCatalog:
                 "/record-types/dataset/searches/AllDatasets/reports/standard",
                 json={"reportConfig": report_config},
             )
-            if not isinstance(answer, dict):
-                return
-            for record in answer.get("records", []):
-                if not isinstance(record, dict):
-                    continue
-                pk_parts = record.get("id", [])
-                ds_id = ""
-                for part in pk_parts:
-                    if isinstance(part, dict) and part.get("name") == "dataset_id":
-                        ds_id = str(part.get("value", ""))
-                        break
-                if not ds_id and pk_parts:
-                    ds_id = str(pk_parts[0].get("value", ""))
-                attrs = record.get("attributes", {})
-                summary = attrs.get("summary")
-                contact = attrs.get("contact")
-                if ds_id and summary:
-                    self._dataset_summaries[ds_id] = str(summary)
-                if ds_id and contact:
-                    self._dataset_contacts[ds_id] = str(contact)
+            report = _DatasetReport.model_validate(answer)
+            for rec in report.records:
+                rec.populate(self._dataset_summaries, self._dataset_contacts)
             logger.info(
                 "Dataset metadata loaded",
                 site_id=self.site_id,
                 datasets=len(self._dataset_summaries),
             )
-        except Exception:
+        except (AppError, OSError, ValueError, TypeError):
             logger.warning(
                 "Failed to load dataset metadata (non-fatal)",
                 site_id=self.site_id,
@@ -154,14 +187,14 @@ class SearchCatalog:
                 dataset_contacts=self._dataset_contacts,
             )
             self._semantic_index = index
-        except Exception:
+        except (AppError, OSError, ValueError, TypeError):
             logger.warning(
                 "Failed to build semantic index (non-fatal)",
                 site_id=self.site_id,
                 exc_info=True,
             )
 
-    def get_semantic_index(self):
+    def get_semantic_index(self) -> object | None:
         """Get the semantic search index, or None if not available."""
         return self._semantic_index
 

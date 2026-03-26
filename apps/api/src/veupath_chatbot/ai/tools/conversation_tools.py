@@ -5,7 +5,6 @@ from uuid import UUID
 
 from kani import AIParam, ai_function
 
-from veupath_chatbot.domain.strategy.ast import walk_step_tree
 from veupath_chatbot.domain.strategy.session import StrategyGraph, StrategySession
 from veupath_chatbot.platform.errors import ErrorCode
 from veupath_chatbot.platform.logging import get_logger
@@ -140,40 +139,3 @@ class ConversationTools:
             "message": "Strategy cleared. Ready to start fresh.",
         }
 
-    @ai_function()
-    async def get_strategy_summary(
-        self,
-        graph_id: Annotated[str | None, AIParam(desc="Graph ID to summarize")] = None,
-    ) -> JSONObject:
-        """Get a summary of the current strategy.
-
-        Returns step count, record type, and other metadata.
-        """
-        graph = self.session.get_graph(graph_id)
-        if not graph:
-            return tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)
-        if not _has_strategy(graph):
-            return {
-                "hasStrategy": False,
-                "graphId": graph.id,
-                "graphName": graph.name,
-                "stepCount": len(graph.steps),
-                "message": (
-                    f"No complete strategy yet. {len(graph.steps)} steps created."
-                ),
-            }
-
-        # Count all steps by walking from the single root.
-        root_id = next(iter(graph.roots)) if len(graph.roots) == 1 else None
-        root = graph.steps.get(root_id) if root_id else None
-        step_count = len(walk_step_tree(root)) if root else len(graph.steps)
-
-        return {
-            "hasStrategy": True,
-            "graphId": graph.id,
-            "graphName": graph.name,
-            "name": graph.name,
-            "recordType": graph.record_type or "",
-            "stepCount": step_count,
-            "description": graph.description,
-        }

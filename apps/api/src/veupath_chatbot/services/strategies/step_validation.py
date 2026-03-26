@@ -323,6 +323,21 @@ async def _validate_transform_input_param(
                 },
             },
         )
+
+    # Check that the input step's record type is accepted by this transform.
+    allowed = response.search_data.allowed_primary_input_record_class_names
+    if allowed and rt not in allowed:
+        allowed_str = ", ".join(allowed)
+        return tool_error(
+            ErrorCode.INVALID_STRATEGY,
+            f"Search '{search_name}' requires input of type "
+            f"{allowed_str}, but the current graph has record type "
+            f"'{rt}'. This transform cannot be applied to the "
+            f"current step.",
+            recordType=rt,
+            searchName=search_name,
+            allowedInputTypes=cast("JSONValue", allowed),
+        )
     return None
 
 

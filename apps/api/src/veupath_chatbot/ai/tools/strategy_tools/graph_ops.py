@@ -36,32 +36,43 @@ class StrategyGraphOps(StrategyToolsHelpers):
     """Graph inspection tools."""
 
     @ai_function()
-    async def list_current_steps(
+    async def get_strategy(
         self,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to inspect")] = None,
+        *,
+        summary_only: Annotated[
+            bool,
+            AIParam(desc="If true (default), return only metadata. Set false for full step details."),
+        ] = True,
     ) -> JSONObject:
-        """List all steps in the current strategy graph.
+        """Get the current strategy graph — summary metadata or full step details.
 
-        Returns graph metadata and per-step details including WDK step IDs
-        and estimated result counts (when the strategy has been built).
+        By default returns a lightweight summary (step count, record type, build status).
+        Pass summary_only=false for per-step details including WDK step IDs and estimated
+        result counts.
         """
         graph = self._get_graph(graph_id)
         if not graph:
             return self._graph_not_found(graph_id)
-        steps: JSONArray = []
-        for step in graph.steps.values():
-            steps.append(self._serialize_step(graph, step))
 
         wdk_strategy_id_value: JSONValue = graph.wdk_strategy_id
-        return {
+        result: JSONObject = {
             "graphId": graph.id,
             "graphName": graph.name,
             "recordType": graph.record_type,
             "wdkStrategyId": wdk_strategy_id_value,
             "isBuilt": graph.wdk_strategy_id is not None,
-            "stepCount": len(steps),
-            "steps": steps,
+            "stepCount": len(graph.steps),
+            "description": graph.description,
         }
+
+        if not summary_only:
+            steps: JSONArray = []
+            for step in graph.steps.values():
+                steps.append(self._serialize_step(graph, step))
+            result["steps"] = steps
+
+        return result
 
     @ai_function()
     async def validate_graph_structure(

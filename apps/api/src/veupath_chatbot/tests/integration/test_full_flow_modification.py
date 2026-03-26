@@ -53,7 +53,7 @@ def _extract_step_id_from_result(result) -> str | None:
     :returns: First step ID found, or None.
     """
     for start, end in result.tool_calls:
-        if start.data.get("name") not in ("create_step", "list_current_steps"):
+        if start.data.get("name") not in ("create_step", "get_strategy"):
             continue
         result_str = end.data.get("result", "{}")
         try:
@@ -176,7 +176,7 @@ class TestUpdateParameters:
 
 
 class TestDeleteStep:
-    """Build two steps in a single turn, delete one, verify via list_current_steps.
+    """Build two steps in a single turn, delete one, verify via get_strategy.
 
     Everything happens in one turn so the in-memory graph is guaranteed consistent.
     """
@@ -219,7 +219,7 @@ class TestDeleteStep:
         # 3. List steps (we'll parse IDs from here)
         ScriptedTurn(
             tool_calls=[
-                ScriptedToolCall("list_current_steps", {}),
+                ScriptedToolCall("get_strategy", {"summary_only": False}),
             ]
         ),
         # 4-6: delete + list + summary are appended dynamically
@@ -228,14 +228,14 @@ class TestDeleteStep:
     @pytest.mark.asyncio
     async def test_delete_step(self, authed_client, scripted_engine_factory) -> None:
         # We need the step IDs to call delete_step, but they're dynamic.
-        # Instead, verify via the list_current_steps result BEFORE and AFTER.
-        # Since scripted engine can't branch, we test list_current_steps shows 2 steps,
-        # then (in same turn) delete_step one, then list_current_steps shows 1 step.
+        # Instead, verify via the get_strategy result BEFORE and AFTER.
+        # Since scripted engine can't branch, we test get_strategy shows 2 steps,
+        # then (in same turn) delete_step one, then get_strategy shows 1 step.
         #
         # However, the step IDs aren't known ahead of time. So we use a two-pass approach:
         # the ScriptedKaniEngine needs the step_id for delete_step, but we don't know it yet.
         #
-        # Alternative: use "list_current_steps" to count steps, not validate specific IDs.
+        # Alternative: use "get_strategy" to count steps, not validate specific IDs.
         # We'll check that list drops from 2 to 1 step.
 
         # We'll use a callback-based approach: first run to get step IDs,
@@ -267,9 +267,9 @@ class TestDeleteStep:
         ]
         assert len(create_results) == 2, "Expected 2 create_step results"
 
-        # Verify list_current_steps shows 2 steps
+        # Verify get_strategy shows 2 steps
         for start, end in tool_pairs:
-            if start.data.get("name") == "list_current_steps":
+            if start.data.get("name") == "get_strategy":
                 result_str = end.data.get("result", "{}")
                 try:
                     data = (

@@ -20,11 +20,150 @@ from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services import catalog
+from veupath_chatbot.services.catalog.param_formatting import format_typed_param
 from veupath_chatbot.services.catalog.public_strategy_search import (
     rank_public_strategies,
 )
+from veupath_chatbot.services.catalog.searches import find_record_type_for_search
 
 logger = get_logger(__name__)
+
+_DEFAULT_RECORD_TYPE = "transcript"
+
+
+async def _resolve_record_type(
+    site_id: str, search_name: str, record_type: str | None
+) -> str:
+    """Resolve record type from the cached catalog, falling back to 'transcript'."""
+    ctx = SearchContext(site_id, record_type or _DEFAULT_RECORD_TYPE, search_name)
+    return await find_record_type_for_search(ctx)
+
+
+# Universal searches present on ALL 12 VEuPathDB sites.  Appended to every
+# search_for_searches result so the model always sees them — regardless of
+# how well the retrieval layer scored them.
+_UNIVERSAL_SEARCHES: list[dict[str, str]] = [
+    {
+        "name": "GenesByText",
+        "displayName": "Text (product name, notes, etc.)",
+        "description": (
+            "Find genes with a text search against their product name, "
+            "notes, GO, EC, Domains, NRDB, or metabolic pathways."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByGoTerm",
+        "displayName": "GO Term",
+        "description": (
+            "Find genes based on the Gene Ontology (GO) Term(s) or ID(s) "
+            "assigned to them."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesWithSignalPeptide",
+        "displayName": "Predicted Signal Peptide",
+        "description": (
+            "Find genes that are predicted to encode a secretory signal "
+            "peptide containing protein."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByTransmembraneDomains",
+        "displayName": "Transmembrane Domain Count",
+        "description": (
+            "Find genes whose protein products are predicted to have "
+            "transmembrane domains numbering within a range that you specify."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByExonCount",
+        "displayName": "Exon Count",
+        "description": (
+            "Find genes that have exons numbering within a range that you specify."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByInterproDomain",
+        "displayName": "InterPro Domain",
+        "description": (
+            "Find genes containing a specified protein domain from the "
+            "InterPro database (includes CATH, CDD, HAMAP, PANTHER, Pfam, "
+            "PIRSF, PRINTS, PROSITE, SFLD, SMART, SUPERFAMILY, TIGRFAMs)."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByMotifSearch",
+        "displayName": "Protein Motif Pattern",
+        "description": (
+            "Find genes whose protein product contains a regex motif "
+            "pattern that you specify."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByOrthologs",
+        "displayName": "Transform by Orthology",
+        "description": (
+            "Find orthologs or paralogs of genes in a search result. "
+            "Use via list_transforms."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByRNASeqEvidence",
+        "displayName": "RNA-Seq Evidence",
+        "description": (
+            "Find genes based on their expression levels quantified by RNA-Seq."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByMassSpec",
+        "displayName": "Mass Spec. Evidence",
+        "description": (
+            "Find genes that have evidence for protein-level expression "
+            "from mass spectrometry-based proteomics."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesBySimilarity",
+        "displayName": "BLAST",
+        "description": (
+            "Find genes that have BLAST similarity to your input sequence."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByLocation",
+        "displayName": "Genomic Location",
+        "description": (
+            "Find genes within a given genomic region (chromosome, scaffold, "
+            "supercontig)."
+        ),
+        "category": "universal",
+    },
+    {
+        "name": "GenesByTaxon",
+        "displayName": "Organism",
+        "description": "Find all genes from one or more species/organism.",
+        "category": "universal",
+    },
+    {
+        "name": "GenesBySpanLogic",
+        "displayName": "Genes by Relative Location",
+        "description": (
+            "Filter genes with span logic operation against other results."
+        ),
+        "category": "universal",
+    },
+]
 
 
 class CatalogTools:
@@ -109,7 +248,14 @@ class CatalogTools:
             keywords=kw,
             limit=limit,
         )
-        return [m.to_dict() for m in matches]
+        results = [m.to_dict() for m in matches]
+
+        # Always append universal searches the model should know about,
+        # skipping any that already appeared in the ranked results.
+        seen = {r["name"] for r in results}
+        results.extend(u for u in _UNIVERSAL_SEARCHES if u["name"] not in seen)
+
+        return results
 
     @ai_function()
     async def list_searches(
@@ -141,20 +287,27 @@ class CatalogTools:
     @ai_function()
     async def get_search_parameters(
         self,
-        record_type: Annotated[str, AIParam(desc="Record type (e.g., 'transcript')")],
         search_name: Annotated[str, AIParam(desc="Search name")],
+        record_type: Annotated[
+            str | None,
+            AIParam(desc="Record type (e.g., 'transcript'). Auto-resolved if omitted."),
+        ] = None,
     ) -> JSONObject:
         """Get full details for a specific search: description, parameters, and valid values."""
+        rt = await _resolve_record_type(self.site_id, search_name, record_type)
         return await catalog.get_search_parameters_tool(
-            SearchContext(self.site_id, record_type, search_name)
+            SearchContext(self.site_id, rt, search_name)
         )
 
     @ai_function()
     async def get_dependent_vocab(
         self,
-        record_type: Annotated[str, AIParam(desc="Record type")],
         search_name: Annotated[str, AIParam(desc="Search name")],
         param_name: Annotated[str, AIParam(desc="Dependent parameter name to refresh")],
+        record_type: Annotated[
+            str | None,
+            AIParam(desc="Record type. Auto-resolved if omitted."),
+        ] = None,
         context_values: Annotated[
             JSONObject | None,
             AIParam(desc="Current contextParamValues (paramName -> value)"),
@@ -166,6 +319,7 @@ class CatalogTools:
         If context_values does not include param_name, falls back to
         expanded search details.
         """
+        rt = await _resolve_record_type(self.site_id, search_name, record_type)
         ctx = context_values or {}
         has_context = any(v is not None and v != "" for v in ctx.values())
 
@@ -173,26 +327,26 @@ class CatalogTools:
             client = get_wdk_client(self.site_id)
             encoded_ctx = encode_wdk_params(ctx)
             result = await client.get_search_details_with_params(
-                record_type,
+                rt,
                 search_name,
                 context=encoded_ctx,
                 expand_params=True,
             )
             for p in result.search_data.parameters or []:
                 if p.name == param_name:
-                    return p.model_dump(by_alias=True)
+                    return format_typed_param(p, depends_on={}, controls={})
             return {"error": "param_not_found", "paramName": param_name}
 
         # Fallback: fetch expanded search details
         client = get_wdk_client(self.site_id)
         details = await client.get_search_details(
-            record_type,
+            rt,
             search_name,
             expand_params=True,
         )
         for p in details.search_data.parameters or []:
             if p.name == param_name:
-                return p.model_dump(by_alias=True)
+                return format_typed_param(p, depends_on={}, controls={})
         return {"error": "param_not_found", "paramName": param_name}
 
     # -- Phyletic codes --------------------------------------------------------

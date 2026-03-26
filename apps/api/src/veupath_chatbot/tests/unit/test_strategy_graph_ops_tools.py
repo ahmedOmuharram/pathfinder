@@ -37,39 +37,64 @@ def _make_graph_ops(
     return ops, step_ids
 
 
-# -- list_current_steps --
+# -- get_strategy (summary_only=true by default) --
 
 
-async def test_list_current_steps_returns_all():
-    ops, step_ids = _make_graph_ops()
+async def test_get_strategy_summary_returns_metadata():
+    ops, _step_ids = _make_graph_ops()
 
-    result = await ops.list_current_steps(graph_id="g1")
+    result = await ops.get_strategy(graph_id="g1")
 
     assert result["graphId"] == "g1"
     assert result["stepCount"] == 2
     assert result["recordType"] == "gene"
     assert result["isBuilt"] is False
+    assert "steps" not in result  # summary_only=True by default
+
+
+async def test_get_strategy_summary_empty_graph():
+    ops, _ = _make_graph_ops(with_steps=False)
+
+    result = await ops.get_strategy(graph_id="g1")
+
+    assert result["stepCount"] == 0
+    assert "steps" not in result
+
+
+# -- get_strategy (summary_only=false) --
+
+
+async def test_get_strategy_full_returns_steps():
+    ops, step_ids = _make_graph_ops()
+
+    result = await ops.get_strategy(graph_id="g1", summary_only=False)
+
+    assert result["graphId"] == "g1"
+    assert result["stepCount"] == 2
+    assert result["recordType"] == "gene"
+    assert result["isBuilt"] is False
+    assert "steps" in result
     returned_ids = [s["id"] for s in result["steps"]]
     for sid in step_ids:
         assert sid in returned_ids
 
 
-async def test_list_current_steps_empty_graph():
+async def test_get_strategy_full_empty_graph():
     ops, _ = _make_graph_ops(with_steps=False)
 
-    result = await ops.list_current_steps(graph_id="g1")
+    result = await ops.get_strategy(graph_id="g1", summary_only=False)
 
     assert result["stepCount"] == 0
     assert result["steps"] == []
 
 
-async def test_list_current_steps_includes_wdk_ids():
+async def test_get_strategy_full_includes_wdk_ids():
     ops, step_ids = _make_graph_ops()
     graph = ops.session.get_graph("g1")
     graph.wdk_step_ids = {step_ids[0]: 100, step_ids[1]: 200}
     graph.wdk_strategy_id = 42
 
-    result = await ops.list_current_steps(graph_id="g1")
+    result = await ops.get_strategy(graph_id="g1", summary_only=False)
 
     assert result["wdkStrategyId"] == 42
     assert result["isBuilt"] is True
@@ -78,22 +103,22 @@ async def test_list_current_steps_includes_wdk_ids():
     assert steps_by_id[step_ids[0]]["isBuilt"] is True
 
 
-async def test_list_current_steps_includes_counts():
+async def test_get_strategy_full_includes_counts():
     ops, step_ids = _make_graph_ops()
     graph = ops.session.get_graph("g1")
     graph.step_counts = {step_ids[0]: 150, step_ids[1]: 0}
 
-    result = await ops.list_current_steps(graph_id="g1")
+    result = await ops.get_strategy(graph_id="g1", summary_only=False)
 
     steps_by_id = {s["id"]: s for s in result["steps"]}
     assert steps_by_id[step_ids[0]]["estimatedSize"] == 150
     assert steps_by_id[step_ids[1]]["estimatedSize"] == 0
 
 
-async def test_list_current_steps_step_kinds():
+async def test_get_strategy_full_step_kinds():
     ops, step_ids = _make_graph_ops(with_steps=True, connect=True)
 
-    result = await ops.list_current_steps(graph_id="g1")
+    result = await ops.get_strategy(graph_id="g1", summary_only=False)
 
     kinds = {s["id"]: s["kind"] for s in result["steps"]}
     assert kinds[step_ids[0]] == "search"

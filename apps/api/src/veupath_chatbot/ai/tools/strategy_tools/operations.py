@@ -18,7 +18,6 @@ from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.engine.base import StrategyToolsBase
 
 from .attachment_ops import StrategyAttachmentOps
-from .discovery_ops import StrategyDiscoveryOps
 from .edit_ops import StrategyEditOps
 from .graph_ops import GraphValidationResult, StrategyGraphOps
 from .step_ops import StepInputSpec, StrategyStepOps
@@ -26,7 +25,6 @@ from .step_ops import StepInputSpec, StrategyStepOps
 
 class StrategyTools(
     StrategyGraphOps,
-    StrategyDiscoveryOps,
     StrategyStepOps,
     StrategyEditOps,
     StrategyAttachmentOps,
