@@ -5,6 +5,7 @@ and get_wdk_operator().
 """
 
 import pytest
+from pydantic import ValidationError
 
 from veupath_chatbot.domain.strategy.ops import (
     ColocationParams,
@@ -100,53 +101,89 @@ class TestCombineOpEnum:
 
 
 class TestColocationParams:
-    def test_from_raw_colocate(self) -> None:
-        result = ColocationParams.from_raw(
-            CombineOp.COLOCATE, upstream=1000, downstream=500, strand="same"
+    def test_defaults(self) -> None:
+        params = ColocationParams()
+        assert params.operation == "overlaps"
+        assert params.strand == "either strand"
+        assert params.output == "a"
+        assert params.region_a == "exact"
+        assert params.begin_a == "start"
+        assert params.begin_direction_a == "+"
+        assert params.begin_offset_a == 0
+        assert params.end_a == "stop"
+        assert params.end_direction_a == "+"
+        assert params.end_offset_a == 0
+        assert params.region_b == "exact"
+        assert params.begin_offset_b == 0
+        assert params.end_offset_b == 0
+
+    def test_custom_regions(self) -> None:
+        params = ColocationParams(
+            region_a="upstream",
+            begin_offset_a=1000,
+            end_offset_a=500,
+            region_b="downstream",
         )
-        assert result is not None
-        assert result.upstream == 1000
-        assert result.downstream == 500
-        assert result.strand == "same"
+        assert params.region_a == "upstream"
+        assert params.begin_offset_a == 1000
+        assert params.end_offset_a == 500
+        assert params.region_b == "downstream"
 
-    def test_from_raw_non_colocate_returns_none(self) -> None:
-        result = ColocationParams.from_raw(
-            CombineOp.INTERSECT, upstream=1000, downstream=500, strand="same"
+    def test_all_operations(self) -> None:
+        for op in ("overlaps", "contains", "is contained in"):
+            params = ColocationParams(operation=op)
+            assert params.operation == op
+
+    def test_all_strands(self) -> None:
+        for strand in ("either strand", "same strand", "opposite strand"):
+            params = ColocationParams(strand=strand)
+            assert params.strand == strand
+
+    def test_negative_offset_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(begin_offset_a=-1)
+
+    def test_negative_end_offset_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(end_offset_b=-1)
+
+    def test_invalid_operation_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(operation="invalid")
+
+    def test_invalid_strand_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(strand="both")
+
+    def test_model_validate_from_dict(self) -> None:
+        params = ColocationParams.model_validate(
+            {"operation": "contains", "strand": "same strand"}
         )
-        assert result is None
+        assert params.operation == "contains"
+        assert params.strand == "same strand"
 
-    def test_from_raw_none_operator_returns_none(self) -> None:
-        result = ColocationParams.from_raw(
-            None, upstream=1000, downstream=500, strand="same"
-        )
-        assert result is None
+    def test_to_wdk_params_operation(self) -> None:
+        assert ColocationParams(operation="overlaps").to_wdk_params()["span_operation"] == "overlap"
+        assert ColocationParams(operation="contains").to_wdk_params()["span_operation"] == "a_contain_b"
+        assert ColocationParams(operation="is contained in").to_wdk_params()["span_operation"] == "b_contain_a"
 
-    def test_from_raw_defaults(self) -> None:
-        result = ColocationParams.from_raw(
-            CombineOp.COLOCATE, upstream=None, downstream=None, strand=None
-        )
-        assert result is not None
-        assert result.upstream == 0
-        assert result.downstream == 0
-        assert result.strand == "both"
+    def test_to_wdk_params_strand(self) -> None:
+        assert ColocationParams(strand="either strand").to_wdk_params()["span_strand"] == "Both strands"
+        assert ColocationParams(strand="same strand").to_wdk_params()["span_strand"] == "same strand"
+        assert ColocationParams(strand="opposite strand").to_wdk_params()["span_strand"] == "opposite strand"
 
-    def test_from_raw_invalid_strand(self) -> None:
-        result = ColocationParams.from_raw(
-            CombineOp.COLOCATE, upstream=0, downstream=0, strand="invalid"
-        )
-        assert result is not None
-        assert result.strand == "both"
+    def test_to_wdk_params_regions(self) -> None:
+        params = ColocationParams(region_a="upstream", region_b="downstream")
+        wdk = params.to_wdk_params()
+        assert wdk["region_a"] == "upstream"
+        assert wdk["region_b"] == "downstream"
 
-    def test_check_errors_valid(self) -> None:
-        params = ColocationParams(upstream=1000, downstream=500, strand="same")
-        assert params.check_errors() == []
+    def test_to_wdk_params_offsets_as_strings(self) -> None:
+        params = ColocationParams(begin_offset_a=1000, end_offset_b=500)
+        wdk = params.to_wdk_params()
+        assert wdk["span_begin_offset_a"] == "1000"
+        assert wdk["span_end_offset_b"] == "500"
 
-    def test_check_errors_negative_upstream(self) -> None:
-        params = ColocationParams(upstream=-1, downstream=500, strand="same")
-        errors = params.check_errors()
-        assert any("Upstream" in e for e in errors)
-
-    def test_check_errors_negative_downstream(self) -> None:
-        params = ColocationParams(upstream=0, downstream=-1, strand="same")
-        errors = params.check_errors()
-        assert any("Downstream" in e for e in errors)
+    def test_to_wdk_params_output(self) -> None:
+        assert ColocationParams(output="a").to_wdk_params()["span_output"] == "a"
+        assert ColocationParams(output="b").to_wdk_params()["span_output"] == "b"

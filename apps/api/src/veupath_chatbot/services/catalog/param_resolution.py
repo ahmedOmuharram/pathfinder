@@ -132,9 +132,14 @@ def _match_phyletic_entries(
     group_codes: set[str],
     query: str,
 ) -> list[JSONObject]:
-    """Match term map entries against a query string."""
-    q = query.lower().strip()
-    matches: list[JSONObject] = []
+    """Match term map entries against a query string.
+
+    Uses the sentence-transformer biencoder to rank matches by semantic
+    similarity so that e.g. "human" ranks "Homo sapiens" above
+    "Pediculus humanus".
+    """
+    # Collect all entries.
+    all_entries: list[tuple[str, str, bool]] = []
     for entry in term_map_vocab:
         if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
             continue
@@ -142,12 +147,50 @@ def _match_phyletic_entries(
         label = str(entry[1])
         if code == "ALL":
             continue
-        if q in label.lower() or q in code.lower():
-            is_leaf = code not in group_codes
-            matches.append({"code": code, "label": label, "leaf": is_leaf})
-            if len(matches) >= _MAX_TREE_MATCHES:
-                break
-    return matches
+        is_leaf = code not in group_codes
+        all_entries.append((code, label, is_leaf))
+
+    if not all_entries:
+        return []
+
+    # Rank all entries by semantic similarity — no pre-filter.
+    ranked = _rank_by_semantic_similarity(query, all_entries)
+    return [
+        {"code": code, "label": label, "leaf": is_leaf}
+        for code, label, is_leaf in ranked[:_MAX_TREE_MATCHES]
+    ]
+
+
+def _rank_by_semantic_similarity(
+    query: str,
+    candidates: list[tuple[str, str, bool]],
+) -> list[tuple[str, str, bool]]:
+    """Rank candidates by biencoder cosine similarity to the query."""
+    try:
+        from veupath_chatbot.services.catalog.semantic_index import (  # noqa: PLC0415
+            _get_model,
+        )
+
+        model = _get_model()
+        query_emb = model.encode([query], normalize_embeddings=True)
+        label_embs = model.encode(
+            [label for _, label, _ in candidates],
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        sims = (label_embs @ query_emb.T).flatten()
+        ranked = sorted(
+            zip(candidates, sims, strict=True), key=lambda x: -x[1]
+        )
+        return [c for c, _ in ranked]
+    except (ImportError, OSError) as exc:
+        logger.warning(
+            "Biencoder ranking unavailable, returning unranked results",
+            error=str(exc),
+            query=query,
+            num_candidates=len(candidates),
+        )
+        return candidates
 
 
 async def lookup_phyletic_codes(

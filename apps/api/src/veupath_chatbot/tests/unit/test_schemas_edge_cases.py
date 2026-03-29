@@ -487,26 +487,23 @@ class TestSearchValidationResponseRoundtrip:
 
 
 class TestColocationParamsEdgeCases:
-    def test_zero_values_accepted(self) -> None:
-        c = ColocationParams(upstream=0, downstream=0)
-        assert c.upstream == 0
-        assert c.downstream == 0
+    def test_zero_offsets_accepted(self) -> None:
+        c = ColocationParams(begin_offset_a=0, end_offset_a=0)
+        assert c.begin_offset_a == 0
+        assert c.end_offset_a == 0
 
-    def test_very_large_values_accepted(self) -> None:
-        # No upper bound on upstream/downstream
-        c = ColocationParams(upstream=1_000_000, downstream=1_000_000)
-        assert c.upstream == 1_000_000
+    def test_very_large_offsets_accepted(self) -> None:
+        c = ColocationParams(begin_offset_a=1_000_000, end_offset_b=1_000_000)
+        assert c.begin_offset_a == 1_000_000
 
     def test_valid_strand_values(self) -> None:
-        for strand in ("both", "same", "opposite"):
-            c = ColocationParams(upstream=0, downstream=0, strand=strand)
+        for strand in ("either strand", "same strand", "opposite strand"):
+            c = ColocationParams(strand=strand)
             assert c.strand == strand
 
-    def test_invalid_strand_coerced_to_both(self) -> None:
-        # Domain ColocationParams coerces unrecognized strand to "both"
-        # (tolerant of AI-generated plans).
-        c = ColocationParams(upstream=0, downstream=0, strand="invalid_strand")
-        assert c.strand == "both"
+    def test_invalid_strand_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(strand="invalid_strand")
 
 
 # ---------------------------------------------------------------------------

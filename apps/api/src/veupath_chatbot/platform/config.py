@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     api_secret_key: str = Field(
         default_factory=lambda: secrets.token_urlsafe(32),
         min_length=32,
+        repr=False,
     )
     api_docs_enabled: bool = True
 
@@ -89,15 +90,16 @@ class Settings(BaseSettings):
     #
     # PathFinder uses SQL persistence for users, strategies, and control sets.
     # We default to PostgreSQL even for local development so behavior matches Docker/production.
-    database_url: str = (
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder"
+    database_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder",
+        repr=False,
     )
 
     # Redis (event store + live SSE delivery)
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = Field(default="redis://localhost:6379/0", repr=False)
 
     # OpenAI
-    openai_api_key: str = ""
+    openai_api_key: str = Field(default="", repr=False)
     openai_model: str = "gpt-4.1"
     openai_temperature: float = 0.0
     openai_top_p: float = 1.0
@@ -107,14 +109,14 @@ class Settings(BaseSettings):
     )
 
     # Anthropic
-    anthropic_api_key: str = ""
+    anthropic_api_key: str = Field(default="", repr=False)
     anthropic_model: str = "claude-sonnet-4-6"
     anthropic_temperature: float = 0.0
     anthropic_top_p: float = 1.0
     anthropic_hyperparams: dict[str, object] = Field(default_factory=dict)
 
     # Google
-    gemini_api_key: str = ""
+    gemini_api_key: str = Field(default="", repr=False)
     gemini_model: str = "gemini-2.5-pro"
     gemini_temperature: float = 0.0
     gemini_top_p: float = 1.0
@@ -141,7 +143,7 @@ class Settings(BaseSettings):
         description="Optional path to a YAML file for site list and base URLs; defaults to bundled sites.yaml if unset.",
     )
     veupathdb_cache_ttl: int = 3600
-    veupathdb_auth_token: str | None = None
+    veupathdb_auth_token: str | None = Field(default=None, repr=False)
     veupathdb_oauth_url: str | None = None
     veupathdb_oauth_client_id: str | None = None
 

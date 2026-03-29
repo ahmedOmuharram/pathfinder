@@ -50,6 +50,7 @@ class StepResponse(CamelModel):
     wdk_step_id: int | None = None
     is_built: bool = False
     is_filtered: bool = False
+    wdk_push_error: str | None = None
     validation: WDKValidation | None = None
     filters: list[StepFilter] | None = None
     analyses: list[StepAnalysis] | None = None

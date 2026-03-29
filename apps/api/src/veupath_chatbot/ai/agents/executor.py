@@ -86,6 +86,26 @@ def _merge_auto_build(original_text: str | None, extra: JSONObject) -> str:
     return json.dumps(parsed)
 
 
+def _collect_unpushed_steps(graph: StrategyGraph) -> list[JSONObject]:
+    """Enumerate steps that exist locally but have no WDK step ID.
+
+    Returns a list of dicts with step ID, search name, and push error reason
+    (if available) so the model can take corrective action.
+    """
+    unpushed: list[JSONObject] = []
+    for step_id, step in graph.steps.items():
+        if step_id not in graph.wdk_step_ids:
+            entry: JSONObject = {
+                "stepId": step_id,
+                "searchName": step.search_name,
+            }
+            push_error = graph.wdk_push_errors.get(step_id)
+            if push_error:
+                entry["pushError"] = push_error
+            unpushed.append(entry)
+    return unpushed
+
+
 class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
     """Unified VEuPathDB Strategy Agent - research, planning, and execution.
 
@@ -228,9 +248,21 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
             result.message.content = _merge_auto_build(result.message.text, build_data)
 
         except (AppError, OSError, RootResolutionError) as exc:
+            error_payload: JSONObject = {
+                "ok": False,
+                "error": sanitize_error_for_client(exc),
+            }
+            # Enumerate steps missing WDK IDs so the model can fix or delete them.
+            unpushed = _collect_unpushed_steps(graph)
+            if unpushed:
+                error_payload["unpushedSteps"] = cast("JSONArray", unpushed)
+                error_payload["hint"] = (
+                    "These steps were created locally but WDK rejected them. "
+                    "Fix their parameters with update_step, or delete them "
+                    "with delete_step, then call ensure_single_output again."
+                )
             result.message.content = _merge_auto_build(
-                result.message.text,
-                {"autoBuild": {"ok": False, "error": sanitize_error_for_client(exc)}},
+                result.message.text, {"autoBuild": error_payload}
             )
             logger.warning("Auto-build failed", error=str(exc))
 

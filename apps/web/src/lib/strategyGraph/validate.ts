@@ -168,7 +168,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
       if (step.operator === "COLOCATE" && step.colocationParams == null) {
         errors.push({
           code: "MISSING_INPUT",
-          message: "COLOCATE requires colocationParams (upstream/downstream/strand).",
+          message: "COLOCATE requires colocationParams.",
           stepId: step.id,
         });
       }

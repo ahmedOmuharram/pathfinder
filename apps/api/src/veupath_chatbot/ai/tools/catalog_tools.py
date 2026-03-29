@@ -42,7 +42,7 @@ async def _resolve_record_type(
 # Universal searches present on ALL 12 VEuPathDB sites.  Appended to every
 # search_for_searches result so the model always sees them — regardless of
 # how well the retrieval layer scored them.
-_UNIVERSAL_SEARCHES: list[dict[str, str]] = [
+_UNIVERSAL_SEARCHES: list[dict[str, str | float]] = [
     {
         "name": "GenesByText",
         "displayName": "Text (product name, notes, etc.)",
@@ -51,6 +51,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "notes, GO, EC, Domains, NRDB, or metabolic pathways."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByGoTerm",
@@ -60,6 +61,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "assigned to them."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesWithSignalPeptide",
@@ -69,6 +71,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "peptide containing protein."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByTransmembraneDomains",
@@ -78,6 +81,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "transmembrane domains numbering within a range that you specify."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByExonCount",
@@ -86,6 +90,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "Find genes that have exons numbering within a range that you specify."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByInterproDomain",
@@ -96,6 +101,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "PIRSF, PRINTS, PROSITE, SFLD, SMART, SUPERFAMILY, TIGRFAMs)."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByMotifSearch",
@@ -105,6 +111,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "pattern that you specify."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByOrthologs",
@@ -114,6 +121,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "Use via list_transforms."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByRNASeqEvidence",
@@ -122,6 +130,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "Find genes based on their expression levels quantified by RNA-Seq."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByMassSpec",
@@ -131,6 +140,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "from mass spectrometry-based proteomics."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesBySimilarity",
@@ -139,6 +149,7 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "Find genes that have BLAST similarity to your input sequence."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByLocation",
@@ -148,20 +159,25 @@ _UNIVERSAL_SEARCHES: list[dict[str, str]] = [
             "supercontig)."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesByTaxon",
         "displayName": "Organism",
         "description": "Find all genes from one or more species/organism.",
         "category": "universal",
+        "relevance": "always-available",
     },
     {
         "name": "GenesBySpanLogic",
         "displayName": "Genes by Relative Location",
         "description": (
-            "Filter genes with span logic operation against other results."
+            "Genomic co-location: find genes near other genomic features "
+            "on the same chromosome (e.g. genes within N bp of SNPs, "
+            "motifs, or other gene results). Use with COLOCATE operator."
         ),
         "category": "universal",
+        "relevance": "always-available",
     },
 ]
 
@@ -231,11 +247,12 @@ class CatalogTools:
             ),
         ] = None,
         limit: Annotated[int, AIParam(desc="Max results to return.")] = 20,
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, str | float]]:
         """Find WDK searches by description and/or keywords.
 
         Returns a ranked list with name, displayName, description, category,
-        and what the search returns (genes, SNPs, etc.).
+        what the search returns, and a relevance score (0-1, higher is better).
+        Prefer searches with higher relevance scores.
         """
         kw = keywords or []
         err = search_query_error(query, has_keywords=bool(kw))
@@ -248,12 +265,12 @@ class CatalogTools:
             keywords=kw,
             limit=limit,
         )
-        results = [m.to_dict() for m in matches]
+        results: list[dict[str, str | float]] = [m.to_dict() for m in matches]
 
         # Always append universal searches the model should know about,
         # skipping any that already appeared in the ranked results.
-        seen = {r["name"] for r in results}
-        results.extend(u for u in _UNIVERSAL_SEARCHES if u["name"] not in seen)
+        seen = {str(r["name"]) for r in results}
+        results.extend(u for u in _UNIVERSAL_SEARCHES if str(u["name"]) not in seen)
 
         return results
 

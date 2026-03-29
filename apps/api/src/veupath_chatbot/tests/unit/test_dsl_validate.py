@@ -1,5 +1,8 @@
 """Tests for strategy DSL validation."""
 
+import pytest
+from pydantic import ValidationError
+
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.domain.strategy.validate import (
@@ -90,19 +93,10 @@ class TestStrategyValidator:
         assert not result.valid
         assert any(e.code == "UNKNOWN_SEARCH" for e in result.errors)
 
-    def test_validate_colocate_invalid_params(self) -> None:
-        left = PlanStepNode(search_name="S1", parameters={})
-        right = PlanStepNode(search_name="S2", parameters={})
-        combine = PlanStepNode(
-            search_name="bool",
-            primary_input=left,
-            secondary_input=right,
-            operator=CombineOp.COLOCATE,
-            colocation_params=ColocationParams(upstream=-1, downstream=0),
-        )
-        result = validate_strategy(combine, "gene")
-        assert not result.valid
-        assert any(e.code == "INVALID_COLOCATION_PARAMS" for e in result.errors)
+    def test_validate_colocate_negative_offset_rejected_at_construction(self) -> None:
+        """Negative offsets are rejected by Field(ge=0) at construction time."""
+        with pytest.raises(ValidationError):
+            ColocationParams(begin_offset_a=-1)
 
     def test_validate_colocate_valid(self) -> None:
         left = PlanStepNode(search_name="S1", parameters={})
@@ -113,7 +107,7 @@ class TestStrategyValidator:
             secondary_input=right,
             operator=CombineOp.COLOCATE,
             colocation_params=ColocationParams(
-                upstream=100, downstream=200, strand="same"
+                operation="contains", strand="same strand", begin_offset_a=100
             ),
         )
         result = validate_strategy(combine, "gene")
@@ -182,22 +176,10 @@ class TestStrategyValidator:
         assert "MISSING_RECORD_TYPE" in codes
         assert "MISSING_SEARCH_NAME" in codes
 
-    def test_colocate_both_negative_distances(self) -> None:
-        left = PlanStepNode(search_name="S1", parameters={})
-        right = PlanStepNode(search_name="S2", parameters={})
-        combine = PlanStepNode(
-            search_name="bool",
-            primary_input=left,
-            secondary_input=right,
-            operator=CombineOp.COLOCATE,
-            colocation_params=ColocationParams(upstream=-1, downstream=-2),
-        )
-        result = validate_strategy(combine, "gene")
-        assert not result.valid
-        colocation_errors = [
-            e for e in result.errors if e.code == "INVALID_COLOCATION_PARAMS"
-        ]
-        assert len(colocation_errors) == 2
+    def test_colocate_negative_offsets_rejected_at_construction(self) -> None:
+        """Multiple negative offsets are all rejected by Field(ge=0)."""
+        with pytest.raises(ValidationError):
+            ColocationParams(begin_offset_a=-1, end_offset_a=-2)
 
 
 class TestValidationResult:

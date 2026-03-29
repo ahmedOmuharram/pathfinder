@@ -31,16 +31,18 @@ async def _push_step_to_wdk(
     search_name: str,
     parameters: JSONObject,
     parsed_op: CombineOp | None,
-) -> tuple[int | None, WDKValidation | None]:
+) -> tuple[int | None, WDKValidation | None, str | None]:
     """Push a newly created step to WDK and store its ID on the graph.
 
     Best-effort: if the push fails, the step still exists in the graph and
     the sync service can reconcile later.
 
-    :returns: (wdk_step_id, wdk_validation) -- both None on failure.
+    :returns: (wdk_step_id, wdk_validation, push_error) -- all None on success,
+        push_error is set on failure with the reason WDK rejected the step.
     """
     wdk_step_id: int | None = None
     wdk_validation: WDKValidation | None = None
+    push_error: str | None = None
     record_type = graph.record_type or "transcript"
     str_params: dict[str, str] = {
         k: str(v) for k, v in parameters.items() if v is not None
@@ -73,13 +75,15 @@ async def _push_step_to_wdk(
                 wdk_validation = None
 
     except (AppError, OSError) as exc:
+        push_error = str(exc)
         logger.warning(
             "WDK step push failed (non-fatal)",
             step_id=step.id,
-            error=str(exc),
+            search_name=search_name,
+            error=push_error,
         )
 
-    return wdk_step_id, wdk_validation
+    return wdk_step_id, wdk_validation, push_error
 
 
 async def _push_leaf_step(
@@ -129,6 +133,31 @@ async def _push_combine_step(
             operator=str(parsed_op),
         )
         return None
+
+    if parsed_op == CombineOp.COLOCATE:
+        coloc = step.colocation_params
+        if coloc is None:
+            logger.warning("COLOCATE step missing colocation_params", step_id=step.id)
+            return None
+        # GenesBySpanLogic is a two-input search: span_a (primary) and
+        # span_b (secondary) are AnswerParams auto-wired from the step
+        # tree at strategy creation time.  create_transform_step blanks
+        # all AnswerParams to ""; the step tree (built in sync.py) then
+        # wires both primaryInput and secondaryInput to the correct
+        # WDK step IDs.  secondary_wdk_id is intentionally unused here
+        # — it is consumed by build_step_tree_from_graph.
+        # GenesBySpanLogic always lives under "transcript", regardless of
+        # the graph's record type (which may be "genomic-segment" from Set B).
+        wdk_result = await api.create_transform_step(
+            NewStepSpec(
+                search_name="GenesBySpanLogic",
+                search_config=WDKSearchConfig(parameters=coloc.to_wdk_params()),
+                custom_name=step.display_name,
+            ),
+            input_step_id=primary_wdk_id,
+            record_type="transcript",
+        )
+        return wdk_result.id
 
     wdk_result = await api.create_combined_step(
         primary_wdk_id,

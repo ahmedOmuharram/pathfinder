@@ -47,6 +47,9 @@ class StrategyGraph:
         self.wdk_strategy_id: int | None = None
         # WDK step tree, set after push to WDK.
         self.wdk_step_tree: WDKStepTree | None = None
+        # Maps local step ID → push error message when WDK rejects a step.
+        # Surfaced to the model so it can fix params or delete the step.
+        self.wdk_push_errors: dict[str, str] = {}
 
     def to_plan(self, root_step_id: str | None = None) -> JSONObject:
         """Produce the plan dict for API responses and DB persistence."""

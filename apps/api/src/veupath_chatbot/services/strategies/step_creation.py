@@ -42,9 +42,7 @@ class StepSpec:
     secondary_input_step_id: str | None = None
     operator: str | None = None
     display_name: str | None = None
-    upstream: int | None = None
-    downstream: int | None = None
-    strand: str | None = None
+    colocation_params: ColocationParams | None = None
 
 
 @dataclass
@@ -56,6 +54,7 @@ class StepCreationResult:
     error: JSONObject | None
     wdk_step_id: int | None = None
     wdk_validation: WDKValidation | None = None
+    wdk_push_error: str | None = None
 
 
 def _error_result(error: JSONObject) -> StepCreationResult:
@@ -188,10 +187,6 @@ async def create_step(
     if step_error is not None:
         return _error_result(step_error)
 
-    colocation = ColocationParams.from_raw(
-        parsed_op, spec.upstream, spec.downstream, spec.strand
-    )
-
     # Build and add the step.
     step = PlanStepNode(
         search_name=search_name,
@@ -199,7 +194,7 @@ async def create_step(
         primary_input=primary_input,
         secondary_input=secondary_input,
         operator=parsed_op,
-        colocation_params=colocation,
+        colocation_params=spec.colocation_params,
         display_name=spec.display_name or search_name,
     )
 
@@ -208,7 +203,7 @@ async def create_step(
     logger.info("Created step", step_id=step_id, search=search_name)
 
     # Push step to WDK immediately (best-effort).
-    wdk_step_id, wdk_validation = await _push_step_to_wdk(
+    wdk_step_id, wdk_validation, push_error = await _push_step_to_wdk(
         graph=graph,
         step=step,
         site_id=site_id,
@@ -217,10 +212,56 @@ async def create_step(
         parsed_op=parsed_op,
     )
 
+    if push_error:
+        graph.wdk_push_errors[step.id] = push_error
+
     return StepCreationResult(
         step=step,
         step_id=step_id,
         error=None,
         wdk_step_id=wdk_step_id,
         wdk_validation=wdk_validation,
+        wdk_push_error=push_error,
     )
+
+
+@dataclass
+class ColocationStepSpec:
+    """Input spec for creating a COLOCATE step."""
+
+    primary_step_id: str
+    secondary_step_id: str
+    colocation_kwargs: JSONObject
+    display_name: str | None = None
+
+
+async def create_colocation_step(
+    *,
+    graph: StrategyGraph,
+    site_id: str,
+    spec: ColocationStepSpec,
+    callbacks: ValidationCallbacks,
+) -> StepCreationResult:
+    """Create a COLOCATE step via GenesBySpanLogic.
+
+    Constructs ``ColocationParams`` from raw kwargs (model-provided),
+    wraps into a ``StepSpec``, and delegates to :func:`create_step`.
+
+    Preserves the graph's record type because the secondary input (Set B)
+    may be a different record type (e.g. ``genomic-segment`` for DNA motifs)
+    that should not contaminate the strategy's record type.
+    """
+    saved_record_type = graph.record_type
+    colocation = ColocationParams.model_validate(spec.colocation_kwargs)
+    step_spec = StepSpec(
+        primary_input_step_id=spec.primary_step_id,
+        secondary_input_step_id=spec.secondary_step_id,
+        operator="COLOCATE",
+        display_name=spec.display_name,
+        colocation_params=colocation,
+    )
+    result = await create_step(graph=graph, site_id=site_id, spec=step_spec, callbacks=callbacks)
+    # Restore record type — GenesBySpanLogic lives under transcript,
+    # not whatever the secondary input's record type is.
+    graph.record_type = saved_record_type or "transcript"
+    return result

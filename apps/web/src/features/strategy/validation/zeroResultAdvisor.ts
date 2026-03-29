@@ -31,7 +31,7 @@ export function getZeroResultSuggestions(step: Step): string[] {
       );
     } else if (op === CombineOperator.COLOCATE) {
       suggestions.push(
-        "For COLOCATE/NEAR, increase upstream/downstream distance and verify feature types.",
+        "For COLOCATE/NEAR, widen the region offsets and verify feature types.",
       );
     }
     suggestions.push("Check that both input steps are non-zero before combining.");

@@ -254,33 +254,39 @@ class TestParseReportsEdgeCases:
 
 
 class TestParseColocationParamsEdgeCases:
-    def test_non_dict_input(self) -> None:
-        assert ColocationParams.from_json("not_a_dict") is None
-        assert ColocationParams.from_json(42) is None
-        assert ColocationParams.from_json(None) is None
+    def test_model_validate_empty_dict_uses_defaults(self) -> None:
+        params = ColocationParams.model_validate({})
+        assert params.operation == "overlaps"
+        assert params.strand == "either strand"
+        assert params.begin_offset_a == 0
+        assert params.end_offset_a == 0
+        assert params.region_a == "exact"
 
-    def test_float_values_truncated(self) -> None:
-        result = ColocationParams.from_json({"upstream": 100.9, "downstream": 50.1})
-        assert result is not None
-        assert result.upstream == 100  # int() truncates
-        assert result.downstream == 50
+    def test_model_validate_with_custom_values(self) -> None:
+        params = ColocationParams.model_validate(
+            {
+                "operation": "contains",
+                "strand": "opposite strand",
+                "region_a": "upstream",
+                "begin_offset_a": 1000,
+            }
+        )
+        assert params.operation == "contains"
+        assert params.strand == "opposite strand"
+        assert params.region_a == "upstream"
+        assert params.begin_offset_a == 1000
 
-    def test_non_numeric_defaults_zero(self) -> None:
-        result = ColocationParams.from_json({"upstream": "not_a_number"})
-        assert result is not None
-        assert result.upstream == 0
+    def test_invalid_operation_rejected(self) -> None:
+        with pytest.raises(PydanticValidationError):
+            ColocationParams.model_validate({"operation": "not_a_real_op"})
 
-    def test_invalid_strand_defaults_both(self) -> None:
-        result = ColocationParams.from_json({"strand": "invalid"})
-        assert result is not None
-        assert result.strand == "both"
+    def test_invalid_strand_rejected(self) -> None:
+        with pytest.raises(PydanticValidationError):
+            ColocationParams.model_validate({"strand": "invalid"})
 
-    def test_missing_fields_use_defaults(self) -> None:
-        result = ColocationParams.from_json({})
-        assert result is not None
-        assert result.upstream == 0
-        assert result.downstream == 0
-        assert result.strand == "both"
+    def test_negative_offset_rejected(self) -> None:
+        with pytest.raises(PydanticValidationError):
+            ColocationParams.model_validate({"begin_offset_a": -1})
 
 
 # ===========================================================================
@@ -328,20 +334,25 @@ class TestGetWdkOperatorEdgeCases:
 
 
 class TestColocationParamsEdgeCases:
-    def test_very_large_distances(self) -> None:
-        params = ColocationParams(upstream=10**9, downstream=10**9)
-        assert params.check_errors() == []
+    def test_very_large_offsets(self) -> None:
+        params = ColocationParams(begin_offset_a=10**9, end_offset_b=10**9)
+        assert params.begin_offset_a == 10**9
+        assert params.end_offset_b == 10**9
 
-    def test_zero_distances(self) -> None:
-        params = ColocationParams(upstream=0, downstream=0)
-        assert params.check_errors() == []
+    def test_zero_offsets(self) -> None:
+        params = ColocationParams(begin_offset_a=0, end_offset_a=0)
+        assert params.begin_offset_a == 0
+        assert params.end_offset_a == 0
 
     def test_all_strands_valid(self) -> None:
-        for strand in ("same", "opposite", "both"):
+        for strand in ("either strand", "same strand", "opposite strand"):
             params = ColocationParams(
-                strand=cast("Literal['same', 'opposite', 'both']", strand)
+                strand=cast(
+                    "Literal['either strand', 'same strand', 'opposite strand']",
+                    strand,
+                )
             )
-            assert params.check_errors() == []
+            assert params.strand == strand
 
 
 # ===========================================================================
@@ -535,7 +546,7 @@ class TestValidationEdgeCases:
             secondary_input=right,
             operator=CombineOp.COLOCATE,
             colocation_params=ColocationParams(
-                upstream=100, downstream=200, strand="both"
+                begin_offset_a=100, end_offset_a=200
             ),
             id="c1",
         )
@@ -648,7 +659,10 @@ class TestRoundTripEdgeCases:
             secondary_input=right,
             operator=CombineOp.COLOCATE,
             colocation_params=ColocationParams(
-                upstream=500, downstream=1000, strand="opposite"
+                operation="contains",
+                strand="opposite strand",
+                begin_offset_a=500,
+                end_offset_a=1000,
             ),
             id="c1",
         )
@@ -657,9 +671,10 @@ class TestRoundTripEdgeCases:
         parsed = StrategyPlanPayload.model_validate(d)
         cp = parsed.root.colocation_params
         assert cp is not None
-        assert cp.upstream == 500
-        assert cp.downstream == 1000
-        assert cp.strand == "opposite"
+        assert cp.operation == "contains"
+        assert cp.strand == "opposite strand"
+        assert cp.begin_offset_a == 500
+        assert cp.end_offset_a == 1000
 
 
 # ===========================================================================

@@ -1729,27 +1729,107 @@ export type components = {
         };
         /**
          * ColocationParams
-         * @description Parameters for colocation operator.
-         *
-         *     WDK fields: upstream (int), downstream (int), strand (same|opposite|both).
+         * @description Full WDK GenesBySpanLogic parameters for COLOCATE operator.
          */
         ColocationParams: {
             /**
-             * Upstream
-             * @default 0
-             */
-            upstream: number;
-            /**
-             * Downstream
-             * @default 0
-             */
-            downstream: number;
-            /**
-             * Strand
-             * @default both
+             * Operation
+             * @default overlaps
              * @enum {string}
              */
-            strand: "same" | "opposite" | "both";
+            operation?: "overlaps" | "contains" | "is contained in";
+            /**
+             * Strand
+             * @default either strand
+             * @enum {string}
+             */
+            strand?: "either strand" | "same strand" | "opposite strand";
+            /**
+             * Output
+             * @default a
+             * @enum {string}
+             */
+            output?: "a" | "b";
+            /**
+             * Region A
+             * @default exact
+             * @enum {string}
+             */
+            regionA?: "exact" | "upstream" | "downstream" | "custom";
+            /**
+             * Begin A
+             * @default start
+             * @enum {string}
+             */
+            beginA?: "start" | "stop";
+            /**
+             * Begin Direction A
+             * @default +
+             * @enum {string}
+             */
+            beginDirectionA?: "+" | "-";
+            /**
+             * Begin Offset A
+             * @default 0
+             */
+            beginOffsetA?: number;
+            /**
+             * End A
+             * @default stop
+             * @enum {string}
+             */
+            endA?: "start" | "stop";
+            /**
+             * End Direction A
+             * @default +
+             * @enum {string}
+             */
+            endDirectionA?: "+" | "-";
+            /**
+             * End Offset A
+             * @default 0
+             */
+            endOffsetA?: number;
+            /**
+             * Region B
+             * @default exact
+             * @enum {string}
+             */
+            regionB?: "exact" | "upstream" | "downstream" | "custom";
+            /**
+             * Begin B
+             * @default start
+             * @enum {string}
+             */
+            beginB?: "start" | "stop";
+            /**
+             * Begin Direction B
+             * @default +
+             * @enum {string}
+             */
+            beginDirectionB?: "+" | "-";
+            /**
+             * Begin Offset B
+             * @default 0
+             */
+            beginOffsetB?: number;
+            /**
+             * End B
+             * @default stop
+             * @enum {string}
+             */
+            endB?: "start" | "stop";
+            /**
+             * End Direction B
+             * @default +
+             * @enum {string}
+             */
+            endDirectionB?: "+" | "-";
+            /**
+             * End Offset B
+             * @default 0
+             */
+            endOffsetB?: number;
         };
         /**
          * CombineOp

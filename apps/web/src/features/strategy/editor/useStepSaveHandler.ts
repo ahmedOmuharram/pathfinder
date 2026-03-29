@@ -107,9 +107,23 @@ export function buildStepSaveHandler(args: StepSaveHandlerArgs): () => Promise<v
         updates.operator = nextOperator;
         if (nextOperator === "COLOCATE") {
           updates.colocationParams = colocationParams ?? {
-            upstream: 1000,
-            downstream: 1000,
-            strand: "both",
+            operation: "overlaps",
+            strand: "either strand",
+            output: "a",
+            regionA: "exact",
+            beginA: "start",
+            beginDirectionA: "+",
+            beginOffsetA: 0,
+            endA: "stop",
+            endDirectionA: "+",
+            endOffsetA: 0,
+            regionB: "exact",
+            beginB: "start",
+            beginDirectionB: "+",
+            beginOffsetB: 0,
+            endB: "stop",
+            endDirectionB: "+",
+            endOffsetB: 0,
           };
         } else {
           updates.colocationParams = null;

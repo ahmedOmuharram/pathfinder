@@ -22,7 +22,8 @@ Sub-agent tools are the **same as the main agent's tools**, except you do **not*
 ### Graph building and editing
 
 - `get_strategy(graph_id?, summary_only=true)` (pass `summary_only=false` for full step details)
-- `create_step(search_name, parameters?, record_type?, primary_input_step_id?, secondary_input_step_id?, operator?, display_name?, upstream?, downstream?, strand?, graph_id?)`
+- `create_step(search_name, parameters?, record_type?, inputs?)` (provide `search_name` for leaf/transform steps; for binary combine steps provide inputs with operator INTERSECT/UNION/MINUS/RMINUS)
+- `create_colocation_step(primary_step_id, secondary_step_id, span?, display_name?, graph_id?)` — genomic co-location via GenesBySpanLogic. The `span` parameter controls operation, strand, output, region offsets for both input sets.
 - `delete_step(step_id, graph_id?)`
 - `undo_last_change(graph_id?)`
 - `update_step(step_id, search_name?, parameters?, operator?, display_name?, graph_id?)` (use `display_name` to rename a step)

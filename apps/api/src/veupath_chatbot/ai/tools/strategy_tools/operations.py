@@ -59,11 +59,25 @@ class StrategyTools(
         display_name: Annotated[
             str | None, AIParam(desc="Optional display name for the final combine")
         ] = None,
+        expected_roots: Annotated[
+            list[str] | None,
+            AIParam(
+                desc=(
+                    "Step IDs you expect to be current roots. If the graph has "
+                    "roots not in this list, the call is rejected — delete "
+                    "unexpected roots first with delete_step. This prevents "
+                    "accidentally merging abandoned/orphan steps."
+                )
+            ),
+        ] = None,
     ) -> JSONObject:
         """Ensure the graph has exactly one output by combining orphan roots.
 
         If multiple roots exist, chains combines until one root remains.
         Default operator is INTERSECT (most strategies are filter chains).
+
+        Pass ``expected_roots`` to guard against orphan steps being merged
+        accidentally. If any root is not in the list, the call is rejected.
         """
         graph = self._get_graph(graph_id)
         if not graph:
@@ -72,6 +86,26 @@ class StrategyTools(
         validation = await self.validate_graph_structure(graph_id=graph.id)
         if validation.ok or len(validation.root_step_ids) <= 1:
             return _build_single_output_response(graph, validation)
+
+        # Guard: reject if there are unexpected orphan roots.
+        if expected_roots is not None:
+            expected = set(expected_roots)
+            unexpected = [
+                rid for rid in validation.root_step_ids if rid not in expected
+            ]
+            if unexpected:
+                return cast("JSONObject", {
+                    "ok": False,
+                    "code": "UNEXPECTED_ROOTS",
+                    "message": (
+                        f"Graph has {len(unexpected)} unexpected root(s) not in "
+                        f"expected_roots. Delete them with delete_step or add "
+                        f"them to expected_roots."
+                    ),
+                    "unexpectedRoots": unexpected,
+                    "allRoots": validation.root_step_ids,
+                    "expectedRoots": expected_roots,
+                })
 
         return await self._chain_combines(
             graph=graph,

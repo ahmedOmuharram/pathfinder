@@ -17,7 +17,7 @@ from veupath_chatbot.domain.strategy.ast import (
     PlanStepNode,
     walk_step_tree,
 )
-from veupath_chatbot.domain.strategy.ops import get_wdk_operator
+from veupath_chatbot.domain.strategy.ops import CombineOp, get_wdk_operator
 from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
 )
@@ -139,6 +139,40 @@ async def _compute_leaf_counts_parallel(
     return {step.id: count for step, count in zip(all_steps, results, strict=True)}
 
 
+async def _create_combine_wdk_step(
+    api: StrategyAPI,
+    step: PlanStepNode,
+    record_type: str,
+    primary_wdk_id: int,
+    secondary_wdk_id: int,
+) -> int | None:
+    """Create a WDK combine or colocation step."""
+    if step.operator == CombineOp.COLOCATE:
+        coloc = step.colocation_params
+        if coloc is None:
+            return None
+        # See step_wdk_push._push_combine_step for why create_transform_step
+        # is used here: GenesBySpanLogic AnswerParams (span_a, span_b) are
+        # blanked at creation and auto-wired from the step tree later.
+        result = await api.create_transform_step(
+            NewStepSpec(
+                search_name="GenesBySpanLogic",
+                search_config=WDKSearchConfig(parameters=coloc.to_wdk_params()),
+            ),
+            input_step_id=primary_wdk_id,
+            record_type="transcript",
+        )
+        return result.id
+    operator = get_wdk_operator(step.operator) if step.operator else "INTERSECT"
+    result = await api.create_combined_step(
+        primary_step_id=primary_wdk_id,
+        secondary_step_id=secondary_wdk_id,
+        boolean_operator=operator,
+        record_type=record_type,
+    )
+    return result.id
+
+
 async def _create_wdk_step(
     api: StrategyAPI,
     step: PlanStepNode,
@@ -176,14 +210,9 @@ async def _create_wdk_step(
             secondary_wdk_id = wdk_step_ids.get(step.secondary_input.id)
             if primary_wdk_id is None or secondary_wdk_id is None:
                 return None
-            operator = get_wdk_operator(step.operator) if step.operator else "INTERSECT"
-            result = await api.create_combined_step(
-                primary_step_id=primary_wdk_id,
-                secondary_step_id=secondary_wdk_id,
-                boolean_operator=operator,
-                record_type=record_type,
+            return await _create_combine_wdk_step(
+                api, step, record_type, primary_wdk_id, secondary_wdk_id,
             )
-            return result.id
     except AppError as exc:
         logger.warning(
             "Failed to create step for count computation",

@@ -3001,27 +3001,126 @@ components:
       title: CitationsEventData
       description: Payload for ``citations`` SSE events.
     ColocationParams:
+      description: Full WDK GenesBySpanLogic parameters for COLOCATE operator.
       properties:
-        upstream:
-          type: integer
-          minimum: 0.0
-          title: Upstream
-        downstream:
-          type: integer
-          minimum: 0.0
-          title: Downstream
+        operation:
+          type: string
+          enum:
+          - overlaps
+          - contains
+          - is contained in
+          title: Operation
+          default: overlaps
         strand:
           type: string
           enum:
-          - same
-          - opposite
-          - both
+          - either strand
+          - same strand
+          - opposite strand
           title: Strand
-          default: both
+          default: either strand
+        output:
+          type: string
+          enum:
+          - a
+          - b
+          title: Output
+          default: a
+        regionA:
+          type: string
+          enum:
+          - exact
+          - upstream
+          - downstream
+          - custom
+          title: Region A
+          default: exact
+        beginA:
+          type: string
+          enum:
+          - start
+          - stop
+          title: Begin A
+          default: start
+        beginDirectionA:
+          type: string
+          enum:
+          - '+'
+          - '-'
+          title: Begin Direction A
+          default: '+'
+        beginOffsetA:
+          type: integer
+          minimum: 0
+          title: Begin Offset A
+          default: 0
+        endA:
+          type: string
+          enum:
+          - start
+          - stop
+          title: End A
+          default: stop
+        endDirectionA:
+          type: string
+          enum:
+          - '+'
+          - '-'
+          title: End Direction A
+          default: '+'
+        endOffsetA:
+          type: integer
+          minimum: 0
+          title: End Offset A
+          default: 0
+        regionB:
+          type: string
+          enum:
+          - exact
+          - upstream
+          - downstream
+          - custom
+          title: Region B
+          default: exact
+        beginB:
+          type: string
+          enum:
+          - start
+          - stop
+          title: Begin B
+          default: start
+        beginDirectionB:
+          type: string
+          enum:
+          - '+'
+          - '-'
+          title: Begin Direction B
+          default: '+'
+        beginOffsetB:
+          type: integer
+          minimum: 0
+          title: Begin Offset B
+          default: 0
+        endB:
+          type: string
+          enum:
+          - start
+          - stop
+          title: End B
+          default: stop
+        endDirectionB:
+          type: string
+          enum:
+          - '+'
+          - '-'
+          title: End Direction B
+          default: '+'
+        endOffsetB:
+          type: integer
+          minimum: 0
+          title: End Offset B
+          default: 0
       type: object
-      required:
-      - upstream
-      - downstream
       title: ColocationParams
     ConfidenceIntervalResponse:
       properties:

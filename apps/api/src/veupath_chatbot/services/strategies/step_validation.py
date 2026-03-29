@@ -202,7 +202,11 @@ async def _resolve_search_and_validate_params(
             recordType=resolved_record_type,
             recordTypeHint=record_type_hint,
         )
-    graph.record_type = rt
+    # Don't let auxiliary record types (e.g. genomic-segment for DynSpan
+    # motif searches used as COLOCATE Set B) overwrite the primary record
+    # type.  The graph's record type should stay transcript/gene.
+    if graph.record_type is None or rt in ("transcript", "gene"):
+        graph.record_type = rt
 
     try:
         await validate_parameters(

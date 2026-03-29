@@ -1,6 +1,7 @@
 """Unit tests for strategy combine operations."""
 
 import pytest
+from pydantic import ValidationError
 
 from veupath_chatbot.domain.strategy.ops import (
     BOOLEAN_OPERATOR_OPTIONS_DESC,
@@ -81,45 +82,56 @@ class TestGetWdkOperator:
 
 
 class TestColocationParamsValidate:
-    """Tests for ColocationParams.check_errors()."""
+    """Tests for ColocationParams Pydantic validation (Field(ge=0) and Literal)."""
 
     def test_valid_defaults(self) -> None:
         params = ColocationParams()
-        assert params.check_errors() == []
+        assert params.operation == "overlaps"
+        assert params.strand == "either strand"
+        assert params.begin_offset_a == 0
+        assert params.end_offset_a == 0
 
     def test_valid_custom(self) -> None:
-        params = ColocationParams(upstream=1000, downstream=500, strand="same")
-        assert params.check_errors() == []
+        params = ColocationParams(
+            operation="contains",
+            strand="same strand",
+            region_a="upstream",
+            begin_offset_a=1000,
+            end_offset_a=500,
+        )
+        assert params.operation == "contains"
+        assert params.strand == "same strand"
+        assert params.begin_offset_a == 1000
 
-    def test_negative_upstream(self) -> None:
-        params = ColocationParams(upstream=-1)
-        errors = params.check_errors()
-        assert len(errors) == 1
-        assert "Upstream" in errors[0]
+    def test_negative_begin_offset_a_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(begin_offset_a=-1)
 
-    def test_negative_downstream(self) -> None:
-        params = ColocationParams(downstream=-5)
-        errors = params.check_errors()
-        assert len(errors) == 1
-        assert "Downstream" in errors[0]
+    def test_negative_end_offset_a_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(end_offset_a=-5)
 
-    def test_both_negative(self) -> None:
-        params = ColocationParams(upstream=-1, downstream=-2)
-        errors = params.check_errors()
-        assert len(errors) == 2
+    def test_negative_begin_offset_b_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(begin_offset_b=-1)
 
-    def test_invalid_strand_coerces_to_both(self) -> None:
-        """Invalid strand values are coerced to 'both' by the model validator."""
-        params = ColocationParams(strand="invalid")
-        assert params.strand == "both"
+    def test_negative_end_offset_b_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(end_offset_b=-2)
+
+    def test_invalid_strand_rejected(self) -> None:
+        """Invalid strand values are rejected by Pydantic Literal validation."""
+        with pytest.raises(ValidationError):
+            ColocationParams(strand="invalid")
 
     def test_opposite_strand_valid(self) -> None:
-        params = ColocationParams(strand="opposite")
-        assert params.check_errors() == []
+        params = ColocationParams(strand="opposite strand")
+        assert params.strand == "opposite strand"
 
-    def test_zero_distances_valid(self) -> None:
-        params = ColocationParams(upstream=0, downstream=0)
-        assert params.check_errors() == []
+    def test_zero_offsets_valid(self) -> None:
+        params = ColocationParams(begin_offset_a=0, end_offset_a=0)
+        assert params.begin_offset_a == 0
+        assert params.end_offset_a == 0
 
 
 class TestModuleConstants:

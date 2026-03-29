@@ -358,13 +358,24 @@ def _score_candidates(
 async def _resolve_record_types(
     discovery: DiscoveryService, site_id: str, record_type: str | list[str] | None
 ) -> list[str]:
-    """Resolve the record_type argument to a deduplicated list of type strings."""
+    """Resolve the record_type argument to a deduplicated list of type strings.
+
+    When the caller asks for ``"gene"`` we also include ``"transcript"``
+    because most VEuPathDB gene searches (especially dataset-specific ones)
+    live under the transcript record type.  Without this, passing
+    ``record_type="gene"`` silently hides the majority of useful searches.
+    """
     record_types: list[str] = []
     if isinstance(record_type, list):
         record_types = [str(rt) for rt in record_type if rt]
     elif isinstance(record_type, str) and record_type:
         record_types = [record_type]
     record_types = list(dict.fromkeys(record_types))
+    # Most VEuPathDB gene searches (especially dataset-specific ones) live
+    # under "transcript".  When the model asks for "gene", also include
+    # "transcript" so those searches aren't silently hidden.
+    if "gene" in record_types and "transcript" not in record_types:
+        record_types.append("transcript")
     if not record_types:
         typed_rts = await discovery.get_record_types(site_id)
         record_types = [rt.url_segment for rt in typed_rts if rt.url_segment]
@@ -437,14 +448,27 @@ async def search_for_searches(
         )
     )
 
-    # --- Deduplicate and cap ---
+    # --- Normalize scores to 0-1 relevance ---
+    max_score = scored[0][0] if scored else 1.0
+    if max_score <= 0:
+        max_score = 1.0
+
+    # --- Deduplicate, attach relevance, and cap ---
     seen: set[str] = set()
     result: list[SearchMatch] = []
-    for _, entry in scored:
+    for sc, entry in scored:
         if entry.name in seen:
             continue
         seen.add(entry.name)
-        result.append(entry)
+        result.append(SearchMatch(
+            name=entry.name,
+            display_name=entry.display_name,
+            description=entry.description,
+            record_type=entry.record_type,
+            category=entry.category,
+            returns=entry.returns,
+            relevance=sc / max_score,
+        ))
         if len(result) >= limit:
             break
 

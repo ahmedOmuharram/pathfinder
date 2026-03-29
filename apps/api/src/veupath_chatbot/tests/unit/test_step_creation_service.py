@@ -2,6 +2,9 @@
 
 from unittest.mock import AsyncMock, patch
 
+import pydantic
+import pytest
+
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
 from veupath_chatbot.domain.strategy.organism import extract_output_organisms
@@ -238,28 +241,36 @@ class TestValidateRootStatus:
 
 
 class TestBuildColocationParams:
-    def test_non_colocate_returns_none(self):
-        assert ColocationParams.from_raw(CombineOp.UNION, 10, 20, "same") is None
-        assert ColocationParams.from_raw(None, 10, 20, "same") is None
+    def test_defaults(self) -> None:
+        params = ColocationParams()
+        assert params.operation == "overlaps"
+        assert params.strand == "either strand"
+        assert params.begin_offset_a == 1000
+        assert params.region_a == "custom"
 
-    def test_colocate_defaults(self):
-        result = ColocationParams.from_raw(CombineOp.COLOCATE, None, None, None)
-        assert result is not None
-        assert result.upstream == 0
-        assert result.downstream == 0
-        assert result.strand == "both"
+    def test_custom_construction(self) -> None:
+        params = ColocationParams(
+            operation="contains",
+            strand="same strand",
+            region_a="upstream",
+            begin_offset_a=100,
+            end_offset_a=200,
+        )
+        assert params.operation == "contains"
+        assert params.strand == "same strand"
+        assert params.begin_offset_a == 100
+        assert params.end_offset_a == 200
 
-    def test_colocate_custom(self):
-        result = ColocationParams.from_raw(CombineOp.COLOCATE, 100, 200, "same")
-        assert result is not None
-        assert result.upstream == 100
-        assert result.downstream == 200
-        assert result.strand == "same"
+    def test_model_validate_from_dict(self) -> None:
+        params = ColocationParams.model_validate(
+            {"operation": "is contained in", "strand": "opposite strand"}
+        )
+        assert params.operation == "is contained in"
+        assert params.strand == "opposite strand"
 
-    def test_colocate_invalid_strand_defaults_to_both(self):
-        result = ColocationParams.from_raw(CombineOp.COLOCATE, 0, 0, "invalid")
-        assert result is not None
-        assert result.strand == "both"
+    def test_invalid_strand_rejected(self) -> None:
+        with pytest.raises(pydantic.ValidationError):
+            ColocationParams(strand="invalid")
 
 
 # ---------------------------------------------------------------------------
@@ -564,9 +575,12 @@ class TestCreateStepIntegration:
                 primary_input_step_id=step_a.id,
                 secondary_input_step_id=step_b.id,
                 operator="COLOCATE",
-                upstream=500,
-                downstream=1000,
-                strand="same",
+                colocation_params=ColocationParams(
+                    operation="contains",
+                    strand="same strand",
+                    begin_offset_a=500,
+                    end_offset_a=1000,
+                ),
             ),
             callbacks=make_step_creation_callbacks(),
         )
@@ -574,9 +588,10 @@ class TestCreateStepIntegration:
         assert result.step is not None
         assert result.step.operator == CombineOp.COLOCATE
         assert result.step.colocation_params is not None
-        assert result.step.colocation_params.upstream == 500
-        assert result.step.colocation_params.downstream == 1000
-        assert result.step.colocation_params.strand == "same"
+        assert result.step.colocation_params.operation == "contains"
+        assert result.step.colocation_params.strand == "same strand"
+        assert result.step.colocation_params.begin_offset_a == 500
+        assert result.step.colocation_params.end_offset_a == 1000
 
     @patch(
         "veupath_chatbot.services.strategies.step_validation.validate_parameters",

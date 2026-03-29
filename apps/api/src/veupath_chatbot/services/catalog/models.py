@@ -36,10 +36,11 @@ class SearchMatch:
     record_type: str
     category: str = ""
     returns: str = ""
+    relevance: float = 0.0
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, str | float]:
         """Serialize to the camelCase dict shape expected by AI tool callers."""
-        result: dict[str, str] = {
+        result: dict[str, str | float] = {
             "name": self.name,
             "displayName": self.display_name,
             "description": self.description,
@@ -49,4 +50,6 @@ class SearchMatch:
             result["category"] = self.category
         if self.returns:
             result["returns"] = self.returns
+        if self.relevance > 0.0:
+            result["relevance"] = round(self.relevance, 2)
         return result

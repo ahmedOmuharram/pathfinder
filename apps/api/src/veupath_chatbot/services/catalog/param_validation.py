@@ -361,7 +361,7 @@ async def validate_parameters(
             param_spec_map, missing, callbacks.extract_vocab_options
         )
         raise ValidationError(
-            title="Missing required parameters",
+            title=f"Missing required parameters: {', '.join(missing)}. Call get_search_parameters(search_name='{ctx.search_name}') to see all required fields and valid values.",
             errors=[
                 {
                     "context": {

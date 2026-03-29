@@ -89,11 +89,13 @@ class GraphOpsMixin(StrategyToolsBase):
         validation: WDKValidation | None = None
         estimated_size: int | None = None
         record_type: str | None = None
+        wdk_push_error: str | None = None
 
         if graph:
             record_type = graph.record_type
             wdk_step_id = graph.wdk_step_ids.get(step.id)
             validation = graph.step_validations.get(step.id)
+            wdk_push_error = graph.wdk_push_errors.get(step.id)
             count = graph.step_counts.get(step.id)
             if isinstance(count, int):
                 estimated_size = count
@@ -115,6 +117,7 @@ class GraphOpsMixin(StrategyToolsBase):
             wdk_step_id=wdk_step_id,
             is_built=wdk_step_id is not None,
             is_filtered=bool(step.filters),
+            wdk_push_error=wdk_push_error,
             validation=validation,
             filters=step.filters or None,
             analyses=step.analyses or None,

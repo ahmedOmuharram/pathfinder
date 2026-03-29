@@ -60,6 +60,12 @@ class IdMappingMixin(StrategyToolsBase):
         allow_fallback: bool,
     ) -> str | None:
         catalog = await self._get_catalog()
+        # Prefer "transcript" over "gene" when the search exists under both.
+        # In VEuPathDB, transcript is the superset record type — gene searches
+        # that live under both types produce correct results only under
+        # transcript for strategy building.
+        if resolved == "gene" and catalog.find_search("transcript", search_name):
+            return "transcript"
         # Fast path: search exists in the resolved record type.
         if resolved and catalog.find_search(resolved, search_name):
             return resolved

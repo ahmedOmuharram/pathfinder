@@ -5,7 +5,10 @@ including step tree materialization for multi-step and import modes.
 """
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
+from veupath_chatbot.domain.strategy.ops import (
+    DEFAULT_COMBINE_OPERATOR,
+    ColocationParams,
+)
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
@@ -69,39 +72,19 @@ async def _materialize_step_tree(
             else DEFAULT_COMBINE_OPERATOR.value
         )
         if operator == "COLOCATE":
-            # Colocation uses GenesBySpanLogic — two input-step params
-            # (span_a, span_b) wired via stepTree at strategy creation.
             coloc = node.colocation_params
-            upstream = str(coloc.upstream) if coloc is not None else "0"
-            downstream = str(coloc.downstream) if coloc is not None else "0"
-            coloc_params: JSONObject = {
-                "span_sentence": "sentence",
-                "span_operation": "overlap",
-                "span_strand": "Both strands",
-                "span_output": "a",
-                "region_a": "upstream",
-                "region_b": "exact",
-                "span_begin_a": "start",
-                "span_begin_direction_a": "-",
-                "span_begin_offset_a": upstream,
-                "span_end_a": "start",
-                "span_end_direction_a": "-",
-                "span_end_offset_a": downstream,
-                "span_begin_b": "start",
-                "span_begin_direction_b": "-",
-                "span_begin_offset_b": "0",
-                "span_end_b": "stop",
-                "span_end_direction_b": "-",
-                "span_end_offset_b": "0",
-            }
+            if coloc is None:
+                coloc = ColocationParams()
+            # GenesBySpanLogic AnswerParams (span_a, span_b) are blanked
+            # at creation; the returned step tree wires both inputs.
             step = await api.create_transform_step(
                 NewStepSpec(
                     search_name="GenesBySpanLogic",
-                    search_config=WDKSearchConfig(parameters=coloc_params),
+                    search_config=WDKSearchConfig(parameters=coloc.to_wdk_params()),
                     custom_name=display_name,
                 ),
                 input_step_id=primary_tree.step_id,
-                record_type=record_type,
+                record_type="transcript",
             )
         else:
             step = await api.create_combined_step(

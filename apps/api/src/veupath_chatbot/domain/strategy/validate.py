@@ -112,24 +112,14 @@ class StrategyValidator:
                     code="MISSING_INPUT",
                 )
             )
-        if node.operator == CombineOp.COLOCATE:
-            if node.colocation_params is None:
-                errors.append(
-                    StepValidationIssue(
-                        path=f"{path}.colocationParams",
-                        message="colocationParams is required for COLOCATE",
-                        code="MISSING_COLOCATION_PARAMS",
-                    )
+        if node.operator == CombineOp.COLOCATE and node.colocation_params is None:
+            errors.append(
+                StepValidationIssue(
+                    path=f"{path}.colocationParams",
+                    message="colocationParams is required for COLOCATE",
+                    code="MISSING_COLOCATION_PARAMS",
                 )
-            else:
-                errors.extend(
-                    StepValidationIssue(
-                        path=f"{path}.colocationParams",
-                        message=err,
-                        code="INVALID_COLOCATION_PARAMS",
-                    )
-                    for err in node.colocation_params.check_errors()
-                )
+            )
 
     def _validate_node(
         self,

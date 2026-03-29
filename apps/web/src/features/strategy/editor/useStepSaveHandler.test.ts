@@ -170,7 +170,25 @@ describe("buildStepSaveHandler", () => {
     const args = makeBaseArgs({
       kind: "combine",
       operatorValue: "COLOCATE",
-      colocationParams: { upstream: 500, downstream: 500, strand: "same" },
+      colocationParams: {
+        operation: "contains",
+        strand: "same strand",
+        output: "a",
+        regionA: "upstream",
+        beginA: "start",
+        beginDirectionA: "-",
+        beginOffsetA: 500,
+        endA: "start",
+        endDirectionA: "+",
+        endOffsetA: 0,
+        regionB: "exact",
+        beginB: "start",
+        beginDirectionB: "+",
+        beginOffsetB: 0,
+        endB: "stop",
+        endDirectionB: "+",
+        endOffsetB: 0,
+      },
     });
     mockValidateSearchParams.mockResolvedValue({
       validation: { isValid: true, errors: { general: [], byKey: {} } },
@@ -182,7 +200,25 @@ describe("buildStepSaveHandler", () => {
     expect(args.onUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         operator: "COLOCATE",
-        colocationParams: { upstream: 500, downstream: 500, strand: "same" },
+        colocationParams: {
+          operation: "contains",
+          strand: "same strand",
+          output: "a",
+          regionA: "upstream",
+          beginA: "start",
+          beginDirectionA: "-",
+          beginOffsetA: 500,
+          endA: "start",
+          endDirectionA: "+",
+          endOffsetA: 0,
+          regionB: "exact",
+          beginB: "start",
+          beginDirectionB: "+",
+          beginOffsetB: 0,
+          endB: "stop",
+          endDirectionB: "+",
+          endOffsetB: 0,
+        },
       }),
     );
   });

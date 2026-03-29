@@ -1,7 +1,7 @@
 """Tests for AST parsing functions (domain/strategy/ast.py).
 
 Verifies StepFilter.from_list(), StepAnalysis.from_list(), StepReport.from_list(),
-ColocationParams.from_json(), PlanStepNode.infer_kind(), StrategyPlanPayload round-trip.
+ColocationParams.model_validate(), PlanStepNode.infer_kind(), StrategyPlanPayload round-trip.
 """
 
 import pytest
@@ -137,35 +137,47 @@ class TestParseReports:
 
 class TestParseColocationParams:
     def test_valid_params(self) -> None:
-        raw = {"upstream": 1000, "downstream": 500, "strand": "same"}
-        result = ColocationParams.from_json(raw)
-        assert result is not None
-        assert result.upstream == 1000
-        assert result.downstream == 500
-        assert result.strand == "same"
+        params = ColocationParams.model_validate(
+            {"operation": "contains", "strand": "same strand", "region_a": "upstream"}
+        )
+        assert params.operation == "contains"
+        assert params.strand == "same strand"
+        assert params.region_a == "upstream"
 
     def test_defaults(self) -> None:
-        result = ColocationParams.from_json({})
-        assert result is not None
-        assert result.upstream == 0
-        assert result.downstream == 0
-        assert result.strand == "both"
+        params = ColocationParams.model_validate({})
+        assert params.operation == "overlaps"
+        assert params.strand == "either strand"
+        assert params.output == "a"
+        assert params.region_a == "exact"
+        assert params.begin_offset_a == 0
+        assert params.end_offset_a == 0
 
-    def test_non_dict_returns_none(self) -> None:
-        assert ColocationParams.from_json(None) is None
-        assert ColocationParams.from_json("bad") is None
-        assert ColocationParams.from_json(42) is None
+    def test_invalid_operation_rejected(self) -> None:
+        with pytest.raises(PydanticValidationError):
+            ColocationParams.model_validate({"operation": "invalid"})
 
-    def test_invalid_strand_defaults_both(self) -> None:
-        result = ColocationParams.from_json({"strand": "invalid"})
-        assert result is not None
-        assert result.strand == "both"
+    def test_invalid_strand_rejected(self) -> None:
+        with pytest.raises(PydanticValidationError):
+            ColocationParams.model_validate({"strand": "both"})
 
-    def test_float_distances_truncated(self) -> None:
-        result = ColocationParams.from_json({"upstream": 1000.9, "downstream": 500.1})
-        assert result is not None
-        assert result.upstream == 1000
-        assert result.downstream == 500
+    def test_negative_offset_rejected(self) -> None:
+        with pytest.raises(PydanticValidationError):
+            ColocationParams.model_validate({"begin_offset_a": -1})
+
+    def test_custom_region_with_offsets(self) -> None:
+        params = ColocationParams.model_validate(
+            {
+                "region_a": "custom",
+                "begin_offset_a": 500,
+                "end_offset_a": 1000,
+                "region_b": "downstream",
+            }
+        )
+        assert params.region_a == "custom"
+        assert params.begin_offset_a == 500
+        assert params.end_offset_a == 1000
+        assert params.region_b == "downstream"
 
 
 # ── PlanStepNode.infer_kind ───────────────────────────────────────
@@ -353,7 +365,7 @@ class TestModelValidate:
                         "operator": "INTERSECT",
                         "primaryInput": {"searchName": "S1"},
                         "secondaryInput": {"searchName": "S2"},
-                        "colocationParams": {"upstream": 1000},
+                        "colocationParams": {"beginOffsetA": 1000},
                     },
                 }
             )

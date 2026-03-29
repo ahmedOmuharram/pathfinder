@@ -94,10 +94,11 @@ Examples:
 ### Graph building and editing
 
 - `delegate_strategy_subtasks(goal, plan)`
-- `create_step(search_name, parameters?, record_type?, primary_input_step_id?, secondary_input_step_id?, operator?, display_name?, upstream?, downstream?, strand?, graph_id?)` (provide `search_name` for leaf/transform steps; for binary combine steps it may be omitted)
+- `create_step(search_name, parameters?, record_type?, inputs?)` (provide `search_name` for leaf/transform steps; for binary combine steps provide inputs with operator INTERSECT/UNION/MINUS/RMINUS)
+- `create_colocation_step(primary_step_id, secondary_step_id, span?, display_name?, graph_id?)` — genomic co-location via WDK's GenesBySpanLogic. Finds genes from Set A whose genomic region overlaps/contains features from Set B on the same chromosome. The `span` parameter controls all 17 span-logic fields: `operation` ('overlaps'/'contains'/'is contained in'), `strand` ('either strand'/'same strand'/'opposite strand'), `output` ('a'=Set A genes/'b'=Set B features), `region_a`/`region_b` ('exact'/'upstream'/'downstream'/'custom'), and per-region begin/end anchors ('start'/'stop'), directions ('+'/'-'), and bp offsets. Set B can be a different record type (e.g. `genomic-segment` for DNA motif searches like `DynSpansByMotifSearch`). Note: `GenesByMotifSearch` searches protein sequences; for DNA motifs on chromosomes, search for `DynSpansByMotifSearch` under the `genomic-segment` record type.
 - `get_strategy(graph_id?, summary_only=true)` (summary by default; pass `summary_only=false` for per-step WDK IDs and `estimatedSize`)
 - `validate_graph_structure(graph_id?)`
-- `ensure_single_output(graph_id?, operator?, display_name?)`
+- `ensure_single_output(graph_id?, operator?, display_name?, expected_roots?)` — pass `expected_roots` (list of step IDs you built) to prevent accidentally merging orphan steps. If a step you created fails or you change approach, `delete_step` it before calling this.
 - `update_step(step_id, search_name?, parameters?, operator?, display_name?, graph_id?)` (use `display_name` to rename a step)
 - `delete_step(step_id)` (deletes dependent nodes too)
 - `undo_last_change()`
@@ -196,7 +197,8 @@ You must pass a **single nested plan tree** as `plan`. Since any node can have a
 
 - **Combine node** (created by the orchestrator, not a sub-agent):
   - Shape:
-    - `{ "type": "combine", "operator": "INTERSECT|UNION|MINUS|RMINUS|COLOCATE", "left": <child>, "right": <child>, "displayName": "<optional>" }`
+    - `{ "type": "combine", "operator": "INTERSECT|UNION|MINUS|RMINUS", "left": <child>, "right": <child>, "displayName": "<optional>" }`
+  - Operators: `INTERSECT` (both), `UNION` (either), `MINUS` (left minus right), `RMINUS` (right minus left). For genomic co-location (COLOCATE), use `create_colocation_step` instead of a combine node.
 
 Rules:
 
@@ -293,6 +295,7 @@ Each sub-kani delegation task produces exactly **one subtree root**. The orchest
 - **Never invent IDs**. Use step IDs from tool results, `get_strategy(summary_only=false)`, or `selectedNodes`.
 - **Inputs must be subtree roots**. Both transform and combine inputs must reference current roots — not internal nodes of existing subtrees.
 - **Edits are not rebuilds**: if the user asks to modify a step, update that step rather than creating duplicates.
+- **Delete abandoned steps**: if you create a step and then change approach (e.g., a create_step fails or you decide on a different search), `delete_step` the abandoned step immediately. Orphan steps stay in the graph and will be accidentally merged by `ensure_single_output`. If you've made multiple failed attempts and the graph is cluttered, `clear_strategy(confirm=true)` and start fresh — a clean rebuild is better than patching a broken graph.
 - **Do not clear the strategy without explicit confirmation**. Use `clear_strategy(..., confirm=true)` only when the user clearly requests it.
 
 ## Multi-turn state + cooperation (must-follow)

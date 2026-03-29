@@ -6,12 +6,11 @@ RONLY, COLOCATE, UNION. LONLY = left only (same as MINUS), RONLY = right only
 """
 
 from enum import StrEnum
-from typing import Literal, cast
+from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field
 
 from veupath_chatbot.platform.pydantic_base import CamelModel
-from veupath_chatbot.platform.types import JSONValue
 
 
 class CombineOp(StrEnum):
@@ -35,71 +34,82 @@ BOOLEAN_OPERATOR_OPTIONS_DESC = ", ".join(
 
 
 class ColocationParams(CamelModel):
-    """Parameters for colocation operator.
+    """Full WDK GenesBySpanLogic parameters for COLOCATE operator.
 
-    WDK fields: upstream (int), downstream (int), strand (same|opposite|both).
+    Human-readable field values for the AI model; ``to_wdk_params()``
+    translates to WDK internal vocabulary values before submission.
+
+    WDK source of truth:
+    ``GET /record-types/transcript/searches/GenesBySpanLogic?expandParams=true``
     """
 
-    upstream: int = 0
-    downstream: int = 0
-    strand: Literal["same", "opposite", "both"] = "both"
+    # High-level
+    operation: Literal["overlaps", "contains", "is contained in"] = "overlaps"
+    strand: Literal["either strand", "same strand", "opposite strand"] = (
+        "either strand"
+    )
+    output: Literal["a", "b"] = "a"
 
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
-        if not isinstance(data, dict):
-            msg = "ColocationParams requires a dict"
-            raise TypeError(msg)
-        result: dict[str, JSONValue] = dict(data)
-        for key in ("upstream", "downstream"):
-            val = result.get(key)
-            if isinstance(val, (int, float)):
-                result[key] = int(val)
-            elif val is not None:
-                result[key] = 0
-        if result.get("strand") not in ("same", "opposite", "both"):
-            result["strand"] = "both"
-        return result
+    # Region A (gene result set) — default: 1kb upstream of gene start
+    region_a: Literal["exact", "upstream", "downstream", "custom"] = "custom"
+    begin_a: Literal["start", "stop"] = "start"
+    begin_direction_a: Literal["+", "-"] = "-"
+    begin_offset_a: int = Field(default=1000, ge=0)
+    end_a: Literal["start", "stop"] = "stop"
+    end_direction_a: Literal["+", "-"] = "+"
+    end_offset_a: int = Field(default=0, ge=0)
 
-    @classmethod
-    def from_json(cls, raw: object) -> "ColocationParams | None":
-        """Parse from raw JSON, returning None for non-dict input."""
-        if not isinstance(raw, dict):
-            return None
-        return cls.model_validate(raw)
+    # Region B (feature set)
+    region_b: Literal["exact", "upstream", "downstream", "custom"] = "exact"
+    begin_b: Literal["start", "stop"] = "start"
+    begin_direction_b: Literal["+", "-"] = "+"
+    begin_offset_b: int = Field(default=0, ge=0)
+    end_b: Literal["start", "stop"] = "stop"
+    end_direction_b: Literal["+", "-"] = "+"
+    end_offset_b: int = Field(default=0, ge=0)
 
-    @classmethod
-    def from_raw(
-        cls,
-        operator: "CombineOp | None",
-        upstream: int | None,
-        downstream: int | None,
-        strand: str | None,
-    ) -> "ColocationParams | None":
-        """Build ColocationParams if *operator* is COLOCATE, else None."""
-        if operator != CombineOp.COLOCATE:
-            return None
-        strand_value: Literal["same", "opposite", "both"]
-        if strand in ("same", "opposite", "both"):
-            strand_value = cast("Literal['same', 'opposite', 'both']", strand)
-        else:
-            strand_value = "both"
-        return cls(
-            upstream=upstream or 0,
-            downstream=downstream or 0,
-            strand=strand_value,
-        )
+    def to_wdk_params(self) -> dict[str, str]:
+        """Serialize to the WDK GenesBySpanLogic parameter dict.
 
-    def check_errors(self) -> list[str]:
-        """Check for validation errors and return a list of messages."""
-        errors = []
-        if self.upstream < 0:
-            errors.append("Upstream distance must be non-negative")
-        if self.downstream < 0:
-            errors.append("Downstream distance must be non-negative")
-        if self.strand not in ("same", "opposite", "both"):
-            errors.append(f"Invalid strand option: {self.strand}")
-        return errors
+        Translates human-readable Literal values to WDK internal
+        vocabulary values (first column of each param's vocabulary array).
+        """
+        return {
+            "span_sentence": "colocation",
+            "span_operation": _OPERATION_TO_WDK[self.operation],
+            "span_strand": _STRAND_TO_WDK[self.strand],
+            "span_output": self.output,
+            "region_a": self.region_a,
+            "span_begin_a": self.begin_a,
+            "span_begin_direction_a": self.begin_direction_a,
+            "span_begin_offset_a": str(self.begin_offset_a),
+            "span_end_a": self.end_a,
+            "span_end_direction_a": self.end_direction_a,
+            "span_end_offset_a": str(self.end_offset_a),
+            "region_b": self.region_b,
+            "span_begin_b": self.begin_b,
+            "span_begin_direction_b": self.begin_direction_b,
+            "span_begin_offset_b": str(self.begin_offset_b),
+            "span_end_b": self.end_b,
+            "span_end_direction_b": self.end_direction_b,
+            "span_end_offset_b": str(self.end_offset_b),
+        }
+
+
+# WDK vocabulary: [internal_value, display_value].
+# ColocationParams uses display (human-readable) values; these maps
+# translate to the WDK internal values expected by the REST API.
+_OPERATION_TO_WDK: dict[str, str] = {
+    "overlaps": "overlap",
+    "contains": "a_contain_b",
+    "is contained in": "b_contain_a",
+}
+
+_STRAND_TO_WDK: dict[str, str] = {
+    "either strand": "Both strands",
+    "same strand": "same strand",
+    "opposite strand": "opposite strand",
+}
 
 
 def get_wdk_operator(op: CombineOp) -> str:

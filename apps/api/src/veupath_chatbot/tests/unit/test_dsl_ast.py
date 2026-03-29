@@ -147,7 +147,7 @@ class TestModelValidateErrors:
                         "primaryInput": {"searchName": "S1"},
                         "secondaryInput": {"searchName": "S2"},
                         "operator": "INTERSECT",
-                        "colocationParams": {"upstream": 100, "downstream": 200},
+                        "colocationParams": {"beginOffsetA": 100, "endOffsetA": 200},
                     },
                 }
             )
@@ -163,20 +163,22 @@ class TestModelValidateColocation:
                 "secondaryInput": {"searchName": "S2"},
                 "operator": "COLOCATE",
                 "colocationParams": {
-                    "upstream": 1000,
-                    "downstream": 500,
-                    "strand": "same",
+                    "operation": "contains",
+                    "strand": "same strand",
+                    "beginOffsetA": 1000,
+                    "endOffsetA": 500,
                 },
             },
         }
         ast = StrategyPlanPayload.model_validate(data)
         cp = ast.root.colocation_params
         assert cp is not None
-        assert cp.upstream == 1000
-        assert cp.downstream == 500
-        assert cp.strand == "same"
+        assert cp.operation == "contains"
+        assert cp.strand == "same strand"
+        assert cp.begin_offset_a == 1000
+        assert cp.end_offset_a == 500
 
-    def test_defaults_strand_to_both(self) -> None:
+    def test_defaults_strand_to_either(self) -> None:
         data = {
             "recordType": "gene",
             "root": {
@@ -184,14 +186,14 @@ class TestModelValidateColocation:
                 "primaryInput": {"searchName": "S1"},
                 "secondaryInput": {"searchName": "S2"},
                 "operator": "COLOCATE",
-                "colocationParams": {"upstream": 0, "downstream": 0},
+                "colocationParams": {},
             },
         }
         ast = StrategyPlanPayload.model_validate(data)
         assert ast.root.colocation_params is not None
-        assert ast.root.colocation_params.strand == "both"
+        assert ast.root.colocation_params.strand == "either strand"
 
-    def test_invalid_strand_defaults_to_both(self) -> None:
+    def test_invalid_strand_rejected(self) -> None:
         data = {
             "recordType": "gene",
             "root": {
@@ -199,12 +201,11 @@ class TestModelValidateColocation:
                 "primaryInput": {"searchName": "S1"},
                 "secondaryInput": {"searchName": "S2"},
                 "operator": "COLOCATE",
-                "colocationParams": {"upstream": 0, "downstream": 0, "strand": "bogus"},
+                "colocationParams": {"strand": "bogus"},
             },
         }
-        ast = StrategyPlanPayload.model_validate(data)
-        assert ast.root.colocation_params is not None
-        assert ast.root.colocation_params.strand == "both"
+        with pytest.raises(PydanticValidationError):
+            StrategyPlanPayload.model_validate(data)
 
 
 class TestModelValidateMetadata:
@@ -283,7 +284,10 @@ class TestToDictRoundTrip:
             secondary_input=right,
             operator=CombineOp.COLOCATE,
             colocation_params=ColocationParams(
-                upstream=100, downstream=200, strand="opposite"
+                operation="contains",
+                strand="opposite strand",
+                begin_offset_a=100,
+                end_offset_a=200,
             ),
         )
         ast = StrategyPlanPayload(record_type="gene", root=root)
@@ -291,9 +295,10 @@ class TestToDictRoundTrip:
         parsed = StrategyPlanPayload.model_validate(payload)
         cp = parsed.root.colocation_params
         assert cp is not None
-        assert cp.upstream == 100
-        assert cp.downstream == 200
-        assert cp.strand == "opposite"
+        assert cp.operation == "contains"
+        assert cp.strand == "opposite strand"
+        assert cp.begin_offset_a == 100
+        assert cp.end_offset_a == 200
 
 
 class TestGenerateStepId:

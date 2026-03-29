@@ -19,6 +19,7 @@ WDK contracts:
 
 from unittest.mock import AsyncMock, patch
 
+from veupath_chatbot.ai.agents.executor import _collect_unpushed_steps
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKIdentifier,
@@ -105,7 +106,9 @@ class TestLeafStepPush:
         assert result.wdk_step_id == 42
         assert result.wdk_validation is not None
         assert result.wdk_validation.is_valid is True
+        assert result.wdk_push_error is None
         assert graph.wdk_step_ids[result.step_id] == 42
+        assert result.step_id not in graph.wdk_push_errors
 
 
 
@@ -353,6 +356,10 @@ class TestWDKPushErrorResilience:
         assert result.wdk_validation is None
         assert result.step_id in graph.steps
         assert result.step_id not in graph.wdk_step_ids
+        # Push error is surfaced to the model
+        assert result.wdk_push_error is not None
+        assert "WDK unavailable" in result.wdk_push_error
+        assert result.step_id in graph.wdk_push_errors
 
     @patch(
         "veupath_chatbot.services.strategies.step_validation.validate_parameters",
@@ -383,6 +390,9 @@ class TestWDKPushErrorResilience:
         assert result.error is None
         assert result.step is not None
         assert result.wdk_step_id is None
+        assert result.wdk_push_error is not None
+        assert "Connection refused" in result.wdk_push_error
+        assert result.step_id in graph.wdk_push_errors
 
     @patch(
         "veupath_chatbot.services.strategies.step_validation.validate_parameters",
@@ -480,5 +490,58 @@ class TestStepCreationResultNewFields:
         assert result.wdk_step_id == 99
         assert result.wdk_validation is not None
         assert result.wdk_validation.is_valid is False
+
+
+# ---------------------------------------------------------------------------
+# _collect_unpushed_steps
+# ---------------------------------------------------------------------------
+
+
+class TestCollectUnpushedSteps:
+    """_collect_unpushed_steps enumerates steps without WDK IDs."""
+
+    def test_empty_graph_returns_empty(self) -> None:
+        graph = make_step_graph()
+        assert _collect_unpushed_steps(graph) == []
+
+    def test_all_pushed_returns_empty(self) -> None:
+        graph = make_step_graph()
+        step = PlanStepNode(search_name="GenesByText", parameters={})
+        graph.add_step(step)
+        graph.wdk_step_ids[step.id] = 42
+        assert _collect_unpushed_steps(graph) == []
+
+    def test_unpushed_step_included(self) -> None:
+        graph = make_step_graph()
+        step = PlanStepNode(search_name="GenesByText", parameters={})
+        graph.add_step(step)
+        # No WDK ID → should be collected
+        result = _collect_unpushed_steps(graph)
+        assert len(result) == 1
+        assert result[0]["stepId"] == step.id
+        assert result[0]["searchName"] == "GenesByText"
+        assert "pushError" not in result[0]
+
+    def test_push_error_included_when_present(self) -> None:
+        graph = make_step_graph()
+        step = PlanStepNode(search_name="GenesByMicroarray", parameters={})
+        graph.add_step(step)
+        graph.wdk_push_errors[step.id] = "Reference and comparison samples are identical"
+        result = _collect_unpushed_steps(graph)
+        assert len(result) == 1
+        assert result[0]["pushError"] == "Reference and comparison samples are identical"
+
+    def test_mixed_pushed_and_unpushed(self) -> None:
+        graph = make_step_graph()
+        pushed = PlanStepNode(search_name="GenesByText", parameters={})
+        unpushed = PlanStepNode(search_name="GenesByPhenotype", parameters={})
+        graph.add_step(pushed)
+        graph.add_step(unpushed)
+        graph.wdk_step_ids[pushed.id] = 10
+        graph.wdk_push_errors[unpushed.id] = "phenotypeScoreFileterParam does not specify isRange"
+        result = _collect_unpushed_steps(graph)
+        assert len(result) == 1
+        assert result[0]["stepId"] == unpushed.id
+        assert "phenotypeScoreFileterParam" in str(result[0]["pushError"])
 
 

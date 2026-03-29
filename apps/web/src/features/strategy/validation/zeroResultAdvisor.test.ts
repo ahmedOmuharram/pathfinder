@@ -150,7 +150,7 @@ describe("getZeroResultSuggestions", () => {
           makeCombineStep(CombineOperator.COLOCATE),
         );
         expect(suggestions).toContainEqual(
-          expect.stringContaining("increase upstream/downstream"),
+          expect.stringContaining("widen the region offsets"),
         );
       });
     });
@@ -163,7 +163,7 @@ describe("getZeroResultSuggestions", () => {
         const joined = suggestions.join(" ");
         expect(joined).not.toContain("change INTERSECT");
         expect(joined).not.toContain("verify MINUS direction");
-        expect(joined).not.toContain("increase upstream/downstream");
+        expect(joined).not.toContain("widen the region offsets");
       });
     });
   });

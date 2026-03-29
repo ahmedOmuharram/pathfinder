@@ -12,8 +12,8 @@ from pydantic import ValidationError
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp
-from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 from veupath_chatbot.services.chat.types import ChatMention
+from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 from veupath_chatbot.transport.http.schemas.chat import ChatRequest
 from veupath_chatbot.transport.http.schemas.experiments import (
     BenchmarkControlSet,
@@ -70,23 +70,21 @@ class TestChatRequestConstraints:
 
 
 class TestColocationParamsConstraints:
-    def test_negative_upstream_flagged_by_check_errors(self) -> None:
-        params = ColocationParams(upstream=-1, downstream=0)
-        errors = params.check_errors()
-        assert any(
-            "non-negative" in e.lower() or "upstream" in e.lower() for e in errors
-        )
+    def test_negative_begin_offset_a_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(begin_offset_a=-1)
 
-    def test_negative_downstream_flagged_by_check_errors(self) -> None:
-        params = ColocationParams(upstream=0, downstream=-1)
-        errors = params.check_errors()
-        assert any(
-            "non-negative" in e.lower() or "downstream" in e.lower() for e in errors
-        )
+    def test_negative_end_offset_b_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ColocationParams(end_offset_b=-1)
 
-    def test_valid_params_no_errors(self) -> None:
-        params = ColocationParams(upstream=100, downstream=200)
-        assert params.check_errors() == []
+    def test_valid_params_constructed(self) -> None:
+        params = ColocationParams(
+            begin_offset_a=100, end_offset_a=200, region_a="upstream"
+        )
+        assert params.begin_offset_a == 100
+        assert params.end_offset_a == 200
+        assert params.region_a == "upstream"
 
 
 class TestPlanStepNodeValidators:
@@ -133,7 +131,7 @@ class TestPlanStepNodeValidators:
                 primary_input=leaf1,
                 secondary_input=leaf2,
                 operator=CombineOp.INTERSECT,
-                colocation_params=ColocationParams(upstream=100, downstream=100),
+                colocation_params=ColocationParams(begin_offset_a=100, end_offset_a=100),
             )
 
     def test_colocate_with_params_succeeds(self) -> None:
@@ -144,7 +142,7 @@ class TestPlanStepNodeValidators:
             primary_input=leaf1,
             secondary_input=leaf2,
             operator=CombineOp.COLOCATE,
-            colocation_params=ColocationParams(upstream=500, downstream=500),
+            colocation_params=ColocationParams(begin_offset_a=500, end_offset_a=500),
         )
         assert n.colocation_params is not None
 
