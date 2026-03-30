@@ -33,12 +33,20 @@ RUN uv sync --frozen
 
 WORKDIR /app/apps/api
 
+# Pre-download the sentence-transformer model into the image so startup
+# doesn't depend on HuggingFace availability or rate limits.
+RUN uv run python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+
+# Prevent HuggingFace from phoning home at runtime — the model is cached.
+ENV HF_HUB_OFFLINE=1
+
 # Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Health check — use /health/ready (checks DB) so Docker waits for full readiness.
+# start-period covers warm-up: model loading + catalog preload for all 14 sites.
+HEALTHCHECK --interval=10s --timeout=10s --start-period=300s --retries=5 \
+    CMD curl -f http://localhost:8000/health/ready || exit 1
 
 # Run the application
 CMD ["uv", "run", "uvicorn", "veupath_chatbot.main:app", "--host", "0.0.0.0", "--port", "8000"]

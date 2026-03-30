@@ -13,7 +13,7 @@ export const ReverseSearchResultSchema = z.object({
   recall: z.number(),
   precision: z.number(),
   f1: z.number(),
-  resultCount: z.number(),
+  estimatedSize: z.number(),
   overlapCount: z.number(),
 });
 

@@ -5,8 +5,8 @@ fails, the step still exists in the local graph and the sync service can
 reconcile later.
 """
 
-from veupath_chatbot.domain.strategy.ast import PlanStepNode
-from veupath_chatbot.domain.strategy.ops import CombineOp, get_wdk_operator
+from veupath_chatbot.domain.strategy.ast import PlanStepNode, walk_step_tree
+from veupath_chatbot.domain.strategy.ops import CombineOp, get_wdk_operator, parse_op
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.strategy_api import StrategyAPI
@@ -15,6 +15,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
     PatchStepSpec,
     WDKSearchConfig,
     WDKValidation,
+    encode_wdk_params,
 )
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
@@ -44,9 +45,7 @@ async def _push_step_to_wdk(
     wdk_validation: WDKValidation | None = None
     push_error: str | None = None
     record_type = graph.record_type or "transcript"
-    str_params: dict[str, str] = {
-        k: str(v) for k, v in parameters.items() if v is not None
-    }
+    str_params: dict[str, str] = encode_wdk_params(parameters)
 
     try:
         api = get_strategy_api(site_id)
@@ -204,3 +203,92 @@ async def _push_transform_step(
         record_type=record_type,
     )
     return wdk_result.id
+
+
+async def _update_existing_step(
+    api: StrategyAPI,
+    graph: StrategyGraph,
+    step: PlanStepNode,
+    site_id: str,
+) -> None:
+    """Update an existing WDK step's search-config (parameters + weight)."""
+    wdk_step_id = graph.wdk_step_ids[step.id]
+    kind = step.infer_kind()
+
+    # Skip combine steps — their params are structural (empty strings)
+    # and don't change.
+    if kind == "combine":
+        return
+
+    record_type = graph.record_type or "transcript"
+    str_params: dict[str, str] = encode_wdk_params(step.parameters)
+
+    try:
+        await api.update_step_search_config(
+            step_id=wdk_step_id,
+            search_config=WDKSearchConfig(parameters=str_params),
+            record_type=record_type,
+            search_name=step.search_name,
+        )
+    except (AppError, OSError) as exc:
+        logger.warning(
+            "WDK step update failed (non-fatal)",
+            step_id=step.id,
+            wdk_step_id=wdk_step_id,
+            error=str(exc),
+        )
+
+
+async def push_all_steps_to_wdk(
+    graph: StrategyGraph,
+    site_id: str,
+    *,
+    update_existing: bool = False,
+) -> list[str]:
+    """Push all steps in a graph to WDK, bottom-up (leaves first).
+
+    Skips steps that already have a WDK ID. Returns a list of step IDs
+    that failed to push (non-fatal per step, but caller should check).
+    """
+    root_step = next(
+        (graph.steps[sid] for sid in graph.roots if sid in graph.steps), None
+    )
+    if root_step is None:
+        return []
+
+    all_steps = walk_step_tree(root_step)
+    failed: list[str] = []
+
+    for step in all_steps:
+        if step.id in graph.wdk_step_ids:
+            if update_existing:
+                if step.infer_kind() == "combine":
+                    # Combine operators are creation-time params — can't update
+                    # in-place. Evict the WDK ID to force recreation below.
+                    del graph.wdk_step_ids[step.id]
+                else:
+                    api = get_strategy_api(site_id)
+                    await _update_existing_step(api, graph, step, site_id)
+                    continue
+            else:
+                continue
+
+        parsed_op: CombineOp | None = None
+        if step.operator is not None:
+            try:
+                parsed_op = parse_op(str(step.operator))
+            except ValueError:
+                parsed_op = None
+
+        wdk_step_id, _validation, _push_error = await _push_step_to_wdk(
+            graph=graph,
+            step=step,
+            site_id=site_id,
+            search_name=step.search_name,
+            parameters=dict(step.parameters),
+            parsed_op=parsed_op,
+        )
+        if wdk_step_id is None:
+            failed.append(step.id)
+
+    return failed

@@ -4,22 +4,14 @@ import { getDistribution, type EntityRef } from "@/features/analysis/api/stepRes
 import type { DistributionEntry } from "@/features/analysis/components/DistributionExplorer/types";
 
 export function parseDistribution(raw: DistributionResponse): DistributionEntry[] {
-  if (Array.isArray(raw.histogram)) {
-    const isNumericBinned = raw.histogram[0]?.binStart != null;
-    const parsed = raw.histogram
-      .filter((bin) => bin.value > 0)
-      .map((bin) => ({
-        value: bin.binLabel ?? bin.binStart ?? "",
-        count: bin.value,
-      }));
-    return isNumericBinned ? parsed : parsed.sort((a, b) => b.count - a.count);
-  }
-
-  const histogram = raw.distribution ?? raw;
-  return Object.entries(histogram)
-    .filter(([key]) => key !== "total" && key !== "attributeName")
-    .map(([value, count]) => ({ value, count: Number(count) || 0 }))
-    .sort((a, b) => b.count - a.count);
+  const isNumericBinned = raw.histogram[0]?.binStart !== "";
+  const parsed = raw.histogram
+    .filter((bin) => bin.value > 0)
+    .map((bin) => ({
+      value: bin.binLabel || bin.binStart,
+      count: bin.value,
+    }));
+  return isNumericBinned ? parsed : parsed.sort((a, b) => b.count - a.count);
 }
 
 function applyDistributionResult(

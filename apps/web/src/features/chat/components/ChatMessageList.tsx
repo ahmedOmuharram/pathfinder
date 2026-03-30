@@ -63,8 +63,9 @@ interface ChatMessageListProps {
   isLoading?: boolean;
   messages: Message[];
   undoSnapshots: Record<number, Strategy>;
+  isUndoing?: boolean;
   onSend: (content: string) => void;
-  onUndoSnapshot: (snapshot: Strategy) => void;
+  onUndo?: (userMessageIndex: number) => void;
   onApplyPlanningArtifact?: (artifact: PlanningArtifact) => void;
   thinking: {
     activeToolCalls: ToolCall[];
@@ -89,8 +90,9 @@ export function ChatMessageList({
   isLoading = false,
   messages,
   undoSnapshots,
+  isUndoing,
   onSend,
-  onUndoSnapshot,
+  onUndo,
   onApplyPlanningArtifact,
   thinking,
   optimizationProgress,
@@ -200,7 +202,6 @@ export function ChatMessageList({
                       showCitationTags={showCitationTags}
                       setShowCitationTags={setShowCitationTags}
                       {...(undoSnapshot != null ? { undoSnapshot } : {})}
-                      onUndoSnapshot={onUndoSnapshot}
                     />
                     {!isLive && (
                       <div className="mt-1.5">
@@ -260,8 +261,24 @@ export function ChatMessageList({
                       </div>
                     </div>
                   )}
-                  <div className="mt-1.5">
+                  <div className="mt-1.5 flex items-center gap-2">
                     <MessageTimestamp iso={message.timestamp} />
+                    {onUndo != null && message.entryId != null && !isStreaming && (
+                      <button
+                        type="button"
+                        onClick={() => onUndo(index)}
+                        disabled={isUndoing === true}
+                        className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-input hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+                        title="Undo from this message"
+                        aria-label="Undo from this message"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+                          <path d="M9 14L4 9l5-5" />
+                          <path d="M20 20v-5a7 7 0 0 0-7-7H4" />
+                        </svg>
+                        Undo
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useEventListener } from "usehooks-ts";
+import { useCallback, useEffect, useState } from "react";
 import { CombineOperator, DEFAULT_STREAM_NAME } from "@pathfinder/shared";
-import type { Strategy } from "@pathfinder/shared";
-import { usePrevious } from "@/lib/hooks/usePrevious";
+import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
 import { computeStepCounts } from "@/lib/api/strategies";
 import { listSites } from "@/lib/api/sites";
@@ -12,7 +10,7 @@ import { useStepCounts } from "@/features/strategy/services/useStepCounts";
 import { useWdkUrlFallback } from "@/features/strategy/services/useWdkUrlFallback";
 import { useGraphConnections } from "@/features/strategy/graph/hooks/useGraphConnections";
 import { useGraphSelection } from "@/features/strategy/graph/hooks/useGraphSelection";
-import { useGraphSave } from "@/features/strategy/graph/hooks/useGraphSave";
+import { useAutoSync } from "@/features/strategy/graph/hooks/useAutoSync";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyGraphNodes } from "@/features/strategy/graph/hooks/useStrategyGraphNodes";
 import { useStrategyGraphHandlers } from "@/features/strategy/graph/hooks/useStrategyGraphHandlers";
@@ -49,10 +47,19 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   const draftStrategy = useStrategyStore((state) => state.strategy);
   const updateStep = useStrategyStore((state) => state.updateStep);
   const addStep = useStrategyStore((state) => state.addStep);
-  const buildPlan = useStrategyStore((state) => state.buildPlan);
   const setStrategyMeta = useStrategyStore((state) => state.setStrategyMeta);
   const setStepCounts = useStrategyStore((state) => state.setStepCounts);
   const selectedSite = useSessionStore((state) => state.selectedSite);
+
+  // --- Auto-sync ---
+  const autoSyncArgs: Parameters<typeof useAutoSync>[0] = {
+    strategy,
+    siteId,
+  };
+  if (onToast != null) {
+    autoSyncArgs.onToast = onToast;
+  }
+  const { syncStatus, lastSyncError, triggerSync } = useAutoSync(autoSyncArgs);
 
   // --- Sub-hook: Nodes ---
   const graphNodes = useStrategyGraphNodes({ strategy, siteId, variant });
@@ -84,6 +91,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     failCombineMismatch: () => {
       onToast?.({ type: "error", message: COMBINE_MISMATCH_ERROR });
     },
+    triggerSync,
   });
 
   // --- Sub-hook: Handlers ---
@@ -95,6 +103,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     setSelectedStep: graphNodes.setSelectedStep,
     selectedNodeIds,
     startCombine,
+    triggerSync,
   });
 
   // --- Sub-hook: Layout ---
@@ -105,8 +114,6 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     setNodes: graphNodes.setNodes,
     setEdges: graphNodes.setEdges,
     nodePositionsRef: graphNodes.nodePositionsRef,
-    dirtyStepIds: graphNodes.dirtyStepIds,
-    isUnsaved: graphNodes.isUnsaved,
     handleAddToChat,
     handleOpenDetails: handlers.handleOpenDetails,
     setSelectedNodeIds,
@@ -131,60 +138,6 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     fetchCounts: computeStepCounts,
   });
 
-  // --- Save ---
-  const graphSaveArgs: Parameters<typeof useGraphSave>[0] = {
-    strategy,
-    draftStrategy,
-    buildPlan,
-    combineMismatchGroups: graphNodes.combineMismatchGroups,
-    setStrategyMeta,
-    buildStepSignature: graphNodes.buildStepSignature,
-    setLastSavedSteps: graphNodes.setLastSavedSteps,
-    setLastSavedStepsVersion: graphNodes.setLastSavedStepsVersion,
-    validateSearchSteps: graphNodes.validateSearchSteps,
-    nameValue,
-    setNameValue,
-    descriptionValue,
-  };
-  if (onToast != null) {
-    graphSaveArgs.onToast = onToast;
-  }
-  const { isSaving, canSave, handleSave } = useGraphSave(graphSaveArgs);
-
-  const saveDisabledReason = useMemo(() => {
-    if (canSave && !isSaving && !graphNodes.graphHasValidationIssues) return undefined;
-    if (isSaving) return "Saving...";
-    if (draftStrategy == null) return "No draft strategy loaded.";
-    if (strategy?.id !== draftStrategy.id) {
-      return "Open the active draft to save.";
-    }
-    if (graphNodes.graphHasValidationIssues) {
-      return "Cannot save: fix the validation errors highlighted in the graph.";
-    }
-    if (!buildPlan()) {
-      return "Cannot save: strategy must have a single final output step. Add a final combine step (e.g., UNION) to produce one output.";
-    }
-    return "Save is currently unavailable.";
-  }, [
-    canSave,
-    isSaving,
-    draftStrategy,
-    strategy,
-    buildPlan,
-    graphNodes.graphHasValidationIssues,
-  ]);
-
-  // --- Before-unload guard ---
-  const handleBeforeUnload = useCallback(
-    (event: BeforeUnloadEvent) => {
-      if (!graphNodes.isUnsaved) return;
-      event.preventDefault();
-      event.returnValue = "";
-    },
-    [graphNodes.isUnsaved],
-  );
-  useEventListener("beforeunload", handleBeforeUnload);
-
   // --- Draft details sync (defer setState to avoid synchronous setState in effect) ---
   useEffect(() => {
     if (!graphNodes.isDraftView) return;
@@ -202,22 +155,6 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     setDescriptionValue,
   ]);
 
-  // --- Saved snapshot sync ---
-  const snapshotId = strategy?.id ?? null;
-  const prevSnapshotId = usePrevious(snapshotId);
-  useEffect(() => {
-    if (snapshotId == null || snapshotId === "" || snapshotId === prevSnapshotId)
-      return;
-    if (strategy?.steps) {
-      graphNodes.setLastSavedSteps(
-        new Map(
-          strategy.steps.map((step) => [step.id, graphNodes.buildStepSignature(step)]),
-        ),
-      );
-      graphNodes.setLastSavedStepsVersion((v) => v + 1);
-    }
-  }, [snapshotId, prevSnapshotId, strategy?.steps, graphNodes]);
-
   // --- Name/description commit ---
   const handleNameCommit = useCallback(async () => {
     const name = nameValue.trim();
@@ -226,7 +163,8 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
       return;
     }
     setStrategyMeta({ name });
-  }, [nameValue, draftStrategy?.name, setNameValue, setStrategyMeta]);
+    triggerSync();
+  }, [nameValue, draftStrategy?.name, setNameValue, setStrategyMeta, triggerSync]);
 
   const handleDescriptionCommit = useCallback(async () => {
     const description = descriptionValue.trim();
@@ -235,12 +173,23 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
       return;
     }
     setStrategyMeta({ description });
+    triggerSync();
   }, [
     descriptionValue,
     draftStrategy?.description,
     setDescriptionValue,
     setStrategyMeta,
+    triggerSync,
   ]);
+
+  // --- Wrap updateStep to trigger sync after user edits ---
+  const updateStepAndSync = useCallback(
+    (stepId: string, updates: Partial<Step>) => {
+      updateStep(stepId, updates);
+      triggerSync();
+    },
+    [updateStep, triggerSync],
+  );
 
   return {
     // State
@@ -259,10 +208,8 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     setDescriptionValue,
     detailsCollapsed,
     toggleDetailsCollapsed,
-    isUnsaved: graphNodes.isUnsaved,
-    isSaving,
-    canSave,
-    saveDisabledReason,
+    syncStatus,
+    lastSyncError,
 
     // Selection
     interactionMode,
@@ -287,18 +234,18 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     handleStartCombineFromSelection: handlers.handleStartCombineFromSelection,
     handleStartOrthologTransformFromSelection:
       handlers.handleStartOrthologTransformFromSelection,
-    handleSave,
     handleNameCommit,
     handleDescriptionCommit,
     handleOrthologChoose: handlers.handleOrthologChoose,
     handleRelayout: layout.handleRelayout,
     handleMoveStart: layout.handleMoveStart,
     handleInit: layout.handleInit,
+    triggerSync,
 
     // Data
     editableSteps: graphNodes.editableSteps,
     draftStrategy,
     wdkUrlFallback,
-    updateStep,
+    updateStep: updateStepAndSync,
   } as const;
 }

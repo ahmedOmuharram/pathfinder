@@ -31,10 +31,13 @@ describe("useResultsTableDetail", () => {
 
   it("expands a row and fetches detail", async () => {
     const detail: RecordDetail = {
+      displayName: "G1",
       id: [{ name: "source_id", value: "G1" }],
+      recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",
       attributes: { gene_id: "G1" },
+      attributeNames: { gene_id: "Gene ID" },
       tables: {},
-      recordType: "gene",
+      tableErrors: [],
     };
     mockGetRecordDetail.mockResolvedValueOnce(detail);
 
@@ -56,10 +59,13 @@ describe("useResultsTableDetail", () => {
 
   it("collapses when clicking the same row", async () => {
     const detail: RecordDetail = {
+      displayName: "G1",
       id: [{ name: "source_id", value: "G1" }],
+      recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",
       attributes: { gene_id: "G1" },
+      attributeNames: { gene_id: "Gene ID" },
       tables: {},
-      recordType: "gene",
+      tableErrors: [],
     };
     mockGetRecordDetail.mockResolvedValueOnce(detail);
 

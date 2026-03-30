@@ -7,7 +7,6 @@ from veupath_chatbot.platform.event_schemas import (
     AssistantDeltaEventData,
     AssistantMessageEventData,
     ErrorEventData,
-    ExecutorBuildRequestEventData,
     GeneSetSummary,
     GraphClearedEventData,
     GraphPlanEventData,
@@ -104,7 +103,6 @@ class SSESchemaIndex(BaseModel):
     strategy_update: StrategyUpdateEventData | None = None
     strategy_link: StrategyLinkEventData | None = None
     graph_cleared: GraphClearedEventData | None = None
-    executor_build_request: ExecutorBuildRequestEventData | None = None
     gene_set_summary: GeneSetSummary | None = None
     workbench_gene_set: WorkbenchGeneSetEventData | None = None
     citations: CitationsEventData | None = None

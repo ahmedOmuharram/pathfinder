@@ -1,13 +1,13 @@
 {
   "plasmodb": [
-    "Build a strategy to find P. falciparum genes upregulated in gametocytes using RNA-seq and then map results to orthologs in another species.",
-    "Find Plasmodium falciparum genes involved in gametocyte development. Plan the steps, pick the right searches and parameters, and build the strategy.",
-    "Combine results from multiple RNA-seq studies (e.g. male and female gametocytes), then map to orthologs. Ask only the minimum questions needed."
+    "Which P. vivax genes are likely to be membrane transporters? I want the ones that span the membrane multiple times.",
+    "Find Plasmodium genes involved in proteolysis that are expressed during gametocyte stages. Use both text annotations and GO term evidence for protease identification, then filter by gametocyte RNA-Seq expression percentile data.",
+    "Find P. berghei ANKA orthologs of P. falciparum 3D7 kinases expressed during gametocyte stages. Identify kinases two ways: genes with '*kinase*' in product descriptions of P. falciparum 3D7, and genes annotated with GO term kinase activity (GO:0016301) in P. falciparum 3D7 using both curated and computed evidence. Combine both sets. Then keep only those in the top 20% of expression in either male gametocyte or female gametocyte samples from the Lasonder/Bartfai gametocyte transcriptomes dataset, sense strand, protein-coding only. Finally, transform to P. berghei ANKA non-syntenic orthologs."
   ],
   "toxodb": [
-    "Find apicoplast-targeted Toxoplasma gondii genes and filter to those with orthologs in Plasmodium falciparum. Suggest validation checks for the result.",
+    "Which Toxoplasma genes are turned on during the oocyst stage? I want the most dramatically upregulated ones.",
     "Find Toxoplasma gondii genes that are bradyzoite-upregulated and likely secreted (signal peptide or secretion-related filters).",
-    "Find Toxoplasma gondii genes annotated with microneme proteins and intersect with genes expressed in tachyzoites."
+    "Find T. gondii ME49 candidate invasion proteins. Look for genes with cell-cycle expression patterns similar to known invasion genes MIC2 (TGME49_201780) and RON2 (TGME49_300100) using the M.White Cell Cycle microarray (Pearson correlation, top 500 similar genes, positive correlation), and combine both similarity sets. Keep only those that are secreted or membrane-associated (signal peptide or 1-7 transmembrane domains) across all T. gondii strains. Require mass spectrometry evidence (at least 1 peptide, 1 spectrum) from any T. gondii experiment. Finally, require a phylogenetic profile present in P. falciparum but absent from all mammals."
   ],
   "cryptodb": [
     "Find Cryptosporidium hominis genes with orthologs in Plasmodium falciparum but not in Toxoplasma gondii.",
@@ -35,14 +35,14 @@
     "Find Microsporidia genes with orthologs in fungi and filter for conserved domains."
   ],
   "tritrypdb": [
-    "Find Leishmania surface proteins expressed in promastigotes. Suggest the best combination operators and checks.",
+    "Which Trypanosoma cruzi trans-sialidases are actually enzymatically active? I need to distinguish the active ones from the hundreds of pseudogenes.",
     "Find Trypanosoma brucei genes upregulated in bloodstream forms and likely secreted.",
     "Find TriTrypDB genes with orthologs in Trypanosoma cruzi and filter for transmembrane domains."
   ],
   "fungidb": [
-    "Find fungal genes upregulated during hyphal growth and intersect with membrane features. Propose parameter defaults.",
-    "Find fungal cell wall proteins (annotation and signal peptide) and build a reusable strategy.",
-    "Find FungiDB genes with orthologs in Candida and filter for transcription factors."
+    "I'm studying how Candida tropicalis forms filaments. Which filamentation genes have known protein structures?",
+    "Find C. albicans genes specifically upregulated during wild-type infection but not in a mutant. Use RNA-Seq differential expression data comparing infected vs in vitro conditions.",
+    "Find Cryptococcus neoformans H99 genes specifically upregulated in patient HC1 during human meningitis but not in patient G0. Use the Chen et al. meningitis RNA-Seq single-read dataset. First, find genes upregulated at least 2-fold (CSF vs YPD, minimum expression floor of 10 reads, protein-coding only) for each patient separately: G0 (G0 IN VIVO CSF vs G0 YPD) and HC1 (HC1 IN VIVO CSF vs HC1 YPD), both using minimum in reference and maximum in comparison. Then take HC1 upregulated genes and subtract G0 upregulated genes to get HC1-specific genes. Finally, remove genes also upregulated in ex vivo CSF (reference: G0 EX VIVO CSF, comparison: HC1 EX VIVO CSF, floor of 10 reads) from the paired-end dataset to exclude media effects."
   ],
   "hostdb": [
     "Find host immune genes upregulated during Plasmodium infection in blood. Suggest how to select the right studies and contrasts.",
@@ -50,7 +50,7 @@
     "Find HostDB genes with orthologs across mammals and filter for signal peptides."
   ],
   "vectorbase": [
-    "Find Anopheles genes induced after blood feeding and likely secreted or membrane-associated.",
+    "Which mosquito immune proteins are secreted by hemocytes when the mosquito is infected with malaria parasites?",
     "Find vector genes associated with insecticide resistance and intersect with genes expressed in the midgut. Suggest the best searches and parameters.",
     "Find VectorBase genes with orthologs in Aedes and filter for transmembrane domains."
   ],
@@ -60,7 +60,7 @@
     "Find OrthoMCL groups that contain Plasmodium falciparum and Toxoplasma gondii orthologs."
   ],
   "veupathdb": [
-    "Translate an epidemiology-style question into a concrete query strategy on VEuPathDB.",
+    "Find T. gondii genes likely targeted to the apicoplast using comparative genomics. Use P. falciparum apicoplast GO annotations, transform to T. gondii orthologs, and subtract genes also conserved in Cryptosporidium which lacks an apicoplast.",
     "Find studies about malaria transmission-blocking vaccines. Plan what to query for (keywords, filters, outputs) and build the strategy.",
     "Find host transcriptomics studies involving Plasmodium falciparum and gametocytes."
   ]

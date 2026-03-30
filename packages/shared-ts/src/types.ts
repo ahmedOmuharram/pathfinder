@@ -56,7 +56,6 @@ export type MessageEndData = components["schemas"]["MessageEndEventData"];
 export type GraphSnapshotData = components["schemas"]["GraphSnapshotEventData"];
 export type GraphPlanData = components["schemas"]["GraphPlanEventData"];
 export type StrategyUpdateData = components["schemas"]["StrategyUpdateEventData"];
-export type ExecutorBuildRequestData = components["schemas"]["ExecutorBuildRequestEventData"];
 export type WorkbenchGeneSetData = components["schemas"]["WorkbenchGeneSetEventData"];
 export type CitationsData = components["schemas"]["CitationsEventData"];
 export type PlanningArtifactData = components["schemas"]["PlanningArtifactEventData"];
@@ -174,7 +173,7 @@ export const CombineOperatorBadgeLabels: Record<CombineOperator, string> = {
 export interface StepFilter {
   name: string;
   value?: unknown;
-  disabled?: boolean;
+  disabled: boolean;
 }
 
 export interface StepAnalysis {
@@ -213,17 +212,15 @@ export interface PlanStepNode extends BasePlanNode {
   secondaryInput?: PlanStepNode;
   operator?: CombineOperator;
   colocationParams?: ColocationParams;
+  wdkWeight?: number | null;
 }
 
 export interface StrategyPlan {
   recordType: string;
   root: PlanStepNode;
-  metadata?: {
-    name?: string;
-    description?: string;
-    siteId?: string;
-    createdAt?: string;
-  };
+  name?: string | null;
+  description?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 // VEuPathDB Site Configuration
@@ -367,14 +364,40 @@ export interface ModelSelection {
   reasoningBudget?: number;
 }
 
-/**
- * Message extends the generated MessageResponse with frontend-only fields
- * (mentions and reasoningEffort are set locally, not persisted by the backend).
- */
-export type Message = components["schemas"]["MessageResponse"] & {
-  reasoningEffort?: ReasoningEffort;
+// ── Message discriminated union ──────────────────────────────────────
+// role is the discriminant. Fields that only apply to one role live on
+// that variant — the type system enforces this instead of runtime checks.
+
+/** Fields shared by every message regardless of role. */
+interface BaseMessage {
+  content: string;
+  timestamp: string;
+  tokenUsage?: components["schemas"]["TokenUsageResponse"] | null;
+}
+
+/** User turn — carries frontend-only fields (mentions, undo entry). */
+export interface UserMessage extends BaseMessage {
+  role: "user";
+  /** Redis stream entry ID — used for undo. */
+  entryId?: string;
   mentions?: ChatMention[];
-};
+  reasoningEffort?: ReasoningEffort;
+}
+
+/** Assistant turn — carries all model-produced metadata. */
+export interface AssistantMessage extends BaseMessage {
+  role: "assistant";
+  modelId?: string | null;
+  toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
+  subKaniActivity?: components["schemas"]["SubKaniActivityResponse"] | null;
+  citations?: components["schemas"]["CitationResponse"][] | null;
+  planningArtifacts?: components["schemas"]["PlanningArtifactResponse"][] | null;
+  reasoning?: string | null;
+  optimizationProgress?: components["schemas"]["OptimizationProgressEventData"] | null;
+}
+
+export type Message = UserMessage | AssistantMessage;
+
 
 export type StepKind = "search" | "transform" | "combine";
 

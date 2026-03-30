@@ -1,16 +1,26 @@
 import type { ToolCall } from "@pathfinder/shared";
-import type { ChatEventContext } from "./handleChatEvent.types";
+import type {
+  StreamBuffers,
+  StreamContext,
+  EventHelpers,
+} from "./handleChatEvent.types";
 import type {
   ToolCallStartData,
   ToolCallEndData,
   SubKaniTaskStartData,
+  SubKaniTaskRetryData,
   SubKaniToolCallStartData,
   SubKaniToolCallEndData,
   SubKaniTaskEndData,
 } from "@/lib/sse_events";
 
+type ToolEventContext =
+  & StreamBuffers
+  & Pick<StreamContext, "thinking">
+  & Pick<EventHelpers, "parseToolArguments" | "parseToolResult" | "applyGraphSnapshot">;
+
 export function handleToolCallStartEvent(
-  ctx: ChatEventContext,
+  ctx: ToolEventContext,
   data: ToolCallStartData,
 ) {
   const { id, name, arguments: args } = data;
@@ -19,14 +29,14 @@ export function handleToolCallStartEvent(
   ctx.thinking.updateActiveFromBuffer([...ctx.toolCallsBuffer]);
 }
 
-export function handleToolCallEndEvent(ctx: ChatEventContext, data: ToolCallEndData) {
+export function handleToolCallEndEvent(ctx: ToolEventContext, data: ToolCallEndData) {
   const { id, result } = data;
   const tc = ctx.toolCallsBuffer.find((t) => t.id === id);
   if (tc) {
-    tc.result = result;
+    tc.result = result ?? null;
     ctx.thinking.updateActiveFromBuffer([...ctx.toolCallsBuffer]);
   }
-  const parsed = ctx.parseToolResult(result);
+  const parsed = ctx.parseToolResult(result ?? null);
   const snapshot = parsed?.graphSnapshot;
   if (snapshot != null && typeof snapshot === "object" && !Array.isArray(snapshot)) {
     ctx.applyGraphSnapshot(snapshot);
@@ -34,7 +44,7 @@ export function handleToolCallEndEvent(ctx: ChatEventContext, data: ToolCallEndD
 }
 
 export function handleSubKaniTaskStartEvent(
-  ctx: ChatEventContext,
+  ctx: ToolEventContext,
   data: SubKaniTaskStartData,
 ) {
   const { task } = data;
@@ -46,8 +56,17 @@ export function handleSubKaniTaskStartEvent(
     ctx.subKaniModelsBuffer[task] = data.modelId;
 }
 
+export function handleSubKaniTaskRetryEvent(
+  ctx: ToolEventContext,
+  data: SubKaniTaskRetryData,
+) {
+  const { task } = data;
+  if (task == null || task === "") return;
+  ctx.subKaniStatusBuffer[task] = "running";
+}
+
 export function handleSubKaniToolCallStartEvent(
-  ctx: ChatEventContext,
+  ctx: ToolEventContext,
   data: SubKaniToolCallStartData,
 ) {
   const { task, id, name, arguments: args } = data;
@@ -60,7 +79,7 @@ export function handleSubKaniToolCallStartEvent(
 }
 
 export function handleSubKaniToolCallEndEvent(
-  ctx: ChatEventContext,
+  ctx: ToolEventContext,
   data: SubKaniToolCallEndData,
 ) {
   const { task, id, result } = data;
@@ -74,7 +93,7 @@ export function handleSubKaniToolCallEndEvent(
 }
 
 export function handleSubKaniTaskEndEvent(
-  ctx: ChatEventContext,
+  ctx: ToolEventContext,
   data: SubKaniTaskEndData,
 ) {
   const { task, status } = data;

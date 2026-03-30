@@ -1,6 +1,7 @@
 """Unit tests for StrategyGraph session operations."""
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode, walk_step_tree
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.domain.strategy.session import (
     StrategyGraph,
     StrategySession,
@@ -51,8 +52,10 @@ class TestAddStep:
         graph = StrategyGraph("g1", "Test", "plasmodb")
         left = _make_leaf("s1")
         right = _make_leaf("s2")
-        graph.add_step(left)
-        graph.add_step(right)
+        # Set up multi-root state via dict manipulation (add_step enforces single-root)
+        graph.steps[left.id] = left
+        graph.steps[right.id] = right
+        graph.recompute_roots()
         assert graph.roots == {"s1", "s2"}
         combine = _make_combine("c1", left, right)
         graph.add_step(combine)
@@ -60,10 +63,12 @@ class TestAddStep:
 
     def test_sets_last_step_id(self) -> None:
         graph = StrategyGraph("g1", "Test", "plasmodb")
-        graph.add_step(_make_leaf("s1"))
+        s1 = _make_leaf("s1")
+        graph.add_step(s1)
         assert graph.last_step_id == "s1"
-        graph.add_step(_make_leaf("s2"))
-        assert graph.last_step_id == "s2"
+        s2 = _make_leaf("s2")
+        _, combine_id = graph.insert_step_with_combine(s2, "s1", CombineOp.INTERSECT)
+        assert graph.last_step_id == combine_id
 
 
 class TestGetStep:
@@ -116,8 +121,12 @@ class TestToPlan:
     def test_returns_empty_when_multiple_roots(self) -> None:
         graph = StrategyGraph("g1", "Test", "plasmodb")
         graph.record_type = "gene"
-        graph.add_step(_make_leaf("s1"))
-        graph.add_step(_make_leaf("s2"))
+        # Set up multi-root state via dict manipulation (deliberate multi-root scenario)
+        s1 = _make_leaf("s1")
+        s2 = _make_leaf("s2")
+        graph.steps[s1.id] = s1
+        graph.steps[s2.id] = s2
+        graph.recompute_roots()
         # Two roots, no root_step_id specified -> empty
         plan = graph.to_plan()
         assert plan == {}
@@ -125,9 +134,12 @@ class TestToPlan:
     def test_explicit_root_step_id(self) -> None:
         graph = StrategyGraph("g1", "Test", "plasmodb")
         graph.record_type = "gene"
+        # Set up multi-root state via dict manipulation (deliberate multi-root scenario)
         s1 = _make_leaf("s1")
-        graph.add_step(s1)
-        graph.add_step(_make_leaf("s2"))
+        s2 = _make_leaf("s2")
+        graph.steps[s1.id] = s1
+        graph.steps[s2.id] = s2
+        graph.recompute_roots()
         plan = graph.to_plan(root_step_id="s1")
         assert plan["root"]["searchName"] == "GenesByTextSearch"
 
@@ -256,13 +268,13 @@ class TestUndoRestoresFullGraphState:
         assert len(graph.steps) == 3
         graph.save_history("initial 3-step strategy")
 
-        # Add a 4th step and create a new combine on top
+        # Add a 4th step via dict manipulation (add_step enforces single-root)
         extra = _make_leaf("step_extra")
-        graph.add_step(extra)
+        graph.steps[extra.id] = extra
         assert len(graph.steps) == 4, "Precondition: 4 steps after add"
 
         # Build new root combining old root + new step
-        old_root_id = next(iter(graph.roots - {"step_extra"}))
+        old_root_id = next(iter(graph.roots))
         old_root = graph.steps[old_root_id]
         new_root = _make_combine("step_new_root", old_root, extra)
         all_steps = walk_step_tree(new_root)
@@ -288,10 +300,10 @@ class TestUndoRestoresFullGraphState:
         graph.save_history("initial")
         original_roots = set(graph.roots)
 
-        # Modify graph
+        # Modify graph via dict manipulation (add_step enforces single-root)
         extra = _make_leaf("step_extra")
-        graph.add_step(extra)
-        old_root_id = next(iter(graph.roots - {"step_extra"}))
+        graph.steps[extra.id] = extra
+        old_root_id = next(iter(graph.roots))
         old_root = graph.steps[old_root_id]
         new_root = _make_combine("step_new_root", old_root, extra)
         all_steps = walk_step_tree(new_root)
@@ -311,8 +323,8 @@ class TestUndoRestoresFullGraphState:
         graph.save_history("initial")
 
         extra = _make_leaf("step_extra")
-        graph.add_step(extra)
-        old_root_id = next(iter(graph.roots - {"step_extra"}))
+        graph.steps[extra.id] = extra
+        old_root_id = next(iter(graph.roots))
         old_root = graph.steps[old_root_id]
         new_root = _make_combine("step_new_root", old_root, extra)
         all_steps = walk_step_tree(new_root)

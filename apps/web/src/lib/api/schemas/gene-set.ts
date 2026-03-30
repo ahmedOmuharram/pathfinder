@@ -25,7 +25,6 @@ export const GeneSetSchema = z.object({
   parameters: z.record(z.string(), z.string()).nullable().optional(),
   parentSetIds: z.array(z.string()).optional(),
   operation: z.enum(["intersect", "union", "minus"]).nullable().optional(),
-  userId: z.string().nullable().optional(),
 });
 
 export const GeneSetListSchema = z.array(GeneSetSchema);

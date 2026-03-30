@@ -2,9 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { handleChatEvent } from "./handleChatEvent";
 import type { ChatEventContext } from "./handleChatEvent.types";
 import type { ChatSSEEvent } from "@/lib/sse_events";
-import type { Citation, PlanningArtifact, ToolCall } from "@pathfinder/shared";
+import type { AssistantMessage, Citation, PlanningArtifact, ToolCall } from "@pathfinder/shared";
 import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import { makeBatchingStateSetters, makeCtx } from "./handleChatEvent.testUtils";
+import type { Message } from "@pathfinder/shared";
+
+function assertAssistant(msg: Message): asserts msg is AssistantMessage {
+  if (msg.role !== "assistant") throw new Error(`Expected assistant, got ${msg.role}`);
+}
 
 describe("handleChatEvent — buffering & core events", () => {
   it("buffers tool calls/citations/artifacts and attaches them on assistant_message", () => {
@@ -67,10 +72,12 @@ describe("handleChatEvent — buffering & core events", () => {
     } as ChatSSEEvent);
 
     expect(state.messages).toHaveLength(1);
-    expect(state.messages[0]?.content).toBe("hello!");
-    expect(state.messages[0]?.toolCalls?.[0]?.id).toBe("t1");
-    expect(state.messages[0]?.citations?.[0]?.id).toBe("c1");
-    expect(state.messages[0]?.planningArtifacts?.[0]?.id).toBe("a1");
+    const finalMsg = state.messages[0]!;
+    assertAssistant(finalMsg);
+    expect(finalMsg.content).toBe("hello!");
+    expect(finalMsg.toolCalls?.[0]?.id).toBe("t1");
+    expect(finalMsg.citations?.[0]?.id).toBe("c1");
+    expect(finalMsg.planningArtifacts?.[0]?.id).toBe("a1");
     expect(toolCallsBuffer).toHaveLength(0);
     expect(citationsBuffer).toHaveLength(0);
     expect(planningArtifactsBuffer).toHaveLength(0);
@@ -184,10 +191,11 @@ describe("handleChatEvent — buffering & core events", () => {
 
     // After flush: exactly ONE assistant message with final content + artifacts.
     expect(batchState.messages).toHaveLength(1);
-    expect(batchState.messages[0]?.role).toBe("assistant");
-    expect(batchState.messages[0]?.content).toBe("[mock] received: hello");
-    expect(batchState.messages[0]?.planningArtifacts).toHaveLength(1);
-    expect(batchState.messages[0]?.planningArtifacts?.[0]?.id).toBe("a1");
+    const batchMsg = batchState.messages[0]!;
+    assertAssistant(batchMsg);
+    expect(batchMsg.content).toBe("[mock] received: hello");
+    expect(batchMsg.planningArtifacts).toHaveLength(1);
+    expect(batchMsg.planningArtifacts?.[0]?.id).toBe("a1");
 
     // Refs are cleaned up.
     expect(ctx.streamState.streamingAssistantIndex).toBeNull();

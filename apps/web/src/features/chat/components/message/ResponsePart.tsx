@@ -1,9 +1,9 @@
-import type { Message, PlanningArtifact } from "@pathfinder/shared";
+import type { AssistantMessage, PlanningArtifact } from "@pathfinder/shared";
 import { ChatMarkdown } from "@/lib/components/ChatMarkdown";
 import { Card } from "@/lib/components/ui/Card";
 
 interface ResponsePartProps {
-  message: Message;
+  message: AssistantMessage;
   onApplyPlanningArtifact?: (artifact: PlanningArtifact) => void;
 }
 

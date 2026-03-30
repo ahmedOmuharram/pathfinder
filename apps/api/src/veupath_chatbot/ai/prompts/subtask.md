@@ -28,7 +28,6 @@ Sub-agent tools are the **same as the main agent's tools**, except you do **not*
 - `undo_last_change(graph_id?)`
 - `update_step(step_id, search_name?, parameters?, operator?, display_name?, graph_id?)` (use `display_name` to rename a step)
 - `validate_graph_structure(graph_id?)`
-- `ensure_single_output(graph_id?, operator?, display_name?)`
 
 ### Execution / outputs (only if your delegated task explicitly asks)
 

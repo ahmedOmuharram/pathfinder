@@ -143,12 +143,12 @@ async def start_chat_stream(
     strategy_id: UUID | None,
     context: ChatContext,
     config: ChatTurnConfig | None = None,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Start a background chat operation and return its identifiers.
 
-    Returns ``(operation_id, stream_id)`` so the caller can hand them
-    to the client. The client subscribes to
-    ``GET /operations/{operation_id}/subscribe`` for SSE events.
+    Returns ``(operation_id, stream_id, entry_id)`` so the caller can
+    hand them to the client. ``entry_id`` is the Redis stream entry ID
+    of the ``user_message`` event — the frontend stores it for undo.
 
     Only fast, essential work runs synchronously (user lookup, stream
     resolution, operation registration, user_message emission).
@@ -170,7 +170,7 @@ async def start_chat_stream(
 
     # Persist user message to Redis NOW (survives even if producer errors).
     redis = get_redis()
-    await emit(
+    entry_id = await emit(
         redis,
         stream_id_str,
         operation_id,
@@ -208,7 +208,7 @@ async def start_chat_stream(
     _active_tasks[operation_id] = task
     task.add_done_callback(lambda _: _active_tasks.pop(operation_id, None))
 
-    return operation_id, stream_id_str
+    return operation_id, stream_id_str, entry_id
 
 
 async def _build_agent_context(

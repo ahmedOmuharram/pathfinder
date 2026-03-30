@@ -7,9 +7,11 @@ VEuPathDB strategy during a chat session.
 from uuid import uuid4
 
 from veupath_chatbot.domain.strategy.ast import (
+    COMBINE_SEARCH_NAME,
     PlanStepNode,
     walk_step_tree,
 )
+from veupath_chatbot.domain.strategy.ops import CombineOp
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKStepTree, WDKValidation
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -93,7 +95,212 @@ class StrategyGraph:
         if step.secondary_input and step.secondary_input.id in self.roots:
             self.roots.discard(step.secondary_input.id)
         self.last_step_id = step.id
+        if len(self.roots) > 1:
+            msg = f"Single-root invariant violated: {len(self.roots)} roots ({self.roots})"
+            raise ValueError(msg)
         return step.id
+
+    def find_parent(self, step_id: str) -> tuple[PlanStepNode, str] | None:
+        """Find the parent of a step and which input slot it occupies.
+
+        :param step_id: Step ID to look up.
+        :returns: ``(parent_node, 'primary' | 'secondary')`` or ``None`` if
+            *step_id* is a root or does not exist.
+        """
+        for s in self.steps.values():
+            if s.primary_input and s.primary_input.id == step_id:
+                return s, "primary"
+            if s.secondary_input and s.secondary_input.id == step_id:
+                return s, "secondary"
+        return None
+
+    def insert_step_with_combine(
+        self,
+        new_step: PlanStepNode,
+        combine_with_step_id: str,
+        operator: CombineOp,
+        combine_display_name: str | None = None,
+    ) -> tuple[str, str]:
+        """Atomic leaf+combine creation maintaining the single-root invariant.
+
+        Creates *new_step* and a combine node, inserting the combine between
+        *combine_with_step_id* and its parent (or making it the new root).
+
+        :param new_step: The new search/transform step to add.
+        :param combine_with_step_id: ID of the existing step to combine with.
+        :param operator: Boolean operator for the combine.
+        :param combine_display_name: Optional display name for the combine node.
+        :returns: ``(new_step_id, combine_step_id)``.
+        :raises KeyError: If *combine_with_step_id* is not in the graph.
+        """
+        target = self.steps.get(combine_with_step_id)
+        if target is None:
+            msg = f"Step '{combine_with_step_id}' not found in graph"
+            raise KeyError(msg)
+
+        # Find the parent BEFORE adding new nodes (otherwise the combine
+        # itself would be returned as the parent of the target).
+        parent_info = self.find_parent(combine_with_step_id)
+
+        # Register the new leaf in the graph.
+        self.steps[new_step.id] = new_step
+
+        # Create the combine node.
+        combine = PlanStepNode(
+            search_name=COMBINE_SEARCH_NAME,
+            primary_input=target,
+            secondary_input=new_step,
+            operator=operator,
+            display_name=combine_display_name or str(operator.value),
+        )
+        self.steps[combine.id] = combine
+
+        # Splice the combine between the target and its parent.
+        if parent_info is not None:
+            parent, slot = parent_info
+            if slot == "primary":
+                parent.primary_input = combine
+            else:
+                parent.secondary_input = combine
+        # Otherwise target was a root — combine replaces it.
+
+        self.recompute_roots()
+        self.last_step_id = combine.id
+        self.save_history(f"Combined {new_step.id} with {combine_with_step_id}")
+        return new_step.id, combine.id
+
+    def delete_step_connected(self, step_id: str) -> list[str]:
+        """Delete a step while maintaining the single-root invariant.
+
+        Semantics by step kind:
+
+        - **Leaf of a combine**: remove the leaf AND the parent combine;
+          reconnect the sibling to the grandparent.
+        - **Transform**: remove the transform; reconnect its input to its
+          consumer.
+        - **Subtree (combine or leaf) child of a combine**: remove the entire
+          subtree plus the parent combine; keep the sibling.
+        - **Sole step / root leaf**: empty the graph.
+        - **Root combine**: keep primary subtree, delete secondary + combine.
+
+        :param step_id: ID of the step to delete.
+        :returns: List of deleted step IDs.
+        """
+        step = self.steps.get(step_id)
+        if step is None:
+            return []
+
+        kind = step.infer_kind()
+        parent_info = self.find_parent(step_id)
+
+        # --- Case: deleting a transform → skip it, reconnect input to consumer ---
+        if kind == "transform":
+            input_step = step.primary_input
+            if parent_info is not None:
+                parent, slot = parent_info
+                if slot == "primary":
+                    parent.primary_input = input_step
+                else:
+                    parent.secondary_input = input_step
+            del self.steps[step_id]
+            self.recompute_roots()
+            self.last_step_id = next(iter(self.roots), None)
+            return [step_id]
+
+        # --- Case: no parent (root) ---
+        if parent_info is None:
+            return self._delete_root_step(step_id, step, kind)
+
+        # --- Case: step has a parent ---
+        parent, slot = parent_info
+        parent_kind = parent.infer_kind()
+
+        if parent_kind == "combine":
+            return self._collapse_parent_combine(step, parent, slot)
+
+        if parent_kind == "transform":
+            # Step is the input of a transform. Deleting it leaves the
+            # transform dangling, so cascade: delete step subtree, then
+            # recursively delete the parent transform.
+            subtree_ids = {s.id for s in walk_step_tree(step)}
+            for sid in subtree_ids:
+                self.steps.pop(sid, None)
+            parent.primary_input = None
+            return sorted(subtree_ids) + self.delete_step_connected(parent.id)
+
+        # Fallback (shouldn't reach here under normal usage).
+        subtree_ids_fb = {s.id for s in walk_step_tree(step)}
+        for sid in subtree_ids_fb:
+            self.steps.pop(sid, None)
+        self.recompute_roots()
+        self.last_step_id = next(iter(self.roots), None)
+        return sorted(subtree_ids_fb)
+
+    def _collapse_parent_combine(
+        self, step: PlanStepNode, parent: PlanStepNode, slot: str
+    ) -> list[str]:
+        """Collapse a parent combine: keep sibling, delete step subtree + combine."""
+        sibling = parent.secondary_input if slot == "primary" else parent.primary_input
+
+        # Reconnect sibling to grandparent.
+        grandparent_info = self.find_parent(parent.id)
+        if grandparent_info is not None:
+            grandparent, gp_slot = grandparent_info
+            if gp_slot == "primary":
+                grandparent.primary_input = sibling
+            else:
+                grandparent.secondary_input = sibling
+
+        # Collect all IDs in the deleted subtree.
+        subtree_ids = {s.id for s in walk_step_tree(step)}
+        to_delete = subtree_ids | {parent.id}
+        for sid in to_delete:
+            self.steps.pop(sid, None)
+        self.recompute_roots()
+        self.last_step_id = next(iter(self.roots), None)
+        return sorted(to_delete)
+
+    def _delete_root_step(
+        self, step_id: str, step: PlanStepNode, kind: str
+    ) -> list[str]:
+        """Handle deletion of a root step (no parent)."""
+        if kind == "search":
+            # Sole leaf — empty the graph.
+            deleted = list(self.steps)
+            self.steps.clear()
+            self.roots.clear()
+            self.last_step_id = None
+            return deleted
+
+        if kind == "combine":
+            # Root combine: keep primary subtree, delete secondary + combine.
+            primary = step.primary_input
+            secondary = step.secondary_input
+            sec_ids: set[str] = (
+                {s.id for s in walk_step_tree(secondary)} if secondary else set()
+            )
+            to_delete = sec_ids | {step_id}
+            for sid in to_delete:
+                self.steps.pop(sid, None)
+            self.recompute_roots()
+            self.last_step_id = (
+                primary.id if primary else next(iter(self.roots), None)
+            )
+            return sorted(to_delete)
+
+        # Root transform (unlikely but handle gracefully): promote input.
+        if kind == "transform" and step.primary_input:
+            del self.steps[step_id]
+            self.recompute_roots()
+            self.last_step_id = step.primary_input.id
+            return [step_id]
+
+        # Empty or unknown — clear everything.
+        deleted_all = list(self.steps)
+        self.steps.clear()
+        self.roots.clear()
+        self.last_step_id = None
+        return deleted_all
 
     def get_step(self, step_id: str) -> PlanStepNode | None:
         """Get a step by ID.

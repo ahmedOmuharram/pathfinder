@@ -2,7 +2,7 @@
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import type { Message, OptimizationProgressData } from "@pathfinder/shared";
+import type { AssistantMessage, Message, OptimizationProgressData } from "@pathfinder/shared";
 import { ChatMessageList } from "@/features/chat/components/ChatMessageList";
 
 vi.mock("@/state/useSettingsStore", () => ({
@@ -43,7 +43,7 @@ vi.mock("@/features/chat/components/message/AssistantMessageParts", () => ({
     optimizationProgress,
   }: {
     index: number;
-    message: Message;
+    message: AssistantMessage;
     optimizationProgress?: OptimizationProgressData | null;
   }) => (
     <div data-testid={`assistant-${index}`}>
@@ -71,7 +71,7 @@ function makeOpt(status: OptimizationProgressData["status"]): OptimizationProgre
 function makeAssistant(
   content: string,
   optimizationProgress?: OptimizationProgressData,
-): Message {
+): AssistantMessage {
   return {
     role: "assistant",
     content,

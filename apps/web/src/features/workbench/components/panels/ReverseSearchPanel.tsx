@@ -155,7 +155,7 @@ export function ReverseSearchPanel() {
                     <td className="px-3 py-2 text-right">{pct(r.precision)}</td>
                     <td className="px-3 py-2 text-right">{pct(r.f1)}</td>
                     <td className="px-3 py-2 text-right">
-                      {r.overlapCount}/{r.resultCount}
+                      {r.overlapCount}/{r.estimatedSize}
                     </td>
                   </tr>
                 ))}

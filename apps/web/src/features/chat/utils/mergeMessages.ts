@@ -1,4 +1,4 @@
-import type { Message } from "@pathfinder/shared";
+import type { AssistantMessage, Message } from "@pathfinder/shared";
 
 /**
  * Merge fetched messages into current messages.
@@ -17,6 +17,10 @@ export function mergeMessages(current: Message[], incoming: Message[]) {
     if (cur.role !== msg.role) return msg;
     if ((cur.content || "") !== (msg.content || "")) return msg;
 
+    // Only assistant messages carry tool calls, citations, etc.
+    // User messages have no mergeable metadata fields.
+    if (msg.role !== "assistant" || cur.role !== "assistant") return msg;
+
     // Use explicit null checks (not ??) so that server-returned null doesn't
     // overwrite richer locally-attached data.  ?? only skips undefined, but
     // JSON null deserializes as null which ?? preserves.
@@ -26,7 +30,7 @@ export function mergeMessages(current: Message[], incoming: Message[]) {
     const planningArtifacts = msg.planningArtifacts ?? cur.planningArtifacts;
     const reasoning = msg.reasoning ?? cur.reasoning;
     const optimizationProgress = msg.optimizationProgress ?? cur.optimizationProgress;
-    const merged: Message = {
+    const merged: AssistantMessage = {
       ...msg,
       ...(toolCalls != null ? { toolCalls } : {}),
       ...(subKaniActivity != null ? { subKaniActivity } : {}),

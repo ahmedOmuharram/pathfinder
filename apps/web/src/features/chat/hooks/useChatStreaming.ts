@@ -1,66 +1,52 @@
 import { useCallback } from "react";
 import type {
   ChatMention,
-  Message,
+  UserMessage,
   ToolCall,
   ModelSelection,
-  Step,
   Strategy,
 } from "@pathfinder/shared";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { streamChat } from "@/features/chat/stream";
 import { useSettingsStore } from "@/state/useSettingsStore";
 import { encodeNodeSelection } from "@/features/chat/node_selection";
-import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
-import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
+import type {
+  StrategyActions,
+  UISetters,
+  EventHelpers,
+  OptionalCallbacks,
+} from "@/features/chat/handlers/handleChatEvent";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import { useStreamLifecycle } from "@/features/chat/hooks/useStreamLifecycle";
 import { useStreamEvents } from "@/features/chat/hooks/useStreamEvents";
 
 type Thinking = ReturnType<typeof useThinkingState>;
-type AddStrategyInput = Parameters<ChatEventContext["addStrategy"]>[0];
 
-interface UseChatStreamingArgs {
+/** Event-handling dependencies passed through to useStreamEvents. */
+export interface StreamEventDepsGroup extends
+  StrategyActions,
+  Omit<UISetters, "setOptimizationProgress">,
+  EventHelpers,
+  OptionalCallbacks {
   siteId: string;
-  strategyId: string | null;
-  draftSelection: NodeSelection | null;
-  setDraftSelection: (selection: NodeSelection | null) => void;
   thinking: Thinking;
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  setUndoSnapshots: React.Dispatch<React.SetStateAction<Record<number, Strategy>>>;
-  sessionRef: { current: StreamingSession | null };
-  createSession: () => StreamingSession;
-  loadGraph: (graphId: string) => void;
-  addStrategy: (strategy: AddStrategyInput) => void;
-  addExecutedStrategy: (strategy: Strategy) => void;
-  setStrategyId: (id: string | null) => void;
-  setWdkInfo: ChatEventContext["setWdkInfo"];
-  setStrategy: (strategy: Strategy | null) => void;
-  setStrategyMeta: ChatEventContext["setStrategyMeta"];
-  clearStrategy: () => void;
-  addStep: (step: Step) => void;
-  parseToolArguments: ChatEventContext["parseToolArguments"];
-  parseToolResult: ChatEventContext["parseToolResult"];
-  applyGraphSnapshot: (graphSnapshot: GraphSnapshotInput) => void;
-  getStrategy: (id: string) => Promise<Strategy>;
   currentStrategy: Strategy | null;
   attachThinkingToLastAssistant: (
     calls: ToolCall[],
     activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> },
   ) => void;
-  /** Called when the backend selects a model (model_selected event). */
-  setSelectedModelId?: (modelId: string | null) => void;
-  /** Per-request model/provider/reasoning selection. */
+}
+
+interface UseChatStreamingArgs extends StreamEventDepsGroup {
+  strategyId: string | null;
+  draftSelection: NodeSelection | null;
+  setDraftSelection: (selection: NodeSelection | null) => void;
+  sessionRef: { current: StreamingSession | null };
+  createSession: () => StreamingSession;
   modelSelection?: ModelSelection | null;
-  onApiError?: (message: string) => void;
-  /** Callback for workbench_gene_set events — decouples from workbench store. */
-  onWorkbenchGeneSet?: ChatEventContext["onWorkbenchGeneSet"];
-  /** Called after streaming completes successfully. */
   onStreamComplete?: () => void;
-  /** Called after streaming errors out (in addition to the default error handling). */
   onStreamError?: (error: Error) => void;
-  /** Called whenever streaming state changes (e.g. to sync global store). */
   setChatIsStreaming?: (streaming: boolean) => void;
 }
 
@@ -130,7 +116,7 @@ export function useChatStreaming({
     async (
       content: string,
       streamContext: { strategyId?: string; mentions?: ChatMention[] },
-    ) => {
+    ): Promise<string | null> => {
       lifecycle.beginStream();
 
       const session = createSession();
@@ -171,9 +157,11 @@ export function useChatStreaming({
         if (streamContext.strategyId == null && result.strategyId !== "") {
           setStrategyId(result.strategyId);
         }
+        return result.entryId;
       } catch (e) {
         const error = e instanceof Error ? e : new Error(String(e));
         lifecycle.handleStreamError(error, callbacks.toolCalls, onStreamError);
+        return null;
       }
     },
     [
@@ -194,7 +182,7 @@ export function useChatStreaming({
   const handleSendMessage = useCallback(
     async (content: string, mentions?: ChatMention[]) => {
       const finalContent = encodeNodeSelection(draftSelection, content);
-      const userMessage: Message = {
+      const userMessage: UserMessage = {
         role: "user",
         content: finalContent,
         ...(mentions != null && mentions.length > 0 ? { mentions } : {}),
@@ -205,10 +193,25 @@ export function useChatStreaming({
         setDraftSelection(null);
       }
 
-      await executeStream(finalContent, {
+      const entryId = await executeStream(finalContent, {
         ...(strategyId != null ? { strategyId } : {}),
         ...(mentions != null ? { mentions } : {}),
       });
+      // Attach the Redis entry ID to the user message for undo support.
+      if (entryId != null && entryId !== "") {
+        setMessages((prev) => {
+          let last = -1;
+          for (let i = prev.length - 1; i >= 0; i--) {
+            if (prev[i]?.role === "user") { last = i; break; }
+          }
+          const existing = last >= 0 ? prev[last] : undefined;
+          if (existing?.role !== "user") return prev;
+          const patched: UserMessage = { ...existing, entryId };
+          const updated = [...prev];
+          updated[last] = patched;
+          return updated;
+        });
+      }
     },
     [draftSelection, setMessages, setDraftSelection, strategyId, executeStream],
   );

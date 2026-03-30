@@ -8,7 +8,7 @@ client, discovery service) are injected via callbacks or explicit parameters.
 from dataclasses import dataclass
 
 from veupath_chatbot.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
-from veupath_chatbot.domain.strategy.ops import ColocationParams
+from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp, parse_op
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
 from veupath_chatbot.platform.logging import get_logger
@@ -43,6 +43,8 @@ class StepSpec:
     operator: str | None = None
     display_name: str | None = None
     colocation_params: ColocationParams | None = None
+    combine_with_step_id: str | None = None
+    combine_operator: str | None = None  # defaults to "INTERSECT" if not provided
 
 
 @dataclass
@@ -55,6 +57,10 @@ class StepCreationResult:
     wdk_step_id: int | None = None
     wdk_validation: WDKValidation | None = None
     wdk_push_error: str | None = None
+    combine_step: PlanStepNode | None = None
+    combine_step_id: str | None = None
+    combine_wdk_step_id: int | None = None
+    combine_wdk_push_error: str | None = None
 
 
 def _error_result(error: JSONObject) -> StepCreationResult:
@@ -187,7 +193,7 @@ async def create_step(
     if step_error is not None:
         return _error_result(step_error)
 
-    # Build and add the step.
+    # Build the step node.
     step = PlanStepNode(
         search_name=search_name,
         parameters=parameters,
@@ -198,11 +204,56 @@ async def create_step(
         display_name=spec.display_name or search_name,
     )
 
-    step_id = graph.add_step(step)
+    # Determine whether we need a combine node.
+    combine_with_step_id = spec.combine_with_step_id
+    needs_combine = False
 
-    logger.info("Created step", step_id=step_id, search=search_name)
+    if graph.steps and combine_with_step_id is None and not primary_input and not secondary_input:
+        # Auto-combine with current root when graph already has steps
+        # and this is a leaf step (not an explicit binary/transform).
+        combine_with_step_id = next(iter(graph.roots))
+        needs_combine = True
+    elif combine_with_step_id is not None:
+        needs_combine = True
 
-    # Push step to WDK immediately (best-effort).
+    if needs_combine and combine_with_step_id is not None:
+        # Resolve combine operator.
+        combine_op = (
+            parse_op(spec.combine_operator)
+            if spec.combine_operator
+            else CombineOp.INTERSECT
+        )
+
+        # Validate that the target step exists before inserting.
+        if combine_with_step_id not in graph.steps:
+            return _error_result({
+                "code": "STEP_NOT_FOUND",
+                "message": f"combine_with_step_id '{combine_with_step_id}' not found in graph.",
+            })
+
+        # Insert the leaf + combine atomically.
+        _new_step_id, combine_id = graph.insert_step_with_combine(
+            step, combine_with_step_id, combine_op,
+        )
+        step_id = step.id
+        combine_step = graph.steps[combine_id]
+
+        logger.info(
+            "Created step with combine",
+            step_id=step_id,
+            combine_id=combine_id,
+            search=search_name,
+            operator=str(combine_op),
+        )
+    else:
+        # First step or explicit binary/transform — add directly.
+        step_id = graph.add_step(step)
+        combine_step = None
+        combine_id = None
+
+        logger.info("Created step", step_id=step_id, search=search_name)
+
+    # Push leaf step to WDK immediately (best-effort).
     wdk_step_id, wdk_validation, push_error = await _push_step_to_wdk(
         graph=graph,
         step=step,
@@ -215,6 +266,21 @@ async def create_step(
     if push_error:
         graph.wdk_push_errors[step.id] = push_error
 
+    # Push combine step to WDK if one was created.
+    combine_wdk_step_id: int | None = None
+    combine_wdk_push_error: str | None = None
+    if combine_step is not None:
+        combine_wdk_step_id, _, combine_wdk_push_error = await _push_step_to_wdk(
+            graph=graph,
+            step=combine_step,
+            site_id=site_id,
+            search_name=COMBINE_SEARCH_NAME,
+            parameters={},
+            parsed_op=combine_step.operator,
+        )
+        if combine_wdk_push_error:
+            graph.wdk_push_errors[combine_step.id] = combine_wdk_push_error
+
     return StepCreationResult(
         step=step,
         step_id=step_id,
@@ -222,6 +288,10 @@ async def create_step(
         wdk_step_id=wdk_step_id,
         wdk_validation=wdk_validation,
         wdk_push_error=push_error,
+        combine_step=combine_step,
+        combine_step_id=combine_id,
+        combine_wdk_step_id=combine_wdk_step_id,
+        combine_wdk_push_error=combine_wdk_push_error,
     )
 
 

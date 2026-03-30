@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
+from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo, get_site_router
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
     WDKRecordType,
     WDKSearch,
@@ -156,7 +156,7 @@ class SearchCatalog:
             }
             answer = await client.post(
                 "/record-types/dataset/searches/AllDatasets/reports/standard",
-                json={"reportConfig": report_config},
+                json={"searchConfig": {"parameters": {}}, "reportConfig": report_config},
             )
             report = _DatasetReport.model_validate(answer)
             for rec in report.records:
@@ -180,7 +180,7 @@ class SearchCatalog:
                 SemanticSearchIndex,
             )
 
-            index = SemanticSearchIndex()
+            index = SemanticSearchIndex(site_id=self.site_id)
             index.build(
                 self._searches,
                 dataset_summaries=self._dataset_summaries,
@@ -328,17 +328,34 @@ class DiscoveryService:
         )
 
     async def preload_all(self) -> None:
-        """Preload catalogs for all sites."""
+        """Preload catalogs for all sites.
+
+        Component sites are loaded in parallel (blocking). The portal
+        is deferred to a background task since its 2400+ search catalog
+        takes ~90s to fetch and would block startup.
+        """
         router = get_site_router()
         sites = router.list_sites()
 
+        component: list[SiteInfo] = []
+        portal: list[SiteInfo] = []
+        for s in sites:
+            (portal if s.is_portal else component).append(s)
+
         async def load_site(site_id: str) -> None:
             try:
+                print(f"[warm-up] Preloading {site_id}", flush=True)
                 await self.get_catalog(site_id)
+                print(f"[warm-up] Preloaded {site_id}", flush=True)
             except (AppError, OSError, RuntimeError) as e:
-                logger.warning("Failed to preload site", site_id=site_id, error=str(e))
+                print(f"[warm-up] Failed {site_id}: {e}", flush=True)
 
-        await asyncio.gather(*[load_site(s.id) for s in sites])
+        # Component sites: fast, block startup.
+        await asyncio.gather(*[load_site(s.id) for s in component])
+
+        # Portal: slow, run in background so the API is ready immediately.
+        for s in portal:
+            asyncio.create_task(load_site(s.id))
 
 
 # Global discovery service

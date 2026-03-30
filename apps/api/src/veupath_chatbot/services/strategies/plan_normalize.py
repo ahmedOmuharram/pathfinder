@@ -4,22 +4,28 @@ Produce canonical JSON shapes for frontend consumption. Multi-pick becomes
 list[str], ranges become ``{min, max}``, etc.
 """
 
-import collections.abc
 import hashlib
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
 from veupath_chatbot.domain.parameters.specs import (
     ParamSpecNormalized,
     adapt_param_specs_from_search,
 )
-from veupath_chatbot.domain.strategy.ast import PlanStepNode
+from veupath_chatbot.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 from .schemas import StrategyPlanPayload
+
+"""Callback that loads WDK search details for a (record_type, search_name)
+pair, returning a fully validated ``WDKSearchResponse``."""
+LoadSearchDetails = Callable[
+    [str, str, Mapping[str, JSONValue]],
+    Awaitable[WDKSearchResponse],
+]
 
 
 def _strip_combine_bq_keys(params: JSONObject) -> None:
@@ -32,9 +38,7 @@ def _strip_combine_bq_keys(params: JSONObject) -> None:
 
 async def _load_and_cache_spec(
     specs_cache: dict[tuple[str, str, str], dict[str, ParamSpecNormalized]],
-    load_search_details: Callable[
-        [str, str, Mapping[str, JSONValue]], collections.abc.Awaitable[JSONObject]
-    ],
+    load_search_details: LoadSearchDetails,
     record_type: str,
     name: str,
     site_id: str,
@@ -48,8 +52,7 @@ async def _load_and_cache_spec(
     if cached is not None:
         return cached
     try:
-        details = await load_search_details(record_type, name, params)
-        response = WDKSearchResponse.model_validate(details)
+        response = await load_search_details(record_type, name, params)
     except Exception as exc:
         raise ValidationError(
             title="Failed to load search metadata",
@@ -71,14 +74,12 @@ async def canonicalize_plan_parameters(
     *,
     plan: StrategyPlanPayload,
     site_id: str,
-    load_search_details: Callable[
-        [str, str, Mapping[str, JSONValue]], collections.abc.Awaitable[JSONObject]
-    ],
+    load_search_details: LoadSearchDetails,
 ) -> StrategyPlanPayload:
     """Canonicalize all search/transform node parameters using WDK specs.
 
-    `load_search_details(record_type, search_or_transform_name, params) -> dict` must return a WDK
-    payload with expanded params (or raise).
+    ``load_search_details(record_type, name, params)`` must return a validated
+    ``WDKSearchResponse``.
     """
     record_type = plan.record_type
 
@@ -90,7 +91,10 @@ async def canonicalize_plan_parameters(
         name = node.search_name
         params = dict(node.parameters)
 
-        is_combine = node.primary_input is not None and node.secondary_input is not None
+        is_combine = (
+            (node.primary_input is not None and node.secondary_input is not None)
+            or node.search_name == COMBINE_SEARCH_NAME
+        )
 
         # Combine nodes are structural (primary+secondary+operator) and do not require
         # WDK parameter metadata. Some WDK deployments do not expose a corresponding

@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { Message, ToolCall } from "@pathfinder/shared";
+import type { AssistantMessage, Message, ToolCall } from "@pathfinder/shared";
 import { mergeMessages } from "./mergeMessages";
 import { parseToolArguments } from "./parseToolArguments";
 import { extractDelegateSummaries } from "./extractDelegateSummaries";
+
+function assertAssistant(msg: Message): asserts msg is AssistantMessage {
+  if (msg.role !== "assistant") throw new Error(`Expected assistant, got ${msg.role}`);
+}
 
 describe("features/chat/utils", () => {
   it("mergeMessages only accepts incoming when at least as complete", () => {
@@ -38,6 +42,7 @@ describe("features/chat/utils", () => {
       },
     ];
     const result = mergeMessages(local, incoming);
+    assertAssistant(result[0]!);
     expect(result[0]!.optimizationProgress).toEqual(localOpt);
   });
 
@@ -60,6 +65,7 @@ describe("features/chat/utils", () => {
       { role: "assistant", content: "done", timestamp: "t1" },
     ];
     const result = mergeMessages(local, incoming);
+    assertAssistant(result[0]!);
     expect(result[0]!.optimizationProgress).toEqual(localOpt);
   });
 
@@ -80,6 +86,7 @@ describe("features/chat/utils", () => {
       },
     ];
     const result = mergeMessages(local, incoming);
+    assertAssistant(result[0]!);
     expect(result[0]!.optimizationProgress).toEqual(serverOpt);
   });
 

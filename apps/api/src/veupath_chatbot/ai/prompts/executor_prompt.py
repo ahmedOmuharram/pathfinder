@@ -3,18 +3,64 @@
 import json
 
 from veupath_chatbot.ai.prompts.loader import load_system_prompt
+from veupath_chatbot.domain.strategy.session import StrategySession
 from veupath_chatbot.platform.types import JSONObject
+
+
+def _build_strategy_context(session: StrategySession) -> str:
+    """Build a brief strategy summary for injection into the system prompt.
+
+    Gives the model persistent awareness of the current strategy state so it
+    does not lose track of already-built steps across turns.
+    """
+    graph = session.get_graph(None)
+    if not graph or not graph.steps:
+        return ""
+
+    lines: list[str] = ["\n\n## Current Strategy State"]
+    lines.append(f"**Name:** {graph.name}")
+    if graph.record_type:
+        lines.append(f"**Record type:** {graph.record_type}")
+
+    built = graph.wdk_strategy_id is not None
+    lines.append(f"**Built on WDK:** {'Yes (ID: ' + str(graph.wdk_strategy_id) + ')' if built else 'No'}")
+    lines.append(f"**Steps ({len(graph.steps)}):**")
+
+    for step in graph.steps.values():
+        kind = step.infer_kind()
+        label = step.display_name or step.search_name
+        count = graph.step_counts.get(step.id)
+        count_str = f" — {count:,} results" if count is not None else ""
+        error = graph.wdk_push_errors.get(step.id)
+        error_str = f" ⚠ {error}" if error else ""
+
+        if kind == "combine":
+            lines.append(
+                f"- `{step.id}` [{kind}] {step.operator}: {label}{count_str}{error_str}"
+            )
+        elif kind == "transform":
+            lines.append(f"- `{step.id}` [{kind}] {label}{count_str}{error_str}")
+        else:
+            lines.append(f"- `{step.id}` [search] {label}{count_str}{error_str}")
+
+    lines.append(
+        "\nDo NOT re-create steps that already exist. "
+        "Use `get_strategy` for full parameter details if needed."
+    )
+    return "\n".join(lines)
 
 
 def build_agent_system_prompt(
     *,
     site_id: str,
+    strategy_session: StrategySession,
     selected_nodes: JSONObject | None,
     mentioned_context: str | None = None,
 ) -> str:
     """Build the executor agent system prompt.
 
     :param site_id: VEuPathDB site identifier.
+    :param strategy_session: Current strategy session with graph state.
     :param selected_nodes: Selected graph nodes (default: None).
     :param mentioned_context: Rich context from @-mentioned entities (default: None).
     :returns: Full system prompt string.
@@ -24,6 +70,7 @@ def build_agent_system_prompt(
         f"\n\n## Current Session\nYou are currently working with the **{site_id}** database. "
         "Use this site for all searches and operations unless the user asks to switch sites."
     )
+    strategy_context = _build_strategy_context(strategy_session)
     node_context = ""
     if selected_nodes:
         selected_nodes_json = json.dumps(selected_nodes, indent=2, sort_keys=True)
@@ -41,4 +88,4 @@ def build_agent_system_prompt(
             "to understand their question and provide relevant answers.\n\n"
             "```\n" + mentioned_context + "\n```"
         )
-    return base_prompt + site_context + node_context + mention_block
+    return base_prompt + site_context + strategy_context + node_context + mention_block

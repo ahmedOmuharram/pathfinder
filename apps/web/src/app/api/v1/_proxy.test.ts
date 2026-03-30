@@ -108,23 +108,26 @@ describe("_proxy", () => {
   // -----------------------------------------------------------------------
 
   describe("forwardHeaders", () => {
-    it("forwards Authorization and Cookie from the incoming request", () => {
+    it("forwards Authorization, Cookie, and X-Requested-With from the incoming request", () => {
       const req = makeNextRequest("/api/v1/test", {
         headers: {
           authorization: "Bearer tok123",
           cookie: "session=abc",
+          "x-requested-with": "XMLHttpRequest",
         },
       });
       const result = forwardHeaders(req);
       expect(result["Authorization"]).toBe("Bearer tok123");
       expect(result["Cookie"]).toBe("session=abc");
+      expect(result["X-Requested-With"]).toBe("XMLHttpRequest");
     });
 
-    it("omits Authorization and Cookie when absent", () => {
+    it("omits Authorization, Cookie, and X-Requested-With when absent", () => {
       const req = makeNextRequest("/api/v1/test");
       const result = forwardHeaders(req);
       expect(result["Authorization"]).toBeUndefined();
       expect(result["Cookie"]).toBeUndefined();
+      expect(result["X-Requested-With"]).toBeUndefined();
     });
 
     it("merges override headers", () => {

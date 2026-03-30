@@ -14,9 +14,11 @@ from veupath_chatbot.tests.fixtures.builders import make_combine, make_leaf
 
 
 def _graph_with_steps(*steps: PlanStepNode) -> StrategyGraph:
+    """Build a graph with steps using dict manipulation (bypasses single-root check)."""
     graph = StrategyGraph("g1", "Test", "plasmodb")
     for step in steps:
-        graph.add_step(step)
+        graph.steps[step.id] = step
+    graph.recompute_roots()
     return graph
 
 

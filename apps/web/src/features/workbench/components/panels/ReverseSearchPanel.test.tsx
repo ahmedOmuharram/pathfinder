@@ -125,7 +125,7 @@ describe("ReverseSearchPanel", () => {
         recall: 0.8,
         precision: 0.6,
         f1: 0.686,
-        resultCount: 100,
+        estimatedSize: 100,
         overlapCount: 4,
       },
     ]);

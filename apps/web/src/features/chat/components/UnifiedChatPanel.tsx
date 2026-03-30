@@ -42,6 +42,7 @@ export function UnifiedChatPanel({
     firstName,
     messages,
     undoSnapshots,
+    isUndoing,
     isStreaming,
     isLoadingChat,
     onSend,
@@ -54,7 +55,7 @@ export function UnifiedChatPanel({
     setDraftSelection,
     models,
     messagesEndRef,
-    handleUndoSnapshot,
+    handleUndo,
     handleApplyPlanningArtifact,
   } = useChatPanelState({
     siteId,
@@ -76,10 +77,13 @@ export function UnifiedChatPanel({
         isLoading={isLoadingChat}
         messages={messages}
         undoSnapshots={undoSnapshots}
+        isUndoing={isUndoing}
         onSend={(content: string) => {
           void onSend(content);
         }}
-        onUndoSnapshot={handleUndoSnapshot}
+        onUndo={(userMessageIndex: number) => {
+          void handleUndo(userMessageIndex);
+        }}
         onApplyPlanningArtifact={(artifact) => {
           void handleApplyPlanningArtifact(artifact);
         }}

@@ -5,11 +5,15 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { Message, OptimizationProgressData } from "@pathfinder/shared";
+import type { AssistantMessage, Message, OptimizationProgressData } from "@pathfinder/shared";
 import {
   persistReasoningToLastMessage,
   persistOptimizationDataToLastMessage,
 } from "./streamCompletionHelpers";
+
+function assertAssistant(msg: Message): asserts msg is AssistantMessage {
+  if (msg.role !== "assistant") throw new Error(`Expected assistant, got ${msg.role}`);
+}
 
 const ts = "2026-01-01T00:00:00Z";
 
@@ -31,7 +35,9 @@ describe("persistReasoningToLastMessage", () => {
     ];
     const result = persistReasoningToLastMessage(prev, "thinking...");
     expect(result).not.toBe(prev);
-    expect(result[1]?.reasoning).toBe("thinking...");
+    const assistantMsg = result[1]!;
+    assertAssistant(assistantMsg);
+    expect(assistantMsg.reasoning).toBe("thinking...");
     // User message untouched
     expect(result[0]).toBe(prev[0]);
   });
@@ -78,7 +84,9 @@ describe("persistOptimizationDataToLastMessage", () => {
     ];
     const result = persistOptimizationDataToLastMessage(prev, progress);
     expect(result).not.toBe(prev);
-    expect(result[1]?.optimizationProgress).toBe(progress);
+    const optMsg = result[1]!;
+    assertAssistant(optMsg);
+    expect(optMsg.optimizationProgress).toBe(progress);
   });
 
   it("returns prev unchanged when no assistant messages exist", () => {

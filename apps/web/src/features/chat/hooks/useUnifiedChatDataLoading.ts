@@ -52,7 +52,9 @@ export function useUnifiedChatDataLoading({
 
   const applyStrategy = useCallback(
     (strategy: Strategy) => {
-      const incoming = strategy.messages ?? [];
+      const incoming = (strategy.messages ?? []).filter(
+        (m): m is Message => m.role === "user" || m.role === "assistant",
+      );
       setMessages((prev) => mergeMessages(prev, incoming));
       if (strategy.modelId != null && strategy.modelId !== "")
         setSelectedModelId(strategy.modelId);

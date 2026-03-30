@@ -47,7 +47,7 @@ async def chat(
         response_tokens=body.response_tokens,
         reasoning_budget=body.reasoning_budget,
     )
-    operation_id, strategy_id = await start_chat_stream(
+    operation_id, strategy_id, entry_id = await start_chat_stream(
         message=body.message,
         site_id=body.site_id,
         strategy_id=body.strategy_id,
@@ -55,6 +55,6 @@ async def chat(
         config=config,
     )
     return JSONResponse(
-        {"operationId": operation_id, "strategyId": strategy_id},
+        {"operationId": operation_id, "strategyId": strategy_id, "entryId": entry_id},
         status_code=202,
     )

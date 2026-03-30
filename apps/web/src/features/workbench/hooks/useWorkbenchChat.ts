@@ -143,7 +143,7 @@ export function useWorkbenchChat(
                 {
                   ...last,
                   toolCalls: last.toolCalls.map((tc) =>
-                    tc.id === event.data.id ? { ...tc, result: event.data.result } : tc,
+                    tc.id === event.data.id ? { ...tc, result: event.data.result ?? "" } : tc,
                   ),
                 },
               ];
@@ -164,7 +164,7 @@ export function useWorkbenchChat(
           break;
         case "workbench_gene_set": {
           const gs = event.data.geneSet;
-          if (gs != null) {
+          if (gs?.id != null && gs.name != null && gs.geneCount != null && gs.source != null && gs.siteId != null) {
             useWorkbenchStore.getState().addGeneSet({
               id: gs.id,
               name: gs.name,
@@ -189,6 +189,7 @@ export function useWorkbenchChat(
         case "subkani_task_start":
         case "subkani_tool_call_start":
         case "subkani_tool_call_end":
+        case "subkani_task_retry":
         case "subkani_task_end":
         case "strategy_update":
         case "graph_snapshot":
@@ -198,7 +199,6 @@ export function useWorkbenchChat(
         case "optimization_progress":
         case "model_selected":
         case "graph_plan":
-        case "executor_build_request":
         case "token_usage_partial":
         case "unknown":
           // These event types are handled elsewhere or are irrelevant to the workbench chat.

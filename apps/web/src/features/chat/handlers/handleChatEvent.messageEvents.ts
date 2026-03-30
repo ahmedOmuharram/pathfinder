@@ -1,5 +1,7 @@
 import type {
+  AssistantMessage,
   Message,
+  UserMessage,
   OptimizationProgressData,
   OptimizationTrial,
   SubKaniTokenUsage,
@@ -83,15 +85,12 @@ export function handleUserMessageEvent(ctx: ChatEventContext, data: UserMessageD
       if (msg.content === content) return prev;
       break; // Only check the most recent user message
     }
-    return [
-      ...prev,
-      {
-        role: "user" as const,
-        content,
-        messageId: data.messageId,
-        timestamp: new Date().toISOString(),
-      },
-    ];
+    const userMessage: UserMessage = {
+      role: "user",
+      content,
+      timestamp: new Date().toISOString(),
+    };
+    return [...prev, userMessage];
   });
 }
 
@@ -155,7 +154,7 @@ export function handleAssistantDeltaEvent(
     ctx.streamState.streamingAssistantIndex = -1;
     ctx.streamState.streamingAssistantMessageId = messageId ?? null;
 
-    const assistantMessage: Message = {
+    const assistantMessage: AssistantMessage = {
       role: "assistant",
       content: delta,
       ...(ctx.streamState.currentModelId != null
@@ -185,9 +184,9 @@ export function handleAssistantDeltaEvent(
   ctx.setMessages((prev) => {
     const idx = resolveAssistantIndex(ctx.streamState.streamingAssistantIndex, prev);
     if (idx === null) return prev;
+    const existing = prev[idx];
+    if (existing == null || existing.role !== "assistant") return prev;
     const next = [...prev];
-    const existing = next[idx];
-    if (existing?.role !== "assistant") return prev;
     next[idx] = { ...existing, content: (existing.content || "") + delta };
     return next;
   });
@@ -232,11 +231,11 @@ export function handleAssistantMessageEvent(
     ctx.setMessages((prev) => {
       const idx = resolveAssistantIndex(ctx.streamState.streamingAssistantIndex, prev);
       if (idx === null) return prev;
-      const next = [...prev];
-      const existing = next[idx];
-      if (existing?.role !== "assistant") return prev;
+      const existing = prev[idx];
+      if (existing == null || existing.role !== "assistant") return prev;
       const mergedReasoning = finalReasoning ?? existing.reasoning;
       const mergedOptimization = finalOptimization ?? existing.optimizationProgress;
+      const next = [...prev];
       next[idx] = {
         ...existing,
         content: finalContent !== "" ? finalContent : existing.content,
@@ -266,7 +265,7 @@ export function handleAssistantMessageEvent(
       return next;
     });
   } else if (finalContent) {
-    const assistantMessage: Message = {
+    const assistantMessage: AssistantMessage = {
       role: "assistant",
       content: finalContent,
       ...(ctx.streamState.currentModelId != null
@@ -371,17 +370,10 @@ export function handleOptimizationProgressEvent(
     if (idx == null || idx < 0) {
       idx = ctx.streamState.turnAssistantIndex ?? null;
     }
-    if (
-      idx == null ||
-      idx < 0 ||
-      idx >= prev.length ||
-      prev[idx]?.role !== "assistant"
-    ) {
-      return prev;
-    }
-    const next = [...prev];
+    if (idx == null || idx < 0 || idx >= prev.length) return prev;
     const existing = prev[idx];
-    if (existing == null) return prev;
+    if (existing == null || existing.role !== "assistant") return prev;
+    const next = [...prev];
     next[idx] = { ...existing, optimizationProgress: normalizedProgress };
     return next;
   });
@@ -413,27 +405,27 @@ export function handleTokenUsagePartialEvent(
   ctx.setMessages((prev) => {
     const updated = [...prev];
     for (let i = updated.length - 1; i >= 0; i--) {
-      const msg = updated[i];
-      if (msg?.role === "user" && msg.tokenUsage == null) {
-        updated[i] = {
-          ...msg,
-          tokenUsage: {
-            promptTokens,
-            completionTokens: 0,
-            totalTokens: promptTokens,
-            cachedTokens: 0,
-            toolCallCount: 0,
-            registeredToolCount,
-            llmCallCount: 0,
-            subKaniPromptTokens: 0,
-            subKaniCompletionTokens: 0,
-            subKaniCallCount: 0,
-            estimatedCostUsd: 0,
-            modelId: "",
-          },
-        };
-        break;
-      }
+      const msg = prev[i];
+      if (msg == null || msg.role !== "user") continue;
+      if (msg.tokenUsage != null) continue;
+      updated[i] = {
+        ...msg,
+        tokenUsage: {
+          promptTokens,
+          completionTokens: 0,
+          totalTokens: promptTokens,
+          cachedTokens: 0,
+          toolCallCount: 0,
+          registeredToolCount,
+          llmCallCount: 0,
+          subKaniPromptTokens: 0,
+          subKaniCompletionTokens: 0,
+          subKaniCallCount: 0,
+          estimatedCostUsd: 0,
+          modelId: "",
+        },
+      };
+      break;
     }
     return updated;
   });
@@ -463,19 +455,18 @@ export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndDat
     const updated = [...prev];
     // Update last user message (may already have partial usage from token_usage_partial).
     for (let i = updated.length - 1; i >= 0; i--) {
-      const msg = updated[i];
-      if (msg?.role === "user") {
-        updated[i] = { ...msg, tokenUsage: usage };
-        break;
-      }
+      const msg = prev[i];
+      if (msg == null || msg.role !== "user") continue;
+      updated[i] = { ...msg, tokenUsage: usage };
+      break;
     }
     // Update last assistant message.
     for (let i = updated.length - 1; i >= 0; i--) {
-      const msg = updated[i];
-      if (msg?.role === "assistant" && msg.tokenUsage == null) {
-        updated[i] = { ...msg, tokenUsage: usage };
-        break;
-      }
+      const msg = prev[i];
+      if (msg == null || msg.role !== "assistant") continue;
+      if (msg.tokenUsage != null) continue;
+      updated[i] = { ...msg, tokenUsage: usage };
+      break;
     }
     return updated;
   });
@@ -483,7 +474,7 @@ export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndDat
 
 export function handleErrorEvent(ctx: ChatEventContext, data: ErrorData) {
   const { error } = data;
-  const assistantMessage: Message = {
+  const assistantMessage: AssistantMessage = {
     role: "assistant",
     content: `⚠️ Error: ${error}`,
     timestamp: new Date().toISOString(),

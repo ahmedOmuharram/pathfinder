@@ -93,17 +93,14 @@ export function serializeStrategyPlan(
     strategy?.name != null && strategy.name !== ""
       ? strategy.name
       : DEFAULT_STREAM_NAME;
-  const metadata: { name: string; description?: string } = { name };
-  if (strategy?.description != null) {
-    metadata.description = strategy.description;
-  }
   return {
     name,
     recordType,
     plan: {
       recordType,
       root: rootNode,
-      metadata,
+      name,
+      ...(strategy?.description != null ? { description: strategy.description } : {}),
     },
   };
 }

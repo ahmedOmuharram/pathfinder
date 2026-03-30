@@ -1,10 +1,10 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { Message } from "@pathfinder/shared";
+import type { AssistantMessage } from "@pathfinder/shared";
 import { Card } from "@/lib/components/ui/Card";
 
 interface SourcesPartProps {
   messageKey: string;
-  citations: NonNullable<Message["citations"]>;
+  citations: NonNullable<AssistantMessage["citations"]>;
   expandedSources: Record<string, boolean>;
   setExpandedSources: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   showCitationTags: boolean;

@@ -190,6 +190,8 @@ class PlanStepNode(CamelModel):
     def infer_kind(self) -> str:
         if self.primary_input is not None and self.secondary_input is not None:
             return "combine"
+        if self.search_name == COMBINE_SEARCH_NAME:
+            return "combine"
         if self.primary_input is not None:
             return "transform"
         return "search"

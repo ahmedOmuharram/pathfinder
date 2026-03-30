@@ -1,4 +1,4 @@
-import type { Message, OptimizationProgressData } from "@pathfinder/shared";
+import type { AssistantMessage, OptimizationProgressData } from "@pathfinder/shared";
 
 type AssistantPartTag = "thought" | "response" | "sources" | "optimization";
 
@@ -9,7 +9,7 @@ interface AssistantPart {
 
 export function buildAssistantParts(
   index: number,
-  message: Message,
+  message: AssistantMessage,
   isLiveStreaming: boolean,
   liveOptimization: OptimizationProgressData | null | undefined,
 ): AssistantPart[] {

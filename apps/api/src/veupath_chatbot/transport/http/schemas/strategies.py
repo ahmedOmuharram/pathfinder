@@ -97,3 +97,14 @@ class UpdateStrategyRequest(BaseModel):
     is_saved: bool | None = Field(default=None, alias="isSaved")
 
     model_config = {"populate_by_name": True}
+
+
+class PushStrategyRequest(BaseModel):
+    """Request to push a strategy to WDK (persist + sync)."""
+
+    name: str = Field(min_length=1, max_length=255)
+    site_id: str = Field(alias="siteId")
+    plan: StrategyPlanPayload
+    description: str | None = Field(default=None, max_length=2000)
+
+    model_config = {"populate_by_name": True}

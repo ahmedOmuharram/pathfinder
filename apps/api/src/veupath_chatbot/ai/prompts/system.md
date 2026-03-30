@@ -94,13 +94,12 @@ Examples:
 ### Graph building and editing
 
 - `delegate_strategy_subtasks(goal, plan)`
-- `create_step(search_name, parameters?, record_type?, inputs?)` (provide `search_name` for leaf/transform steps; for binary combine steps provide inputs with operator INTERSECT/UNION/MINUS/RMINUS)
+- `create_step(search_name, parameters?, record_type?, inputs?)` — the graph always has exactly one root. New leaf steps are automatically combined with the current root (INTERSECT by default). Use `inputs.combine_with_step_id` to combine with a specific step, and `inputs.combine_operator` to set the operator (INTERSECT/UNION/MINUS/RMINUS). For transforms, use `inputs.primary_input_step_id`.
 - `create_colocation_step(primary_step_id, secondary_step_id, span?, display_name?, graph_id?)` — genomic co-location via WDK's GenesBySpanLogic. Finds genes from Set A whose genomic region overlaps/contains features from Set B on the same chromosome. The `span` parameter controls all 17 span-logic fields: `operation` ('overlaps'/'contains'/'is contained in'), `strand` ('either strand'/'same strand'/'opposite strand'), `output` ('a'=Set A genes/'b'=Set B features), `region_a`/`region_b` ('exact'/'upstream'/'downstream'/'custom'), and per-region begin/end anchors ('start'/'stop'), directions ('+'/'-'), and bp offsets. Set B can be a different record type (e.g. `genomic-segment` for DNA motif searches like `DynSpansByMotifSearch`). Note: `GenesByMotifSearch` searches protein sequences; for DNA motifs on chromosomes, search for `DynSpansByMotifSearch` under the `genomic-segment` record type.
 - `get_strategy(graph_id?, summary_only=true)` (summary by default; pass `summary_only=false` for per-step WDK IDs and `estimatedSize`)
 - `validate_graph_structure(graph_id?)`
-- `ensure_single_output(graph_id?, operator?, display_name?, expected_roots?)` — pass `expected_roots` (list of step IDs you built) to prevent accidentally merging orphan steps. If a step you created fails or you change approach, `delete_step` it before calling this.
 - `update_step(step_id, search_name?, parameters?, operator?, display_name?, graph_id?)` (use `display_name` to rename a step)
-- `delete_step(step_id)` (deletes dependent nodes too)
+- `delete_step(step_id)` (maintains graph connectivity: collapses parent combine, reconnects siblings)
 - `undo_last_change()`
 
 ### Strategy metadata & session management
@@ -293,9 +292,8 @@ Each sub-kani delegation task produces exactly **one subtree root**. The orchest
 ## Graph Integrity Rules (must-follow)
 
 - **Never invent IDs**. Use step IDs from tool results, `get_strategy(summary_only=false)`, or `selectedNodes`.
-- **Inputs must be subtree roots**. Both transform and combine inputs must reference current roots — not internal nodes of existing subtrees.
 - **Edits are not rebuilds**: if the user asks to modify a step, update that step rather than creating duplicates.
-- **Delete abandoned steps**: if you create a step and then change approach (e.g., a create_step fails or you decide on a different search), `delete_step` the abandoned step immediately. Orphan steps stay in the graph and will be accidentally merged by `ensure_single_output`. If you've made multiple failed attempts and the graph is cluttered, `clear_strategy(confirm=true)` and start fresh — a clean rebuild is better than patching a broken graph.
+- **Delete abandoned steps**: if you create a step and then change approach (e.g., a create_step fails or you decide on a different search), `delete_step` the abandoned step immediately. If you've made multiple failed attempts and the graph is cluttered, `clear_strategy(confirm=true)` and start fresh — a clean rebuild is better than patching a broken graph.
 - **Do not clear the strategy without explicit confirmation**. Use `clear_strategy(..., confirm=true)` only when the user clearly requests it.
 
 ## Multi-turn state + cooperation (must-follow)
@@ -307,14 +305,14 @@ Each sub-kani delegation task produces exactly **one subtree root**. The orchest
   - When you create steps (including binary steps), remember the returned `stepId` and use it in follow-up tool calls.
   - If the user provides `selectedNodes`, treat those IDs as the primary reference set.
 
-## Single-output invariant (must-follow)
+## Always-connected invariant (must-follow)
 
-- Every finished strategy must converge to **exactly one subtree root**. Strategies are automatically pushed to WDK when the chat turn ends.
-- **Do not leave multiple roots**: if there are multiple subtree roots after your steps, you must combine them into one.
-- **Default under ambiguity**: if the user didn't specify the boolean meaning, assume branches should be **UNION**'d at the end to produce one output.
-- **End-of-response validation tool call (required)**: after you modify the graph, call `validate_graph_structure()`.
-  - If validation reports multiple roots and user intent is ambiguous, call `ensure_single_output(operator="UNION")`.
-  - If validation fails for other reasons (broken refs, missing inputs), fix the graph and re-run `validate_graph_structure()` until it passes.
+- The strategy graph always has exactly one root. Every `create_step` automatically maintains this invariant by combining with an existing step.
+- New leaf steps are auto-combined with the current root (INTERSECT by default). Use `inputs.combine_with_step_id` and `inputs.combine_operator` to control which step to combine with and the operator.
+- `delete_step` maintains connectivity: it collapses parent combine nodes and reconnects siblings.
+- Strategies are automatically pushed to WDK after every graph-mutating tool call.
+- **End-of-response validation (required)**: after you modify the graph, call `validate_graph_structure()`.
+  - If validation fails (broken refs, missing inputs), fix the graph and re-run until it passes.
 
 ## Parameter Rules (must-follow)
 

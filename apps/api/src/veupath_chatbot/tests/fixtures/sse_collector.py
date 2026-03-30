@@ -26,6 +26,7 @@ class ChatStreamResult:
 
     events: list[SSEEvent] = field(default_factory=list)
     http_status: int = 0
+    entry_id: str | None = None
 
     @property
     def event_types(self) -> list[str]:
@@ -158,6 +159,9 @@ async def collect_chat_stream(
 
     body = resp.json()
     operation_id = body.get("operationId")
+    entry_id_raw = body.get("entryId")
+    if isinstance(entry_id_raw, str):
+        result.entry_id = entry_id_raw
     if not operation_id:
         result.events.append(
             SSEEvent(

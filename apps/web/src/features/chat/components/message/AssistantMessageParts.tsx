@@ -1,5 +1,5 @@
 import type {
-  Message,
+  AssistantMessage,
   OptimizationProgressData,
   PlanningArtifact,
   ToolCall,
@@ -24,7 +24,7 @@ interface ThinkingState {
 
 interface AssistantMessagePartsProps {
   index: number;
-  message: Message;
+  message: AssistantMessage;
   messageKey: string;
   isLive: boolean;
   thinking: ThinkingState;
@@ -36,7 +36,6 @@ interface AssistantMessagePartsProps {
   showCitationTags: boolean;
   setShowCitationTags: React.Dispatch<React.SetStateAction<boolean>>;
   undoSnapshot?: Strategy;
-  onUndoSnapshot: (snapshot: Strategy) => void;
 }
 
 export function AssistantMessageParts({
@@ -52,8 +51,6 @@ export function AssistantMessageParts({
   setExpandedSources,
   showCitationTags,
   setShowCitationTags,
-  undoSnapshot,
-  onUndoSnapshot,
 }: AssistantMessagePartsProps) {
   const parts = buildAssistantParts(index, message, isLive, optimizationProgress);
   const delegateSummary = message.toolCalls
@@ -133,33 +130,6 @@ export function AssistantMessageParts({
         }
       })}
 
-      {undoSnapshot && <UndoButton onClick={() => onUndoSnapshot(undoSnapshot)} />}
-    </div>
-  );
-}
-
-function UndoButton({ onClick }: { onClick: () => void }) {
-  return (
-    <div className="flex justify-start">
-      <button
-        type="button"
-        onClick={onClick}
-        className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-input hover:bg-accent"
-        title="Undo model changes"
-        aria-label="Undo model changes"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          className="h-3.5 w-3.5"
-        >
-          <path d="M9 14L4 9l5-5" />
-          <path d="M20 20v-5a7 7 0 0 0-7-7H4" />
-        </svg>
-        Undo
-      </button>
     </div>
   );
 }

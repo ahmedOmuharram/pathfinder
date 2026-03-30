@@ -12,7 +12,6 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {},
   "devDependencies": {
     "@types/node": "^25.3.5",
     "openapi-typescript": "^7.13.0",

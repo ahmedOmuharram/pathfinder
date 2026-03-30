@@ -6,7 +6,6 @@ from typing import Protocol
 
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.platform.event_schemas import (
-    ExecutorBuildRequestEventData,
     GraphClearedEventData,
     GraphPlanEventData,
     ReasoningEventData,
@@ -15,7 +14,6 @@ from veupath_chatbot.platform.event_schemas import (
     StrategyUpdateEventData,
 )
 from veupath_chatbot.platform.types import JSONObject
-from veupath_chatbot.services.strategies.schemas import StepResponse
 
 
 class EventType(StrEnum):
@@ -30,7 +28,6 @@ class EventType(StrEnum):
     PLANNING_ARTIFACT = "planning_artifact"
     CITATIONS = "citations"
     REASONING = "reasoning"
-    EXECUTOR_BUILD_REQUEST = "executor_build_request"
     WORKBENCH_GENE_SET = "workbench_gene_set"
 
 
@@ -92,20 +89,6 @@ def _extract_conversation_title(
     return None
 
 
-def _extract_executor_build_request(
-    result: JSONObject, *, get_graph: GetGraphFn = None
-) -> JSONObject | None:
-    ebr = result.get("executorBuildRequest")
-    if isinstance(ebr, dict):
-        return {
-            "type": EventType.EXECUTOR_BUILD_REQUEST,
-            "data": ExecutorBuildRequestEventData(
-                executor_build_request=ebr
-            ).model_dump(by_alias=True, exclude_none=True),
-        }
-    return None
-
-
 def _extract_step_update(
     result: JSONObject, *, get_graph: GetGraphFn = None
 ) -> JSONObject | None:
@@ -113,25 +96,11 @@ def _extract_step_update(
         return None
     raw_graph_id = result.get("graphId")
     graph_id = raw_graph_id if isinstance(raw_graph_id, str) else None
-    graph = get_graph(graph_id) if get_graph and graph_id else None
-    all_steps = (
-        [
-            StepResponse(
-                id=sid,
-                kind=s.infer_kind(),
-                display_name=s.display_name or s.search_name,
-            ).model_dump(by_alias=True, exclude_none=True)
-            for sid, s in graph.steps.items()
-        ]
-        if graph
-        else []
-    )
     return {
         "type": EventType.STRATEGY_UPDATE,
         "data": StrategyUpdateEventData(
             graph_id=graph_id,
             step=result,
-            all_steps=all_steps,
         ).model_dump(by_alias=True, exclude_none=True, mode="json"),
     }
 
@@ -221,7 +190,6 @@ _EXTRACTORS: list[EventExtractor] = [
     _extract_planning_artifact,
     _extract_reasoning,
     _extract_conversation_title,
-    _extract_executor_build_request,
     _extract_step_update,
     _extract_graph_snapshot,
     _extract_graph_plan,

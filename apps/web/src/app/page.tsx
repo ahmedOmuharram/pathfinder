@@ -21,7 +21,6 @@ import { useToasts } from "@/app/hooks/useToasts";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
 import { useModalState } from "@/app/hooks/useModalState";
 import { useGeneSetExport } from "@/app/hooks/useGeneSetExport";
-import { useBuildStrategy } from "@/features/strategy/hooks/useBuildStrategy";
 import { CompactStrategyView } from "@/features/strategy/graph/components/CompactStrategyView";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { useAuthCheck } from "@/app/hooks/useAuthCheck";
@@ -46,20 +45,13 @@ function HomePageInner() {
 
   const { selectedSite, setSelectedSite } = useSessionStore();
   const setStrategyId = useSessionStore((state) => state.setStrategyId);
-  const selectedSiteDisplayName = useSessionStore(
-    (state) => state.selectedSiteDisplayName,
-  );
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
   const { authLoading, apiError, retry: retryAuth } = useAuthCheck();
   const { configLoading, setupRequired, retry: retryConfig } = useSystemConfig();
   useSiteTheme(selectedSite);
   useAuthRefresh();
   const strategy = useStrategyStore((state) => state.strategy);
-  const buildPlan = useStrategyStore((state) => state.buildPlan);
   const clearStrategy = useStrategyStore((state) => state.clear);
-  const setStrategyMeta = useStrategyStore((state) => state.setStrategyMeta);
-  const setWdkInfo = useStrategyStore((state) => state.setWdkInfo);
-  const addExecutedStrategy = useStrategyStore((state) => state.addExecutedStrategy);
 
   const { toasts, addToast, removeToast, durationMs } = useToasts();
   const { layoutRef, sidebarWidth, startDragging } = useSidebarResize();
@@ -99,19 +91,6 @@ function HomePageInner() {
   });
 
   const { displayStrategy, hasGraph } = useStableGraph(strategy);
-
-  const planResult = buildPlan();
-  useBuildStrategy({
-    selectedSite,
-    selectedSiteDisplayName,
-    strategy,
-    planResult,
-    veupathdbSignedIn,
-    addExecutedStrategy,
-    setStrategyMeta,
-    setWdkInfo,
-    addToast,
-  });
 
   if (authLoading || configLoading) return <LoadingScreen />;
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;

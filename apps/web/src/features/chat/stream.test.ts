@@ -24,6 +24,7 @@ describe("features/chat/stream", () => {
     requestJsonMock.mockResolvedValue({
       operationId: "op-1",
       strategyId: "s-1",
+      entryId: "1709234567890-0",
     });
 
     const unsubscribe = vi.fn();
@@ -79,9 +80,10 @@ describe("features/chat/stream", () => {
     // onComplete was called
     expect(onComplete).toHaveBeenCalledTimes(1);
 
-    // Result contains operationId, strategyId, and subscription
+    // Result contains operationId, strategyId, entryId, and subscription
     expect(result.operationId).toBe("op-1");
     expect(result.strategyId).toBe("s-1");
+    expect(result.entryId).toBe("1709234567890-0");
     expect(result.subscription).toEqual({ unsubscribe });
   });
 });

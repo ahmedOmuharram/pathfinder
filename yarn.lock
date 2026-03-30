@@ -1121,7 +1121,6 @@ __metadata:
     "@types/node": "npm:^25.3.5"
     openapi-typescript: "npm:^7.13.0"
     typescript: "npm:^5.9.3"
-    zod: "npm:^4.3.6"
   languageName: unknown
   linkType: soft
 

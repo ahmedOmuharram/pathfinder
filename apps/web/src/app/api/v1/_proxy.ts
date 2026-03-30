@@ -27,6 +27,9 @@ export function forwardHeaders(
   const cookie = req.headers.get("cookie");
   if (cookie !== null) headers["Cookie"] = cookie;
 
+  const xrw = req.headers.get("x-requested-with");
+  if (xrw !== null) headers["X-Requested-With"] = xrw;
+
   return headers;
 }
 

@@ -19,6 +19,9 @@ from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.orchestrator import cancel_chat_operation
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
+from veupath_chatbot.services.strategies.session_factory import build_strategy_session
+from veupath_chatbot.services.strategies.step_wdk_push import push_all_steps_to_wdk
+from veupath_chatbot.services.strategies.sync import sync_strategy_for_site
 from veupath_chatbot.services.strategies.wdk_sync import (
     lazy_fetch_wdk_detail,
     sync_is_saved_to_wdk,
@@ -28,6 +31,7 @@ from veupath_chatbot.transport.http.deps import CurrentUser, StreamRepo
 from veupath_chatbot.transport.http.routers._authz import get_owned_projection_or_404
 from veupath_chatbot.transport.http.schemas import (
     CreateStrategyRequest,
+    PushStrategyRequest,
     StrategyResponse,
     UpdateStrategyRequest,
 )
@@ -167,6 +171,94 @@ async def update_strategy(
     if is_saved_set and updated.wdk_strategy_id:
         await sync_is_saved_to_wdk(projection=updated)
 
+    return build_projection_response(updated)
+
+
+@router.post("/{strategyId:uuid}/push", response_model=StrategyResponse)
+async def push_strategy(
+    strategyId: UUID,
+    request: PushStrategyRequest,
+    stream_repo: StreamRepo,
+    user_id: CurrentUser,
+) -> StrategyResponse:
+    """Push a strategy to WDK: normalize plan, persist locally, sync to WDK."""
+    projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
+
+    # Validate and normalize plan.
+    plan_in = request.plan.model_dump(exclude_none=True)
+    payload = validate_plan_or_raise(plan_in)
+    plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
+
+    # Preserve WDK state from existing projection so session_factory
+    # can restore wdk_step_ids and step_counts for the sync.
+    old_plan = projection.plan
+    if isinstance(old_plan, dict):
+        for key in ("wdkStepIds", "stepCounts", "stepValidations"):
+            if key in old_plan and key not in plan:
+                plan[key] = old_plan[key]
+
+    # Persist locally.
+    await stream_repo.update_projection(
+        strategyId,
+        ProjectionUpdate(
+            name=request.name,
+            plan=plan,
+            record_type=payload.record_type,
+            step_count=len(walk_step_tree(payload.root)),
+        ),
+    )
+
+    # Build a strategy session, push individual steps, then sync strategy.
+    wdk_strategy_id: int | None = projection.wdk_strategy_id
+    strategy_graph: JSONObject = {
+        "id": str(strategyId),
+        "name": request.name,
+        "plan": plan,
+    }
+    if wdk_strategy_id is not None:
+        strategy_graph["wdkStrategyId"] = wdk_strategy_id
+    session = build_strategy_session(
+        site_id=request.site_id, strategy_graph=strategy_graph
+    )
+    graph = session.get_graph(None)
+    if graph is not None:
+        # Push individual steps to WDK (leaves first, then combines).
+        # This is what the AI agent does via _push_step_to_wdk — the push
+        # endpoint must do the same for manually-edited strategies.
+        failed_steps = await push_all_steps_to_wdk(
+            graph, request.site_id, update_existing=True,
+        )
+        if failed_steps:
+            logger.warning(
+                "Some steps failed to push to WDK",
+                strategy_id=str(strategyId),
+                failed_steps=failed_steps,
+            )
+
+        # Sync the strategy (create/update WDK strategy with step tree).
+        # StrategyCompilationError is NOT caught — it must fail loud.
+        sync_result = await sync_strategy_for_site(
+            graph=graph,
+            site_id=request.site_id,
+            strategy_name=request.name,
+        )
+        wdk_strategy_id = sync_result.wdk_strategy_id
+
+        # Persist WDK info back to projection.
+        await stream_repo.update_projection(
+            strategyId,
+            ProjectionUpdate(
+                wdk_strategy_id=wdk_strategy_id,
+                wdk_strategy_id_set=True,
+            ),
+        )
+
+    # Return updated projection.
+    updated = await stream_repo.get_projection(strategyId)
+    if not updated:
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
+        )
     return build_projection_response(updated)
 
 

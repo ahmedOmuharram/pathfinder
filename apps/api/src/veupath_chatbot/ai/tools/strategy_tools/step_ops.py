@@ -43,6 +43,18 @@ class StepInputSpec(BaseModel):
         str | None,
         AIParam(desc="Optional friendly name for this step"),
     ] = None
+    combine_with_step_id: Annotated[
+        str | None,
+        AIParam(
+            desc="Step ID to auto-combine with after creation (keeps graph connected)"
+        ),
+    ] = None
+    combine_operator: Annotated[
+        str | None,
+        AIParam(
+            desc="Operator for auto-combine: INTERSECT (default), UNION, MINUS, RMINUS"
+        ),
+    ] = None
 
 
 class StrategyStepOps(StrategyToolsHelpers):
@@ -96,6 +108,8 @@ class StrategyStepOps(StrategyToolsHelpers):
             secondary_input_step_id=inp.secondary_input_step_id,
             operator=inp.operator,
             display_name=inp.display_name,
+            combine_with_step_id=inp.combine_with_step_id,
+            combine_operator=inp.combine_operator,
         )
         callbacks = ValidationCallbacks(
             resolve_record_type_for_search=self._find_record_type_for_search,

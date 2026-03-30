@@ -45,7 +45,7 @@ function makeDelegationEvents(graphId: string): ChatSSEEvent[] {
         graphId,
         step: {
           graphId,
-          stepId: "mock_search_1",
+          id: "mock_search_1",
           kind: "search",
           displayName: "Delegated search step",
           searchName: "mock_search",
@@ -62,7 +62,7 @@ function makeDelegationEvents(graphId: string): ChatSSEEvent[] {
         graphId,
         step: {
           graphId,
-          stepId: "mock_transform_1",
+          id: "mock_transform_1",
           kind: "transform",
           displayName: "Delegated transform step",
           searchName: "mock_transform",
@@ -78,7 +78,7 @@ function makeDelegationEvents(graphId: string): ChatSSEEvent[] {
         graphId,
         step: {
           graphId,
-          stepId: "mock_combine_1",
+          id: "mock_combine_1",
           kind: "combine",
           displayName: "Delegated combine step",
           operator: "UNION",
@@ -124,7 +124,7 @@ describe("resolveTargetGraph logic (tested via handleChatEvent)", () => {
     // Event with no graphId and no step.graphId
     handleChatEvent(ctx, {
       type: "strategy_update",
-      data: { step: { stepId: "x", kind: "search", displayName: "X" } },
+      data: { step: { id: "x", kind: "search", displayName: "X" } },
     } as ChatSSEEvent);
     expect(ctx.addStep).not.toHaveBeenCalled();
   });

@@ -10,4 +10,4 @@ export const OperationIdResponseSchema = z
   .object({ operationId: z.string() });
 
 export const ChatOperationResponseSchema = z
-  .object({ operationId: z.string(), strategyId: z.string() });
+  .object({ operationId: z.string(), strategyId: z.string(), entryId: z.string() });

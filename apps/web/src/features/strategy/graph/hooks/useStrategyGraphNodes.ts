@@ -6,14 +6,12 @@ import {
   useMemo,
   useRef,
   useState,
-  startTransition,
 } from "react";
 import { type Node, useNodesState, useEdgesState } from "reactflow";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
 import { validateStepsForSave } from "@/features/strategy/validation/save";
 import { useSaveValidation } from "@/features/strategy/validation/useSaveValidation";
-import { useSessionStore } from "@/state/useSessionStore";
 import {
   getCombineMismatchGroups,
   inferStepKind,
@@ -23,12 +21,6 @@ import {
 const DEFAULT_NODE_WIDTH = 224;
 const DEFAULT_NODE_HEIGHT = 112;
 const WARNING_PADDING = 16;
-
-type NodeData = {
-  isUnsaved?: boolean;
-  step?: Step;
-  message?: string;
-};
 
 function computeWarningGroupNodes(
   nodes: Node[],
@@ -106,17 +98,14 @@ interface UseStrategyGraphNodesOptions {
 }
 
 /**
- * Manages node/edge state arrays, dirty-step tracking, combine-mismatch
+ * Manages node/edge state arrays, combine-mismatch
  * groups, warning overlay nodes, and step validation.
  */
 export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
-  const { strategy, siteId, variant } = options;
+  const { strategy, siteId } = options;
 
-  const chatIsStreaming = useSessionStore((state) => state.chatIsStreaming);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [lastSavedStepsVersion, setLastSavedStepsVersion] = useState(0);
-  const [lastSavedSteps, setLastSavedSteps] = useState<Map<string, string>>(new Map());
   const [selectedStep, setSelectedStep] = useState<Step | null>(null);
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
@@ -158,30 +147,6 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     [nodes, combineMismatchGroups],
   );
 
-  // Model-driven graph updates arrive during chat streaming. Those updates are
-  // persisted by the API when emitted, so we should not show them as "unsaved".
-  useEffect(() => {
-    if (variant !== "full") return;
-    if (!chatIsStreaming) return;
-    if (selectedStep) return;
-    if (!strategy?.steps || strategy.steps.length === 0) return;
-    startTransition(() => {
-      setLastSavedSteps(
-        new Map(strategy.steps.map((step) => [step.id, buildStepSignature(step)])),
-      );
-      setLastSavedStepsVersion((v) => v + 1);
-    });
-  }, [
-    variant,
-    chatIsStreaming,
-    selectedStep,
-    strategy?.steps,
-    buildStepSignature,
-    setLastSavedSteps,
-    setLastSavedStepsVersion,
-  ]);
-
-  // Dirty-step tracking
   const isDraftView = draftStrategy != null && strategy?.id === draftStrategy.id;
   const planResult = buildPlan();
   const planHash = planResult ? JSON.stringify(planResult.plan) : null;
@@ -192,35 +157,12 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
       : false,
   );
 
-  const dirtyStepIds = useMemo(() => {
-    void lastSavedStepsVersion;
-    const dirty = new Set<string>();
-    const steps = strategy?.steps ?? [];
-    if (steps.length === 0) return dirty;
-    for (const step of steps) {
-      const signature = buildStepSignature(step);
-      if (!lastSavedSteps.has(step.id) || lastSavedSteps.get(step.id) !== signature) {
-        dirty.add(step.id);
-      }
-    }
-    return dirty;
-  }, [strategy?.steps, lastSavedStepsVersion, lastSavedSteps, buildStepSignature]);
-
-  const isUnsaved = dirtyStepIds.size > 0;
-
-  // Derive isUnsaved per node at render time (no effect needed)
+  // Render nodes (warning overlays only -- no dirty dots)
   const renderNodes = useMemo(() => {
-    const withUnsaved = nodes.map((node) => ({
-      ...node,
-      data: {
-        ...(node.data as NodeData),
-        isUnsaved: dirtyStepIds.has(node.id),
-      },
-    }));
     return warningGroupNodes.length > 0
-      ? [...warningGroupNodes, ...withUnsaved]
-      : withUnsaved;
-  }, [warningGroupNodes, nodes, dirtyStepIds]);
+      ? [...warningGroupNodes, ...nodes]
+      : nodes;
+  }, [warningGroupNodes, nodes]);
 
   // Sync node positions ref
   useEffect(() => {
@@ -279,17 +221,11 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     setSelectedStep,
     editableSteps,
 
-    // Dirty tracking
+    // Graph metadata
     isDraftView,
     planResult,
     planHash,
     graphHasValidationIssues,
-    dirtyStepIds,
-    isUnsaved,
-    lastSavedSteps,
-    setLastSavedSteps,
-    lastSavedStepsVersion,
-    setLastSavedStepsVersion,
 
     // Validation
     combineMismatchGroups,

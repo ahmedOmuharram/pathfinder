@@ -258,9 +258,9 @@ class TestParseColocationParamsEdgeCases:
         params = ColocationParams.model_validate({})
         assert params.operation == "overlaps"
         assert params.strand == "either strand"
-        assert params.begin_offset_a == 0
+        assert params.begin_offset_a == 1000
         assert params.end_offset_a == 0
-        assert params.region_a == "exact"
+        assert params.region_a == "custom"
 
     def test_model_validate_with_custom_values(self) -> None:
         params = ColocationParams.model_validate(

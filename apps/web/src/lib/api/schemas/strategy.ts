@@ -47,6 +47,7 @@ const StepSchema = z.object({
   wdkStepId: z.number().nullable().optional(),
   isBuilt: z.boolean().optional().default(false),
   isFiltered: z.boolean().optional().default(false),
+  wdkPushError: z.string().nullable().optional(),
   validation: z
     .object({
       level: z.string(),
@@ -86,6 +87,8 @@ export const StrategySchema = z.object({
   stepCount: z.number().nullable().optional(),
   estimatedSize: z.number().nullable().optional(),
   wdkUrl: z.string().nullable().optional(),
+  geneSetId: z.string().nullable().optional(),
+  dismissedAt: DateTimeString.nullable().optional(),
   // messages / thinking are large nested blobs — accept but don't validate deeply
   messages: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
   thinking: z.record(z.string(), z.unknown()).nullable().optional(),
@@ -125,6 +128,8 @@ export const StrategyListItemSchema = z.object({
   stepCount: z.number().nullable().optional(),
   estimatedSize: z.number().nullable().optional(),
   wdkUrl: z.string().nullable().optional(),
+  geneSetId: z.string().nullable().optional(),
+  dismissedAt: DateTimeString.nullable().optional(),
   messages: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
   thinking: z.record(z.string(), z.unknown()).nullable().optional(),
   modelId: z.string().nullable().optional(),

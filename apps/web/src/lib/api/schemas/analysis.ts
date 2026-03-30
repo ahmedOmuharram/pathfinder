@@ -5,6 +5,7 @@
  * are preserved rather than stripped.
  */
 import { z } from "zod";
+import { ExperimentMetricsSchema } from "./experiment";
 
 // ---------------------------------------------------------------------------
 // Custom Enrichment
@@ -27,17 +28,24 @@ export const CustomEnrichmentResultSchema = z.object({
 // ---------------------------------------------------------------------------
 
 const EnrichmentTermSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  fdr: z.number(),
+  termId: z.string(),
+  termName: z.string(),
+  geneCount: z.number(),
+  backgroundCount: z.number(),
+  foldEnrichment: z.number(),
+  oddsRatio: z.number(),
   pValue: z.number(),
-  oddsRatio: z.number().nullable().optional(),
-  genes: z.array(z.string()).nullable().optional(),
+  fdr: z.number(),
+  bonferroni: z.number(),
+  genes: z.array(z.string()).optional(),
 });
 
 export const EnrichmentResultSchema = z.object({
-  type: z.string(),
+  analysisType: z.string(),
   terms: z.array(EnrichmentTermSchema),
+  totalGenesAnalyzed: z.number().default(0),
+  backgroundSize: z.number().default(0),
+  error: z.string().nullable().optional(),
 });
 
 export const EnrichmentResultListSchema = z.array(EnrichmentResultSchema);
@@ -46,24 +54,20 @@ export const EnrichmentResultListSchema = z.array(EnrichmentResultSchema);
 // Cross-validation
 // ---------------------------------------------------------------------------
 
-const CrossValidationFoldSchema = z.object({
-  fold: z.number(),
-  trainSize: z.number(),
-  testSize: z.number(),
-  truePositives: z.number(),
-  falsePositives: z.number(),
-  trueNegatives: z.number(),
-  falseNegatives: z.number(),
-  precision: z.number(),
-  recall: z.number(),
-  f1: z.number(),
+const FoldMetricsSchema = z.object({
+  foldIndex: z.number(),
+  metrics: ExperimentMetricsSchema,
+  positiveControlIds: z.array(z.string()).optional(),
+  negativeControlIds: z.array(z.string()).optional(),
 });
 
 export const CrossValidationResultSchema = z.object({
-  kFolds: z.number(),
-  folds: z.array(CrossValidationFoldSchema),
-  mean: z.object({ precision: z.number(), recall: z.number(), f1: z.number() }),
-  std: z.object({ precision: z.number(), recall: z.number(), f1: z.number() }),
+  k: z.number(),
+  folds: z.array(FoldMetricsSchema),
+  meanMetrics: ExperimentMetricsSchema,
+  stdMetrics: z.record(z.string(), z.number()).optional(),
+  overfittingScore: z.number().optional(),
+  overfittingLevel: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------

@@ -15,7 +15,6 @@ import {
   handleUserMessageEvent,
 } from "./handleChatEvent.messageEvents";
 import {
-  handleExecutorBuildRequestEvent,
   handleGraphPlanEvent,
   handleGraphSnapshotEvent,
   handleStrategyClearedEvent,
@@ -25,6 +24,7 @@ import {
 } from "./handleChatEvent.strategyEvents";
 import {
   handleSubKaniTaskEndEvent,
+  handleSubKaniTaskRetryEvent,
   handleSubKaniTaskStartEvent,
   handleSubKaniToolCallEndEvent,
   handleSubKaniToolCallStartEvent,
@@ -32,7 +32,15 @@ import {
   handleToolCallStartEvent,
 } from "./handleChatEvent.toolEvents";
 import { handleWorkbenchGeneSetEvent } from "./handleChatEvent.workbenchEvents";
-export type { ChatEventContext } from "./handleChatEvent.types";
+export type {
+  ChatEventContext,
+  StreamBuffers,
+  StrategyActions,
+  UISetters,
+  EventHelpers,
+  StreamContext,
+  OptionalCallbacks,
+} from "./handleChatEvent.types";
 
 export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
   switch (event.type) {
@@ -76,6 +84,10 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       handleSubKaniTaskStartEvent(ctx, event.data);
       break;
     }
+    case "subkani_task_retry": {
+      handleSubKaniTaskRetryEvent(ctx, event.data);
+      break;
+    }
     case "subkani_tool_call_start": {
       handleSubKaniToolCallStartEvent(ctx, event.data);
       break;
@@ -114,10 +126,6 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     }
     case "graph_plan": {
       handleGraphPlanEvent(ctx, event.data);
-      break;
-    }
-    case "executor_build_request": {
-      handleExecutorBuildRequestEvent(ctx, event.data);
       break;
     }
     case "token_usage_partial": {

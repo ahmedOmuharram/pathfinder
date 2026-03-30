@@ -75,7 +75,7 @@ export const EXECUTE_EPITOPE_SEARCH_EVENTS: ChatSSEEvent[] = [
     data: {
       id: "tc-2",
       result: JSON.stringify({
-        stepId: "step-001",
+        id: "step-001",
         searchName: "GenesWithEpitopes",
         displayName: "P. falciparum epitope genes",
         recordType: "transcript",
@@ -94,7 +94,7 @@ export const EXECUTE_EPITOPE_SEARCH_EVENTS: ChatSSEEvent[] = [
     data: {
       graphId: "strat-001",
       step: {
-        stepId: "step-001",
+        id: "step-001",
         kind: "search",
         displayName: "P. falciparum epitope genes",
         searchName: "GenesWithEpitopes",
@@ -423,7 +423,7 @@ export const DELEGATION_EVENTS: ChatSSEEvent[] = [
     data: {
       graphId: "strat-del",
       step: {
-        stepId: "step-d1",
+        id: "step-d1",
         kind: "search",
         displayName: "Delegated epitope search",
         searchName: "GenesWithEpitopes",

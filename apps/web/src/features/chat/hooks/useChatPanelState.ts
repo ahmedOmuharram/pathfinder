@@ -12,12 +12,14 @@ import type {
   ChatMention,
   GeneSet,
   Message,
+  PlanningArtifact,
   Strategy,
-  StrategyPlan,
 } from "@pathfinder/shared";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { usePrevious } from "@/lib/hooks/usePrevious";
-import { getStrategy, updateStrategy } from "@/lib/api/strategies";
+import { getStrategy } from "@/lib/api/strategies";
+import { undoTurnAction } from "@/features/chat/hooks/undoTurnAction";
+import { applyPlanningArtifactAction } from "@/features/chat/hooks/applyPlanningArtifactAction";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useThinkingState } from "@/features/chat/hooks/useThinkingState";
@@ -32,7 +34,6 @@ import { parseToolArguments } from "@/features/chat/utils/parseToolArguments";
 import { parseToolResult } from "@/features/chat/utils/parseToolResult";
 import { useGraphSnapshot } from "@/features/chat/hooks/useGraphSnapshot";
 import { useUnifiedChatDataLoading } from "@/features/chat/hooks/useUnifiedChatDataLoading";
-import { useUnifiedChatStreamingArgs } from "@/features/chat/components/unifiedChatStreamingArgs";
 import { useOperationRecovery } from "@/features/chat/hooks/useOperationRecovery";
 import { useWorkbenchBridge } from "@/lib/hooks/useWorkbenchBridge";
 import { useChatErrorHandling } from "@/features/chat/hooks/useChatErrorHandling";
@@ -122,7 +123,14 @@ export function useChatPanelState({
   });
 
   // --- Streaming ---
-  const streamingArgs = useUnifiedChatStreamingArgs({
+  const {
+    handleSendMessage: handleSendRaw,
+    stopStreaming,
+    isStreaming,
+    setIsStreaming,
+    optimizationProgress,
+    setOptimizationProgress,
+  } = useChatStreaming({
     siteId,
     strategyId,
     draftSelection,
@@ -135,7 +143,7 @@ export function useChatPanelState({
     loadGraph,
     addStrategy,
     addExecutedStrategy,
-    setStrategyIdGlobal,
+    setStrategyId: setStrategyIdGlobal,
     setWdkInfo,
     setStrategy,
     setStrategyMeta,
@@ -147,21 +155,15 @@ export function useChatPanelState({
     getStrategy,
     currentStrategy,
     attachThinkingToLastAssistant: handleAttachThinking,
-    currentModelSelection: models.currentModelSelection,
-    setSelectedModelId: models.setSelectedModelId,
+    ...(models.setSelectedModelId != null ? { setSelectedModelId: models.setSelectedModelId } : {}),
+    ...(models.currentModelSelection != null ? { modelSelection: models.currentModelSelection } : {}),
     setChatIsStreaming,
-    handleError,
-    onWorkbenchGeneSet: handleWorkbenchGeneSet,
+    onStreamComplete: () => {},
+    onStreamError: (error: Error) => {
+      handleError(error, "Unable to reach the API.");
+    },
+    ...(handleWorkbenchGeneSet != null ? { onWorkbenchGeneSet: handleWorkbenchGeneSet } : {}),
   });
-
-  const {
-    handleSendMessage: handleSendRaw,
-    stopStreaming,
-    isStreaming,
-    setIsStreaming,
-    optimizationProgress,
-    setOptimizationProgress,
-  } = useChatStreaming(streamingArgs);
 
   const onSend = useCallback(
     async (content: string, mentions?: ChatMention[]) => {
@@ -241,37 +243,42 @@ export function useChatPanelState({
     ...(onConsumeAskNode != null ? { onConsumeAskNode } : {}),
   });
 
-  // --- Undo snapshot handler ---
-  const handleUndoSnapshot = useCallback(
-    (snapshot: Strategy) => {
-      setStrategy(snapshot);
-      setStrategyMeta({
-        name: snapshot.name,
-        ...(snapshot.description != null ? { description: snapshot.description } : {}),
-        ...(snapshot.recordType != null ? { recordType: snapshot.recordType } : {}),
-      });
+  // --- Undo handler ---
+  const [isUndoing, setIsUndoing] = useState(false);
+  const setComposerPrefill = useSessionStore((s) => s.setComposerPrefill);
+
+  const handleUndo = useCallback(
+    async (userMessageIndex: number) => {
+      if (strategyId == null || isUndoing) return;
+      const userMsg = messages[userMessageIndex];
+      if (userMsg?.role !== "user") return;
+
+      setIsUndoing(true);
+      try {
+        await undoTurnAction(strategyId, userMsg, userMessageIndex, {
+          setMessages,
+          setUndoSnapshots,
+          setStrategy,
+          setStrategyMeta,
+          setComposerPrefill,
+        });
+      } catch {
+        // Undo failed — user can retry.
+      } finally {
+        setIsUndoing(false);
+      }
     },
-    [setStrategy, setStrategyMeta],
+    [strategyId, messages, isUndoing, setMessages, setUndoSnapshots, setStrategy, setStrategyMeta, setComposerPrefill],
   );
 
   // --- Apply planning artifact handler ---
   const handleApplyPlanningArtifact = useCallback(
-    async (artifact: { proposedStrategyPlan?: unknown }) => {
+    async (artifact: PlanningArtifact) => {
       if (strategyId == null) return;
-      const proposed = artifact.proposedStrategyPlan;
-      if (proposed == null || typeof proposed !== "object" || Array.isArray(proposed))
-        return;
       try {
-        await updateStrategy(strategyId, {
-          plan: proposed as StrategyPlan,
-        });
-        const full = await getStrategy(strategyId);
-        setStrategy(full);
-        setStrategyMeta({
-          name: full.name,
-          ...(full.description != null ? { description: full.description } : {}),
-          ...(full.recordType != null ? { recordType: full.recordType } : {}),
-          siteId: full.siteId,
+        await applyPlanningArtifactAction(strategyId, artifact, {
+          setStrategy,
+          setStrategyMeta,
         });
       } catch (err) {
         console.warn("[UnifiedChat] Failed to apply planning artifact:", err);
@@ -285,6 +292,7 @@ export function useChatPanelState({
     firstName,
     messages,
     undoSnapshots,
+    isUndoing,
     isStreaming,
     isLoadingChat,
     onSend,
@@ -297,7 +305,7 @@ export function useChatPanelState({
     setDraftSelection,
     models,
     messagesEndRef,
-    handleUndoSnapshot,
+    handleUndo,
     handleApplyPlanningArtifact,
   };
 }

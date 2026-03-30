@@ -19,6 +19,7 @@ from veupath_chatbot.services.catalog.param_validation import (
     validate_parameters,
 )
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
+from veupath_chatbot.services.strategies.step_deletion import delete_step_connected
 
 logger = get_logger(__name__)
 
@@ -32,15 +33,20 @@ class StrategyEditOps(StrategyToolsHelpers):
         step_id: Annotated[str, AIParam(desc="ID of the step to delete")],
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
     ) -> JSONObject:
-        """Delete a step from the graph (and dependent steps)."""
-        result = self._get_graph_and_step(graph_id, step_id)
-        if isinstance(result, dict):
-            return result
-        graph, _ = result
+        """Delete a step from the graph (connected semantics)."""
+        graph = self._get_graph(graph_id)
+        if not graph:
+            return self._graph_not_found(graph_id)
 
-        to_remove = _find_dependent_steps(graph, step_id)
-        remaining = {sid for sid in graph.steps if sid not in to_remove}
-        if not remaining:
+        result = await delete_step_connected(graph, step_id)
+        if not result.deleted_ids:
+            return tool_error(
+                ErrorCode.VALIDATION_ERROR,
+                f"Step '{step_id}' not found.",
+                graphId=graph.id,
+            )
+
+        if not graph.steps:
             return tool_error(
                 ErrorCode.VALIDATION_ERROR,
                 "Deleting this step would remove all nodes. Use clear_strategy(confirm=true) to start over.",
@@ -48,13 +54,8 @@ class StrategyEditOps(StrategyToolsHelpers):
                 requiresConfirmation=True,
             )
 
-        for sid in to_remove:
-            graph.steps.pop(sid, None)
-
-        graph.last_step_id = next(iter(remaining), None)
-        graph.recompute_roots()
         response: JSONObject = {
-            "deleted": cast("JSONArray", list(to_remove)),
+            "deleted": cast("JSONArray", result.deleted_ids),
             "graphId": graph.id,
         }
         return self._with_full_graph(graph, response)
@@ -234,21 +235,3 @@ class StrategyEditOps(StrategyToolsHelpers):
         return None
 
 
-def _find_dependent_steps(graph: StrategyGraph, step_id: str) -> set[str]:
-    """Find all steps transitively dependent on the given step."""
-    to_remove = {step_id}
-    changed = True
-    while changed:
-        changed = False
-        for sid, step in list(graph.steps.items()):
-            if sid in to_remove:
-                continue
-            primary_id = step.primary_input.id if step.primary_input else None
-            secondary_id = step.secondary_input.id if step.secondary_input else None
-            if primary_id and primary_id in to_remove:
-                to_remove.add(sid)
-                changed = True
-            if secondary_id and secondary_id in to_remove:
-                to_remove.add(sid)
-                changed = True
-    return to_remove

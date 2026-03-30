@@ -11,11 +11,11 @@ import { z } from "zod";
 export const RecordAttributeSchema = z.object({
   name: z.string(),
   displayName: z.string(),
-  help: z.string().nullable().optional(),
-  type: z.string().nullable().optional(),
-  isDisplayable: z.boolean().optional(),
-  isSortable: z.boolean().optional(),
-  isSuggested: z.boolean().optional(),
+  help: z.string().nullable(),
+  type: z.string().nullable(),
+  isDisplayable: z.boolean(),
+  isSortable: z.boolean(),
+  isSuggested: z.boolean(),
 });
 
 export const AttributesResponseSchema = z.object({
@@ -27,10 +27,12 @@ export const AttributesResponseSchema = z.object({
 // Records
 // ---------------------------------------------------------------------------
 
+const ClassificationSchema = z.enum(["TP", "FP", "FN", "TN"]);
+
 const WdkRecordSchema = z.object({
   id: z.array(z.object({ name: z.string(), value: z.string() })),
   attributes: z.record(z.string(), z.string().nullable()),
-  _classification: z.unknown().nullable().optional(),
+  _classification: ClassificationSchema.nullable().optional(),
 });
 
 export const RecordsResponseSchema = z.object({
@@ -50,11 +52,13 @@ export const RecordsResponseSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const RecordDetailSchema = z.object({
-  id: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
-  attributes: z.record(z.string(), z.string().nullable()).optional(),
-  attributeNames: z.record(z.string(), z.string()).optional(),
-  tables: z.record(z.string(), z.array(z.unknown())).optional(),
-  recordType: z.string().optional(),
+  displayName: z.string(),
+  id: z.array(z.object({ name: z.string(), value: z.string() })),
+  recordClassName: z.string(),
+  attributes: z.record(z.string(), z.string().nullable()),
+  attributeNames: z.record(z.string(), z.string()),
+  tables: z.record(z.string(), z.array(z.unknown())),
+  tableErrors: z.array(z.string()),
 });
 
 // ---------------------------------------------------------------------------
@@ -62,14 +66,24 @@ export const RecordDetailSchema = z.object({
 // ---------------------------------------------------------------------------
 
 const DistributionHistogramBinSchema = z.object({
-  binLabel: z.string().optional(),
-  binStart: z.string().optional(),
   value: z.number(),
+  binStart: z.string(),
+  binEnd: z.string(),
+  binLabel: z.string(),
+});
+
+const DistributionStatisticsSchema = z.object({
+  subsetSize: z.number(),
+  subsetMin: z.number().nullable(),
+  subsetMax: z.number().nullable(),
+  subsetMean: z.number().nullable(),
+  numVarValues: z.number(),
+  numDistinctValues: z.number(),
+  numDistinctEntityRecords: z.number(),
+  numMissingCases: z.number(),
 });
 
 export const DistributionResponseSchema = z.object({
-  histogram: z.array(DistributionHistogramBinSchema).optional(),
-  distribution: z.record(z.string(), z.number()).optional(),
-  total: z.number().optional(),
-  attributeName: z.string().optional(),
+  histogram: z.array(DistributionHistogramBinSchema),
+  statistics: DistributionStatisticsSchema,
 });

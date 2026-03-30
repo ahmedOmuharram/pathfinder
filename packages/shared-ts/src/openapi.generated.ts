@@ -317,6 +317,29 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/chat/{stream_id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo
+         * @description Undo a chat turn and all subsequent turns.
+         *
+         *     Truncates the conversation from the given Redis entry ID onward,
+         *     rebuilds the strategy projection, and syncs WDK.
+         */
+        post: operations["undo_api_v1_chat__stream_id__undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/strategies": {
         parameters: {
             query?: never;
@@ -1625,6 +1648,10 @@ export type components = {
             stepTree: {
                 [key: string]: unknown;
             };
+            /** Datasetgeneids */
+            datasetGeneIds?: {
+                [key: string]: string[];
+            } | null;
         };
         /** BuildGoldResponse */
         BuildGoldResponse: {
@@ -1730,6 +1757,12 @@ export type components = {
         /**
          * ColocationParams
          * @description Full WDK GenesBySpanLogic parameters for COLOCATE operator.
+         *
+         *     Human-readable field values for the AI model; ``to_wdk_params()``
+         *     translates to WDK internal vocabulary values before submission.
+         *
+         *     WDK source of truth:
+         *     ``GET /record-types/transcript/searches/GenesBySpanLogic?expandParams=true``
          */
         ColocationParams: {
             /**
@@ -1737,99 +1770,99 @@ export type components = {
              * @default overlaps
              * @enum {string}
              */
-            operation?: "overlaps" | "contains" | "is contained in";
+            operation: "overlaps" | "contains" | "is contained in";
             /**
              * Strand
              * @default either strand
              * @enum {string}
              */
-            strand?: "either strand" | "same strand" | "opposite strand";
+            strand: "either strand" | "same strand" | "opposite strand";
             /**
              * Output
              * @default a
              * @enum {string}
              */
-            output?: "a" | "b";
+            output: "a" | "b";
             /**
-             * Region A
-             * @default exact
+             * Regiona
+             * @default custom
              * @enum {string}
              */
-            regionA?: "exact" | "upstream" | "downstream" | "custom";
+            regionA: "exact" | "upstream" | "downstream" | "custom";
             /**
-             * Begin A
+             * Begina
              * @default start
              * @enum {string}
              */
-            beginA?: "start" | "stop";
+            beginA: "start" | "stop";
             /**
-             * Begin Direction A
-             * @default +
+             * Begindirectiona
+             * @default -
              * @enum {string}
              */
-            beginDirectionA?: "+" | "-";
+            beginDirectionA: "+" | "-";
             /**
-             * Begin Offset A
-             * @default 0
+             * Beginoffseta
+             * @default 1000
              */
-            beginOffsetA?: number;
+            beginOffsetA: number;
             /**
-             * End A
+             * Enda
              * @default stop
              * @enum {string}
              */
-            endA?: "start" | "stop";
+            endA: "start" | "stop";
             /**
-             * End Direction A
+             * Enddirectiona
              * @default +
              * @enum {string}
              */
-            endDirectionA?: "+" | "-";
+            endDirectionA: "+" | "-";
             /**
-             * End Offset A
+             * Endoffseta
              * @default 0
              */
-            endOffsetA?: number;
+            endOffsetA: number;
             /**
-             * Region B
+             * Regionb
              * @default exact
              * @enum {string}
              */
-            regionB?: "exact" | "upstream" | "downstream" | "custom";
+            regionB: "exact" | "upstream" | "downstream" | "custom";
             /**
-             * Begin B
+             * Beginb
              * @default start
              * @enum {string}
              */
-            beginB?: "start" | "stop";
+            beginB: "start" | "stop";
             /**
-             * Begin Direction B
+             * Begindirectionb
              * @default +
              * @enum {string}
              */
-            beginDirectionB?: "+" | "-";
+            beginDirectionB: "+" | "-";
             /**
-             * Begin Offset B
+             * Beginoffsetb
              * @default 0
              */
-            beginOffsetB?: number;
+            beginOffsetB: number;
             /**
-             * End B
+             * Endb
              * @default stop
              * @enum {string}
              */
-            endB?: "start" | "stop";
+            endB: "start" | "stop";
             /**
-             * End Direction B
+             * Enddirectionb
              * @default +
              * @enum {string}
              */
-            endDirectionB?: "+" | "-";
+            endDirectionB: "+" | "-";
             /**
-             * End Offset B
+             * Endoffsetb
              * @default 0
              */
-            endOffsetB?: number;
+            endOffsetB: number;
         };
         /**
          * CombineOp
@@ -3021,8 +3054,11 @@ export type components = {
          * @description Chat message.
          */
         MessageResponse: {
-            /** Role */
-            role: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
             /** Content */
             content: string;
             /** Modelid */
@@ -3705,7 +3741,7 @@ export type components = {
             parameters?: {
                 [key: string]: components["schemas"]["JSONValue"];
             };
-            proposedStrategyPlan?: components["schemas"]["JSONObject"] | null;
+            proposedStrategyPlan?: components["schemas"]["StrategyPlanPayload-Output"] | null;
             /** Createdat */
             createdAt: string;
         };
@@ -4266,6 +4302,8 @@ export type components = {
              * @default false
              */
             isFiltered: boolean;
+            /** Wdkpusherror */
+            wdkPushError?: string | null;
             validation?: components["schemas"]["WDKValidation"] | null;
             /** Filters */
             filters?: components["schemas"]["StepFilter"][] | null;
@@ -4798,6 +4836,25 @@ export type components = {
             } | null;
         };
         /**
+         * UndoRequest
+         * @description Request body for the undo endpoint.
+         */
+        UndoRequest: {
+            /** Entryid */
+            entryId: string;
+        };
+        /**
+         * UndoResponse
+         * @description Response body for the undo endpoint.
+         */
+        UndoResponse: {
+            /** Messagecount */
+            messageCount: number;
+            strategy?: components["schemas"]["JSONObject"] | null;
+            /** Wdkstrategyid */
+            wdkStrategyId?: number | null;
+        };
+        /**
          * UpdateStrategyRequest
          * @description Request to update a strategy.
          */
@@ -5324,6 +5381,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_api_v1_chat__stream_id__undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                stream_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UndoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UndoResponse"];
                 };
             };
             /** @description Validation Error */

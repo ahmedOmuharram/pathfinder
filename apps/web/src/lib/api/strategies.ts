@@ -1,7 +1,7 @@
-import type { StrategyPlan, Strategy } from "@pathfinder/shared";
+import type { StrategyPlan, Strategy, PlanningArtifact } from "@pathfinder/shared";
+import { z } from "zod";
 import { APIError, requestJson, requestVoid } from "./http";
 import {
-  NormalizePlanResponseSchema,
   OpenStrategyResponseSchema,
   StepCountsResponseSchema,
   StrategyListItemListSchema,
@@ -97,7 +97,7 @@ export async function updateStrategy(
   strategyId: string,
   args: {
     name?: string;
-    plan?: StrategyPlan;
+    plan?: StrategyPlan | NonNullable<PlanningArtifact["proposedStrategyPlan"]>;
     wdkStrategyId?: number | null;
     isSaved?: boolean;
   },
@@ -107,6 +107,26 @@ export async function updateStrategy(
     `/api/v1/strategies/${strategyId}`,
     {
       method: "PATCH",
+      body: args,
+    },
+  );
+  return withDefaults(raw as Parameters<typeof withDefaults>[0]);
+}
+
+export async function pushStrategy(
+  strategyId: string,
+  args: {
+    name: string;
+    siteId: string;
+    plan: StrategyPlan;
+    description?: string | null;
+  },
+): Promise<Strategy> {
+  const raw = await requestJson(
+    StrategySchema,
+    `/api/v1/strategies/${strategyId}/push`,
+    {
+      method: "POST",
       body: args,
     },
   );
@@ -123,18 +143,6 @@ export async function deleteStrategy(
       ? { method: "DELETE", query: { deleteFromWdk: "true" } }
       : { method: "DELETE" },
   );
-}
-
-export async function normalizePlan(
-  siteId: string,
-  plan: StrategyPlan,
-): Promise<{ plan: StrategyPlan; warnings?: unknown[] | null }> {
-  const raw = await requestJson(
-    NormalizePlanResponseSchema,
-    "/api/v1/strategies/plan/normalize",
-    { method: "POST", body: { siteId, plan } },
-  );
-  return raw as { plan: StrategyPlan; warnings?: unknown[] | null };
 }
 
 export async function restoreStrategy(strategyId: string): Promise<Strategy> {
@@ -163,5 +171,28 @@ export async function computeStepCounts(
     StepCountsResponseSchema,
     "/api/v1/strategies/step-counts",
     { method: "POST", body: { siteId, plan } },
+  );
+}
+
+export interface UndoTurnResponse {
+  messageCount: number;
+  strategy: Record<string, unknown> | null;
+  wdkStrategyId: number | null;
+}
+
+const UndoTurnResponseSchema = z.object({
+  messageCount: z.number(),
+  strategy: z.record(z.string(), z.unknown()).nullable(),
+  wdkStrategyId: z.number().nullable(),
+});
+
+export async function undoTurn(
+  streamId: string,
+  entryId: string,
+): Promise<UndoTurnResponse> {
+  return await requestJson(
+    UndoTurnResponseSchema,
+    `/api/v1/chat/${streamId}/undo`,
+    { method: "POST", body: { entryId } },
   );
 }

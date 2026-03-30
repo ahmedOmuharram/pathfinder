@@ -72,7 +72,11 @@ function makeAttrs(...names: string[]): RecordAttribute[] {
   return names.map((name) => ({
     name,
     displayName: name.replace(/_/g, " "),
+    help: null,
+    type: null,
     isDisplayable: true,
+    isSortable: false,
+    isSuggested: false,
   }));
 }
 

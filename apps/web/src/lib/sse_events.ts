@@ -3,6 +3,7 @@ import type {
   PlanningArtifact,
   OptimizationProgressData,
   Strategy,
+  StrategyPlan,
   UserMessageData,
   AssistantDeltaData,
   AssistantMessageData,
@@ -18,6 +19,27 @@ import type {
   ReasoningData,
   SSEErrorData,
 } from "@pathfinder/shared";
+export type {
+  UserMessageData,
+  AssistantDeltaData,
+  AssistantMessageData,
+  SubKaniTaskStartData,
+  SubKaniTaskEndData,
+  SubKaniToolCallStartData,
+  SubKaniToolCallEndData,
+  ModelSelectedData,
+  TokenUsagePartialData,
+  StrategyMetaData,
+  StrategyLinkData,
+  GraphClearedData,
+  ReasoningData,
+} from "@pathfinder/shared";
+
+/** Data for subkani_task_retry events (not yet in OpenAPI spec). */
+export type SubKaniTaskRetryData = {
+  task?: string | null;
+  attempt?: number | null;
+};
 import type { RawSSEEvent } from "@/lib/sse";
 import type { GraphSnapshotInput, StepParameters } from "@/lib/strategyGraph/types";
 import { isRecord } from "@/lib/utils/isRecord";
@@ -36,28 +58,30 @@ export type RawSSEData = Record<string, unknown>;
 export type MessageStartData = {
   strategyId?: string;
   strategy?: Strategy;
-  authToken?: string;
 };
 export type CitationsData = { citations?: Citation[] };
 export type PlanningArtifactData = { planningArtifact?: PlanningArtifact };
 export type ToolCallStartData = { id: string; name: string; arguments: Record<string, unknown> };
-export type ToolCallEndData = { id: string; result: string };
+export type ToolCallEndData = { id: string; result?: string | null };
 
 export type StrategyUpdateStepData = {
-  stepId: string;
-  kind?: string;
-  displayName: string;
-  searchName?: string;
-  transformName?: string;
-  operator?: string;
-  primaryInputStepId?: string;
-  secondaryInputStepId?: string;
-  parameters?: StepParameters;
+  id: string;
+  kind?: string | null;
+  displayName?: string | null;
+  searchName?: string | null;
+  operator?: string | null;
+  primaryInputStepId?: string | null;
+  secondaryInputStepId?: string | null;
+  parameters?: StepParameters | null;
+  estimatedSize?: number | null;
+  wdkStepId?: number | null;
+  isBuilt?: boolean;
+  isFiltered?: boolean;
+  recordType?: string | null;
   name?: string | null;
   description?: string | null;
-  recordType?: string;
-  graphId?: string;
-  graphName?: string;
+  graphId?: string | null;
+  graphName?: string | null;
 };
 
 export type StrategyUpdateData = {
@@ -68,12 +92,11 @@ export type StrategyUpdateData = {
 export type GraphSnapshotData = { graphSnapshot?: GraphSnapshotInput };
 export type GraphPlanData = {
   graphId?: string;
-  plan: unknown;
+  plan: StrategyPlan;
   name?: string;
   recordType?: string;
   description?: string;
 };
-export type ExecutorBuildRequestData = { executorBuildRequest: unknown };
 /**
  * message_end payload -- contents are unused but preserved for debugging.
  * Genuinely dynamic: the backend may include arbitrary diagnostic fields.
@@ -82,12 +105,12 @@ export type MessageEndData = RawSSEData;
 export type ErrorData = SSEErrorData;
 export type WorkbenchGeneSetData = {
   geneSet?: {
-    id: string;
-    name: string;
-    geneCount: number;
-    source: string;
-    siteId: string;
-  };
+    id?: string | null;
+    name?: string | null;
+    geneCount?: number | null;
+    source?: string | null;
+    siteId?: string | null;
+  } | null;
 };
 
 /* ── Zod schemas for validated event data ─────────────────────────── */
@@ -129,7 +152,7 @@ export const ToolCallStartDataSchema = z
 export const ToolCallEndDataSchema = z
   .object({
     id: z.string(),
-    result: z.string(),
+    result: z.string().nullish(),
   })
   .passthrough();
 
@@ -147,6 +170,13 @@ export const SubKaniToolCallEndDataSchema = z
     task: z.string().nullish(),
     id: z.string(),
     result: z.string().nullable(),
+  })
+  .passthrough();
+
+export const SubKaniTaskRetryDataSchema = z
+  .object({
+    task: z.string().nullish(),
+    attempt: z.number().nullish(),
   })
   .passthrough();
 
@@ -190,18 +220,21 @@ export const ErrorDataSchema = z
 
 const StrategyUpdateStepDataSchema = z
   .object({
-    stepId: z.string(),
-    displayName: z.string(),
+    id: z.string(),
     kind: z.string().nullish(),
+    displayName: z.string().nullish(),
     searchName: z.string().nullish(),
-    transformName: z.string().nullish(),
     operator: z.string().nullish(),
     primaryInputStepId: z.string().nullish(),
     secondaryInputStepId: z.string().nullish(),
     parameters: z.record(z.string(), z.unknown()).nullish(),
-    name: z.string().nullable().optional(),
-    description: z.string().nullable().optional(),
+    estimatedSize: z.number().nullish(),
+    wdkStepId: z.number().nullish(),
+    isBuilt: z.boolean().optional(),
+    isFiltered: z.boolean().optional(),
     recordType: z.string().nullish(),
+    name: z.string().nullish(),
+    description: z.string().nullish(),
     graphId: z.string().nullish(),
     graphName: z.string().nullish(),
   })
@@ -221,6 +254,7 @@ export const StrategyLinkDataSchema = z
     wdkUrl: z.string().nullish(),
     name: z.string().nullish(),
     description: z.string().nullish(),
+    isSaved: z.boolean().nullish(),
   })
   .passthrough();
 
@@ -246,11 +280,11 @@ export const GraphPlanDataSchema = z
 
 const WorkbenchGeneSetInnerSchema = z
   .object({
-    id: z.string(),
-    name: z.string(),
-    geneCount: z.number(),
-    source: z.string(),
-    siteId: z.string(),
+    id: z.string().nullish(),
+    name: z.string().nullish(),
+    geneCount: z.number().nullish(),
+    source: z.string().nullish(),
+    siteId: z.string().nullish(),
   })
   .passthrough();
 
@@ -275,6 +309,7 @@ export type ChatSSEEvent =
   | { type: "subkani_task_start"; data: SubKaniTaskStartData }
   | { type: "subkani_tool_call_start"; data: SubKaniToolCallStartData }
   | { type: "subkani_tool_call_end"; data: SubKaniToolCallEndData }
+  | { type: "subkani_task_retry"; data: SubKaniTaskRetryData }
   | { type: "subkani_task_end"; data: SubKaniTaskEndData }
   | { type: "strategy_update"; data: StrategyUpdateData }
   | { type: "graph_snapshot"; data: GraphSnapshotData }
@@ -284,7 +319,6 @@ export type ChatSSEEvent =
   | { type: "optimization_progress"; data: OptimizationProgressData }
   | { type: "model_selected"; data: ModelSelectedData }
   | { type: "graph_plan"; data: GraphPlanData }
-  | { type: "executor_build_request"; data: ExecutorBuildRequestData }
   | { type: "token_usage_partial"; data: TokenUsagePartialData }
   | { type: "message_end"; data: MessageEndData }
   | { type: "error"; data: ErrorData }
@@ -373,14 +407,16 @@ function narrowEventData(
     case "subkani_task_end":
       return { type, data: data as SubKaniTaskEndData };
 
+    case "subkani_task_retry": {
+      const d = zodNarrow<SubKaniTaskRetryData>(SubKaniTaskRetryDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
+    }
+
     case "graph_snapshot":
       return { type, data: data as GraphSnapshotData };
 
     case "graph_cleared":
       return { type, data: data as GraphClearedData };
-
-    case "executor_build_request":
-      return { type, data: data as ExecutorBuildRequestData };
 
     case "token_usage_partial":
       return { type, data: data as TokenUsagePartialData };

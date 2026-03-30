@@ -27,7 +27,6 @@ import {
   createStrategy,
   updateStrategy,
   deleteStrategy,
-  normalizePlan,
   computeStepCounts,
 } from "./strategies";
 import {
@@ -175,19 +174,12 @@ describe("lib/api functions", () => {
     });
   });
 
-  it("normalizePlan and computeStepCounts POST expected payloads", async () => {
+  it("computeStepCounts POSTs expected payload", async () => {
     const plan: StrategyPlan = {
       recordType: "gene",
       root: { searchName: "s", id: "n1", displayName: "d", parameters: {} },
       metadata: { name: "x" },
     };
-    requestJsonMock.mockResolvedValueOnce({ plan });
-    await normalizePlan("plasmodb", plan);
-    expect(requestJsonMock).toHaveBeenLastCalledWith(
-      expect.anything(),
-      "/api/v1/strategies/plan/normalize",
-      { method: "POST", body: { siteId: "plasmodb", plan } },
-    );
 
     requestJsonMock.mockResolvedValueOnce({ counts: {} });
     await computeStepCounts("plasmodb", plan);

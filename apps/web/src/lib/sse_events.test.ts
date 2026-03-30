@@ -75,18 +75,6 @@ describe("parseChatSSEEvent", () => {
     }
   });
 
-  it("parses executor_build_request events", () => {
-    const evt = parseChatSSEEvent({
-      type: "executor_build_request",
-      data: JSON.stringify({ executorBuildRequest: { strategyId: "s1" } }),
-    });
-    expect(evt).not.toBeNull();
-    expect(evt!.type).toBe("executor_build_request");
-    if (evt!.type === "executor_build_request") {
-      expect(evt.data.executorBuildRequest).toEqual({ strategyId: "s1" });
-    }
-  });
-
   it("parses message_end events", () => {
     const evt = parseChatSSEEvent({
       type: "message_end",
@@ -145,7 +133,7 @@ describe("parseChatSSEEvent", () => {
       data: JSON.stringify({
         graphId: "g1",
         step: {
-          stepId: "s1",
+          id: "s1",
           displayName: "Gene by GO term",
           kind: "search",
           searchName: "GenesByGoTerm",
@@ -156,7 +144,7 @@ describe("parseChatSSEEvent", () => {
     expect(evt!.type).toBe("strategy_update");
     if (evt!.type === "strategy_update") {
       expect(evt.data.graphId).toBe("g1");
-      expect(evt.data.step?.stepId).toBe("s1");
+      expect(evt.data.step?.id).toBe("s1");
     }
   });
 
@@ -207,13 +195,17 @@ describe("parseChatSSEEvent", () => {
     }
   });
 
-  it("returns null for tool_call_end missing result field", () => {
+  it("parses tool_call_end with missing result field (result is optional)", () => {
     const evt = parseChatSSEEvent({
       type: "tool_call_end",
       data: JSON.stringify({ id: "tc1" }),
     });
-    // Missing "result" field — known type but invalid data, skipped
-    expect(evt).toBeNull();
+    expect(evt).not.toBeNull();
+    expect(evt!.type).toBe("tool_call_end");
+    if (evt!.type === "tool_call_end") {
+      expect(evt.data.id).toBe("tc1");
+      expect(evt.data.result).toBeUndefined();
+    }
   });
 
   it("returns null for subkani_tool_call_start missing required fields", () => {
@@ -353,23 +345,12 @@ describe("parseChatSSEEvent", () => {
 
   // ── New tests for Zod-validated event types ─────────────────────────
 
-  it("returns null for strategy_update with invalid step (missing stepId)", () => {
+  it("returns null for strategy_update with invalid step (missing id)", () => {
     const evt = parseChatSSEEvent({
       type: "strategy_update",
       data: JSON.stringify({
         graphId: "g1",
         step: { displayName: "Gene search" },
-      }),
-    });
-    expect(evt).toBeNull();
-  });
-
-  it("returns null for strategy_update with invalid step (missing displayName)", () => {
-    const evt = parseChatSSEEvent({
-      type: "strategy_update",
-      data: JSON.stringify({
-        graphId: "g1",
-        step: { stepId: "s1" },
       }),
     });
     expect(evt).toBeNull();
@@ -388,14 +369,18 @@ describe("parseChatSSEEvent", () => {
     }
   });
 
-  it("returns null for workbench_gene_set with invalid geneSet (missing name)", () => {
+  it("parses workbench_gene_set with partial geneSet (all fields optional)", () => {
     const evt = parseChatSSEEvent({
       type: "workbench_gene_set",
       data: JSON.stringify({
         geneSet: { id: "gs1", geneCount: 5, source: "manual", siteId: "plasmodb" },
       }),
     });
-    expect(evt).toBeNull();
+    expect(evt).not.toBeNull();
+    expect(evt!.type).toBe("workbench_gene_set");
+    if (evt!.type === "workbench_gene_set") {
+      expect(evt.data.geneSet?.id).toBe("gs1");
+    }
   });
 
   it("parses workbench_gene_set without geneSet field (optional)", () => {
@@ -536,9 +521,9 @@ describe("SSE event data Zod schemas", () => {
       expect(result.success).toBe(false);
     });
 
-    it("rejects data missing result", () => {
+    it("accepts data with missing result (result is optional)", () => {
       const result = ToolCallEndDataSchema.safeParse({ id: "tc1" });
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
     });
   });
 
@@ -717,7 +702,7 @@ describe("SSE event data Zod schemas", () => {
       const result = StrategyUpdateDataSchema.safeParse({
         graphId: "g1",
         step: {
-          stepId: "s1",
+          id: "s1",
           displayName: "Gene search",
           searchName: "GeneByTextSearch",
           kind: "search",
@@ -725,21 +710,14 @@ describe("SSE event data Zod schemas", () => {
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.step?.stepId).toBe("s1");
+        expect(result.data.step?.id).toBe("s1");
         expect(result.data.step?.displayName).toBe("Gene search");
       }
     });
 
-    it("rejects step missing stepId", () => {
+    it("rejects step missing id", () => {
       const result = StrategyUpdateDataSchema.safeParse({
         step: { displayName: "Gene search" },
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("rejects step missing displayName", () => {
-      const result = StrategyUpdateDataSchema.safeParse({
-        step: { stepId: "s1" },
       });
       expect(result.success).toBe(false);
     });
@@ -747,7 +725,7 @@ describe("SSE event data Zod schemas", () => {
     it("passes through extra fields on step", () => {
       const result = StrategyUpdateDataSchema.safeParse({
         step: {
-          stepId: "s1",
+          id: "s1",
           displayName: "Gene search",
           futureField: 99,
         },
@@ -785,11 +763,11 @@ describe("SSE event data Zod schemas", () => {
       }
     });
 
-    it("rejects geneSet missing required fields", () => {
+    it("accepts geneSet with partial fields (all optional)", () => {
       const result = WorkbenchGeneSetDataSchema.safeParse({
         geneSet: { id: "gs1" },
       });
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
     });
 
     it("rejects geneSet with non-number geneCount", () => {

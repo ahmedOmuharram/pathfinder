@@ -46,6 +46,7 @@ from veupath_chatbot.services.research import (
 )
 from veupath_chatbot.services.strategies.build import RootResolutionError
 from veupath_chatbot.services.strategies.session_factory import build_strategy_session
+from veupath_chatbot.services.strategies.step_wdk_push import push_all_steps_to_wdk
 from veupath_chatbot.services.strategies.sync import (
     SyncResult,
     sync_strategy_for_site,
@@ -86,26 +87,6 @@ def _merge_auto_build(original_text: str | None, extra: JSONObject) -> str:
     return json.dumps(parsed)
 
 
-def _collect_unpushed_steps(graph: StrategyGraph) -> list[JSONObject]:
-    """Enumerate steps that exist locally but have no WDK step ID.
-
-    Returns a list of dicts with step ID, search name, and push error reason
-    (if available) so the model can take corrective action.
-    """
-    unpushed: list[JSONObject] = []
-    for step_id, step in graph.steps.items():
-        if step_id not in graph.wdk_step_ids:
-            entry: JSONObject = {
-                "stepId": step_id,
-                "searchName": step.search_name,
-            }
-            push_error = graph.wdk_push_errors.get(step_id)
-            if push_error:
-                entry["pushError"] = push_error
-            unpushed.append(entry)
-    return unpushed
-
-
 class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
     """Unified VEuPathDB Strategy Agent - research, planning, and execution.
 
@@ -137,6 +118,7 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
 
         system_prompt = build_agent_system_prompt(
             site_id=site_id,
+            strategy_session=self.strategy_session,
             selected_nodes=context.selected_nodes,
             mentioned_context=context.mentioned_context,
         )
@@ -166,7 +148,6 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
             "update_step",
             "delete_step",
             "undo_last_change",
-            "ensure_single_output",
             "add_step_filter",
             "add_step_analysis",
             "add_step_report",
@@ -191,31 +172,9 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         if not graph:
             return result
 
-        return (
-            self._handle_multi_root(result, graph)
-            if len(graph.roots) != 1
-            else await self._auto_build(result, graph)
-        )
-
-    def _handle_multi_root(
-        self, result: FunctionCallResult, graph: object
-    ) -> FunctionCallResult:
-        """Attach skip data when graph has multiple roots."""
-        if not isinstance(graph, StrategyGraph):
-            return result
-        skip_data: JSONObject = {
-            "autoBuild": {
-                "ok": False,
-                "skipped": True,
-                "reason": "multiple_roots",
-                "rootCount": len(graph.roots),
-            },
-        }
-        if graph.wdk_step_ids:
-            auto_build_dict = cast("JSONObject", skip_data["autoBuild"])
-            auto_build_dict["existingWdkStepIds"] = dict(graph.wdk_step_ids)
-        result.message.content = _merge_auto_build(result.message.text, skip_data)
-        return result
+        if len(graph.roots) == 1:
+            return await self._auto_build(result, graph)
+        return result  # Empty graph (0 roots) after deletion — nothing to build
 
     async def _auto_build(
         self, result: FunctionCallResult, graph: object
@@ -224,6 +183,9 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
         if not isinstance(graph, StrategyGraph):
             return result
         try:
+            # Push new steps AND update existing steps' params in WDK.
+            await push_all_steps_to_wdk(graph, self.site_id, update_existing=True)
+
             sync_result = await sync_strategy_for_site(
                 graph=graph,
                 site_id=self.site_id,
@@ -253,13 +215,20 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
                 "error": sanitize_error_for_client(exc),
             }
             # Enumerate steps missing WDK IDs so the model can fix or delete them.
-            unpushed = _collect_unpushed_steps(graph)
+            unpushed: list[JSONObject] = []
+            for sid, step in graph.steps.items():
+                if sid not in graph.wdk_step_ids:
+                    entry: JSONObject = {"stepId": sid, "searchName": step.search_name}
+                    push_error = graph.wdk_push_errors.get(sid)
+                    if push_error:
+                        entry["pushError"] = push_error
+                    unpushed.append(entry)
             if unpushed:
                 error_payload["unpushedSteps"] = cast("JSONArray", unpushed)
                 error_payload["hint"] = (
                     "These steps were created locally but WDK rejected them. "
                     "Fix their parameters with update_step, or delete them "
-                    "with delete_step, then call ensure_single_output again."
+                    "with delete_step."
                 )
             result.message.content = _merge_auto_build(
                 result.message.text, {"autoBuild": error_payload}

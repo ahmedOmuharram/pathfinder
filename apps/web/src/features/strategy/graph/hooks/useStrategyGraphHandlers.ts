@@ -15,6 +15,7 @@ interface UseStrategyGraphHandlersOptions {
   setSelectedStep: (step: Step | null) => void;
   selectedNodeIds: string[];
   startCombine: (sourceId: string, targetId: string) => void;
+  triggerSync: () => void;
 }
 
 /**
@@ -30,6 +31,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
     setSelectedStep,
     selectedNodeIds,
     startCombine,
+    triggerSync,
   } = options;
 
   const draftStrategy = useStrategyStore((state) => state.strategy);
@@ -64,6 +66,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
       if (selectedStep && result.removeIds.includes(selectedStep.id)) {
         setSelectedStep(null);
       }
+      triggerSync();
     },
     [
       draftStrategy?.steps,
@@ -72,6 +75,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
       selectedStep,
       updateStep,
       setSelectedStep,
+      triggerSync,
     ],
   );
 
@@ -125,6 +129,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
 
       setOrthologModalOpen(false);
       setSelectedStep(newStep);
+      triggerSync();
     },
     [
       selectedNodeIds,
@@ -134,6 +139,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
       addStep,
       updateStep,
       setSelectedStep,
+      triggerSync,
     ],
   );
 

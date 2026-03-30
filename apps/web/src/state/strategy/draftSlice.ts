@@ -129,7 +129,7 @@ export const createDraftSlice: StateCreator<StrategyState, [], [], DraftSlice> =
       return;
     }
     const existingSteps = get().stepsById;
-    const incomingSteps = strategy.steps;
+    const incomingSteps = strategy.steps ?? [];
     const mergedSteps = incomingSteps.map((step) => {
       const existing = existingSteps[step.id];
       if (!existing) return step;

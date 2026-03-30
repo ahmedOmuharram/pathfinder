@@ -9,11 +9,8 @@
 import { useCallback } from "react";
 import type {
   Citation,
-  Message,
   OptimizationProgressData,
   PlanningArtifact,
-  Step,
-  Strategy,
   SubKaniTokenUsage,
   ToolCall,
 } from "@pathfinder/shared";
@@ -26,43 +23,14 @@ import {
   persistReasoningToLastMessage,
   persistOptimizationDataToLastMessage,
 } from "@/features/chat/hooks/streamCompletionHelpers";
-import type { GraphSnapshotInput } from "@/features/chat/utils/graphSnapshot";
-import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import type { StreamSessionState } from "@/features/chat/handlers/handleChatEvent.types";
+import type { StreamEventDepsGroup } from "@/features/chat/hooks/useChatStreaming";
 
-type Thinking = ReturnType<typeof useThinkingState>;
-type AddStrategyInput = Parameters<ChatEventContext["addStrategy"]>[0];
-
-interface StreamEventDeps {
-  siteId: string;
-  thinking: Thinking;
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  setUndoSnapshots: React.Dispatch<React.SetStateAction<Record<number, Strategy>>>;
-  setStrategyId: (id: string | null) => void;
-  addStrategy: (strategy: AddStrategyInput) => void;
-  addExecutedStrategy: (strategy: Strategy) => void;
-  setWdkInfo: ChatEventContext["setWdkInfo"];
-  setStrategy: (strategy: Strategy | null) => void;
-  setStrategyMeta: ChatEventContext["setStrategyMeta"];
-  clearStrategy: () => void;
-  addStep: (step: Step) => void;
-  loadGraph: (graphId: string) => void;
-  currentStrategy: Strategy | null;
-  parseToolArguments: ChatEventContext["parseToolArguments"];
-  parseToolResult: ChatEventContext["parseToolResult"];
-  applyGraphSnapshot: (graphSnapshot: GraphSnapshotInput) => void;
-  getStrategy: (id: string) => Promise<Strategy>;
-  attachThinkingToLastAssistant: (
-    calls: ToolCall[],
-    activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> },
-  ) => void;
-  setSelectedModelId?: (modelId: string | null) => void;
+interface StreamEventDeps extends StreamEventDepsGroup {
   setOptimizationProgress: React.Dispatch<
     React.SetStateAction<OptimizationProgressData | null>
   >;
-  onApiError?: (message: string) => void;
-  onWorkbenchGeneSet?: ChatEventContext["onWorkbenchGeneSet"];
 }
 
 interface StreamEventCallbacks {

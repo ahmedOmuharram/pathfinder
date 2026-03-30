@@ -17,6 +17,7 @@ interface StreamChatContext {
 interface StreamChatResult {
   operationId: string;
   strategyId: string;
+  entryId: string;
   subscription: OperationSubscription;
 }
 
@@ -82,6 +83,7 @@ export async function streamChat(
   return {
     operationId: resp.operationId,
     strategyId: resp.strategyId,
+    entryId: resp.entryId,
     subscription,
   };
 }

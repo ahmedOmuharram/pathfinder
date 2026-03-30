@@ -1,8 +1,13 @@
 import { describe, expect, it, type Mock } from "vitest";
 import { handleChatEvent } from "./handleChatEvent";
 import type { ChatSSEEvent } from "@/lib/sse_events";
+import type { AssistantMessage, Message } from "@pathfinder/shared";
 import { OPTIMIZATION_PROGRESS_EVENTS } from "./__fixtures__/realisticEvents";
 import { makeCtx } from "./handleChatEvent.testUtils";
+
+function assertAssistant(msg: Message): asserts msg is AssistantMessage {
+  if (msg.role !== "assistant") throw new Error(`Expected assistant, got ${msg.role}`);
+}
 
 describe("handleChatEvent — optimization progress events", () => {
   it("updates optimization progress through started → trials → completed", () => {
@@ -20,9 +25,11 @@ describe("handleChatEvent — optimization progress events", () => {
 
     // Final message should exist and carry persisted optimization payload
     expect(state.messages).toHaveLength(1);
-    expect(state.messages[0]?.content).toBe("Optimization complete.");
-    expect(state.messages[0]?.optimizationProgress).toBeDefined();
-    expect(state.messages[0]?.optimizationProgress?.status).toBe("completed");
+    const finalMsg = state.messages[0]!;
+    assertAssistant(finalMsg);
+    expect(finalMsg.content).toBe("Optimization complete.");
+    expect(finalMsg.optimizationProgress).toBeDefined();
+    expect(finalMsg.optimizationProgress?.status).toBe("completed");
   });
 
   it("does not attach optimization_progress to previous assistant before current turn assistant exists", () => {
@@ -70,7 +77,9 @@ describe("handleChatEvent — optimization progress events", () => {
     } as ChatSSEEvent);
 
     // Progress is live-only at this point; previous assistant must remain untouched.
-    expect(state.messages[0]?.optimizationProgress).toBeUndefined();
+    const prevMsg = state.messages[0]!;
+    assertAssistant(prevMsg);
+    expect(prevMsg.optimizationProgress).toBeUndefined();
   });
 
   it("attaches optimization_progress to current turn assistant only", () => {
@@ -113,8 +122,12 @@ describe("handleChatEvent — optimization progress events", () => {
 
     expect(state.messages).toHaveLength(3);
     // Previous assistant must stay clean.
-    expect(state.messages[0]?.optimizationProgress).toBeUndefined();
+    const prevAssistant = state.messages[0]!;
+    assertAssistant(prevAssistant);
+    expect(prevAssistant.optimizationProgress).toBeUndefined();
     // Current assistant owns optimization for this turn.
-    expect(state.messages[2]?.optimizationProgress?.status).toBe("completed");
+    const currentAssistant = state.messages[2]!;
+    assertAssistant(currentAssistant);
+    expect(currentAssistant.optimizationProgress?.status).toBe("completed");
   });
 });

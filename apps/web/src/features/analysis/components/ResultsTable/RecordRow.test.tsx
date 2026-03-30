@@ -25,8 +25,8 @@ vi.mock("./ExpandedRowDetail", () => ({
 }));
 
 const columns: RecordAttribute[] = [
-  { name: "gene_id", displayName: "Gene ID", isDisplayable: true },
-  { name: "product", displayName: "Product", isDisplayable: true },
+  { name: "gene_id", displayName: "Gene ID", help: null, type: null, isDisplayable: true, isSortable: false, isSuggested: false },
+  { name: "product", displayName: "Product", help: null, type: null, isDisplayable: true, isSortable: false, isSuggested: false },
 ];
 
 const record: WdkRecord = {

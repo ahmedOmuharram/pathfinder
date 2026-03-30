@@ -44,6 +44,7 @@ from veupath_chatbot.transport.http.routers import (
     sites,
     strategies,
     tools,
+    undo,
     user_data,
     veupathdb_auth,
 )
@@ -83,6 +84,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             )
         if orphaned:
             await session.commit()
+
+    # Warm up: model + catalogs must be ready before serving requests.
+    try:
+        print("[warm-up] Loading embedding model", flush=True)
+        from veupath_chatbot.services.catalog.semantic_index import warm_up_model
+        warm_up_model()
+        print("[warm-up] Embedding model ready", flush=True)
+    except Exception:
+        print("[warm-up] Embedding model failed", flush=True)
+        logger.warning("Embedding model warm-up failed (non-fatal)", exc_info=True)
+
+    try:
+        print("[warm-up] Starting discovery preload", flush=True)
+        from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+        discovery = get_discovery_service()
+        print("[warm-up] Discovery service created, preloading", flush=True)
+        await discovery.preload_all()
+        print("[warm-up] Discovery catalogs warmed up", flush=True)
+    except Exception:
+        print("[warm-up] Discovery preload failed", flush=True)
+        logger.warning("Discovery warm-up failed (non-fatal)", exc_info=True)
 
     yield
 
@@ -250,6 +272,7 @@ def create_app() -> FastAPI:
     app.include_router(models.router)
     app.include_router(tools.router)
     app.include_router(chat.router)
+    app.include_router(undo.router)
     app.include_router(strategies.router)
     app.include_router(experiments.router)
     app.include_router(control_sets.router)

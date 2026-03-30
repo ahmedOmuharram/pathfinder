@@ -1,4 +1,4 @@
-import type { ChatEventContext } from "./handleChatEvent.types";
+import type { OptionalCallbacks } from "./handleChatEvent.types";
 import type { WorkbenchGeneSetData } from "@/lib/sse_events";
 
 /**
@@ -8,11 +8,11 @@ import type { WorkbenchGeneSetData } from "@/lib/sse_events";
  * so this handler does not depend on the workbench store directly.
  */
 export function handleWorkbenchGeneSetEvent(
-  ctx: ChatEventContext,
+  ctx: OptionalCallbacks,
   data: WorkbenchGeneSetData,
 ) {
   const gs = data.geneSet;
-  if (!gs?.id) return;
+  if (gs?.id == null || gs.name == null || gs.geneCount == null || gs.source == null || gs.siteId == null) return;
 
   ctx.onWorkbenchGeneSet?.({
     id: gs.id,

@@ -5,7 +5,7 @@
  * the hook stays a thin composer.
  */
 
-import type { Message, OptimizationProgressData } from "@pathfinder/shared";
+import type { AssistantMessage, Message, OptimizationProgressData } from "@pathfinder/shared";
 
 /**
  * Attach accumulated reasoning text to the last assistant message
@@ -20,7 +20,7 @@ export function persistReasoningToLastMessage(
   if (reasoning == null || reasoning === "") return prev;
   for (let i = prev.length - 1; i >= 0; i -= 1) {
     const msg = prev[i];
-    if (msg?.role !== "assistant") continue;
+    if (msg == null || msg.role !== "assistant") continue;
     if (msg.reasoning != null) return prev;
     const next = [...prev];
     next[i] = { ...msg, reasoning };
@@ -41,7 +41,7 @@ export function persistOptimizationDataToLastMessage(
   if (!optimizationProgress) return prev;
   for (let i = prev.length - 1; i >= 0; i -= 1) {
     const msg = prev[i];
-    if (msg?.role !== "assistant") continue;
+    if (msg == null || msg.role !== "assistant") continue;
     const next = [...prev];
     next[i] = { ...msg, optimizationProgress };
     return next;

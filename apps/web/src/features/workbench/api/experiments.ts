@@ -42,7 +42,7 @@ interface RefineConfig {
   searchName?: string;
   parameters?: StepParameters;
   operator?: string;
-  stepId?: string | number;
+  transformName?: string;
   [key: string]: unknown;
 }
 

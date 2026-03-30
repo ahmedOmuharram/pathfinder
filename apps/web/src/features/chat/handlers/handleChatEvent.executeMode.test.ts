@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { handleChatEvent } from "./handleChatEvent";
 import type { ChatEventContext } from "./handleChatEvent.types";
 import type { ChatSSEEvent } from "@/lib/sse_events";
-import type { Citation, PlanningArtifact, ToolCall } from "@pathfinder/shared";
+import type { AssistantMessage, Citation, Message, PlanningArtifact, ToolCall } from "@pathfinder/shared";
 import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import { EXECUTE_EPITOPE_SEARCH_EVENTS } from "./__fixtures__/realisticEvents";
 import { makeBatchingStateSetters, makeCtx } from "./handleChatEvent.testUtils";
+
+function assertAssistant(msg: Message): asserts msg is AssistantMessage {
+  if (msg.role !== "assistant") throw new Error(`Expected assistant, got ${msg.role}`);
+}
 
 describe("handleChatEvent — realistic execute mode", () => {
   it("processes full event stream without errors and produces correct state", () => {
@@ -66,7 +70,7 @@ describe("handleChatEvent — realistic execute mode", () => {
     // ── Final assistant message ──
     expect(state.messages).toHaveLength(1);
     const msg = state.messages[0]!;
-    expect(msg.role).toBe("assistant");
+    assertAssistant(msg);
     expect(msg.content).toBe(
       "I've built a strategy for P. falciparum genes with high or medium epitope evidence.",
     );

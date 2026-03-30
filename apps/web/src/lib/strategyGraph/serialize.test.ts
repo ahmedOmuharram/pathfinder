@@ -66,8 +66,8 @@ describe("core/strategyGraph/serialize", () => {
     expect(res?.plan.root.primaryInput?.parameters).toEqual({ ok: 1 });
     expect(res?.plan.root.primaryInput?.parameters?.["fake"]).toBeUndefined();
     expect(res?.plan.root.primaryInput?.parameters?.["arr"]).toBeUndefined();
-    expect(res?.plan.metadata?.name).toBe("My Strategy");
-    expect(res?.plan.metadata?.description).toBe("desc");
+    expect(res?.plan.name).toBe("My Strategy");
+    expect(res?.plan.description).toBe("desc");
   });
 
   it("serializes combine nodes with __combine__ searchName and requires operator", () => {

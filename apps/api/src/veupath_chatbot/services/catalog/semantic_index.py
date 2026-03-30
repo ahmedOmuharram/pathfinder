@@ -1,17 +1,23 @@
 """Lightweight semantic search index for WDK search discovery.
 
 Uses sentence-transformers (all-MiniLM-L6-v2) to embed enriched search
-descriptions at catalog load time.  At query time, the user query is
-embedded and compared via cosine similarity.
+descriptions.  Embeddings are cached to disk as .npz files keyed by a
+hash of the search names — so startup loads from cache in milliseconds
+and only re-embeds when the catalog actually changes.
 
-The index is built once per site and cached alongside the SearchCatalog.
+Pre-computed caches are committed to the repo under
+``data/embeddings/``.  At runtime, caches are read/written to a
+configurable directory (default: same ``data/embeddings/``).
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
@@ -23,6 +29,18 @@ logger = get_logger(__name__)
 _MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 _model_lock = threading.Lock()
 _model_instance = None
+
+# Pre-computed embeddings shipped with the repo.
+_BUNDLED_CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "embeddings"
+# Runtime cache — defaults to bundled dir but can be overridden (e.g. Docker volume).
+_RUNTIME_CACHE_DIR: Path = _BUNDLED_CACHE_DIR
+
+
+def set_cache_dir(path: Path) -> None:
+    """Override the runtime embedding cache directory."""
+    global _RUNTIME_CACHE_DIR
+    _RUNTIME_CACHE_DIR = path
+    _RUNTIME_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _get_model():
@@ -41,9 +59,55 @@ def _get_model():
         return _model_instance
 
 
+def warm_up_model() -> None:
+    """Eagerly load the embedding model so the first request doesn't pay for it."""
+    _get_model()
+
+
 def _strip_html(text: str) -> str:
     """Remove HTML tags from text."""
     return re.sub(r"<[^>]+>", " ", text)
+
+
+def _catalog_hash(entries: list[SearchIndexEntry]) -> str:
+    """Stable hash of search names — changes when the catalog changes."""
+    key = json.dumps(
+        [(e.search_name, e.record_type) for e in entries],
+        sort_keys=True,
+    )
+    return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+
+def _cache_path(site_id: str) -> Path:
+    """Path to the cached embeddings file for a site."""
+    return _RUNTIME_CACHE_DIR / f"{site_id}.npz"
+
+
+def _try_load_cache(
+    site_id: str, catalog_hash: str
+) -> NDArray | None:
+    """Try loading cached embeddings, checking both runtime and bundled dirs."""
+    for cache_dir in (_RUNTIME_CACHE_DIR, _BUNDLED_CACHE_DIR):
+        path = cache_dir / f"{site_id}.npz"
+        if not path.exists():
+            continue
+        try:
+            data = np.load(path)
+            if data.get("hash", None) is not None and str(data["hash"]) == catalog_hash:
+                return data["embeddings"]
+        except Exception:
+            logger.debug("Cache load failed", path=str(path))
+    return None
+
+
+def _save_cache(site_id: str, catalog_hash: str, embeddings: NDArray) -> None:
+    """Save embeddings to the runtime cache directory."""
+    _RUNTIME_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    path = _cache_path(site_id)
+    try:
+        np.savez_compressed(path, embeddings=embeddings, hash=np.array(catalog_hash))
+    except Exception:
+        logger.warning("Failed to save embedding cache", path=str(path), exc_info=True)
 
 
 @dataclass
@@ -59,6 +123,7 @@ class SearchIndexEntry:
 class SemanticSearchIndex:
     """Cosine-similarity index over enriched WDK search descriptions."""
 
+    site_id: str = ""
     entries: list[SearchIndexEntry] = field(default_factory=list)
     embeddings: NDArray | None = None
 
@@ -70,14 +135,8 @@ class SemanticSearchIndex:
     ) -> None:
         """Build the index from search catalog data.
 
-        Parameters
-        ----------
-        searches_by_rt:
-            Dict mapping record type name to list of WDKSearch objects.
-        dataset_summaries:
-            Dict mapping dataset ID to dataset summary text.
-        dataset_contacts:
-            Dict mapping dataset ID to contact/PI name.
+        Checks the disk cache first.  Only encodes with the model if
+        the cache is missing or stale.
         """
         ds_summaries = dataset_summaries or {}
         ds_contacts = dataset_contacts or {}
@@ -97,11 +156,27 @@ class SemanticSearchIndex:
         if not self.entries:
             return
 
+        h = _catalog_hash(self.entries)
+
+        # Try loading from cache.
+        cached = _try_load_cache(self.site_id, h)
+        if cached is not None and cached.shape[0] == len(self.entries):
+            self.embeddings = cached
+            logger.info(
+                "Loaded embeddings from cache",
+                site_id=self.site_id,
+                num_entries=len(self.entries),
+            )
+            return
+
+        # Cache miss — encode and save.
         model = _get_model()
         texts = [e.enriched_text for e in self.entries]
         self.embeddings = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+        _save_cache(self.site_id, h, self.embeddings)
         logger.info(
-            "Semantic search index built",
+            "Semantic search index built and cached",
+            site_id=self.site_id,
             num_entries=len(self.entries),
             embedding_dim=self.embeddings.shape[1] if self.embeddings is not None else 0,
         )
@@ -128,14 +203,7 @@ class SemanticSearchIndex:
         return results
 
     def _build_enriched_text(self, search, ds_summaries: dict, ds_contacts: dict) -> str:
-        """Build enriched text blob for a search.
-
-        Combines: url_segment (split on underscores/camelCase), display_name,
-        short_display_name, summary, description, and dataset metadata
-        (summary + contact/PI name) looked up by matching the search name
-        to dataset IDs.
-        """
-        # Split url_segment into words (e.g. "GenesByRNASeqpfal3D7_Su_strand" -> searchable terms)
+        """Build enriched text blob for a search."""
         name_words = " ".join(re.findall(r"[A-Z][a-z]+|[a-z]+|[A-Z]+|\d+", search.url_segment))
 
         parts = [
@@ -146,33 +214,23 @@ class SemanticSearchIndex:
             _strip_html(search.description),
         ]
 
-        # Match search name to dataset metadata via dataset ID patterns in the search name
-        # E.g. "GenesByRNASeqpfal3D7_Su_strand_specific_rnaSeq_RSRC" -> look for datasets
-        # whose summary or contact match
         for ds_id, summary in ds_summaries.items():
-            # Check if this dataset's summary mentions terms from the search name
-            # or if the search name contains the dataset ID
             if ds_id in search.url_segment:
                 parts.append(_strip_html(summary))
                 contact = ds_contacts.get(ds_id, "")
                 if contact:
                     parts.append(contact)
 
-        # Also do a broader match: find datasets whose primary key appears related
-        # by looking for shared substrings between search names and dataset summaries
-        search_name_lower = search.url_segment.lower()
+        display_lower = search.display_name.lower()
+        display_terms = set(re.findall(r"\b\w{4,}\b", display_lower))
+        stop = {"gene", "genes", "find", "based", "with", "from", "this", "that", "search"}
+
         for ds_id, summary in ds_summaries.items():
             if ds_id in search.url_segment:
-                continue  # already added above
-            # Match dataset ID suffix patterns (e.g. DS_d18037ecc4 won't match search names)
-            # Instead, use the dataset primary_key/summary to enrich matching searches
-            # by checking if the search display name references the dataset
+                continue
             summary_lower = summary.lower()
-            display_lower = search.display_name.lower()
-            # If the display name and dataset summary share significant terms, include it
-            display_terms = set(re.findall(r"\b\w{4,}\b", display_lower))
             summary_terms = set(re.findall(r"\b\w{4,}\b", summary_lower))
-            overlap = display_terms & summary_terms - {"gene", "genes", "find", "based", "with", "from", "this", "that", "search"}
+            overlap = display_terms & summary_terms - stop
             if len(overlap) >= 3:
                 parts.append(_strip_html(summary))
                 contact = ds_contacts.get(ds_id, "")
@@ -180,12 +238,3 @@ class SemanticSearchIndex:
                     parts.append(contact)
 
         return " ".join(p for p in parts if p).strip()
-
-
-def _extract_dataset_id(url: str) -> str | None:
-    """Extract dataset ID from a VEuPathDB dataset URL.
-
-    E.g. 'https://PlasmoDB.org/a/app/record/dataset/DS_d18037ecc4' -> 'DS_d18037ecc4'
-    """
-    m = re.search(r"(DS_[a-f0-9]+)", url)
-    return m.group(1) if m else None

@@ -17,8 +17,6 @@ interface UseStrategyGraphLayoutOptions {
   setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   nodePositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
-  dirtyStepIds: Set<string>;
-  isUnsaved: boolean;
   handleAddToChat: (stepId: string) => void;
   handleOpenDetails: (stepId: string) => void;
   setSelectedNodeIds: (ids: string[]) => void;
@@ -36,8 +34,6 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     setNodes,
     setEdges,
     nodePositionsRef,
-    dirtyStepIds,
-    isUnsaved,
     handleAddToChat,
     handleOpenDetails,
     setSelectedNodeIds,
@@ -135,7 +131,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
       },
       handleAddToChat,
       handleOpenDetails,
-      isUnsaved ? dirtyStepIds : undefined,
+      undefined,
       {
         existingPositions: nodePositionsRef.current,
         forceRelayout,
@@ -158,8 +154,6 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     prevLayoutSeed,
     prevStrategyId,
     resetNodeHistory,
-    dirtyStepIds,
-    isUnsaved,
     nodePositionsRef,
   ]);
 

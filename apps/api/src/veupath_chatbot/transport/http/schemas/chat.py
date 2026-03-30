@@ -1,6 +1,7 @@
 """Chat request/response DTOs."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -12,6 +13,7 @@ from veupath_chatbot.platform.types import (
     ReasoningEffort,
 )
 from veupath_chatbot.services.chat.types import ChatMention
+from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
 from veupath_chatbot.transport.http.schemas.optimization import (
     OptimizationProgressEventData,
 )
@@ -145,7 +147,7 @@ class PlanningArtifactResponse(BaseModel):
     summary_markdown: str = Field(alias="summaryMarkdown")
     assumptions: list[str] = Field(default_factory=list)
     parameters: dict[str, JSONValue] = Field(default_factory=dict)
-    proposed_strategy_plan: JSONObject | None = Field(
+    proposed_strategy_plan: StrategyPlanPayload | None = Field(
         default=None, alias="proposedStrategyPlan"
     )
     created_at: str = Field(alias="createdAt")
@@ -156,7 +158,7 @@ class PlanningArtifactResponse(BaseModel):
 class MessageResponse(BaseModel):
     """Chat message."""
 
-    role: str
+    role: Literal["user", "assistant"]
     content: str
     model_id: str | None = Field(default=None, alias="modelId")
     tool_calls: list[ToolCallResponse] | None = Field(default=None, alias="toolCalls")

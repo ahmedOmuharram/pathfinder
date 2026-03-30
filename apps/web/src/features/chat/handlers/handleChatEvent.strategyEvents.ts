@@ -1,14 +1,22 @@
 import type { Step } from "@pathfinder/shared";
-import type { ChatEventContext } from "./handleChatEvent.types";
+import type {
+  StrategyActions,
+  StreamContext,
+  EventHelpers,
+} from "./handleChatEvent.types";
 import type {
   StrategyUpdateData,
   GraphSnapshotData,
   StrategyLinkData,
   StrategyMetaData,
   GraphPlanData,
-  ExecutorBuildRequestData,
   GraphClearedData,
 } from "@/lib/sse_events";
+
+type StrategyEventContext =
+  & Pick<StrategyActions, "setStrategyMeta" | "addStep" | "setWdkInfo" | "addExecutedStrategy" | "clearStrategy">
+  & Pick<StreamContext, "strategyIdAtStart" | "session" | "currentStrategy">
+  & Pick<EventHelpers, "applyGraphSnapshot" | "getStrategy">;
 
 /**
  * Resolve the target graph ID from event candidates, falling back to
@@ -16,7 +24,7 @@ import type {
  * skipped (no valid target, or target doesn't match the active strategy).
  */
 function resolveTargetGraph(
-  ctx: ChatEventContext,
+  ctx: StrategyEventContext,
   ...candidates: (string | undefined | null)[]
 ): string | null {
   const id =
@@ -32,12 +40,12 @@ function resolveTargetGraph(
 }
 
 export function handleStrategyUpdateEvent(
-  ctx: ChatEventContext,
+  ctx: StrategyEventContext,
   data: StrategyUpdateData,
 ) {
   const { step, graphId } = data;
   if (step == null) return;
-  const targetGraphId = resolveTargetGraph(ctx, graphId, step.graphId as string | null);
+  const targetGraphId = resolveTargetGraph(ctx, graphId, step.graphId);
   if (targetGraphId == null) return;
 
   ctx.session.captureUndoSnapshot(targetGraphId);
@@ -53,12 +61,11 @@ export function handleStrategyUpdateEvent(
     });
   }
   const newStep: Step = {
-    id: step.stepId,
+    id: step.id,
     kind: (step.kind as string | null) ?? "search",
-    displayName:
-      (step.displayName as string | undefined) ?? step.kind ?? "Untitled step",
-    isBuilt: false,
-    isFiltered: false,
+    displayName: step.displayName ?? step.kind ?? "Untitled step",
+    isBuilt: step.isBuilt ?? false,
+    isFiltered: step.isFiltered ?? false,
   };
   if (step.recordType != null) newStep.recordType = step.recordType;
   if (step.searchName != null) newStep.searchName = step.searchName;
@@ -74,15 +81,15 @@ export function handleStrategyUpdateEvent(
 }
 
 export function handleGraphSnapshotEvent(
-  ctx: ChatEventContext,
+  ctx: StrategyEventContext,
   data: GraphSnapshotData,
 ) {
   const { graphSnapshot } = data;
   if (graphSnapshot) ctx.applyGraphSnapshot(graphSnapshot);
 }
 
-export function handleStrategyLinkEvent(ctx: ChatEventContext, data: StrategyLinkData) {
-  const { graphId, wdkStrategyId, wdkUrl, name, description } = data;
+export function handleStrategyLinkEvent(ctx: StrategyEventContext, data: StrategyLinkData) {
+  const { graphId, wdkStrategyId, wdkUrl, name, description, isSaved } = data;
   const targetGraphId = resolveTargetGraph(ctx, graphId);
   if (!targetGraphId) return;
 
@@ -90,6 +97,7 @@ export function handleStrategyLinkEvent(ctx: ChatEventContext, data: StrategyLin
   ctx.setStrategyMeta({
     ...(name != null ? { name } : {}),
     ...(description != null ? { description } : {}),
+    ...(isSaved != null ? { isSaved } : {}),
   });
   if (ctx.currentStrategy) {
     ctx.addExecutedStrategy({
@@ -98,6 +106,7 @@ export function handleStrategyLinkEvent(ctx: ChatEventContext, data: StrategyLin
       ...(description != null ? { description } : {}),
       ...(wdkStrategyId != null ? { wdkStrategyId } : {}),
       ...(wdkUrl != null ? { wdkUrl } : {}),
+      ...(isSaved != null ? { isSaved } : {}),
       updatedAt: new Date().toISOString(),
     });
   } else {
@@ -110,7 +119,7 @@ export function handleStrategyLinkEvent(ctx: ChatEventContext, data: StrategyLin
   }
 }
 
-export function handleStrategyMetaEvent(ctx: ChatEventContext, data: StrategyMetaData) {
+export function handleStrategyMetaEvent(ctx: StrategyEventContext, data: StrategyMetaData) {
   const { graphId, name, description, recordType, graphName } = data;
   if (resolveTargetGraph(ctx, graphId) == null) return;
   ctx.setStrategyMeta({
@@ -120,7 +129,7 @@ export function handleStrategyMetaEvent(ctx: ChatEventContext, data: StrategyMet
   });
 }
 
-export function handleGraphPlanEvent(ctx: ChatEventContext, data: GraphPlanData) {
+export function handleGraphPlanEvent(ctx: StrategyEventContext, data: GraphPlanData) {
   const { graphId, name, description, recordType } = data;
   if (resolveTargetGraph(ctx, graphId) == null) return;
   // Update strategy metadata from the plan event.
@@ -131,17 +140,8 @@ export function handleGraphPlanEvent(ctx: ChatEventContext, data: GraphPlanData)
   });
 }
 
-export function handleExecutorBuildRequestEvent(
-  _ctx: ChatEventContext,
-  _data: ExecutorBuildRequestData,
-) {
-  // executor_build_request is an informational event emitted when the backend
-  // begins a build request.  No frontend action is needed — the subsequent
-  // strategy_link / graph_plan events carry the actual results.
-}
-
 export function handleStrategyClearedEvent(
-  ctx: ChatEventContext,
+  ctx: StrategyEventContext,
   data: GraphClearedData,
 ) {
   const { graphId } = data;

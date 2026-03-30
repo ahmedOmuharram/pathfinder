@@ -17,20 +17,21 @@ import type { ToolArguments } from "@/features/chat/utils/parseToolArguments";
 
 type Thinking = ReturnType<typeof useThinkingState>;
 
+// ── Stream session state ────────────────────────────────────────────
+
 export type StreamSessionState = {
   streamingAssistantIndex: number | null;
   streamingAssistantMessageId: string | null;
-  /** Owner assistant message for the current stream turn. */
   turnAssistantIndex?: number | null;
   reasoning: string | null;
   optimizationProgress: OptimizationProgressData | null;
-  /** Model ID from the most recent model_selected event in this turn. */
   currentModelId?: string | null;
 };
 
-export type ChatEventContext = {
-  siteId: string;
-  strategyIdAtStart: string | null;
+// ── Sub-interfaces (ISP) ────────────────────────────────────────────
+
+/** Mutable per-stream buffers — allocated fresh for each stream. */
+export interface StreamBuffers {
   toolCallsBuffer: ToolCall[];
   citationsBuffer: Citation[];
   planningArtifactsBuffer: PlanningArtifact[];
@@ -38,9 +39,10 @@ export type ChatEventContext = {
   subKaniStatusBuffer: Record<string, string>;
   subKaniModelsBuffer: Record<string, string>;
   subKaniTokenUsageBuffer: Record<string, SubKaniTokenUsage>;
-  thinking: Thinking;
+}
 
-  // Strategy/session actions
+/** Strategy store mutations — used by strategy events and message_start. */
+export interface StrategyActions {
   setStrategyId: (id: string | null) => void;
   addStrategy: (s: Strategy) => void;
   addExecutedStrategy: (s: Strategy) => void;
@@ -55,28 +57,37 @@ export type ChatEventContext = {
   clearStrategy: () => void;
   addStep: (s: Step) => void;
   loadGraph: (graphId: string) => void;
+}
 
-  /** Mutable streaming session scoped to this stream. */
-  session: StreamingSession;
-  currentStrategy: Strategy | null;
-
-  // UI state setters
+/** React state setters for UI updates. */
+export interface UISetters {
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setUndoSnapshots: Dispatch<SetStateAction<Record<number, Strategy>>>;
+  setOptimizationProgress: Dispatch<SetStateAction<OptimizationProgressData | null>>;
+}
 
-  // Helpers
+/** Parsing and snapshot helpers. */
+export interface EventHelpers {
   parseToolArguments: (args: unknown) => ToolArguments;
   parseToolResult: (result?: string | null) => ToolResultPayload | null;
   applyGraphSnapshot: (graphSnapshot: GraphSnapshotInput) => void;
   getStrategy: (id: string) => Promise<Strategy>;
+}
+
+/** Per-stream identity and session state. */
+export interface StreamContext {
+  siteId: string;
+  strategyIdAtStart: string | null;
+  session: StreamingSession;
+  currentStrategy: Strategy | null;
   streamState: StreamSessionState;
+  thinking: Thinking;
+}
 
-  setOptimizationProgress: Dispatch<SetStateAction<OptimizationProgressData | null>>;
-
+/** Optional callbacks injected from the page layer. */
+export interface OptionalCallbacks {
   setSelectedModelId?: (modelId: string | null) => void;
   onApiError?: (message: string) => void;
-
-  /** Callback for workbench_gene_set events — decouples from workbench store. */
   onWorkbenchGeneSet?: (geneSet: {
     id: string;
     name: string;
@@ -84,4 +95,14 @@ export type ChatEventContext = {
     source: string;
     siteId: string;
   }) => void;
-};
+}
+
+// ── Full context (composition of sub-interfaces) ────────────────────
+
+export type ChatEventContext =
+  & StreamBuffers
+  & StrategyActions
+  & UISetters
+  & EventHelpers
+  & StreamContext
+  & OptionalCallbacks;

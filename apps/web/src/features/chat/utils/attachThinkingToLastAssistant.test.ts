@@ -1,14 +1,26 @@
 import { describe, expect, it } from "vitest";
-import type { Message, ToolCall, SubKaniActivity } from "@pathfinder/shared";
+import type { AssistantMessage, Message, ToolCall, SubKaniActivity, UserMessage } from "@pathfinder/shared";
 import { attachThinkingToLastAssistant } from "./attachThinkingToLastAssistant";
 
-function makeMessage(overrides: Partial<Message> & { role: Message["role"] }): Message {
-  const { role, content, timestamp, ...rest } = overrides;
+function assertAssistant(msg: Message): asserts msg is AssistantMessage {
+  if (msg.role !== "assistant") throw new Error(`Expected assistant, got ${msg.role}`);
+}
+
+function makeUserMessage(overrides?: Partial<Omit<UserMessage, "role">>): UserMessage {
   return {
-    role,
-    content: content ?? "",
-    timestamp: timestamp ?? new Date().toISOString(),
-    ...rest,
+    role: "user",
+    content: overrides?.content ?? "",
+    timestamp: overrides?.timestamp ?? new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function makeAssistantMessage(overrides?: Partial<Omit<AssistantMessage, "role">>): AssistantMessage {
+  return {
+    role: "assistant",
+    content: overrides?.content ?? "",
+    timestamp: overrides?.timestamp ?? new Date().toISOString(),
+    ...overrides,
   };
 }
 
@@ -35,15 +47,15 @@ describe("attachThinkingToLastAssistant", () => {
   // ─── Early returns ─────────────────────────────────────────────────
 
   it("returns the same reference when calls is empty and activity is undefined", () => {
-    const msgs = [makeMessage({ role: "user" })];
+    const msgs = [makeUserMessage()];
     const result = attachThinkingToLastAssistant(msgs, []);
     expect(result).toBe(msgs);
   });
 
   it("returns the same reference when there are no assistant messages", () => {
-    const msgs = [
-      makeMessage({ role: "user", content: "hello" }),
-      makeMessage({ role: "system", content: "sys" }),
+    const msgs: Message[] = [
+      makeUserMessage({ content: "hello" }),
+      makeUserMessage({ content: "another user msg" }),
     ];
     const calls = [makeToolCall()];
     const result = attachThinkingToLastAssistant(msgs, calls);
@@ -59,32 +71,37 @@ describe("attachThinkingToLastAssistant", () => {
   // ─── Attaching tool calls ──────────────────────────────────────────
 
   it("attaches tool calls to the last assistant message", () => {
-    const msgs = [
-      makeMessage({ role: "user", content: "q" }),
-      makeMessage({ role: "assistant", content: "a" }),
+    const msgs: Message[] = [
+      makeUserMessage({ content: "q" }),
+      makeAssistantMessage({ content: "a" }),
     ];
     const calls = [makeToolCall({ id: "tc-1", name: "do_thing" })];
     const result = attachThinkingToLastAssistant(msgs, calls);
     expect(result).not.toBe(msgs);
     expect(result).toHaveLength(2);
-    expect(result[1]!.toolCalls).toEqual(calls);
+    const resultMsg = result[1]!;
+    assertAssistant(resultMsg);
+    expect(resultMsg.toolCalls).toEqual(calls);
     // Original should be unmodified
+    assertAssistant(msgs[1]!);
     expect(msgs[1]!.toolCalls).toBeUndefined();
   });
 
   it("attaches activity to the last assistant message", () => {
-    const msgs = [makeMessage({ role: "assistant", content: "a" })];
+    const msgs: Message[] = [makeAssistantMessage({ content: "a" })];
     const activity = makeActivity();
     const result = attachThinkingToLastAssistant(msgs, [], activity);
     expect(result).not.toBe(msgs);
+    assertAssistant(result[0]!);
     expect(result[0]!.subKaniActivity).toEqual(activity);
   });
 
   it("attaches both tool calls and activity in one call", () => {
-    const msgs = [makeMessage({ role: "assistant", content: "a" })];
+    const msgs: Message[] = [makeAssistantMessage({ content: "a" })];
     const calls = [makeToolCall()];
     const activity = makeActivity();
     const result = attachThinkingToLastAssistant(msgs, calls, activity);
+    assertAssistant(result[0]!);
     expect(result[0]!.toolCalls).toEqual(calls);
     expect(result[0]!.subKaniActivity).toEqual(activity);
   });
@@ -92,13 +109,12 @@ describe("attachThinkingToLastAssistant", () => {
   // ─── Skipping already-populated messages ───────────────────────────
 
   it("returns the same reference when the assistant already has both toolCalls and subKaniActivity", () => {
-    const existing = makeMessage({
-      role: "assistant",
+    const existing = makeAssistantMessage({
       content: "done",
       toolCalls: [makeToolCall({ id: "existing" })],
       subKaniActivity: makeActivity(),
     });
-    const msgs = [existing];
+    const msgs: Message[] = [existing];
     const result = attachThinkingToLastAssistant(
       msgs,
       [makeToolCall({ id: "new" })],
@@ -109,9 +125,8 @@ describe("attachThinkingToLastAssistant", () => {
 
   it("does not overwrite existing toolCalls when calls are provided", () => {
     const existingCalls = [makeToolCall({ id: "existing-tc" })];
-    const msgs = [
-      makeMessage({
-        role: "assistant",
+    const msgs: Message[] = [
+      makeAssistantMessage({
         content: "a",
         toolCalls: existingCalls,
       }),
@@ -123,6 +138,7 @@ describe("attachThinkingToLastAssistant", () => {
       activity,
     );
     // toolCalls already present, so keep them; activity was empty, so attach
+    assertAssistant(result[0]!);
     expect(result[0]!.toolCalls).toEqual(existingCalls);
     expect(result[0]!.subKaniActivity).toEqual(activity);
   });
@@ -132,9 +148,8 @@ describe("attachThinkingToLastAssistant", () => {
       { old: [makeToolCall({ id: "old-sub" })] },
       { old: "completed" },
     );
-    const msgs = [
-      makeMessage({
-        role: "assistant",
+    const msgs: Message[] = [
+      makeAssistantMessage({
         content: "a",
         subKaniActivity: existingActivity,
       }),
@@ -146,6 +161,7 @@ describe("attachThinkingToLastAssistant", () => {
       makeActivity({ new_sub: [] }, { new_sub: "running" }),
     );
     // activity already present, keep it; toolCalls were empty, so attach
+    assertAssistant(result[0]!);
     expect(result[0]!.subKaniActivity).toEqual(existingActivity);
     expect(result[0]!.toolCalls).toEqual(calls);
   });
@@ -153,36 +169,40 @@ describe("attachThinkingToLastAssistant", () => {
   // ─── Targeting the *last* assistant message ────────────────────────
 
   it("attaches to the last assistant message, not the first", () => {
-    const msgs = [
-      makeMessage({ role: "assistant", content: "first" }),
-      makeMessage({ role: "user", content: "q" }),
-      makeMessage({ role: "assistant", content: "second" }),
+    const msgs: Message[] = [
+      makeAssistantMessage({ content: "first" }),
+      makeUserMessage({ content: "q" }),
+      makeAssistantMessage({ content: "second" }),
     ];
     const calls = [makeToolCall()];
     const result = attachThinkingToLastAssistant(msgs, calls);
+    assertAssistant(result[0]!);
     expect(result[0]!.toolCalls).toBeUndefined();
+    assertAssistant(result[2]!);
     expect(result[2]!.toolCalls).toEqual(calls);
   });
 
   it("skips user messages when scanning backwards", () => {
-    const msgs = [
-      makeMessage({ role: "assistant", content: "a" }),
-      makeMessage({ role: "user", content: "u1" }),
-      makeMessage({ role: "user", content: "u2" }),
+    const msgs: Message[] = [
+      makeAssistantMessage({ content: "a" }),
+      makeUserMessage({ content: "u1" }),
+      makeUserMessage({ content: "u2" }),
     ];
     const calls = [makeToolCall()];
     const result = attachThinkingToLastAssistant(msgs, calls);
     // Should find the assistant at index 0
+    assertAssistant(result[0]!);
     expect(result[0]!.toolCalls).toEqual(calls);
   });
 
   // ─── Edge: empty calls array with activity provided ────────────────
 
   it("does not attach empty calls array, only attaches activity", () => {
-    const msgs = [makeMessage({ role: "assistant", content: "a" })];
+    const msgs: Message[] = [makeAssistantMessage({ content: "a" })];
     const activity = makeActivity();
     const result = attachThinkingToLastAssistant(msgs, [], activity);
     // calls.length === 0, so toolCalls left as undefined
+    assertAssistant(result[0]!);
     expect(result[0]!.toolCalls).toBeUndefined();
     expect(result[0]!.subKaniActivity).toEqual(activity);
   });
@@ -190,7 +210,7 @@ describe("attachThinkingToLastAssistant", () => {
   // ─── Immutability ─────────────────────────────────────────────────
 
   it("returns a new array and new message object (shallow copy)", () => {
-    const msgs = [makeMessage({ role: "assistant", content: "a" })];
+    const msgs: Message[] = [makeAssistantMessage({ content: "a" })];
     const calls = [makeToolCall()];
     const result = attachThinkingToLastAssistant(msgs, calls);
     expect(result).not.toBe(msgs);
@@ -203,9 +223,8 @@ describe("attachThinkingToLastAssistant", () => {
   // ─── SubKaniActivity with empty calls/status ──────────────────────
 
   it("treats subKaniActivity with empty calls as not-yet-populated", () => {
-    const msgs = [
-      makeMessage({
-        role: "assistant",
+    const msgs: Message[] = [
+      makeAssistantMessage({
         content: "a",
         subKaniActivity: { calls: {}, status: {} },
       }),
@@ -213,13 +232,13 @@ describe("attachThinkingToLastAssistant", () => {
     const activity = makeActivity();
     const result = attachThinkingToLastAssistant(msgs, [], activity);
     // Empty calls means hasActivity is false, so new activity should be attached
+    assertAssistant(result[0]!);
     expect(result[0]!.subKaniActivity).toEqual(activity);
   });
 
   it("preserves other message fields when attaching", () => {
-    const msgs = [
-      makeMessage({
-        role: "assistant",
+    const msgs: Message[] = [
+      makeAssistantMessage({
         content: "a",
         citations: [
           {
@@ -233,6 +252,8 @@ describe("attachThinkingToLastAssistant", () => {
     ];
     const calls = [makeToolCall()];
     const result = attachThinkingToLastAssistant(msgs, calls);
+    assertAssistant(result[0]!);
+    assertAssistant(msgs[0]!);
     expect(result[0]!.citations).toEqual(msgs[0]!.citations);
     expect(result[0]!.reasoning).toBe("I thought about it");
     expect(result[0]!.toolCalls).toEqual(calls);

@@ -187,15 +187,10 @@ class GraphPlanEventData(CamelModel):
 
 
 class StrategyUpdateEventData(CamelModel):
-    """Payload for ``strategy_update`` SSE events.
-
-    ``all_steps`` is ``list[JSONObject]`` (pre-serialized StepResponse dicts)
-    to avoid coupling this platform-level schema to service-layer types.
-    """
+    """Payload for ``strategy_update`` SSE events."""
 
     graph_id: str | None = None
     step: JSONObject | None = None
-    all_steps: list[JSONObject] = Field(default_factory=list)
 
 
 class StrategyLinkEventData(CamelModel):
@@ -213,12 +208,6 @@ class GraphClearedEventData(CamelModel):
     """Payload for ``graph_cleared`` SSE events."""
 
     graph_id: str | None = None
-
-
-class ExecutorBuildRequestEventData(CamelModel):
-    """Payload for ``executor_build_request`` SSE events."""
-
-    executor_build_request: JSONObject | None = None
 
 
 # ── Workbench gene sets ──────────────────────────────────────────────

@@ -25,7 +25,7 @@ describe("handleChatEvent — strategy events", () => {
       data: {
         graphId: "s1",
         step: {
-          stepId: "a",
+          id: "a",
           kind: "search",
           displayName: "A",
         },
@@ -54,7 +54,7 @@ describe("handleChatEvent — strategy events", () => {
       data: {
         graphId: "s1",
         step: {
-          stepId: "c",
+          id: "c",
           kind: "combine",
           displayName: "Combine",
           primaryInputStepId: "a",
@@ -190,15 +190,6 @@ describe("handleChatEvent — strategy events", () => {
     expect(ctx.setStrategyMeta).not.toHaveBeenCalled();
   });
 
-  it("executor_build_request is a no-op (does not crash)", () => {
-    const { ctx } = makeCtx();
-    handleChatEvent(ctx, {
-      type: "executor_build_request",
-      data: { executorBuildRequest: { strategyId: "s1" } },
-    } as ChatSSEEvent);
-    // No assertions needed — just verifying it doesn't crash or fall to unknown.
-  });
-
   it("handles strategy_update guards and applies step updates", () => {
     const snapshot = {
       id: "s1",
@@ -220,7 +211,7 @@ describe("handleChatEvent — strategy events", () => {
       type: "strategy_update",
       data: {
         graphId: "other",
-        step: { stepId: "x", kind: "search", displayName: "X", recordType: "gene" },
+        step: { id: "x", kind: "search", displayName: "X", recordType: "gene" },
       },
     } as ChatSSEEvent);
     expect(ctx.addStep).not.toHaveBeenCalled();
@@ -231,7 +222,7 @@ describe("handleChatEvent — strategy events", () => {
       data: {
         graphId: "s1",
         step: {
-          stepId: "a",
+          id: "a",
           kind: "search",
           displayName: "A",
           searchName: "q",

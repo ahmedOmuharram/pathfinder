@@ -20,6 +20,7 @@ interface UseGraphConnectionsArgs {
   addStep: (step: Step) => void;
   updateStep: (stepId: string, updates: Partial<Step>) => void;
   failCombineMismatch: () => void;
+  triggerSync: () => void;
 }
 
 const generateStepId = () => `step_${Math.random().toString(16).slice(2, 10)}`;
@@ -29,6 +30,7 @@ export function useGraphConnections({
   addStep,
   updateStep,
   failCombineMismatch,
+  triggerSync,
 }: UseGraphConnectionsArgs) {
   const [pendingCombine, setPendingCombine] = useState<PendingCombine | null>(null);
   const indices = useMemo(() => buildGraphIndices(steps), [steps]);
@@ -45,11 +47,12 @@ export function useGraphConnections({
       const effect = getConnectionEffect(connection, indices);
       if (effect.type === "patch") {
         updateStep(effect.targetId, effect.patch);
+        triggerSync();
       } else if (effect.type === "pendingCombine") {
         setPendingCombine({ sourceId: effect.sourceId, targetId: effect.targetId });
       }
     },
-    [indices, updateStep],
+    [indices, updateStep, triggerSync],
   );
 
   const handleDeleteEdge = useCallback(
@@ -57,8 +60,9 @@ export function useGraphConnections({
       const patch = edgeToInputPatch(edge);
       if (!patch) return;
       updateStep(edge.target, patch);
+      triggerSync();
     },
-    [updateStep],
+    [updateStep, triggerSync],
   );
 
   const handleCombineCreate = useCallback(
@@ -87,8 +91,9 @@ export function useGraphConnections({
       };
       addStep(nextStep);
       setPendingCombine(null);
+      triggerSync();
     },
-    [pendingCombine, indices, addStep, failCombineMismatch],
+    [pendingCombine, indices, addStep, failCombineMismatch, triggerSync],
   );
 
   const handleCombineCancel = useCallback(() => {

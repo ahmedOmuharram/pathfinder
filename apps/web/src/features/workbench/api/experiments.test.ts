@@ -344,7 +344,7 @@ describe("refineExperiment", () => {
     mockRequestJson.mockResolvedValue(result);
 
     const config = {
-      stepId: 7,
+      transformName: "GenesByOrthologPattern",
     };
 
     await refineExperiment("exp-1", "transform", config);
@@ -356,7 +356,7 @@ describe("refineExperiment", () => {
         method: "POST",
         body: {
           action: "transform",
-          stepId: 7,
+          transformName: "GenesByOrthologPattern",
         },
       },
     );

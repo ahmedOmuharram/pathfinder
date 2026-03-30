@@ -18,6 +18,9 @@ describe("ExpandedRowDetail", () => {
 
   it("renders attribute values using display names from attributeNames", () => {
     const detail: RecordDetail = {
+      displayName: "PF3D7_0102600",
+      id: [{ name: "source_id", value: "PF3D7_0102600" }],
+      recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",
       attributes: {
         gene_product: "serine/threonine protein kinase",
         organism: "Plasmodium falciparum 3D7",
@@ -26,6 +29,8 @@ describe("ExpandedRowDetail", () => {
         gene_product: "Product Description",
         organism: "Organism",
       },
+      tables: {},
+      tableErrors: [],
     };
 
     render(<ExpandedRowDetail {...baseProps} detail={detail} />);
@@ -38,11 +43,17 @@ describe("ExpandedRowDetail", () => {
     expect(screen.getByText("Plasmodium falciparum 3D7")).toBeTruthy();
   });
 
-  it("falls back to raw field name when attributeNames is missing", () => {
+  it("falls back to raw field name when attributeNames has no match", () => {
     const detail: RecordDetail = {
+      displayName: "PF3D7_0102600",
+      id: [{ name: "source_id", value: "PF3D7_0102600" }],
+      recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",
       attributes: {
         gene_product: "kinase",
       },
+      attributeNames: {},
+      tables: {},
+      tableErrors: [],
     };
 
     render(<ExpandedRowDetail {...baseProps} detail={detail} />);
@@ -65,7 +76,13 @@ describe("ExpandedRowDetail", () => {
 
   it("shows fallback when detail has no attributes", () => {
     const detail: RecordDetail = {
+      displayName: "PF3D7_0102600",
+      id: [{ name: "source_id", value: "PF3D7_0102600" }],
+      recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",
       attributes: {},
+      attributeNames: {},
+      tables: {},
+      tableErrors: [],
     };
 
     render(<ExpandedRowDetail {...baseProps} detail={detail} />);

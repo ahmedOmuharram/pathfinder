@@ -4,8 +4,9 @@ from collections.abc import Mapping
 
 from fastapi import APIRouter
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchResponse
 from veupath_chatbot.platform.errors import WDKError
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONValue
 from veupath_chatbot.services.strategies.plan_normalize import (
     canonicalize_plan_parameters,
 )
@@ -32,14 +33,13 @@ async def normalize_plan(payload: PlanNormalizeRequest) -> PlanNormalizeResponse
 
     async def load_details(
         record_type: str, name: str, params: Mapping[str, JSONValue]
-    ) -> JSONObject:
+    ) -> WDKSearchResponse:
         # Use context-dependent search details so vocab-dependent params (e.g. min/max/avg ops)
         # validate correctly when the plan already contains concrete selections.
-        # Convert params to JSONObject for encode_wdk_params
-        params_dict: JSONObject = dict(params) if isinstance(params, Mapping) else {}
+        params_dict = dict(params) if isinstance(params, Mapping) else {}
         context = encode_wdk_params(params_dict)
         try:
-            result = await api.client.get_search_details_with_params(
+            return await api.client.get_search_details_with_params(
                 record_type,
                 name,
                 context=context,
@@ -49,12 +49,11 @@ async def normalize_plan(payload: PlanNormalizeRequest) -> PlanNormalizeResponse
             # Some WDK deployments/questions error on POST /searches/{name} when certain context
             # values are provided (500 Internal Error). Fall back to GET details so we can still
             # canonicalize plan shapes without blocking the user.
-            result = await api.client.get_search_details(
+            return await api.client.get_search_details(
                 record_type,
                 name,
                 expand_params=True,
             )
-        return result if isinstance(result, dict) else {}
 
     canonical = await canonicalize_plan_parameters(
         plan=payload.plan,
