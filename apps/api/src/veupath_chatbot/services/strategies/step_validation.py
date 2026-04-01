@@ -23,6 +23,7 @@ from veupath_chatbot.platform.errors import (
     ErrorCode,
     ValidationError,
 )
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.catalog.param_validation import (
@@ -30,6 +31,8 @@ from veupath_chatbot.services.catalog.param_validation import (
     ValidationCallbacks,
     validate_parameters,
 )
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -124,26 +127,6 @@ def _validate_inputs(
         return None, None, secondary_error
 
     return primary_input, secondary_input, None
-
-
-def _validate_root_status(
-    graph: StrategyGraph,
-    step_id: str,
-) -> JSONObject | None:
-    """Check that *step_id* is a subtree root. Return an error payload if not."""
-    if step_id in graph.roots:
-        return None
-    consumer = graph.find_consumer(step_id)
-    return tool_error(
-        ErrorCode.INVALID_STRATEGY,
-        f"Step '{step_id}' is not a subtree root — it is already "
-        f"consumed by step '{consumer}'. "
-        "Only current subtree roots can be used as inputs.",
-        graphId=graph.id,
-        stepId=step_id,
-        consumedBy=consumer,
-        availableRoots=cast("JSONValue", sorted(graph.roots)),
-    )
 
 
 async def _resolve_record_type_for_step(
@@ -374,6 +357,41 @@ def _validate_cross_organism_intersect(
     return None
 
 
+def _duplicate_subtree(
+    step: PlanStepNode,
+    graph: StrategyGraph,
+) -> PlanStepNode:
+    """Deep-clone a step and its entire input subtree with fresh IDs.
+
+    All cloned nodes are registered in ``graph.steps``.  The clone root
+    is **not** added to ``graph.roots`` — the caller uses it as input to
+    a new step that will consume it immediately.
+    """
+    cloned_primary = (
+        _duplicate_subtree(step.primary_input, graph)
+        if step.primary_input
+        else None
+    )
+    cloned_secondary = (
+        _duplicate_subtree(step.secondary_input, graph)
+        if step.secondary_input
+        else None
+    )
+    clone = PlanStepNode(
+        search_name=step.search_name,
+        parameters=dict(step.parameters),
+        primary_input=cloned_primary,
+        secondary_input=cloned_secondary,
+        operator=step.operator,
+        colocation_params=step.colocation_params,
+        display_name=step.display_name,
+        filters=list(step.filters),
+        wdk_weight=step.wdk_weight,
+    )
+    graph.steps[clone.id] = clone
+    return clone
+
+
 def _validate_inputs_and_roots(
     graph: StrategyGraph,
     primary_input_step_id: str | None,
@@ -381,6 +399,10 @@ def _validate_inputs_and_roots(
     operator: str | None,
 ) -> tuple[PlanStepNode | None, PlanStepNode | None, JSONObject | None]:
     """Resolve input steps and validate root status.
+
+    When a referenced step is already consumed (not a subtree root),
+    its subtree is silently duplicated so the same search result can
+    appear in multiple positions — matching WDK's native behaviour.
 
     Returns (primary, secondary, error).
     """
@@ -393,14 +415,31 @@ def _validate_inputs_and_roots(
     if error is not None:
         return None, None, error
 
-    for step_node, step_id in (
-        (primary_input, primary_input_step_id),
-        (secondary_input, secondary_input_step_id),
+    # Auto-duplicate consumed inputs so the same search result can
+    # appear in multiple tree positions (matching WDK's native behaviour).
+    if (
+        primary_input is not None
+        and primary_input_step_id is not None
+        and primary_input_step_id not in graph.roots
     ):
-        if step_node is not None and step_id is not None and step_id not in graph.roots:
-            root_error = _validate_root_status(graph, step_id)
-            if root_error is not None:
-                return None, None, root_error
+        logger.info(
+            "Auto-duplicating consumed step for reuse",
+            original_id=primary_input_step_id,
+            slot="primary",
+        )
+        primary_input = _duplicate_subtree(primary_input, graph)
+
+    if (
+        secondary_input is not None
+        and secondary_input_step_id is not None
+        and secondary_input_step_id not in graph.roots
+    ):
+        logger.info(
+            "Auto-duplicating consumed step for reuse",
+            original_id=secondary_input_step_id,
+            slot="secondary",
+        )
+        secondary_input = _duplicate_subtree(secondary_input, graph)
 
     return primary_input, secondary_input, None
 

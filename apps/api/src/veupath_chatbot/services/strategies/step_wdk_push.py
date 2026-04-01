@@ -46,7 +46,6 @@ async def _push_step_to_wdk(
     push_error: str | None = None
     record_type = graph.record_type or "transcript"
     str_params: dict[str, str] = encode_wdk_params(parameters)
-
     try:
         api = get_strategy_api(site_id)
         is_binary = step.primary_input is not None and step.secondary_input is not None

@@ -35,7 +35,7 @@ WORKDIR /app/apps/api
 
 # Pre-download the sentence-transformer model into the image so startup
 # doesn't depend on HuggingFace availability or rate limits.
-RUN uv run python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+RUN uv run python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('nomic-ai/nomic-embed-text-v1.5', trust_remote_code=True)"
 
 # Prevent HuggingFace from phoning home at runtime — the model is cached.
 ENV HF_HUB_OFFLINE=1

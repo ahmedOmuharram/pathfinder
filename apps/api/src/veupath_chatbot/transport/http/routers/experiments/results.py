@@ -146,9 +146,11 @@ async def get_experiment_records(
         tn_ids={g.id for g in exp.true_negative_genes},
     )
 
+    meta = answer.meta.model_dump(by_alias=True)
+    meta["pagination"] = {"offset": params.offset, "numRecords": params.limit}
     return {
         "records": cast("JSONValue", classified),
-        "meta": answer.meta.model_dump(by_alias=True),
+        "meta": meta,
     }
 
 

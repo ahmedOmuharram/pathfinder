@@ -362,9 +362,11 @@ async def get_gene_set_records(
         direction=params.sort_dir,
         attributes=attr_list,
     )
+    meta = answer.meta.model_dump(by_alias=True)
+    meta["pagination"] = {"offset": params.offset, "numRecords": params.limit}
     return {
         "records": [r.model_dump(by_alias=True) for r in answer.records],
-        "meta": answer.meta.model_dump(by_alias=True),
+        "meta": meta,
     }
 
 

@@ -16,6 +16,15 @@ from veupath_chatbot.platform.types import JSONArray, JSONObject
 _MAX_VOCAB_ENTRIES = 50
 
 
+def _count_descendants(node: JSONObject) -> int:
+    """Count all descendants of a vocab tree node (excluding itself)."""
+    children = get_vocab_children(node)
+    total = len(children)
+    for child in children:
+        total += _count_descendants(child)
+    return total
+
+
 def render_vocab_tree(
     node: JSONObject,
     *,
@@ -25,8 +34,9 @@ def render_vocab_tree(
 ) -> list[str]:
     """Render a WDK tree vocabulary as indented text lines.
 
-    Each line is ``"  " * depth + term``.  Stops after *max_lines* to avoid
-    blowing up the tool response for huge trees.
+    Each line is ``"  " * depth + term``.  When the tree exceeds
+    *max_lines*, top-level categories are always shown with descendant
+    counts so the model knows what exists beyond the truncation point.
     """
     if _lines is None:
         _lines = []
@@ -34,12 +44,28 @@ def render_vocab_tree(
         return _lines
 
     term = get_node_term(node)
-    if term and term != "@@fake@@":
+    is_fake_root = term is None or term == "@@fake@@"
+
+    if not is_fake_root:
         _lines.append(f"{'  ' * _depth}{term}")
 
-    for child in get_vocab_children(node):
+    children = get_vocab_children(node)
+
+    for child in children:
         if len(_lines) >= max_lines:
-            _lines.append("  ... (truncated)")
+            # Show remaining top-level categories as summaries.
+            remaining = children[children.index(child):]
+            for r in remaining:
+                r_term = get_node_term(r)
+                if r_term and r_term != "@@fake@@":
+                    desc_count = _count_descendants(r)
+                    if desc_count > 0:
+                        _lines.append(
+                            f"{'  ' * (_depth + 1)}{r_term} ({desc_count} entries, "
+                            f"use query='{r_term.split()[0].lower()}' to see)"
+                        )
+                    else:
+                        _lines.append(f"{'  ' * (_depth + 1)}{r_term}")
             break
         render_vocab_tree(child, max_lines=max_lines, _depth=_depth + 1, _lines=_lines)
 

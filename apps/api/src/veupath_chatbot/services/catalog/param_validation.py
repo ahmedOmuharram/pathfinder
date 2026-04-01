@@ -7,7 +7,6 @@ from typing import Protocol, cast
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
-    ParamSpecNormalized,
     adapt_param_specs_from_search,
     find_missing_required_params,
 )
@@ -25,6 +24,7 @@ from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
+from .param_formatting import format_param_info_typed
 from .param_resolution import (
     _extract_param_names_from_response,
     _filter_context_values,
@@ -51,7 +51,6 @@ class ResolveRecordTypeFn(Protocol):
 class ValidationCallbacks:
     """Caller-provided callbacks for parameter validation.
 
-    The first three fields are required by :func:`validate_parameters`.
     ``validation_error_payload`` is optional — only needed when the caller
     wants to convert :class:`ValidationError` into a ``tool_error`` payload
     (e.g. during step creation).
@@ -59,16 +58,8 @@ class ValidationCallbacks:
 
     resolve_record_type_for_search: ResolveRecordTypeFn
     find_record_type_hint: Callable[[str, str | None], Awaitable[str | None]]
-    extract_vocab_options: Callable[[JSONObject], list[str]]
     validation_error_payload: Callable[[ValidationError], JSONObject] | None = None
 
-
-# Truncate vocab option lists in validation error responses to keep
-# error payloads reasonably sized for the LLM and frontend display.
-_MAX_OPTION_EXAMPLES = 50
-# Limit known-param-name lists in "unknown parameter" errors so the
-# error payload stays readable without dumping every WDK parameter.
-_MAX_KNOWN_PARAM_NAMES = 50
 
 
 async def validate_search_params(
@@ -257,41 +248,6 @@ async def _find_search_record_type_hint(
     return None
 
 
-def _build_missing_param_options(
-    spec_map: dict[str, ParamSpecNormalized],
-    missing: list[str],
-    extract_vocab_options: Callable[[JSONObject], list[str]],
-) -> JSONObject:
-    """Build vocabulary option hints for missing required parameters."""
-    options: JSONObject = {}
-    for name in missing:
-        spec = spec_map.get(name)
-        if spec is None:
-            continue
-        vocab = spec.vocabulary
-        opts: list[str] = []
-        if isinstance(vocab, dict):
-            opts = extract_vocab_options(vocab)
-        elif isinstance(vocab, list):
-            if vocab and isinstance(vocab[0], list):
-                opts = [
-                    str(v[0])
-                    for v in vocab[:_MAX_OPTION_EXAMPLES]
-                    if isinstance(v, list) and v
-                ]
-            else:
-                opts = [str(v) for v in vocab[:_MAX_OPTION_EXAMPLES]]
-        if opts:
-            options[name] = cast(
-                "JSONValue",
-                {
-                    "examples": cast("JSONValue", opts),
-                    "truncated": len(opts) >= _MAX_OPTION_EXAMPLES,
-                },
-            )
-    return options
-
-
 async def validate_parameters(
     ctx: SearchContext,
     *,
@@ -338,6 +294,7 @@ async def validate_parameters(
     param_names = _extract_param_names_from_response(response)
     extra_params = [key for key in parameters if key not in param_names]
     if extra_params:
+        full_param_spec = format_param_info_typed(response.search_data.parameters or [])
         raise ValidationError(
             title="Unknown parameters provided",
             errors=[
@@ -346,10 +303,7 @@ async def validate_parameters(
                         "recordType": resolved_record_type,
                         "searchName": ctx.search_name,
                         "unknown": cast("JSONValue", extra_params),
-                        "known": cast(
-                            "JSONValue", sorted(param_names)[:_MAX_KNOWN_PARAM_NAMES]
-                        ),
-                        "truncated": len(param_names) > _MAX_KNOWN_PARAM_NAMES,
+                        "parameters": cast("JSONValue", full_param_spec),
                     }
                 }
             ],
@@ -357,18 +311,16 @@ async def validate_parameters(
     missing = find_missing_required_params(param_spec_map, parameters)
 
     if missing:
-        options = _build_missing_param_options(
-            param_spec_map, missing, callbacks.extract_vocab_options
-        )
+        full_param_spec = format_param_info_typed(response.search_data.parameters or [])
         raise ValidationError(
-            title=f"Missing required parameters: {', '.join(missing)}. Call get_search_parameters(search_name='{ctx.search_name}') to see all required fields and valid values.",
+            title=f"Missing required parameters: {', '.join(missing)}",
             errors=[
                 {
                     "context": {
                         "recordType": resolved_record_type,
                         "searchName": ctx.search_name,
                         "missing": cast("JSONValue", missing),
-                        "options": options,
+                        "parameters": cast("JSONValue", full_param_spec),
                     }
                 }
             ],

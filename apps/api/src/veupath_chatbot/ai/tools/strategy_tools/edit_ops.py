@@ -13,6 +13,7 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearchConfig
 from veupath_chatbot.platform.errors import AppError, ErrorCode, ValidationError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.tool_errors import tool_error
+from veupath_chatbot.integrations.veupathdb.wdk_models import WdkParams
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 from veupath_chatbot.services.catalog.param_validation import (
     ValidationCallbacks,
@@ -164,7 +165,7 @@ class StrategyEditOps(StrategyToolsHelpers):
             str | None, AIParam(desc="Optional new WDK search/question name")
         ] = None,
         parameters: Annotated[
-            JSONObject | None, AIParam(desc="Optional new parameters object")
+            WdkParams | None, AIParam(desc="Optional new parameters object")
         ] = None,
         operator: Annotated[
             str | None,
@@ -208,7 +209,6 @@ class StrategyEditOps(StrategyToolsHelpers):
                 callbacks=ValidationCallbacks(
                     resolve_record_type_for_search=self._find_record_type_for_search,
                     find_record_type_hint=self._find_record_type_hint,
-                    extract_vocab_options=self._extract_vocab_options,
                 ),
             )
         except ValidationError as exc:

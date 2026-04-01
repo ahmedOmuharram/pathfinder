@@ -144,7 +144,6 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
     _GRAPH_MUTATING_TOOLS = frozenset(
         {
             "create_step",
-            "delegate_strategy_subtasks",
             "update_step",
             "delete_step",
             "undo_last_change",
@@ -314,8 +313,10 @@ class PathfinderAgent(UnifiedToolRegistryMixin, Kani):
             }
         )
 
-    @ai_function()
-    async def delegate_strategy_subtasks(
+    # Delegation disabled: incompatible with always-connected graph invariant.
+    # Sub-agents create parallel leaf steps which violates single-root.
+    # TODO: re-enable once delegation creates steps with explicit combine_with.
+    async def _delegate_strategy_subtasks_disabled(
         self,
         goal: Annotated[str, AIParam(desc="Overall user goal for the strategy")],
         plan: Annotated[

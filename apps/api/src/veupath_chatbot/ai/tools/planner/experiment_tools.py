@@ -10,6 +10,7 @@ from kani import AIParam, ai_function
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.integrations.veupathdb.wdk_models import WdkParams
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.control_tests import (
     IntersectionConfig,
@@ -160,7 +161,7 @@ class ExperimentToolsMixin:
             str, AIParam(desc="WDK search/question urlSegment to test")
         ],
         target_parameters: Annotated[
-            JSONObject, AIParam(desc="Target search parameter mapping")
+            WdkParams, AIParam(desc="Target search parameter mapping")
         ],
         positive_controls: Annotated[
             list[str] | None, AIParam(desc="Known-positive IDs that should be returned")

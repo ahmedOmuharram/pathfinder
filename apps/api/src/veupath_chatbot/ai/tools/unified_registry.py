@@ -22,6 +22,7 @@ from veupath_chatbot.ai.tools.planner.gene_tools import GeneToolsMixin
 from veupath_chatbot.ai.tools.planner.optimization_tools import OptimizationToolsMixin
 from veupath_chatbot.ai.tools.planner.workbench_tools import WorkbenchToolsMixin
 from veupath_chatbot.ai.tools.registry import AgentToolRegistryMixin
+from veupath_chatbot.ai.tools.workbench_read_tools import WorkbenchReadToolsMixin
 
 
 class UnifiedToolRegistryMixin(
@@ -30,6 +31,7 @@ class UnifiedToolRegistryMixin(
     ExperimentToolsMixin,
     OptimizationToolsMixin,
     WorkbenchToolsMixin,
+    WorkbenchReadToolsMixin,
     ArtifactToolsMixin,
     AgentToolRegistryMixin,
 ):

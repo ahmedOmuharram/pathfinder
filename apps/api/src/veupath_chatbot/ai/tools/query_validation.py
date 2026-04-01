@@ -3,7 +3,7 @@ from typing import cast
 
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
-_MIN_QUERY_TOKENS = 2
+_MIN_QUERY_TOKENS = 5
 
 VAGUE_RECORD_TYPE_TOKENS = {
     "gene",
@@ -77,7 +77,7 @@ def search_query_error(query: str, *, has_keywords: bool = False) -> JSONObject 
     if len(tokens) < _MIN_QUERY_TOKENS and not has_keywords:
         return {
             "error": "query_too_vague",
-            "message": "search_for_searches(query=...) requires 2+ specific keywords; one-word/vague queries are rejected.",
+            "message": "search_for_searches(query=...) requires 5+ specific keywords to ensure precise results. Be descriptive.",
             "query": q,
             "examples": [
                 "vector salivary gland",

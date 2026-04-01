@@ -15,6 +15,7 @@ from veupath_chatbot.services.catalog.parameters import (
     validate_search_params,
 )
 from veupath_chatbot.services.catalog.searches import (
+    browse_search_categories,
     get_raw_record_types,
     get_raw_searches,
     list_searches,
@@ -29,6 +30,7 @@ from veupath_chatbot.services.catalog.sites import (
 __all__ = [
     "RecordTypeInfo",
     "SearchMatch",
+    "browse_search_categories",
     "expand_search_details_with_params",
     "get_raw_record_types",
     "get_raw_searches",

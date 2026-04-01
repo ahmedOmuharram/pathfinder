@@ -144,6 +144,43 @@ async def get_raw_searches(site_id: str, record_type: str) -> list[WDKSearch]:
     return await discovery.get_searches(site_id, record_type)
 
 
+async def browse_search_categories(
+    site_id: str,
+    record_type: str = "transcript",
+) -> list[dict[str, str | int | list[str]]]:
+    """Return ontology-based search categories with example search names.
+
+    Groups searches by their ``searchCategory-*`` subcategory from the site's
+    ontology.  Uncategorized (universal) searches are returned as a separate
+    group.  Each group includes the category key, a count, and up to 5 example
+    display names so the model can see what vocabulary to use when querying.
+    """
+    discovery = get_discovery_service()
+    catalog = await discovery.get_catalog(site_id)
+    searches = await discovery.get_searches(site_id, record_type)
+
+    groups: dict[str, list[str]] = {}
+    for s in searches:
+        if s.full_name.startswith("InternalQuestions."):
+            continue
+        if is_chooser_search(s):
+            continue
+        cat = catalog.get_search_category(s.url_segment) or "(universal)"
+        groups.setdefault(cat, []).append(s.display_name or s.url_segment)
+
+    result: list[dict[str, str | int | list[str]]] = []
+    for cat in sorted(groups, key=lambda c: (c == "(universal)", -len(groups[c]))):
+        # Show all names for universal searches (they're few and critical),
+        # but only 5 examples for dataset-specific categories (hundreds each).
+        max_examples = len(groups[cat]) if cat == "(universal)" else 5
+        result.append({
+            "category": cat,
+            "count": len(groups[cat]),
+            "examples": groups[cat][:max_examples],
+        })
+    return result
+
+
 async def list_searches(site_id: str, record_type: str) -> list[dict[str, str]]:
     """List searches for a specific record type.
 
@@ -293,8 +330,15 @@ async def _collect_search_candidates(
     discovery: DiscoveryService,
     site_id: str,
     record_types: list[str],
+    category: str | None = None,
 ) -> list[tuple[WDKSearch, str]]:
-    """Collect all non-internal, non-chooser search candidates across record types."""
+    """Collect search candidates, optionally filtered by ontology category.
+
+    When *category* is set, only searches belonging to that ``searchCategory-*``
+    subcategory are included — plus all universal (uncategorized) searches so
+    the model always has access to GenesByText, GenesByTaxon, etc.
+    """
+    catalog = await discovery.get_catalog(site_id)
     candidates: list[tuple[WDKSearch, str]] = []
     for rt_name in record_types:
         searches = await discovery.get_searches(site_id, rt_name)
@@ -303,6 +347,11 @@ async def _collect_search_candidates(
                 continue
             if is_chooser_search(s):
                 continue
+            if category:
+                search_cat = catalog.get_search_category(s.url_segment)
+                # Include if: matches category OR is universal (no category)
+                if search_cat is not None and search_cat != category:
+                    continue
             candidates.append((s, rt_name))
     return candidates
 
@@ -415,6 +464,7 @@ async def search_for_searches(
     query: str,
     *,
     keywords: list[str] | None = None,
+    category: str | None = None,
     limit: int = 20,
 ) -> list[SearchMatch]:
     """Find searches matching a query and/or keywords.
@@ -422,6 +472,11 @@ async def search_for_searches(
     Uses field-weighted scoring with IDF, keyword boosting against search
     names, chooser filtering, result annotation, and semantic similarity
     from a sentence-transformer index over enriched search descriptions.
+
+    When *category* is set to a ``searchCategory-*`` value from the site's
+    ontology, only searches in that subcategory (plus universal searches)
+    are considered.  This dramatically narrows the search space for
+    dataset-specific queries.
     """
     kw_list = keywords or []
     discovery = get_discovery_service()
@@ -431,7 +486,9 @@ async def search_for_searches(
     raw_terms = re.findall(r"[A-Za-z0-9_]+", query or "")
     terms = [t.lower() for t in raw_terms if t]
 
-    candidates = await _collect_search_candidates(discovery, site_id, record_types)
+    candidates = await _collect_search_candidates(
+        discovery, site_id, record_types, category=category
+    )
     scored = _score_candidates(candidates, terms, kw_list)
 
     await _apply_site_search_bonus(scored, site_id, query, limit)

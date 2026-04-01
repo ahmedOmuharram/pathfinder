@@ -18,7 +18,7 @@ from veupath_chatbot.integrations.veupathdb.strategy_api.helpers import (
 )
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKAnswer
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
-from veupath_chatbot.platform.errors import AppError, validate_response
+from veupath_chatbot.platform.errors import AppError, ErrorCode, validate_response
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
@@ -34,10 +34,13 @@ def _sort_profile_pattern(pattern: str) -> str:
 
     OrthoMCL requires pattern entries in alphabetical order.  The WDK
     frontend always ``.sort()``s before joining — we must too.
+
+    Also strips whitespace from entries — LLMs sometimes produce
+    ``%CODE:N% %CODE:N%`` with spaces between entries.
     """
     if not pattern.startswith("%") or not pattern.endswith("%"):
         return pattern
-    parts = [p for p in pattern.strip("%").split("%") if p]
+    parts = [p.strip() for p in pattern.strip("%").split("%") if p.strip()]
     return f"%{'%'.join(sorted(parts))}%" if parts else pattern
 
 
@@ -234,6 +237,9 @@ class StrategyAPIBase:
         The WDK frontend expands group -> leaves automatically via the
         ``phyletic_indent_map`` tree.  We replicate that logic here so the
         LLM can use intuitive group codes like ``MAMM:N``.
+
+        Raises ``AppError`` if the pattern contains codes that are not
+        recognized as valid species or group codes.
         """
         if not pattern.startswith("%") or not pattern.endswith("%"):
             return pattern
@@ -248,9 +254,34 @@ class StrategyAPIBase:
                 return pattern
 
             children_of, leaf_codes = _build_phyletic_tree(indent_vocab)
+            all_known_codes = leaf_codes | set(children_of.keys())
+
+            # Validate all codes before expansion.
+            invalid_codes: list[str] = []
+            for entry in entries:
+                parts = entry.split(":")
+                if len(parts) >= _MIN_ENTRY_PARTS_FOR_CODE_STATE:
+                    code = parts[0]
+                    if code not in all_known_codes:
+                        invalid_codes.append(code)
+
+            if invalid_codes:
+                raise AppError(
+                    code=ErrorCode.VALIDATION_ERROR,
+                    title="Invalid species codes in profile_pattern",
+                    status=422,
+                    detail=(
+                        f"Unknown codes: {', '.join(invalid_codes[:5])}. "
+                        f"Use lookup_phyletic_codes() to find valid codes "
+                        f"(e.g. 'pfal' for P. falciparum, 'hsap' for H. sapiens)."
+                    ),
+                )
+
             expanded = _expand_entries(entries, children_of, leaf_codes)
             return _sort_profile_pattern(f"%{'%'.join(expanded)}%")
         except AppError:
+            raise
+        except Exception:
             logger.debug("Failed to expand profile_pattern groups (non-fatal)")
             return pattern
 

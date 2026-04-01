@@ -28,6 +28,22 @@ COMBINE_PLACEHOLDER_SEARCH_NAME = COMBINE_SEARCH_NAME
 
 
 @dataclass
+class InlineSpec:
+    """Inline step specification for atomic subtree construction.
+
+    Used when the AI model needs to create intermediate steps (e.g. two
+    transforms on different inputs) as part of a single ``create_step``
+    call.  The created step is immediately consumed as input to the outer
+    step, so it should NOT auto-combine with the current root.
+    """
+
+    search_name: str
+    parameters: JSONObject | None = None
+    display_name: str | None = None
+    primary_input_step_id: str | None = None
+
+
+@dataclass
 class StepSpec:
     """Specification for creating a strategy step.
 
@@ -45,6 +61,7 @@ class StepSpec:
     colocation_params: ColocationParams | None = None
     combine_with_step_id: str | None = None
     combine_operator: str | None = None  # defaults to "INTERSECT" if not provided
+    _skip_auto_combine: bool = False
 
 
 @dataclass
@@ -138,6 +155,63 @@ def _resolve_inputs_from_spec(
     return primary_input_step_id, secondary_input_step_id, operator
 
 
+def _add_step_to_graph(
+    *,
+    graph: StrategyGraph,
+    step: PlanStepNode,
+    search_name: str,
+    spec: StepSpec,
+    needs_combine: bool,
+    combine_with_step_id: str | None,
+) -> tuple[str | None, PlanStepNode | None, str | None]:
+    """Insert *step* into the graph, returning (step_id, combine_step, combine_id).
+
+    Returns ``(None, None, None)`` when *combine_with_step_id* is set but
+    missing from the graph (caller should return an error).
+
+    Handles three modes:
+    - **combine**: wraps *step* + an existing step into a combine node.
+    - **inline** (``_skip_auto_combine``): registers in ``graph.steps``
+      without touching roots — the caller consumes this step immediately.
+    - **direct**: first step or explicit binary/transform via ``add_step``.
+    """
+    if needs_combine and combine_with_step_id is not None:
+        combine_op = (
+            parse_op(spec.combine_operator)
+            if spec.combine_operator
+            else CombineOp.INTERSECT
+        )
+        if combine_with_step_id not in graph.steps:
+            return None, None, None
+
+        _new_step_id, combine_id = graph.insert_step_with_combine(
+            step, combine_with_step_id, combine_op,
+        )
+        combine_step = graph.steps[combine_id]
+        logger.info(
+            "Created step with combine",
+            step_id=step.id,
+            combine_id=combine_id,
+            search=search_name,
+            operator=str(combine_op),
+        )
+        return step.id, combine_step, combine_id
+
+    if spec._skip_auto_combine:
+        # Inline step: register in graph but don't touch roots.
+        # The caller (outer create_step) will consume this step as an
+        # input immediately, so it must NOT become a root.
+        graph.steps[step.id] = step
+        graph.last_step_id = step.id
+        logger.info("Created inline step (skip auto-combine)", step_id=step.id, search=search_name)
+        return step.id, None, None
+
+    # First step or explicit binary/transform — add directly.
+    graph.add_step(step)
+    logger.info("Created step", step_id=step.id, search=search_name)
+    return step.id, None, None
+
+
 async def create_step(
     *,
     graph: StrategyGraph,
@@ -208,7 +282,13 @@ async def create_step(
     combine_with_step_id = spec.combine_with_step_id
     needs_combine = False
 
-    if graph.steps and combine_with_step_id is None and not primary_input and not secondary_input:
+    if (
+        graph.steps
+        and combine_with_step_id is None
+        and not primary_input
+        and not secondary_input
+        and not spec._skip_auto_combine
+    ):
         # Auto-combine with current root when graph already has steps
         # and this is a leaf step (not an explicit binary/transform).
         combine_with_step_id = next(iter(graph.roots))
@@ -216,42 +296,19 @@ async def create_step(
     elif combine_with_step_id is not None:
         needs_combine = True
 
-    if needs_combine and combine_with_step_id is not None:
-        # Resolve combine operator.
-        combine_op = (
-            parse_op(spec.combine_operator)
-            if spec.combine_operator
-            else CombineOp.INTERSECT
-        )
-
-        # Validate that the target step exists before inserting.
-        if combine_with_step_id not in graph.steps:
-            return _error_result({
-                "code": "STEP_NOT_FOUND",
-                "message": f"combine_with_step_id '{combine_with_step_id}' not found in graph.",
-            })
-
-        # Insert the leaf + combine atomically.
-        _new_step_id, combine_id = graph.insert_step_with_combine(
-            step, combine_with_step_id, combine_op,
-        )
-        step_id = step.id
-        combine_step = graph.steps[combine_id]
-
-        logger.info(
-            "Created step with combine",
-            step_id=step_id,
-            combine_id=combine_id,
-            search=search_name,
-            operator=str(combine_op),
-        )
-    else:
-        # First step or explicit binary/transform — add directly.
-        step_id = graph.add_step(step)
-        combine_step = None
-        combine_id = None
-
-        logger.info("Created step", step_id=step_id, search=search_name)
+    step_id, combine_step, combine_id = _add_step_to_graph(
+        graph=graph,
+        step=step,
+        search_name=search_name,
+        spec=spec,
+        needs_combine=needs_combine,
+        combine_with_step_id=combine_with_step_id,
+    )
+    if step_id is None:
+        return _error_result({
+            "code": "STEP_NOT_FOUND",
+            "message": f"combine_with_step_id '{combine_with_step_id}' not found in graph.",
+        })
 
     # Push leaf step to WDK immediately (best-effort).
     wdk_step_id, wdk_validation, push_error = await _push_step_to_wdk(
@@ -292,6 +349,34 @@ async def create_step(
         combine_step_id=combine_id,
         combine_wdk_step_id=combine_wdk_step_id,
         combine_wdk_push_error=combine_wdk_push_error,
+    )
+
+
+async def resolve_inline_step(
+    *,
+    graph: StrategyGraph,
+    site_id: str,
+    spec: InlineSpec,
+    callbacks: ValidationCallbacks,
+) -> StepCreationResult:
+    """Create a step from an inline spec without auto-combine.
+
+    Used for atomic subtree construction — the created step is immediately
+    consumed as input to an outer step, so it should NOT auto-combine with
+    the current root and should NOT be added to ``graph.roots``.
+    """
+    step_spec = StepSpec(
+        search_name=spec.search_name,
+        parameters=spec.parameters,
+        display_name=spec.display_name,
+        primary_input_step_id=spec.primary_input_step_id,
+        _skip_auto_combine=True,
+    )
+    return await create_step(
+        graph=graph,
+        site_id=site_id,
+        spec=step_spec,
+        callbacks=callbacks,
     )
 
 

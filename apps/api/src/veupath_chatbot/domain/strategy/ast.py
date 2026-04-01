@@ -152,6 +152,20 @@ class PlanStepNode(CamelModel):
     ``dict[str, str]`` (``Record<string, ParameterValue>``).
     """
 
+    @model_validator(mode="before")
+    @classmethod
+    def _default_combine_search_name(cls, data: JSONValue) -> JSONValue:
+        """Inject ``__combine__`` for combine nodes missing ``searchName``."""
+        if not isinstance(data, dict):
+            return data
+        has_search = "searchName" in data or "search_name" in data
+        has_both_inputs = (
+            "primaryInput" in data or "primary_input" in data
+        ) and ("secondaryInput" in data or "secondary_input" in data)
+        if not has_search and has_both_inputs:
+            data["searchName"] = COMBINE_SEARCH_NAME
+        return data
+
     search_name: str
     parameters: WDKSerializedParams = Field(default_factory=dict)
 

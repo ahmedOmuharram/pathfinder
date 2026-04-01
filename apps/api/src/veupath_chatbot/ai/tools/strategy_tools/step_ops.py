@@ -1,19 +1,48 @@
 """Step creation tools (AI-exposed)."""
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from kani import AIParam, ai_function
 from pydantic import BaseModel
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WdkParams
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.param_validation import ValidationCallbacks
 from veupath_chatbot.services.strategies.engine.helpers import StrategyToolsHelpers
 from veupath_chatbot.services.strategies.step_creation import (
     ColocationStepSpec,
+    InlineSpec,
     StepSpec,
     create_colocation_step,
     create_step,
+    resolve_inline_step,
 )
+
+
+class InlineStepSpec(BaseModel):
+    """Inline step specification — creates a step on the fly as input to another step.
+
+    Use this instead of a step ID when you need to build a subtree
+    atomically in one ``create_step`` call (e.g. two transforms on
+    different inputs that are then combined).
+    """
+
+    search_name: Annotated[
+        str,
+        AIParam(desc="WDK search name for the inline step"),
+    ]
+    parameters: Annotated[
+        WdkParams | None,
+        AIParam(desc="WDK parameters as key-value pairs"),
+    ] = None
+    display_name: Annotated[
+        str | None,
+        AIParam(desc="Friendly name for this step"),
+    ] = None
+    primary_input_step_id: Annotated[
+        str | None,
+        AIParam(desc="Input step ID for transforms"),
+    ] = None
 
 
 class StepInputSpec(BaseModel):
@@ -31,6 +60,18 @@ class StepInputSpec(BaseModel):
         str | None,
         AIParam(
             desc="Secondary input step id (requires primary_input_step_id and operator)"
+        ),
+    ] = None
+    primary_input: Annotated[
+        InlineStepSpec | None,
+        AIParam(
+            desc="Inline step spec for primary input — creates this step and uses it as primary input. Alternative to primary_input_step_id."
+        ),
+    ] = None
+    secondary_input: Annotated[
+        InlineStepSpec | None,
+        AIParam(
+            desc="Inline step spec for secondary input — creates this step and uses it as secondary input. Alternative to secondary_input_step_id."
         ),
     ] = None
     operator: Annotated[
@@ -63,6 +104,10 @@ class StrategyStepOps(StrategyToolsHelpers):
     @ai_function()
     async def create_step(
         self,
+        display_name: Annotated[
+            str,
+            AIParam(desc="Short human-readable name describing what this step does (e.g. 'Kinases with TM domains')"),
+        ],
         search_name: Annotated[
             str | None,
             AIParam(
@@ -70,7 +115,7 @@ class StrategyStepOps(StrategyToolsHelpers):
             ),
         ] = None,
         parameters: Annotated[
-            JSONObject | None,
+            WdkParams | None,
             AIParam(desc="WDK parameters as key-value pairs (optional)"),
         ] = None,
         record_type: Annotated[
@@ -83,7 +128,7 @@ class StrategyStepOps(StrategyToolsHelpers):
         inputs: Annotated[
             StepInputSpec | None,
             AIParam(
-                desc="Optional inputs for binary/transform steps (primary/secondary inputs, operator, display name, colocation params)"
+                desc="Optional inputs for binary/transform steps (primary/secondary inputs, operator, colocation params)"
             ),
         ] = None,
         graph_id: Annotated[str | None, AIParam(desc="Graph ID to edit")] = None,
@@ -100,22 +145,61 @@ class StrategyStepOps(StrategyToolsHelpers):
             return self._graph_not_found(graph_id)
 
         inp = inputs or StepInputSpec()
-        spec = StepSpec(
-            search_name=search_name,
-            parameters=parameters,
-            record_type=record_type,
-            primary_input_step_id=inp.primary_input_step_id,
-            secondary_input_step_id=inp.secondary_input_step_id,
-            operator=inp.operator,
-            display_name=inp.display_name,
-            combine_with_step_id=inp.combine_with_step_id,
-            combine_operator=inp.combine_operator,
-        )
+
+        # Build callbacks before inline resolution (needed for both).
         callbacks = ValidationCallbacks(
             resolve_record_type_for_search=self._find_record_type_for_search,
             find_record_type_hint=self._find_record_type_hint,
-            extract_vocab_options=self._extract_vocab_options,
             validation_error_payload=self._validation_error_payload,
+        )
+
+        # Resolve inline step specs (creates intermediate steps without
+        # auto-combine so they don't violate the single-root invariant).
+        primary_input_step_id = inp.primary_input_step_id
+        secondary_input_step_id = inp.secondary_input_step_id
+
+        if inp.primary_input is not None:
+            inline_result = await resolve_inline_step(
+                graph=graph,
+                site_id=self.session.site_id,
+                spec=InlineSpec(
+                    search_name=inp.primary_input.search_name,
+                    parameters=cast("JSONObject | None", inp.primary_input.parameters),
+                    display_name=inp.primary_input.display_name,
+                    primary_input_step_id=inp.primary_input.primary_input_step_id,
+                ),
+                callbacks=callbacks,
+            )
+            if inline_result.error is not None:
+                return inline_result.error
+            primary_input_step_id = inline_result.step_id
+
+        if inp.secondary_input is not None:
+            inline_result = await resolve_inline_step(
+                graph=graph,
+                site_id=self.session.site_id,
+                spec=InlineSpec(
+                    search_name=inp.secondary_input.search_name,
+                    parameters=cast("JSONObject | None", inp.secondary_input.parameters),
+                    display_name=inp.secondary_input.display_name,
+                    primary_input_step_id=inp.secondary_input.primary_input_step_id,
+                ),
+                callbacks=callbacks,
+            )
+            if inline_result.error is not None:
+                return inline_result.error
+            secondary_input_step_id = inline_result.step_id
+
+        spec = StepSpec(
+            search_name=search_name,
+            parameters=cast("JSONObject | None", parameters),
+            record_type=record_type,
+            primary_input_step_id=primary_input_step_id,
+            secondary_input_step_id=secondary_input_step_id,
+            operator=inp.operator,
+            display_name=display_name or inp.display_name,
+            combine_with_step_id=inp.combine_with_step_id,
+            combine_operator=inp.combine_operator,
         )
 
         result = await create_step(
@@ -201,7 +285,6 @@ class StrategyStepOps(StrategyToolsHelpers):
         callbacks = ValidationCallbacks(
             resolve_record_type_for_search=self._find_record_type_for_search,
             find_record_type_hint=self._find_record_type_hint,
-            extract_vocab_options=self._extract_vocab_options,
             validation_error_payload=self._validation_error_payload,
         )
 

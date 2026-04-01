@@ -20,15 +20,45 @@ class TestRenderVocabTree:
         assert any("Child1" in line for line in lines)
         assert any("Child2" in line for line in lines)
 
-    def test_truncation(self) -> None:
+    def test_truncation_shows_summaries(self) -> None:
+        """When truncated, remaining top-level items appear as summaries with counts."""
         tree: JSONObject = {
-            "data": {"term": "Root"},
+            "data": {"term": "@@fake@@"},
             "children": [
-                {"data": {"term": f"Child{i}"}, "children": []} for i in range(100)
+                {
+                    "data": {"term": "GroupA"},
+                    "children": [
+                        {"data": {"term": f"A-leaf{i}"}, "children": []}
+                        for i in range(20)
+                    ],
+                },
+                {
+                    "data": {"term": "GroupB"},
+                    "children": [
+                        {"data": {"term": f"B-leaf{i}"}, "children": []}
+                        for i in range(30)
+                    ],
+                },
+                {
+                    "data": {"term": "GroupC"},
+                    "children": [
+                        {"data": {"term": f"C-leaf{i}"}, "children": []}
+                        for i in range(10)
+                    ],
+                },
             ],
         }
-        lines = render_vocab_tree(tree, max_lines=5)
-        assert len(lines) <= 6  # 5 + possible truncation message
+        lines = render_vocab_tree(tree, max_lines=10)
+        text = "\n".join(lines)
+        # GroupA should be partially expanded (it comes first).
+        assert "GroupA" in text
+        assert "A-leaf0" in text
+        # GroupB and GroupC should appear as summaries with counts.
+        assert "GroupB" in text
+        assert "30 entries" in text
+        assert "GroupC" in text
+        assert "10 entries" in text
+        assert "use query=" in text
 
     def test_skips_fake_sentinel(self) -> None:
         tree: JSONObject = {

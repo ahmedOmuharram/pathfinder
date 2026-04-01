@@ -13,21 +13,22 @@ from veupath_chatbot.platform.errors import ValidationError
 from veupath_chatbot.services.catalog.param_validation import ValidationCallbacks
 from veupath_chatbot.services.strategies.step_creation import (
     COMBINE_PLACEHOLDER_SEARCH_NAME,
+    InlineSpec,
     StepSpec,
     coerce_wdk_boolean_question_params,
     create_step,
+    resolve_inline_step,
 )
 from veupath_chatbot.services.strategies.step_validation import (
     _validate_inputs,
-    _validate_root_status,
 )
 
 from .conftest import (
-    extract_vocab_options_stub,
     find_record_type_hint_stub,
     make_step_creation_callbacks,
     make_step_graph,
     noop_validation_error_payload,
+    populate_graph,
 )
 
 # ---------------------------------------------------------------------------
@@ -132,9 +133,7 @@ class TestFindConsumer:
             secondary_input=step_b,
             operator=CombineOp.INTERSECT,
         )
-        graph.add_step(step_a)
-        graph.add_step(step_b)
-        graph.add_step(step_c)
+        populate_graph(graph, step_a, step_b, step_c)
         assert graph.find_consumer(step_b.id) == step_c.id
 
     def test_returns_none_for_unconsumed(self):
@@ -183,8 +182,7 @@ class TestValidateInputs:
         graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_a)
-        graph.add_step(step_b)
+        populate_graph(graph, step_a, step_b)
         _, _, error = _validate_inputs(graph, step_a.id, step_b.id, None)
         assert error is not None
         assert "operator is required" in str(error["message"])
@@ -193,8 +191,7 @@ class TestValidateInputs:
         graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_a)
-        graph.add_step(step_b)
+        populate_graph(graph, step_a, step_b)
         primary, secondary, error = _validate_inputs(
             graph, step_a.id, step_b.id, "UNION"
         )
@@ -204,35 +201,199 @@ class TestValidateInputs:
 
 
 # ---------------------------------------------------------------------------
-# _validate_root_status
+# Auto-duplication of consumed steps
 # ---------------------------------------------------------------------------
 
 
-class TestValidateRootStatus:
-    def test_root_step_passes(self):
-        graph = make_step_graph()
-        step_a = PlanStepNode(search_name="A", parameters={})
-        graph.add_step(step_a)
-        assert _validate_root_status(graph, step_a.id) is None
+class TestAutoDuplication:
+    """Consumed steps are silently cloned when referenced as inputs."""
 
-    def test_non_root_step_fails(self):
+    @patch(
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_binary_combine_with_consumed_primary(self, mock_validate: AsyncMock):
+        """Referencing a consumed step as primary input of a binary combine
+        should auto-duplicate it instead of erroring."""
         graph = make_step_graph()
-        step_a = PlanStepNode(search_name="A", parameters={})
-        step_b = PlanStepNode(search_name="B", parameters={})
+        step_a = PlanStepNode(search_name="GenesByTaxon", parameters={"organism": '["Pf"]'})
         graph.add_step(step_a)
-        graph.add_step(step_b)
-        combine = PlanStepNode(
-            search_name="__combine__",
+        # Transform consumes step_a.
+        transform = PlanStepNode(
+            search_name="GenesByOrthologs",
             parameters={},
             primary_input=step_a,
-            secondary_input=step_b,
-            operator=CombineOp.INTERSECT,
         )
-        graph.add_step(combine)
-        error = _validate_root_status(graph, step_a.id)
-        assert error is not None
-        assert "not a subtree root" in str(error["message"])
-        assert error["consumedBy"] == combine.id
+        graph.add_step(transform)
+        assert step_a.id not in graph.roots
+
+        # Create a combine referencing consumed step_a + root transform.
+        result = await create_step(
+            graph=graph,
+            site_id="plasmodb",
+            spec=StepSpec(
+                primary_input_step_id=step_a.id,
+                secondary_input_step_id=transform.id,
+                operator="MINUS",
+            ),
+            callbacks=make_step_creation_callbacks(),
+        )
+        assert result.error is None
+        assert result.step is not None
+        # Primary input is a CLONE, not the original step_a.
+        assert result.step.primary_input is not step_a
+        assert result.step.primary_input is not None
+        assert result.step.primary_input.search_name == "GenesByTaxon"
+        assert result.step.primary_input.parameters == {"organism": '["Pf"]'}
+        # Secondary is the original transform.
+        assert result.step.secondary_input is transform
+        assert result.step.operator == CombineOp.MINUS
+
+    @patch(
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_duplicate_preserves_subtree(self, mock_validate: AsyncMock):
+        """Auto-duplicating a transform step clones its entire subtree."""
+        graph = make_step_graph()
+        leaf = PlanStepNode(search_name="A", parameters={"x": "1"})
+        graph.add_step(leaf)
+        transform = PlanStepNode(
+            search_name="Transform",
+            parameters={},
+            primary_input=leaf,
+        )
+        graph.add_step(transform)
+        # transform is now the root, leaf is consumed.
+
+        # Reference consumed leaf in a binary combine with root (transform).
+        # This tests that the leaf's clone is a fresh node.
+        result = await create_step(
+            graph=graph,
+            site_id="plasmodb",
+            spec=StepSpec(
+                primary_input_step_id=leaf.id,
+                secondary_input_step_id=transform.id,
+                operator="MINUS",
+            ),
+            callbacks=make_step_creation_callbacks(),
+        )
+        assert result.error is None
+        assert result.step is not None
+        cloned_leaf = result.step.primary_input
+        assert cloned_leaf is not None
+        assert cloned_leaf is not leaf
+        assert cloned_leaf.search_name == "A"
+        assert cloned_leaf.parameters == {"x": "1"}
+        # Clone has a fresh ID.
+        assert cloned_leaf.id != leaf.id
+
+
+# ---------------------------------------------------------------------------
+# Inline step specs (_skip_auto_combine)
+# ---------------------------------------------------------------------------
+
+
+class TestInlineStepSpec:
+    """Inline steps bypass auto-combine and don't become roots."""
+
+    @patch(
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_skip_auto_combine_does_not_become_root(self, mock_validate: AsyncMock):
+        """A step with _skip_auto_combine registers in graph.steps but not roots."""
+        graph = make_step_graph()
+        existing = PlanStepNode(search_name="Existing", parameters={})
+        graph.add_step(existing)
+
+        result = await create_step(
+            graph=graph,
+            site_id="plasmodb",
+            spec=StepSpec(
+                search_name="InlineLeaf",
+                parameters={},
+                _skip_auto_combine=True,
+            ),
+            callbacks=make_step_creation_callbacks(),
+        )
+        assert result.error is None
+        assert result.step_id is not None
+        # Inline step is in graph.steps but NOT in roots.
+        assert result.step_id in graph.steps
+        assert result.step_id not in graph.roots
+        # Original root is unchanged.
+        assert existing.id in graph.roots
+
+    @patch(
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_resolve_inline_step(self, mock_validate: AsyncMock):
+        """resolve_inline_step creates a step without auto-combine."""
+
+        graph = make_step_graph()
+        root = PlanStepNode(search_name="Root", parameters={})
+        graph.add_step(root)
+
+        result = await resolve_inline_step(
+            graph=graph,
+            site_id="plasmodb",
+            spec=InlineSpec(search_name="InlineSearch", parameters={"k": "v"}),
+            callbacks=make_step_creation_callbacks(),
+        )
+        assert result.error is None
+        assert result.step_id is not None
+        assert result.step_id in graph.steps
+        assert result.step_id not in graph.roots
+        assert root.id in graph.roots
+
+    @patch(
+        "veupath_chatbot.services.strategies.step_validation.validate_parameters",
+        new_callable=AsyncMock,
+    )
+    async def test_inline_transform_then_combine(self, mock_validate: AsyncMock):
+        """Build combine(Transform(A), B) atomically using inline spec."""
+
+        graph = make_step_graph()
+        step_a = PlanStepNode(search_name="A", parameters={})
+        graph.add_step(step_a)
+        step_b = PlanStepNode(search_name="B", parameters={})
+        graph.insert_step_with_combine(step_b, step_a.id, CombineOp.UNION)
+
+        # Create inline transform on step_a (consumed).
+        inline_result = await resolve_inline_step(
+            graph=graph,
+            site_id="plasmodb",
+            spec=InlineSpec(
+                search_name="GenesByOrthologs",
+                primary_input_step_id=step_a.id,
+            ),
+            callbacks=make_step_creation_callbacks(),
+        )
+        assert inline_result.error is None
+        inline_id = inline_result.step_id
+        assert inline_id is not None
+        # Inline step used auto-duplication for consumed step_a.
+        inline_step = graph.steps[inline_id]
+        assert inline_step.primary_input is not step_a  # it's a clone
+
+        # Now combine inline transform with the current root.
+        root_id = next(iter(graph.roots))
+        result = await create_step(
+            graph=graph,
+            site_id="plasmodb",
+            spec=StepSpec(
+                primary_input_step_id=inline_id,
+                secondary_input_step_id=root_id,
+                operator="MINUS",
+            ),
+            callbacks=make_step_creation_callbacks(),
+        )
+        assert result.error is None
+        assert result.step is not None
+        assert result.step.operator == CombineOp.MINUS
+        assert len(graph.roots) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -296,8 +457,7 @@ class TestCreateStepIntegration:
         graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_a)
-        graph.add_step(step_b)
+        populate_graph(graph, step_a, step_b)
 
         result = await create_step(
             graph=graph,
@@ -312,8 +472,7 @@ class TestCreateStepIntegration:
         graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_a)
-        graph.add_step(step_b)
+        populate_graph(graph, step_a, step_b)
 
         result = await create_step(
             graph=graph,
@@ -359,30 +518,6 @@ class TestCreateStepIntegration:
         assert result.error is not None
         assert result.error["code"] == "STEP_NOT_FOUND"
 
-    async def test_non_root_primary_rejected(self):
-        graph = make_step_graph()
-        step_a = PlanStepNode(search_name="A", parameters={})
-        step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_a)
-        graph.add_step(step_b)
-        combine = PlanStepNode(
-            search_name="__combine__",
-            parameters={},
-            primary_input=step_a,
-            secondary_input=step_b,
-            operator=CombineOp.INTERSECT,
-        )
-        graph.add_step(combine)
-
-        result = await create_step(
-            graph=graph,
-            site_id="plasmodb",
-            spec=StepSpec(search_name="SomeSearch", primary_input_step_id=step_a.id),
-            callbacks=make_step_creation_callbacks(),
-        )
-        assert result.error is not None
-        assert "not a subtree root" in str(result.error["message"])
-
     @patch(
         "veupath_chatbot.services.strategies.step_validation.validate_parameters",
         new_callable=AsyncMock,
@@ -391,8 +526,7 @@ class TestCreateStepIntegration:
         graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_a)
-        graph.add_step(step_b)
+        populate_graph(graph, step_a, step_b)
 
         result = await create_step(
             graph=graph,
@@ -536,8 +670,7 @@ class TestCreateStepIntegration:
         graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_a)
-        graph.add_step(step_b)
+        populate_graph(graph, step_a, step_b)
 
         result = await create_step(
             graph=graph,
@@ -565,8 +698,7 @@ class TestCreateStepIntegration:
         graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_a)
-        graph.add_step(step_b)
+        populate_graph(graph, step_a, step_b)
 
         result = await create_step(
             graph=graph,
@@ -618,7 +750,6 @@ class TestCreateStepIntegration:
             callbacks=ValidationCallbacks(
                 resolve_record_type_for_search=always_none_resolver,
                 find_record_type_hint=find_record_type_hint_stub,
-                extract_vocab_options=extract_vocab_options_stub,
                 validation_error_payload=noop_validation_error_payload,
             ),
         )
@@ -631,8 +762,7 @@ class TestCreateStepIntegration:
         graph = make_step_graph()
         step_a = PlanStepNode(search_name="A", parameters={})
         step_b = PlanStepNode(search_name="B", parameters={})
-        graph.add_step(step_a)
-        graph.add_step(step_b)
+        populate_graph(graph, step_a, step_b)
         initial_step_count = len(graph.steps)
 
         result = await create_step(
@@ -679,7 +809,6 @@ class TestCreateStepIntegration:
             callbacks=ValidationCallbacks(
                 resolve_record_type_for_search=reject_search,
                 find_record_type_hint=find_record_type_hint_stub,
-                extract_vocab_options=extract_vocab_options_stub,
                 validation_error_payload=noop_validation_error_payload,
             ),
         )
@@ -806,31 +935,28 @@ class TestCrossOrganismIntersectGuard:
         self, mock_val: AsyncMock
     ) -> None:
         graph = make_step_graph()
-        pf = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByGoTerm",
-                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
-            )
+        pf_step = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
         )
-        pb = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByText",
-                parameters={"text_search_organism": '["Plasmodium berghei ANKA"]'},
-            )
+        pb_step = PlanStepNode(
+            search_name="GenesByText",
+            parameters={"text_search_organism": '["Plasmodium berghei ANKA"]'},
         )
+        populate_graph(graph, pf_step, pb_step)
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(
-                primary_input_step_id=pf,
-                secondary_input_step_id=pb,
+                primary_input_step_id=pf_step.id,
+                secondary_input_step_id=pb_step.id,
                 operator="INTERSECT",
             ),
             callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "INVALID_STRATEGY"
-        assert "different organism" in result.error["message"].lower()
+        assert "different organism" in str(result.error["message"]).lower()
 
     @patch(
         "veupath_chatbot.services.strategies.step_validation.validate_parameters",
@@ -838,24 +964,21 @@ class TestCrossOrganismIntersectGuard:
     )
     async def test_intersect_same_organism_allowed(self, mock_val: AsyncMock) -> None:
         graph = make_step_graph()
-        a = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByGoTerm",
-                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
-            )
+        step_a = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
         )
-        b = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByText",
-                parameters={"text_search_organism": '["Plasmodium falciparum 3D7"]'},
-            )
+        step_b = PlanStepNode(
+            search_name="GenesByText",
+            parameters={"text_search_organism": '["Plasmodium falciparum 3D7"]'},
         )
+        populate_graph(graph, step_a, step_b)
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(
-                primary_input_step_id=a,
-                secondary_input_step_id=b,
+                primary_input_step_id=step_a.id,
+                secondary_input_step_id=step_b.id,
                 operator="INTERSECT",
             ),
             callbacks=make_step_creation_callbacks(),
@@ -870,24 +993,21 @@ class TestCrossOrganismIntersectGuard:
     async def test_union_different_organisms_allowed(self, mock_val: AsyncMock) -> None:
         """UNION across organisms is valid (e.g. collecting genes from multiple species)."""
         graph = make_step_graph()
-        pf = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByGoTerm",
-                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
-            )
+        pf_step = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
         )
-        pb = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByText",
-                parameters={"text_search_organism": '["Plasmodium berghei ANKA"]'},
-            )
+        pb_step = PlanStepNode(
+            search_name="GenesByText",
+            parameters={"text_search_organism": '["Plasmodium berghei ANKA"]'},
         )
+        populate_graph(graph, pf_step, pb_step)
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(
-                primary_input_step_id=pf,
-                secondary_input_step_id=pb,
+                primary_input_step_id=pf_step.id,
+                secondary_input_step_id=pb_step.id,
                 operator="UNION",
             ),
             callbacks=make_step_creation_callbacks(),
@@ -904,24 +1024,21 @@ class TestCrossOrganismIntersectGuard:
     ) -> None:
         """Steps without organism params (e.g. MassSpec) should not trigger the guard."""
         graph = make_step_graph()
-        a = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByGoTerm",
-                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
-            )
+        step_a = PlanStepNode(
+            search_name="GenesByGoTerm",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
         )
-        b = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByMassSpec",
-                parameters={"ms_assay": '["merozoite_Plasmodium falciparum 3D7"]'},
-            )
+        step_b = PlanStepNode(
+            search_name="GenesByMassSpec",
+            parameters={"ms_assay": '["merozoite_Plasmodium falciparum 3D7"]'},
         )
+        populate_graph(graph, step_a, step_b)
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(
-                primary_input_step_id=a,
-                secondary_input_step_id=b,
+                primary_input_step_id=step_a.id,
+                secondary_input_step_id=step_b.id,
                 operator="INTERSECT",
             ),
             callbacks=make_step_creation_callbacks(),
@@ -942,30 +1059,27 @@ class TestCrossOrganismIntersectGuard:
             search_name="GenesByGoTerm",
             parameters={"organism": '["Plasmodium falciparum 3D7"]'},
         )
-        ortho_step_id = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByOrthologs",
-                parameters={"organism": '["Plasmodium berghei ANKA"]'},
-                primary_input=pf_kinases,
-            )
+        ortho_step = PlanStepNode(
+            search_name="GenesByOrthologs",
+            parameters={"organism": '["Plasmodium berghei ANKA"]'},
+            primary_input=pf_kinases,
         )
-        pf_expr_id = graph.add_step(
-            PlanStepNode(
-                search_name="GenesByRNASeqPercentile",
-                parameters={"organism": '["Plasmodium falciparum 3D7"]'},
-            )
+        pf_expr_step = PlanStepNode(
+            search_name="GenesByRNASeqPercentile",
+            parameters={"organism": '["Plasmodium falciparum 3D7"]'},
         )
+        populate_graph(graph, pf_kinases, ortho_step, pf_expr_step)
         result = await create_step(
             graph=graph,
             site_id="plasmodb",
             spec=StepSpec(
-                primary_input_step_id=ortho_step_id,
-                secondary_input_step_id=pf_expr_id,
+                primary_input_step_id=ortho_step.id,
+                secondary_input_step_id=pf_expr_step.id,
                 operator="INTERSECT",
             ),
             callbacks=make_step_creation_callbacks(),
         )
         assert result.error is not None
         assert result.error["code"] == "INVALID_STRATEGY"
-        assert "berghei" in result.error["message"].lower()
-        assert "falciparum" in result.error["message"].lower()
+        assert "berghei" in str(result.error["message"]).lower()
+        assert "falciparum" in str(result.error["message"]).lower()

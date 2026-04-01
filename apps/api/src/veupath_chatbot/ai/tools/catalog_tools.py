@@ -15,7 +15,7 @@ from veupath_chatbot.integrations.veupathdb.factory import (
     get_strategy_api,
     get_wdk_client,
 )
-from veupath_chatbot.integrations.veupathdb.wdk_models import encode_wdk_params
+from veupath_chatbot.integrations.veupathdb.wdk_models import WdkParams, encode_wdk_params
 from veupath_chatbot.platform.errors import AppError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
@@ -26,9 +26,70 @@ from veupath_chatbot.services.catalog.public_strategy_search import (
 )
 from veupath_chatbot.services.catalog.searches import find_record_type_for_search
 
+from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKBaseParameter
+
 logger = get_logger(__name__)
 
 _DEFAULT_RECORD_TYPE = "transcript"
+
+
+def _filter_vocab(param: WDKBaseParameter, query: str) -> WDKBaseParameter:
+    """Return a copy of the parameter with vocabulary filtered by query.
+
+    For tree vocabularies (``{data, children}`` dicts), walks the tree
+    and keeps only subtrees where any node's ``data.term`` or
+    ``data.display`` contains the query (case-insensitive).
+
+    For flat vocabularies (lists), keeps entries matching the query.
+
+    Returns a new parameter via ``model_copy`` since WDK parameter
+    models are frozen.
+    """
+    if param.vocabulary is None:
+        return param
+
+    q = query.lower()
+
+    match param.vocabulary:
+        case dict() as tree:
+            pruned = _prune_tree(tree, q)
+            return param.model_copy(update={"vocabulary": pruned or tree})
+        case list() as flat:
+            filtered = [
+                entry for entry in flat
+                if q in str(entry).lower()
+            ]
+            return param.model_copy(update={"vocabulary": filtered})
+
+    return param
+
+
+def _prune_tree(node: JSONObject, query: str) -> JSONObject | None:
+    """Recursively prune a vocab tree, keeping only branches matching query.
+
+    A node is kept if its own term/display matches, or if any descendant
+    matches.  Returns None if the entire subtree should be pruned.
+    """
+    data = node.get("data", {})
+    data_dict = data if isinstance(data, dict) else {}
+    term = str(data_dict.get("term", "")).lower()
+    display = str(data_dict.get("display", "")).lower()
+    self_matches = query in term or query in display
+
+    children_raw = node.get("children", [])
+    children = children_raw if isinstance(children_raw, list) else []
+
+    kept_children = []
+    for child in children:
+        if isinstance(child, dict):
+            pruned = _prune_tree(child, query)
+            if pruned is not None:
+                kept_children.append(pruned)
+
+    if not self_matches and not kept_children:
+        return None
+
+    return {"data": data, "children": kept_children}
 
 
 async def _resolve_record_type(
@@ -224,8 +285,8 @@ class CatalogTools:
             AIParam(
                 desc=(
                     "Descriptive natural language query about what you're looking for. "
-                    "Must include 2+ specific keywords. "
-                    "Example: 'gametocyte RNA-Seq expression percentile data'"
+                    "Must include 5+ specific keywords — be as descriptive as possible. "
+                    "Example: 'gametocyte RNA-Seq differential expression DESeq analysis'"
                 )
             ),
         ],
@@ -246,6 +307,25 @@ class CatalogTools:
                 )
             ),
         ] = None,
+        category: Annotated[
+            str | None,
+            AIParam(
+                desc=(
+                    "Filter to a specific search subcategory from the site ontology. "
+                    "Pick the most specific category matching the user's intent:\n"
+                    "  - 'searchCategory-transcriptomics-differential-expression': DESeq statistical tests\n"
+                    "  - 'searchCategory-transcriptomics-fold-change': fold change threshold\n"
+                    "  - 'searchCategory-transcriptomics-percentile': expression percentile\n"
+                    "  - 'searchCategory-transcriptomics-sense-antisense': strand-specific\n"
+                    "  - 'searchCategory-transcriptomics-direct-comparison': microarray direct comparison\n"
+                    "  - 'searchCategory-proteomics-direct-comparison': proteomics comparison\n"
+                    "  - 'searchCategory-phenotype-curated': curated phenotype data\n"
+                    "  - 'searchCategory-chipchip': ChIP-chip/ChIP-seq epigenomics\n"
+                    "  - 'searchCategory-coexpression': co-expression networks\n"
+                    "  - None: no filtering (universal searches + all categories)"
+                )
+            ),
+        ] = None,
         limit: Annotated[int, AIParam(desc="Max results to return.")] = 20,
     ) -> list[dict[str, str | float]]:
         """Find WDK searches by description and/or keywords.
@@ -257,12 +337,13 @@ class CatalogTools:
         kw = keywords or []
         err = search_query_error(query, has_keywords=bool(kw))
         if err is not None:
-            return []
+            return [err]
         matches = await catalog.search_for_searches(
             self.site_id,
             record_type=record_type,
             query=query,
             keywords=kw,
+            category=category,
             limit=limit,
         )
         results: list[dict[str, str | float]] = [m.to_dict() for m in matches]
@@ -273,6 +354,24 @@ class CatalogTools:
         results.extend(u for u in _UNIVERSAL_SEARCHES if str(u["name"]) not in seen)
 
         return results
+
+    @ai_function()
+    async def browse_search_categories(
+        self,
+        record_type: Annotated[
+            str,
+            AIParam(desc="Record type (e.g., 'transcript'). Defaults to transcript."),
+        ] = "transcript",
+    ) -> list[dict[str, str | int | list[str]]]:
+        """Browse available search categories and their example searches.
+
+        Call this BEFORE search_for_searches to see what categories and search
+        names exist on this site.  Returns categories grouped by the site's
+        ontology, each with a count and up to 5 example display names.
+        Use the category key as the 'category' parameter in search_for_searches.
+        Use the example display names to formulate better search queries.
+        """
+        return await catalog.browse_search_categories(self.site_id, record_type)
 
     @ai_function()
     async def list_searches(
@@ -326,8 +425,17 @@ class CatalogTools:
             AIParam(desc="Record type. Auto-resolved if omitted."),
         ] = None,
         context_values: Annotated[
-            JSONObject | None,
+            WdkParams | None,
             AIParam(desc="Current contextParamValues (paramName -> value)"),
+        ] = None,
+        query: Annotated[
+            str | None,
+            AIParam(
+                desc="Optional search filter for large vocabularies. "
+                "Only returns entries whose label contains this substring (case-insensitive). "
+                "Use when the vocabulary is truncated and you need specific entries "
+                "(e.g. query='cruzi' to find T. cruzi mass spec assays)."
+            ),
         ] = None,
     ) -> JSONObject:
         """Get dependent vocab for a parameter.
@@ -351,7 +459,8 @@ class CatalogTools:
             )
             for p in result.search_data.parameters or []:
                 if p.name == param_name:
-                    return format_typed_param(p, depends_on={}, controls={})
+                    filtered = _filter_vocab(p, query) if query else p
+                    return format_typed_param(filtered, depends_on={}, controls={})
             return {"error": "param_not_found", "paramName": param_name}
 
         # Fallback: fetch expanded search details
@@ -363,6 +472,8 @@ class CatalogTools:
         )
         for p in details.search_data.parameters or []:
             if p.name == param_name:
+                if query:
+                    _filter_vocab(p, query)
                 return format_typed_param(p, depends_on={}, controls={})
         return {"error": "param_not_found", "paramName": param_name}
 

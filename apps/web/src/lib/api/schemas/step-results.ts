@@ -31,7 +31,7 @@ const ClassificationSchema = z.enum(["TP", "FP", "FN", "TN"]);
 
 const WdkRecordSchema = z.object({
   id: z.array(z.object({ name: z.string(), value: z.string() })),
-  attributes: z.record(z.string(), z.string().nullable()),
+  attributes: z.record(z.string(), z.unknown()),
   _classification: ClassificationSchema.nullable().optional(),
 });
 
@@ -55,7 +55,7 @@ export const RecordDetailSchema = z.object({
   displayName: z.string(),
   id: z.array(z.object({ name: z.string(), value: z.string() })),
   recordClassName: z.string(),
-  attributes: z.record(z.string(), z.string().nullable()),
+  attributes: z.record(z.string(), z.unknown()),
   attributeNames: z.record(z.string(), z.string()),
   tables: z.record(z.string(), z.array(z.unknown())),
   tableErrors: z.array(z.string()),

@@ -98,12 +98,13 @@ def _format_vocabulary(
         tree_lines = render_vocab_tree(vocabulary, max_lines=80)
         if tree_lines:
             tree_text = "\n".join(tree_lines)
-            truncated = any("(truncated)" in line for line in tree_lines)
+            truncated = any("use query=" in line for line in tree_lines)
             suffix = "\n(Pass a parent node to auto-select all its children)"
             if truncated:
                 suffix += (
-                    "\nNote: tree truncated — many more values exist. "
-                    "Use the exact value you need; it does not have to appear above."
+                    f"\nNote: tree truncated — use get_dependent_vocab("
+                    f"param_name='{base.name}', query='<keyword>') "
+                    f"to see values for a specific category."
                 )
             info["allowedValues_tree"] = cast("JSONValue", tree_text + suffix)
     elif vocabulary is not None:

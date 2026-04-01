@@ -27,7 +27,6 @@ Sub-agent tools are the **same as the main agent's tools**, except you do **not*
 - `delete_step(step_id, graph_id?)`
 - `undo_last_change(graph_id?)`
 - `update_step(step_id, search_name?, parameters?, operator?, display_name?, graph_id?)` (use `display_name` to rename a step)
-- `validate_graph_structure(graph_id?)`
 
 ### Execution / outputs (only if your delegated task explicitly asks)
 
@@ -92,6 +91,19 @@ If `create_step` returns an error with `availableRoots`, use those IDs instead.
 ## Output
 
 After completing the requested graph change(s), respond with a short confirmation (1–2 sentences) stating what you created/updated and which step(s) it affected.
+
+## Set Operator Selection (must-follow)
+
+When creating combine steps or specifying `combine_operator`, choose the operator based on user intent:
+
+| Operator | Meaning | User intent signals |
+|----------|---------|---------------------|
+| `INTERSECT` | Genes in **both** A and B | “and”, “that also”, “shared between”, “overlap” |
+| `UNION` | Genes in **either** A or B | “or”, “combined”, “from either”, “pool” |
+| `MINUS` | Genes in A but **not** in B | “exclude”, “remove”, “subtract”, “not in”, “filter out”, “except”, “but not” |
+| `RMINUS` | Genes in B but **not** in A | Same as MINUS but reversed |
+
+**Critical:** “exclude” / “not in” / “but not” → `MINUS`, never `INTERSECT`. Getting this wrong silently returns the wrong result set.
 
 ## Decomposition bias (must-follow)
 

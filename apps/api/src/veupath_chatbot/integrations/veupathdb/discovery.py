@@ -112,6 +112,8 @@ class SearchCatalog:
         self._dataset_summaries: dict[str, str] = {}
         self._dataset_contacts: dict[str, str] = {}
         self._semantic_index: object | None = None
+        self._search_categories: dict[str, str] = {}  # fullName → searchCategory
+        self._available_categories: set[str] = set()
         self._loaded = False
         self._lock = asyncio.Lock()
 
@@ -132,6 +134,7 @@ class SearchCatalog:
                 )
 
                 await self._load_dataset_metadata(client)
+                await self._load_ontology_categories(client)
                 self._build_semantic_index()
 
                 self._loaded = True
@@ -197,6 +200,52 @@ class SearchCatalog:
     def get_semantic_index(self) -> object | None:
         """Get the semantic search index, or None if not available."""
         return self._semantic_index
+
+    async def _load_ontology_categories(self, client: VEuPathDBClient) -> None:
+        """Fetch the Categories ontology and map searches to subcategories."""
+        try:
+            data = await client.get("/ontologies/Categories")
+            tree = data.get("tree", data) if isinstance(data, dict) else {}
+
+            def walk(node: dict, ancestors: list[str]) -> None:
+                props = node.get("properties", {})
+                label_list = props.get("label", [""])
+                label = str(label_list[0]) if label_list else ""
+                children = node.get("children", [])
+
+                if not children and "GeneQuestions" in label:
+                    for ancestor in reversed(ancestors):
+                        if ancestor.startswith("searchCategory-"):
+                            search_name = label.split(".")[-1]
+                            self._search_categories[search_name] = ancestor
+                            self._available_categories.add(ancestor)
+                            break
+
+                for child in children:
+                    if isinstance(child, dict):
+                        walk(child, [*ancestors, label])
+
+            walk(tree, [])
+            logger.info(
+                "Ontology categories loaded",
+                site_id=self.site_id,
+                categorized_searches=len(self._search_categories),
+                categories=len(self._available_categories),
+            )
+        except (AppError, OSError, ValueError, TypeError):
+            logger.warning(
+                "Failed to load ontology categories (non-fatal)",
+                site_id=self.site_id,
+                exc_info=True,
+            )
+
+    def get_search_category(self, search_name: str) -> str | None:
+        """Get the ontology subcategory for a search, or None if universal."""
+        return self._search_categories.get(search_name)
+
+    def get_available_categories(self) -> set[str]:
+        """Get all available searchCategory-* subcategories for this site."""
+        return self._available_categories
 
     async def _populate_from_record_types(
         self,
@@ -350,8 +399,9 @@ class DiscoveryService:
             except (AppError, OSError, RuntimeError) as e:
                 print(f"[warm-up] Failed {site_id}: {e}", flush=True)
 
-        # Component sites: fast, block startup.
-        await asyncio.gather(*[load_site(s.id) for s in component])
+        # Component sites: load sequentially to avoid OOM during embedding.
+        for s in component:
+            await load_site(s.id)
 
         # Portal: slow, run in background so the API is ready immediately.
         for s in portal:

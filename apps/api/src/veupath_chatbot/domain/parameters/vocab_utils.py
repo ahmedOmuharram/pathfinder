@@ -70,18 +70,40 @@ def match_vocab_value(
         ):
             return canonical
 
-    # Suggest substring matches before failing.
+    # Suggest substring matches before failing.  Split the rejected value
+    # into words and match entries that share at least 2 significant words
+    # (length >= 4) so partial-ID hallucinations still surface real values.
     value_lower = value_norm.lower()
-    suggestions: list[str] = [
-        (entry.get("value") or entry.get("display") or "")
-        for entry in entries
-        if value_lower in (entry.get("display") or "").lower()
-        or value_lower in (entry.get("value") or "").lower()
-    ][:20]
+    value_words = {w for w in value_lower.replace("_", " ").replace("-", " ").split() if len(w) >= 4}
+
+    suggestions: list[str] = []
+    for entry in entries:
+        candidate = entry.get("value") or entry.get("display") or ""
+        candidate_lower = candidate.lower()
+        # Exact substring match
+        if value_lower in candidate_lower or candidate_lower in value_lower:
+            suggestions.append(candidate)
+            continue
+        # Word overlap match (at least 2 shared words)
+        if value_words:
+            candidate_words = {w for w in candidate_lower.replace("_", " ").replace("-", " ").split() if len(w) >= 4}
+            if len(value_words & candidate_words) >= 2:
+                suggestions.append(candidate)
+        if len(suggestions) >= 10:
+            break
 
     detail = f"Parameter '{param_name}' does not accept '{value}'."
     if suggestions:
-        detail += f" Did you mean one of: {suggestions}"
+        detail += (
+            f" Did you mean one of these EXACT values (copy verbatim): {suggestions}"
+        )
+    else:
+        detail += (
+            f" Call get_dependent_vocab(param_name='{param_name}', query='<keyword>') "
+            f"to see valid values. Use a keyword from the value you want "
+            f"(e.g. query='cruzi' for T. cruzi datasets). "
+            f"Copy the exact value string from the response — do not invent IDs."
+        )
 
     raise ValidationError(
         title="Invalid parameter value",

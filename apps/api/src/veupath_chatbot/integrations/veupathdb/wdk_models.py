@@ -14,30 +14,46 @@ from __future__ import annotations
 import json
 from typing import Annotated, Literal
 
-from pydantic import ConfigDict, Discriminator, Field, PlainSerializer
+from pydantic import BeforeValidator, ConfigDict, Discriminator, Field
 from pydantic.alias_generators import to_camel
 
 from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
-def encode_wdk_params(params: JSONObject | None) -> dict[str, str]:
-    """Encode a JSONObject to WDK's ``Record<string, string>``.
+def _to_wdk_str(v: object) -> str:
+    """Coerce any JSON value to WDK ParameterValue (string)."""
+    encoded = json.dumps(v, ensure_ascii=False)
+    if encoded[0] == '"':
+        return json.loads(encoded)
+    return encoded
 
-    WDK's ``ParameterValues`` is ``Record<string, ParameterValue>`` where
-    ``ParameterValue = string``.  Multi-pick values (lists, dicts) are
-    JSON-encoded to strings (e.g. ``'["a","b"]'``).  ``json.dumps``
-    handles int/float/bool/list/dict correctly; strings pass through.
-    """
+
+def _parse_json_str(v: str) -> dict[str, object] | str:
+    """Parse double-serialized JSON strings from small LLMs."""
+    try:
+        return json.loads(v)
+    except (TypeError, json.JSONDecodeError, ValueError):
+        return v
+
+
+WdkParamValue = Annotated[str, BeforeValidator(_to_wdk_str)]
+
+WdkParams = Annotated[dict[str, WdkParamValue], BeforeValidator(_parse_json_str)]
+
+WDKSerializedParams = Annotated[
+    dict[str, WdkParamValue],
+    BeforeValidator(lambda v: v if v is not None else {}),
+]
+
+
+def encode_wdk_params(params: JSONObject | None) -> dict[str, str]:
+    """Encode a parameter dict to WDK's ``Record<string, string>``."""
     return {
-        k: val if isinstance(val, str) else json.dumps(val)
+        k: _to_wdk_str(val)
         for k, val in (params or {}).items()
         if val is not None
     }
-
-
-WDKSerializedParams = Annotated[JSONObject, PlainSerializer(encode_wdk_params)]
-"""JSONObject that serializes to ``dict[str, str]`` via ``model_dump()``."""
 
 
 class WDKModel(CamelModel):

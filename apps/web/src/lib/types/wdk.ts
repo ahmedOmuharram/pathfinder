@@ -12,7 +12,7 @@ export interface RecordAttribute {
 
 export interface WdkRecord {
   id: { name: string; value: string }[];
-  attributes: Record<string, string | null>;
+  attributes: Record<string, unknown>;
   _classification?: Classification | null | undefined;
 }
 
@@ -35,7 +35,7 @@ export interface RecordDetail {
   displayName: string;
   id: { name: string; value: string }[];
   recordClassName: string;
-  attributes: Record<string, string | null>;
+  attributes: Record<string, unknown>;
   attributeNames: Record<string, string>;
   tables: Record<string, unknown[]>;
   tableErrors: string[];

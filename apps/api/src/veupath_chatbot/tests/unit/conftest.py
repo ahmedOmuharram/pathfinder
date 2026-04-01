@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.persistence.models import User
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
@@ -60,6 +61,13 @@ def make_step_graph(graph_id: str = "g1", site_id: str = "plasmodb") -> Strategy
     return StrategyGraph(graph_id, "test", site_id)
 
 
+def populate_graph(graph: StrategyGraph, *steps: PlanStepNode) -> None:
+    """Add steps to graph bypassing single-root invariant for test setup."""
+    for step in steps:
+        graph.steps[step.id] = step
+    graph.recompute_roots()
+
+
 def noop_validation_error_payload(exc: ValidationError) -> JSONObject:
     """Simple validation error → tool_error converter for tests."""
     return tool_error(ErrorCode.VALIDATION_ERROR, exc.title, detail=exc.detail)
@@ -83,16 +91,10 @@ async def find_record_type_hint_stub(
     return None
 
 
-def extract_vocab_options_stub(vocabulary: JSONObject) -> list[str]:
-    """Stub: always returns an empty list."""
-    return []
-
-
 def make_step_creation_callbacks() -> ValidationCallbacks:
     """Build a ValidationCallbacks with stub implementations for step creation tests."""
     return ValidationCallbacks(
         resolve_record_type_for_search=resolve_record_type_stub,
         find_record_type_hint=find_record_type_hint_stub,
-        extract_vocab_options=extract_vocab_options_stub,
         validation_error_payload=noop_validation_error_payload,
     )

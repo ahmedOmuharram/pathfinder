@@ -1,6 +1,6 @@
-"""Lightweight semantic search index for WDK search discovery.
+"""Semantic search index for WDK search discovery.
 
-Uses sentence-transformers (all-MiniLM-L6-v2) to embed enriched search
+Uses sentence-transformers (nomic-embed-text-v1.5, 8192 context) to embed enriched search
 descriptions.  Embeddings are cached to disk as .npz files keyed by a
 hash of the search names — so startup loads from cache in milliseconds
 and only re-embeds when the catalog actually changes.
@@ -12,6 +12,7 @@ configurable directory (default: same ``data/embeddings/``).
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import re
@@ -26,7 +27,7 @@ from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
-_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+_MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
 _model_lock = threading.Lock()
 _model_instance = None
 
@@ -54,7 +55,7 @@ def _get_model():
         from sentence_transformers import SentenceTransformer
 
         logger.info("Loading sentence-transformer model", model=_MODEL_NAME)
-        _model_instance = SentenceTransformer(_MODEL_NAME)
+        _model_instance = SentenceTransformer(_MODEL_NAME, trust_remote_code=True)
         logger.info("Sentence-transformer model loaded")
         return _model_instance
 
@@ -67,6 +68,13 @@ def warm_up_model() -> None:
 def _strip_html(text: str) -> str:
     """Remove HTML tags from text."""
     return re.sub(r"<[^>]+>", " ", text)
+
+
+def _format_param_names(param_names: list[str]) -> str:
+    """Convert param names from snake_case to readable words."""
+    if not param_names:
+        return ""
+    return " ".join(name.replace("_", " ") for name in param_names)
 
 
 def _catalog_hash(entries: list[SearchIndexEntry]) -> str:
@@ -169,11 +177,14 @@ class SemanticSearchIndex:
             )
             return
 
-        # Cache miss — encode and save.
+        # Cache miss — encode in small batches to limit peak memory.
         model = _get_model()
-        texts = [e.enriched_text for e in self.entries]
-        self.embeddings = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+        texts = [f"search_document: {e.enriched_text}" for e in self.entries]
+        self.embeddings = model.encode(texts, normalize_embeddings=True, show_progress_bar=False, batch_size=8)
         _save_cache(self.site_id, h, self.embeddings)
+        # Free encoding intermediates before moving to the next site.
+        del texts
+        gc.collect()
         logger.info(
             "Semantic search index built and cached",
             site_id=self.site_id,
@@ -190,7 +201,7 @@ class SemanticSearchIndex:
             return []
 
         model = _get_model()
-        query_emb = model.encode([query_text], normalize_embeddings=True)
+        query_emb = model.encode([f"search_query: {query_text}"], normalize_embeddings=True)
         similarities = (self.embeddings @ query_emb.T).flatten()
 
         top_indices = np.argsort(similarities)[::-1][:top_k]
@@ -203,36 +214,51 @@ class SemanticSearchIndex:
         return results
 
     def _build_enriched_text(self, search, ds_summaries: dict, ds_contacts: dict) -> str:
-        """Build enriched text blob for a search."""
+        """Build enriched text blob for a search.
+
+        Structures the text to front-load discriminating signals:
+        1. Search properties (displayCategory, organisms — from WDK metadata)
+        2. Display name + short display name
+        3. Summary
+        4. Parameter names (split from snake_case)
+        5. CamelCase-split search name
+        6. Description (HTML-stripped)
+        7. Dataset summaries (by ID match in search name)
+        """
+        parts: list[str] = []
+
+        # 1. All properties as readable text (displayCategory, organisms, etc.)
+        for prop_values in search.properties.values():
+            if prop_values:
+                parts.append(" ".join(str(v) for v in prop_values))
+
+        # 2. Display names
+        parts.append(search.display_name)
+        short = getattr(search, "short_display_name", "")
+        if short and short != search.display_name:
+            parts.append(short)
+
+        # 3. Summary
+        summary = getattr(search, "summary", "")
+        if summary:
+            parts.append(summary)
+
+        # 4. Parameter names (snake_case → readable words)
+        param_text = _format_param_names(search.param_names)
+        if param_text:
+            parts.append(param_text)
+
+        # 5. CamelCase-split search name
         name_words = " ".join(re.findall(r"[A-Z][a-z]+|[a-z]+|[A-Z]+|\d+", search.url_segment))
+        parts.append(name_words)
 
-        parts = [
-            name_words,
-            search.display_name,
-            getattr(search, "short_display_name", ""),
-            getattr(search, "summary", ""),
-            _strip_html(search.description),
-        ]
+        # 6. Description (HTML-stripped)
+        parts.append(_strip_html(search.description))
 
-        for ds_id, summary in ds_summaries.items():
+        # 7. Dataset summaries by ID match
+        for ds_id, ds_summary in ds_summaries.items():
             if ds_id in search.url_segment:
-                parts.append(_strip_html(summary))
-                contact = ds_contacts.get(ds_id, "")
-                if contact:
-                    parts.append(contact)
-
-        display_lower = search.display_name.lower()
-        display_terms = set(re.findall(r"\b\w{4,}\b", display_lower))
-        stop = {"gene", "genes", "find", "based", "with", "from", "this", "that", "search"}
-
-        for ds_id, summary in ds_summaries.items():
-            if ds_id in search.url_segment:
-                continue
-            summary_lower = summary.lower()
-            summary_terms = set(re.findall(r"\b\w{4,}\b", summary_lower))
-            overlap = display_terms & summary_terms - stop
-            if len(overlap) >= 3:
-                parts.append(_strip_html(summary))
+                parts.append(_strip_html(ds_summary))
                 contact = ds_contacts.get(ds_id, "")
                 if contact:
                     parts.append(contact)
