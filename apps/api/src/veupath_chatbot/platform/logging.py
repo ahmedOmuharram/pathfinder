@@ -5,10 +5,17 @@ import sys
 from typing import cast
 
 import structlog
+from opentelemetry import trace
 from structlog.types import EventDict, Processor
 
 from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.context import request_id_ctx
+from veupath_chatbot.platform.context import (
+    operation_id_ctx,
+    request_id_ctx,
+    site_id_ctx,
+    stream_id_ctx,
+    user_id_ctx,
+)
 
 
 def add_request_id(
@@ -27,6 +34,38 @@ def add_request_id(
     return event_dict
 
 
+def add_app_context(
+    logger: logging.Logger, _method_name: str, event_dict: EventDict
+) -> EventDict:
+    """Inject application context (user, site, conversation) into log events."""
+    uid = user_id_ctx.get()
+    if uid is not None:
+        event_dict["user_id"] = str(uid)
+    sid = site_id_ctx.get()
+    if sid is not None:
+        event_dict["site_id"] = sid
+    stream = stream_id_ctx.get()
+    if stream is not None:
+        event_dict["stream_id"] = stream
+    op = operation_id_ctx.get()
+    if op is not None:
+        event_dict["operation_id"] = op
+    return event_dict
+
+
+def add_otel_context(
+    logger: logging.Logger, _method_name: str, event_dict: EventDict
+) -> EventDict:
+    """Inject OTEL trace/span IDs into log events for trace-log correlation."""
+    span = trace.get_current_span()
+    if not span.is_recording():
+        return event_dict
+    ctx = span.get_span_context()
+    event_dict["trace_id"] = format(ctx.trace_id, "032x")
+    event_dict["span_id"] = format(ctx.span_id, "016x")
+    return event_dict
+
+
 def setup_logging() -> None:
     """Configure structured logging."""
     settings = get_settings()
@@ -41,6 +80,8 @@ def setup_logging() -> None:
         structlog.processors.StackInfoRenderer(),
         structlog.processors.UnicodeDecoder(),
         add_request_id,
+        add_app_context,
+        add_otel_context,
     ]
 
     if settings.log_format == "json":

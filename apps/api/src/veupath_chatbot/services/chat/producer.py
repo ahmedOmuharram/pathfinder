@@ -13,10 +13,12 @@ from uuid import UUID
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from veupath_chatbot.ai.orchestration.observability import get_tracer
 from veupath_chatbot.integrations.veupathdb.factory import get_site
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.persistence.repositories import StreamRepository
 from veupath_chatbot.persistence.session import async_session_factory
+from veupath_chatbot.platform.context import operation_id_ctx, stream_id_ctx
 from veupath_chatbot.platform.errors import (
     AppError,
     sanitize_error_for_client,
@@ -203,62 +205,72 @@ async def chat_producer(
             await session.commit()
             return
 
-        deps, effective_model = await build_agent_deps(
-            turn=turn,
-            projection=projection,
-            config=config,
-            resolve_model_id_fn=resolve_model_id_fn,
-            stream_repo=bg_stream_repo,
-        )
+        tracer = get_tracer()
+        with tracer.start_as_current_span("chat.turn") as span:
+            stream_id_ctx.set(turn.stream_id_str)
+            operation_id_ctx.set(operation_id)
+            span.set_attribute("app.stream_id", turn.stream_id_str)
+            span.set_attribute("app.operation_id", operation_id)
+            span.set_attribute("app.site_id", turn.site_id)
+            span.set_attribute("app.user_id", str(turn.user_id))
+            span.set_attribute("langfuse.session.id", turn.stream_id_str)
 
-        await emit(
-            redis,
-            turn.stream_id_str,
-            operation_id,
-            "model_selected",
-            ModelSelectedEventData(model_id=effective_model).model_dump(
-                by_alias=True, exclude_none=True
-            ),
-            session=session,
-        )
-
-        stream_iter = stream_pipeline(
-            deps, turn.model_message, model_id=effective_model
-        )
-        emit_ctx = EmitContext(
-            redis=redis,
-            session=session,
-            stream_id_str=turn.stream_id_str,
-            operation_id=operation_id,
-        )
-
-        try:
-            await run_stream_loop(
-                emit_ctx,
-                site_id=turn.site_id,
+            deps, effective_model = await build_agent_deps(
+                turn=turn,
                 projection=projection,
-                stream_iter=stream_iter,
+                config=config,
+                resolve_model_id_fn=resolve_model_id_fn,
                 stream_repo=bg_stream_repo,
             )
-        except asyncio.CancelledError:
-            await handle_cancellation(
-                redis=redis,
-                session=session,
-                stream_id_str=turn.stream_id_str,
-                operation_id=operation_id,
-                stream_repo=bg_stream_repo,
-            )
-            return
-        except Exception as e:  # noqa: BLE001
-            await handle_error(
-                error=e,
-                redis=redis,
-                session=session,
-                stream_id_str=turn.stream_id_str,
-                operation_id=operation_id,
-                stream_repo=bg_stream_repo,
-            )
-            await session.commit()
-            return
 
-        await session.commit()
+            await emit(
+                redis,
+                turn.stream_id_str,
+                operation_id,
+                "model_selected",
+                ModelSelectedEventData(model_id=effective_model).model_dump(
+                    by_alias=True, exclude_none=True
+                ),
+                session=session,
+            )
+
+            stream_iter = stream_pipeline(
+                deps, turn.model_message, model_id=effective_model
+            )
+            emit_ctx = EmitContext(
+                redis=redis,
+                session=session,
+                stream_id_str=turn.stream_id_str,
+                operation_id=operation_id,
+            )
+
+            try:
+                await run_stream_loop(
+                    emit_ctx,
+                    site_id=turn.site_id,
+                    projection=projection,
+                    stream_iter=stream_iter,
+                    stream_repo=bg_stream_repo,
+                )
+            except asyncio.CancelledError:
+                await handle_cancellation(
+                    redis=redis,
+                    session=session,
+                    stream_id_str=turn.stream_id_str,
+                    operation_id=operation_id,
+                    stream_repo=bg_stream_repo,
+                )
+                return
+            except Exception as e:  # noqa: BLE001
+                await handle_error(
+                    error=e,
+                    redis=redis,
+                    session=session,
+                    stream_id_str=turn.stream_id_str,
+                    operation_id=operation_id,
+                    stream_repo=bg_stream_repo,
+                )
+                await session.commit()
+                return
+
+            await session.commit()

@@ -195,8 +195,8 @@ def patch_app_db_engine(
     :param session_maker: Async session maker.
 
     """
-    session_module._state["engine"] = db_engine
-    session_module._state["session_factory"] = session_maker
+    session_module._engine = db_engine
+    session_module._session_factory_instance = session_maker
 
 
 @pytest.fixture

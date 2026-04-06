@@ -1,9 +1,6 @@
 """Prompt loading helpers for the AI agent."""
 
-from pathlib import Path
-
-# All .md prompt files live alongside this module.
-_PROMPTS_DIR = Path(__file__).parent
+from veupath_chatbot.platform.langfuse.prompts import load_prompt
 
 
 def load_system_prompt(*, include_site_hints: bool = True) -> str:
@@ -12,12 +9,7 @@ def load_system_prompt(*, include_site_hints: bool = True) -> str:
     :param include_site_hints: When False, skip site_hints.md to save ~400
         tokens on continuation turns where the model already has site context.
     """
-    filenames = ["system.md", "safety.md"]
+    parts = [load_prompt("system"), load_prompt("safety")]
     if include_site_hints:
-        filenames.append("site_hints.md")
-    parts: list[str] = []
-    for filename in filenames:
-        prompt_file = _PROMPTS_DIR / filename
-        if prompt_file.exists():
-            parts.append(prompt_file.read_text())
+        parts.append(load_prompt("site-hints"))
     return "\n\n---\n\n".join(parts)

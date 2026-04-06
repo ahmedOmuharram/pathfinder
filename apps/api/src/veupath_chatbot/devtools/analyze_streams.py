@@ -20,7 +20,7 @@ async def analyze() -> None:
                 recent.append((ts, key.decode(), length))
     recent.sort(reverse=True)
 
-    for ts, key, length in recent[:2]:
+    for _ts, key, length in recent[:2]:
         print(f"\n{'=' * 60}")
         print(f"Stream: {key} ({length} entries)")
         print(f"{'=' * 60}")

@@ -18,7 +18,12 @@ from veupath_chatbot.integrations.veupathdb.discovery_service import (
 )
 from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
-from veupath_chatbot.persistence.session import async_session_factory, close_db, init_db
+from veupath_chatbot.persistence.session import (
+    async_session_factory,
+    close_db,
+    get_engine,
+    init_db,
+)
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import (
     request_base_url_ctx,
@@ -42,6 +47,7 @@ from veupath_chatbot.transport.http.routers import (
     evaluation,
     experiments,
     exports,
+    feedback,
     gene_sets,
     health,
     internal,
@@ -76,6 +82,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # (Alembic migrations are not supported.)
     await init_db()
     await init_redis()
+
+    # Initialize observability (OTEL + instrumentation) after DB/Redis are ready.
+    setup_observability(app=app, db_engine=get_engine())
+
+    # Seed prompts to Langfuse on first run (no-op if already exist or disabled).
+    from veupath_chatbot.platform.langfuse.prompts import seed_prompts  # noqa: PLC0415
+
+    seed_prompts()
 
     # Mark any operations left "active" from a previous process as failed.
     # This handles the Docker-rebuild / crash case where the producer task
@@ -115,6 +129,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await close_all_clients()
     await close_redis()
     await close_db()
+    # Flush and shutdown the Langfuse SDK client.
+    from veupath_chatbot.platform.langfuse.client import (  # noqa: PLC0415
+        shutdown_langfuse,
+    )
+
+    shutdown_langfuse()
 
 
 def _wire_ai_dependencies() -> None:
@@ -147,9 +167,6 @@ def _wire_ai_dependencies() -> None:
     orchestrator.configure(
         resolve_model_id_fn=_resolve_model_id,
     )
-
-    # Initialize observability (Langfuse + OTEL) if configured.
-    setup_observability()
 
 
 def create_app() -> FastAPI:
@@ -255,6 +272,7 @@ def create_app() -> FastAPI:
     app.include_router(operations.router)
     app.include_router(gene_sets.router)
     app.include_router(exports.router)
+    app.include_router(feedback.router)
     app.include_router(internal.router)
     app.include_router(user_data.router)
     app.include_router(evaluation.router)

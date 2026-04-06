@@ -7,6 +7,7 @@ and abort capability.  The classifier determines the entry point.
 import asyncio
 from uuid import uuid4
 
+from opentelemetry import trace
 from pydantic_ai.messages import ModelMessage
 
 from veupath_chatbot.ai.models.pricing import estimate_cost
@@ -16,6 +17,7 @@ from veupath_chatbot.ai.orchestration.classifier import (
     classify_request_llm,
 )
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
+from veupath_chatbot.ai.orchestration.observability import get_tracer
 from veupath_chatbot.ai.orchestration.pipeline import AgentPipeline, create_pipeline
 from veupath_chatbot.domain.strategy.plan import PlanStatus
 from veupath_chatbot.platform.errors import sanitize_error_for_client
@@ -124,6 +126,14 @@ async def produce_events(
     counters = TurnCounters()
     sm = create_pipeline()
 
+    current_span = trace.get_current_span()
+    current_trace_id: str | None = None
+    if current_span.is_recording():
+        ctx = current_span.get_span_context()
+        current_trace_id = format(ctx.trace_id, "032x")
+
+    tracer = get_tracer()
+
     intent = await classify_intent(deps, message, model_id)
 
     # Fast-forward the StateChart for non-full-pipeline intents.
@@ -144,26 +154,31 @@ async def produce_events(
             logger.info("Pipeline entering phase", phase=phase)
             await emit_phase_event(queue, phase, "started")
 
-            # Discovery and verification get the user's original message.
-            # Planning and execution get empty prompts (they work from
-            # message_history and dynamic instructions respectively).
-            phase_prompt = message if phase in ("discovery", "verification") else ""
+            with tracer.start_as_current_span(f"pipeline.{phase}") as phase_span:
+                phase_span.set_attribute("app.phase", phase)
+                phase_span.set_attribute("app.intent", intent.value)
 
-            config = PhaseConfig(
-                phase=phase,
-                prompt=phase_prompt,
-                deps=deps,
-                queue=queue,
-                message_id=message_id,
-                counters=counters,
-                model_id=model_id,
-                message_history=discovery_messages if phase == "planning" else None,
-                usage_limits=PHASE_LIMITS.get(phase),
-            )
+                # Discovery and verification get the user's original message.
+                # Planning and execution get empty prompts (they work from
+                # message_history and dynamic instructions respectively).
+                phase_prompt = message if phase in ("discovery", "verification") else ""
 
-            discovery_messages, should_break = await run_sm_phase(
-                sm, config, discovery_messages,
-            )
+                config = PhaseConfig(
+                    phase=phase,
+                    prompt=phase_prompt,
+                    deps=deps,
+                    queue=queue,
+                    message_id=message_id,
+                    counters=counters,
+                    model_id=model_id,
+                    message_history=discovery_messages if phase == "planning" else None,
+                    usage_limits=PHASE_LIMITS.get(phase),
+                )
+
+                discovery_messages, should_break = await run_sm_phase(
+                    sm, config, discovery_messages,
+                )
+
             if should_break:
                 break
 
@@ -216,6 +231,7 @@ async def produce_events(
             {
                 "type": "message_end",
                 "data": MessageEndEventData(
+                    trace_id=current_trace_id,
                     prompt_tokens=counters.input_tokens,
                     completion_tokens=counters.output_tokens,
                     total_tokens=counters.input_tokens + counters.output_tokens,

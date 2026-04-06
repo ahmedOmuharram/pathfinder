@@ -47,6 +47,7 @@ class AssistantMessageEventData(CamelModel):
 class MessageEndEventData(CamelModel):
     """Payload for ``message_end`` SSE events — mirrors TokenUsageResponse."""
 
+    trace_id: str | None = None
     model_id: str | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None

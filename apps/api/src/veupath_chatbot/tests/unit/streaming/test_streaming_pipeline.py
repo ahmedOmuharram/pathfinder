@@ -191,8 +191,8 @@ async def testemit_thoughts_no_events_for_empty_list() -> None:
 def testmerge_usage_accumulates_tokens() -> None:
     """merge_usage should fold Usage into running counters."""
     counters = TurnCounters()
-    usage1 = RunUsage(input_tokens=100, output_tokens=50, cache_read_tokens=10, requests=1, tool_calls=2)
-    usage2 = RunUsage(input_tokens=200, output_tokens=75, cache_read_tokens=20, requests=2, tool_calls=3)
+    usage1 = RunUsage(input_tokens=100, output_tokens=50, cache_read_tokens=10, requests=1)
+    usage2 = RunUsage(input_tokens=200, output_tokens=75, cache_read_tokens=20, requests=2)
 
     merge_usage(counters, usage1)
     merge_usage(counters, usage2)
@@ -201,7 +201,6 @@ def testmerge_usage_accumulates_tokens() -> None:
     assert counters.output_tokens == 125
     assert counters.cache_read_tokens == 30
     assert counters.llm_call_count == 3
-    assert counters.tool_call_count == 5
 
 
 def testmerge_usage_handles_none_tokens() -> None:

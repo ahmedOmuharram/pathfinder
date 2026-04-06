@@ -1129,9 +1129,6 @@ export type paths = {
         /**
          * Subscribe
          * @description SSE stream backed by Redis Streams.
-         *
-         *     Catchup: replays events from `lastEventId` (or from the beginning).
-         *     Live: uses XREAD BLOCK for new events until a terminal event is seen.
          */
         get: operations["subscribe_api_v1_operations__operation_id__subscribe_get"];
         put?: never;
@@ -1436,6 +1433,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Feedback
+         * @description Record user feedback on an assistant response.
+         */
+        post: operations["submit_feedback_api_v1_feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/sse-schemas": {
         parameters: {
             query?: never;
@@ -1541,31 +1558,6 @@ export type paths = {
          * @description Fetch all gene IDs from a PathFinder strategy's WDK root step.
          */
         post: operations["get_strategy_gene_ids_api_v1_eval_strategy_gene_ids_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/dev/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Dev Login
-         * @description Create a test user and return a valid auth token.
-         *
-         *     Only available when ``PATHFINDER_CHAT_PROVIDER=mock`` (e2e / local dev).
-         *
-         *     Pass ``?user_id=worker-0`` to create isolated users per Playwright
-         *     worker so parallel tests don't share data.
-         */
-        post: operations["dev_login_api_v1_dev_login_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2754,6 +2746,20 @@ export type components = {
             isPrimaryBenchmark: boolean;
         };
         /**
+         * FeedbackRequest
+         * @description User feedback on an assistant message.
+         */
+        FeedbackRequest: {
+            /** Traceid */
+            traceId: string;
+            /** Streamid */
+            streamId: string;
+            /** Value */
+            value: number;
+            /** Comment */
+            comment?: string | null;
+        };
+        /**
          * FetchGeneIdsRequest
          * @description Fetch gene IDs from an existing PathFinder strategy.
          */
@@ -3094,6 +3100,8 @@ export type components = {
          * @description Payload for ``message_end`` SSE events — mirrors TokenUsageResponse.
          */
         MessageEndEventData: {
+            /** Traceid */
+            traceId?: string | null;
             /** Modelid */
             modelId?: string | null;
             /** Prompttokens */
@@ -7444,6 +7452,37 @@ export interface operations {
             };
         };
     };
+    submit_feedback_api_v1_feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     sse_schemas_api_v1_internal_sse_schemas_get: {
         parameters: {
             query?: never;
@@ -7571,37 +7610,6 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dev_login_api_v1_dev_login_post: {
-        parameters: {
-            query?: {
-                user_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -9,16 +9,17 @@ import asyncio
 # ── Counters ──────────────────────────────────────────────────────────────
 from dataclasses import dataclass, field
 
-from pydantic_ai import (
+from pydantic_ai.agent import AgentRun, CallToolsNode, ModelRequestNode
+from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     PartDeltaEvent,
     PartStartEvent,
+    TextPart,
     TextPartDelta,
     ThinkingPartDelta,
+    ToolCallPart,
 )
-from pydantic_ai.agent import AgentRun, CallToolsNode, ModelRequestNode
-from pydantic_ai.messages import TextPart, ToolCallPart
 from pydantic_ai.result import AgentStream
 from pydantic_ai.usage import RunUsage
 
@@ -57,7 +58,6 @@ def merge_usage(counters: TurnCounters, usage: RunUsage) -> None:
     counters.output_tokens += usage.output_tokens or 0
     counters.cache_read_tokens += usage.cache_read_tokens or 0
     counters.llm_call_count += usage.requests or 0
-    counters.tool_call_count += usage.tool_calls or 0
 
 
 # ── Node-level handlers ──────────────────────────────────────────────────
@@ -167,11 +167,14 @@ async def stream_call_tools(
     run: AgentRun[AgentDeps, str],
     queue: asyncio.Queue[JSONObject],
     deps: AgentDeps,
+    counters: TurnCounters | None = None,
 ) -> None:
     """Stream a CallToolsNode, emitting tool_call_start and tool_call_end events."""
     async with node.stream(run.ctx) as handle_stream:
         async for event in handle_stream:
             if isinstance(event, FunctionToolCallEvent):
                 await queue.put(tool_call_start_event(event.part))
+                if counters is not None:
+                    counters.tool_call_count += 1
             elif isinstance(event, FunctionToolResultEvent):
                 await handle_tool_result(event, queue, deps)

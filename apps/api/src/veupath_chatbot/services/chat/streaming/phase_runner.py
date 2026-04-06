@@ -119,7 +119,7 @@ async def _run_phase_inner(
                     node, run, config.queue, config.message_id, config.counters
                 )
             elif Agent.is_call_tools_node(node):
-                await stream_call_tools(node, run, config.queue, config.deps)
+                await stream_call_tools(node, run, config.queue, config.deps, config.counters)
 
         merge_usage(config.counters, run.usage())
 

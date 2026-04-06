@@ -7,8 +7,11 @@ whatever transport format they need.
 Threshold sweep orchestration lives in ``sweep_service.py``.
 """
 
+from opentelemetry import trace
+
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.platform.errors import DataParsingError
+from veupath_chatbot.platform.langfuse.scoring import emit_evaluation_scores
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.control_tests import (
@@ -54,6 +57,13 @@ async def re_evaluate(exp: Experiment) -> JSONObject:
         )
 
     metrics = metrics_from_control_result(result)
+
+    # Emit metrics to Langfuse for trend analysis (no-op when disabled).
+    current_span = trace.get_current_span()
+    if current_span.is_recording():
+        span_ctx = current_span.get_span_context()
+        emit_evaluation_scores(format(span_ctx.trace_id, "032x"), metrics)
+
     exp.metrics = metrics
     (
         exp.true_positive_genes,

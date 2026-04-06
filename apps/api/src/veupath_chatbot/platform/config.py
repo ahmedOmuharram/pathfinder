@@ -147,6 +147,17 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: Literal["json", "console"] = "json"
 
+    # Observability — SigNoz (full-stack APM)
+    signoz_otel_endpoint: str | None = Field(
+        default=None,
+        description="SigNoz OTel Collector gRPC endpoint (e.g. http://signoz-otel-collector:4317). Unset = disabled.",
+    )
+
+    # Observability — Langfuse (LLM engineering platform)
+    langfuse_secret_key: str = Field(default="", repr=False)
+    langfuse_public_key: str = Field(default="", repr=False)
+    langfuse_host: str = "http://localhost:3100"
+
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
     cors_origin_regex: str | None = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"

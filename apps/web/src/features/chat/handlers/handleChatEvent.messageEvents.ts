@@ -403,11 +403,18 @@ export function handleTokenUsagePartialEvent(
 }
 
 export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndData) {
+  // Extract traceId for Langfuse feedback scoring.
+  const traceId = typeof data["traceId"] === "string" && data["traceId"] !== ""
+    ? data["traceId"]
+    : null;
+
   // Attach token usage to the last user message (input cost) and assistant message (output cost).
   const total = typeof data["totalTokens"] === "number" ? data["totalTokens"] : 0;
-  if (total <= 0) return;
 
-  const usage: TokenUsage = {
+  // Even if there are no tokens, we may still need to attach the traceId.
+  if (total <= 0 && traceId == null) return;
+
+  const usage: TokenUsage | null = total > 0 ? {
     promptTokens: Number(data["promptTokens"]) || 0,
     completionTokens: Number(data["completionTokens"]) || 0,
     totalTokens: total,
@@ -417,23 +424,30 @@ export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndDat
     llmCallCount: Number(data["llmCallCount"]) || 0,
     estimatedCostUsd: Number(data["estimatedCostUsd"]) || 0,
     modelId: String(data["modelId"] ?? ""),
-  };
+  } : null;
 
   ctx.setMessages((prev) => {
     const updated = [...prev];
     // Update last user message (may already have partial usage from token_usage_partial).
-    for (let i = updated.length - 1; i >= 0; i--) {
-      const msg = prev[i];
-      if (msg == null || msg.role !== "user") continue;
-      updated[i] = { ...msg, tokenUsage: usage };
-      break;
+    if (usage != null) {
+      for (let i = updated.length - 1; i >= 0; i--) {
+        const msg = prev[i];
+        if (msg?.role !== "user") continue;
+        updated[i] = { ...msg, tokenUsage: usage };
+        break;
+      }
     }
-    // Update last assistant message.
+    // Update last assistant message with token usage and/or traceId.
     for (let i = updated.length - 1; i >= 0; i--) {
       const msg = prev[i];
-      if (msg == null || msg.role !== "assistant") continue;
-      if (msg.tokenUsage != null) continue;
-      updated[i] = { ...msg, tokenUsage: usage };
+      if (msg?.role !== "assistant") continue;
+      if (usage == null && traceId == null) break;
+      if (msg.tokenUsage != null && traceId == null) break;
+      updated[i] = {
+        ...msg,
+        ...(usage != null && msg.tokenUsage == null ? { tokenUsage: usage } : {}),
+        ...(traceId != null ? { traceId } : {}),
+      };
       break;
     }
     return updated;

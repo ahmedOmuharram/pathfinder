@@ -9,8 +9,7 @@ import json
 from typing import cast
 
 from pydantic import BaseModel
-from pydantic_ai import FunctionToolResultEvent
-from pydantic_ai.messages import ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import FunctionToolResultEvent, ToolCallPart, ToolReturnPart
 
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.platform.errors import ErrorCode

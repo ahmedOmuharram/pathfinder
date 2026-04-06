@@ -11,7 +11,6 @@ from pydantic_ai import Agent
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import UsageLimits
 
-from veupath_chatbot.ai.agents._hooks import executor_hooks
 from veupath_chatbot.ai.agents._instructions import (
     base_system_prompt,
     mentioned_context,
@@ -74,7 +73,6 @@ planning_agent: Agent[AgentDeps, str] = Agent(
     deps_type=AgentDeps,
     instructions=_PLANNING_INSTRUCTIONS,
     toolsets=[build_toolset()],
-    capabilities=[executor_hooks],
     name="planning",
     defer_model_check=True,
 )

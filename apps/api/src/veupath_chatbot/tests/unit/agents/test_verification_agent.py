@@ -348,50 +348,38 @@ class TestVerificationToolVisibility:
 
 
 class TestVerificationDynamicInstructions:
-    """Verify the 3 dynamic instruction functions are registered on the agent."""
+    """Verify the 4 dynamic instruction functions are registered on the agent."""
 
     def test_five_instruction_entries_registered(self) -> None:
-        """The agent has 4 instruction entries: 1 static string + 3 dynamic callables."""
-        instructions = verification_agent._instructions
-        assert len(instructions) == 5
+        """The agent has 1 static instruction string + 4 dynamic instruction functions."""
+        assert isinstance(verification_agent._instructions, str)
+        assert len(verification_agent._instructions_functions) == 4
 
     def test_static_instruction_is_string(self) -> None:
-        """First instruction entry is the static instruction string."""
-        first = verification_agent._instructions[0]
-        assert isinstance(first, str)
-        assert "Verification Agent" in first
+        """The static instruction is a string containing 'Verification Agent'."""
+        assert isinstance(verification_agent._instructions, str)
+        assert "Verification Agent" in verification_agent._instructions
 
     def test_pinned_context_summary_registered(self) -> None:
         """_pinned_context_summary is registered as a dynamic instruction."""
-        callables = [
-            fn for fn in verification_agent._instructions if callable(fn)
-        ]
-        names = [fn.__name__ for fn in callables]
+        names = [runner.function.__name__ for runner in verification_agent._instructions_functions]
         assert "_pinned_context_summary" in names
 
     def test_pinned_graph_state_registered(self) -> None:
         """_pinned_graph_state is registered as a dynamic instruction."""
-        callables = [
-            fn for fn in verification_agent._instructions if callable(fn)
-        ]
-        names = [fn.__name__ for fn in callables]
+        names = [runner.function.__name__ for runner in verification_agent._instructions_functions]
         assert "_pinned_graph_state" in names
 
     def test_mentioned_context_registered(self) -> None:
         """_mentioned_context is registered as a dynamic instruction."""
-        callables = [
-            fn for fn in verification_agent._instructions if callable(fn)
-        ]
-        names = [fn.__name__ for fn in callables]
+        names = [runner.function.__name__ for runner in verification_agent._instructions_functions]
         assert "_mentioned_context" in names
 
     def test_all_four_dynamic_functions_present(self) -> None:
-        """All 3 dynamic instruction functions are registered (no more, no fewer)."""
-        callables = [
-            fn for fn in verification_agent._instructions if callable(fn)
-        ]
-        assert len(callables) == 4
-        names = frozenset(fn.__name__ for fn in callables)
+        """All 4 dynamic instruction functions are registered (no more, no fewer)."""
+        runners = verification_agent._instructions_functions
+        assert len(runners) == 4
+        names = frozenset(runner.function.__name__ for runner in runners)
         assert names == frozenset(
             {"_base_system_prompt", "_pinned_context_summary", "_pinned_graph_state", "_mentioned_context"}
         )

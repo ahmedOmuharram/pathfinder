@@ -1,7 +1,6 @@
 """Discovery-phase toolset — 14 tools for exploring searches, literature, and catalogs."""
 
-from pydantic_ai.toolsets.function import FunctionToolset
-
+from veupath_chatbot.ai.agents._hooks import apply_discovery_hook
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.ai.tools.standalone.catalog import (
     browse_search_categories,
@@ -20,11 +19,12 @@ from veupath_chatbot.ai.tools.standalone.catalog_discovery import (
 from veupath_chatbot.ai.tools.standalone.gene import lookup_gene_records
 from veupath_chatbot.ai.tools.standalone.research import literature_search, web_search
 from veupath_chatbot.ai.tools.standalone.strategy_graph import get_strategy
+from veupath_chatbot.ai.tools.toolsets.hooked import HookedFunctionToolset
 
 
-def build_toolset() -> FunctionToolset[AgentDeps]:
+def build_toolset() -> HookedFunctionToolset[AgentDeps]:
     """Build the discovery-phase toolset."""
-    return FunctionToolset(
+    return HookedFunctionToolset(
         tools=[
             get_record_types,
             search_for_searches,
@@ -41,4 +41,5 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             lookup_gene_records,
             get_strategy,
         ],
+        post_hooks=[apply_discovery_hook],
     )

@@ -22,3 +22,9 @@ veupathdb_auth_token_ctx: ContextVar[str | None] = ContextVar(
 request_base_url_ctx: ContextVar[str | None] = ContextVar(
     "request_base_url", default=None
 )
+
+# Conversation stream identity (set by the chat orchestrator).
+stream_id_ctx: ContextVar[str | None] = ContextVar("stream_id", default=None)
+
+# Active operation identity (set by the chat orchestrator).
+operation_id_ctx: ContextVar[str | None] = ContextVar("operation_id", default=None)

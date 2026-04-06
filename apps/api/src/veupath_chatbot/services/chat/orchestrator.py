@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 
 from veupath_chatbot.persistence.models import Stream
 from veupath_chatbot.persistence.repositories import StreamRepository
+from veupath_chatbot.platform.context import operation_id_ctx, stream_id_ctx
 from veupath_chatbot.platform.errors import InternalError
 from veupath_chatbot.platform.event_schemas import UserMessageEventData
 from veupath_chatbot.platform.events import emit
@@ -137,6 +138,9 @@ async def start_chat_stream(
         user_id=context.user_id,
         model_message=model_message,
     )
+
+    stream_id_ctx.set(stream_id_str)
+    operation_id_ctx.set(operation_id)
 
     # Launch the background producer as an asyncio task.
     task = asyncio.create_task(

@@ -134,7 +134,7 @@ async def run_step_with_agent(
                             node, run, config.queue, config.message_id, config.counters
                         )
                     elif Agent.is_call_tools_node(node):
-                        await stream_call_tools(node, run, config.queue, config.deps)
+                        await stream_call_tools(node, run, config.queue, config.deps, config.counters)
 
                 merge_usage(config.counters, run.usage())
                 return True

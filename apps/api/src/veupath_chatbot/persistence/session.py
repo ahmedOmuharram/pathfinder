@@ -1,7 +1,6 @@
 """SQLAlchemy async engine and session management."""
 
 from collections.abc import AsyncGenerator
-from typing import Any
 
 from alembic import command
 from alembic.config import Config
@@ -16,13 +15,15 @@ from sqlalchemy.ext.asyncio import (
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.errors import InternalError
 
-_state: dict[str, Any] = {"engine": None, "session_factory": None}
+_engine: AsyncEngine | None = None
+_session_factory_instance: async_sessionmaker[AsyncSession] | None = None
 
 
 def _get_engine() -> AsyncEngine:
     """Lazily create the async engine on first access."""
-    if _state["engine"] is not None:
-        return _state["engine"]
+    global _engine  # noqa: PLW0603
+    if _engine is not None:
+        return _engine
 
     settings = get_settings()
     db_url = make_url(settings.database_url)
@@ -43,14 +44,20 @@ def _get_engine() -> AsyncEngine:
         pool_size=5,
         max_overflow=10,
     )
-    _state["engine"] = engine
+    _engine = engine
     return engine
+
+
+def get_engine() -> AsyncEngine:
+    """Return the async engine (creates it lazily if needed)."""
+    return _get_engine()
 
 
 def _get_session_factory() -> async_sessionmaker[AsyncSession]:
     """Lazily create the session factory on first access."""
-    if _state["session_factory"] is not None:
-        return _state["session_factory"]
+    global _session_factory_instance  # noqa: PLW0603
+    if _session_factory_instance is not None:
+        return _session_factory_instance
 
     factory = async_sessionmaker(
         _get_engine(),
@@ -58,7 +65,7 @@ def _get_session_factory() -> async_sessionmaker[AsyncSession]:
         expire_on_commit=False,
         autoflush=False,
     )
-    _state["session_factory"] = factory
+    _session_factory_instance = factory
     return factory
 
 
@@ -94,8 +101,8 @@ async def init_db() -> None:
 
 async def close_db() -> None:
     """Close database connections."""
-    engine = _state["engine"]
-    if engine is not None:
-        await engine.dispose()
-        _state["engine"] = None
-        _state["session_factory"] = None
+    global _engine, _session_factory_instance  # noqa: PLW0603
+    if _engine is not None:
+        await _engine.dispose()
+        _engine = None
+        _session_factory_instance = None

@@ -1,6 +1,6 @@
-"""Pydantic-ai lifecycle hooks for the PathFinder agents.
+"""Post-tool-execution hooks for PathFinder agents.
 
-Three hooks are registered:
+Three hooks are applied after tool execution:
 
 1. **Discovery tracking** — after ``get_search_overview``, parse the result
    and register the search in ``AgentToolState``.
@@ -9,6 +9,8 @@ Three hooks are registered:
 3. **Result slimming** — after graph-mutating tools, replace the verbose
    ``StepOkResponse`` JSON with a compact one-liner (the model sees the
    full graph via the pinned dynamic instruction).
+
+These are plain async functions applied via ``HookedFunctionToolset``.
 """
 
 from __future__ import annotations
@@ -18,9 +20,7 @@ import json
 from typing import Any, cast
 
 from pydantic import ConfigDict, Field, ValidationError
-from pydantic_ai.capabilities.hooks import Hooks
-from pydantic_ai.messages import ToolCallPart
-from pydantic_ai.tools import RunContext, ToolDefinition
+from pydantic_ai.tools import RunContext
 
 from veupath_chatbot.ai.agents.state import SearchOverview
 from veupath_chatbot.ai.context.rendering import render_slim_step_result
@@ -286,39 +286,75 @@ def _slim_graph_result(result_text: str, graph: StrategyGraph) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Hook registration
+# Public hook entry points (called by HookedFunctionToolset)
 # ---------------------------------------------------------------------------
 
-executor_hooks: Hooks[AgentDeps] = Hooks()
 
-
-@executor_hooks.on.after_tool_execute(tools=["get_search_overview"])
-async def discovery_tracking_hook(
-    ctx: RunContext[AgentDeps],
-    /,
-    *,
-    call: ToolCallPart,
-    tool_def: ToolDefinition,
-    args: Any,
+async def apply_discovery_hook(
+    tool_name: str,
     result: Any,
+    ctx: RunContext[AgentDeps],
 ) -> Any:
-    """Track discovered searches in agent state after get_search_overview."""
+    """Apply discovery-tracking post-tool logic for get_search_overview."""
+    if tool_name != "get_search_overview":
+        return result
     if isinstance(result, str):
         _track_search_discovery(ctx.deps, result)
     return result
 
 
-@executor_hooks.on.after_tool_execute(tools=list(_GRAPH_MUTATING_TOOLS))
-async def auto_build_and_slim_hook(
-    ctx: RunContext[AgentDeps],
-    /,
-    *,
-    call: ToolCallPart,
-    tool_def: ToolDefinition,
-    args: Any,
+def _build_auto_build_error_payload(
+    exc: AppError | OSError | RootResolutionError,
+    graph: StrategyGraph,
+) -> JSONObject:
+    """Build the autoBuild error payload for a failed auto-build."""
+    error_payload: JSONObject = {
+        "ok": False,
+        "error": sanitize_error_for_client(exc),
+    }
+    unpushed: list[JSONObject] = []
+    for sid, step in graph.steps.items():
+        if sid not in graph.wdk_step_ids:
+            entry: JSONObject = {
+                "stepId": sid,
+                "searchName": step.search_name,
+            }
+            push_error = graph.wdk_push_errors.get(sid)
+            if push_error:
+                entry["pushError"] = push_error
+            unpushed.append(entry)
+    if unpushed:
+        error_payload["unpushedSteps"] = cast("JSONArray", unpushed)
+        error_payload["hint"] = (
+            "These steps were created locally but WDK rejected them. "
+            "Fix their parameters with update_step, or delete them "
+            "with delete_step."
+        )
+    return error_payload
+
+
+async def _apply_single_root_build(
+    deps: AgentDeps, graph: StrategyGraph, result_text: str
+) -> str:
+    """Run auto-build for a single-root graph and merge the result."""
+    try:
+        build_data = await _auto_build(deps, graph)
+        return _merge_auto_build(result_text, {"autoBuild": build_data})
+    except (AppError, OSError, RootResolutionError) as exc:
+        error_payload = _build_auto_build_error_payload(exc, graph)
+        logger.warning("Auto-build failed", error=str(exc))
+        return _merge_auto_build(result_text, {"autoBuild": error_payload})
+
+
+async def apply_auto_build_hook(
+    tool_name: str,
     result: Any,
+    ctx: RunContext[AgentDeps],
 ) -> Any:
-    """After graph-mutating tools: auto-build if single root, slim the result."""
+    """Apply auto-build and result-slimming for graph-mutating tools."""
+    if tool_name not in _GRAPH_MUTATING_TOOLS:
+        return result
+
     deps = ctx.deps
     graph = deps.strategy_session.get_graph(None)
     if not graph:
@@ -327,39 +363,7 @@ async def auto_build_and_slim_hook(
     result_text = result if isinstance(result, str) else str(result)
 
     if len(graph.roots) == 1:
-        try:
-            build_data = await _auto_build(deps, graph)
-            result_text = _merge_auto_build(
-                result_text, {"autoBuild": build_data}
-            )
-        except (AppError, OSError, RootResolutionError) as exc:
-            error_payload: JSONObject = {
-                "ok": False,
-                "error": sanitize_error_for_client(exc),
-            }
-            unpushed: list[JSONObject] = []
-            for sid, step in graph.steps.items():
-                if sid not in graph.wdk_step_ids:
-                    entry: JSONObject = {
-                        "stepId": sid,
-                        "searchName": step.search_name,
-                    }
-                    push_error = graph.wdk_push_errors.get(sid)
-                    if push_error:
-                        entry["pushError"] = push_error
-                    unpushed.append(entry)
-            if unpushed:
-                error_payload["unpushedSteps"] = cast("JSONArray", unpushed)
-                error_payload["hint"] = (
-                    "These steps were created locally but WDK rejected them. "
-                    "Fix their parameters with update_step, or delete them "
-                    "with delete_step."
-                )
-            result_text = _merge_auto_build(
-                result_text, {"autoBuild": error_payload}
-            )
-            logger.warning("Auto-build failed", error=str(exc))
-
+        result_text = await _apply_single_root_build(deps, graph, result_text)
     elif len(graph.roots) > 1:
         root_names = [
             graph.steps[r].display_name or graph.steps[r].search_name
@@ -379,3 +383,9 @@ async def auto_build_and_slim_hook(
         return slim
 
     return result_text
+
+
+__all__ = [
+    "apply_auto_build_hook",
+    "apply_discovery_hook",
+]

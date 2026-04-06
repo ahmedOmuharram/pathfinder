@@ -406,6 +406,8 @@ export interface AssistantMessage extends BaseMessage {
   planningArtifacts?: components["schemas"]["PlanningArtifactResponse"][] | null;
   reasoning?: string | null;
   optimizationProgress?: components["schemas"]["OptimizationProgressEventData"] | null;
+  /** Langfuse trace ID for feedback scoring. Populated from message_end event. */
+  traceId?: string | null;
 }
 
 export type Message = UserMessage | AssistantMessage;

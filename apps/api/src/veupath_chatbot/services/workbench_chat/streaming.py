@@ -9,18 +9,16 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from uuid import uuid4
 
-from pydantic_ai import (
-    Agent,
-    FunctionToolCallEvent,
-    FunctionToolResultEvent,
-    PartDeltaEvent,
-    PartStartEvent,
-    TextPartDelta,
-)
+from pydantic_ai import Agent
 from pydantic_ai.agent import AgentRun, CallToolsNode, ModelRequestNode
 from pydantic_ai.messages import (
+    FunctionToolCallEvent,
+    FunctionToolResultEvent,
     ModelMessage,
+    PartDeltaEvent,
+    PartStartEvent,
     TextPart,
+    TextPartDelta,
     ToolCallPart,
     ToolReturnPart,
 )
@@ -60,7 +58,6 @@ def merge_usage(counters: TurnCounters, usage: RunUsage) -> None:
     counters.output_tokens += usage.output_tokens or 0
     counters.cache_read_tokens += usage.cache_read_tokens or 0
     counters.llm_call_count += usage.requests or 0
-    counters.tool_call_count += usage.tool_calls or 0
 
 
 async def stream_workbench_agent(
@@ -87,7 +84,7 @@ async def stream_workbench_agent(
                 ):
                     yield event
             elif Agent.is_call_tools_node(node):
-                async for event in _stream_call_tools(node, run):
+                async for event in _stream_call_tools(node, run, counters):
                     yield event
 
         merge_usage(counters, run.usage())
@@ -166,12 +163,15 @@ async def _stream_model_request(
 async def _stream_call_tools(
     node: CallToolsNode[WorkbenchDeps, str],
     run: AgentRun[WorkbenchDeps, str],
+    counters: TurnCounters | None = None,
 ) -> AsyncIterator[JSONObject]:
     """Stream a CallToolsNode, emitting tool_call_start and tool_call_end events."""
     async with node.stream(run.ctx) as handle_stream:
         async for event in handle_stream:
             if isinstance(event, FunctionToolCallEvent):
                 yield tool_call_start_event(event.part)
+                if counters is not None:
+                    counters.tool_call_count += 1
             elif isinstance(event, FunctionToolResultEvent):
                 result_part = event.result
                 tool_call_id = result_part.tool_call_id

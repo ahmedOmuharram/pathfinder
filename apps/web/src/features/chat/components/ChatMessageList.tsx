@@ -20,8 +20,10 @@ import { ThinkingPanel } from "@/features/chat/components/thinking/ThinkingPanel
 import { OptimizationProgressPanel } from "@/features/chat/components/optimization/OptimizationProgressPanel";
 import { PlanPinnedBar } from "@/features/chat/components/plan/PlanPinnedBar";
 import { AssistantMessageParts } from "@/features/chat/components/message/AssistantMessageParts";
+import { MessageFeedback } from "@/features/chat/components/message/MessageFeedback";
 import { TokenUsageDisplay } from "@/features/chat/components/message/TokenUsageDisplay";
 import { useSettingsStore } from "@/state/useSettingsStore";
+import { useSessionStore } from "@/state/useSessionStore";
 import { usePlanStore } from "@/state/usePlanStore";
 
 interface ChatMessageListProps {
@@ -81,6 +83,7 @@ export function ChatMessageList({
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const [showCitationTags, setShowCitationTags] = useState(false);
   const catalog = useSettingsStore((s) => s.modelCatalog);
+  const strategyId = useSessionStore((s) => s.strategyId);
   const activePlan = usePlanStore((s) => s.activePlan);
   const isPlanPinned = usePlanStore((s) => s.isPlanPinned);
 
@@ -195,7 +198,7 @@ export function ChatMessageList({
               <div
                 key={messageKey}
                 data-testid="assistant-message"
-                className="animate-fade-in"
+                className="group animate-fade-in"
               >
                 <div className="flex gap-3">
                   <AssistantAvatar
@@ -229,11 +232,15 @@ export function ChatMessageList({
                       {...(undoSnapshot != null ? { undoSnapshot } : {})}
                     />
                     {!isLive && (
-                      <div className="mt-1.5">
+                      <div className="mt-1.5 flex items-center gap-2">
                         {message.tokenUsage && (
                           <TokenUsageDisplay usage={message.tokenUsage} />
                         )}
                         <MessageTimestamp iso={message.timestamp} />
+                        <MessageFeedback
+                          traceId={message.traceId ?? null}
+                          streamId={strategyId ?? ""}
+                        />
                       </div>
                     )}
                   </div>

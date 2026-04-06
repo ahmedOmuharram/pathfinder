@@ -16,6 +16,12 @@ dependencies = [
     "python-statemachine>=3.0",
     "langfuse>=3.0.0",
     "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "opentelemetry-sdk>=1.40.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.40.0",
+    "opentelemetry-instrumentation-fastapi>=0.61b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.61b0",
+    "opentelemetry-instrumentation-httpx>=0.61b0",
+    "opentelemetry-instrumentation-redis>=0.61b0",
     "python-multipart>=0.0.16",
     "structlog>=24.4.0",
     "pyyaml>=6.0.2",
@@ -183,6 +189,13 @@ max-branches = 10
 "src/veupath_chatbot/ai/orchestration/classifier.py" = [
     "C901",     # request classification is inherently branchy
     "PLR0911",  # many return paths for many intent categories
+]
+"src/veupath_chatbot/devtools/**" = [
+    "T20",      # devtools scripts use print() for CLI output
+    "C901",     # stream analysis inspects many event types
+    "PLR0912",  # branching inherent to multi-event-type parsing
+    "PLR0915",  # statement count naturally high for CLI tools
+    "PLR2004",  # magic values in CLI thresholds are fine
 ]
 
 [tool.ruff.lint.isort]
