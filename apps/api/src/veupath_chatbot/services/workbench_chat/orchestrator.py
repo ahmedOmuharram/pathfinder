@@ -4,85 +4,25 @@ Mirrors services/chat/orchestrator.py but scoped to experiment-bound
 workbench conversations. Streams are keyed by (user_id, experiment_id)
 instead of an explicit strategy UUID.
 
-AI-layer dependencies (workbench agent factory, model resolver) are
-injected at startup via :func:`configure` — the transport layer calls
-this once to wire the concrete implementations so that the services
-layer never imports from ``veupath_chatbot.ai``.
+Uses a pydantic-ai Agent with WorkbenchDeps for tool injection.
+The agent is built inline each turn (no pipeline/state machine needed).
 """
 
 import asyncio
-from collections.abc import Callable
-from dataclasses import dataclass
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from kani import ChatMessage, ChatRole, Kani
-
-from veupath_chatbot.ai.agents.factory import EngineConfig
-from veupath_chatbot.ai.prompts.workbench_chat import (
-    build_workbench_system_prompt,
-)
-from veupath_chatbot.persistence.repositories.stream import StreamRepository
-from veupath_chatbot.persistence.session import async_session_factory
-from veupath_chatbot.platform.errors import InternalError, sanitize_error_for_client
-from veupath_chatbot.platform.events import emit, read_stream_messages
-from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.events import emit
 from veupath_chatbot.platform.redis import get_redis
-from veupath_chatbot.platform.types import JSONObject, ModelProvider, ReasoningEffort
-from veupath_chatbot.services.chat.streaming import stream_chat
 from veupath_chatbot.services.chat.types import ChatContext
-from veupath_chatbot.services.experiment.store import get_experiment_store
-
-logger = get_logger(__name__)
+from veupath_chatbot.services.workbench_chat.producer import (
+    WorkbenchProducerIds,
+    WorkbenchTurnConfig,
+    workbench_chat_producer,
+)
 
 # Registry of running workbench chat tasks keyed by operation_id.
 # Used to cancel operations from the HTTP layer.
 _active_tasks: dict[str, asyncio.Task[None]] = {}
-
-# ── Injected AI-layer dependencies ──────────────────────────────────
-# Set once at startup via configure(). Avoids services importing from ai.
-
-_create_workbench_agent_holder: dict[str, Callable[..., Kani]] = {}
-_resolve_model_id_holder: dict[str, Callable[..., str]] = {}
-
-
-@dataclass
-class WorkbenchTurnConfig:
-    """Per-turn model configuration for a workbench chat operation."""
-
-    provider_override: ModelProvider | None = None
-    model_override: str | None = None
-    reasoning_effort: ReasoningEffort | None = None
-
-
-@dataclass
-class _WorkbenchProducerIds:
-    """Immutable stream/operation/site identifiers for the background producer."""
-
-    stream_id_str: str
-    operation_id: str
-    site_id: str
-    experiment_id: str
-    user_id: UUID
-
-
-def configure(
-    *,
-    create_workbench_agent_fn: Callable[..., Kani],
-    resolve_model_id_fn: Callable[..., str],
-) -> None:
-    """Wire AI-layer implementations into the workbench chat orchestrator.
-
-    Called once at application startup from the composition root.
-
-    Parameters
-    ----------
-    create_workbench_agent_fn:
-        Factory that builds a Kani workbench agent for a chat turn.
-    resolve_model_id_fn:
-        Resolves the effective model ID from overrides and persisted state.
-    """
-    _create_workbench_agent_holder["v"] = create_workbench_agent_fn
-    _resolve_model_id_holder["v"] = resolve_model_id_fn
 
 
 async def start_workbench_chat_stream(
@@ -141,7 +81,7 @@ async def start_workbench_chat_stream(
     # session and must be able to read the Stream/StreamProjection/Operation.
     await context.stream_repo.session.commit()
 
-    ids = _WorkbenchProducerIds(
+    ids = WorkbenchProducerIds(
         stream_id_str=stream_id_str,
         operation_id=operation_id,
         site_id=site_id,
@@ -151,166 +91,12 @@ async def start_workbench_chat_stream(
 
     # Launch the background producer as an asyncio task.
     task = asyncio.create_task(
-        _workbench_chat_producer(ids=ids, message=message, config=cfg)
+        workbench_chat_producer(ids=ids, message=message, config=cfg)
     )
     _active_tasks[operation_id] = task
     task.add_done_callback(lambda _: _active_tasks.pop(operation_id, None))
 
     return operation_id, stream_id_str
-
-
-async def _build_chat_history_from_redis(
-    stream_id_str: str,
-) -> list[ChatMessage]:
-    """Build kani-compatible chat history from Redis stream events.
-
-    Excludes the last message (the one just emitted for the current turn).
-    """
-    redis = get_redis()
-    messages = await read_stream_messages(redis, stream_id_str)
-    history: list[ChatMessage] = []
-    for msg in messages[:-1]:  # exclude the message we just emitted
-        role = msg.get("role")
-        content = str(msg.get("content", ""))
-        if not content:
-            continue
-        if role == "user":
-            history.append(ChatMessage(role=ChatRole.USER, content=content))
-        elif role == "assistant":
-            history.append(ChatMessage(role=ChatRole.ASSISTANT, content=content))
-    return history
-
-
-async def _workbench_chat_producer(
-    *,
-    ids: _WorkbenchProducerIds,
-    message: str,
-    config: WorkbenchTurnConfig,
-) -> None:
-    """Background task: run the workbench LLM agent and emit every event to Redis."""
-    if "v" not in _create_workbench_agent_holder or "v" not in _resolve_model_id_holder:
-        msg = (
-            "Workbench chat orchestrator not configured. "
-            "Call services.workbench_chat.orchestrator.configure() at startup."
-        )
-        raise InternalError(detail=msg)
-
-    redis = get_redis()
-
-    async with async_session_factory() as session:
-        bg_stream_repo = StreamRepository(session)
-
-        # Build chat history from Redis (not from DB).
-        chat_history = await _build_chat_history_from_redis(ids.stream_id_str)
-
-        # Build experiment context for prompt.
-        store = get_experiment_store()
-        exp = await store.aget(ids.experiment_id)
-        experiment_context: JSONObject = {}
-        if exp:
-            experiment_context["experimentId"] = exp.id
-            experiment_context["status"] = exp.status
-            if exp.metrics:
-                experiment_context["metrics"] = exp.metrics.model_dump(by_alias=True)
-            if exp.config:
-                experiment_context["config"] = exp.config.model_dump(by_alias=True)
-
-        system_prompt = build_workbench_system_prompt(
-            site_id=ids.site_id,
-            experiment_context=experiment_context,
-        )
-
-        effective_model: str = _resolve_model_id_holder["v"](
-            model_override=config.model_override,
-            persisted_model_id=None,
-        )
-
-        engine_cfg = EngineConfig(
-            provider_override=config.provider_override,
-            model_override=effective_model,
-            reasoning_effort=config.reasoning_effort,
-        )
-        agent = _create_workbench_agent_holder["v"](
-            site_id=ids.site_id,
-            user_id=ids.user_id,
-            experiment_id=ids.experiment_id,
-            chat_history=chat_history,
-            system_prompt=system_prompt,
-            engine_config=engine_cfg,
-        )
-
-        stream_iter = stream_chat(agent, message, model_id=effective_model)
-
-        try:
-            await emit(
-                redis,
-                ids.stream_id_str,
-                ids.operation_id,
-                "message_start",
-                {"experimentId": ids.experiment_id},
-                session=session,
-            )
-
-            async for event_value in stream_iter:
-                if not isinstance(event_value, dict):
-                    continue
-                event_type_raw = event_value.get("type", "")
-                event_type = event_type_raw if isinstance(event_type_raw, str) else ""
-                event_data_raw = event_value.get("data")
-                event_data = event_data_raw if isinstance(event_data_raw, dict) else {}
-
-                await emit(
-                    redis,
-                    ids.stream_id_str,
-                    ids.operation_id,
-                    event_type,
-                    event_data,
-                    session=session,
-                )
-
-            await bg_stream_repo.complete_operation(ids.operation_id)
-
-        except asyncio.CancelledError:
-            logger.info(
-                "Workbench chat producer cancelled", operation_id=ids.operation_id
-            )
-            await emit(
-                redis,
-                ids.stream_id_str,
-                ids.operation_id,
-                "message_end",
-                {},
-                session=session,
-            )
-            await bg_stream_repo.cancel_operation(ids.operation_id)
-            await session.commit()
-            return
-
-        except Exception as e:
-            logger.error(
-                "Workbench chat producer error",
-                error=str(e),
-                exc_info=True,
-            )
-            await emit(
-                redis,
-                ids.stream_id_str,
-                ids.operation_id,
-                "error",
-                {"error": sanitize_error_for_client(e)},
-                session=session,
-            )
-            await emit(
-                redis,
-                ids.stream_id_str,
-                ids.operation_id,
-                "message_end",
-                {},
-                session=session,
-            )
-            await bg_stream_repo.fail_operation(ids.operation_id)
-
-        await session.commit()
 
 
 async def cancel_workbench_chat_operation(operation_id: str) -> bool:

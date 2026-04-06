@@ -16,6 +16,54 @@ _HEADER_RE = re.compile(
 )
 
 
+def _parse_meta(meta_str: str) -> dict[str, str]:
+    """Parse ``key=value, key=value`` metadata from a Pydantic error line."""
+    meta: dict[str, str] = {}
+    for part in [p.strip() for p in meta_str.split(",")]:
+        if not part or "=" not in part:
+            continue
+        key, value = part.split("=", 1)
+        meta[key.strip()] = value.strip()
+    return meta
+
+
+def _parse_error_line(ln: str, current_loc: str) -> JSONObject:
+    """Parse a single indented Pydantic error detail line into a structured dict."""
+    detail = ln.strip()
+    msg = detail
+    meta: dict[str, str] = {}
+    if "[" in detail and detail.endswith("]"):
+        msg_part, meta_part = detail.split("[", 1)
+        msg = msg_part.strip() or detail
+        meta = _parse_meta(meta_part[:-1])
+
+    err: JSONObject = {
+        "loc": [current_loc],
+        "msg": msg,
+    }
+    if meta.get("type"):
+        err["type"] = meta["type"]
+    if meta:
+        err["meta"] = cast("JSONValue", meta)
+    return err
+
+
+def _collect_errors(lines: list[str]) -> JSONArray:
+    """Walk body lines and collect structured error objects."""
+    errors: JSONArray = []
+    current_loc: str | None = None
+
+    for ln in lines:
+        if not ln.strip():
+            continue
+        if ln.startswith(" "):
+            if current_loc is not None:
+                errors.append(_parse_error_line(ln, current_loc))
+        else:
+            current_loc = ln.strip()
+    return errors
+
+
 def parse_pydantic_validation_error_text(text: str | None) -> JSONObject | None:
     """Parse Pydantic v2 ValidationError string into a structured payload.
 
@@ -45,51 +93,9 @@ def parse_pydantic_validation_error_text(text: str | None) -> JSONObject | None:
     except ValueError, TypeError:
         error_count = None
 
-    errors: JSONArray = []
-    current_loc: str | None = None
-
-    def _parse_meta(meta_str: str) -> dict[str, str]:
-        meta: dict[str, str] = {}
-        for part in [p.strip() for p in meta_str.split(",")]:
-            if not part or "=" not in part:
-                continue
-            key, value = part.split("=", 1)
-            meta[key.strip()] = value.strip()
-        return meta
-
-    for ln in lines[1:]:
-        if not ln.strip():
-            continue
-        # "loc" lines are unindented; details are indented.
-        if ln.startswith(" "):
-            if current_loc is None:
-                continue
-            detail = ln.strip()
-            msg = detail
-            meta: dict[str, str] = {}
-            if "[" in detail and detail.endswith("]"):
-                msg_part, meta_part = detail.split("[", 1)
-                msg = msg_part.strip() or detail
-                meta = _parse_meta(meta_part[:-1])
-
-            err: JSONObject = {
-                "loc": [current_loc],
-                "msg": msg,
-            }
-            if meta.get("type"):
-                type_val = meta.get("type")
-                if isinstance(type_val, str):
-                    err["type"] = type_val
-            if meta:
-                # dict[str, str] is a valid JSONValue (it's a dict[str, JSONValue])
-                err["meta"] = cast("JSONValue", meta)
-            errors.append(err)
-        else:
-            current_loc = ln.strip()
-
     return {
         "model": model,
         "errorCount": error_count,
-        "errors": errors,
+        "errors": _collect_errors(lines[1:]),
         "raw": text,
     }

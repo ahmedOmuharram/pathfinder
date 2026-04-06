@@ -20,50 +20,18 @@ const fakeStrategy: Strategy = {
   isSaved: false,
 };
 
-let mockSyncWdkStrategies: ReturnType<typeof vi.fn>;
-let mockOpenStrategy: ReturnType<typeof vi.fn>;
-let mockListDismissedStrategies: ReturnType<typeof vi.fn>;
-let mockListStrategies: ReturnType<typeof vi.fn>;
+// Track the latest state returned by the fetching mock so tests can
+// dynamically update it (e.g. simulate a fetch completing).
+let fetchingState: Record<string, unknown> = {};
+let fetchingSetters: Record<string, (...args: unknown[]) => void> = {};
 
-vi.mock("@/lib/api/strategies", () => ({
-  get syncWdkStrategies() {
-    return mockSyncWdkStrategies;
-  },
-  get openStrategy() {
-    return mockOpenStrategy;
-  },
-  get listDismissedStrategies() {
-    return mockListDismissedStrategies;
-  },
-  get listStrategies() {
-    return mockListStrategies;
-  },
+vi.mock("@/features/sidebar/hooks/useStrategyFetching", () => ({
+  useStrategyFetching: () => fetchingState,
 }));
 
-// Minimal session store mock
-let mockSessionState: Record<string, unknown> = {};
-vi.mock("@/state/useSessionStore", () => ({
-  useSessionStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector(mockSessionState),
+vi.mock("@/features/sidebar/hooks/useAutoConversation", () => ({
+  useAutoConversation: () => ({ setNewConversationInFlight: vi.fn() }),
 }));
-
-// Minimal strategy store mock
-let mockStrategyStoreState: Record<string, unknown> = {};
-vi.mock("@/state/strategy/store", () => {
-  const store = {
-    getState: () => ({
-      setStrategies: vi.fn(),
-      ...mockStrategyStoreState,
-    }),
-  };
-  return {
-    useStrategyStore: Object.assign(
-      (selector: (s: Record<string, unknown>) => unknown) =>
-        selector(mockStrategyStoreState),
-      store,
-    ),
-  };
-});
 
 function makeArgs() {
   return {
@@ -72,71 +40,105 @@ function makeArgs() {
   };
 }
 
+function initFetchingState(overrides: Partial<typeof fetchingState> = {}) {
+  const setStrategyItems = vi.fn();
+  const setDismissedItems = vi.fn();
+  fetchingSetters = { setStrategyItems, setDismissedItems };
+  fetchingState = {
+    strategyItems: [],
+    setStrategyItems,
+    dismissedItems: [],
+    setDismissedItems,
+    hasInitiallyLoaded: false,
+    isSyncing: false,
+    refreshStrategies: vi.fn().mockResolvedValue(undefined),
+    refetchStrategies: vi.fn().mockResolvedValue(undefined),
+    handleManualRefresh: vi.fn().mockResolvedValue(undefined),
+    markAsDeleted: vi.fn(),
+    hasFetched: { current: false },
+    ...overrides,
+  };
+}
+
 describe("useConversationSidebarData", () => {
   beforeEach(() => {
-    mockSyncWdkStrategies = vi.fn();
-    mockOpenStrategy = vi.fn();
-    mockListDismissedStrategies = vi.fn().mockResolvedValue([]);
-    mockListStrategies = vi.fn().mockResolvedValue([]);
-    mockSessionState = {
-      strategyId: null,
-      setStrategyId: vi.fn(),
-      authVersion: 0,
-      veupathdbSignedIn: true,
-    };
-    mockStrategyStoreState = {
-      strategy: null,
-      setStrategies: vi.fn(),
-    };
+    initFetchingState();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("shows hasInitiallyLoaded=false until the first fetch completes", async () => {
-    let resolveFetch!: (strategies: Strategy[]) => void;
-    mockSyncWdkStrategies.mockReturnValueOnce(
-      new Promise<Strategy[]>((r) => {
-        resolveFetch = r;
-      }),
-    );
+  it("shows hasInitiallyLoaded=false until the first fetch completes", () => {
+    initFetchingState({ hasInitiallyLoaded: false });
 
     const { result } = renderHook(() => useConversationSidebarData(makeArgs()));
 
-    // Before fetch completes: not loaded yet
     expect(result.current.hasInitiallyLoaded).toBe(false);
-
-    // Resolve
-    await act(async () => {
-      resolveFetch([fakeStrategy]);
-    });
-
-    await waitFor(() => {
-      expect(result.current.hasInitiallyLoaded).toBe(true);
-    });
   });
 
-  it("populates filtered list after fetch", async () => {
-    mockSyncWdkStrategies.mockResolvedValueOnce([fakeStrategy]);
+  it("populates filtered list after fetch", () => {
+    initFetchingState({
+      strategyItems: [fakeStrategy],
+      hasInitiallyLoaded: true,
+    });
 
     const { result } = renderHook(() => useConversationSidebarData(makeArgs()));
 
-    await waitFor(() => {
-      expect(result.current.filtered).toHaveLength(1);
-      expect(result.current.filtered[0]!.id).toBe("s1");
-    });
+    expect(result.current.filtered).toHaveLength(1);
+    expect(result.current.filtered[0]!.id).toBe("s1");
   });
 
-  it("shows empty list when fetch returns no strategies", async () => {
-    mockSyncWdkStrategies.mockResolvedValueOnce([]);
-    // Auto-create would fire, mock it too
-    mockOpenStrategy.mockResolvedValueOnce({ strategyId: "new-1" });
+  it("shows empty list when fetch returns no strategies", () => {
+    initFetchingState({
+      strategyItems: [],
+      hasInitiallyLoaded: true,
+    });
 
     const { result } = renderHook(() => useConversationSidebarData(makeArgs()));
 
-    await waitFor(() => {
-      expect(result.current.hasInitiallyLoaded).toBe(true);
+    expect(result.current.hasInitiallyLoaded).toBe(true);
+    expect(result.current.filtered).toHaveLength(0);
+  });
+
+  it("filters conversations by search query", () => {
+    initFetchingState({
+      strategyItems: [
+        fakeStrategy,
+        { ...fakeStrategy, id: "s2", name: "Gene Analysis" },
+      ],
+      hasInitiallyLoaded: true,
     });
+
+    const { result } = renderHook(() => useConversationSidebarData(makeArgs()));
+
+    // All items visible before search
+    expect(result.current.filtered).toHaveLength(2);
+
+    // Apply search filter
+    act(() => {
+      result.current.setQuery("gene");
+    });
+
+    expect(result.current.filtered).toHaveLength(1);
+    expect(result.current.filtered[0]!.id).toBe("s2");
+  });
+
+  it("maps dismissed items to ConversationItem[]", () => {
+    const dismissedStrategy: Strategy = {
+      ...fakeStrategy,
+      id: "dismissed-1",
+      name: "Old Strategy",
+    };
+    initFetchingState({
+      dismissedItems: [dismissedStrategy],
+      hasInitiallyLoaded: true,
+    });
+
+    const { result } = renderHook(() => useConversationSidebarData(makeArgs()));
+
+    expect(result.current.dismissedConversations).toHaveLength(1);
+    expect(result.current.dismissedConversations[0]!.id).toBe("dismissed-1");
+    expect(result.current.dismissedConversations[0]!.kind).toBe("strategy");
   });
 });

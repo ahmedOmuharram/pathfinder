@@ -60,7 +60,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
 
       const resp = await page
         .context()
-        .request.post(`${BASE_URL}/api/v1/dev/login?user_id=worker-${id}`);
+        .request.post(`${BASE_URL}/api/v1/dev/login?user_id=worker-${id}`, {
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        });
       if (!resp.ok()) {
         throw new Error(`dev-login failed for worker-${id}: ${resp.status()}`);
       }

@@ -25,7 +25,6 @@ export function mergeMessages(current: Message[], incoming: Message[]) {
     // overwrite richer locally-attached data.  ?? only skips undefined, but
     // JSON null deserializes as null which ?? preserves.
     const toolCalls = msg.toolCalls ?? cur.toolCalls;
-    const subKaniActivity = msg.subKaniActivity ?? cur.subKaniActivity;
     const citations = msg.citations ?? cur.citations;
     const planningArtifacts = msg.planningArtifacts ?? cur.planningArtifacts;
     const reasoning = msg.reasoning ?? cur.reasoning;
@@ -33,7 +32,6 @@ export function mergeMessages(current: Message[], incoming: Message[]) {
     const merged: AssistantMessage = {
       ...msg,
       ...(toolCalls != null ? { toolCalls } : {}),
-      ...(subKaniActivity != null ? { subKaniActivity } : {}),
       ...(citations != null ? { citations } : {}),
       ...(planningArtifacts != null ? { planningArtifacts } : {}),
       ...(reasoning != null ? { reasoning } : {}),

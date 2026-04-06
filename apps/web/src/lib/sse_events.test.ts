@@ -3,8 +3,6 @@ import {
   parseChatSSEEvent,
   ToolCallStartDataSchema,
   ToolCallEndDataSchema,
-  SubKaniToolCallStartDataSchema,
-  SubKaniToolCallEndDataSchema,
   OptimizationProgressDataSchema,
   ModelSelectedDataSchema,
   ErrorDataSchema,
@@ -208,22 +206,6 @@ describe("parseChatSSEEvent", () => {
     }
   });
 
-  it("returns null for subkani_tool_call_start missing required fields", () => {
-    const evt = parseChatSSEEvent({
-      type: "subkani_tool_call_start",
-      data: JSON.stringify({ task: "research" }),
-    });
-    expect(evt).toBeNull();
-  });
-
-  it("returns null for subkani_tool_call_end missing required fields", () => {
-    const evt = parseChatSSEEvent({
-      type: "subkani_tool_call_end",
-      data: JSON.stringify({ task: "research" }),
-    });
-    expect(evt).toBeNull();
-  });
-
   it("returns null for optimization_progress missing optimizationId", () => {
     const evt = parseChatSSEEvent({
       type: "optimization_progress",
@@ -276,41 +258,6 @@ describe("parseChatSSEEvent", () => {
     });
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("optimization_progress");
-  });
-
-  it("parses subkani_tool_call_start with all required fields", () => {
-    const evt = parseChatSSEEvent({
-      type: "subkani_tool_call_start",
-      data: JSON.stringify({
-        task: "research",
-        id: "stc1",
-        name: "web_search",
-        arguments: "{}",
-      }),
-    });
-    expect(evt).not.toBeNull();
-    expect(evt!.type).toBe("subkani_tool_call_start");
-    if (evt!.type === "subkani_tool_call_start") {
-      expect(evt.data.id).toBe("stc1");
-      expect(evt.data.name).toBe("web_search");
-    }
-  });
-
-  it("parses subkani_tool_call_end with all required fields", () => {
-    const evt = parseChatSSEEvent({
-      type: "subkani_tool_call_end",
-      data: JSON.stringify({
-        task: "research",
-        id: "stc1",
-        result: "found info",
-      }),
-    });
-    expect(evt).not.toBeNull();
-    expect(evt!.type).toBe("subkani_tool_call_end");
-    if (evt!.type === "subkani_tool_call_end") {
-      expect(evt.data.id).toBe("stc1");
-      expect(evt.data.result).toBe("found info");
-    }
   });
 
   it("parses error events with valid error field", () => {
@@ -524,75 +471,6 @@ describe("SSE event data Zod schemas", () => {
     it("accepts data with missing result (result is optional)", () => {
       const result = ToolCallEndDataSchema.safeParse({ id: "tc1" });
       expect(result.success).toBe(true);
-    });
-  });
-
-  describe("SubKaniToolCallStartDataSchema", () => {
-    it("accepts valid data with required fields", () => {
-      const result = SubKaniToolCallStartDataSchema.safeParse({
-        id: "stc1",
-        name: "web_search",
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it("accepts data with optional task and arguments", () => {
-      const result = SubKaniToolCallStartDataSchema.safeParse({
-        task: "research",
-        id: "stc1",
-        name: "web_search",
-        arguments: "{}",
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.task).toBe("research");
-      }
-    });
-
-    it("rejects data missing id", () => {
-      const result = SubKaniToolCallStartDataSchema.safeParse({
-        name: "web_search",
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("rejects data missing name", () => {
-      const result = SubKaniToolCallStartDataSchema.safeParse({ id: "stc1" });
-      expect(result.success).toBe(false);
-    });
-  });
-
-  describe("SubKaniToolCallEndDataSchema", () => {
-    it("accepts valid data with required fields", () => {
-      const result = SubKaniToolCallEndDataSchema.safeParse({
-        id: "stc1",
-        result: "done",
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it("accepts data with optional task", () => {
-      const result = SubKaniToolCallEndDataSchema.safeParse({
-        task: "research",
-        id: "stc1",
-        result: "completed",
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.task).toBe("research");
-      }
-    });
-
-    it("rejects data missing id", () => {
-      const result = SubKaniToolCallEndDataSchema.safeParse({
-        result: "done",
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it("rejects data missing result", () => {
-      const result = SubKaniToolCallEndDataSchema.safeParse({ id: "stc1" });
-      expect(result.success).toBe(false);
     });
   });
 

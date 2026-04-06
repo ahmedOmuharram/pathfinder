@@ -12,6 +12,10 @@ from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 
 from veupath_chatbot import __version__
+from veupath_chatbot.ai.orchestration.observability import setup_observability
+from veupath_chatbot.integrations.veupathdb.discovery_service import (
+    get_discovery_service,
+)
 from veupath_chatbot.integrations.veupathdb.factory import close_all_clients
 from veupath_chatbot.persistence.repositories.stream import StreamRepository
 from veupath_chatbot.persistence.session import async_session_factory, close_db, init_db
@@ -29,6 +33,8 @@ from veupath_chatbot.platform.errors import (
 from veupath_chatbot.platform.logging import get_logger, setup_logging
 from veupath_chatbot.platform.redis import close_redis, init_redis
 from veupath_chatbot.platform.security import csrf_middleware, limiter
+from veupath_chatbot.services.catalog.semantic_index import warm_up_model
+from veupath_chatbot.services.chat import orchestrator
 from veupath_chatbot.transport.http.routers import (
     chat,
     control_sets,
@@ -87,23 +93,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     # Warm up: model + catalogs must be ready before serving requests.
     try:
-        print("[warm-up] Loading embedding model", flush=True)
-        from veupath_chatbot.services.catalog.semantic_index import warm_up_model
+        logger.info("[warm-up] Loading embedding model")
         warm_up_model()
-        print("[warm-up] Embedding model ready", flush=True)
-    except Exception:
-        print("[warm-up] Embedding model failed", flush=True)
+        logger.info("[warm-up] Embedding model ready")
+    except (AppError, OSError, RuntimeError, ValueError):
         logger.warning("Embedding model warm-up failed (non-fatal)", exc_info=True)
 
     try:
-        print("[warm-up] Starting discovery preload", flush=True)
-        from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+        logger.info("[warm-up] Starting discovery preload")
         discovery = get_discovery_service()
-        print("[warm-up] Discovery service created, preloading", flush=True)
+        logger.info("[warm-up] Discovery service created, preloading")
         await discovery.preload_all()
-        print("[warm-up] Discovery catalogs warmed up", flush=True)
-    except Exception:
-        print("[warm-up] Discovery preload failed", flush=True)
+        logger.info("[warm-up] Discovery catalogs warmed up")
+    except (AppError, OSError, RuntimeError):
         logger.warning("Discovery warm-up failed (non-fatal)", exc_info=True)
 
     yield
@@ -123,58 +125,31 @@ def _wire_ai_dependencies() -> None:
     slots.  Keeps services free of direct ``veupath_chatbot.ai`` imports.
 
     Imports are deferred here because the AI layer has deep dependency
-    chains (kani, model engines, orchestrators) that must not execute at
-    module-import time.
+    chains that must not execute at module-import time.
     """
-    from uuid import UUID  # noqa: PLC0415
-
-    from kani import ChatMessage  # noqa: PLC0415
-
-    from veupath_chatbot.ai.agents.factory import (  # noqa: PLC0415
-        EngineConfig,
-        create_agent,
-        create_engine,
-        resolve_effective_model_id,
-    )
-    from veupath_chatbot.ai.agents.workbench import WorkbenchAgent  # noqa: PLC0415
-    from veupath_chatbot.services import workbench_chat  # noqa: PLC0415
-    from veupath_chatbot.services.chat import orchestrator  # noqa: PLC0415
-
-    # When chat_provider is "mock", override the default model to use MockEngine.
-    # This makes the REAL agent use a deterministic engine -- all downstream
-    # systems (WDK, DB, Redis, gene sets, auto-build) still run real.
     settings = get_settings()
+
+    # In mock mode, force the deterministic mock model so the pipeline
+    # uses FunctionModel instead of calling a real LLM provider.
     if settings.chat_provider.strip().lower() == "mock":
         settings.default_model_id = "mock/deterministic"
 
+    def _resolve_model_id(
+        model_override: str | None = None,
+        persisted_model_id: str | None = None,
+    ) -> str:
+        if model_override:
+            return model_override
+        if persisted_model_id:
+            return persisted_model_id
+        return settings.default_model_id
+
     orchestrator.configure(
-        create_agent_fn=create_agent,
-        resolve_model_id_fn=resolve_effective_model_id,
+        resolve_model_id_fn=_resolve_model_id,
     )
 
-    def _create_workbench_agent(
-        site_id: str,
-        experiment_id: str,
-        *,
-        user_id: UUID | None = None,
-        system_prompt: str = "",
-        chat_history: list[ChatMessage] | None = None,
-        engine_config: EngineConfig | None = None,
-    ) -> WorkbenchAgent:
-        engine = create_engine(engine_config or EngineConfig())
-        return WorkbenchAgent(
-            engine=engine,
-            site_id=site_id,
-            experiment_id=experiment_id,
-            user_id=user_id,
-            system_prompt=system_prompt,
-            chat_history=chat_history,
-        )
-
-    workbench_chat.orchestrator.configure(
-        create_workbench_agent_fn=_create_workbench_agent,
-        resolve_model_id_fn=resolve_effective_model_id,
-    )
+    # Initialize observability (Langfuse + OTEL) if configured.
+    setup_observability()
 
 
 def create_app() -> FastAPI:

@@ -9,8 +9,9 @@ from veupath_chatbot.domain.research.citations import (
     _new_citation_id,
     _now_iso,
 )
+from veupath_chatbot.domain.research.papers import ParsedPaper
 from veupath_chatbot.platform.errors import ExternalServiceError
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
@@ -39,7 +40,8 @@ class ArxivClient(StandardClient):
                 resp.raise_for_status()
                 xml = resp.text or ""
         except httpx.HTTPError as exc:
-            raise ExternalServiceError("arXiv", str(exc)) from exc
+            service = "arXiv"
+            raise ExternalServiceError(service, str(exc)) from exc
         entries = re.findall(
             r"<entry>(.*?)</entry>", xml, flags=re.IGNORECASE | re.DOTALL
         )
@@ -47,7 +49,7 @@ class ArxivClient(StandardClient):
 
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
-    ) -> tuple[JSONObject, JSONObject] | None:
+    ) -> tuple[ParsedPaper, Citation] | None:
         if not isinstance(raw, dict):
             return None
         e = raw.get("_xml")
@@ -69,12 +71,12 @@ class ArxivClient(StandardClient):
             )
         ).strip()
 
-        result: JSONObject = {
-            "title": title,
-            "url": url_item,
-            "abstract": truncate_text(abstract, abstract_max_chars) or "",
-            "snippet": abstract,
-        }
+        parsed = ParsedPaper(
+            title=title,
+            url=url_item,
+            abstract=truncate_text(abstract, abstract_max_chars) or "",
+            snippet=abstract,
+        )
         citation = Citation(
             id=_new_citation_id("arxiv"),
             source="arxiv",
@@ -82,5 +84,5 @@ class ArxivClient(StandardClient):
             url=url_item,
             snippet=abstract,
             accessed_at=_now_iso(),
-        ).model_dump(by_alias=True, exclude_none=True, mode="json")
-        return result, citation
+        )
+        return parsed, citation

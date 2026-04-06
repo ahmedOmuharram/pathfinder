@@ -1,8 +1,9 @@
 """Helpers for standardized AI tool error payloads.
 
-Uses :class:`ToolErrorPayload` internally for shape validation, but returns
-a plain ``JSONObject`` for kani compatibility (kani serializes tool returns
-with ``json.dumps``).
+:func:`tool_error` returns a :class:`ToolErrorPayload` model directly.
+Kani natively calls ``.model_dump_json()`` on BaseModel returns from
+``@ai_function`` methods, so returning a model is zero-behavior-change
+for the LLM while preserving type safety for Python callers.
 """
 
 from enum import Enum
@@ -12,11 +13,7 @@ from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 
 class ToolErrorPayload(CamelModel):
-    """Complete tool-error wrapper validated at construction time.
-
-    The model validates shape; callers receive a plain dict via
-    :func:`tool_error` for kani JSON-serialization compatibility.
-    """
+    """Complete tool-error wrapper validated at construction time."""
 
     ok: bool = False
     code: str
@@ -24,28 +21,18 @@ class ToolErrorPayload(CamelModel):
     details: JSONObject | None = None
 
 
-def tool_error(code: str | Enum, message: str, **details: JSONValue) -> JSONObject:
+def tool_error(code: str | Enum, message: str, **details: JSONValue) -> ToolErrorPayload:
     """Build a standardized tool error payload.
-
-    Validates shape via :class:`ToolErrorPayload`, serializes with
-    ``model_dump``, then flat-promotes detail keys so the AI agent sees
-    them at the top level (kani serializes tool returns with ``json.dumps``).
 
     :param code: Error code (string or Enum).
     :param message: Error message.
     :param details: Additional details as keyword arguments.
-    :returns: Standardized error payload dict.
+    :returns: Validated :class:`ToolErrorPayload` model.
     """
     code_value = code.value if isinstance(code, Enum) else str(code)
-    details_obj: JSONObject | None = dict(details) if details else None
-    payload = ToolErrorPayload(
+    details_obj: JSONObject | None = {**details} if details else None
+    return ToolErrorPayload(
         code=code_value,
         message=message,
         details=details_obj,
-    ).model_dump(by_alias=True, exclude_none=True, mode="json")
-    # Flat-promote detail keys so the AI agent sees them at the top level.
-    if details:
-        for key, value in details.items():
-            if key not in payload and value is not None:
-                payload[key] = value
-    return payload
+    )

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, type MutableRefObject } from "react";
+import { useCallback, useRef, type MutableRefObject } from "react";
 import type { Message, ToolCall } from "@pathfinder/shared";
 import { getStrategy } from "@/lib/api/strategies";
 import { useStrategyStore } from "@/state/strategy/store";
@@ -29,11 +29,17 @@ export function useChatStrategyActions(
   const addExecutedStrategy = useStrategyStore((s) => s.addExecutedStrategy);
 
   // --- Load graph from API ---
+  // Cancellation guard: each call invalidates the previous in-flight request
+  // so stale responses from earlier graphIds are silently dropped.
+  const loadGraphCancelRef = useRef(0);
+
   const loadGraph = useCallback(
     (graphId: string) => {
       if (graphId === "") return;
+      const token = ++loadGraphCancelRef.current;
       getStrategy(graphId)
         .then((full) => {
+          if (token !== loadGraphCancelRef.current) return;
           if (sessionRef.current?.snapshotApplied) return;
           setStrategy(full);
           setStrategyMeta({
@@ -43,6 +49,7 @@ export function useChatStrategyActions(
           });
         })
         .catch((err) => {
+          if (token !== loadGraphCancelRef.current) return;
           console.warn("[UnifiedChat] Failed to load graph:", err);
         });
     },
@@ -51,14 +58,8 @@ export function useChatStrategyActions(
 
   // --- Attach thinking metadata to last assistant message ---
   const handleAttachThinking = useCallback(
-    (
-      calls: ToolCall[],
-      activity?: {
-        calls: Record<string, ToolCall[]>;
-        status: Record<string, string>;
-      },
-    ) => {
-      setMessages((prev) => attachThinkingToLastAssistant(prev, calls, activity));
+    (calls: ToolCall[]) => {
+      setMessages((prev) => attachThinkingToLastAssistant(prev, calls));
     },
     [setMessages],
   );

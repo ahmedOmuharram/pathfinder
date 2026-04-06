@@ -9,11 +9,19 @@ from veupath_chatbot.domain.parameters.vocab_utils import (
     get_node_term,
     get_vocab_children,
 )
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import JSONArray, JSONObject
 
 # Cap rendered vocab entries so the LLM tool response stays within a
 # manageable size; large WDK vocabularies can have thousands of values.
 _MAX_VOCAB_ENTRIES = 50
+
+
+class VocabEntry(CamelModel):
+    """Single vocabulary entry with WDK-submittable value and display label."""
+
+    value: str
+    display: str
 
 
 def _count_descendants(node: JSONObject) -> int:
@@ -74,18 +82,18 @@ def render_vocab_tree(
 
 def allowed_values(
     vocab: JSONObject | JSONArray | None,
-) -> list[JSONObject]:
+) -> list[VocabEntry]:
     """Extract WDK-accepted parameter values from a vocabulary.
 
-    Returns ``[{"value": <wdk_value>, "display": <label>}, ...]`` so the LLM
-    knows both *what to pass* and *what it means*.
+    Returns ``VocabEntry`` objects (value + display) so the LLM knows
+    both *what to pass* and *what it means*.
 
     :param vocab: Vocabulary tree or flat list from catalog.
-    :returns: List of value/display dicts (capped at 50).
+    :returns: List of VocabEntry instances (capped at 50).
     """
     if not vocab:
         return []
-    entries: list[JSONObject] = []
+    entries: list[VocabEntry] = []
     seen: set[str] = set()
     for entry in flatten_vocab(vocab, prefer_term=True):
         # Prefer the WDK-accepted value; fall back to display if missing.
@@ -98,7 +106,7 @@ def allowed_values(
         seen.add(text)
         display = entry.get("display")
         display_str = str(display) if display else text
-        entries.append({"value": text, "display": display_str})
+        entries.append(VocabEntry(value=text, display=display_str))
         if len(entries) >= _MAX_VOCAB_ENTRIES:
             break
     return entries

@@ -15,7 +15,7 @@ const sampleOptions = [
 
 function makeProps(overrides: Partial<ParamWidgetProps> = {}): ParamWidgetProps {
   return {
-    spec: {},
+    spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true },
     value: undefined,
     multi: false,
     multiValue: [],
@@ -44,7 +44,7 @@ describe("SelectParam — single-pick", () => {
   });
 
   it("omits placeholder when allowEmptyValue is false", () => {
-    render(<SelectParam {...makeProps({ spec: { allowEmptyValue: false } })} />);
+    render(<SelectParam {...makeProps({ spec: { name: "test-param", type: "string", allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
     const options = screen.getAllByRole("option");
     expect(options.length).toBe(4);
     expect(options[0]!.textContent).toBe("Alpha");

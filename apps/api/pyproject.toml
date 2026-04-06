@@ -12,7 +12,10 @@ dependencies = [
     "asyncpg>=0.30.0",
     "alembic>=1.14.0",
     "httpx>=0.28.0",
-    "kani[openai,anthropic,google]>=1.2.0",
+    "pydantic-ai[anthropic,openai]>=0.2.0",
+    "python-statemachine>=3.0",
+    "langfuse>=3.0.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
     "python-multipart>=0.0.16",
     "structlog>=24.4.0",
     "pyyaml>=6.0.2",
@@ -156,12 +159,30 @@ max-branches = 10
     "FBT",      # boolean args in test helpers are fine
     "S311",     # deterministic seeds for shuffling is fine
 ]
+"src/veupath_chatbot/ai/orchestration/pipeline.py" = [
+    "N801",  # python-statemachine compound states require lowercase class names
+]
+"src/veupath_chatbot/ai/context/reconstruction.py" = [
+    "C901",     # discovery extraction inspects multiple nested data sources
+    "PLR0912",  # branching inherent to parsing tool calls from Redis history
+]
+"src/veupath_chatbot/services/chat/streaming.py" = [
+    "PLR0912",  # _produce_events routes on intent + handles phase transitions
+]
 "src/veupath_chatbot/ai/prompts/**" = [
     "E501",  # prompt strings are long by nature
 ]
 "scripts/**" = [
     "T20",    # scripts use print() for CLI output
     "S101",   # assert in scripts is fine
+]
+"src/veupath_chatbot/ai/tools/standalone/**" = [
+    "PLR0913",  # tool functions need many params for LLM tool interface
+    "FBT",      # boolean params required for LLM tool descriptions
+]
+"src/veupath_chatbot/ai/orchestration/classifier.py" = [
+    "C901",     # request classification is inherently branchy
+    "PLR0911",  # many return paths for many intent categories
 ]
 
 [tool.ruff.lint.isort]
@@ -199,6 +220,7 @@ min_confidence = 80
 [dependency-groups]
 dev = [
     "fakeredis>=2.34.1",
+    "hypothesis>=6.100.0",
     "import-linter>=2.0",
     "mypy>=1.19.1",
     "pip-audit>=2.7.0",

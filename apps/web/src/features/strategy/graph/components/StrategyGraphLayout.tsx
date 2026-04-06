@@ -5,10 +5,11 @@ import ReactFlow, {
   Background,
   ConnectionMode,
   Controls,
+  MiniMap,
   SelectionMode,
   type NodeTypes,
 } from "reactflow";
-import type { Step } from "@pathfinder/shared";
+import type { Step, StepKind } from "@pathfinder/shared";
 import { StepNode } from "@/features/strategy/graph/components/StepNode";
 import {
   WarningGroupNode,
@@ -26,6 +27,20 @@ const NODE_TYPES: NodeTypes = {
   warningIcon: WarningIconNode,
 };
 const FIT_VIEW_OPTIONS = { padding: 0.3 } as const;
+
+const MINIMAP_NODE_COLOR: Record<StepKind, string> = {
+  search: "#10b981",
+  combine: "#0ea5e9",
+  transform: "#8b5cf6",
+};
+
+function minimapNodeColor(node: { data?: { step?: { kind?: string } } }): string {
+  const kind = node.data?.step?.kind;
+  if (kind === "search" || kind === "combine" || kind === "transform") {
+    return MINIMAP_NODE_COLOR[kind];
+  }
+  return "#94a3b8";
+}
 const SNAP_GRID: [number, number] = [28, 28];
 
 export function StrategyGraphLayout() {
@@ -87,6 +102,13 @@ export function StrategyGraphLayout() {
           <Background color="#e2e8f0" gap={28} size={1} />
           {!g.isCompact && (
             <Controls className="bg-card border-border text-muted-foreground" />
+          )}
+          {!g.isCompact && (
+            <MiniMap
+              nodeColor={minimapNodeColor}
+              maskColor="rgba(0,0,0,0.1)"
+              className="rounded-lg border border-border bg-card"
+            />
           )}
         </ReactFlow>
       </div>

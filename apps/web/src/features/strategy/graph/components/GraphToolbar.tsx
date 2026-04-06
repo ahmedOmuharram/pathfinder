@@ -5,6 +5,7 @@ import {
   GitMerge,
   Hand,
   LayoutGrid,
+  Maximize2,
   MessageSquarePlus,
   MousePointer2,
 } from "lucide-react";
@@ -16,6 +17,7 @@ export function GraphToolbar() {
     interactionMode,
     setInteractionMode,
     handleRelayout,
+    resetViewTracking,
     handleAddSelectionToChat,
     selectedNodeIds,
     handleStartCombineFromSelection,
@@ -40,6 +42,15 @@ export function GraphToolbar() {
           aria-label="Rearrange graph layout"
         >
           <LayoutGrid className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={resetViewTracking}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors duration-150 hover:border-input hover:text-foreground"
+          title="Fit to view"
+          aria-label="Fit graph to view"
+        >
+          <Maximize2 className="h-4 w-4" />
         </button>
         <button
           type="button"

@@ -1,1 +1,1 @@
-"""Multi-agent coordination: delegation, scheduling, sub-kani orchestration."""
+"""Pipeline orchestration: phase-scoped agents, StateChart transitions, dependency injection."""

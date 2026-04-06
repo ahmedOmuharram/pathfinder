@@ -34,17 +34,20 @@ const INDENT_MAP_VOCAB = [
   ["ecol", 2, null],
 ];
 
+const PARAM_DEFAULTS = { allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true } as const;
+
 function makeAllSpecs(): ParamSpec[] {
   return [
-    { name: "profile_pattern", type: "string" },
-    { name: "included_species", type: "string" },
-    { name: "excluded_species", type: "string" },
+    { ...PARAM_DEFAULTS, name: "profile_pattern", type: "string" },
+    { ...PARAM_DEFAULTS, name: "included_species", type: "string" },
+    { ...PARAM_DEFAULTS, name: "excluded_species", type: "string" },
     {
+      ...PARAM_DEFAULTS,
       name: "phyletic_indent_map",
       type: "string",
       vocabulary: INDENT_MAP_VOCAB,
     },
-    { name: "phyletic_term_map", type: "string", vocabulary: TERM_MAP_VOCAB },
+    { ...PARAM_DEFAULTS, name: "phyletic_term_map", type: "string", vocabulary: TERM_MAP_VOCAB },
   ];
 }
 
@@ -219,8 +222,8 @@ describe("claimsPhyleticParams", () => {
 
   it("returns empty array when only some phyletic params present", () => {
     const specs: ParamSpec[] = [
-      { name: "profile_pattern" },
-      { name: "included_species" },
+      { ...PARAM_DEFAULTS, name: "profile_pattern", type: "string" },
+      { ...PARAM_DEFAULTS, name: "included_species", type: "string" },
     ];
     expect(claimsPhyleticParams(specs)).toEqual([]);
   });

@@ -142,7 +142,19 @@ export function CompactStrategyView({
   const canOpenInWorkbench =
     strategy?.wdkStrategyId != null && onExportAsGeneSet != null;
 
-  if (strategy == null || spine.length === 0) return null;
+  if (strategy == null) return null;
+
+  if (spine.length === 0 && strategy.steps.length > 0) {
+    return (
+      <div className="border-t border-border bg-muted">
+        <div className="text-xs text-muted-foreground px-3 py-2">
+          Building strategy ({strategy.steps.length} steps)...
+        </div>
+      </div>
+    );
+  }
+
+  if (spine.length === 0) return null;
 
   return (
     <div className="border-t border-border bg-muted">

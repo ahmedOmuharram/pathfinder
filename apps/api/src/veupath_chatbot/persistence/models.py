@@ -193,7 +193,7 @@ class StreamProjection(Base):
     estimated_size: Mapped[int | None] = mapped_column(nullable=True)
     last_event_id: Mapped[str | None] = mapped_column(String(30), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now()
     )
     dismissed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -274,3 +274,22 @@ class Operation(Base):
     stream: Mapped[Stream] = relationship()
 
     __table_args__ = (Index("ix_ops_stream_status", "stream_id", "status"),)
+
+
+class StrategyPlanRecord(Base):
+    """Persisted strategy plan attached to a conversation stream."""
+
+    __tablename__ = "strategy_plans"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    stream_id: Mapped[UUID] = mapped_column(
+        GUID(), ForeignKey("streams.id", ondelete="CASCADE"), index=True,
+    )
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    plan_json: Mapped[JSONObject] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(),
+    )

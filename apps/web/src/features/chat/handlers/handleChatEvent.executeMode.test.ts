@@ -90,13 +90,6 @@ describe("handleChatEvent — realistic execute mode", () => {
     const toolCallsBuffer: ToolCall[] = [];
     const citationsBuffer: Citation[] = [];
     const planningArtifactsBuffer: PlanningArtifact[] = [];
-    const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
-    const subKaniStatusBuffer: Record<string, string> = {};
-    const subKaniModelsBuffer: Record<string, string> = {};
-    const subKaniTokenUsageBuffer: Record<
-      string,
-      import("@pathfinder/shared").SubKaniTokenUsage
-    > = {};
 
     const ctx = {
       siteId: "plasmodb",
@@ -104,28 +97,15 @@ describe("handleChatEvent — realistic execute mode", () => {
       toolCallsBuffer,
       citationsBuffer,
       planningArtifactsBuffer,
-      subKaniCallsBuffer,
-      subKaniStatusBuffer,
-      subKaniModelsBuffer,
-      subKaniTokenUsageBuffer,
       thinking: {
         activeToolCalls: [],
         lastToolCalls: [],
-        subKaniCalls: {},
-        subKaniStatus: {},
-        subKaniModels: {},
         reasoning: null,
-        subKaniActivity: undefined,
         reset: vi.fn(),
         applyThinkingPayload: vi.fn(() => false),
         updateActiveFromBuffer: vi.fn(),
         finalizeToolCalls: vi.fn(),
         updateReasoning: vi.fn(),
-        snapshotSubKaniActivity: vi.fn(() => ({ calls: {}, status: {} })),
-        subKaniTaskStart: vi.fn(),
-        subKaniToolCallStart: vi.fn(),
-        subKaniToolCallEnd: vi.fn(),
-        subKaniTaskEnd: vi.fn(),
       } satisfies ChatEventContext["thinking"],
       setStrategyId: vi.fn(),
       addStrategy: vi.fn(),

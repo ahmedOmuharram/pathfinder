@@ -18,15 +18,18 @@ from veupath_chatbot.platform.event_schemas import (
     StrategyLinkEventData,
     StrategyMetaEventData,
     StrategyUpdateEventData,
-    SubKaniTaskEndEventData,
-    SubKaniTaskStartEventData,
-    SubKaniToolCallEndEventData,
-    SubKaniToolCallStartEventData,
     TokenUsagePartialEventData,
     ToolCallEndEventData,
     ToolCallStartEventData,
     UserMessageEventData,
     WorkbenchGeneSetEventData,
+)
+from veupath_chatbot.platform.event_schemas_pipeline import (
+    DecisionPresentedEventData,
+    PhaseChangeEventData,
+    PlanningThoughtEventData,
+    PlanPresentedEventData,
+    PlanUpdatedEventData,
 )
 from veupath_chatbot.transport.http.schemas.chat import (
     CitationResponse,
@@ -87,10 +90,6 @@ class SSESchemaIndex(BaseModel):
     assistant_message: AssistantMessageEventData | None = None
     tool_call_start: ToolCallStartEventData | None = None
     tool_call_end: ToolCallEndEventData | None = None
-    subkani_task_start: SubKaniTaskStartEventData | None = None
-    subkani_tool_call_start: SubKaniToolCallStartEventData | None = None
-    subkani_tool_call_end: SubKaniToolCallEndEventData | None = None
-    subkani_task_end: SubKaniTaskEndEventData | None = None
     token_usage_partial: TokenUsagePartialEventData | None = None
     model_selected: ModelSelectedEventData | None = None
     optimization_progress: OptimizationProgressEventData | None = None
@@ -109,6 +108,12 @@ class SSESchemaIndex(BaseModel):
     planning_artifact: PlanningArtifactEventData | None = None
     reasoning: ReasoningEventData | None = None
     message_end: MessageEndEventData | None = None
+    # Pipeline phase events
+    phase_change: PhaseChangeEventData | None = None
+    plan_presented: PlanPresentedEventData | None = None
+    plan_updated: PlanUpdatedEventData | None = None
+    decision_presented: DecisionPresentedEventData | None = None
+    planning_thought: PlanningThoughtEventData | None = None
 
 
 @router.get("/sse-schemas", response_model=SSESchemaIndex, include_in_schema=True)

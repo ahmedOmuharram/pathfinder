@@ -218,6 +218,7 @@ async def upsert_summary_projection(
                 step_count=step_count,
                 estimated_size=estimated_size,
                 estimated_size_set=True,
+                touch_updated_at=False,
             ),
         )
         proj = await stream_repo.get_projection(existing.stream_id)
@@ -274,6 +275,7 @@ async def lazy_fetch_wdk_detail(
                 step_count=len(walk_step_tree(payload.root)),
                 is_saved=is_saved,
                 is_saved_set=True,
+                touch_updated_at=False,
             ),
         )
         updated = await stream_repo.get_projection(projection.stream_id)

@@ -115,7 +115,7 @@ export function useChatStreaming({
   const executeStream = useCallback(
     async (
       content: string,
-      streamContext: { strategyId?: string; mentions?: ChatMention[] },
+      streamContext: { strategyId?: string; mentions?: ChatMention[]; metadata?: Record<string, unknown> },
     ): Promise<string | null> => {
       lifecycle.beginStream();
 
@@ -180,7 +180,7 @@ export function useChatStreaming({
 
   // --- Public API ---
   const handleSendMessage = useCallback(
-    async (content: string, mentions?: ChatMention[]) => {
+    async (content: string, mentions?: ChatMention[], metadata?: Record<string, unknown>) => {
       const finalContent = encodeNodeSelection(draftSelection, content);
       const userMessage: UserMessage = {
         role: "user",
@@ -196,6 +196,7 @@ export function useChatStreaming({
       const entryId = await executeStream(finalContent, {
         ...(strategyId != null ? { strategyId } : {}),
         ...(mentions != null ? { mentions } : {}),
+        ...(metadata != null ? { metadata } : {}),
       });
       // Attach the Redis entry ID to the user message for undo support.
       if (entryId != null && entryId !== "") {

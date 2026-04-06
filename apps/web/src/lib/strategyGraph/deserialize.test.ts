@@ -78,14 +78,14 @@ describe("deserializeStrategyToGraph", () => {
           source: "left",
           target: "comb",
           targetHandle: "left",
-          label: "L",
+          label: "L (primary)",
         }),
         expect.objectContaining({
           id: "right-comb-secondary",
           source: "right",
           target: "comb",
           targetHandle: "left-secondary",
-          label: "R",
+          label: "R (secondary)",
         }),
       ]),
     );
@@ -270,7 +270,7 @@ describe("deserializeStrategyToGraph", () => {
 
     const { edges } = deserializeStrategyToGraph(strategy);
     const secondaryEdge = edges.find((e) => e.id.endsWith("-secondary"));
-    expect(secondaryEdge?.label).toBe("R");
+    expect(secondaryEdge?.label).toBe("R (secondary)");
     expect(secondaryEdge?.targetHandle).toBe("left-secondary");
   });
 

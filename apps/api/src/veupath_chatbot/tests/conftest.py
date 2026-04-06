@@ -1,16 +1,14 @@
 import asyncio
-import contextlib
 import hashlib
 import json
 import os
 import re
-from collections.abc import AsyncGenerator, Callable, Coroutine, Generator
-from contextlib import contextmanager
+from collections.abc import AsyncGenerator, Coroutine, Generator
 from typing import Any
-from unittest.mock import patch
 from uuid import uuid4
 
 import httpx
+import pydantic_ai.models
 import pytest
 import redis
 import respx
@@ -45,10 +43,9 @@ from veupath_chatbot.main import create_app
 from veupath_chatbot.persistence.models import Base, User
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.security import create_user_token, limiter
-from veupath_chatbot.tests.fixtures.scripted_engine import (
-    ScriptedKaniEngine,
-    ScriptedTurn,
-)
+
+# Block real LLM calls in all tests — use TestModel/FunctionModel instead.
+pydantic_ai.models.ALLOW_MODEL_REQUESTS = False
 
 
 async def _probe_connection(url: str) -> bool:
@@ -340,9 +337,7 @@ def app() -> FastAPI:
     get_settings.cache_clear()
 
     # Reset orchestrator globals so _wire_ai_dependencies() starts clean.
-    _orch._create_agent_holder.clear()
     _orch._resolve_model_id_holder.clear()
-    _orch._mock_stream_fn = None
 
     return create_app()
 
@@ -404,7 +399,7 @@ async def _close_wdk_clients_after_test() -> AsyncGenerator[None]:
     """
     # Clear discovery cache BEFORE the test so each test starts fresh
     # and records ALL its HTTP interactions into its own cassette.
-    from veupath_chatbot.integrations.veupathdb.discovery import (  # noqa: PLC0415
+    from veupath_chatbot.integrations.veupathdb.discovery_service import (  # noqa: PLC0415
         _discovery_holder,
     )
 
@@ -418,48 +413,6 @@ async def _close_wdk_clients_after_test() -> AsyncGenerator[None]:
         pass  # Client already closed or event loop torn down
 
 
-@pytest.fixture
-def scripted_engine_factory() -> Callable[
-    [list[ScriptedTurn]],
-    contextlib.AbstractContextManager[ScriptedKaniEngine],
-]:
-    """Fixture that patches ``create_engine`` so Kani agents use a ScriptedKaniEngine.
-
-    Returns a context-manager function.  Usage inside a test::
-
-        with scripted_engine_factory(turns) as engine:
-            # engine is the ScriptedKaniEngine; send chat requests here
-            ...
-
-    The mock-chat-provider env var is explicitly cleared so that the
-    orchestrator uses the real ``stream_chat`` path (agent + tools + live WDK).
-
-
-    """
-
-    @contextmanager
-    def _factory(
-        turns: list[ScriptedTurn],
-    ) -> Generator[ScriptedKaniEngine]:
-        engine = ScriptedKaniEngine(turns)
-        with (
-            patch(
-                "veupath_chatbot.ai.agents.factory.create_engine",
-                return_value=engine,
-            ),
-            patch(
-                "veupath_chatbot.services.chat.orchestrator._mock_stream_fn",
-                None,
-            ),
-            patch.dict(
-                os.environ,
-                {"PATHFINDER_CHAT_PROVIDER": ""},
-                clear=False,
-            ),
-        ):
-            yield engine
-
-    return _factory
 
 
 # ---------------------------------------------------------------------------

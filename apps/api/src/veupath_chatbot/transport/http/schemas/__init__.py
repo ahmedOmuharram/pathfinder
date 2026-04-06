@@ -1,5 +1,8 @@
 """Public HTTP schema exports."""
 
+from veupath_chatbot.services.catalog.param_validation import (
+    ValidationResponse,
+)
 from veupath_chatbot.services.strategies.schemas import (
     StepResponse,
     StrategyPlanPayload,
@@ -10,8 +13,6 @@ from .chat import (
     CitationResponse,
     MessageResponse,
     PlanningArtifactResponse,
-    SubKaniActivityResponse,
-    SubKaniTokenUsageResponse,
     ThinkingResponse,
     ToolCallResponse,
 )
@@ -30,7 +31,6 @@ from .sites import (
     SearchDetailsResponse,
     SearchResponse,
     SearchValidationRequest,
-    SearchValidationResponse,
     SiteResponse,
 )
 from .steps import (
@@ -73,17 +73,15 @@ __all__ = [
     "SearchDetailsResponse",
     "SearchResponse",
     "SearchValidationRequest",
-    "SearchValidationResponse",
     "SiteResponse",
     "StepCountsRequest",
     "StepCountsResponse",
     "StepResponse",
     "StrategyPlanPayload",
     "StrategyResponse",
-    "SubKaniActivityResponse",
-    "SubKaniTokenUsageResponse",
     "SystemConfigResponse",
     "ThinkingResponse",
     "ToolCallResponse",
     "UpdateStrategyRequest",
+    "ValidationResponse",
 ]

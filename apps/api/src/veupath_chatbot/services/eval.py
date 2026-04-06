@@ -10,7 +10,11 @@ from typing import Any
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
-from veupath_chatbot.integrations.veupathdb.wdk_models import WDKRecordInstance
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKDatasetConfigIdList,
+    WDKDatasetIdListContent,
+    WDKRecordInstance,
+)
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.services.experiment.materialization import (
     _materialize_step_tree,
@@ -42,11 +46,6 @@ async def _provision_datasets(
     """
     if not dataset_gene_ids:
         return
-
-    from veupath_chatbot.integrations.veupathdb.wdk_models import (
-        WDKDatasetConfigIdList,
-        WDKDatasetIdListContent,
-    )
 
     # Create each dataset and build old->new ID mapping
     id_map: dict[str, str] = {}

@@ -15,6 +15,7 @@ import { useSaveValidation } from "@/features/strategy/validation/useSaveValidat
 import {
   getCombineMismatchGroups,
   inferStepKind,
+  serializeStrategyPlan,
   type CombineMismatchGroup,
 } from "@/lib/strategyGraph";
 
@@ -113,7 +114,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   const setStepValidationErrors = useStrategyStore(
     (state) => state.setStepValidationErrors,
   );
-  const buildPlan = useStrategyStore((state) => state.buildPlan);
+  const stepsById = useStrategyStore((state) => state.stepsById);
   const setGraphValidationStatus = useStrategyStore(
     (state) => state.setGraphValidationStatus,
   );
@@ -148,8 +149,14 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   );
 
   const isDraftView = draftStrategy != null && strategy?.id === draftStrategy.id;
-  const planResult = buildPlan();
-  const planHash = planResult ? JSON.stringify(planResult.plan) : null;
+  const planResult = useMemo(
+    () => serializeStrategyPlan(stepsById, draftStrategy ?? strategy),
+    [stepsById, draftStrategy, strategy],
+  );
+  const planHash = useMemo(
+    () => (planResult ? JSON.stringify(planResult.plan) : null),
+    [planResult],
+  );
   const graphIdForValidation = draftStrategy?.id ?? strategy?.id ?? null;
   const graphHasValidationIssues = useStrategyStore((state) =>
     graphIdForValidation != null && graphIdForValidation !== ""

@@ -23,15 +23,17 @@ import {
   handleStrategyUpdateEvent,
 } from "./handleChatEvent.strategyEvents";
 import {
-  handleSubKaniTaskEndEvent,
-  handleSubKaniTaskRetryEvent,
-  handleSubKaniTaskStartEvent,
-  handleSubKaniToolCallEndEvent,
-  handleSubKaniToolCallStartEvent,
   handleToolCallEndEvent,
   handleToolCallStartEvent,
 } from "./handleChatEvent.toolEvents";
 import { handleWorkbenchGeneSetEvent } from "./handleChatEvent.workbenchEvents";
+import {
+  handleDecisionPresentedEvent,
+  handlePhaseChangeEvent,
+  handlePlanPresentedEvent,
+  handlePlanUpdatedEvent,
+  handlePlanningThoughtEvent,
+} from "./handleChatEvent.planEvents";
 export type {
   ChatEventContext,
   StreamBuffers,
@@ -80,26 +82,6 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
       handleToolCallEndEvent(ctx, event.data);
       break;
     }
-    case "subkani_task_start": {
-      handleSubKaniTaskStartEvent(ctx, event.data);
-      break;
-    }
-    case "subkani_task_retry": {
-      handleSubKaniTaskRetryEvent(ctx, event.data);
-      break;
-    }
-    case "subkani_tool_call_start": {
-      handleSubKaniToolCallStartEvent(ctx, event.data);
-      break;
-    }
-    case "subkani_tool_call_end": {
-      handleSubKaniToolCallEndEvent(ctx, event.data);
-      break;
-    }
-    case "subkani_task_end": {
-      handleSubKaniTaskEndEvent(ctx, event.data);
-      break;
-    }
     case "strategy_update": {
       handleStrategyUpdateEvent(ctx, event.data);
       break;
@@ -146,6 +128,26 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     }
     case "workbench_gene_set": {
       handleWorkbenchGeneSetEvent(ctx, event.data);
+      break;
+    }
+    case "planning_thought": {
+      handlePlanningThoughtEvent(ctx, event.data);
+      break;
+    }
+    case "plan_presented": {
+      handlePlanPresentedEvent(ctx, event.data);
+      break;
+    }
+    case "plan_updated": {
+      handlePlanUpdatedEvent(ctx, event.data);
+      break;
+    }
+    case "decision_presented": {
+      handleDecisionPresentedEvent(ctx, event.data);
+      break;
+    }
+    case "phase_change": {
+      handlePhaseChangeEvent(ctx, event.data);
       break;
     }
     case "unknown":

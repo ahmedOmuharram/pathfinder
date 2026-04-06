@@ -5,21 +5,15 @@ All domain operations on gene sets live here. The transport layer
 set operations, enrichment, and step-results access.
 """
 
-from dataclasses import dataclass
-from typing import Literal
 from uuid import UUID, uuid4
 
 from veupath_chatbot.integrations.veupathdb.factory import (
     get_strategy_api,
 )
-from veupath_chatbot.integrations.veupathdb.strategy_api.api import StrategyAPI
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
-    WDKDatasetConfigIdList,
-    WDKDatasetIdListContent,
     WDKStrategyDetails,
 )
 from veupath_chatbot.platform.errors import (
-    AppError,
     InternalError,
     NotFoundError,
     ValidationError,
@@ -33,72 +27,14 @@ from veupath_chatbot.services.enrichment.types import (
 )
 from veupath_chatbot.services.gene_sets.store import GeneSetStore
 from veupath_chatbot.services.gene_sets.types import GeneSet, GeneSetSource
-from veupath_chatbot.services.wdk.helpers import extract_record_ids
+from veupath_chatbot.services.gene_sets.wdk_helpers import (
+    GeneSetWdkContext,
+    build_enrichment_params_from_gene_ids,
+    resolve_wdk_context,
+)
 from veupath_chatbot.services.wdk.step_results import StepResultsService
 
 logger = get_logger(__name__)
-
-SetOperation = Literal["intersect", "union", "minus"]
-
-
-@dataclass
-class GeneSetWdkContext:
-    """Optional WDK-related context for gene set creation."""
-
-    wdk_strategy_id: int | None = None
-    wdk_step_id: int | None = None
-    search_name: str | None = None
-    record_type: str | None = None
-    parameters: dict[str, str] | None = None
-
-
-# ---------------------------------------------------------------------------
-# WDK helpers (async, take an API instance)
-# ---------------------------------------------------------------------------
-
-
-async def _build_enrichment_params_from_gene_ids(
-    site_id: str,
-    gene_ids: list[str],
-) -> tuple[str, JSONObject, str]:
-    """Create a WDK dataset from gene IDs and return enrichment parameters.
-
-    Returns ``(search_name, parameters, record_type)`` suitable for passing
-    to ``EnrichmentService.run_batch()``.  Uses the ``GeneByLocusTag`` search
-    (transcript record type) with a temporary WDK dataset.
-    """
-    api = get_strategy_api(site_id)
-    config = WDKDatasetConfigIdList(
-        source_type="idList",
-        source_content=WDKDatasetIdListContent(ids=gene_ids),
-    )
-    dataset_id = await api.create_dataset(config)
-    return (
-        "GeneByLocusTag",
-        {"ds_gene_ids": str(dataset_id)},
-        "transcript",
-    )
-
-
-async def resolve_root_step_id(api: StrategyAPI, *, strategy_id: int) -> int | None:
-    """Get the root step ID from a WDK strategy."""
-    strategy = await api.get_strategy(strategy_id)
-    return strategy.root_step_id
-
-
-async def fetch_gene_ids_from_step(api: StrategyAPI, *, step_id: int) -> list[str]:
-    """Fetch all gene IDs from a WDK step via the standard report endpoint."""
-    answer = await api.get_step_answer(
-        step_id,
-        attributes=["primary_key"],
-        pagination={"offset": 0, "numRecords": -1},
-    )
-    return extract_record_ids(answer.records)
-
-
-# ---------------------------------------------------------------------------
-# Service
-# ---------------------------------------------------------------------------
 
 
 class GeneSetService:
@@ -136,140 +72,6 @@ class GeneSetService:
 
     # -- CRUD -----------------------------------------------------------------
 
-    async def _resolve_wdk_context(
-        self,
-        site_id: str,
-        gene_ids: list[str],
-        ctx: GeneSetWdkContext,
-    ) -> tuple[list[str], GeneSetWdkContext, int]:
-        """Resolve gene IDs and search context from a WDK strategy.
-
-        Returns ``(gene_ids, updated_ctx, step_count)``.
-        """
-        wdk_strategy_id = ctx.wdk_strategy_id
-        if gene_ids or wdk_strategy_id is None:
-            return gene_ids, ctx, 1
-
-        api = get_strategy_api(site_id)
-        wdk_step_id = ctx.wdk_step_id
-        search_name = ctx.search_name
-        record_type = ctx.record_type
-        parameters = ctx.parameters
-        step_count = 1
-
-        wdk_step_id = await self._resolve_root_step(api, wdk_strategy_id, wdk_step_id)
-        gene_ids = await self._fetch_step_genes(api, wdk_step_id)
-        step_count = await self._count_strategy_steps(api, wdk_strategy_id)
-
-        if wdk_step_id is not None and search_name is None and step_count == 1:
-            (
-                search_name,
-                record_type,
-                parameters,
-            ) = await self._extract_step_search_context(api, wdk_step_id, record_type)
-
-        updated = GeneSetWdkContext(
-            wdk_strategy_id=wdk_strategy_id,
-            wdk_step_id=wdk_step_id,
-            search_name=search_name,
-            record_type=record_type,
-            parameters=parameters,
-        )
-        return gene_ids, updated, step_count
-
-    async def _resolve_root_step(
-        self, api: StrategyAPI, strategy_id: int, step_id: int | None
-    ) -> int | None:
-        if step_id is not None:
-            return step_id
-        try:
-            resolved = await resolve_root_step_id(api, strategy_id=strategy_id)
-        except AppError as exc:
-            logger.warning(
-                "Failed to resolve root step from strategy",
-                strategy_id=strategy_id,
-                error=str(exc),
-            )
-            return step_id
-        else:
-            logger.info(
-                "Resolved root step from strategy",
-                strategy_id=strategy_id,
-                step_id=resolved,
-            )
-            return resolved
-
-    async def _fetch_step_genes(
-        self, api: StrategyAPI, step_id: int | None
-    ) -> list[str]:
-        if step_id is None:
-            return []
-        try:
-            gene_ids = await fetch_gene_ids_from_step(api, step_id=step_id)
-        except AppError as exc:
-            logger.warning(
-                "Failed to fetch gene IDs from WDK step",
-                step_id=step_id,
-                error=str(exc),
-            )
-            return []
-        else:
-            logger.info(
-                "Fetched gene IDs from WDK step",
-                step_id=step_id,
-                gene_count=len(gene_ids),
-            )
-            return gene_ids
-
-    async def _count_strategy_steps(self, api: StrategyAPI, strategy_id: int) -> int:
-        try:
-            strategy = await api.get_strategy(strategy_id)
-            return len(strategy.steps)
-        except AppError as exc:
-            logger.warning(
-                "Failed to count strategy steps",
-                strategy_id=strategy_id,
-                error=str(exc),
-            )
-            return 1
-
-    async def _extract_step_search_context(
-        self,
-        api: StrategyAPI,
-        step_id: int,
-        record_type: str | None,
-    ) -> tuple[str | None, str | None, dict[str, str] | None]:
-        """Extract searchName, recordType, parameters from a WDK step."""
-        search_name: str | None = None
-        parameters: dict[str, str] | None = None
-        try:
-            step = await api.find_step(step_id)
-            sn = step.search_name
-            if not sn.startswith("boolean_question_"):
-                search_name = sn
-                parameters = dict(step.search_config.parameters)
-            if not record_type:
-                rcn = step.record_class_name
-                if rcn:
-                    record_type = (
-                        rcn.split(".")[-1].replace("RecordClass", "").lower()
-                        if "." in rcn
-                        else "transcript"
-                    )
-            logger.info(
-                "Extracted search context from WDK step",
-                step_id=step_id,
-                search_name=search_name,
-                has_params=parameters is not None,
-            )
-        except AppError as exc:
-            logger.warning(
-                "Failed to extract search context from step",
-                step_id=step_id,
-                error=str(exc),
-            )
-        return search_name, record_type, parameters
-
     async def create(
         self,
         *,
@@ -282,7 +84,7 @@ class GeneSetService:
     ) -> GeneSet:
         """Create a gene set, auto-resolving from WDK if needed."""
         ctx = wdk or GeneSetWdkContext()
-        gene_ids, ctx, step_count = await self._resolve_wdk_context(
+        gene_ids, ctx, step_count = await resolve_wdk_context(
             site_id, gene_ids, ctx
         )
 
@@ -418,7 +220,7 @@ class GeneSetService:
                 search_name,
                 enrichment_params,
                 record_type,
-            ) = await _build_enrichment_params_from_gene_ids(gs.site_id, gs.gene_ids)
+            ) = await build_enrichment_params_from_gene_ids(gs.site_id, gs.gene_ids)
 
         svc = EnrichmentService()
         results, errors = await svc.run_batch(

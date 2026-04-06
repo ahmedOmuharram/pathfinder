@@ -5,16 +5,18 @@ formatted info dicts for AI tool consumption, including dependency
 annotation and vocabulary rendering.
 """
 
-from typing import cast
+from dataclasses import dataclass
 
 from veupath_chatbot.integrations.veupathdb.wdk_parameters import (
     WDKBaseParameter,
     WDKEnumParam,
     WDKParameter,
 )
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.pydantic_base import CamelModel
+from veupath_chatbot.platform.types import JSONValue
 from veupath_chatbot.services.catalog.vocab_rendering import (
     _MAX_VOCAB_ENTRIES,
+    VocabEntry,
     allowed_values,
     render_vocab_tree,
 )
@@ -44,6 +46,24 @@ _PROFILE_PATTERN_HELP = (
     "organism vocabulary tree, or use the tree's root '@@fake@@' sentinel for 'select all'). "
     "If you only select one organism, you will get 0 results even if the pattern is correct."
 )
+
+
+class ParameterInfo(CamelModel):
+    """Formatted WDK parameter info for AI tool consumption."""
+
+    name: str
+    display_name: str
+    type: str
+    required: bool
+    is_visible: bool
+    help: str
+    default_value: str | None = None
+    allowed_values: list[VocabEntry] | None = None
+    allowed_values_tree: str | None = None
+    allowed_values_note: str | None = None
+    controls_vocab_of: list[str] | None = None
+    vocab_depends_on: list[str] | None = None
+    note: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -84,12 +104,18 @@ def _build_typed_controls_map(
     return controls
 
 
+@dataclass(frozen=True)
+class _VocabFields:
+    allowed_values: list[VocabEntry] | None = None
+    allowed_values_tree: str | None = None
+    allowed_values_note: str | None = None
+
+
 def _format_vocabulary(
     param: WDKParameter,
     base: WDKBaseParameter,
-    info: JSONObject,
-) -> None:
-    """Add vocabulary fields (allowedValues / allowedValues_tree) to *info*."""
+) -> _VocabFields:
+    """Extract vocabulary fields from a parameter."""
     vocabulary: JSONValue = None
     if isinstance(param, WDKEnumParam):
         vocabulary = param.vocabulary
@@ -106,51 +132,42 @@ def _format_vocabulary(
                     f"param_name='{base.name}', query='<keyword>') "
                     f"to see values for a specific category."
                 )
-            info["allowedValues_tree"] = cast("JSONValue", tree_text + suffix)
+            return _VocabFields(allowed_values_tree=tree_text + suffix)
     elif vocabulary is not None:
         vocab_for_allowed = vocabulary if isinstance(vocabulary, (dict, list)) else None
         allowed_entries = allowed_values(vocab_for_allowed)
         if allowed_entries:
-            info["allowedValues"] = cast("JSONValue", allowed_entries)
+            note: str | None = None
             if len(allowed_entries) >= _MAX_VOCAB_ENTRIES:
-                info["allowedValues_note"] = (
+                note = (
                     f"Showing first {_MAX_VOCAB_ENTRIES} of many values (list truncated). "
                     "Use the exact value/ID you need; it does not have to appear in this list."
                 )
+            return _VocabFields(allowed_values=allowed_entries, allowed_values_note=note)
+
+    return _VocabFields()
 
 
 def format_typed_param(
     param: WDKParameter,
     depends_on: dict[str, list[str]],
     controls: dict[str, list[str]],
-) -> JSONObject:
-    """Format a single typed WDK parameter into an AI-consumable info dict."""
+) -> ParameterInfo:
+    """Format a single typed WDK parameter into an AI-consumable info object."""
     base: WDKBaseParameter = param
     name = base.name
     help_text = base.help or ""
     if name == "profile_pattern":
         help_text = _PROFILE_PATTERN_HELP
 
-    info: JSONObject = {
-        "name": name,
-        "displayName": base.display_name or name,
-        "type": base.type,
-        "required": not base.allow_empty_value,
-        "isVisible": base.is_visible,
-        "help": help_text,
-    }
+    vocab = _format_vocabulary(param, base)
 
-    _format_vocabulary(param, base, info)
-
-    if base.initial_display_value is not None:
-        info["defaultValue"] = base.initial_display_value
-
-    if name in controls:
-        info["controlsVocabOf"] = cast("JSONValue", controls[name])
+    note: str | None = None
+    vocab_depends_on: list[str] | None = None
     if name in depends_on:
         parents = depends_on[name]
-        info["vocabDependsOn"] = cast("JSONValue", parents)
-        info["note"] = (
+        vocab_depends_on = parents
+        note = (
             f"The allowed values for this param change based on the value of "
             f"{', '.join(parents)}. The values shown here are for the default "
             f"context only. Use get_dependent_vocab(search_name, param_name='{name}', "
@@ -158,10 +175,24 @@ def format_typed_param(
             f"the full vocabulary after setting {parents[0]}."
         )
 
-    return info
+    return ParameterInfo(
+        name=name,
+        display_name=base.display_name or name,
+        type=base.type,
+        required=not base.allow_empty_value,
+        is_visible=base.is_visible,
+        help=help_text,
+        default_value=base.initial_display_value,
+        allowed_values=vocab.allowed_values,
+        allowed_values_tree=vocab.allowed_values_tree,
+        allowed_values_note=vocab.allowed_values_note,
+        controls_vocab_of=controls.get(name),
+        vocab_depends_on=vocab_depends_on,
+        note=note,
+    )
 
 
-def format_param_info_typed(params: list[WDKParameter]) -> list[JSONObject]:
+def format_param_info_typed(params: list[WDKParameter]) -> list[ParameterInfo]:
     """Format typed WDK parameters for LLM display.
 
     Typed equivalent of :func:`format_param_info`.  Accepts parsed
@@ -171,7 +202,7 @@ def format_param_info_typed(params: list[WDKParameter]) -> list[JSONObject]:
     Phyletic structural params are filtered out.
 
     :param params: Typed WDK parameter models.
-    :returns: Formatted parameter info dicts.
+    :returns: Formatted parameter info objects.
     """
     depends_on = _build_typed_dependency_map(params)
     controls = _build_typed_controls_map(params)

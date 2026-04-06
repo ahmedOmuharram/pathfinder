@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Square } from "lucide-react";
+import { AlertTriangle, Square } from "lucide-react";
 import type {
   ChatMention,
   ModelCatalogEntry,
@@ -131,7 +131,7 @@ export function MessageComposer({
       {/* Controls row */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Model picker */}
-        {models.length > 0 && onModelChange && (
+        {models.length > 0 && onModelChange ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <div>
@@ -148,7 +148,16 @@ export function MessageComposer({
             </TooltipTrigger>
             <TooltipContent>Choose the AI model for this message</TooltipContent>
           </Tooltip>
-        )}
+        ) : onModelChange ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex items-center text-amber-500">
+                <AlertTriangle className="h-3.5 w-3.5" aria-label="Model catalog unavailable" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Model catalog unavailable</TooltipContent>
+          </Tooltip>
+        ) : null}
 
         {/* Tool picker */}
         <Tooltip>

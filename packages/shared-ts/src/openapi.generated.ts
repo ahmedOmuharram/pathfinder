@@ -284,7 +284,7 @@ export type paths = {
         };
         /**
          * List Tools
-         * @description Return the list of AI tools registered on the agent.
+         * @description Return the list of AI tools registered across all agent phases.
          */
         get: operations["list_tools_api_v1_tools_get"];
         put?: never;
@@ -417,6 +417,26 @@ export type paths = {
          * @description Update a strategy (CQRS only).
          */
         patch: operations["update_strategy_api_v1_strategies__strategyId__patch"];
+        trace?: never;
+    };
+    "/api/v1/strategies/{strategyId}/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Push Strategy
+         * @description Push a strategy to WDK: normalize plan, persist locally, sync to WDK.
+         */
+        post: operations["push_strategy_api_v1_strategies__strategyId__push_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/strategies/{strategyId}/ast": {
@@ -1527,6 +1547,31 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dev/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dev Login
+         * @description Create a test user and return a valid auth token.
+         *
+         *     Only available when ``PATHFINDER_CHAT_PROVIDER=mock`` (e2e / local dev).
+         *
+         *     Pass ``?user_id=worker-0`` to create isolated users per Playwright
+         *     worker so parallel tests don't share data.
+         */
+        post: operations["dev_login_api_v1_dev_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 
 export type webhooks = Record<string, never>;
@@ -1717,6 +1762,10 @@ export type components = {
             disabledTools?: string[];
             /** Mentions */
             mentions?: components["schemas"]["ChatMention"][];
+            /** Metadata */
+            metadata?: {
+                [key: string]: components["schemas"]["JSONValue"];
+            };
         };
         /**
          * CitationResponse
@@ -2220,6 +2269,22 @@ export type components = {
             oddsRatio: number;
         };
         /**
+         * DecisionPresentedEventData
+         * @description Payload for ``decision_presented`` SSE events.
+         */
+        DecisionPresentedEventData: {
+            /** Decisionid */
+            decisionId: string;
+            /** Question */
+            question: string;
+            /** Options */
+            options: components["schemas"]["JSONObject"][];
+            /** Context */
+            context: string;
+            /** Recommendation */
+            recommendation?: string | null;
+        };
+        /**
          * DependentParamsRequest
          * @description Dependent parameter values request.
          */
@@ -2358,13 +2423,6 @@ export type components = {
         ErrorEventData: {
             /** Error */
             error: string;
-        };
-        /**
-         * ExecutorBuildRequestEventData
-         * @description Payload for ``executor_build_request`` SSE events.
-         */
-        ExecutorBuildRequestEventData: {
-            executorBuildRequest?: components["schemas"]["JSONObject"] | null;
         };
         /**
          * ExperimentConfigResponse
@@ -2942,6 +3000,18 @@ export type components = {
             graphId?: string | null;
         };
         /**
+         * GraphEdge
+         * @description A single edge in a graph snapshot.
+         */
+        GraphEdge: {
+            /** Sourceid */
+            sourceId: string;
+            /** Targetid */
+            targetId: string;
+            /** Kind */
+            kind: string;
+        };
+        /**
          * GraphPlanEventData
          * @description Payload for ``graph_plan`` SSE events.
          */
@@ -2976,7 +3046,7 @@ export type components = {
             /** Steps */
             steps?: components["schemas"]["JSONObject"][];
             /** Edges */
-            edges?: components["schemas"]["JSONObject"][];
+            edges?: components["schemas"]["GraphEdge"][];
             plan?: components["schemas"]["JSONObject"] | null;
         };
         /**
@@ -3040,12 +3110,6 @@ export type components = {
             registeredToolCount?: number | null;
             /** Llmcallcount */
             llmCallCount?: number | null;
-            /** Subkaniprompttokens */
-            subKaniPromptTokens?: number | null;
-            /** Subkanicompletiontokens */
-            subKaniCompletionTokens?: number | null;
-            /** Subkanicallcount */
-            subKaniCallCount?: number | null;
             /** Estimatedcostusd */
             estimatedCostUsd?: number | null;
         };
@@ -3065,7 +3129,6 @@ export type components = {
             modelId?: string | null;
             /** Toolcalls */
             toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
-            subKaniActivity?: components["schemas"]["SubKaniActivityResponse"] | null;
             /** Citations */
             citations?: components["schemas"]["CitationResponse"][] | null;
             /** Planningartifacts */
@@ -3634,6 +3697,30 @@ export type components = {
             /** Sharedgenes */
             sharedGenes: number;
         };
+        /**
+         * PhaseChangeEventData
+         * @description Payload for ``phase_change`` SSE events.
+         *
+         *     Emitted by the state machine listener when the pipeline enters or
+         *     exits a phase.
+         */
+        PhaseChangeEventData: {
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "discovery" | "planning" | "execution" | "verification" | "completed";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "started" | "completed" | "failed" | "awaiting_approval";
+            /**
+             * Validationerror
+             * @description Validation gate error message if the phase failed validation.
+             */
+            validationError?: string | null;
+        };
         /** PlanNormalizeRequest */
         PlanNormalizeRequest: {
             /** Siteid */
@@ -3644,6 +3731,13 @@ export type components = {
         PlanNormalizeResponse: {
             plan: components["schemas"]["StrategyPlanPayload-Output"];
             warnings?: components["schemas"]["JSONArray"] | null;
+        };
+        /**
+         * PlanPresentedEventData
+         * @description Payload for ``plan_presented`` SSE events.
+         */
+        PlanPresentedEventData: {
+            plan: components["schemas"]["JSONObject"];
         };
         /**
          * PlanStepNode
@@ -3662,7 +3756,10 @@ export type components = {
         "PlanStepNode-Input": {
             /** Searchname */
             searchName: string;
-            parameters?: components["schemas"]["JSONObject"];
+            /** Parameters */
+            parameters?: {
+                [key: string]: string;
+            };
             primaryInput?: components["schemas"]["PlanStepNode-Input"] | null;
             secondaryInput?: components["schemas"]["PlanStepNode-Input"] | null;
             operator?: components["schemas"]["CombineOp"] | null;
@@ -3697,6 +3794,7 @@ export type components = {
         "PlanStepNode-Output": {
             /** Searchname */
             searchName: string;
+            /** Parameters */
             parameters?: {
                 [key: string]: string;
             };
@@ -3716,6 +3814,15 @@ export type components = {
             wdkWeight?: number | null;
             /** Id */
             id?: string;
+        };
+        /**
+         * PlanUpdatedEventData
+         * @description Payload for ``plan_updated`` SSE events.
+         */
+        PlanUpdatedEventData: {
+            /** Planid */
+            planId: string;
+            updates: components["schemas"]["JSONObject"];
         };
         /**
          * PlanningArtifactEventData
@@ -3746,6 +3853,17 @@ export type components = {
             createdAt: string;
         };
         /**
+         * PlanningThoughtEventData
+         * @description Payload for ``planning_thought`` SSE events.
+         *
+         *     Emitted when the model uses ``<plan-thinking>`` tags in its response.
+         *     The frontend renders these in a collapsible "Strategy Thinking" section.
+         */
+        PlanningThoughtEventData: {
+            /** Thought */
+            thought: string;
+        };
+        /**
          * PrimaryKeyPart
          * @description A single part of a composite WDK primary key.
          */
@@ -3768,6 +3886,19 @@ export type components = {
             google: boolean;
             /** Ollama */
             ollama: boolean;
+        };
+        /**
+         * PushStrategyRequest
+         * @description Request to push a strategy to WDK (persist + sync).
+         */
+        PushStrategyRequest: {
+            /** Name */
+            name: string;
+            /** Siteid */
+            siteId: string;
+            plan: components["schemas"]["StrategyPlanPayload-Input"];
+            /** Description */
+            description?: string | null;
         };
         /**
          * RankMetricsResponse
@@ -3959,10 +4090,6 @@ export type components = {
             assistant_message?: components["schemas"]["AssistantMessageEventData"] | null;
             tool_call_start?: components["schemas"]["ToolCallStartEventData"] | null;
             tool_call_end?: components["schemas"]["ToolCallEndEventData"] | null;
-            subkani_task_start?: components["schemas"]["SubKaniTaskStartEventData"] | null;
-            subkani_tool_call_start?: components["schemas"]["SubKaniToolCallStartEventData"] | null;
-            subkani_tool_call_end?: components["schemas"]["SubKaniToolCallEndEventData"] | null;
-            subkani_task_end?: components["schemas"]["SubKaniTaskEndEventData"] | null;
             token_usage_partial?: components["schemas"]["TokenUsagePartialEventData"] | null;
             model_selected?: components["schemas"]["ModelSelectedEventData"] | null;
             optimization_progress?: components["schemas"]["OptimizationProgressEventData"] | null;
@@ -3975,13 +4102,17 @@ export type components = {
             strategy_update?: components["schemas"]["StrategyUpdateEventData"] | null;
             strategy_link?: components["schemas"]["StrategyLinkEventData"] | null;
             graph_cleared?: components["schemas"]["GraphClearedEventData"] | null;
-            executor_build_request?: components["schemas"]["ExecutorBuildRequestEventData"] | null;
             gene_set_summary?: components["schemas"]["GeneSetSummary"] | null;
             workbench_gene_set?: components["schemas"]["WorkbenchGeneSetEventData"] | null;
             citations?: components["schemas"]["CitationsEventData"] | null;
             planning_artifact?: components["schemas"]["PlanningArtifactEventData"] | null;
             reasoning?: components["schemas"]["ReasoningEventData"] | null;
             message_end?: components["schemas"]["MessageEndEventData"] | null;
+            phase_change?: components["schemas"]["PhaseChangeEventData"] | null;
+            plan_presented?: components["schemas"]["PlanPresentedEventData"] | null;
+            plan_updated?: components["schemas"]["PlanUpdatedEventData"] | null;
+            decision_presented?: components["schemas"]["DecisionPresentedEventData"] | null;
+            planning_thought?: components["schemas"]["PlanningThoughtEventData"] | null;
         };
         /**
          * SearchResponse
@@ -3997,35 +4128,12 @@ export type components = {
             /** Recordtype */
             recordType: string;
         };
-        /** SearchValidationErrors */
-        SearchValidationErrors: {
-            /** General */
-            general?: string[];
-            /** Bykey */
-            byKey?: {
-                [key: string]: string[];
-            };
-        };
-        /** SearchValidationPayload */
-        SearchValidationPayload: {
-            /** Isvalid */
-            isValid: boolean;
-            normalizedContextValues?: components["schemas"]["JSONObject"];
-            errors?: components["schemas"]["SearchValidationErrors"];
-        };
         /**
          * SearchValidationRequest
          * @description Search parameter validation request.
          */
         SearchValidationRequest: {
             contextValues?: components["schemas"]["JSONObject"];
-        };
-        /**
-         * SearchValidationResponse
-         * @description Stable validation response for UI consumption.
-         */
-        SearchValidationResponse: {
-            validation: components["schemas"]["SearchValidationPayload"];
         };
         /**
          * SetOperationRequest
@@ -4465,113 +4573,11 @@ export type components = {
         /**
          * StrategyUpdateEventData
          * @description Payload for ``strategy_update`` SSE events.
-         *
-         *     ``all_steps`` is ``list[JSONObject]`` (pre-serialized StepResponse dicts)
-         *     to avoid coupling this platform-level schema to service-layer types.
          */
         StrategyUpdateEventData: {
             /** Graphid */
             graphId?: string | null;
             step?: components["schemas"]["JSONObject"] | null;
-            /** Allsteps */
-            allSteps?: components["schemas"]["JSONObject"][];
-        };
-        /**
-         * SubKaniActivityResponse
-         * @description Sub-kani tool call activity.
-         */
-        SubKaniActivityResponse: {
-            /** Calls */
-            calls: {
-                [key: string]: components["schemas"]["ToolCallResponse"][];
-            };
-            /** Status */
-            status: {
-                [key: string]: string;
-            };
-            /** Models */
-            models?: {
-                [key: string]: string;
-            } | null;
-            /** Tokenusage */
-            tokenUsage?: {
-                [key: string]: components["schemas"]["SubKaniTokenUsageResponse"];
-            } | null;
-        };
-        /**
-         * SubKaniTaskEndEventData
-         * @description Payload for ``subkani_task_end`` SSE events.
-         */
-        SubKaniTaskEndEventData: {
-            /** Task */
-            task?: string | null;
-            /** Status */
-            status?: string | null;
-            /** Modelid */
-            modelId?: string | null;
-            /** Prompttokens */
-            promptTokens?: number | null;
-            /** Completiontokens */
-            completionTokens?: number | null;
-            /** Llmcallcount */
-            llmCallCount?: number | null;
-            /** Estimatedcostusd */
-            estimatedCostUsd?: number | null;
-        };
-        /**
-         * SubKaniTaskStartEventData
-         * @description Payload for ``subkani_task_start`` SSE events.
-         */
-        SubKaniTaskStartEventData: {
-            /** Task */
-            task?: string | null;
-            /** Modelid */
-            modelId?: string | null;
-        };
-        /**
-         * SubKaniTokenUsageResponse
-         * @description Token usage for a single sub-kani agent.
-         */
-        SubKaniTokenUsageResponse: {
-            /** Prompttokens */
-            promptTokens: number;
-            /** Completiontokens */
-            completionTokens: number;
-            /**
-             * Llmcallcount
-             * @default 0
-             */
-            llmCallCount: number;
-            /**
-             * Estimatedcostusd
-             * @default 0
-             */
-            estimatedCostUsd: number;
-        };
-        /**
-         * SubKaniToolCallEndEventData
-         * @description Payload for ``subkani_tool_call_end`` SSE events.
-         */
-        SubKaniToolCallEndEventData: {
-            /** Id */
-            id: string;
-            /** Result */
-            result?: string | null;
-            /** Task */
-            task?: string | null;
-        };
-        /**
-         * SubKaniToolCallStartEventData
-         * @description Payload for ``subkani_tool_call_start`` SSE events.
-         */
-        SubKaniToolCallStartEventData: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            arguments?: components["schemas"]["JSONObject"];
-            /** Task */
-            task?: string | null;
         };
         /**
          * SystemConfigResponse
@@ -4593,14 +4599,6 @@ export type components = {
             toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
             /** Lasttoolcalls */
             lastToolCalls?: components["schemas"]["ToolCallResponse"][] | null;
-            /** Subkanicalls */
-            subKaniCalls?: {
-                [key: string]: components["schemas"]["ToolCallResponse"][];
-            } | null;
-            /** Subkanistatus */
-            subKaniStatus?: {
-                [key: string]: string;
-            } | null;
             /** Reasoning */
             reasoning?: string | null;
             /** Updatedat */
@@ -4704,21 +4702,6 @@ export type components = {
              * @default 0
              */
             llmCallCount: number;
-            /**
-             * Subkaniprompttokens
-             * @default 0
-             */
-            subKaniPromptTokens: number;
-            /**
-             * Subkanicompletiontokens
-             * @default 0
-             */
-            subKaniCompletionTokens: number;
-            /**
-             * Subkanicallcount
-             * @default 0
-             */
-            subKaniCallCount: number;
             /**
              * Estimatedcostusd
              * @default 0
@@ -4889,6 +4872,35 @@ export type components = {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * ValidationErrors
+         * @description Structured validation errors by category.
+         */
+        ValidationErrors: {
+            /** General */
+            general?: string[];
+            /** Bykey */
+            byKey?: {
+                [key: string]: string[];
+            };
+        };
+        /**
+         * ValidationResponse
+         * @description Top-level validation response wrapper.
+         */
+        ValidationResponse: {
+            validation: components["schemas"]["ValidationResult"];
+        };
+        /**
+         * ValidationResult
+         * @description Single validation result with normalized values.
+         */
+        ValidationResult: {
+            /** Isvalid */
+            isValid: boolean;
+            normalizedContextValues?: components["schemas"]["JSONObject"];
+            errors?: components["schemas"]["ValidationErrors"];
         };
         /**
          * WDKValidation
@@ -5131,7 +5143,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SearchValidationResponse"];
+                    "application/json": components["schemas"]["ValidationResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5598,6 +5610,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdateStrategyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StrategyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    push_strategy_api_v1_strategies__strategyId__push_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                strategyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushStrategyRequest"];
             };
         };
         responses: {
@@ -7524,6 +7571,37 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dev_login_api_v1_dev_login_post: {
+        parameters: {
+            query?: {
+                user_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

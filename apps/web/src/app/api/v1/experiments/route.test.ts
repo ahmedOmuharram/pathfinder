@@ -27,7 +27,7 @@ describe("GET /api/v1/experiments", () => {
     await GET(req);
 
     expect(proxyMock).toHaveBeenCalledOnce();
-    const [, path] = proxyMock.mock.calls[0];
+    const [, path] = proxyMock.mock.calls[0]!;
     expect(path).toBe("/api/v1/experiments");
   });
 
@@ -35,7 +35,7 @@ describe("GET /api/v1/experiments", () => {
     const req = makeReq("/api/v1/experiments?siteId=plasmodb&status=running");
     await GET(req);
 
-    const [, path] = proxyMock.mock.calls[0];
+    const [, path] = proxyMock.mock.calls[0]!;
     expect(path).toBe("/api/v1/experiments?siteId=plasmodb&status=running");
   });
 });
@@ -52,7 +52,7 @@ describe("POST /api/v1/experiments", () => {
     await POST(req);
 
     expect(proxyMock).toHaveBeenCalledOnce();
-    const [, path, opts] = proxyMock.mock.calls[0];
+    const [, path, opts] = proxyMock.mock.calls[0]!;
     expect(path).toBe("/api/v1/experiments");
     expect(opts).toEqual({ includeBody: true });
   });
@@ -68,7 +68,7 @@ describe("DELETE /api/v1/experiments", () => {
     await DELETE(req);
 
     expect(proxyMock).toHaveBeenCalledOnce();
-    const [, path, opts] = proxyMock.mock.calls[0];
+    const [, path, opts] = proxyMock.mock.calls[0]!;
     expect(path).toBe("/api/v1/experiments?id=abc&id=def");
     expect(opts).toEqual({ method: "DELETE" });
   });
@@ -77,7 +77,7 @@ describe("DELETE /api/v1/experiments", () => {
     const req = makeReq("/api/v1/experiments", { method: "DELETE" });
     await DELETE(req);
 
-    const [, path] = proxyMock.mock.calls[0];
+    const [, path] = proxyMock.mock.calls[0]!;
     expect(path).toBe("/api/v1/experiments");
   });
 });

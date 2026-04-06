@@ -19,45 +19,61 @@ import re
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+from sentence_transformers import SentenceTransformer
 
+from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
 _MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
-_model_lock = threading.Lock()
-_model_instance = None
 
 # Pre-computed embeddings shipped with the repo.
 _BUNDLED_CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "embeddings"
-# Runtime cache — defaults to bundled dir but can be overridden (e.g. Docker volume).
-_RUNTIME_CACHE_DIR: Path = _BUNDLED_CACHE_DIR
+
+
+class _CacheConfig:
+    """Mutable container for the runtime cache directory (avoids global reassignment)."""
+
+    dir: Path = _BUNDLED_CACHE_DIR
+
+
+_cache_config = _CacheConfig()
+
+
+class _ModelState:
+    """Thread-safe singleton container for the SentenceTransformer model."""
+
+    _instance: SentenceTransformer | None = None
+    _lock: threading.Lock = threading.Lock()
+
+    @classmethod
+    def get(cls) -> SentenceTransformer:
+        """Return the singleton model, loading it on first call."""
+        if cls._instance is not None:
+            return cls._instance
+        with cls._lock:
+            if cls._instance is not None:
+                return cls._instance
+            logger.info("Loading sentence-transformer model", model=_MODEL_NAME)
+            cls._instance = SentenceTransformer(_MODEL_NAME, trust_remote_code=True)
+            logger.info("Sentence-transformer model loaded")
+            return cls._instance
 
 
 def set_cache_dir(path: Path) -> None:
-    """Override the runtime embedding cache directory."""
-    global _RUNTIME_CACHE_DIR
-    _RUNTIME_CACHE_DIR = path
-    _RUNTIME_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    """Override the runtime cache directory used at runtime."""
+    _cache_config.dir = path
+    _cache_config.dir.mkdir(parents=True, exist_ok=True)
 
 
-def _get_model():
-    """Lazy-load the sentence-transformer model (thread-safe singleton)."""
-    global _model_instance
-    if _model_instance is not None:
-        return _model_instance
-    with _model_lock:
-        if _model_instance is not None:
-            return _model_instance
-        from sentence_transformers import SentenceTransformer
-
-        logger.info("Loading sentence-transformer model", model=_MODEL_NAME)
-        _model_instance = SentenceTransformer(_MODEL_NAME, trust_remote_code=True)
-        logger.info("Sentence-transformer model loaded")
-        return _model_instance
+def _get_model() -> SentenceTransformer:
+    """Return the lazy-loaded sentence-transformer model singleton."""
+    return _ModelState.get()
 
 
 def warm_up_model() -> None:
@@ -88,33 +104,35 @@ def _catalog_hash(entries: list[SearchIndexEntry]) -> str:
 
 def _cache_path(site_id: str) -> Path:
     """Path to the cached embeddings file for a site."""
-    return _RUNTIME_CACHE_DIR / f"{site_id}.npz"
+    return _cache_config.dir / f"{site_id}.npz"
 
 
 def _try_load_cache(
     site_id: str, catalog_hash: str
-) -> NDArray | None:
+) -> NDArray[Any] | None:
     """Try loading cached embeddings, checking both runtime and bundled dirs."""
-    for cache_dir in (_RUNTIME_CACHE_DIR, _BUNDLED_CACHE_DIR):
+    for cache_dir in (_cache_config.dir, _BUNDLED_CACHE_DIR):
         path = cache_dir / f"{site_id}.npz"
         if not path.exists():
             continue
         try:
             data = np.load(path)
-            if data.get("hash", None) is not None and str(data["hash"]) == catalog_hash:
-                return data["embeddings"]
-        except Exception:
+            stored_hash = data.get("hash", None)
+            if stored_hash is not None and str(stored_hash) == catalog_hash:
+                result: NDArray[Any] = data["embeddings"]
+                return result
+        except (OSError, ValueError, KeyError):
             logger.debug("Cache load failed", path=str(path))
     return None
 
 
-def _save_cache(site_id: str, catalog_hash: str, embeddings: NDArray) -> None:
+def _save_cache(site_id: str, catalog_hash: str, embeddings: NDArray[Any]) -> None:
     """Save embeddings to the runtime cache directory."""
-    _RUNTIME_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    _cache_config.dir.mkdir(parents=True, exist_ok=True)
     path = _cache_path(site_id)
     try:
         np.savez_compressed(path, embeddings=embeddings, hash=np.array(catalog_hash))
-    except Exception:
+    except OSError:
         logger.warning("Failed to save embedding cache", path=str(path), exc_info=True)
 
 
@@ -133,11 +151,11 @@ class SemanticSearchIndex:
 
     site_id: str = ""
     entries: list[SearchIndexEntry] = field(default_factory=list)
-    embeddings: NDArray | None = None
+    embeddings: NDArray[Any] | None = None
 
     def build(
         self,
-        searches_by_rt: dict[str, list],
+        searches_by_rt: dict[str, list[WDKSearch]],
         dataset_summaries: dict[str, str] | None = None,
         dataset_contacts: dict[str, str] | None = None,
     ) -> None:
@@ -213,7 +231,12 @@ class SemanticSearchIndex:
                 results.append((entry.search_name, entry.record_type, score))
         return results
 
-    def _build_enriched_text(self, search, ds_summaries: dict, ds_contacts: dict) -> str:
+    def _build_enriched_text(
+        self,
+        search: WDKSearch,
+        ds_summaries: dict[str, str],
+        ds_contacts: dict[str, str],
+    ) -> str:
         """Build enriched text blob for a search.
 
         Structures the text to front-load discriminating signals:
@@ -228,9 +251,11 @@ class SemanticSearchIndex:
         parts: list[str] = []
 
         # 1. All properties as readable text (displayCategory, organisms, etc.)
-        for prop_values in search.properties.values():
-            if prop_values:
-                parts.append(" ".join(str(v) for v in prop_values))
+        parts.extend(
+            " ".join(str(v) for v in prop_values)
+            for prop_values in search.properties.values()
+            if prop_values
+        )
 
         # 2. Display names
         parts.append(search.display_name)

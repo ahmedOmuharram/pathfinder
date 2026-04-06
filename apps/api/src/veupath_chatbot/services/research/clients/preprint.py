@@ -11,11 +11,13 @@ from veupath_chatbot.domain.research.citations import (
     _new_citation_id,
     _now_iso,
 )
+from veupath_chatbot.domain.research.papers import ParsedPaper
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONValue
 from veupath_chatbot.services.research.clients._base import (
     BaseClient,
+    SearchResponse,
     build_response,
 )
 from veupath_chatbot.services.research.utils import (
@@ -51,7 +53,7 @@ class PreprintClient(BaseClient):
         limit: int,
         include_abstract: bool,
         abstract_max_chars: int,
-    ) -> JSONObject:
+    ) -> SearchResponse:
         """Search preprint sites using DuckDuckGo with retry on 429."""
         last_exc: Exception | None = None
         raw_items: list[JSONValue] = []
@@ -72,14 +74,14 @@ class PreprintClient(BaseClient):
                     continue
                 raise
         else:
-            raise ExternalServiceError("DuckDuckGo", str(last_exc))
+            service = "DuckDuckGo"
+            raise ExternalServiceError(service, str(last_exc))
         self._current_source: Literal["biorxiv", "medrxiv"] = source
         results, citations = self._build_results(
             raw_items, abstract_max_chars=abstract_max_chars
         )
 
         if include_abstract and results:
-            dict_results = [r for r in results if isinstance(r, dict)]
             async with httpx.AsyncClient(
                 timeout=min(self._timeout, 15.0),
                 headers={
@@ -90,16 +92,18 @@ class PreprintClient(BaseClient):
                 summaries = await asyncio.gather(
                     *[
                         fetch_page_summary(
-                            client, r.get("url"), max_chars=abstract_max_chars
+                            client, paper.url, max_chars=abstract_max_chars
                         )
-                        for r in dict_results
+                        for paper in results
                     ],
                     return_exceptions=True,
                 )
-            for r, s in zip(dict_results, summaries, strict=True):
+            for paper, s in zip(results, summaries, strict=True):
+                # isinstance(s, str) is legitimate: asyncio.gather(return_exceptions=True)
+                # mixes str results with Exception objects in the same list.
                 if isinstance(s, str) and s.strip():
-                    r["abstract"] = s.strip()
-                    r["snippet"] = s.strip()
+                    paper.abstract = s.strip()
+                    paper.snippet = s.strip()
 
         return build_response(
             query=query, source=source, results=results, citations=citations
@@ -142,7 +146,7 @@ class PreprintClient(BaseClient):
 
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
-    ) -> tuple[JSONObject, JSONObject] | None:
+    ) -> tuple[ParsedPaper, Citation] | None:
         if not isinstance(raw, dict):
             return None
         title = str(raw.get("_title") or "")
@@ -150,12 +154,12 @@ class PreprintClient(BaseClient):
         url_str = url_str if isinstance(url_str, str) else None
         source = self._current_source
 
-        result: JSONObject = {"title": title, "url": url_str, "snippet": None}
+        parsed = ParsedPaper(title=title, url=url_str)
         citation = Citation(
             id=_new_citation_id(source),
             source=source,
             title=title or (url_str or f"{source} result"),
             url=url_str,
             accessed_at=_now_iso(),
-        ).model_dump(by_alias=True, exclude_none=True, mode="json")
-        return result, citation
+        )
+        return parsed, citation

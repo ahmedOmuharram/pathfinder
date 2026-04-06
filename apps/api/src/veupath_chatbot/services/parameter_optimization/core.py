@@ -13,6 +13,7 @@ import optuna
 
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONArray, JSONValue
+from veupath_chatbot.services.parameter_optimization.batch import TrialContext
 from veupath_chatbot.services.parameter_optimization.callbacks import (
     OptimizationCompletedEvent,
     OptimizationStartedEvent,
@@ -29,10 +30,7 @@ from veupath_chatbot.services.parameter_optimization.config import (
 from veupath_chatbot.services.parameter_optimization.sampler import (
     _create_sampler,
 )
-from veupath_chatbot.services.parameter_optimization.trials import (
-    _TrialContext,
-    run_trial_loop,
-)
+from veupath_chatbot.services.parameter_optimization.trials import run_trial_loop
 
 logger = get_logger(__name__)
 
@@ -80,13 +78,13 @@ async def optimize_search_parameters(
                 objective=cfg.objective,
                 positive_controls_count=len(inp.positive_controls or []),
                 negative_controls_count=len(inp.negative_controls or []),
-                parameter_space=param_space_json,
+                parameter_specs=param_space_json,
             ),
         )
 
     study = optuna.create_study(direction="maximize", sampler=sampler)
 
-    ctx = _TrialContext(
+    ctx = TrialContext(
         inp=inp,
         cfg=cfg,
         optimization_id=optimization_id,

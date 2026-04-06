@@ -3,15 +3,16 @@
 All experiment SSE generators share a common pattern:
 1. Create an asyncio queue for events
 2. Launch a background task that produces events via the queue
-3. Format each event as SSE text and yield to the client
+3. Yield ``ServerSentEvent`` objects to ``EventSourceResponse``
 4. Terminate when a sentinel event type is received
 
 This module extracts that pattern into ``sse_stream()``.
 """
 
 import asyncio
-import json
 from collections.abc import AsyncIterator, Awaitable, Callable
+
+from fastapi.sse import ServerSentEvent
 
 from veupath_chatbot.platform.errors import sanitize_error_for_client
 from veupath_chatbot.platform.logging import get_logger
@@ -19,34 +20,28 @@ from veupath_chatbot.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
-SSE_HEADERS: dict[str, str] = {
-    "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
-    "X-Accel-Buffering": "no",
-}
-
 # Sentinel pushed to the queue when the producer crashes so the consumer
 # never blocks indefinitely on ``queue.get()``.
 _INTERNAL_ERROR_EVENT_TYPE = "internal_error"
 
 
-def _format_sse_frame(event: JSONObject) -> str:
-    """Format a single event dict as an SSE text frame."""
+def _sse_event_from_dict(event: JSONObject) -> ServerSentEvent:
+    """Build a ``ServerSentEvent`` from a ``{"type": ..., "data": ...}`` dict."""
     event_type = event.get("type", "experiment_progress")
     data = event.get("data", {})
-    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+    return ServerSentEvent(data=data, event=str(event_type))
 
 
 async def sse_stream(
     producer: Callable[[Callable[[JSONObject], Awaitable[None]]], Awaitable[None]],
     end_event_types: set[str],
-) -> AsyncIterator[str]:
+) -> AsyncIterator[ServerSentEvent]:
     """Generic SSE event stream driven by an async producer function.
 
     :param producer: An async callable that receives a ``send(event)`` callback
         and pushes ``{"type": ..., "data": ...}`` dicts into it.
     :param end_event_types: Set of event type strings that signal end-of-stream.
-        When the consumer sees one of these, it yields the final SSE frame and
+        When the consumer sees one of these, it yields the final SSE event and
         stops iterating.
 
     If the producer raises without sending an end event, an ``internal_error``
@@ -74,8 +69,7 @@ async def sse_stream(
     try:
         while True:
             event = await queue.get()
-            frame = _format_sse_frame(event)
-            yield frame
+            yield _sse_event_from_dict(event)
             event_type = event.get("type", "experiment_progress")
             if event_type in terminal_types:
                 break

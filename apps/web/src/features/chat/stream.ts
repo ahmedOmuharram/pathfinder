@@ -12,6 +12,8 @@ interface StreamChatContext {
   strategyId?: string;
   /** @-mention references to strategies and experiments. */
   mentions?: ChatMention[];
+  /** Structured metadata from UI interactions (e.g. plan approval). */
+  metadata?: Record<string, unknown>;
 }
 
 interface StreamChatResult {
@@ -43,6 +45,9 @@ export async function streamChat(
         siteId,
         ...(context?.strategyId != null ? { strategyId: context.strategyId } : {}),
         ...(context?.mentions != null ? { mentions: context.mentions } : {}),
+        ...(context?.metadata != null && Object.keys(context.metadata).length > 0
+          ? { metadata: context.metadata }
+          : {}),
         // Per-request model overrides
         ...(modelSelection?.provider != null
           ? { provider: modelSelection.provider }

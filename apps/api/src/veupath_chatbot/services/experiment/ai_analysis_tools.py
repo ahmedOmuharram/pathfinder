@@ -1,13 +1,13 @@
-"""AI tools for deep experiment result analysis.
+"""AI tools for deep experiment result analysis (pydantic-ai standalone functions).
 
 Provides function-calling tools that let the AI assistant access
 experiment data: paginate through records, look up individual genes,
 get attribute distributions, compare gene groups, and search results.
 """
 
-from typing import Annotated, cast
+from typing import cast
 
-from kani import AIParam, ai_function
+from pydantic_ai import RunContext
 
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
@@ -22,9 +22,11 @@ from veupath_chatbot.services.experiment.ai_analysis_helpers import (
     fetch_group_records,
     record_matches,
 )
+from veupath_chatbot.services.experiment.store import get_experiment_store
 from veupath_chatbot.services.experiment.types import (
     Experiment,
 )
+from veupath_chatbot.services.experiment.workbench_deps import WorkbenchDeps
 from veupath_chatbot.services.wdk.helpers import extract_pk
 
 # Cap search_results early to avoid bloating the LLM context window
@@ -32,209 +34,212 @@ from veupath_chatbot.services.wdk.helpers import extract_pk
 _MAX_SEARCH_MATCHES = 20
 
 
-class _AnalysisToolsMixin:
-    """Mixin providing data-access @ai_function methods for analysis.
+async def _get_experiment(ctx: RunContext[WorkbenchDeps]) -> Experiment | None:
+    """Fetch the current experiment from the store."""
+    store = get_experiment_store()
+    return await store.aget(ctx.deps.experiment_id)
 
-    Classes using this mixin must provide:
-    - site_id: str
-    - experiment_id: str
-    - _get_experiment() -> Experiment | None  (async)
+
+async def fetch_result_records(
+    ctx: RunContext[WorkbenchDeps],
+    offset: int = 0,
+    limit: int = 20,
+    sort_attribute: str | None = None,
+    sort_direction: str = "ASC",
+) -> JSONObject:
+    """Fetch paginated result records from the experiment's WDK search results.
+
+    Each record includes attributes and a classification (TP/FP/FN/TN)
+    based on the experiment's control genes.
+
+    Args:
+        offset: Page offset (0-based).
+        limit: Number of records (max 50).
+        sort_attribute: Attribute name to sort by.
+        sort_direction: ASC or DESC.
     """
+    exp = await _get_experiment(ctx)
+    if not exp or not exp.wdk_step_id:
+        return {"error": "Experiment has no WDK strategy"}
 
-    site_id: str = ""
-    experiment_id: str = ""
-
-    async def _get_experiment(self) -> Experiment | None: ...
-
-    @ai_function()
-    async def fetch_result_records(
-        self,
-        offset: Annotated[int, AIParam(desc="Page offset (0-based)")] = 0,
-        limit: Annotated[int, AIParam(desc="Number of records (max 50)")] = 20,
-        sort_attribute: Annotated[
-            str | None,
-            AIParam(desc="Attribute name to sort by"),
-        ] = None,
-        sort_direction: Annotated[str, AIParam(desc="ASC or DESC")] = "ASC",
-    ) -> JSONObject:
-        """Fetch paginated result records from the experiment's WDK search results.
-
-        Each record includes attributes and a classification (TP/FP/FN/TN)
-        based on the experiment's control genes.
-        """
-        exp = await self._get_experiment()
-        if not exp or not exp.wdk_step_id:
-            return {"error": "Experiment has no WDK strategy"}
-
-        api = get_strategy_api(self.site_id)
-        sorting: list[WDKSortSpec] | None = None
-        if sort_attribute:
-            direction: WDKSortDirection = (
-                "DESC" if sort_direction.upper() == "DESC" else "ASC"
-            )
-            sorting = [WDKSortSpec(attribute_name=sort_attribute, direction=direction)]
-
-        answer = await api.get_step_records(
-            step_id=exp.wdk_step_id,
-            pagination={"offset": offset, "numRecords": min(limit, 50)},
-            sorting=sorting,
+    api = get_strategy_api(ctx.deps.site_id)
+    sorting: list[WDKSortSpec] | None = None
+    if sort_attribute:
+        direction: WDKSortDirection = (
+            "DESC" if sort_direction.upper() == "DESC" else "ASC"
         )
+        sorting = [WDKSortSpec(attribute_name=sort_attribute, direction=direction)]
 
-        tp_ids, fp_ids, fn_ids, tn_ids = exp.classification_id_sets()
+    answer = await api.get_step_records(
+        step_id=exp.wdk_step_id,
+        pagination={"offset": offset, "numRecords": min(limit, 50)},
+        sorting=sorting,
+    )
 
-        classified: list[JSONObject] = []
-        for rec in answer.records:
-            gene_id = extract_pk(rec)
-            classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
-            classified.append(
-                {
-                    "geneId": gene_id,
-                    "classification": classification,
-                    "attributes": rec.attributes,
-                }
-            )
+    tp_ids, fp_ids, fn_ids, tn_ids = exp.classification_id_sets()
 
-        total = answer.meta.total_count
-        return cast(
-            "JSONObject",
+    classified: list[JSONObject] = []
+    for rec in answer.records:
+        gene_id = extract_pk(rec)
+        classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
+        classified.append(
             {
-                "records": classified[:50],
-                "totalCount": total,
-                "offset": offset,
-            },
-        )
-
-    @ai_function()
-    async def lookup_gene_detail(
-        self,
-        gene_id: Annotated[str, AIParam(desc="Gene ID to look up")],
-    ) -> JSONObject:
-        """Get the full record details for a specific gene by its ID.
-
-        Returns all attributes and tables for the gene from WDK.
-        """
-        exp = await self._get_experiment()
-        if not exp:
-            return {"error": "Experiment not found"}
-
-        api = get_strategy_api(self.site_id)
-        try:
-            pk_parts = await build_primary_key(
-                api, self.site_id, exp.config.record_type, gene_id
-            )
-            record = await api.get_single_record(
-                record_type=exp.config.record_type,
-                primary_key=pk_parts,
-            )
-            tp_ids, fp_ids, fn_ids, tn_ids = exp.classification_id_sets()
-            classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
-        except AppError as exc:
-            return {"error": str(exc), "geneId": gene_id}
-        else:
-            return {
                 "geneId": gene_id,
                 "classification": classification,
-                "record": record.model_dump(by_alias=True),
+                "attributes": rec.attributes,
             }
-
-    @ai_function()
-    async def get_attribute_distribution(
-        self,
-        attribute_name: Annotated[
-            str, AIParam(desc="Attribute name to get distribution for")
-        ],
-    ) -> JSONObject:
-        """Get the distribution of values for a given attribute across all results.
-
-        Useful for understanding patterns in the data.
-        """
-        exp = await self._get_experiment()
-        if not exp or not exp.wdk_step_id:
-            return {"error": "Experiment has no WDK strategy"}
-
-        api = get_strategy_api(self.site_id)
-        try:
-            dist = await api.get_column_distribution(exp.wdk_step_id, attribute_name)
-            return dist.model_dump(by_alias=True)
-        except AppError as exc:
-            return {"error": str(exc), "attribute": attribute_name}
-
-    @ai_function()
-    async def compare_gene_groups(
-        self,
-        group_a_ids: Annotated[list[str], AIParam(desc="Gene IDs for group A")],
-        group_b_ids: Annotated[list[str], AIParam(desc="Gene IDs for group B")],
-    ) -> JSONObject:
-        """Compare attributes of two groups of genes to find distinguishing features.
-
-        Fetches records for both groups and identifies attribute differences.
-        """
-        exp = await self._get_experiment()
-        if not exp or not exp.wdk_step_id:
-            return {"error": "Experiment has no WDK strategy"}
-
-        api = get_strategy_api(self.site_id)
-        group_a_attrs = await fetch_group_records(
-            api, exp.config.record_type, group_a_ids, site_id=self.site_id
-        )
-        group_b_attrs = await fetch_group_records(
-            api, exp.config.record_type, group_b_ids, site_id=self.site_id
         )
 
-        return cast(
-            "JSONObject",
-            {
-                "groupA": group_a_attrs,
-                "groupB": group_b_attrs,
-                "groupACount": len(group_a_attrs),
-                "groupBCount": len(group_b_attrs),
-            },
+    total = answer.meta.total_count
+    return cast(
+        "JSONObject",
+        {
+            "records": classified[:50],
+            "totalCount": total,
+            "offset": offset,
+        },
+    )
+
+
+async def lookup_gene_detail(
+    ctx: RunContext[WorkbenchDeps],
+    gene_id: str,
+) -> JSONObject:
+    """Get the full record details for a specific gene by its ID.
+
+    Returns all attributes and tables for the gene from WDK.
+
+    Args:
+        gene_id: Gene ID to look up.
+    """
+    exp = await _get_experiment(ctx)
+    if not exp:
+        return {"error": "Experiment not found"}
+
+    api = get_strategy_api(ctx.deps.site_id)
+    try:
+        pk_parts = await build_primary_key(
+            api, ctx.deps.site_id, exp.config.record_type, gene_id
         )
+        record = await api.get_single_record(
+            record_type=exp.config.record_type,
+            primary_key=pk_parts,
+        )
+        tp_ids, fp_ids, fn_ids, tn_ids = exp.classification_id_sets()
+        classification = classify_gene(gene_id, tp_ids, fp_ids, fn_ids, tn_ids)
+    except AppError as exc:
+        return {"error": str(exc), "geneId": gene_id}
+    else:
+        return {
+            "geneId": gene_id,
+            "classification": classification,
+            "record": record.model_dump(by_alias=True),
+        }
 
-    @ai_function()
-    async def search_results(
-        self,
-        query: Annotated[str, AIParam(desc="Text pattern to search for")],
-        attribute: Annotated[
-            str | None,
-            AIParam(desc="Specific attribute to search in"),
-        ] = None,
-    ) -> JSONObject:
-        """Search through result records for a text pattern.
 
-        Iterates through result pages looking for records whose attributes
-        match the query string.
-        """
-        exp = await self._get_experiment()
-        if not exp or not exp.wdk_step_id:
-            return {"error": "Experiment has no WDK strategy"}
+async def get_attribute_distribution(
+    ctx: RunContext[WorkbenchDeps],
+    attribute_name: str,
+) -> JSONObject:
+    """Get the distribution of values for a given attribute across all results.
 
-        api = get_strategy_api(self.site_id)
-        matches: list[JSONObject] = []
-        query_lower = query.lower()
-        total_scanned = 0
+    Useful for understanding patterns in the data.
 
-        for page_offset in range(0, 500, 100):
-            answer = await api.get_step_records(
-                step_id=exp.wdk_step_id,
-                pagination={"offset": page_offset, "numRecords": 100},
-            )
-            records = answer.records
-            if not records:
-                break
-            total_scanned = page_offset + len(records)
+    Args:
+        attribute_name: Attribute name to get distribution for.
+    """
+    exp = await _get_experiment(ctx)
+    if not exp or not exp.wdk_step_id:
+        return {"error": "Experiment has no WDK strategy"}
 
-            for rec in records:
-                if record_matches(rec.attributes, query_lower, attribute):
-                    gene_id = extract_pk(rec)
-                    matches.append({"geneId": gene_id, "attributes": rec.attributes})
-                    if len(matches) >= _MAX_SEARCH_MATCHES:
-                        return cast(
-                            "JSONObject",
-                            {
-                                "matches": matches,
-                                "totalScanned": total_scanned,
-                            },
-                        )
+    api = get_strategy_api(ctx.deps.site_id)
+    try:
+        dist = await api.get_column_distribution(exp.wdk_step_id, attribute_name)
+        return dist.model_dump(by_alias=True)
+    except AppError as exc:
+        return {"error": str(exc), "attribute": attribute_name}
 
-        return cast("JSONObject", {"matches": matches, "totalScanned": total_scanned})
+
+async def compare_gene_groups(
+    ctx: RunContext[WorkbenchDeps],
+    group_a_ids: list[str],
+    group_b_ids: list[str],
+) -> JSONObject:
+    """Compare attributes of two groups of genes to find distinguishing features.
+
+    Fetches records for both groups and identifies attribute differences.
+
+    Args:
+        group_a_ids: Gene IDs for group A.
+        group_b_ids: Gene IDs for group B.
+    """
+    exp = await _get_experiment(ctx)
+    if not exp or not exp.wdk_step_id:
+        return {"error": "Experiment has no WDK strategy"}
+
+    api = get_strategy_api(ctx.deps.site_id)
+    group_a_attrs = await fetch_group_records(
+        api, exp.config.record_type, group_a_ids, site_id=ctx.deps.site_id
+    )
+    group_b_attrs = await fetch_group_records(
+        api, exp.config.record_type, group_b_ids, site_id=ctx.deps.site_id
+    )
+
+    return cast(
+        "JSONObject",
+        {
+            "groupA": group_a_attrs,
+            "groupB": group_b_attrs,
+            "groupACount": len(group_a_attrs),
+            "groupBCount": len(group_b_attrs),
+        },
+    )
+
+
+async def search_results(
+    ctx: RunContext[WorkbenchDeps],
+    query: str,
+    attribute: str | None = None,
+) -> JSONObject:
+    """Search through result records for a text pattern.
+
+    Iterates through result pages looking for records whose attributes
+    match the query string.
+
+    Args:
+        query: Text pattern to search for.
+        attribute: Specific attribute to search in.
+    """
+    exp = await _get_experiment(ctx)
+    if not exp or not exp.wdk_step_id:
+        return {"error": "Experiment has no WDK strategy"}
+
+    api = get_strategy_api(ctx.deps.site_id)
+    matches: list[JSONObject] = []
+    query_lower = query.lower()
+    total_scanned = 0
+
+    for page_offset in range(0, 500, 100):
+        answer = await api.get_step_records(
+            step_id=exp.wdk_step_id,
+            pagination={"offset": page_offset, "numRecords": 100},
+        )
+        records = answer.records
+        if not records:
+            break
+        total_scanned = page_offset + len(records)
+
+        for rec in records:
+            if record_matches(rec.attributes, query_lower, attribute):
+                gene_id = extract_pk(rec)
+                matches.append({"geneId": gene_id, "attributes": rec.attributes})
+                if len(matches) >= _MAX_SEARCH_MATCHES:
+                    return cast(
+                        "JSONObject",
+                        {
+                            "matches": matches,
+                            "totalScanned": total_scanned,
+                        },
+                    )
+
+    return cast("JSONObject", {"matches": matches, "totalScanned": total_scanned})

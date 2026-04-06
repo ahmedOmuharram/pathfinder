@@ -19,9 +19,6 @@ export function TokenUsageDisplay({ usage }: TokenUsageDisplayProps) {
   // Guard against old messages missing new fields.
   const cachedTokens = usage.cachedTokens;
   const llmCallCount = usage.llmCallCount;
-  const subPrompt = usage.subKaniPromptTokens;
-  const subCompletion = usage.subKaniCompletionTokens;
-  const subCalls = usage.subKaniCallCount;
   const cost = usage.estimatedCostUsd;
   const modelId = usage.modelId;
 
@@ -30,7 +27,6 @@ export function TokenUsageDisplay({ usage }: TokenUsageDisplayProps) {
     usage.promptTokens > 0
       ? ((cachedTokens / usage.promptTokens) * 100).toFixed(1)
       : "0";
-  const subTotal = subPrompt + subCompletion;
 
   return (
     <div className="mt-1.5">
@@ -88,26 +84,6 @@ export function TokenUsageDisplay({ usage }: TokenUsageDisplayProps) {
               Tool calls:{" "}
               <span className="text-foreground/70">{usage.toolCallCount}</span>
             </div>
-            {subTotal > 0 && (
-              <>
-                <div>
-                  Sub-agent in:{" "}
-                  <span className="text-foreground/70">
-                    {subPrompt.toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  Sub-agent out:{" "}
-                  <span className="text-foreground/70">
-                    {subCompletion.toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  Sub-agent calls:{" "}
-                  <span className="text-foreground/70">{subCalls}</span>
-                </div>
-              </>
-            )}
             {modelName && (
               <div>
                 Model: <span className="text-foreground/70">{modelName}</span>

@@ -497,6 +497,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@hookform/resolvers@npm:^5.2.2":
+  version: 5.2.2
+  resolution: "@hookform/resolvers@npm:5.2.2"
+  dependencies:
+    "@standard-schema/utils": "npm:^0.3.0"
+  peerDependencies:
+    react-hook-form: ^7.55.0
+  checksum: 10/93447287dc89827c517c72dc61e3be0217d3a5d9cbdb532317e5f5fd176c3eedb2ccd62d3c51fb403812939c9b7a4ebcaca35659a9bfb90e16ec38a2092d13a2
+  languageName: node
+  linkType: hard
+
 "@humanfs/core@npm:^0.19.1":
   version: 0.19.1
   resolution: "@humanfs/core@npm:0.19.1"
@@ -7480,6 +7491,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "pathfinder-web@workspace:apps/web"
   dependencies:
+    "@hookform/resolvers": "npm:^5.2.2"
     "@playwright/test": "npm:^1.58.2"
     "@radix-ui/react-alert-dialog": "npm:^1.1.15"
     "@radix-ui/react-dialog": "npm:^1.1.15"
@@ -7509,6 +7521,7 @@ __metadata:
     prettier: "npm:^3.8.1"
     react: "npm:^19.2.4"
     react-dom: "npm:^19.2.4"
+    react-hook-form: "npm:^7.72.0"
     react-markdown: "npm:^10.1.0"
     reactflow: "npm:^11.11.4"
     reaviz: "npm:^16.1.2"
@@ -7736,6 +7749,15 @@ __metadata:
   peerDependencies:
     react: ^0.14.0 || ^15.0.0 || ^16.0.0-0 || ^17.0.0-0 || ^18.0.0-0 || ^19.0.0-0
   checksum: 10/5054e1d3f536bf672047cc22d954837289061754cd342c5439b153069fca6997890f44af4cf9154149f70844dc9cdbc18d5fd82b7458b430fc42b7f1c11a6bf2
+  languageName: node
+  linkType: hard
+
+"react-hook-form@npm:^7.72.0":
+  version: 7.72.0
+  resolution: "react-hook-form@npm:7.72.0"
+  peerDependencies:
+    react: ^16.8.0 || ^17 || ^18 || ^19
+  checksum: 10/25268c510aa5943adfeb2cffe497f5b4b506974f60b4404b42f1b73eaa6db63a1efdb51f3e5f0fa6c0239cbd0f66a2dddf06ec45141d1894a266e77e2dbefb2d
   languageName: node
   linkType: hard
 

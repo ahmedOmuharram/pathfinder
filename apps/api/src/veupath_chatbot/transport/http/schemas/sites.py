@@ -81,31 +81,6 @@ class ParamSpecsRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class SearchValidationErrors(BaseModel):
-    general: list[str] = Field(default_factory=list)
-    by_key: dict[str, list[str]] = Field(default_factory=dict, alias="byKey")
-
-    model_config = {"populate_by_name": True}
-
-
-class SearchValidationPayload(BaseModel):
-    is_valid: bool = Field(alias="isValid")
-    normalized_context_values: JSONObject = Field(
-        default_factory=dict, alias="normalizedContextValues"
-    )
-    errors: SearchValidationErrors = Field(default_factory=SearchValidationErrors)
-
-    model_config = {"populate_by_name": True}
-
-
-class SearchValidationResponse(BaseModel):
-    """Stable validation response for UI consumption."""
-
-    validation: SearchValidationPayload
-
-    model_config = {"populate_by_name": True}
-
-
 class ParamSpecResponse(BaseModel):
     """Normalized parameter spec (UI-friendly)."""
 

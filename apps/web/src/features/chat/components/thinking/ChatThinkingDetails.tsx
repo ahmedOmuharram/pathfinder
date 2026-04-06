@@ -1,18 +1,16 @@
 "use client";
 
-import type { ToolCall, SubKaniActivity } from "@pathfinder/shared";
+import type { ToolCall } from "@pathfinder/shared";
 import { ToolCallInspector } from "@/features/chat/components/message/ToolCallInspector";
 import type {
   DelegateSummary,
   RejectedDelegateSummary,
 } from "@/features/chat/utils/extractDelegateSummaries";
-import { DelegationPanel } from "./DelegationPanel";
 
 interface ChatThinkingDetailsProps {
   toolCalls?: ToolCall[] | null;
   delegateSummaries?: DelegateSummary[];
   delegateRejected?: RejectedDelegateSummary[];
-  subKaniActivity?: SubKaniActivity | null;
   reasoning?: string | null;
   title?: string;
 }
@@ -21,16 +19,14 @@ export function ChatThinkingDetails({
   toolCalls,
   delegateSummaries = [],
   delegateRejected = [],
-  subKaniActivity,
   reasoning,
   title,
 }: ChatThinkingDetailsProps) {
   const hasToolCalls = (toolCalls?.length ?? 0) > 0;
-  const hasSubKaniActivity = Object.keys(subKaniActivity?.calls ?? {}).length > 0;
   const hasDelegate = delegateSummaries.length > 0 || delegateRejected.length > 0;
   const hasReasoning = Boolean(reasoning && reasoning.trim().length > 0);
 
-  if (!hasToolCalls && !hasSubKaniActivity && !hasDelegate && !hasReasoning)
+  if (!hasToolCalls && !hasDelegate && !hasReasoning)
     return null;
 
   return (
@@ -53,14 +49,6 @@ export function ChatThinkingDetails({
           <div className="rounded-md border border-border bg-muted p-2">
             <ToolCallInspector toolCalls={toolCalls ?? []} />
           </div>
-        )}
-
-        {(hasSubKaniActivity || delegateSummaries.length > 0) && (
-          <DelegationPanel
-            subKaniActivity={subKaniActivity!}
-            delegateSummaries={delegateSummaries}
-            delegateRejected={delegateRejected}
-          />
         )}
       </div>
     </details>

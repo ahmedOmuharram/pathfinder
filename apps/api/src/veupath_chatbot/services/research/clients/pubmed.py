@@ -2,7 +2,6 @@
 
 import asyncio
 import re
-from typing import cast
 
 import httpx
 
@@ -11,12 +10,14 @@ from veupath_chatbot.domain.research.citations import (
     _new_citation_id,
     _now_iso,
 )
+from veupath_chatbot.domain.research.papers import ParsedPaper, PubMedRawArticle
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
     BaseClient,
+    SearchResponse,
     build_response,
 )
 from veupath_chatbot.services.research.utils import strip_tags, truncate_text
@@ -44,7 +45,7 @@ class PubmedClient(BaseClient):
         limit: int,
         include_abstract: bool,
         abstract_max_chars: int,
-    ) -> JSONObject:
+    ) -> SearchResponse:
         """Search PubMed with retry on 429."""
         last_exc: Exception | None = None
         for attempt in range(_MAX_RETRIES):
@@ -68,7 +69,8 @@ class PubmedClient(BaseClient):
                     continue
                 raise
         else:
-            raise ExternalServiceError("PubMed", str(last_exc))
+            service = "PubMed"
+            raise ExternalServiceError(service, str(last_exc))
 
         if not raw_items:
             return build_response(
@@ -164,65 +166,30 @@ class PubmedClient(BaseClient):
 
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
-    ) -> tuple[JSONObject, JSONObject] | None:
+    ) -> tuple[ParsedPaper, Citation] | None:
         if not isinstance(raw, dict):
             return None
-        pmid = raw.get("_pmid")
-        meta = raw.get("_meta")
-        if not isinstance(pmid, str) or not isinstance(meta, dict):
-            return None
 
-        title = str(meta.get("title") or "").strip()
-        pubdate = str(meta.get("pubdate") or "")
-        year: int | None = None
-        m_year = re.search(r"(\d{4})", pubdate)
-        if m_year:
-            try:
-                year = int(m_year.group(1))
-            except ValueError:
-                year = None
+        article = PubMedRawArticle.model_validate(raw)
+        parsed = article.to_parsed_paper()
 
-        authors: list[str] | None = None
-        raw_authors = meta.get("authors")
-        if isinstance(raw_authors, list):
-            authors = [
-                str(a.get("name"))
-                for a in raw_authors
-                if isinstance(a, dict) and a.get("name")
-            ]
-
-        journal = meta.get("fulljournalname")
-        journal = str(journal).strip() if journal else None
-
-        abstract_text = raw.get("_abstract")
-        abstract: str | None = abstract_text if isinstance(abstract_text, str) else None
         abstract = (
-            truncate_text(abstract, abstract_max_chars)
+            truncate_text(article.abstract, abstract_max_chars)
             if self._include_abstract
             else None
         )
+        parsed.abstract = abstract
+        parsed.snippet = abstract or parsed.journal_title
 
-        url_item = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
-
-        result: JSONObject = {
-            "title": title,
-            "year": year,
-            "pmid": pmid,
-            "url": url_item,
-            "authors": cast("JSONValue", authors),
-            "journalTitle": journal,
-            "abstract": abstract,
-            "snippet": abstract or journal,
-        }
         citation = Citation(
             id=_new_citation_id("pubmed"),
             source="pubmed",
-            title=title or url_item,
-            url=url_item,
-            authors=authors,
-            year=year,
-            pmid=pmid,
-            snippet=abstract or journal,
+            title=parsed.title or parsed.url or "PubMed result",
+            url=parsed.url,
+            authors=parsed.authors or None,
+            year=parsed.year,
+            pmid=parsed.pmid,
+            snippet=abstract or parsed.journal_title,
             accessed_at=_now_iso(),
-        ).model_dump(by_alias=True, exclude_none=True, mode="json")
-        return result, citation
+        )
+        return parsed, citation

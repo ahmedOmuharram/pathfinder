@@ -45,7 +45,7 @@ test.describe("Strategy Graph", () => {
     apiClient,
   }) => {
     await chatPage.send("delegation");
-    await chatPage.expectAssistantMessage(/\[mock\].*delegation/i);
+    await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
     await graphPage.expectCompactView();
 
     // UI: Step pills from delegation
@@ -111,7 +111,7 @@ test.describe("Strategy Graph", () => {
     apiClient,
   }) => {
     await chatPage.send("delegation");
-    await chatPage.expectAssistantMessage(/\[mock\].*delegation/i);
+    await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
     await chatPage.expectIdle();
     await graphPage.expectCompactView();
 

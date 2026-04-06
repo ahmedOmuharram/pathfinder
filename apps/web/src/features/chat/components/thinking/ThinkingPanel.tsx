@@ -1,11 +1,10 @@
 import type { ToolCall } from "@pathfinder/shared";
 import { ToolCallInspector } from "@/features/chat/components/message/ToolCallInspector";
 import { Card } from "@/lib/components/ui/Card";
-import { SubAgentCard } from "./SubAgentCard";
 
 /**
  * Compact animated dots shown while waiting for the model to produce
- * reasoning or tool calls. Replaces the old heavy "Waiting for…" panel.
+ * reasoning or tool calls. Replaces the old heavy "Waiting for..." panel.
  */
 function PulsingDots() {
   return (
@@ -23,9 +22,6 @@ export function ThinkingPanel(props: {
   isStreaming: boolean;
   activeToolCalls: ToolCall[];
   lastToolCalls: ToolCall[];
-  subKaniCalls: Record<string, ToolCall[]>;
-  subKaniStatus: Record<string, string>;
-  subKaniModels?: Record<string, string>;
   reasoning?: string | null;
   title?: string;
 }) {
@@ -33,19 +29,14 @@ export function ThinkingPanel(props: {
     isStreaming,
     activeToolCalls,
     lastToolCalls,
-    subKaniCalls,
-    subKaniStatus,
-    subKaniModels,
     reasoning,
     title,
   } = props;
-  const subKaniTasks = Object.keys(subKaniCalls);
   const hasReasoning = Boolean(reasoning && reasoning.trim().length > 0);
   const hasAnyContent =
     hasReasoning ||
     activeToolCalls.length > 0 ||
-    lastToolCalls.length > 0 ||
-    subKaniTasks.length > 0;
+    lastToolCalls.length > 0;
 
   // Nothing to show and not streaming — hide entirely.
   if (!isStreaming && !hasAnyContent) return null;
@@ -83,24 +74,6 @@ export function ThinkingPanel(props: {
             {activeToolCalls.length > 0 && (
               <div className="rounded-md border border-border bg-muted p-2">
                 <ToolCallInspector toolCalls={activeToolCalls} isActive />
-              </div>
-            )}
-
-            {subKaniTasks.length > 0 && (
-              <div className="space-y-2">
-                {subKaniTasks.map((task) => {
-                  const taskModelId = subKaniModels?.[task];
-                  return (
-                    <SubAgentCard
-                      key={task}
-                      task={task}
-                      toolCalls={subKaniCalls[task] ?? []}
-                      status={subKaniStatus[task] ?? "running"}
-                      {...(taskModelId != null ? { modelId: taskModelId } : {})}
-                      isLive
-                    />
-                  );
-                })}
               </div>
             )}
 

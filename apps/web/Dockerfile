@@ -14,8 +14,10 @@ COPY .yarn .yarn
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared-ts/package.json ./packages/shared-ts/
 
-# Install all workspace dependencies
-RUN yarn install --immutable
+# Install all workspace dependencies.
+# Cache mount keeps yarn's download cache across builds.
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
+    yarn install --immutable
 
 # Rebuild the source code only when needed
 FROM base AS builder

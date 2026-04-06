@@ -56,6 +56,7 @@ def build_agent_system_prompt(
     strategy_session: StrategySession,
     selected_nodes: JSONObject | None,
     mentioned_context: str | None = None,
+    is_continuation: bool = False,
 ) -> str:
     """Build the executor agent system prompt.
 
@@ -63,14 +64,22 @@ def build_agent_system_prompt(
     :param strategy_session: Current strategy session with graph state.
     :param selected_nodes: Selected graph nodes (default: None).
     :param mentioned_context: Rich context from @-mentioned entities (default: None).
+    :param is_continuation: True when this is not the first turn (chat_history
+        or context_summary present). Skips site_hints.md to save tokens and
+        omits strategy step details (pinned graph state is more current).
     :returns: Full system prompt string.
     """
-    base_prompt = load_system_prompt()
+    base_prompt = load_system_prompt(include_site_hints=not is_continuation)
     site_context = (
         f"\n\n## Current Session\nYou are currently working with the **{site_id}** database. "
         "Use this site for all searches and operations unless the user asks to switch sites."
     )
-    strategy_context = _build_strategy_context(strategy_session)
+    # When the strategy has steps, the pinned graph state in
+    # always_included_messages is always more current — skip the
+    # duplicate step listing from the system prompt.
+    graph = strategy_session.get_graph(None)
+    has_steps = graph is not None and bool(graph.steps)
+    strategy_context = "" if has_steps else _build_strategy_context(strategy_session)
     node_context = ""
     if selected_nodes:
         selected_nodes_json = json.dumps(selected_nodes, indent=2, sort_keys=True)

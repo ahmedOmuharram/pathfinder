@@ -4,7 +4,6 @@ import type {
   Message,
   PlanningArtifact,
   Strategy,
-  SubKaniTokenUsage,
   ToolCall,
 } from "@pathfinder/shared";
 import type { ChatEventContext } from "./handleChatEvent.types";
@@ -78,30 +77,17 @@ export function makeCtx(overrides?: Partial<ChatEventContext>) {
   const toolCallsBuffer: ToolCall[] = [];
   const citationsBuffer: Citation[] = [];
   const planningArtifactsBuffer: PlanningArtifact[] = [];
-  const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
-  const subKaniStatusBuffer: Record<string, string> = {};
-  const subKaniModelsBuffer: Record<string, string> = {};
-  const subKaniTokenUsageBuffer: Record<string, SubKaniTokenUsage> = {};
   const state = makeStateSetters();
   const applyGraphSnapshot = vi.fn();
   const thinking: ChatEventContext["thinking"] = {
     activeToolCalls: [],
     lastToolCalls: [],
-    subKaniCalls: {},
-    subKaniStatus: {},
-    subKaniModels: {},
     reasoning: null,
-    subKaniActivity: undefined,
     reset: vi.fn(),
     applyThinkingPayload: vi.fn(() => false),
     updateActiveFromBuffer: vi.fn(),
     finalizeToolCalls: vi.fn(),
     updateReasoning: vi.fn(),
-    snapshotSubKaniActivity: vi.fn(() => ({ calls: {}, status: {} })),
-    subKaniTaskStart: vi.fn(),
-    subKaniToolCallStart: vi.fn(),
-    subKaniToolCallEnd: vi.fn(),
-    subKaniTaskEnd: vi.fn(),
   };
 
   const base = {
@@ -110,10 +96,6 @@ export function makeCtx(overrides?: Partial<ChatEventContext>) {
     toolCallsBuffer,
     citationsBuffer,
     planningArtifactsBuffer,
-    subKaniCallsBuffer,
-    subKaniStatusBuffer,
-    subKaniModelsBuffer,
-    subKaniTokenUsageBuffer,
     thinking,
     setStrategyId: vi.fn(),
     addStrategy: vi.fn(),

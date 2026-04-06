@@ -14,12 +14,12 @@ from veupath_chatbot.integrations.veupathdb.wdk_parameters import (
     WDKStringParam,
 )
 from veupath_chatbot.services import catalog
+from veupath_chatbot.services.catalog.param_validation import ValidationResponse
 from veupath_chatbot.transport.http.schemas import (
     DependentParamsRequest,
     ParamSpecResponse,
     ParamSpecsRequest,
     SearchValidationRequest,
-    SearchValidationResponse,
 )
 
 router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
@@ -107,20 +107,19 @@ def _build_param_specs(search: WDKSearch) -> list[ParamSpecResponse]:
 
 @router.post(
     "/{siteId}/searches/{recordType}/{searchName}/validate",
-    response_model=SearchValidationResponse,
+    response_model=ValidationResponse,
 )
 async def validate_search_params(
     siteId: str,
     recordType: str,
     searchName: str,
     payload: SearchValidationRequest,
-) -> SearchValidationResponse:
+) -> ValidationResponse:
     """Validate search parameters (UI-friendly)."""
-    result = await catalog.validate_search_params(
+    return await catalog.validate_search_params(
         SearchContext(siteId, recordType, searchName),
         context_values=payload.context_values or {},
     )
-    return SearchValidationResponse.model_validate(result)
 
 
 @router.post(

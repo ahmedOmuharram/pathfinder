@@ -16,9 +16,11 @@ interface LoginModalProps {
  * Shown when the user is not authenticated. Cannot be dismissed until signed in.
  * Accepts VEuPathDB login only; no database/site selection.
  */
-export function LoginModal({ open, onSiteChange }: LoginModalProps) {
+export function LoginModal({ open, selectedSite, onSiteChange }: LoginModalProps) {
   const handleSuccess = () => {
-    onSiteChange("veupathdb");
+    // Preserve the user's current site selection after login.
+    // Default to veupathdb only if no site was previously selected.
+    onSiteChange(selectedSite || "veupathdb");
   };
 
   return (

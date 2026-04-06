@@ -3,7 +3,8 @@
 from collections.abc import Awaitable, Callable
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
+from fastapi.sse import EventSourceResponse
 
 from veupath_chatbot.platform.errors import sanitize_error_for_client
 from veupath_chatbot.platform.logging import get_logger
@@ -29,7 +30,7 @@ from veupath_chatbot.transport.http.schemas.experiments import (
     CreateBenchmarkRequest,
     CreateExperimentRequest,
 )
-from veupath_chatbot.transport.http.sse import SSE_HEADERS, sse_stream
+from veupath_chatbot.transport.http.sse import sse_stream
 
 from ._config import config_from_request
 
@@ -160,7 +161,7 @@ async def create_benchmark(
 
 @router.post(
     "/seed",
-    response_class=StreamingResponse,
+    response_class=EventSourceResponse,
     responses={
         200: {
             "description": "SSE stream of seed strategy/control-set progress",
@@ -173,7 +174,7 @@ async def seed_strategies(
     stream_repo: StreamRepo,
     control_set_repo: ControlSetRepo,
     site_id: str | None = None,
-) -> StreamingResponse:
+) -> EventSourceResponse:
     """Seed demo strategies and control sets across VEuPathDB sites.
 
     If *site_id* is provided, only seeds for that database are created.
@@ -197,8 +198,4 @@ async def seed_strategies(
                 }
             )
 
-    return StreamingResponse(
-        sse_stream(_producer, {"seed_complete"}),
-        media_type="text/event-stream",
-        headers=SSE_HEADERS,
-    )
+    return EventSourceResponse(sse_stream(_producer, {"seed_complete"}))

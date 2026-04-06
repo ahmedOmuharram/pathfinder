@@ -19,9 +19,8 @@ export function buildAssistantParts(
     parts.push({ tag: "thought", key: `${index}-thought` });
   } else {
     const hasToolCalls = (message.toolCalls?.length ?? 0) > 0;
-    const hasSubKani = Object.keys(message.subKaniActivity?.calls ?? {}).length > 0;
     const hasReasoning = Boolean(message.reasoning?.trim());
-    if (hasToolCalls || hasSubKani || hasReasoning) {
+    if (hasToolCalls || hasReasoning) {
       parts.push({ tag: "thought", key: `${index}-thought` });
     }
   }

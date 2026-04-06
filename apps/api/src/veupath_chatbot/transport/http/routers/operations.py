@@ -4,7 +4,7 @@ import json
 from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Query
-from fastapi.responses import StreamingResponse
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlalchemy import select
 
 from veupath_chatbot.persistence.models import Operation, Stream
@@ -14,7 +14,6 @@ from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.orchestrator import cancel_chat_operation
 from veupath_chatbot.transport.http.deps import CurrentUser, DBSession
-from veupath_chatbot.transport.http.sse import SSE_HEADERS
 
 logger = get_logger(__name__)
 
@@ -51,6 +50,82 @@ _END_EVENT_TYPES = frozenset(
 )
 
 
+async def _is_op_still_active(
+    session: DBSession, operation_id: str,
+) -> bool:
+    """Check if an operation is still active. Returns False if finished or on error."""
+    try:
+        result = await session.execute(
+            select(Operation.status).where(
+                Operation.operation_id == operation_id
+            )
+        )
+        status = result.scalar_one_or_none()
+    except OSError, RuntimeError:
+        logger.warning(
+            "Failed to check operation status",
+            operation_id=operation_id,
+            exc_info=True,
+        )
+        return True
+    else:
+        return not status or status == "active"
+
+
+def _decode_entry_id(entry_id_bytes: bytes | str) -> str:
+    """Decode a Redis entry ID to a string."""
+    return entry_id_bytes.decode() if hasattr(entry_id_bytes, "decode") else str(entry_id_bytes)
+
+
+def _build_sse_event(entry_id: str, fields: dict[bytes, bytes], operation_id: str) -> ServerSentEvent:
+    """Build a ``ServerSentEvent`` from a Redis stream entry."""
+    event_type = fields.get(b"type", b"progress").decode()
+    try:
+        data = json.loads(fields.get(b"data", b"{}"))
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse event data", operation_id=operation_id, entry_id=entry_id)
+        data = {}
+    return ServerSentEvent(data=data, event=event_type, id=entry_id)
+
+
+async def _stream_events(
+    *,
+    stream_key: str,
+    operation_id: str,
+    session: DBSession,
+    is_experiment: bool,
+    start_cursor: str,
+) -> AsyncGenerator[ServerSentEvent]:
+    """SSE generator that reads from a Redis stream until a terminal event."""
+    redis = get_redis()
+    cursor = start_cursor
+
+    while True:
+        entries = await redis.xread({stream_key: cursor}, count=1, block=15000)
+
+        if not entries:
+            yield ServerSentEvent(comment="keepalive")
+            if not await _is_op_still_active(session, operation_id):
+                return
+            continue
+
+        for _stream_name, events in entries:
+            for entry_id_bytes, fields in events:
+                entry_id = _decode_entry_id(entry_id_bytes)
+                cursor = entry_id
+
+                if not is_experiment:
+                    event_op = fields.get(b"op", b"").decode()
+                    if event_op and event_op != operation_id:
+                        continue
+
+                yield _build_sse_event(entry_id, fields, operation_id)
+
+                event_type = fields.get(b"type", b"progress").decode()
+                if event_type in _END_EVENT_TYPES:
+                    return
+
+
 @router.get("/{operation_id}/subscribe")
 async def subscribe(
     operation_id: str,
@@ -61,13 +136,8 @@ async def subscribe(
         alias="lastEventId",
         description="Resume from this Redis entry ID (for reconnection).",
     ),
-) -> StreamingResponse:
-    """SSE stream backed by Redis Streams.
-
-    Catchup: replays events from `lastEventId` (or from the beginning).
-    Live: uses XREAD BLOCK for new events until a terminal event is seen.
-    """
-    # Look up operation → stream mapping.
+) -> EventSourceResponse:
+    """SSE stream backed by Redis Streams."""
     result = await session.execute(
         select(Operation).where(Operation.operation_id == operation_id)
     )
@@ -79,77 +149,14 @@ async def subscribe(
     is_experiment = op.type in _EXPERIMENT_OP_TYPES
     stream_key = f"op:{operation_id}" if is_experiment else f"stream:{op.stream_id}"
 
-    async def _stream() -> AsyncGenerator[str]:
-        redis = get_redis()
-        # Start position: after last_event_id, or from the beginning.
-        cursor = last_event_id or "0-0"
-
-        while True:
-            # XREAD with BLOCK — waits for new events, returns when available.
-            # Timeout of 15s triggers a keepalive comment.
-            entries = await redis.xread({stream_key: cursor}, count=1, block=15000)
-
-            if not entries:
-                # No events within timeout — send keepalive comment.
-                yield ":keepalive\n\n"
-
-                # Only check operation status on keepalive (no events).
-                # Checking after every event risks premature exit: a fast
-                # producer may mark the operation "completed" while unread
-                # events still sit in the stream.
-                try:
-                    result = await session.execute(
-                        select(Operation.status).where(
-                            Operation.operation_id == operation_id
-                        )
-                    )
-                    status = result.scalar_one_or_none()
-                    if status and status != "active":
-                        return
-                except OSError, RuntimeError:
-                    logger.warning(
-                        "Failed to check operation status",
-                        operation_id=operation_id,
-                        exc_info=True,
-                    )
-                continue
-
-            for _stream_name, events in entries:
-                for entry_id_bytes, fields in events:
-                    entry_id = (
-                        entry_id_bytes.decode()
-                        if isinstance(entry_id_bytes, bytes)
-                        else str(entry_id_bytes)
-                    )
-                    cursor = entry_id
-
-                    # Filter by operation_id for shared streams (chat).
-                    # Experiment streams are dedicated — no filtering needed.
-                    if not is_experiment:
-                        event_op = fields.get(b"op", b"").decode()
-                        if event_op and event_op != operation_id:
-                            continue
-
-                    event_type = fields.get(b"type", b"progress").decode()
-                    try:
-                        data = json.loads(fields.get(b"data", b"{}"))
-                    except json.JSONDecodeError:
-                        logger.warning(
-                            "Failed to parse event data",
-                            operation_id=operation_id,
-                            entry_id=entry_id,
-                        )
-                        data = {}
-
-                    yield f"id: {entry_id}\nevent: {event_type}\ndata: {json.dumps(data)}\n\n"
-
-                    if event_type in _END_EVENT_TYPES:
-                        return
-
-    return StreamingResponse(
-        _stream(),
-        media_type="text/event-stream",
-        headers=SSE_HEADERS,
+    return EventSourceResponse(
+        _stream_events(
+            stream_key=stream_key,
+            operation_id=operation_id,
+            session=session,
+            is_experiment=is_experiment,
+            start_cursor=last_event_id or "0-0",
+        ),
     )
 
 

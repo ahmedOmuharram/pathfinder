@@ -8,7 +8,7 @@ afterEach(cleanup);
 
 function makeProps(overrides: Partial<ParamWidgetProps> = {}): ParamWidgetProps {
   return {
-    spec: {},
+    spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true },
     value: undefined,
     multi: false,
     multiValue: [],
@@ -49,26 +49,26 @@ describe("StringParam", () => {
   });
 
   it("renders a number input when spec.isNumber is true", () => {
-    render(<StringParam {...makeProps({ spec: { isNumber: true } })} />);
+    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: true, isVisible: true } })} />);
     const input = screen.getByRole("spinbutton");
     expect(input).toBeTruthy();
     expect(input.getAttribute("type")).toBe("number");
   });
 
   it("renders a number input when spec.type contains 'number'", () => {
-    render(<StringParam {...makeProps({ spec: { type: "number" } })} />);
+    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "number", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
     const input = screen.getByRole("spinbutton");
     expect(input.getAttribute("type")).toBe("number");
   });
 
   it("renders a number input when spec.type is 'integer'", () => {
-    render(<StringParam {...makeProps({ spec: { type: "integer" } })} />);
+    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "integer", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
     const input = screen.getByRole("spinbutton");
     expect(input.getAttribute("type")).toBe("number");
   });
 
   it("renders a number input when spec.type is 'float'", () => {
-    render(<StringParam {...makeProps({ spec: { type: "Float" } })} />);
+    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "Float", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
     const input = screen.getByRole("spinbutton");
     expect(input.getAttribute("type")).toBe("number");
   });
@@ -77,7 +77,7 @@ describe("StringParam", () => {
     render(
       <StringParam
         {...makeProps({
-          spec: { isNumber: true, min: 0, max: 100, increment: 5 },
+          spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: true, isVisible: true, min: 0, max: 100, increment: 5 },
         })}
       />,
     );
@@ -91,7 +91,7 @@ describe("StringParam", () => {
     render(
       <StringParam
         {...makeProps({
-          spec: { isNumber: true, min: null, max: null, increment: null },
+          spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: true, isVisible: true, min: null, max: null, increment: null },
         })}
       />,
     );
@@ -102,13 +102,13 @@ describe("StringParam", () => {
   });
 
   it("marks input as required when allowEmptyValue is false", () => {
-    render(<StringParam {...makeProps({ spec: { allowEmptyValue: false } })} />);
+    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "string", allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
     const input = screen.getByRole("textbox");
     expect((input as HTMLInputElement).required).toBe(true);
   });
 
   it("does not mark input as required when allowEmptyValue is true", () => {
-    render(<StringParam {...makeProps({ spec: { allowEmptyValue: true } })} />);
+    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
     const input = screen.getByRole("textbox");
     expect((input as HTMLInputElement).required).toBe(false);
   });

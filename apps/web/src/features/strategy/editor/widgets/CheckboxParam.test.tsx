@@ -15,7 +15,7 @@ const sampleOptions = [
 
 function makeProps(overrides: Partial<ParamWidgetProps> = {}): ParamWidgetProps {
   return {
-    spec: { name: "test-param" },
+    spec: { name: "test-param", type: "string", allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true },
     value: undefined,
     multi: false,
     multiValue: [],

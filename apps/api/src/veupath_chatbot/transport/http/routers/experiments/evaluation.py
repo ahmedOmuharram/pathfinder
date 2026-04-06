@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
+from fastapi.sse import EventSourceResponse
 
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.experiment.evaluation import re_evaluate
@@ -30,7 +31,7 @@ async def threshold_sweep(
     exp: ExperimentDep,
     request: ThresholdSweepRequest,
     user_id: CurrentUser,
-) -> StreamingResponse:
+) -> EventSourceResponse:
     """Sweep a parameter across a range and stream metrics as they complete."""
     validate_sweep_parameter(exp, request.parameter_name)
     sweep_values = compute_sweep_values(
@@ -41,19 +42,13 @@ async def threshold_sweep(
         steps=request.steps,
     )
 
-    return StreamingResponse(
+    return EventSourceResponse(
         generate_sweep_events(
             exp=exp,
             param_name=request.parameter_name,
             sweep_type=request.sweep_type,
             sweep_values=sweep_values,
         ),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
     )
 
 

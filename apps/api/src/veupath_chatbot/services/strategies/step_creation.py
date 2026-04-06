@@ -12,13 +12,18 @@ from veupath_chatbot.domain.strategy.ops import ColocationParams, CombineOp, par
 from veupath_chatbot.domain.strategy.session import StrategyGraph
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKValidation
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.tool_errors import ToolErrorPayload, tool_error
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.param_validation import ValidationCallbacks
-from veupath_chatbot.services.strategies.step_validation import (
-    _resolve_record_type_for_step,
-    _resolve_search_name_and_validate,
-    _StepInputs,
-    _validate_inputs_and_roots,
+from veupath_chatbot.services.strategies.input_resolution import (
+    StepInputs,
+    validate_inputs_and_roots,
+)
+from veupath_chatbot.services.strategies.kind_validation import (
+    resolve_search_name_and_validate,
+)
+from veupath_chatbot.services.strategies.search_resolution import (
+    resolve_record_type_for_step,
 )
 from veupath_chatbot.services.strategies.step_wdk_push import _push_step_to_wdk
 
@@ -70,7 +75,7 @@ class StepCreationResult:
 
     step: PlanStepNode | None
     step_id: str | None
-    error: JSONObject | None
+    error: ToolErrorPayload | None
     wdk_step_id: int | None = None
     wdk_validation: WDKValidation | None = None
     wdk_push_error: str | None = None
@@ -80,7 +85,7 @@ class StepCreationResult:
     combine_wdk_push_error: str | None = None
 
 
-def _error_result(error: JSONObject) -> StepCreationResult:
+def _error_result(error: ToolErrorPayload) -> StepCreationResult:
     """Shorthand for an error-only StepCreationResult."""
     return StepCreationResult(step=None, step_id=None, error=error)
 
@@ -197,18 +202,11 @@ def _add_step_to_graph(
         )
         return step.id, combine_step, combine_id
 
-    if spec._skip_auto_combine:
-        # Inline step: register in graph but don't touch roots.
-        # The caller (outer create_step) will consume this step as an
-        # input immediately, so it must NOT become a root.
-        graph.steps[step.id] = step
-        graph.last_step_id = step.id
-        logger.info("Created inline step (skip auto-combine)", step_id=step.id, search=search_name)
-        return step.id, None, None
-
-    # First step or explicit binary/transform — add directly.
+    # add_step registers the step in graph.steps AND graph.roots.
+    # The _skip_auto_combine flag only disables the combine-with-existing
+    # logic above — the step still needs root tracking for auto-build.
     graph.add_step(step)
-    logger.info("Created step", step_id=step.id, search=search_name)
+    logger.info("Created step", step_id=step.id, search=search_name, skip_auto_combine=spec._skip_auto_combine)
     return step.id, None, None
 
 
@@ -234,7 +232,7 @@ async def create_step(
     )
 
     # Validate and resolve input steps (including root-status check).
-    primary_input, secondary_input, error = _validate_inputs_and_roots(
+    primary_input, secondary_input, error = validate_inputs_and_roots(
         graph,
         primary_input_step_id,
         secondary_input_step_id,
@@ -244,18 +242,18 @@ async def create_step(
         return _error_result(error)
 
     # Resolve record type context for the graph.
-    graph.record_type = await _resolve_record_type_for_step(
+    graph.record_type = await resolve_record_type_for_step(
         graph.record_type,
         spec.record_type,
         spec.search_name,
         callbacks.resolve_record_type_for_search,
     )
 
-    search_name, parsed_op, step_error = await _resolve_search_name_and_validate(
+    search_name, parsed_op, step_error = await resolve_search_name_and_validate(
         graph=graph,
         site_id=site_id,
         spec_search_name=spec.search_name,
-        inputs=_StepInputs(
+        inputs=StepInputs(
             primary=primary_input,
             secondary=secondary_input,
             operator=operator,
@@ -305,10 +303,10 @@ async def create_step(
         combine_with_step_id=combine_with_step_id,
     )
     if step_id is None:
-        return _error_result({
-            "code": "STEP_NOT_FOUND",
-            "message": f"combine_with_step_id '{combine_with_step_id}' not found in graph.",
-        })
+        return _error_result(tool_error(
+            "STEP_NOT_FOUND",
+            f"combine_with_step_id '{combine_with_step_id}' not found in graph.",
+        ))
 
     # Push leaf step to WDK immediately (best-effort).
     wdk_step_id, wdk_validation, push_error = await _push_step_to_wdk(

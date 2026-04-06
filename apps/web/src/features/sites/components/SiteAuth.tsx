@@ -30,6 +30,7 @@ export function SiteAuth({
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
   const veupathdbName = useSessionStore((state) => state.veupathdbName);
   const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
+  const authVersion = useSessionStore((state) => state.authVersion);
 
   const displaySignedIn = veupathdbSignedIn === true || authStatus?.signedIn === true;
   const displayName = veupathdbName ?? authStatus?.name ?? "";
@@ -46,7 +47,7 @@ export function SiteAuth({
         setAuthStatus({ signedIn: false });
         setVeupathdbAuth(false, null);
       });
-  }, [siteId, setVeupathdbAuth]);
+  }, [siteId, setVeupathdbAuth, authVersion]);
 
   const lightClass =
     "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition-colors duration-150 hover:text-primary hover:drop-shadow-none";

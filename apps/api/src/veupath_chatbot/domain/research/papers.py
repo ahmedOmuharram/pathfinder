@@ -11,6 +11,9 @@ handles all type coercion and unknown-field filtering.
 
 from __future__ import annotations
 
+import contextlib
+import re
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from veupath_chatbot.platform.pydantic_base import CamelModel
@@ -288,4 +291,70 @@ class EuropePmcRawResult(BaseModel):
             journal_title=jt,
             abstract=self.abstract_text,
             snippet=jt,
+        )
+
+
+# ── PubMed ─────────────────────────────────────────────────────────────
+
+
+class _PubMedSummaryAuthor(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: str = ""
+
+
+class PubMedRawArticle(BaseModel):
+    """Raw article assembled from PubMed esummary + optional efetch abstract.
+
+    Fields come from the intermediate ``{_pmid, _meta, _abstract}`` dicts
+    built in ``PubmedClient._fetch_raw``.  The model validator flattens
+    the nested ``_meta`` dict into top-level fields.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    pmid: str
+    title: str = ""
+    pubdate: str = ""
+    authors: list[str] = Field(default_factory=list)
+    journal: str | None = None
+    abstract: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _flatten_meta(cls, data: dict[str, object]) -> dict[str, object]:
+        """Flatten the ``{_pmid, _meta, _abstract}`` shape from _fetch_raw."""
+        meta = data.get("_meta")
+        if not isinstance(meta, dict):
+            return data
+        out: dict[str, object] = {
+            "pmid": data.get("_pmid", ""),
+            "title": meta.get("title", ""),
+            "pubdate": meta.get("pubdate", ""),
+            "journal": meta.get("fulljournalname"),
+            "abstract": data.get("_abstract"),
+        }
+        raw_authors = meta.get("authors")
+        if isinstance(raw_authors, list):
+            out["authors"] = [
+                a.get("name", "") if isinstance(a, dict) else str(a)
+                for a in raw_authors
+            ]
+        return out
+
+    def to_parsed_paper(self) -> ParsedPaper:
+        """Convert to the shared normalized ParsedPaper model."""
+        year: int | None = None
+        m = re.search(r"(\d{4})", self.pubdate)
+        if m:
+            with contextlib.suppress(ValueError):
+                year = int(m.group(1))
+        url = f"https://pubmed.ncbi.nlm.nih.gov/{self.pmid}/"
+        return ParsedPaper(
+            title=self.title.strip(),
+            year=year,
+            pmid=self.pmid,
+            url=url,
+            authors=self.authors,
+            journal_title=self.journal,
+            snippet=self.journal,
         )

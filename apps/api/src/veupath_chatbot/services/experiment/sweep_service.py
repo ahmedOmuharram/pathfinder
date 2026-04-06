@@ -6,8 +6,9 @@ which handles single re-evaluation only.
 """
 
 import asyncio
-import json as json_mod
 from collections.abc import AsyncIterator
+
+from fastapi.sse import ServerSentEvent
 
 from veupath_chatbot.domain.strategy.ast import PlanStepNode
 from veupath_chatbot.domain.strategy.tree import walk_plan_tree
@@ -257,8 +258,8 @@ async def generate_sweep_events(
     param_name: str,
     sweep_type: str,
     sweep_values: list[str],
-) -> AsyncIterator[str]:
-    """Run the full sweep and yield SSE-formatted events.
+) -> AsyncIterator[ServerSentEvent]:
+    """Run the full sweep and yield ``ServerSentEvent`` objects.
 
     Yields ``sweep_point`` events as each point completes, then a final
     ``sweep_complete`` event with all sorted results.
@@ -289,14 +290,14 @@ async def generate_sweep_events(
                 point = await coro
                 completed_count += 1
                 all_points.append(point)
-                event_data = json_mod.dumps(
-                    {
+                yield ServerSentEvent(
+                    data={
                         "point": point,
                         "completedCount": completed_count,
                         "totalCount": total_points,
-                    }
+                    },
+                    event="sweep_point",
                 )
-                yield f"event: sweep_point\ndata: {event_data}\n\n"
 
     except TimeoutError:
         logger.warning(
@@ -323,11 +324,11 @@ async def generate_sweep_events(
 
         all_points.sort(key=_numeric_value)
 
-    final_data = json_mod.dumps(
-        {
+    yield ServerSentEvent(
+        data={
             "parameter": param_name,
             "sweepType": sweep_type,
             "points": all_points,
-        }
+        },
+        event="sweep_complete",
     )
-    yield f"event: sweep_complete\ndata: {final_data}\n\n"

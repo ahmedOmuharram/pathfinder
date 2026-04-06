@@ -21,10 +21,6 @@ function makeMinimalCtx(overrides: Partial<ChatEventContext> = {}): ChatEventCon
     toolCallsBuffer: [],
     citationsBuffer: [],
     planningArtifactsBuffer: [],
-    subKaniCallsBuffer: {},
-    subKaniStatusBuffer: {},
-    subKaniModelsBuffer: {},
-    subKaniTokenUsageBuffer: {},
     thinking: {
       reset: vi.fn(),
       updateReasoning: vi.fn(),

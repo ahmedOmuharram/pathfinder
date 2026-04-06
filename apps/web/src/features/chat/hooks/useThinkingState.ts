@@ -1,12 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ToolCall } from "@pathfinder/shared";
 
 type ThinkingPayload = {
   toolCalls?: ToolCall[] | null;
   lastToolCalls?: ToolCall[] | null;
-  subKaniCalls?: Record<string, ToolCall[]> | null;
-  subKaniStatus?: Record<string, string> | null;
-  subKaniModels?: Record<string, string> | null;
   reasoning?: string | null;
   updatedAt?: string | null;
 };
@@ -14,17 +11,11 @@ type ThinkingPayload = {
 export function useThinkingState() {
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]);
   const [lastToolCalls, setLastToolCalls] = useState<ToolCall[]>([]);
-  const [subKaniCalls, setSubKaniCalls] = useState<Record<string, ToolCall[]>>({});
-  const [subKaniStatus, setSubKaniStatus] = useState<Record<string, string>>({});
-  const [subKaniModels, setSubKaniModels] = useState<Record<string, string>>({});
   const [reasoning, setReasoning] = useState<string | null>(null);
 
   const reset = useCallback(() => {
     setActiveToolCalls([]);
     setLastToolCalls([]);
-    setSubKaniCalls({});
-    setSubKaniStatus({});
-    setSubKaniModels({});
     setReasoning(null);
   }, []);
 
@@ -40,18 +31,12 @@ export function useThinkingState() {
       const toolCalls = payload.toolCalls ?? [];
       setActiveToolCalls(toolCalls);
       setLastToolCalls(payload.lastToolCalls ?? []);
-      setSubKaniCalls(payload.subKaniCalls ?? {});
-      setSubKaniStatus(payload.subKaniStatus ?? {});
-      setSubKaniModels(payload.subKaniModels ?? {});
       setReasoning(typeof payload.reasoning === "string" ? payload.reasoning : null);
 
       const anyActiveTool = toolCalls.some(
         (c) => c != null && (c.result === undefined || c.result === null),
       );
-      const anySubKaniRunning = Object.values(payload.subKaniStatus ?? {}).some(
-        (s) => s === "running",
-      );
-      return anyActiveTool || anySubKaniRunning;
+      return anyActiveTool;
     },
     [],
   );
@@ -69,66 +54,14 @@ export function useThinkingState() {
     setActiveToolCalls([]);
   }, []);
 
-  const subKaniTaskStart = useCallback((task: string, modelId?: string) => {
-    setSubKaniStatus((prev) => ({ ...prev, [task]: "running" }));
-    setSubKaniCalls((prev) => ({ ...prev, [task]: prev[task] ?? [] }));
-    if (modelId != null && modelId !== "") {
-      setSubKaniModels((prev) => ({ ...prev, [task]: modelId }));
-    }
-  }, []);
-
-  const subKaniToolCallStart = useCallback((task: string, toolCall: ToolCall) => {
-    setSubKaniCalls((prev) => ({
-      ...prev,
-      [task]: [...(prev[task] ?? []), toolCall],
-    }));
-  }, []);
-
-  const subKaniToolCallEnd = useCallback((task: string, id: string, result: string) => {
-    setSubKaniCalls((prev) => {
-      const calls = prev[task] ?? [];
-      const updated = calls.map((call) =>
-        call.id === id ? { ...call, result } : call,
-      );
-      return { ...prev, [task]: updated };
-    });
-  }, []);
-
-  const subKaniTaskEnd = useCallback((task: string, status?: string) => {
-    setSubKaniStatus((prev) => ({ ...prev, [task]: status ?? "done" }));
-  }, []);
-
-  const subKaniActivity = useMemo(() => {
-    const has = Object.keys(subKaniCalls).length > 0;
-    if (!has) return undefined;
-    return { calls: subKaniCalls, status: subKaniStatus };
-  }, [subKaniCalls, subKaniStatus]);
-
-  const snapshotSubKaniActivity = useCallback(() => {
-    if (Object.keys(subKaniCalls).length === 0) return undefined;
-    return {
-      calls: { ...subKaniCalls },
-      status: { ...subKaniStatus },
-    };
-  }, [subKaniCalls, subKaniStatus]);
-
   return {
     activeToolCalls,
     lastToolCalls,
-    subKaniCalls,
-    subKaniStatus,
-    subKaniModels,
     reasoning,
-    subKaniActivity,
     reset,
     applyThinkingPayload,
     updateActiveFromBuffer,
     finalizeToolCalls,
     updateReasoning,
-    subKaniTaskStart,
-    subKaniToolCallStart,
-    subKaniToolCallEnd,
-    subKaniTaskEnd,
-    snapshotSubKaniActivity,
   };
 }

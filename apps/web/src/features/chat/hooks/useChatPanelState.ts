@@ -22,6 +22,7 @@ import { undoTurnAction } from "@/features/chat/hooks/undoTurnAction";
 import { applyPlanningArtifactAction } from "@/features/chat/hooks/applyPlanningArtifactAction";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
+import { usePlanStore } from "@/state/usePlanStore";
 import { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import { useChatStreaming } from "@/features/chat/hooks/useChatStreaming";
 import { useUnifiedChatModels } from "@/features/chat/hooks/useUnifiedChatModels";
@@ -166,12 +167,22 @@ export function useChatPanelState({
   });
 
   const onSend = useCallback(
-    async (content: string, mentions?: ChatMention[]) => {
+    async (content: string, mentions?: ChatMention[], metadata?: Record<string, unknown>) => {
       setApiError(null);
-      await handleSendRaw(content, mentions);
+      await handleSendRaw(content, mentions, metadata);
     },
     [handleSendRaw, setApiError],
   );
+
+  // Register send function with plan store so the right-panel PlanPanel can send messages
+  useEffect(() => {
+    const { registerSendMessage } = usePlanStore.getState();
+    const wrappedSend = (text: string, metadata?: Record<string, unknown>) => {
+      void onSend(text, undefined, metadata);
+    };
+    registerSendMessage(wrappedSend);
+    return () => registerSendMessage(() => {});
+  }, [onSend]);
 
   // --- Data loading ---
   const handleStrategyNotFound = useCallback(() => {
@@ -234,7 +245,9 @@ export function useChatPanelState({
     stopStreaming,
   });
 
-  useChatAutoScroll(messagesEndRef, `${messages.length}:${isStreaming ? "s" : "i"}`);
+  const { bottomRef, isAtBottom, scrollToBottom } = useChatAutoScroll(
+    `${messages.length}:${isStreaming ? "s" : "i"}`,
+  );
 
   useConsumePendingAskNode({
     enabled: true,
@@ -262,19 +275,23 @@ export function useChatPanelState({
           setStrategyMeta,
           setComposerPrefill,
         });
-      } catch {
-        // Undo failed — user can retry.
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Undo failed. Please try again.";
+        setApiError(message);
       } finally {
         setIsUndoing(false);
       }
     },
-    [strategyId, messages, isUndoing, setMessages, setUndoSnapshots, setStrategy, setStrategyMeta, setComposerPrefill],
+    [strategyId, messages, isUndoing, setMessages, setUndoSnapshots, setStrategy, setStrategyMeta, setComposerPrefill, setApiError],
   );
 
   // --- Apply planning artifact handler ---
+  const [isApplyingArtifact, setIsApplyingArtifact] = useState(false);
+
   const handleApplyPlanningArtifact = useCallback(
     async (artifact: PlanningArtifact) => {
-      if (strategyId == null) return;
+      if (strategyId == null || isApplyingArtifact) return;
+      setIsApplyingArtifact(true);
       try {
         await applyPlanningArtifactAction(strategyId, artifact, {
           setStrategy,
@@ -282,9 +299,11 @@ export function useChatPanelState({
         });
       } catch (err) {
         console.warn("[UnifiedChat] Failed to apply planning artifact:", err);
+      } finally {
+        setIsApplyingArtifact(false);
       }
     },
-    [strategyId, setStrategy, setStrategyMeta],
+    [strategyId, isApplyingArtifact, setStrategy, setStrategyMeta],
   );
 
   return {
@@ -305,7 +324,11 @@ export function useChatPanelState({
     setDraftSelection,
     models,
     messagesEndRef,
+    bottomRef,
+    isAtBottom,
+    scrollToBottom,
     handleUndo,
     handleApplyPlanningArtifact,
+    isApplyingArtifact,
   };
 }

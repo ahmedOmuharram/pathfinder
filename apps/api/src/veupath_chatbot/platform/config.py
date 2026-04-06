@@ -125,13 +125,6 @@ class Settings(BaseSettings):
     # Ollama (local models via OpenAI-compatible API)
     ollama_base_url: str = "http://localhost:11434/v1"
 
-    # Sub-kani orchestration
-    subkani_model: str = "gpt-4.1-mini"
-    subkani_temperature: float = 0.0
-    subkani_top_p: float = 1.0
-    subkani_max_concurrency: int = 6
-    subkani_timeout_seconds: int = 120
-
     # Unified model defaults (applies to both planning and execution modes)
     default_model_id: str = "openai/gpt-4.1"
     default_reasoning_effort: ReasoningEffort = "medium"

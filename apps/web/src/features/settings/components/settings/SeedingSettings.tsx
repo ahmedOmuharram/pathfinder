@@ -51,6 +51,11 @@ const SEED_DATABASES = [
     label: "HostDB",
     description: "Human host immune response",
   },
+  {
+    id: "trichdb",
+    label: "TrichDB",
+    description: "T. vaginalis trichomoniasis",
+  },
   { id: "veupathdb", label: "VEuPathDB", description: "Cross-species portal" },
   { id: "orthomcl", label: "OrthoMCL", description: "Ortholog groups" },
 ] as const;

@@ -4,10 +4,11 @@ import { Card } from "@/lib/components/ui/Card";
 
 interface ResponsePartProps {
   message: AssistantMessage;
+  isApplyingArtifact?: boolean;
   onApplyPlanningArtifact?: (artifact: PlanningArtifact) => void;
 }
 
-export function ResponsePart({ message, onApplyPlanningArtifact }: ResponsePartProps) {
+export function ResponsePart({ message, isApplyingArtifact = false, onApplyPlanningArtifact }: ResponsePartProps) {
   return (
     <div className="rounded-lg px-3 py-2 border border-border bg-muted text-foreground">
       <ChatMarkdown
@@ -29,10 +30,11 @@ export function ResponsePart({ message, onApplyPlanningArtifact }: ResponsePartP
                     {a.proposedStrategyPlan && onApplyPlanningArtifact ? (
                       <button
                         type="button"
+                        disabled={isApplyingArtifact}
                         onClick={() => onApplyPlanningArtifact(a)}
-                        className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground transition-colors duration-150 hover:bg-accent"
+                        className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground transition-colors duration-150 hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
                       >
-                        Apply to strategy
+                        {isApplyingArtifact ? "Applying..." : "Apply to strategy"}
                       </button>
                     ) : null}
                   </div>

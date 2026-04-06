@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePrevious } from "@/lib/hooks/usePrevious";
 import { UnifiedChatPanel } from "@/features/chat/components/UnifiedChatPanel";
@@ -29,6 +29,9 @@ import { useSystemConfig } from "@/app/hooks/useSystemConfig";
 import { SetupRequiredScreen } from "@/app/components/SetupRequiredScreen";
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 import { useStableGraph } from "@/app/hooks/useStableGraph";
+import { PlanPanel } from "@/features/chat/components/plan/PlanPanel";
+import { usePlanStore } from "@/state/usePlanStore";
+import { ClipboardList } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -91,6 +94,15 @@ function HomePageInner() {
   });
 
   const { displayStrategy, hasGraph } = useStableGraph(strategy);
+  const activePlan = usePlanStore((s) => s.activePlan);
+  const [planPanel, setPlanPanel] = useState<"closed" | "collapsed" | "open">("closed");
+
+  // Auto-open plan panel when a plan is presented
+  useEffect(() => {
+    if (activePlan?.status === "presented") {
+      setPlanPanel("open");
+    }
+  }, [activePlan?.status]);
 
   if (authLoading || configLoading) return <LoadingScreen />;
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
@@ -161,6 +173,33 @@ function HomePageInner() {
             onToast={addToast}
           />
         </div>
+
+        {/* Right panel: Strategy Plan */}
+        {planPanel !== "closed" && activePlan != null && (
+          <>
+            <div className="w-px bg-border" />
+            {planPanel === "collapsed" ? (
+              <div className="flex h-full w-10 shrink-0 flex-col items-center border-l border-border bg-card pt-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPlanPanel("open")}
+                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label="Expand plan panel"
+                  title="Expand plan"
+                >
+                  <ClipboardList className="h-5 w-5" />
+                </button>
+              </div>
+            ) : (
+              <div className="w-[380px] shrink-0">
+                <PlanPanel
+                  onClose={() => setPlanPanel("closed")}
+                  onCollapse={() => setPlanPanel("collapsed")}
+                />
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <SettingsPage

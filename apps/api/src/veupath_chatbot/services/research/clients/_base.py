@@ -1,14 +1,16 @@
 """Shared base for literature search API clients."""
 
 import asyncio
-from typing import cast
 
 from veupath_chatbot.domain.research.citations import (
+    Citation,
     ensure_unique_citation_tags,
 )
+from veupath_chatbot.domain.research.papers import ParsedPaper
 from veupath_chatbot.platform.errors import ExternalServiceError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.pydantic_base import CamelModel
+from veupath_chatbot.platform.types import JSONValue
 
 logger = get_logger(__name__)
 
@@ -16,6 +18,15 @@ API_USER_AGENT = "pathfinder-planner/1.0"
 
 _DEFAULT_MAX_RETRIES = 3
 _DEFAULT_BACKOFF_BASE_S = 1.0
+
+
+class SearchResponse(CamelModel):
+    """Standard response from a literature search client."""
+
+    query: str
+    source: str
+    results: list[ParsedPaper]
+    citations: list[Citation]
 
 
 class BaseClient:
@@ -31,14 +42,14 @@ class BaseClient:
         raw_items: list[JSONValue],
         *,
         abstract_max_chars: int,
-    ) -> tuple[JSONArray, list[JSONObject]]:
+    ) -> tuple[list[ParsedPaper], list[Citation]]:
         """Iterate *raw_items*, calling ``_parse_item`` on each.
 
         Returns a ``(results, citations)`` pair ready for
         :func:`build_response`.
         """
-        results: JSONArray = []
-        citations: list[JSONObject] = []
+        results: list[ParsedPaper] = []
+        citations: list[Citation] = []
         for raw in raw_items:
             pair = self._parse_item(raw, abstract_max_chars=abstract_max_chars)
             if pair is None:
@@ -53,8 +64,8 @@ class BaseClient:
         raw: JSONValue,
         *,
         abstract_max_chars: int,
-    ) -> tuple[JSONObject, JSONObject] | None:
-        """Parse one raw API item into ``(result_dict, citation_dict)``.
+    ) -> tuple[ParsedPaper, Citation] | None:
+        """Parse one raw API item into ``(ParsedPaper, Citation)``.
 
         Return ``None`` to skip the item.  Subclasses **must** override.
         """
@@ -77,7 +88,7 @@ class StandardClient(BaseClient):
 
     async def search(
         self, query: str, *, limit: int, abstract_max_chars: int
-    ) -> JSONObject:
+    ) -> SearchResponse:
         raw_items = await self._fetch_with_retry(query, limit=limit)
         results, citations = self._build_results(
             raw_items, abstract_max_chars=abstract_max_chars
@@ -134,14 +145,14 @@ def build_response(
     *,
     query: str,
     source: str,
-    results: JSONArray,
-    citations: list[JSONObject],
-) -> JSONObject:
-    """Build the standard client response dict, deduplicating citation tags."""
+    results: list[ParsedPaper],
+    citations: list[Citation],
+) -> SearchResponse:
+    """Build the standard client response, deduplicating citation tags."""
     ensure_unique_citation_tags(citations)
-    return {
-        "query": query,
-        "source": source,
-        "results": results,
-        "citations": cast("JSONValue", citations),
-    }
+    return SearchResponse(
+        query=query,
+        source=source,
+        results=results,
+        citations=citations,
+    )

@@ -41,7 +41,7 @@ const flatOptions = [
 
 function makeProps(overrides: Partial<ParamWidgetProps> = {}): ParamWidgetProps {
   return {
-    spec: { name: "test-tree" },
+    spec: { name: "test-tree", type: "string", allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true },
     value: undefined,
     multi: true,
     multiValue: [],

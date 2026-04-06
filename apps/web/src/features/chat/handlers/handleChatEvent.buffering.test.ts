@@ -88,13 +88,6 @@ describe("handleChatEvent — buffering & core events", () => {
     const toolCallsBuffer: ToolCall[] = [];
     const citationsBuffer: Citation[] = [];
     const planningArtifactsBuffer: PlanningArtifact[] = [];
-    const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
-    const subKaniStatusBuffer: Record<string, string> = {};
-    const subKaniModelsBuffer: Record<string, string> = {};
-    const subKaniTokenUsageBuffer: Record<
-      string,
-      import("@pathfinder/shared").SubKaniTokenUsage
-    > = {};
 
     const ctx = {
       siteId: "plasmodb",
@@ -102,28 +95,15 @@ describe("handleChatEvent — buffering & core events", () => {
       toolCallsBuffer,
       citationsBuffer,
       planningArtifactsBuffer,
-      subKaniCallsBuffer,
-      subKaniStatusBuffer,
-      subKaniModelsBuffer,
-      subKaniTokenUsageBuffer,
       thinking: {
         activeToolCalls: [],
         lastToolCalls: [],
-        subKaniCalls: {},
-        subKaniStatus: {},
-        subKaniModels: {},
         reasoning: null,
-        subKaniActivity: undefined,
         reset: vi.fn(),
         applyThinkingPayload: vi.fn(() => false),
         updateActiveFromBuffer: vi.fn(),
         finalizeToolCalls: vi.fn(),
         updateReasoning: vi.fn(),
-        snapshotSubKaniActivity: vi.fn(() => ({ calls: {}, status: {} })),
-        subKaniTaskStart: vi.fn(),
-        subKaniToolCallStart: vi.fn(),
-        subKaniToolCallEnd: vi.fn(),
-        subKaniTaskEnd: vi.fn(),
       } satisfies ChatEventContext["thinking"],
       setStrategyId: vi.fn(),
       addStrategy: vi.fn(),
@@ -233,7 +213,7 @@ describe("handleChatEvent — buffering & core events", () => {
     expect(applyGraphSnapshot).toHaveBeenCalledWith({ name: "X", steps: [] });
   });
 
-  it("handles message_start + reasoning + subkani + graph_snapshot branches", () => {
+  it("handles message_start + reasoning + graph_snapshot branches", () => {
     const { ctx, thinking, applyGraphSnapshot } = makeCtx();
 
     handleChatEvent(ctx, {
@@ -262,25 +242,6 @@ describe("handleChatEvent — buffering & core events", () => {
       data: { reasoning: "r" },
     } as ChatSSEEvent);
     expect(thinking.updateReasoning).toHaveBeenCalledWith("r");
-
-    handleChatEvent(ctx, {
-      type: "subkani_task_start",
-      data: { task: "t" },
-    } as ChatSSEEvent);
-    handleChatEvent(ctx, {
-      type: "subkani_tool_call_start",
-      data: { task: "t", id: "1", name: "n", arguments: {} },
-    } as ChatSSEEvent);
-    handleChatEvent(ctx, {
-      type: "subkani_tool_call_end",
-      data: { task: "t", id: "1", result: "ok" },
-    } as ChatSSEEvent);
-    handleChatEvent(ctx, {
-      type: "subkani_task_end",
-      data: { task: "t", status: "done" },
-    } as ChatSSEEvent);
-    expect(thinking.subKaniTaskStart).toHaveBeenCalledWith("t", undefined);
-    expect(thinking.subKaniTaskEnd).toHaveBeenCalledWith("t", "done");
 
     handleChatEvent(ctx, {
       type: "graph_snapshot",

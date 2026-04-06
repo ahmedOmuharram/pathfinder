@@ -96,8 +96,11 @@ class StrategyGraph:
             self.roots.discard(step.secondary_input.id)
         self.last_step_id = step.id
         if len(self.roots) > 1:
-            msg = f"Single-root invariant violated: {len(self.roots)} roots ({self.roots})"
-            raise ValueError(msg)
+            logger.debug(
+                "Multiple roots during construction: %d roots (%s)",
+                len(self.roots),
+                self.roots,
+            )
         return step.id
 
     def find_parent(self, step_id: str) -> tuple[PlanStepNode, str] | None:

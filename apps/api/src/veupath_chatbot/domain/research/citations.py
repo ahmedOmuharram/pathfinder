@@ -6,10 +6,9 @@ from string import ascii_lowercase
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import ConfigDict, computed_field
+from pydantic import model_validator
 
 from veupath_chatbot.platform.pydantic_base import CamelModel
-from veupath_chatbot.platform.types import JSONObject
 
 LiteratureSource = Literal[
     "europepmc",
@@ -87,8 +86,6 @@ def _suggest_tag(citation: "Citation") -> str:
 
 
 class Citation(CamelModel):
-    model_config = ConfigDict(frozen=True)
-
     id: str
     source: Literal[
         "web",
@@ -109,12 +106,13 @@ class Citation(CamelModel):
     pmid: str | None = None
     snippet: str | None = None
     accessed_at: str | None = None
+    tag: str = ""
 
-    @computed_field
-    @property
-    def tag(self) -> str:
-        """Short tag for inline references (e.g. ``[pubmed-kinase]``)."""
-        return _suggest_tag(self)
+    @model_validator(mode="after")
+    def _set_tag(self) -> "Citation":
+        if not self.tag:
+            self.tag = _suggest_tag(self)
+        return self
 
 
 def _now_iso() -> str:
@@ -125,7 +123,7 @@ def _new_citation_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
 
-def ensure_unique_citation_tags(citations: list[JSONObject]) -> None:
+def ensure_unique_citation_tags(citations: list["Citation"]) -> None:
     """Ensure all citation tags are unique by appending suffixes if needed.
 
     :param citations: Citation objects.
@@ -133,9 +131,7 @@ def ensure_unique_citation_tags(citations: list[JSONObject]) -> None:
     """
     used: dict[str, int] = {}
     for c in citations:
-        if not isinstance(c, dict):
-            continue
-        base = _slug_token(str(c.get("tag") or ""), max_len=40) or "ref"
+        base = _slug_token(c.tag, max_len=40) or "ref"
         n = used.get(base, 0)
         if n == 0:
             tag = base
@@ -144,8 +140,4 @@ def ensure_unique_citation_tags(citations: list[JSONObject]) -> None:
         else:
             tag = f"{base}_{n + 1}"
         used[base] = n + 1
-        c["tag"] = tag
-
-
-# Private utilities exported for use by services module
-# These are implementation details but need to be accessible
+        c.tag = tag

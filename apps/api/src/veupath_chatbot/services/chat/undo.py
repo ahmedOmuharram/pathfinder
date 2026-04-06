@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from veupath_chatbot.integrations.veupathdb.factory import get_strategy_api
 from veupath_chatbot.persistence.models import Stream, StreamProjection
 from veupath_chatbot.platform.errors import NotFoundError
-from veupath_chatbot.platform.events import _PROJECTED_EVENT_TYPES, _project_event
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.projection import _PROJECTED_EVENT_TYPES, _project_event
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.session_factory import build_strategy_session

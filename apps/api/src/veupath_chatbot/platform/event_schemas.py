@@ -6,6 +6,8 @@ HTTP handlers.  Keeping them here respects the layering rule that lower layers
 never import from transport.
 """
 
+from __future__ import annotations
+
 from pydantic import Field
 
 from veupath_chatbot.platform.pydantic_base import CamelModel
@@ -53,9 +55,6 @@ class MessageEndEventData(CamelModel):
     tool_call_count: int | None = None
     registered_tool_count: int | None = None
     llm_call_count: int | None = None
-    sub_kani_prompt_tokens: int | None = None
-    sub_kani_completion_tokens: int | None = None
-    sub_kani_call_count: int | None = None
     estimated_cost_usd: float | None = None
 
 
@@ -75,47 +74,6 @@ class ToolCallEndEventData(CamelModel):
 
     id: str
     result: str | None = None
-
-
-# ── Sub-kani events ──────────────────────────────────────────────────
-
-
-class SubKaniTaskStartEventData(CamelModel):
-    """Payload for ``subkani_task_start`` SSE events."""
-
-    task: str | None = None
-    model_id: str | None = None
-
-
-class SubKaniToolCallStartEventData(ToolCallStartEventData):
-    """Payload for ``subkani_tool_call_start`` SSE events."""
-
-    task: str | None = None
-
-
-class SubKaniToolCallEndEventData(ToolCallEndEventData):
-    """Payload for ``subkani_tool_call_end`` SSE events."""
-
-    task: str | None = None
-
-
-class SubKaniTaskEndEventData(CamelModel):
-    """Payload for ``subkani_task_end`` SSE events."""
-
-    task: str | None = None
-    status: str | None = None
-    model_id: str | None = None
-    prompt_tokens: int | None = None
-    completion_tokens: int | None = None
-    llm_call_count: int | None = None
-    estimated_cost_usd: float | None = None
-
-
-class SubKaniTaskRetryEventData(CamelModel):
-    """Payload for ``subkani_task_retry`` SSE events."""
-
-    task: str | None = None
-    attempt: int | None = None
 
 
 # ── Token usage / model selection ────────────────────────────────────
@@ -146,6 +104,14 @@ class ErrorEventData(CamelModel):
 # ── Strategy / graph events ──────────────────────────────────────────
 
 
+class GraphEdge(CamelModel):
+    """A single edge in a graph snapshot."""
+
+    source_id: str
+    target_id: str
+    kind: str
+
+
 class GraphSnapshotContent(CamelModel):
     """Content of a graph_snapshot event payload."""
 
@@ -156,7 +122,7 @@ class GraphSnapshotContent(CamelModel):
     description: str | None = None
     root_step_id: str | None = None
     steps: list[JSONObject] = Field(default_factory=list)
-    edges: list[JSONObject] = Field(default_factory=list)
+    edges: list[GraphEdge] = Field(default_factory=list)
     plan: JSONObject | None = None
 
 

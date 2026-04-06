@@ -25,9 +25,21 @@ export type OpenStrategyResponse = components["schemas"]["OpenStrategyResponse"]
 export type ChatMention = components["schemas"]["ChatMention"];
 export type ChatRequest = components["schemas"]["ChatRequest"];
 export type ParamSpec = components["schemas"]["ParamSpecResponse"];
-export type SearchValidationErrors = components["schemas"]["SearchValidationErrors"];
-export type SearchValidationPayload = components["schemas"]["SearchValidationPayload"];
-export type SearchValidationResponse = components["schemas"]["SearchValidationResponse"];
+// Search validation types — defined locally (not in OpenAPI spec since
+// validation is a WDK proxy endpoint, not a PathFinder model).
+export interface SearchValidationErrors {
+  general?: string[];
+  byKey?: Record<string, string[]>;
+}
+export interface SearchValidationPayload {
+  isValid: boolean;
+  normalizedContextValues?: Record<string, unknown>;
+  errors?: SearchValidationErrors;
+}
+export interface SearchValidationResponse {
+  validation: SearchValidationPayload;
+}
+
 export type CreateStrategyRequest = components["schemas"]["CreateStrategyRequest"];
 export type UpdateStrategyRequest = components["schemas"]["UpdateStrategyRequest"];
 
@@ -37,10 +49,6 @@ export type UserMessageData = components["schemas"]["UserMessageEventData"];
 export type AssistantDeltaData = components["schemas"]["AssistantDeltaEventData"];
 export type AssistantMessageData = components["schemas"]["AssistantMessageEventData"];
 export type TokenUsagePartialData = components["schemas"]["TokenUsagePartialEventData"];
-export type SubKaniTaskStartData = components["schemas"]["SubKaniTaskStartEventData"];
-export type SubKaniTaskEndData = components["schemas"]["SubKaniTaskEndEventData"];
-export type SubKaniToolCallStartData = components["schemas"]["SubKaniToolCallStartEventData"];
-export type SubKaniToolCallEndData = components["schemas"]["SubKaniToolCallEndEventData"];
 export type SSEToolCallStartData = components["schemas"]["ToolCallStartEventData"];
 export type SSEToolCallEndData = components["schemas"]["ToolCallEndEventData"];
 export type ModelSelectedData = components["schemas"]["ModelSelectedEventData"];
@@ -59,6 +67,13 @@ export type StrategyUpdateData = components["schemas"]["StrategyUpdateEventData"
 export type WorkbenchGeneSetData = components["schemas"]["WorkbenchGeneSetEventData"];
 export type CitationsData = components["schemas"]["CitationsEventData"];
 export type PlanningArtifactData = components["schemas"]["PlanningArtifactEventData"];
+
+// Pipeline phase event types
+export type PhaseChangeData = components["schemas"]["PhaseChangeEventData"];
+export type PlanPresentedData = components["schemas"]["PlanPresentedEventData"];
+export type PlanUpdatedData = components["schemas"]["PlanUpdatedEventData"];
+export type DecisionPresentedData = components["schemas"]["DecisionPresentedEventData"];
+export type PlanningThoughtData = components["schemas"]["PlanningThoughtEventData"];
 
 // Optimization SSE event types
 export type OptimizationProgressData = components["schemas"]["OptimizationProgressEventData"];
@@ -105,8 +120,6 @@ export type ExperimentProgressData = components["schemas"]["ExperimentProgressDa
 
 // REST response types — formerly hand-written, now generated SSOT
 export type ToolCall = components["schemas"]["ToolCallResponse"];
-export type SubKaniTokenUsage = components["schemas"]["SubKaniTokenUsageResponse"];
-export type SubKaniActivity = components["schemas"]["SubKaniActivityResponse"];
 export type Thinking = components["schemas"]["ThinkingResponse"];
 export type Step = components["schemas"]["StepResponse"];
 export type GeneSet = components["schemas"]["GeneSetResponse"];
@@ -389,7 +402,6 @@ export interface AssistantMessage extends BaseMessage {
   role: "assistant";
   modelId?: string | null;
   toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
-  subKaniActivity?: components["schemas"]["SubKaniActivityResponse"] | null;
   citations?: components["schemas"]["CitationResponse"][] | null;
   planningArtifacts?: components["schemas"]["PlanningArtifactResponse"][] | null;
   reasoning?: string | null;

@@ -6,7 +6,7 @@ into ``integrations.veupathdb`` directly.
 """
 
 from veupath_chatbot.integrations.veupathdb.client import VEuPathDBClient
-from veupath_chatbot.integrations.veupathdb.discovery import (
+from veupath_chatbot.integrations.veupathdb.discovery_service import (
     DiscoveryService,
     get_discovery_service,
 )

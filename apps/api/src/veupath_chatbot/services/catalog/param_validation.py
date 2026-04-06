@@ -4,6 +4,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol, cast
 
+from pydantic import Field
+
 from veupath_chatbot.domain.parameters.canonicalize import ParameterCanonicalizer
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
@@ -11,7 +13,7 @@ from veupath_chatbot.domain.parameters.specs import (
     find_missing_required_params,
 )
 from veupath_chatbot.domain.search import SearchContext
-from veupath_chatbot.integrations.veupathdb.discovery import (
+from veupath_chatbot.integrations.veupathdb.discovery_service import (
     DiscoveryService,
     get_discovery_service,
 )
@@ -22,6 +24,8 @@ from veupath_chatbot.integrations.veupathdb.wdk_models import (
 )
 from veupath_chatbot.platform.errors import AppError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.pydantic_base import CamelModel
+from veupath_chatbot.platform.tool_errors import ToolErrorPayload
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 from .param_formatting import format_param_info_typed
@@ -32,6 +36,27 @@ from .param_resolution import (
 )
 
 logger = get_logger(__name__)
+
+
+class ValidationErrors(CamelModel):
+    """Structured validation errors by category."""
+
+    general: list[str] = Field(default_factory=list)
+    by_key: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class ValidationResult(CamelModel):
+    """Single validation result with normalized values."""
+
+    is_valid: bool
+    normalized_context_values: JSONObject = Field(default_factory=dict)
+    errors: ValidationErrors = Field(default_factory=ValidationErrors)
+
+
+class ValidationResponse(CamelModel):
+    """Top-level validation response wrapper."""
+
+    validation: ValidationResult
 
 
 class ResolveRecordTypeFn(Protocol):
@@ -58,7 +83,7 @@ class ValidationCallbacks:
 
     resolve_record_type_for_search: ResolveRecordTypeFn
     find_record_type_hint: Callable[[str, str | None], Awaitable[str | None]]
-    validation_error_payload: Callable[[ValidationError], JSONObject] | None = None
+    validation_error_payload: Callable[[ValidationError], ToolErrorPayload] | None = None
 
 
 
@@ -66,7 +91,7 @@ async def validate_search_params(
     ctx: SearchContext,
     *,
     context_values: JSONObject | None,
-) -> JSONObject:
+) -> ValidationResponse:
     """Validate and canonicalize search parameters for UI consumption.
 
     Returns a stable payload:
@@ -84,16 +109,14 @@ async def validate_search_params(
         response = await expand_search_details_with_params(ctx, raw_context)
         allowed = _extract_param_names_from_response(response)
     except AppError as exc:
-        return {
-            "validation": {
-                "isValid": False,
-                "normalizedContextValues": {},
-                "errors": {
-                    "general": [f"Failed to load search metadata: {exc}"],
-                    "byKey": {},
-                },
-            }
-        }
+        return ValidationResponse(
+            validation=ValidationResult(
+                is_valid=False,
+                errors=ValidationErrors(
+                    general=[f"Failed to load search metadata: {exc}"]
+                ),
+            )
+        )
 
     filtered_context = _filter_context_values(raw_context, allowed)
     spec_map = adapt_param_specs_from_search(response.search_data)
@@ -121,43 +144,35 @@ async def validate_search_params(
                 general.append(str(message))
         if not general:
             general = [exc.detail or exc.title]
-        return {
-            "validation": {
-                "isValid": False,
-                "normalizedContextValues": {},
-                "errors": {
-                    "general": cast("JSONValue", general),
-                    "byKey": cast("JSONValue", by_key),
-                },
-            }
-        }
+        return ValidationResponse(
+            validation=ValidationResult(
+                is_valid=False,
+                errors=ValidationErrors(general=general, by_key=by_key),
+            )
+        )
 
     # Required checks using raw WDK specs (keeps semantics aligned with WDK).
     missing = find_missing_required_params(spec_map, normalized_context)
 
     if missing:
         by_key = {name: ["Required"] for name in missing}
-        return {
-            "validation": {
-                "isValid": False,
-                "normalizedContextValues": normalized_context,
-                "errors": {
-                    "general": cast(
-                        "JSONValue",
-                        [f"Missing required parameters: {', '.join(missing)}"],
-                    ),
-                    "byKey": cast("JSONValue", by_key),
-                },
-            }
-        }
+        return ValidationResponse(
+            validation=ValidationResult(
+                is_valid=False,
+                normalized_context_values=normalized_context,
+                errors=ValidationErrors(
+                    general=[f"Missing required parameters: {', '.join(missing)}"],
+                    by_key=by_key,
+                ),
+            )
+        )
 
-    return {
-        "validation": {
-            "isValid": True,
-            "normalizedContextValues": normalized_context,
-            "errors": {"general": [], "byKey": {}},
-        }
-    }
+    return ValidationResponse(
+        validation=ValidationResult(
+            is_valid=True,
+            normalized_context_values=normalized_context,
+        )
+    )
 
 
 async def _resolve_search_details(
@@ -295,6 +310,10 @@ async def validate_parameters(
     extra_params = [key for key in parameters if key not in param_names]
     if extra_params:
         full_param_spec = format_param_info_typed(response.search_data.parameters or [])
+        serialized_spec: JSONValue = [
+            p.model_dump(by_alias=True, mode="json", exclude_none=True)
+            for p in full_param_spec
+        ]
         raise ValidationError(
             title="Unknown parameters provided",
             errors=[
@@ -303,7 +322,7 @@ async def validate_parameters(
                         "recordType": resolved_record_type,
                         "searchName": ctx.search_name,
                         "unknown": cast("JSONValue", extra_params),
-                        "parameters": cast("JSONValue", full_param_spec),
+                        "parameters": serialized_spec,
                     }
                 }
             ],
@@ -312,6 +331,10 @@ async def validate_parameters(
 
     if missing:
         full_param_spec = format_param_info_typed(response.search_data.parameters or [])
+        serialized_spec = [
+            p.model_dump(by_alias=True, mode="json", exclude_none=True)
+            for p in full_param_spec
+        ]
         raise ValidationError(
             title=f"Missing required parameters: {', '.join(missing)}",
             errors=[
@@ -320,7 +343,7 @@ async def validate_parameters(
                         "recordType": resolved_record_type,
                         "searchName": ctx.search_name,
                         "missing": cast("JSONValue", missing),
-                        "parameters": cast("JSONValue", full_param_spec),
+                        "parameters": serialized_spec,
                     }
                 }
             ],

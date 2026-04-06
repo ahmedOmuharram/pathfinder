@@ -1,7 +1,5 @@
-import { useState } from "react";
-import { FileText, FlaskConical } from "lucide-react";
+import { useState, useEffect } from "react";
 import type {
-  ChatMention,
   Message,
   ToolCall,
   PlanningArtifact,
@@ -10,48 +8,21 @@ import type {
 } from "@pathfinder/shared";
 import { decodeNodeSelection } from "@/features/chat/node_selection";
 import { ChatEmptyState } from "@/features/chat/components/ChatEmptyState";
-import { NodeCard } from "@/features/chat/components/delegation/NodeCard";
-import { ChatMarkdown } from "@/lib/components/ChatMarkdown";
+import { UserAvatar, AssistantAvatar } from "@/features/chat/components/ChatMessageListAvatars";
+import {
+  ChatLoadingSkeleton,
+  MessageTimestamp,
+  UndoButton,
+  ScrollToBottomButton,
+  UserMessageBody,
+} from "@/features/chat/components/ChatMessageListHelpers";
 import { ThinkingPanel } from "@/features/chat/components/thinking/ThinkingPanel";
 import { OptimizationProgressPanel } from "@/features/chat/components/optimization/OptimizationProgressPanel";
+import { PlanPinnedBar } from "@/features/chat/components/plan/PlanPinnedBar";
 import { AssistantMessageParts } from "@/features/chat/components/message/AssistantMessageParts";
 import { TokenUsageDisplay } from "@/features/chat/components/message/TokenUsageDisplay";
-import { formatMessageTime } from "@/lib/formatTime";
-import { ProviderIcon } from "@/lib/components/ProviderIcon";
 import { useSettingsStore } from "@/state/useSettingsStore";
-
-// ---------------------------------------------------------------------------
-// Avatars
-// ---------------------------------------------------------------------------
-
-function UserAvatar({ name }: { name: string }) {
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-  return (
-    <div className="flex-shrink-0 size-7 rounded-full bg-primary flex items-center justify-center text-[11px] font-bold text-primary-foreground">
-      {initials}
-    </div>
-  );
-}
-
-function AssistantAvatar({ modelId }: { modelId?: string }) {
-  const catalog = useSettingsStore((s) => s.modelCatalog);
-  const entry = catalog.find((m) => m.id === modelId);
-  const provider = entry?.provider ?? "openai";
-  return (
-    <div className="flex-shrink-0 size-7 rounded-md bg-muted flex items-center justify-center">
-      <ProviderIcon provider={provider} size={16} />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+import { usePlanStore } from "@/state/usePlanStore";
 
 interface ChatMessageListProps {
   isCompact: boolean;
@@ -64,20 +35,24 @@ interface ChatMessageListProps {
   messages: Message[];
   undoSnapshots: Record<number, Strategy>;
   isUndoing?: boolean;
-  onSend: (content: string) => void;
+  onSend: (content: string, metadata?: Record<string, unknown>) => void;
   onUndo?: (userMessageIndex: number) => void;
+  isApplyingArtifact?: boolean;
   onApplyPlanningArtifact?: (artifact: PlanningArtifact) => void;
   thinking: {
     activeToolCalls: ToolCall[];
     lastToolCalls: ToolCall[];
-    subKaniCalls: Record<string, ToolCall[]>;
-    subKaniStatus: Record<string, string>;
-    subKaniModels?: Record<string, string>;
     reasoning?: string | null;
   };
   optimizationProgress?: OptimizationProgressData | null;
   onCancelOptimization?: () => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
+  /** Sentinel ref for auto-scroll IntersectionObserver. */
+  bottomRef?: React.RefObject<HTMLDivElement | null>;
+  /** Whether the user is scrolled near the bottom. */
+  isAtBottom?: boolean;
+  /** Scroll to the bottom of the message list. */
+  scrollToBottom?: () => void;
 }
 
 export function ChatMessageList({
@@ -93,15 +68,39 @@ export function ChatMessageList({
   isUndoing,
   onSend,
   onUndo,
+  isApplyingArtifact = false,
   onApplyPlanningArtifact,
   thinking,
   optimizationProgress,
   onCancelOptimization,
   messagesEndRef,
+  bottomRef,
+  isAtBottom = true,
+  scrollToBottom,
 }: ChatMessageListProps) {
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const [showCitationTags, setShowCitationTags] = useState(false);
   const catalog = useSettingsStore((s) => s.modelCatalog);
+  const activePlan = usePlanStore((s) => s.activePlan);
+  const isPlanPinned = usePlanStore((s) => s.isPlanPinned);
+
+  // Track when the plan card scrolls out of view to show the pinned bar.
+  useEffect(() => {
+    if (!activePlan) return;
+    const card = document.querySelector(`[data-plan-id="${activePlan.id}"]`);
+    if (!card) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry) {
+          usePlanStore.getState().setPinned(!entry.isIntersecting);
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [activePlan]);
 
   // Find the last assistant message so we can attach live streaming parts to it.
   const lastAssistantIndex = (() => {
@@ -125,10 +124,25 @@ export function ChatMessageList({
   return (
     <div className="relative flex-1 min-h-0">
       <div
+        role="log"
+        aria-label="Chat messages"
         className={`chat-messages h-full min-h-0 space-y-3 overflow-y-auto ${
           isCompact ? "p-2" : "p-4"
         }`}
       >
+        {activePlan && isPlanPinned && activePlan.status === "presented" && (
+          <PlanPinnedBar
+            plan={activePlan}
+            onApprove={() => {
+              usePlanStore.getState().updatePlan({ status: "approved" });
+            }}
+            onViewPlan={() => {
+              document
+                .querySelector(`[data-plan-id="${activePlan.id}"]`)
+                ?.scrollIntoView({ behavior: "smooth" });
+            }}
+          />
+        )}
         {isLoading ? (
           <ChatLoadingSkeleton />
         ) : (
@@ -144,12 +158,21 @@ export function ChatMessageList({
         )}
 
         {messages.map((message, index) => {
+          // Hide plan interaction messages — they are internal control
+          // messages (approve, answer_question) that should not render.
+          if (
+            message.role === "user" &&
+            message.content.startsWith("[Plan interaction:")
+          ) {
+            return null;
+          }
+
           const decoded =
             message.role === "user"
               ? decodeNodeSelection(message.content)
               : { selection: null, message: message.content };
           const nodeData = decoded.selection;
-          const hasText = decoded.message && decoded.message.length > 0;
+          const hasText = decoded.message != null && decoded.message.length > 0;
           const undoSnapshot = undoSnapshots[index];
           const nodeList = Array.isArray(nodeData?.nodes) ? nodeData.nodes : [];
           const nodeIds = Array.isArray(nodeData?.nodeIds) ? nodeData.nodeIds : [];
@@ -194,9 +217,11 @@ export function ChatMessageList({
                       {...(onCancelOptimization != null
                         ? { onCancelOptimization }
                         : {})}
+                      isApplyingArtifact={isApplyingArtifact}
                       {...(onApplyPlanningArtifact != null
                         ? { onApplyPlanningArtifact }
                         : {})}
+                      onSendMessage={onSend}
                       expandedSources={expandedSources}
                       setExpandedSources={setExpandedSources}
                       showCitationTags={showCitationTags}
@@ -230,54 +255,22 @@ export function ChatMessageList({
                   <div className="text-xs font-semibold text-muted-foreground mb-1">
                     {userDisplayName}
                   </div>
-                  {nodeData ? (
-                    <div className="space-y-1">
-                      {message.mentions != null && message.mentions.length > 0 ? (
-                        <MentionChips mentions={message.mentions} />
-                      ) : null}
-                      <div className="flex w-full gap-2 overflow-x-auto pb-1">
-                        {nodeList.map((node, nodeIndex) => (
-                          <div
-                            key={`${nodeIds[nodeIndex] ?? nodeIndex}`}
-                            className="shrink-0 min-w-[220px]"
-                          >
-                            <NodeCard node={node} />
-                          </div>
-                        ))}
-                      </div>
-                      {hasText ? (
-                        <div className="rounded-lg bg-primary px-3 py-2 text-primary-foreground selection:bg-primary-foreground selection:text-primary">
-                          <ChatMarkdown content={decoded.message} tone="onDark" />
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {message.mentions != null && message.mentions.length > 0 ? (
-                        <MentionChips mentions={message.mentions} />
-                      ) : null}
-                      <div className="rounded-lg px-3 py-2 bg-primary text-primary-foreground selection:bg-primary-foreground selection:text-primary">
-                        <ChatMarkdown content={message.content} tone="onDark" />
-                      </div>
-                    </div>
-                  )}
+                  <UserMessageBody
+                    nodeData={nodeData}
+                    nodeList={nodeList}
+                    nodeIds={nodeIds}
+                    hasText={hasText}
+                    decodedMessage={decoded.message}
+                    rawContent={message.content}
+                    mentions={message.mentions}
+                  />
                   <div className="mt-1.5 flex items-center gap-2">
                     <MessageTimestamp iso={message.timestamp} />
                     {onUndo != null && message.entryId != null && !isStreaming && (
-                      <button
-                        type="button"
+                      <UndoButton
                         onClick={() => onUndo(index)}
                         disabled={isUndoing === true}
-                        className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-input hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
-                        title="Undo from this message"
-                        aria-label="Undo from this message"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
-                          <path d="M9 14L4 9l5-5" />
-                          <path d="M20 20v-5a7 7 0 0 0-7-7H4" />
-                        </svg>
-                        Undo
-                      </button>
+                      />
                     )}
                   </div>
                 </div>
@@ -293,11 +286,6 @@ export function ChatMessageList({
               isStreaming={isStreaming}
               activeToolCalls={thinking.activeToolCalls}
               lastToolCalls={thinking.lastToolCalls}
-              subKaniCalls={thinking.subKaniCalls}
-              subKaniStatus={thinking.subKaniStatus}
-              {...(thinking.subKaniModels != null
-                ? { subKaniModels: thinking.subKaniModels }
-                : {})}
               {...(thinking.reasoning != null ? { reasoning: thinking.reasoning } : {})}
               title="Thinking"
             />
@@ -313,49 +301,14 @@ export function ChatMessageList({
         ) : null}
 
         <div ref={messagesEndRef} />
+        {bottomRef != null && <div ref={bottomRef} className="h-px" />}
       </div>
+
+      {/* Floating scroll-to-bottom button */}
+      {!isAtBottom && isStreaming && scrollToBottom !== undefined && (
+        <ScrollToBottomButton onClick={scrollToBottom} />
+      )}
     </div>
   );
 }
 
-function MentionChips({ mentions }: { mentions: ChatMention[] }) {
-  return (
-    <div className="flex flex-wrap gap-1">
-      {mentions.map((m) => {
-        const Icon = m.type === "strategy" ? FileText : FlaskConical;
-        return (
-          <span
-            key={`${m.type}-${m.id}`}
-            className="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary-foreground ring-1 ring-inset ring-primary/30"
-          >
-            <Icon className="h-2.5 w-2.5 shrink-0" />
-            {m.displayName}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-function ChatLoadingSkeleton() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 animate-fade-in">
-      <div className="flex gap-1.5">
-        <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/40 [animation-delay:0ms]" />
-        <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/40 [animation-delay:150ms]" />
-        <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/40 [animation-delay:300ms]" />
-      </div>
-      <p className="text-xs text-muted-foreground">Loading conversation...</p>
-    </div>
-  );
-}
-
-function MessageTimestamp({ iso }: { iso: string }) {
-  const text = formatMessageTime(iso);
-  if (!text) return null;
-  return (
-    <span className="mt-2 block text-xs leading-none text-muted-foreground select-none">
-      {text}
-    </span>
-  );
-}

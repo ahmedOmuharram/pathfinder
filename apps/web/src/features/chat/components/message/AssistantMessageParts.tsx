@@ -8,7 +8,9 @@ import type {
 import { ChatThinkingDetails } from "@/features/chat/components/thinking/ChatThinkingDetails";
 import { OptimizationProgressPanel } from "@/features/chat/components/optimization/OptimizationProgressPanel";
 import { ThinkingPanel } from "@/features/chat/components/thinking/ThinkingPanel";
+import { PlanThinkingBlock } from "@/features/chat/components/plan/PlanThinkingBlock";
 import { extractDelegateSummaries } from "@/features/chat/utils/extractDelegateSummaries";
+import { usePlanStore } from "@/state/usePlanStore";
 import { SourcesPart } from "./SourcesPart";
 import { ResponsePart } from "./ResponsePart";
 import { buildAssistantParts } from "./useAssistantParts";
@@ -16,9 +18,6 @@ import { buildAssistantParts } from "./useAssistantParts";
 interface ThinkingState {
   activeToolCalls: ToolCall[];
   lastToolCalls: ToolCall[];
-  subKaniCalls: Record<string, ToolCall[]>;
-  subKaniStatus: Record<string, string>;
-  subKaniModels?: Record<string, string>;
   reasoning?: string | null;
 }
 
@@ -30,7 +29,9 @@ interface AssistantMessagePartsProps {
   thinking: ThinkingState;
   optimizationProgress?: OptimizationProgressData | null;
   onCancelOptimization?: () => void;
+  isApplyingArtifact?: boolean;
   onApplyPlanningArtifact?: (artifact: PlanningArtifact) => void;
+  onSendMessage?: (text: string, metadata?: Record<string, unknown>) => void;
   expandedSources: Record<string, boolean>;
   setExpandedSources: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   showCitationTags: boolean;
@@ -46,6 +47,7 @@ export function AssistantMessageParts({
   thinking,
   optimizationProgress,
   onCancelOptimization,
+  isApplyingArtifact = false,
   onApplyPlanningArtifact,
   expandedSources,
   setExpandedSources,
@@ -56,6 +58,8 @@ export function AssistantMessageParts({
   const delegateSummary = message.toolCalls
     ? extractDelegateSummaries(message.toolCalls)
     : { summaries: [], rejected: [] };
+
+  const planThoughts = usePlanStore((s) => s.planThoughts);
 
   return (
     <div className="flex flex-col gap-1">
@@ -68,11 +72,6 @@ export function AssistantMessageParts({
                 isStreaming
                 activeToolCalls={thinking.activeToolCalls}
                 lastToolCalls={thinking.lastToolCalls}
-                subKaniCalls={thinking.subKaniCalls}
-                subKaniStatus={thinking.subKaniStatus}
-                {...(thinking.subKaniModels != null
-                  ? { subKaniModels: thinking.subKaniModels }
-                  : {})}
                 {...(thinking.reasoning != null
                   ? { reasoning: thinking.reasoning }
                   : {})}
@@ -84,9 +83,6 @@ export function AssistantMessageParts({
                 {...(message.toolCalls != null ? { toolCalls: message.toolCalls } : {})}
                 delegateSummaries={delegateSummary.summaries}
                 delegateRejected={delegateSummary.rejected}
-                {...(message.subKaniActivity != null
-                  ? { subKaniActivity: message.subKaniActivity }
-                  : {})}
                 {...(message.reasoning != null ? { reasoning: message.reasoning } : {})}
                 title="Thought"
               />
@@ -96,6 +92,7 @@ export function AssistantMessageParts({
               <ResponsePart
                 key={part.key}
                 message={message}
+                isApplyingArtifact={isApplyingArtifact}
                 {...(onApplyPlanningArtifact != null
                   ? { onApplyPlanningArtifact }
                   : {})}
@@ -130,6 +127,12 @@ export function AssistantMessageParts({
         }
       })}
 
+      {/* Plan thinking — persists after streaming ends */}
+      {planThoughts.length > 0 && (
+        <PlanThinkingBlock thoughts={planThoughts} isLive={isLive} />
+      )}
+
+      {/* Plan card now renders in the right-side PlanPanel (page.tsx), not inline */}
     </div>
   );
 }

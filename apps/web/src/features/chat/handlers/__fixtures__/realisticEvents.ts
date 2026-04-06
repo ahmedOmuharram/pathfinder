@@ -346,7 +346,7 @@ export const OPTIMIZATION_PROGRESS_EVENTS: ChatSSEEvent[] = [
   { type: "message_end", data: {} },
 ];
 
-// Sub-kani delegation events
+// Phase-scoped agent events
 export const DELEGATION_EVENTS: ChatSSEEvent[] = [
   {
     type: "message_start",
@@ -365,57 +365,36 @@ export const DELEGATION_EVENTS: ChatSSEEvent[] = [
       },
     },
   },
-  // Tool call: delegate_strategy_subtasks
+  // Tool calls from phase agent
   {
     type: "tool_call_start",
     data: {
-      id: "tc-del",
-      name: "delegate_strategy_subtasks",
-      arguments: { goal: "Build a multi-step gene strategy" },
-    },
-  },
-  // Sub-kani events
-  {
-    type: "subkani_task_start",
-    data: { task: "delegate:build-step-1" },
-  },
-  {
-    type: "subkani_tool_call_start",
-    data: {
-      task: "delegate:build-step-1",
-      id: "sub-tc-1",
+      id: "tc-1",
       name: "search_for_searches",
       arguments: { site_id: "plasmodb", query: "epitope" },
     },
   },
   {
-    type: "subkani_tool_call_end",
+    type: "tool_call_end",
     data: {
-      task: "delegate:build-step-1",
-      id: "sub-tc-1",
+      id: "tc-1",
       result: '[{"name":"GenesWithEpitopes"}]',
     },
   },
   {
-    type: "subkani_tool_call_start",
+    type: "tool_call_start",
     data: {
-      task: "delegate:build-step-1",
-      id: "sub-tc-2",
+      id: "tc-2",
       name: "create_step",
       arguments: { search_name: "GenesWithEpitopes" },
     },
   },
   {
-    type: "subkani_tool_call_end",
+    type: "tool_call_end",
     data: {
-      task: "delegate:build-step-1",
-      id: "sub-tc-2",
+      id: "tc-2",
       result: '{"stepId":"step-d1","searchName":"GenesWithEpitopes"}',
     },
-  },
-  {
-    type: "subkani_task_end",
-    data: { task: "delegate:build-step-1", status: "done" },
   },
   // Strategy updates from delegation
   {
@@ -429,13 +408,6 @@ export const DELEGATION_EVENTS: ChatSSEEvent[] = [
         searchName: "GenesWithEpitopes",
         recordType: "transcript",
       },
-    },
-  },
-  {
-    type: "tool_call_end",
-    data: {
-      id: "tc-del",
-      result: '{"status":"done","stepsCreated":1}',
     },
   },
   {

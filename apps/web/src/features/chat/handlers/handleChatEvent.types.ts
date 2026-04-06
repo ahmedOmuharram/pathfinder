@@ -7,7 +7,6 @@ import type {
   OptimizationProgressData,
   Step,
   Strategy,
-  SubKaniTokenUsage,
 } from "@pathfinder/shared";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
@@ -35,10 +34,6 @@ export interface StreamBuffers {
   toolCallsBuffer: ToolCall[];
   citationsBuffer: Citation[];
   planningArtifactsBuffer: PlanningArtifact[];
-  subKaniCallsBuffer: Record<string, ToolCall[]>;
-  subKaniStatusBuffer: Record<string, string>;
-  subKaniModelsBuffer: Record<string, string>;
-  subKaniTokenUsageBuffer: Record<string, SubKaniTokenUsage>;
 }
 
 /** Strategy store mutations — used by strategy events and message_start. */

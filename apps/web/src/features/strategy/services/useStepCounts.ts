@@ -37,10 +37,8 @@ export function useStepCounts(args: {
     lastRequestKeyRef.current = requestKey;
     const requestId = (requestIdRef.current += 1);
 
-    const loading: Record<string, number | null | undefined> = {};
-    for (const stepId of stepIds) loading[stepId] = undefined;
-    setStepCounts(loading);
-
+    // Don't flash "Loading..." — keep existing counts while fetching.
+    // Only clear to undefined if we have no counts at all.
     fetchCounts(siteId, plan)
       .then((response) => {
         if (requestId !== requestIdRef.current) return;

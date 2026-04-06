@@ -186,11 +186,6 @@ export function useWorkbenchChat(
         case "user_message":
         case "planning_artifact":
         case "reasoning":
-        case "subkani_task_start":
-        case "subkani_tool_call_start":
-        case "subkani_tool_call_end":
-        case "subkani_task_retry":
-        case "subkani_task_end":
         case "strategy_update":
         case "graph_snapshot":
         case "strategy_link":
@@ -200,6 +195,11 @@ export function useWorkbenchChat(
         case "model_selected":
         case "graph_plan":
         case "token_usage_partial":
+        case "planning_thought":
+        case "plan_presented":
+        case "plan_updated":
+        case "decision_presented":
+        case "phase_change":
         case "unknown":
           // These event types are handled elsewhere or are irrelevant to the workbench chat.
           break;

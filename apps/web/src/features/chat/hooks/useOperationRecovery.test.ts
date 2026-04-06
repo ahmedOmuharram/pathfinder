@@ -36,10 +36,6 @@ vi.mock("@/features/chat/handlers/handleChatEvent", () => ({
   handleChatEvent: vi.fn(),
 }));
 
-vi.mock("@/features/chat/handlers/handleChatEvent.messageEvents", () => ({
-  snapshotSubKaniActivityFromBuffers: vi.fn(() => undefined),
-}));
-
 vi.mock("@/features/chat/streaming/StreamingSession", () => ({
   StreamingSession: class MockStreamingSession {
     latestStrategy = null;
@@ -75,7 +71,6 @@ function makeArgs(overrides: Partial<Parameters<typeof useOperationRecovery>[0]>
       thinkingLabel: null,
       toolCalls: [],
       isThinking: false,
-      subKaniActivity: null,
     } as unknown as Parameters<typeof useOperationRecovery>[0]["thinking"],
     currentStrategy: null,
     setStrategyId: vi.fn(),

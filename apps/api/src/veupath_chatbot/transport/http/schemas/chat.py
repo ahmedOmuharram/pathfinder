@@ -49,6 +49,9 @@ class ChatRequest(BaseModel):
     # @-mention references to strategies and experiments.
     mentions: list[ChatMention] = Field(default_factory=list)
 
+    # Structured metadata from UI interactions (e.g. plan approval).
+    metadata: dict[str, JSONValue] = Field(default_factory=dict)
+
     model_config = {"populate_by_name": True}
 
 
@@ -61,30 +64,6 @@ class ToolCallResponse(BaseModel):
     result: str | None = None
 
 
-class SubKaniTokenUsageResponse(BaseModel):
-    """Token usage for a single sub-kani agent."""
-
-    prompt_tokens: int = Field(alias="promptTokens")
-    completion_tokens: int = Field(alias="completionTokens")
-    llm_call_count: int = Field(default=0, alias="llmCallCount")
-    estimated_cost_usd: float = Field(default=0.0, alias="estimatedCostUsd")
-
-    model_config = {"populate_by_name": True}
-
-
-class SubKaniActivityResponse(BaseModel):
-    """Sub-kani tool call activity."""
-
-    calls: dict[str, list[ToolCallResponse]]
-    status: dict[str, str]
-    models: dict[str, str] | None = None
-    token_usage: dict[str, SubKaniTokenUsageResponse] | None = Field(
-        default=None, alias="tokenUsage"
-    )
-
-    model_config = {"populate_by_name": True}
-
-
 class ThinkingResponse(BaseModel):
     """In-progress tool call state."""
 
@@ -92,10 +71,6 @@ class ThinkingResponse(BaseModel):
     last_tool_calls: list[ToolCallResponse] | None = Field(
         default=None, alias="lastToolCalls"
     )
-    sub_kani_calls: dict[str, list[ToolCallResponse]] | None = Field(
-        default=None, alias="subKaniCalls"
-    )
-    sub_kani_status: dict[str, str] | None = Field(default=None, alias="subKaniStatus")
     reasoning: str | None = None
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
 
@@ -112,9 +87,6 @@ class TokenUsageResponse(BaseModel):
     tool_call_count: int = Field(alias="toolCallCount")
     registered_tool_count: int = Field(alias="registeredToolCount")
     llm_call_count: int = Field(default=0, alias="llmCallCount")
-    sub_kani_prompt_tokens: int = Field(default=0, alias="subKaniPromptTokens")
-    sub_kani_completion_tokens: int = Field(default=0, alias="subKaniCompletionTokens")
-    sub_kani_call_count: int = Field(default=0, alias="subKaniCallCount")
     estimated_cost_usd: float = Field(default=0.0, alias="estimatedCostUsd")
     model_id: str = Field(default="", alias="modelId")
 
@@ -162,9 +134,6 @@ class MessageResponse(BaseModel):
     content: str
     model_id: str | None = Field(default=None, alias="modelId")
     tool_calls: list[ToolCallResponse] | None = Field(default=None, alias="toolCalls")
-    sub_kani_activity: SubKaniActivityResponse | None = Field(
-        default=None, alias="subKaniActivity"
-    )
     citations: list[CitationResponse] | None = None
     planning_artifacts: list[PlanningArtifactResponse] | None = Field(
         default=None, alias="planningArtifacts"

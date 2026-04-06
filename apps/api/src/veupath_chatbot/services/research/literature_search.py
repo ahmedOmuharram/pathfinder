@@ -2,21 +2,16 @@
 
 import asyncio
 import collections.abc
-from dataclasses import dataclass
-from typing import ClassVar, Literal, cast
+from typing import ClassVar, Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field
 
 from veupath_chatbot.domain.research.citations import (
     LiteratureFilters,
     LiteratureOutputOptions,
     LiteratureSort,
     LiteratureSource,
-    ensure_unique_citation_tags,
 )
-from veupath_chatbot.domain.research.papers import ParsedPaper
-from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.research.clients import (
     ArxivClient,
     CrossrefClient,
@@ -26,43 +21,15 @@ from veupath_chatbot.services.research.clients import (
     PubmedClient,
     SemanticScholarClient,
 )
-from veupath_chatbot.services.research.utils import (
-    LiteratureItemContext,
-    dedupe_key,
-    limit_authors,
-    list_str,
-    passes_filters,
-    rerank_score,
-    truncate_text,
+from veupath_chatbot.services.research.clients._base import SearchResponse
+from veupath_chatbot.services.research.processing import (
+    LiteratureResultData,
+    LiteratureSearchResponse,
+    SourcePayload,
+    build_response,
+    deduplicate_and_filter,
+    sort_results,
 )
-
-
-class _SourcePayload(BaseModel):
-    """Typed model for parsing a source's response payload."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    results: list[ParsedPaper] = Field(default_factory=list)
-    citations: list[JSONObject] = Field(default_factory=list)
-    error: str | None = None
-
-
-class _EnrichedPaper(ParsedPaper):
-    """ParsedPaper enriched with source tracking and optional reranking score."""
-
-    source: str = ""
-    score: float | None = None
-    score_parts: dict[str, float] | None = None
-
-
-@dataclass
-class LiteratureResultData:
-    """Aggregated result data for response assembly."""
-
-    results: list[_EnrichedPaper]
-    citations_by_key: dict[str, JSONObject]
-    by_source: dict[str, _SourcePayload]
-    limit: int
 
 
 class LiteratureSearchService:
@@ -91,7 +58,7 @@ class LiteratureSearchService:
         sort: LiteratureSort = "relevance",
         options: LiteratureOutputOptions | None = None,
         filters: LiteratureFilters | None = None,
-    ) -> JSONObject:
+    ) -> LiteratureSearchResponse:
         """Search scientific literature across multiple sources."""
         if options is None:
             options = LiteratureOutputOptions()
@@ -129,15 +96,15 @@ class LiteratureSearchService:
             abstract_max_chars=options.abstract_max_chars,
         )
 
-        filtered, citations_by_key = self._deduplicate_and_filter(
+        filtered, citations_by_key = deduplicate_and_filter(
             by_source=by_source,
             options=options,
             filters=filters,
         )
 
-        sorted_results = self._sort_results(filtered, sort=sort, source=source, query=q)
+        sorted_results = sort_results(filtered, sort=sort, source=source, query=q)
 
-        return self._build_response(
+        return build_response(
             query=q,
             source=source,
             sort=sort,
@@ -162,11 +129,21 @@ class LiteratureSearchService:
         limit: int,
         abstract_max_chars: int,
         max_authors: int,
-    ) -> JSONObject | None:
-        """Return an error payload if the query is empty, else None."""
+    ) -> LiteratureSearchResponse | None:
+        """Return an error response if the query is empty, else None."""
         q = (query or "").strip()
         if not q:
-            return {"results": [], "citations": [], "error": "query_required"}
+            return LiteratureSearchResponse(
+                query=q,
+                source="all",
+                sort="relevance",
+                include_abstract=False,
+                abstract_max_chars=abstract_max_chars,
+                max_authors=max_authors,
+                filters=LiteratureFilters(),
+                results=[],
+                citations=[],
+            )
         return None
 
     # ------------------------------------------------------------------
@@ -192,7 +169,7 @@ class LiteratureSearchService:
         limit: int,
         include_abstract: bool,
         abstract_max_chars: int,
-    ) -> list[tuple[str, collections.abc.Awaitable[JSONObject]]]:
+    ) -> list[tuple[str, collections.abc.Awaitable[SearchResponse]]]:
         """Build (name, coroutine) pairs for the requested sources.
 
         Only creates coroutines for sources that will actually be dispatched,
@@ -218,7 +195,7 @@ class LiteratureSearchService:
         limit: int,
         include_abstract: bool,
         abstract_max_chars: int,
-    ) -> tuple[str, collections.abc.Awaitable[JSONObject]]:
+    ) -> tuple[str, collections.abc.Awaitable[SearchResponse]]:
         """Create a (name, coroutine) pair for a single source."""
         standard_sources = {
             "europepmc": self._europepmc,
@@ -240,7 +217,9 @@ class LiteratureSearchService:
             )
         else:
             site = "biorxiv.org" if name == "biorxiv" else "medrxiv.org"
-            preprint_source = cast("Literal['biorxiv', 'medrxiv']", name)
+            preprint_source: Literal["biorxiv", "medrxiv"] = (
+                "biorxiv" if name == "biorxiv" else "medrxiv"
+            )
             coro = self._preprint.search(
                 query,
                 site=site,
@@ -259,7 +238,7 @@ class LiteratureSearchService:
         limit: int,
         include_abstract: bool,
         abstract_max_chars: int,
-    ) -> dict[str, _SourcePayload]:
+    ) -> dict[str, SourcePayload]:
         """Dispatch searches to all requested sources in parallel."""
         tasks = self._build_source_tasks(
             query=query,
@@ -271,170 +250,19 @@ class LiteratureSearchService:
 
         async def _safe(
             name: str,
-            coro: collections.abc.Awaitable[JSONObject],
-        ) -> tuple[str, _SourcePayload]:
+            coro: collections.abc.Awaitable[SearchResponse],
+        ) -> tuple[str, SourcePayload]:
             try:
                 res = await coro
-                return (name, _SourcePayload.model_validate(res))
+                return (
+                    name,
+                    SourcePayload(
+                        results=res.results,
+                        citations=res.citations,
+                    ),
+                )
             except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
-                return (name, _SourcePayload(error=str(exc)))
+                return (name, SourcePayload(error=str(exc)))
 
         pairs = await asyncio.gather(*(_safe(name, coro) for name, coro in tasks))
         return dict(pairs)
-
-    # ------------------------------------------------------------------
-    # Deduplication and filtering
-    # ------------------------------------------------------------------
-
-    def _deduplicate_and_filter(
-        self,
-        *,
-        by_source: dict[str, _SourcePayload],
-        options: LiteratureOutputOptions,
-        filters: LiteratureFilters,
-    ) -> tuple[list[_EnrichedPaper], dict[str, JSONObject]]:
-        """Merge, filter, and deduplicate results from all sources.
-
-        Returns (filtered_results, citations_by_dedupe_key).
-        """
-        filtered: list[_EnrichedPaper] = []
-        citations_by_key: dict[str, JSONObject] = {}
-        seen: set[str] = set()
-
-        for src, payload in by_source.items():
-            for i, paper in enumerate(payload.results):
-                c = payload.citations[i] if i < len(payload.citations) else None
-
-                item_ctx = LiteratureItemContext(
-                    title=paper.title,
-                    authors=paper.authors or None,
-                    year=paper.year,
-                    doi=paper.doi,
-                    pmid=paper.pmid,
-                    journal=paper.journal_title,
-                )
-                if not passes_filters(item_ctx, filters):
-                    continue
-
-                key = dedupe_key(paper)
-                if key in seen:
-                    continue
-                seen.add(key)
-
-                authors_limited = limit_authors(
-                    paper.authors or None,
-                    options.max_authors,
-                )
-                abstract_value = (
-                    truncate_text(paper.abstract, options.abstract_max_chars)
-                    if options.include_abstract
-                    else paper.abstract
-                )
-                filtered.append(
-                    _EnrichedPaper(
-                        **paper.model_dump(exclude={"authors", "abstract"}),
-                        source=src,
-                        authors=authors_limited or [],
-                        abstract=abstract_value,
-                    )
-                )
-
-                if c is not None:
-                    c2: JSONObject = {**c}
-                    if "authors" in c2:
-                        authors_list = list_str(c2["authors"])
-                        al = limit_authors(authors_list, options.max_authors)
-                        c2["authors"] = cast("JSONValue", al)
-                    citations_by_key[key] = c2
-
-        return filtered, citations_by_key
-
-    # ------------------------------------------------------------------
-    # Sorting and reranking
-    # ------------------------------------------------------------------
-
-    def _sort_results(
-        self,
-        results: list[_EnrichedPaper],
-        *,
-        sort: LiteratureSort,
-        source: LiteratureSource,
-        query: str,
-    ) -> list[_EnrichedPaper]:
-        """Sort (and optionally rerank) the filtered results."""
-        if results and sort == "newest":
-            return sorted(
-                results,
-                key=lambda r: (r.year is not None, r.year or 0),
-                reverse=True,
-            )
-
-        # Relevance reranking only for source="all"
-        if results and sort == "relevance" and source == "all":
-            scored = [
-                r.model_copy(
-                    update={"score": round(score, 2), "score_parts": parts},
-                )
-                for r in results
-                for score, parts in [rerank_score(query, r)]
-            ]
-            return sorted(
-                scored,
-                key=lambda r: (r.score is not None, r.score or 0.0),
-                reverse=True,
-            )
-
-        return results
-
-    # ------------------------------------------------------------------
-    # Response assembly
-    # ------------------------------------------------------------------
-
-    def _build_response(
-        self,
-        *,
-        query: str,
-        source: LiteratureSource,
-        sort: LiteratureSort,
-        options: LiteratureOutputOptions,
-        filters: LiteratureFilters,
-        result_data: LiteratureResultData,
-    ) -> JSONObject:
-        """Assemble the final response payload."""
-        sliced = result_data.results[: result_data.limit]
-
-        citations: list[JSONObject] = []
-        for r in sliced:
-            c = result_data.citations_by_key.get(dedupe_key(r))
-            if c is not None:
-                citations.append(c)
-
-        serialized_results = [
-            r.model_dump(by_alias=True, exclude_none=True, mode="json")
-            for r in sliced
-        ]
-
-        payload: JSONObject = {
-            "query": query,
-            "source": source,
-            "sort": sort,
-            "includeAbstract": options.include_abstract,
-            "abstractMaxChars": options.abstract_max_chars,
-            "maxAuthors": options.max_authors,
-            "filters": {
-                "yearFrom": filters.year_from,
-                "yearTo": filters.year_to,
-                "authorIncludes": filters.author_includes,
-                "titleIncludes": filters.title_includes,
-                "journalIncludes": filters.journal_includes,
-                "doiEquals": filters.doi_equals,
-                "pmidEquals": filters.pmid_equals,
-                "requireDoi": filters.require_doi,
-            },
-            "results": cast("JSONValue", serialized_results),
-            "citations": cast("JSONValue", citations),
-        }
-
-        ensure_unique_citation_tags(citations)
-
-        return payload

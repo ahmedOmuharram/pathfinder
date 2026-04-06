@@ -1,6 +1,8 @@
 """Sites and record types catalog functions."""
 
-from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+from veupath_chatbot.integrations.veupathdb.discovery_service import (
+    get_discovery_service,
+)
 from veupath_chatbot.integrations.veupathdb.factory import list_sites as list_wdk_sites
 from veupath_chatbot.integrations.veupathdb.site_router import SiteInfo
 from veupath_chatbot.services.catalog.models import RecordTypeInfo

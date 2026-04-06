@@ -117,6 +117,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     handleAddToChat,
     handleOpenDetails: handlers.handleOpenDetails,
     setSelectedNodeIds,
+    triggerSync,
   });
 
   // --- WDK fallback URL ---
@@ -240,6 +241,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     handleRelayout: layout.handleRelayout,
     handleMoveStart: layout.handleMoveStart,
     handleInit: layout.handleInit,
+    resetViewTracking: layout.resetViewTracking,
     triggerSync,
 
     // Data

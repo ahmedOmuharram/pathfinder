@@ -4,7 +4,6 @@ import type {
   UserMessage,
   OptimizationProgressData,
   OptimizationTrial,
-  SubKaniTokenUsage,
   TokenUsage,
   ToolCall,
 } from "@pathfinder/shared";
@@ -44,23 +43,6 @@ function resolveAssistantIndex(
   }
   if (idx === null || idx < 0 || idx >= messages.length) return null;
   return idx;
-}
-
-export function snapshotSubKaniActivityFromBuffers(
-  calls: Record<string, ToolCall[]>,
-  status: Record<string, string>,
-  models?: Record<string, string>,
-  tokenUsage?: Record<string, SubKaniTokenUsage>,
-) {
-  if (Object.keys(calls).length === 0) return undefined;
-  return {
-    calls: { ...calls },
-    status: { ...status },
-    ...(models && Object.keys(models).length > 0 ? { models: { ...models } } : {}),
-    ...(tokenUsage && Object.keys(tokenUsage).length > 0
-      ? { tokenUsage: { ...tokenUsage } }
-      : {}),
-  };
 }
 
 /**
@@ -203,12 +185,6 @@ export function handleAssistantMessageEvent(
       : Array.isArray(data.content)
         ? (data.content as string[]).join("")
         : "";
-  const subKaniActivity = snapshotSubKaniActivityFromBuffers(
-    ctx.subKaniCallsBuffer,
-    ctx.subKaniStatusBuffer,
-    ctx.subKaniModelsBuffer,
-    ctx.subKaniTokenUsageBuffer,
-  );
 
   const finalToolCalls =
     ctx.toolCallsBuffer.length > 0 ? [...ctx.toolCallsBuffer] : undefined;
@@ -244,7 +220,6 @@ export function handleAssistantMessageEvent(
           : existing.toolCalls != null
             ? { toolCalls: existing.toolCalls }
             : {}),
-        ...(subKaniActivity != null ? { subKaniActivity } : {}),
         ...(finalCitations != null
           ? { citations: finalCitations }
           : existing.citations != null
@@ -272,7 +247,6 @@ export function handleAssistantMessageEvent(
         ? { modelId: ctx.streamState.currentModelId }
         : {}),
       ...(finalToolCalls != null ? { toolCalls: finalToolCalls } : {}),
-      ...(subKaniActivity != null ? { subKaniActivity } : {}),
       ...(finalCitations != null ? { citations: finalCitations } : {}),
       ...(finalArtifacts != null ? { planningArtifacts: finalArtifacts } : {}),
       ...(finalReasoning != null && finalReasoning !== ""
@@ -418,9 +392,6 @@ export function handleTokenUsagePartialEvent(
           toolCallCount: 0,
           registeredToolCount,
           llmCallCount: 0,
-          subKaniPromptTokens: 0,
-          subKaniCompletionTokens: 0,
-          subKaniCallCount: 0,
           estimatedCostUsd: 0,
           modelId: "",
         },
@@ -444,9 +415,6 @@ export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndDat
     toolCallCount: Number(data["toolCallCount"]) || 0,
     registeredToolCount: Number(data["registeredToolCount"]) || 0,
     llmCallCount: Number(data["llmCallCount"]) || 0,
-    subKaniPromptTokens: Number(data["subKaniPromptTokens"]) || 0,
-    subKaniCompletionTokens: Number(data["subKaniCompletionTokens"]) || 0,
-    subKaniCallCount: Number(data["subKaniCallCount"]) || 0,
     estimatedCostUsd: Number(data["estimatedCostUsd"]) || 0,
     modelId: String(data["modelId"] ?? ""),
   };

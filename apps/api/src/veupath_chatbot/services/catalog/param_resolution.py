@@ -1,10 +1,7 @@
 """WDK parameter fetching, caching, and expansion."""
 
-from typing import cast
-
 from veupath_chatbot.domain.parameters.normalize import ParameterNormalizer
 from veupath_chatbot.domain.parameters.specs import (
-    ParamSpecNormalized,
     adapt_param_specs_from_search,
     find_input_step_param,
 )
@@ -12,7 +9,9 @@ from veupath_chatbot.domain.search import SearchContext
 from veupath_chatbot.integrations.veupathdb.client import (
     VEuPathDBClient,
 )
-from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+from veupath_chatbot.integrations.veupathdb.discovery_service import (
+    get_discovery_service,
+)
 from veupath_chatbot.integrations.veupathdb.factory import get_wdk_client
 from veupath_chatbot.integrations.veupathdb.param_utils import normalize_param_value
 from veupath_chatbot.integrations.veupathdb.wdk_models import (
@@ -23,27 +22,37 @@ from veupath_chatbot.integrations.veupathdb.wdk_parameters import WDKParameter
 from veupath_chatbot.platform.errors import AppError, ErrorCode, WDKError
 from veupath_chatbot.platform.errors import ValidationError as CoreValidationError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.tool_errors import tool_error
-from veupath_chatbot.platform.types import JSONArray, JSONObject, JSONValue
+from veupath_chatbot.platform.pydantic_base import CamelModel
+from veupath_chatbot.platform.tool_errors import ToolErrorPayload, tool_error
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.catalog.param_discovery import fetch_search_details
-from veupath_chatbot.services.catalog.param_formatting import format_param_info_typed
+from veupath_chatbot.services.catalog.param_formatting import (
+    ParameterInfo,
+    format_param_info_typed,
+)
 from veupath_chatbot.services.wdk.record_types import resolve_record_type
 
 from .searches import find_record_type_for_search
 
 logger = get_logger(__name__)
 
-_MIN_VOCAB_ENTRY_LENGTH = 2
-# Cap phyletic tree matches to keep the tool response concise for the LLM
-# and avoid overwhelming it with hundreds of species/clade entries.
-_MAX_TREE_MATCHES = 20
+
+class SearchParametersResult(CamelModel):
+    """Result of resolving search parameters for a given search."""
+
+    search_name: str
+    display_name: str
+    description: str | None
+    parameters: list[ParameterInfo]
+    resolved_record_type: str
+
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 
-async def get_search_parameters(ctx: SearchContext) -> JSONObject:
+async def get_search_parameters(ctx: SearchContext) -> SearchParametersResult:
     """Get detailed parameter info for a specific search.
 
     This is intentionally defensive: WDK responses can vary by site/endpoint.
@@ -67,16 +76,16 @@ async def get_search_parameters(ctx: SearchContext) -> JSONObject:
 
     param_info = format_param_info_typed(response.search_data.parameters or [])
 
-    return {
-        "searchName": ctx.search_name,
-        "displayName": response.search_data.display_name or ctx.search_name,
-        "description": response.search_data.description,
-        "parameters": cast("JSONValue", param_info),
-        "resolvedRecordType": resolved_record_type,
-    }
+    return SearchParametersResult(
+        search_name=ctx.search_name,
+        display_name=response.search_data.display_name or ctx.search_name,
+        description=response.search_data.description,
+        parameters=param_info,
+        resolved_record_type=resolved_record_type,
+    )
 
 
-async def get_search_parameters_tool(ctx: SearchContext) -> JSONObject:
+async def get_search_parameters_tool(ctx: SearchContext) -> SearchParametersResult | ToolErrorPayload:
     """Tool-friendly wrapper that returns standardized tool_error payloads."""
     try:
         return await get_search_parameters(ctx)
@@ -92,154 +101,6 @@ async def get_search_parameters_tool(ctx: SearchContext) -> JSONObject:
             code or ErrorCode.VALIDATION_ERROR,
             exc.detail or exc.title,
             errors=exc.errors,
-        )
-
-
-def _extract_phyletic_vocabs(
-    specs: dict[str, ParamSpecNormalized],
-) -> tuple[JSONArray, JSONArray]:
-    """Extract phyletic_term_map and phyletic_indent_map vocabularies from param specs."""
-    term_map_vocab: JSONArray = []
-    indent_map_vocab: JSONArray = []
-    term_spec = specs.get("phyletic_term_map")
-    if term_spec and isinstance(term_spec.vocabulary, list):
-        term_map_vocab = term_spec.vocabulary
-    indent_spec = specs.get("phyletic_indent_map")
-    if indent_spec and isinstance(indent_spec.vocabulary, list):
-        indent_map_vocab = indent_spec.vocabulary
-    return term_map_vocab, indent_map_vocab
-
-
-def _build_group_codes(indent_map_vocab: JSONArray) -> set[str]:
-    """Build set of group codes (non-leaf nodes) from indent map entries."""
-    group_codes: set[str] = set()
-    for i, entry in enumerate(indent_map_vocab):
-        if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
-            continue
-        code = str(entry[0])
-        depth = int(str(entry[1])) if entry[1] is not None else 0
-        if i + 1 < len(indent_map_vocab):
-            nxt = indent_map_vocab[i + 1]
-            if isinstance(nxt, list) and len(nxt) >= _MIN_VOCAB_ENTRY_LENGTH:
-                next_depth = int(str(nxt[1])) if nxt[1] is not None else 0
-                if next_depth > depth:
-                    group_codes.add(code)
-    return group_codes
-
-
-def _match_phyletic_entries(
-    term_map_vocab: JSONArray,
-    group_codes: set[str],
-    query: str,
-) -> list[JSONObject]:
-    """Match term map entries against a query string.
-
-    Uses the sentence-transformer biencoder to rank matches by semantic
-    similarity so that e.g. "human" ranks "Homo sapiens" above
-    "Pediculus humanus".
-    """
-    # Collect all entries.
-    all_entries: list[tuple[str, str, bool]] = []
-    for entry in term_map_vocab:
-        if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
-            continue
-        code = str(entry[0])
-        label = str(entry[1])
-        if code == "ALL":
-            continue
-        is_leaf = code not in group_codes
-        all_entries.append((code, label, is_leaf))
-
-    if not all_entries:
-        return []
-
-    # Rank all entries by semantic similarity — no pre-filter.
-    ranked = _rank_by_semantic_similarity(query, all_entries)
-    return [
-        {"code": code, "label": label, "leaf": is_leaf}
-        for code, label, is_leaf in ranked[:_MAX_TREE_MATCHES]
-    ]
-
-
-def _rank_by_semantic_similarity(
-    query: str,
-    candidates: list[tuple[str, str, bool]],
-) -> list[tuple[str, str, bool]]:
-    """Rank candidates by biencoder cosine similarity to the query."""
-    try:
-        from veupath_chatbot.services.catalog.semantic_index import (  # noqa: PLC0415
-            _get_model,
-        )
-
-        model = _get_model()
-        query_emb = model.encode([query], normalize_embeddings=True)
-        label_embs = model.encode(
-            [label for _, label, _ in candidates],
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
-        sims = (label_embs @ query_emb.T).flatten()
-        ranked = sorted(
-            zip(candidates, sims, strict=True), key=lambda x: -x[1]
-        )
-        return [c for c, _ in ranked]
-    except (ImportError, OSError) as exc:
-        logger.warning(
-            "Biencoder ranking unavailable, returning unranked results",
-            error=str(exc),
-            query=query,
-            num_candidates=len(candidates),
-        )
-        return candidates
-
-
-async def lookup_phyletic_codes(
-    site_id: str,
-    record_type: str,
-    query: str,
-) -> JSONObject:
-    """Search phyletic species codes by name for the GenesByOrthologPattern search.
-
-    Returns matching ``{code, label}`` pairs from the ``phyletic_term_map``
-    vocabulary. The model uses codes to build ``profile_pattern`` values.
-
-    :param site_id: Site ID.
-    :param record_type: Record type (usually "transcript").
-    :param query: Species/clade name search term (case-insensitive substring).
-    :returns: Dict with ``matches`` list and ``query`` echo.
-    """
-    try:
-        discovery = get_discovery_service()
-        record_types = await discovery.get_record_types(site_id)
-        resolved = resolve_record_type(record_types, record_type) or record_type
-
-        response, _ = await fetch_search_details(
-            discovery,
-            SearchContext(site_id, resolved, "GenesByOrthologPattern"),
-            record_types=record_types,
-        )
-        spec_map = adapt_param_specs_from_search(response.search_data)
-        term_map_vocab, indent_map_vocab = _extract_phyletic_vocabs(spec_map)
-        group_codes = _build_group_codes(indent_map_vocab)
-        matches = _match_phyletic_entries(term_map_vocab, group_codes, query)
-
-        return {
-            "query": query,
-            "matches": cast("JSONValue", matches),
-            "total": len(matches),
-            "hint": (
-                "Use codes in profile_pattern: %CODE:Y% (include) or %CODE:N% (exclude). "
-                "Example: '%MAMM:N%pfal:Y%'. "
-                "Group codes (leaf=false) support optional quantifier: "
-                "MAMM:N:all (absent from all, default for :N), "
-                "APIC:Y:any (present in any, default for :Y). "
-                "Leaf codes need no quantifier."
-            ),
-        }
-    except AppError as exc:
-        return tool_error(
-            ErrorCode.INTERNAL_ERROR,
-            f"Failed to look up phyletic codes: {exc}",
         )
 
 

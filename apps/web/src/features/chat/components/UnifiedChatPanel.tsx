@@ -55,8 +55,12 @@ export function UnifiedChatPanel({
     setDraftSelection,
     models,
     messagesEndRef,
+    bottomRef,
+    isAtBottom,
+    scrollToBottom,
     handleUndo,
     handleApplyPlanningArtifact,
+    isApplyingArtifact,
   } = useChatPanelState({
     siteId,
     pendingAskNode,
@@ -78,12 +82,13 @@ export function UnifiedChatPanel({
         messages={messages}
         undoSnapshots={undoSnapshots}
         isUndoing={isUndoing}
-        onSend={(content: string) => {
-          void onSend(content);
+        onSend={(content: string, metadata?: Record<string, unknown>) => {
+          void onSend(content, undefined, metadata);
         }}
         onUndo={(userMessageIndex: number) => {
           void handleUndo(userMessageIndex);
         }}
+        isApplyingArtifact={isApplyingArtifact}
         onApplyPlanningArtifact={(artifact) => {
           void handleApplyPlanningArtifact(artifact);
         }}
@@ -91,6 +96,9 @@ export function UnifiedChatPanel({
         optimizationProgress={optimizationProgress}
         onCancelOptimization={stopStreaming}
         messagesEndRef={messagesEndRef}
+        bottomRef={bottomRef}
+        isAtBottom={isAtBottom}
+        scrollToBottom={scrollToBottom}
       />
 
       <ChatInputBar

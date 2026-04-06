@@ -20,6 +20,7 @@ interface UseStrategyGraphLayoutOptions {
   handleAddToChat: (stepId: string) => void;
   handleOpenDetails: (stepId: string) => void;
   setSelectedNodeIds: (ids: string[]) => void;
+  triggerSync: () => void;
 }
 
 /**
@@ -37,6 +38,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     handleAddToChat,
     handleOpenDetails,
     setSelectedNodeIds,
+    triggerSync,
   } = options;
 
   const [layoutSeed, setLayoutSeed] = useState(0);
@@ -108,13 +110,19 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
       event.preventDefault();
       if (key === "y" || event.shiftKey) {
         if (tryRedo()) return;
-        if (canRedo()) redo();
+        if (canRedo()) {
+          redo();
+          triggerSync();
+        }
         return;
       }
       if (tryUndo()) return;
-      if (canUndo()) undo();
+      if (canUndo()) {
+        undo();
+        triggerSync();
+      }
     },
-    [tryUndo, tryRedo, canUndo, canRedo, undo, redo],
+    [tryUndo, tryRedo, canUndo, canRedo, undo, redo, triggerSync],
   );
   useEventListener("keydown", handleUndoRedoKeyDown);
 
@@ -173,10 +181,16 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     reactFlowInstanceRef.current = instance;
   }, []);
 
+  const resetViewTracking = useCallback(() => {
+    setUserHasMoved(false);
+    reactFlowInstanceRef.current?.fitView({ padding: 0.3, duration: 300 });
+  }, []);
+
   return {
     handleNodeDragStop,
     handleRelayout,
     handleMoveStart,
     handleInit,
+    resetViewTracking,
   } as const;
 }

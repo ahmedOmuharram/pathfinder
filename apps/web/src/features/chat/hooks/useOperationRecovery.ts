@@ -19,7 +19,6 @@ import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
 import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
-import { snapshotSubKaniActivityFromBuffers } from "@/features/chat/handlers/handleChatEvent.messageEvents";
 
 interface UseOperationRecoveryArgs {
   strategyId: string | null;
@@ -43,10 +42,7 @@ interface UseOperationRecoveryArgs {
   parseToolResult: ChatEventContext["parseToolResult"];
   applyGraphSnapshot: ChatEventContext["applyGraphSnapshot"];
   getStrategy: (id: string) => Promise<Strategy>;
-  attachThinkingToLastAssistant: (
-    calls: ToolCall[],
-    activity?: { calls: Record<string, ToolCall[]>; status: Record<string, string> },
-  ) => void;
+  attachThinkingToLastAssistant: (calls: ToolCall[]) => void;
   setSelectedModelId?: ((modelId: string | null) => void) | undefined;
   onApiError?: ((msg: string) => void) | undefined;
   setOptimizationProgress: ChatEventContext["setOptimizationProgress"];
@@ -167,6 +163,8 @@ export function useOperationRecovery({
 
         const cb = callbacksRef.current;
 
+        // Signal streaming state before subscribing so the UI shows the
+        // streaming indicator during recovery.
         cb.setIsStreaming(true);
         cb.thinking.reset();
 
@@ -182,13 +180,6 @@ export function useOperationRecovery({
         const citationsBuffer: import("@pathfinder/shared").Citation[] = [];
         const planningArtifactsBuffer: import("@pathfinder/shared").PlanningArtifact[] =
           [];
-        const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
-        const subKaniStatusBuffer: Record<string, string> = {};
-        const subKaniModelsBuffer: Record<string, string> = {};
-        const subKaniTokenUsageBuffer: Record<
-          string,
-          import("@pathfinder/shared").SubKaniTokenUsage
-        > = {};
 
         const sub = subscribeToOperation<RawSSEData>(op.operationId, {
           onEvent: ({ type, data }) => {
@@ -202,10 +193,6 @@ export function useOperationRecovery({
                 toolCallsBuffer: toolCalls,
                 citationsBuffer,
                 planningArtifactsBuffer,
-                subKaniCallsBuffer,
-                subKaniStatusBuffer,
-                subKaniModelsBuffer,
-                subKaniTokenUsageBuffer,
                 thinking: latest.thinking,
                 setStrategyId: latest.setStrategyId,
                 addStrategy: latest.addStrategy,
@@ -246,15 +233,8 @@ export function useOperationRecovery({
             latest.thinking.finalizeToolCalls(
               toolCalls.length > 0 ? [...toolCalls] : [],
             );
-            const activity = snapshotSubKaniActivityFromBuffers(
-              subKaniCallsBuffer,
-              subKaniStatusBuffer,
-              subKaniModelsBuffer,
-              subKaniTokenUsageBuffer,
-            );
             latest.attachThinkingToLastAssistant(
               toolCalls.length > 0 ? [...toolCalls] : [],
-              activity,
             );
           },
           onError: () => {
@@ -266,8 +246,9 @@ export function useOperationRecovery({
 
         subscriptionRef.current = sub;
       })
-      .catch(() => {
-        // Discovery failed — not critical, user can still interact.
+      .catch((err: unknown) => {
+        console.warn("[OperationRecovery] Failed to recover active operation:", err);
+        callbacksRef.current.onApiError?.("Failed to recover active operation");
       });
 
     return () => {

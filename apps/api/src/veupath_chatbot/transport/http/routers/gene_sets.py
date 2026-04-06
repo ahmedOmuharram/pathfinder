@@ -26,17 +26,17 @@ from veupath_chatbot.services.gene_sets.ensemble import (
     EnsembleScore,
     compute_ensemble_scores,
 )
-from veupath_chatbot.services.gene_sets.operations import (
-    GeneSetService,
-    GeneSetWdkContext,
-    SetOperation,
-)
+from veupath_chatbot.services.gene_sets.operations import GeneSetService
 from veupath_chatbot.services.gene_sets.reverse_search import (
     GeneSetCandidate,
     rank_gene_sets_by_recall,
 )
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
 from veupath_chatbot.services.gene_sets.types import GeneSet
+from veupath_chatbot.services.gene_sets.wdk_helpers import (
+    GeneSetWdkContext,
+    SetOperation,
+)
 from veupath_chatbot.transport.http.deps import CurrentUser
 from veupath_chatbot.transport.http.schemas.gene_sets import (
     CreateGeneSetRequest,

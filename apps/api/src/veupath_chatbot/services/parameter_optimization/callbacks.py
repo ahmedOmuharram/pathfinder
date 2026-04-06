@@ -32,7 +32,7 @@ class OptimizationStartedEvent(CamelModel):
     objective: str
     positive_controls_count: int
     negative_controls_count: int
-    parameter_space: JSONArray
+    parameter_specs: JSONArray
     best_trial: None = None
     recent_trials: list[TrialResult] = Field(default_factory=list)
 

@@ -9,9 +9,9 @@ from veupath_chatbot.domain.research.citations import (
     _new_citation_id,
     _now_iso,
 )
-from veupath_chatbot.domain.research.papers import SemanticScholarRawPaper
+from veupath_chatbot.domain.research.papers import ParsedPaper, SemanticScholarRawPaper
 from veupath_chatbot.platform.errors import ExternalServiceError
-from veupath_chatbot.platform.types import JSONObject, JSONValue
+from veupath_chatbot.platform.types import JSONValue
 from veupath_chatbot.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
@@ -44,13 +44,14 @@ class SemanticScholarClient(StandardClient):
                 resp.raise_for_status()
                 payload = resp.json()
         except httpx.HTTPError as exc:
-            raise ExternalServiceError("Semantic Scholar", str(exc)) from exc
+            service = "Semantic Scholar"
+            raise ExternalServiceError(service, str(exc)) from exc
         items = payload.get("data", []) if isinstance(payload, dict) else []
         return list(items)
 
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
-    ) -> tuple[JSONObject, JSONObject] | None:
+    ) -> tuple[ParsedPaper, Citation] | None:
         if not isinstance(raw, dict):
             return None
 
@@ -58,7 +59,6 @@ class SemanticScholarClient(StandardClient):
         parsed.abstract = truncate_text(parsed.abstract, abstract_max_chars)
         parsed.snippet = parsed.abstract or parsed.journal_title
 
-        result = parsed.model_dump(by_alias=True, mode="json")
         citation = Citation(
             id=_new_citation_id("s2"),
             source="semanticscholar",
@@ -70,5 +70,5 @@ class SemanticScholarClient(StandardClient):
             pmid=parsed.pmid,
             snippet=parsed.abstract or parsed.journal_title,
             accessed_at=_now_iso(),
-        ).model_dump(by_alias=True, exclude_none=True, mode="json")
-        return result, citation
+        )
+        return parsed, citation

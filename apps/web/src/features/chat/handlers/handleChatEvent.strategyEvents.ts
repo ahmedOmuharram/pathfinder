@@ -63,7 +63,7 @@ export function handleStrategyUpdateEvent(
   const newStep: Step = {
     id: step.id,
     kind: (step.kind as string | null) ?? "search",
-    displayName: step.displayName ?? step.kind ?? "Untitled step",
+    displayName: step.displayName ?? step.searchName ?? "Untitled step",
     isBuilt: step.isBuilt ?? false,
     isFiltered: step.isFiltered ?? false,
   };
@@ -76,6 +76,8 @@ export function handleStrategyUpdateEvent(
     newStep.secondaryInputStepId = step.secondaryInputStepId;
   if (step.parameters != null)
     newStep.parameters = step.parameters as Record<string, unknown>;
+  if (step.estimatedSize != null) newStep.estimatedSize = step.estimatedSize;
+  if (step.wdkStepId != null) newStep.wdkStepId = step.wdkStepId;
   ctx.addStep(newStep);
   ctx.session.markSnapshotApplied();
 }
@@ -91,7 +93,7 @@ export function handleGraphSnapshotEvent(
 export function handleStrategyLinkEvent(ctx: StrategyEventContext, data: StrategyLinkData) {
   const { graphId, wdkStrategyId, wdkUrl, name, description, isSaved } = data;
   const targetGraphId = resolveTargetGraph(ctx, graphId);
-  if (!targetGraphId) return;
+  if (targetGraphId == null) return;
 
   if (wdkStrategyId != null) ctx.setWdkInfo(wdkStrategyId, wdkUrl, name, description);
   ctx.setStrategyMeta({

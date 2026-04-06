@@ -22,7 +22,7 @@ const sampleOptions = [
 
 function makeProps(overrides: Partial<ParamWidgetProps> = {}): ParamWidgetProps {
   return {
-    spec: { name: "test-typeahead" },
+    spec: { name: "test-typeahead", type: "string", allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true },
     value: undefined,
     multi: false,
     multiValue: [],

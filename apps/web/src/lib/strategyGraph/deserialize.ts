@@ -192,7 +192,7 @@ export function deserializeStrategyToGraph(
         },
       };
       if (hasSecondary) {
-        primaryEdge.label = "L";
+        primaryEdge.label = "L (primary)";
         primaryEdge.labelStyle = { fontSize: 11, fontWeight: 700, fill: "#0f172a" };
         primaryEdge.labelBgStyle = {
           fill: "#ffffff",
@@ -214,7 +214,7 @@ export function deserializeStrategyToGraph(
         sourceHandle: "right",
         targetHandle: "left-secondary",
         type: "step",
-        label: "R",
+        label: "R (secondary)",
         labelStyle: { fontSize: 11, fontWeight: 700, fill: "#0f172a" },
         labelBgStyle: { fill: "#ffffff", stroke: "#cbd5e1", strokeWidth: 1 },
         labelBgPadding: [6, 2],

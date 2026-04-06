@@ -38,6 +38,43 @@ class ProjectionUpdate:
     gene_set_id_set: bool = False
     gene_set_auto_imported: bool | None = None
     model_id: str | None = field(default=None)
+    touch_updated_at: bool = True
+
+
+# Fields included when non-None.
+_SIMPLE_FIELDS: tuple[str, ...] = (
+    "record_type",
+    "plan",
+    "step_count",
+    "gene_set_auto_imported",
+    "model_id",
+)
+
+# Fields included when their ``*_set`` flag is True.
+_FLAGGED_FIELDS: tuple[tuple[str, str], ...] = (
+    ("wdk_strategy_id_set", "wdk_strategy_id"),
+    ("estimated_size_set", "estimated_size"),
+    ("gene_set_id_set", "gene_set_id"),
+    ("is_saved_set", "is_saved"),
+)
+
+
+def _collect_projection_values(upd: ProjectionUpdate) -> dict[str, Any]:
+    """Build the SQL column-value dict from non-None / flagged fields."""
+    values: dict[str, Any] = {}
+    if upd.touch_updated_at:
+        values["updated_at"] = datetime.now(UTC)
+
+    for attr in _SIMPLE_FIELDS:
+        val = getattr(upd, attr)
+        if val is not None:
+            values[attr] = val
+
+    for flag, attr in _FLAGGED_FIELDS:
+        if getattr(upd, flag):
+            values[attr] = getattr(upd, attr)
+
+    return values
 
 
 class StreamRepository:
@@ -183,7 +220,7 @@ class StreamRepository:
         Steps and root_step_id are derived from plan at read time; only plan
         and a denormalized step_count are persisted on write.
         """
-        values: dict[str, Any] = {"updated_at": datetime.now(UTC)}
+        values = _collect_projection_values(upd)
         if upd.name is not None:
             # Deduplicate rename against other projections for the same user+site.
             proj = await self.get_projection(stream_id)
@@ -195,24 +232,6 @@ class StreamRepository:
                     exclude_stream_id=stream_id,
                 )
             values["name"] = upd.name
-        if upd.record_type is not None:
-            values["record_type"] = upd.record_type
-        if upd.wdk_strategy_id_set:
-            values["wdk_strategy_id"] = upd.wdk_strategy_id
-        if upd.is_saved_set:
-            values["is_saved"] = bool(upd.is_saved)
-        if upd.plan is not None:
-            values["plan"] = upd.plan
-        if upd.step_count is not None:
-            values["step_count"] = upd.step_count
-        if upd.estimated_size_set:
-            values["estimated_size"] = upd.estimated_size
-        if upd.gene_set_id_set:
-            values["gene_set_id"] = upd.gene_set_id
-        if upd.gene_set_auto_imported is not None:
-            values["gene_set_auto_imported"] = upd.gene_set_auto_imported
-        if upd.model_id is not None:
-            values["model_id"] = upd.model_id
 
         await self.session.execute(
             update(StreamProjection)

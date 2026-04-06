@@ -13,9 +13,12 @@ from veupath_chatbot.platform.errors import (
     NotFoundError,
     ValidationError,
 )
-from veupath_chatbot.platform.events import read_stream_messages, read_stream_thinking
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
+from veupath_chatbot.platform.stream_readers import (
+    read_stream_messages,
+    read_stream_thinking,
+)
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.orchestrator import cancel_chat_operation
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise

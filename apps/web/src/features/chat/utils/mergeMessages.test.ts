@@ -112,12 +112,12 @@ describe("mergeMessages", () => {
     expect(result).toHaveLength(4);
   });
 
-  it("preserves subKaniActivity from local when not on server", () => {
-    const activity = { calls: { task1: [] }, status: { task1: "done" } };
-    const current: Message[] = [assistantMsg("result", { subKaniActivity: activity })];
+  it("preserves toolCalls from local when not on server", () => {
+    const localToolCalls = [{ id: "t1", name: "search", arguments: {} }];
+    const current: Message[] = [assistantMsg("result", { toolCalls: localToolCalls })];
     const incoming: Message[] = [assistantMsg("result")];
     const result = mergeMessages(current, incoming);
     assertAssistant(result[0]!);
-    expect(result[0]!.subKaniActivity).toEqual(activity);
+    expect(result[0]!.toolCalls).toEqual(localToolCalls);
   });
 });

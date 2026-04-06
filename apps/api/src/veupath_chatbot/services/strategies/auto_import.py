@@ -17,8 +17,8 @@ from veupath_chatbot.persistence.session import async_session_factory
 from veupath_chatbot.platform.errors import AppError, InternalError
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.services.gene_sets import GeneSet, GeneSetService
-from veupath_chatbot.services.gene_sets.operations import GeneSetWdkContext
 from veupath_chatbot.services.gene_sets.store import get_gene_set_store
+from veupath_chatbot.services.gene_sets.wdk_helpers import GeneSetWdkContext
 
 logger = get_logger(__name__)
 

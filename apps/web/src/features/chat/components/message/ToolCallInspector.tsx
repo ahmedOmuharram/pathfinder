@@ -68,6 +68,7 @@ export function ToolCallInspector({
           >
             <button
               onClick={() => setExpanded(expanded === tc.id ? null : tc.id)}
+              aria-expanded={expanded === tc.id}
               className="flex w-full items-center px-3 py-2 text-left text-foreground transition-colors hover:bg-accent"
             >
               <div className="flex min-w-0 items-center gap-2">

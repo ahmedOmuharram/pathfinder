@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Message, Strategy } from "@pathfinder/shared";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
+import { usePlanStore } from "@/state/usePlanStore";
 
 export function useResetOnStrategyChange(args: {
   strategyId: string | null;
@@ -35,6 +36,8 @@ export function useResetOnStrategyChange(args: {
     resetThinking();
     setMessages([]);
     setUndoSnapshots({});
+    usePlanStore.getState().clearPlan();
+    usePlanStore.getState().clearThoughts();
     if (sessionRef.current) {
       sessionRef.current.consumeUndoSnapshot();
     }

@@ -289,17 +289,18 @@ test.describe("Mock Engine Response Correctness", () => {
     chatPage,
     page,
   }) => {
-    // "create step" triggers a real tool call that produces
-    // tool_call_start and tool_call_end SSE events
+    // "create step" triggers real tool calls through the 4-phase pipeline:
+    // discovery (get_search_overview) → planning (create_plan, submit_plan)
+    // → execution (create_leaf_step) → verification
     await chatPage.send("create step");
     await chatPage.expectIdle();
 
-    // The thinking panel should show the tool call
+    // The thinking panel should show tool calls from the pipeline
     const thinkingButton = page.getByText("Thought").first();
     if (await thinkingButton.isVisible().catch(() => false)) {
       await thinkingButton.click();
-      // Tool call name should appear in thinking details
-      await expect(page.getByText(/create_step/i).first()).toBeVisible({
+      // At least one tool call name should appear in thinking details
+      await expect(page.getByText(/create_leaf_step|create_plan|get_search_overview/i).first()).toBeVisible({
         timeout: 5_000,
       });
     }

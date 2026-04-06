@@ -38,6 +38,8 @@ env/
 .vscode/
 .cursor/
 .claude/
+.superpowers/
+.hypothesis/
 docs/superpowers/
 CLAUDE.md
 *.swp

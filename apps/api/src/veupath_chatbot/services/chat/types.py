@@ -32,6 +32,20 @@ class ChatContext:
 
 
 @dataclass
+class TurnIdentity:
+    """Immutable identifiers for a single chat turn.
+
+    Groups the per-turn fields that both the producer and the dependency
+    builder need, keeping function signatures under the argument limit.
+    """
+
+    stream_id_str: str
+    site_id: str
+    user_id: UUID
+    model_message: str
+
+
+@dataclass
 class ChatTurnConfig:
     """Per-turn configuration for a chat operation."""
 

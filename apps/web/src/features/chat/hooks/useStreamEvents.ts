@@ -11,13 +11,11 @@ import type {
   Citation,
   OptimizationProgressData,
   PlanningArtifact,
-  SubKaniTokenUsage,
   ToolCall,
 } from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/lib/sse_events";
 import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
 import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
-import { snapshotSubKaniActivityFromBuffers } from "@/features/chat/handlers/handleChatEvent.messageEvents";
 import { useSessionStore } from "@/state/useSessionStore";
 import {
   persistReasoningToLastMessage,
@@ -88,10 +86,6 @@ export function useStreamEvents(deps: StreamEventDeps) {
       const toolCalls: ToolCall[] = [];
       const citationsBuffer: Citation[] = [];
       const planningArtifactsBuffer: PlanningArtifact[] = [];
-      const subKaniCallsBuffer: Record<string, ToolCall[]> = {};
-      const subKaniStatusBuffer: Record<string, string> = {};
-      const subKaniModelsBuffer: Record<string, string> = {};
-      const subKaniTokenUsageBuffer: Record<string, SubKaniTokenUsage> = {};
 
       const streamState: StreamSessionState = {
         streamingAssistantIndex: null,
@@ -107,10 +101,6 @@ export function useStreamEvents(deps: StreamEventDeps) {
         toolCallsBuffer: toolCalls,
         citationsBuffer,
         planningArtifactsBuffer,
-        subKaniCallsBuffer,
-        subKaniStatusBuffer,
-        subKaniModelsBuffer,
-        subKaniTokenUsageBuffer,
         thinking,
         setStrategyId,
         addStrategy,
@@ -146,15 +136,8 @@ export function useStreamEvents(deps: StreamEventDeps) {
         onComplete: () => {
           onFinalize(toolCalls);
 
-          const subKaniActivity = snapshotSubKaniActivityFromBuffers(
-            subKaniCallsBuffer,
-            subKaniStatusBuffer,
-            subKaniModelsBuffer,
-            subKaniTokenUsageBuffer,
-          );
           attachThinkingToLastAssistant(
             toolCalls.length > 0 ? [...toolCalls] : [],
-            subKaniActivity,
           );
 
           // Persist buffered reasoning & optimization data to messages.

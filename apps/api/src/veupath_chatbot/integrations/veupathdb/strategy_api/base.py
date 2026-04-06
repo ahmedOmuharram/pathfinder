@@ -44,6 +44,29 @@ def _sort_profile_pattern(pattern: str) -> str:
     return f"%{'%'.join(sorted(parts))}%" if parts else pattern
 
 
+def _validate_phyletic_codes(entries: list[str], all_known_codes: set[str]) -> None:
+    """Raise ``AppError`` if any entry code is not in the known set."""
+    invalid_codes: list[str] = []
+    for entry in entries:
+        parts = entry.split(":")
+        if len(parts) >= _MIN_ENTRY_PARTS_FOR_CODE_STATE:
+            code = parts[0]
+            if code not in all_known_codes:
+                invalid_codes.append(code)
+
+    if invalid_codes:
+        raise AppError(
+            code=ErrorCode.VALIDATION_ERROR,
+            title="Invalid species codes in profile_pattern",
+            status=422,
+            detail=(
+                f"Unknown codes: {', '.join(invalid_codes[:5])}. "
+                f"Use lookup_phyletic_codes() to find valid codes "
+                f"(e.g. 'pfal' for P. falciparum, 'hsap' for H. sapiens)."
+            ),
+        )
+
+
 class StrategyAPIBase:
     """Base infrastructure for :class:`StrategyAPI`.
 
@@ -256,32 +279,13 @@ class StrategyAPIBase:
             children_of, leaf_codes = _build_phyletic_tree(indent_vocab)
             all_known_codes = leaf_codes | set(children_of.keys())
 
-            # Validate all codes before expansion.
-            invalid_codes: list[str] = []
-            for entry in entries:
-                parts = entry.split(":")
-                if len(parts) >= _MIN_ENTRY_PARTS_FOR_CODE_STATE:
-                    code = parts[0]
-                    if code not in all_known_codes:
-                        invalid_codes.append(code)
-
-            if invalid_codes:
-                raise AppError(
-                    code=ErrorCode.VALIDATION_ERROR,
-                    title="Invalid species codes in profile_pattern",
-                    status=422,
-                    detail=(
-                        f"Unknown codes: {', '.join(invalid_codes[:5])}. "
-                        f"Use lookup_phyletic_codes() to find valid codes "
-                        f"(e.g. 'pfal' for P. falciparum, 'hsap' for H. sapiens)."
-                    ),
-                )
+            _validate_phyletic_codes(entries, all_known_codes)
 
             expanded = _expand_entries(entries, children_of, leaf_codes)
             return _sort_profile_pattern(f"%{'%'.join(expanded)}%")
         except AppError:
             raise
-        except Exception:
+        except (KeyError, IndexError, ValueError, TypeError):
             logger.debug("Failed to expand profile_pattern groups (non-fatal)")
             return pattern
 

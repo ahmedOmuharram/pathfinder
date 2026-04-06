@@ -96,8 +96,6 @@ describe("ChatMessageList UI ownership", () => {
     thinking: {
       activeToolCalls: [],
       lastToolCalls: [],
-      subKaniCalls: {},
-      subKaniStatus: {},
       reasoning: null,
     },
     messagesEndRef: { current: null },
