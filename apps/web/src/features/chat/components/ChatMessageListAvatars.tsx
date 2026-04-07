@@ -1,5 +1,5 @@
 import { ProviderIcon } from "@/lib/components/ProviderIcon";
-import { useSettingsStore } from "@/state/useSettingsStore";
+import { useModelCatalogQuery } from "@/lib/query/hooks/useModelCatalogQuery";
 
 export function UserAvatar({ name }: { name: string }) {
   const initials = name
@@ -16,7 +16,8 @@ export function UserAvatar({ name }: { name: string }) {
 }
 
 export function AssistantAvatar({ modelId }: { modelId?: string }) {
-  const catalog = useSettingsStore((s) => s.modelCatalog);
+  const { data } = useModelCatalogQuery();
+  const catalog = data?.models ?? [];
   const entry = catalog.find((m) => m.id === modelId);
   const provider = entry?.provider ?? "openai";
   return (

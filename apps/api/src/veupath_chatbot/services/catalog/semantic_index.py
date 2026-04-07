@@ -1,7 +1,7 @@
 """Semantic search index for WDK search discovery.
 
-Uses sentence-transformers (nomic-embed-text-v1.5, 8192 context) to embed enriched search
-descriptions.  Embeddings are cached to disk as .npz files keyed by a
+Uses fastembed (nomic-embed-text-v1.5, ONNX Runtime, 8192 context) to embed enriched
+search descriptions.  Embeddings are cached to disk as .npz files keyed by a
 hash of the search names — so startup loads from cache in milliseconds
 and only re-embeds when the catalog actually changes.
 
@@ -22,8 +22,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from fastembed import TextEmbedding
 from numpy.typing import NDArray
-from sentence_transformers import SentenceTransformer
 
 from veupath_chatbot.integrations.veupathdb.wdk_models import WDKSearch
 from veupath_chatbot.platform.logging import get_logger
@@ -46,22 +46,22 @@ _cache_config = _CacheConfig()
 
 
 class _ModelState:
-    """Thread-safe singleton container for the SentenceTransformer model."""
+    """Thread-safe singleton container for the fastembed TextEmbedding model."""
 
-    _instance: SentenceTransformer | None = None
+    _instance: TextEmbedding | None = None
     _lock: threading.Lock = threading.Lock()
 
     @classmethod
-    def get(cls) -> SentenceTransformer:
+    def get(cls) -> TextEmbedding:
         """Return the singleton model, loading it on first call."""
         if cls._instance is not None:
             return cls._instance
         with cls._lock:
             if cls._instance is not None:
                 return cls._instance
-            logger.info("Loading sentence-transformer model", model=_MODEL_NAME)
-            cls._instance = SentenceTransformer(_MODEL_NAME, trust_remote_code=True)
-            logger.info("Sentence-transformer model loaded")
+            logger.info("Loading fastembed model", model=_MODEL_NAME)
+            cls._instance = TextEmbedding(model_name=_MODEL_NAME)
+            logger.info("Fastembed model loaded")
             return cls._instance
 
 
@@ -71,8 +71,8 @@ def set_cache_dir(path: Path) -> None:
     _cache_config.dir.mkdir(parents=True, exist_ok=True)
 
 
-def _get_model() -> SentenceTransformer:
-    """Return the lazy-loaded sentence-transformer model singleton."""
+def _get_model() -> TextEmbedding:
+    """Return the lazy-loaded fastembed model singleton."""
     return _ModelState.get()
 
 
@@ -195,10 +195,10 @@ class SemanticSearchIndex:
             )
             return
 
-        # Cache miss — encode in small batches to limit peak memory.
+        # Cache miss — encode with fastembed.
         model = _get_model()
         texts = [f"search_document: {e.enriched_text}" for e in self.entries]
-        self.embeddings = model.encode(texts, normalize_embeddings=True, show_progress_bar=False, batch_size=8)
+        self.embeddings = np.array(list(model.embed(texts, batch_size=8)))
         _save_cache(self.site_id, h, self.embeddings)
         # Free encoding intermediates before moving to the next site.
         del texts
@@ -219,7 +219,7 @@ class SemanticSearchIndex:
             return []
 
         model = _get_model()
-        query_emb = model.encode([f"search_query: {query_text}"], normalize_embeddings=True)
+        query_emb = np.array(list(model.embed([f"search_query: {query_text}"])))
         similarities = (self.embeddings @ query_emb.T).flatten()
 
         top_indices = np.argsort(similarities)[::-1][:top_k]

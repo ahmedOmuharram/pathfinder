@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
   ChatMention,
   UserMessage,
@@ -10,6 +11,8 @@ import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { streamChat } from "@/features/chat/stream";
 import { useSettingsStore } from "@/state/useSettingsStore";
 import { encodeNodeSelection } from "@/features/chat/node_selection";
+import { strategiesListOptions } from "@/lib/api/strategies";
+import { queryKeyPrefixes } from "@/lib/query/keys";
 import type {
   StrategyActions,
   UISetters,
@@ -84,6 +87,7 @@ export function useChatStreaming({
   setChatIsStreaming,
 }: UseChatStreamingArgs) {
   // --- Sub-hooks ---
+  const queryClient = useQueryClient();
   const lifecycle = useStreamLifecycle(thinking, setChatIsStreaming);
   const { buildStreamCallbacks } = useStreamEvents({
     siteId,
@@ -129,10 +133,18 @@ export function useChatStreaming({
         effectiveStrategyId ?? null,
         (toolCalls: ToolCall[]) => {
           lifecycle.finalizeStream(toolCalls);
+          void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
+          if (effectiveStrategyId != null && effectiveStrategyId !== "") {
+            void queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.strategies });
+          }
           onStreamComplete?.();
         },
         (error: Error, toolCalls: ToolCall[]) => {
           lifecycle.handleStreamError(error, toolCalls, onStreamError);
+          void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
+          if (effectiveStrategyId != null && effectiveStrategyId !== "") {
+            void queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.strategies });
+          }
         },
       );
 
@@ -171,6 +183,7 @@ export function useChatStreaming({
       strategyId,
       buildStreamCallbacks,
       siteId,
+      queryClient,
       modelSelection,
       setStrategyId,
       onStreamComplete,

@@ -22,11 +22,9 @@ vi.mock("@/state/useSessionStore", () => ({
     selector({ selectedSite: "PlasmoDB" }),
 }));
 
-const mockAddGeneSet = vi.fn();
-vi.mock("@/state/useWorkbenchStore", () => ({
-  useWorkbenchStore: (
-    selector: (s: { addGeneSet: typeof mockAddGeneSet }) => unknown,
-  ) => selector({ addGeneSet: mockAddGeneSet }),
+const mockInvalidate = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/lib/query/hooks/useInvalidateGeneSets", () => ({
+  useInvalidateGeneSets: () => mockInvalidate,
 }));
 
 // ---------------------------------------------------------------------------
@@ -136,7 +134,7 @@ describe("useGeneSetCreation", () => {
     expect(result.current.verified).toBe(false);
   });
 
-  it("handleSubmit calls createGeneSet and adds to store", async () => {
+  it("handleSubmit calls createGeneSet and invalidates query cache", async () => {
     const geneSet = makeGeneSet();
     mockCreate.mockResolvedValue(geneSet);
 
@@ -154,7 +152,7 @@ describe("useGeneSetCreation", () => {
       geneIds: ["PF3D7_0100100"],
       siteId: "PlasmoDB",
     });
-    expect(mockAddGeneSet).toHaveBeenCalledWith(geneSet);
+    expect(mockInvalidate).toHaveBeenCalled();
     expect(mockOnCreated).toHaveBeenCalled();
   });
 

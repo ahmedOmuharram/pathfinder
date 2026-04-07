@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { BarChart3, Play, Loader2, Plus, Trash2 } from "lucide-react";
 import type { Experiment, ControlSet } from "@pathfinder/shared";
 import { Button } from "@/lib/components/ui/Button";
@@ -14,6 +15,9 @@ import { CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME } from "../../constants";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useSessionStore } from "@/state/useSessionStore";
+import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
+import { queryKeyPrefixes } from "@/lib/query/keys";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,7 +44,9 @@ function formatMetric(value: number): string {
 // ---------------------------------------------------------------------------
 
 export function BenchmarkPanel() {
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
+  const queryClient = useQueryClient();
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
 
@@ -200,6 +206,7 @@ export function BenchmarkPanel() {
         onComplete: (experiments) => {
           setResults(experiments);
           setLoading(false);
+          void queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.experiments });
         },
         onError: (errMsg) => {
           setError(errMsg);
@@ -210,7 +217,7 @@ export function BenchmarkPanel() {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
     }
-  }, [activeSet, selectedSavedIds, savedSets, inlineSets]);
+  }, [activeSet, selectedSavedIds, savedSets, inlineSets, queryClient]);
 
   return (
     <AnalysisPanelContainer

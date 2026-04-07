@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Layers, Play, Loader2 } from "lucide-react";
 import type { Experiment } from "@pathfinder/shared";
 import { Button } from "@/lib/components/ui/Button";
 import { Label } from "@/lib/components/ui/Label";
 import { SearchableMultiSelect } from "@/lib/components/ui/SearchableMultiSelect";
-import { listOrganisms } from "@/lib/api/genes";
+import { organismsOptions } from "@/lib/api/genes";
 import {
   createBatchExperimentStream,
   type BatchOrganismTarget,
@@ -16,13 +17,18 @@ import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { ParamNameSelect } from "../ParamNameSelect";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useSessionStore } from "@/state/useSessionStore";
+import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
+import { queryKeyPrefixes } from "@/lib/query/keys";
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function BatchPanel() {
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
+  const queryClient = useQueryClient();
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
 
@@ -37,27 +43,10 @@ export function BatchPanel() {
   const [batchParamName, setBatchParamName] = useState<string | null>(null);
 
   // Fetch organisms for SearchableMultiSelect
-  const [availableOrganisms, setAvailableOrganisms] = useState<string[]>([]);
-  const [organismsLoading, setOrganismsLoading] = useState(false);
-
-  useEffect(() => {
-    if (activeSet?.siteId == null || activeSet.siteId === "") return;
-    let cancelled = false;
-    // Defer so setState runs outside the effect body (avoids cascading renders)
-    queueMicrotask(() => {
-      if (!cancelled) setOrganismsLoading(true);
-    });
-    void listOrganisms(activeSet.siteId)
-      .then((orgs) => {
-        if (!cancelled) setAvailableOrganisms(orgs);
-      })
-      .finally(() => {
-        if (!cancelled) setOrganismsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeSet?.siteId]);
+  const {
+    data: availableOrganisms = [],
+    isLoading: organismsLoading,
+  } = useQuery(organismsOptions(activeSet?.siteId ?? ""));
 
   const hasSearchContext = Boolean(
     activeSet?.searchName != null &&
@@ -106,6 +95,7 @@ export function BatchPanel() {
           onComplete: (experiments) => {
             setResults(experiments);
             setLoading(false);
+            void queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.experiments });
           },
           onError: (errMsg) => {
             setError(errMsg);
@@ -123,6 +113,7 @@ export function BatchPanel() {
     organismParamName,
     positiveControls,
     negativeControls,
+    queryClient,
   ]);
 
   return (

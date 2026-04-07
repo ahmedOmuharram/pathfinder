@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import langfuse.api
 import pytest
 
 from veupath_chatbot.platform.langfuse.prompts import load_prompt, seed_prompts
@@ -124,8 +125,8 @@ class TestSeedPrompts:
 
     def test_seeds_missing_prompts(self) -> None:
         mock_client = MagicMock()
-        # get_prompt raises for all names (they don't exist yet)
-        mock_client.get_prompt.side_effect = ValueError("not found")
+        # get_prompt raises langfuse.api.Error for all names (they don't exist yet)
+        mock_client.get_prompt.side_effect = langfuse.api.Error(body="not found")
         with patch(
             "veupath_chatbot.platform.langfuse.prompts.get_langfuse",
             return_value=mock_client,
@@ -133,6 +134,9 @@ class TestSeedPrompts:
             seed_prompts()
 
         assert mock_client.create_prompt.call_count == 4
+        # All create_prompt calls should include type="text"
+        for call_obj in mock_client.create_prompt.call_args_list:
+            assert call_obj.kwargs["type"] == "text"
 
     def test_skips_existing_prompts(self) -> None:
         mock_client = MagicMock()

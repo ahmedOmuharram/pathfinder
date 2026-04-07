@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react";
-import type { Node } from "reactflow";
+import type { Node } from "@xyflow/react";
 import type { Step } from "@pathfinder/shared";
 
 type NodeData = {
@@ -27,9 +27,6 @@ function cloneNodes(list: Node[]): Node[] {
       position: { ...node.position },
       data: { ...(node.data as NodeData) },
     };
-    if (node.positionAbsolute != null) {
-      cloned.positionAbsolute = { ...node.positionAbsolute };
-    }
     return cloned;
   });
 }

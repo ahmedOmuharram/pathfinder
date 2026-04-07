@@ -32,7 +32,7 @@ export function GraphToolbar() {
   const canOrtholog = selectedCount === 1;
 
   return (
-    <div className="pointer-events-auto absolute right-4 top-4 z-10 flex flex-col gap-2">
+    <div className="pointer-events-auto flex flex-col gap-2">
       <div className="flex items-center justify-end gap-2 rounded-xl border border-border bg-card/90 p-2 shadow-sm backdrop-blur">
         <button
           type="button"

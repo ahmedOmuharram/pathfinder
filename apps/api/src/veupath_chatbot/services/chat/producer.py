@@ -214,6 +214,8 @@ async def chat_producer(
             span.set_attribute("app.site_id", turn.site_id)
             span.set_attribute("app.user_id", str(turn.user_id))
             span.set_attribute("langfuse.session.id", turn.stream_id_str)
+            span.set_attribute("langfuse.user.id", str(turn.user_id))
+            span.set_attribute("langfuse.tags", [turn.site_id])
 
             deps, effective_model = await build_agent_deps(
                 turn=turn,

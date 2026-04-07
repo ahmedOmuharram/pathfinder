@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { Node } from "reactflow";
+import type { Node } from "@xyflow/react";
 import type { Strategy } from "@pathfinder/shared";
 import { buildNodeSelectionPayload } from "@/features/strategy/graph/utils/nodeSelectionPayload";
 import { useSessionStore } from "@/state/useSessionStore";

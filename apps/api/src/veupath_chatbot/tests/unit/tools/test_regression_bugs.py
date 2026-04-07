@@ -117,7 +117,7 @@ def test_bug3_no_duplicate_tool_call_start() -> None:
 # ── Bug 11: delete_step checks before deletion ────────────────────────────
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_bug11_delete_step_checks_before_deletion() -> None:
     """Bug 11: delete_step on a single-step graph must return an error
     WITHOUT modifying the graph.
@@ -243,7 +243,7 @@ def test_bug12_validate_params_passes_when_all_set() -> None:
 # ── Bug 13: invalid operator returns ToolErrorPayload, not ValueError ─────
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_bug13_invalid_operator_returns_error() -> None:
     """Bug 13: combine_steps with an invalid operator must return a
     ToolErrorPayload, not raise ValueError.

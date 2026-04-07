@@ -13,78 +13,14 @@ from functools import lru_cache
 import yaml
 
 from veupath_chatbot.platform.config import _REPO_ROOT
-from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
+from veupath_chatbot.platform.types import ModelProvider
 
 __all__ = [
     "ModelEntry",
     "ModelProvider",
-    "ReasoningEffort",
-    "build_reasoning_hyperparams",
     "get_model_catalog",
     "get_model_entry",
 ]
-
-# OpenAI reasoning models (gpt-5*, o1, o3, o4) use the flat
-# ``reasoning_effort`` param accepted by ``chat.completions.create()``.
-_OPENAI_EFFORT_MAP: dict[ReasoningEffort, dict[str, object]] = {
-    "none": {"reasoning_effort": "none"},
-    "low": {"reasoning_effort": "low"},
-    "medium": {},  # server default
-    "high": {"reasoning_effort": "high"},
-}
-
-# Anthropic extended thinking uses ``thinking`` param with a budget.
-_ANTHROPIC_EFFORT_MAP: dict[ReasoningEffort, dict[str, object]] = {
-    "none": {},
-    "low": {"thinking": {"type": "enabled", "budget_tokens": 1024}},
-    "medium": {"thinking": {"type": "enabled", "budget_tokens": 8192}},
-    "high": {"thinking": {"type": "enabled", "budget_tokens": 32768}},
-}
-
-# Google Gemini 2.5 uses ``thinking_config`` passed directly to
-# ``GenerateContentConfig`` (not nested under ``generation_config``).
-# A budget of 0 disables thinking; -1 = automatic (server decides).
-_GOOGLE_EFFORT_MAP: dict[ReasoningEffort, dict[str, object]] = {
-    "none": {"thinking_config": {"thinking_budget": 0}},
-    "low": {"thinking_config": {"thinking_budget": 1024}},
-    "medium": {"thinking_config": {"thinking_budget": 8192}},
-    "high": {"thinking_config": {"thinking_budget": 24576}},
-}
-
-_EFFORT_MAPS: dict[ModelProvider, dict[ReasoningEffort, dict[str, object]]] = {
-    "openai": _OPENAI_EFFORT_MAP,
-    "anthropic": _ANTHROPIC_EFFORT_MAP,
-    "google": _GOOGLE_EFFORT_MAP,
-    # Ollama models generally don't support reasoning effort params.
-    "ollama": {"none": {}, "low": {}, "medium": {}, "high": {}},
-    # Mock engine ignores reasoning effort.
-    "mock": {"none": {}, "low": {}, "medium": {}, "high": {}},
-}
-
-
-def build_reasoning_hyperparams(
-    provider: ModelProvider,
-    effort: ReasoningEffort | None,
-    *,
-    budget_override: int | None = None,
-) -> dict[str, object]:
-    """Return provider-specific hyperparams that implement *effort*.
-
-    :param provider: Model provider.
-    :param effort: Reasoning effort (default: None).
-    :param budget_override: Custom reasoning token budget (overrides effort map).
-    :returns: Dict of provider-specific hyperparameters, or empty dict.
-    """
-    if effort is None:
-        return {}
-    effort_map = _EFFORT_MAPS.get(provider, {})
-    params = dict(effort_map.get(effort, {}))
-    if budget_override is not None and budget_override > 0:
-        if provider == "anthropic":
-            params["thinking"] = {"type": "enabled", "budget_tokens": budget_override}
-        elif provider == "google":
-            params["thinking_config"] = {"thinking_budget": budget_override}
-    return params
 
 
 @dataclass(frozen=True, slots=True)

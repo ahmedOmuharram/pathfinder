@@ -14,6 +14,11 @@ vi.mock("@/features/workbench/api/geneSets", () => ({
   createGeneSetFromStrategy: vi.fn(),
 }));
 
+const mockInvalidate = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/lib/query/hooks/useInvalidateGeneSets", () => ({
+  useInvalidateGeneSets: () => mockInvalidate,
+}));
+
 const mockPush = vi.fn();
 
 const { createGeneSetFromStrategy } = await import("@/features/workbench/api/geneSets");
@@ -45,16 +50,12 @@ const baseStrategy: Strategy = {
 };
 
 describe("useGeneSetExport", () => {
-  const mockAddGeneSet = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("starts with exporting=false", () => {
-    const { result } = renderHook(() =>
-      useGeneSetExport({ addGeneSet: mockAddGeneSet }),
-    );
+    const { result } = renderHook(() => useGeneSetExport());
     expect(result.current.exportingGeneSet).toBe(false);
   });
 
@@ -62,9 +63,7 @@ describe("useGeneSetExport", () => {
     const fakeGeneSet = { id: "gs1", name: "Test Strategy" };
     mockCreate.mockResolvedValue(fakeGeneSet as never);
 
-    const { result } = renderHook(() =>
-      useGeneSetExport({ addGeneSet: mockAddGeneSet }),
-    );
+    const { result } = renderHook(() => useGeneSetExport());
 
     await act(async () => {
       await result.current.handleExportAsGeneSet(baseStrategy);
@@ -79,16 +78,14 @@ describe("useGeneSetExport", () => {
       recordType: "gene",
       parameters: { text: "kinase" },
     });
-    expect(mockAddGeneSet).toHaveBeenCalledWith(fakeGeneSet);
+    expect(mockInvalidate).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith("/workbench/gs1");
     expect(result.current.exportingGeneSet).toBe(false);
   });
 
   it("does nothing when strategy has no wdkStrategyId", async () => {
     const noWdkStrategy: Strategy = { ...baseStrategy, wdkStrategyId: null };
-    const { result } = renderHook(() =>
-      useGeneSetExport({ addGeneSet: mockAddGeneSet }),
-    );
+    const { result } = renderHook(() => useGeneSetExport());
 
     await act(async () => {
       await result.current.handleExportAsGeneSet(noWdkStrategy);
@@ -102,9 +99,7 @@ describe("useGeneSetExport", () => {
     mockCreate.mockRejectedValue(new Error("Network error"));
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const { result } = renderHook(() =>
-      useGeneSetExport({ addGeneSet: mockAddGeneSet }),
-    );
+    const { result } = renderHook(() => useGeneSetExport());
 
     await act(async () => {
       await result.current.handleExportAsGeneSet(baseStrategy);

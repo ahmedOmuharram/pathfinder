@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
+import { createTestWrapper } from "@/lib/query/testing";
 
 const mockGetRecords = vi.fn();
 
@@ -40,9 +41,11 @@ describe("useResultsTableRecords", () => {
   it("fetches records when visibleColumns are non-empty", async () => {
     mockGetRecords.mockResolvedValueOnce(makeRecordsResponse(3));
 
+    const { Wrapper } = createTestWrapper();
     const visibleColumns = new Set(["gene_id", "organism"]);
-    const { result } = renderHook(() =>
-      useResultsTableRecords(entityRef, visibleColumns),
+    const { result } = renderHook(
+      () => useResultsTableRecords(entityRef, visibleColumns),
+      { wrapper: Wrapper },
     );
 
     await waitFor(() => {
@@ -54,8 +57,12 @@ describe("useResultsTableRecords", () => {
   });
 
   it("does not fetch when visibleColumns is empty", () => {
+    const { Wrapper } = createTestWrapper();
     const visibleColumns = new Set<string>();
-    renderHook(() => useResultsTableRecords(entityRef, visibleColumns));
+    renderHook(
+      () => useResultsTableRecords(entityRef, visibleColumns),
+      { wrapper: Wrapper },
+    );
 
     expect(mockGetRecords).not.toHaveBeenCalled();
   });
@@ -63,9 +70,11 @@ describe("useResultsTableRecords", () => {
   it("handleSort toggles direction on same column", async () => {
     mockGetRecords.mockResolvedValue(makeRecordsResponse(1));
 
+    const { Wrapper } = createTestWrapper();
     const visibleColumns = new Set(["gene_id"]);
-    const { result } = renderHook(() =>
-      useResultsTableRecords(entityRef, visibleColumns),
+    const { result } = renderHook(
+      () => useResultsTableRecords(entityRef, visibleColumns),
+      { wrapper: Wrapper },
     );
 
     await waitFor(() => {
@@ -89,9 +98,11 @@ describe("useResultsTableRecords", () => {
   it("handleSort resets to ASC on new column", async () => {
     mockGetRecords.mockResolvedValue(makeRecordsResponse(1));
 
+    const { Wrapper } = createTestWrapper();
     const visibleColumns = new Set(["gene_id", "organism"]);
-    const { result } = renderHook(() =>
-      useResultsTableRecords(entityRef, visibleColumns),
+    const { result } = renderHook(
+      () => useResultsTableRecords(entityRef, visibleColumns),
+      { wrapper: Wrapper },
     );
 
     await waitFor(() => {
@@ -118,9 +129,11 @@ describe("useResultsTableRecords", () => {
   it("resets offset on sort change", async () => {
     mockGetRecords.mockResolvedValue(makeRecordsResponse(1));
 
+    const { Wrapper } = createTestWrapper();
     const visibleColumns = new Set(["gene_id"]);
-    const { result } = renderHook(() =>
-      useResultsTableRecords(entityRef, visibleColumns),
+    const { result } = renderHook(
+      () => useResultsTableRecords(entityRef, visibleColumns),
+      { wrapper: Wrapper },
     );
 
     await waitFor(() => {
@@ -140,9 +153,11 @@ describe("useResultsTableRecords", () => {
   it("reports error on fetch failure", async () => {
     mockGetRecords.mockRejectedValueOnce(new Error("Network error"));
 
+    const { Wrapper } = createTestWrapper();
     const visibleColumns = new Set(["gene_id"]);
-    const { result } = renderHook(() =>
-      useResultsTableRecords(entityRef, visibleColumns),
+    const { result } = renderHook(
+      () => useResultsTableRecords(entityRef, visibleColumns),
+      { wrapper: Wrapper },
     );
 
     await waitFor(() => {

@@ -1,6 +1,7 @@
 """Core HTTP transport for VEuPathDB WDK REST API with retries and cookies."""
 
 import asyncio
+import time
 from collections.abc import Mapping, Sequence
 from typing import cast
 
@@ -17,6 +18,7 @@ from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import veupathdb_auth_token_ctx
 from veupath_chatbot.platform.errors import WDKError
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.metrics import wdk_request_duration_s
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
@@ -249,9 +251,15 @@ class HTTPClient:
         json: object = None,
     ) -> JSONValue:
         """Make HTTP request with retry logic (converts RetryError to WDKError)."""
+        start = time.monotonic()
         try:
-            return await self._request_attempt(method, path, params=params, json=json)
+            result = await self._request_attempt(
+                method, path, params=params, json=json,
+            )
         except RetryError as e:
+            wdk_request_duration_s.record(
+                time.monotonic() - start, {"method": method, "outcome": "error"},
+            )
             last = e.last_attempt.exception()
             status = 502
             if isinstance(last, httpx.HTTPStatusError):
@@ -265,6 +273,11 @@ class HTTPClient:
             )
             msg = f"Request failed after retries: {last}"
             raise WDKError(msg, status=status) from last
+        else:
+            wdk_request_duration_s.record(
+                time.monotonic() - start, {"method": method, "outcome": "ok"},
+            )
+            return result
 
     async def get(self, path: str, params: JSONObject | None = None) -> JSONValue:
         """GET request."""

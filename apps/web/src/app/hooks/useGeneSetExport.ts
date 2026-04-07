@@ -2,14 +2,11 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { Strategy } from "@pathfinder/shared";
 import { createGeneSetFromStrategy } from "@/features/workbench/api/geneSets";
-import type { GeneSet } from "@pathfinder/shared";
+import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 
-interface UseGeneSetExportArgs {
-  addGeneSet: (geneSet: GeneSet) => void;
-}
-
-export function useGeneSetExport({ addGeneSet }: UseGeneSetExportArgs) {
+export function useGeneSetExport() {
   const router = useRouter();
+  const invalidateGeneSets = useInvalidateGeneSets();
   const [exportingGeneSet, setExportingGeneSet] = useState(false);
 
   const handleExportAsGeneSet = useCallback(
@@ -50,7 +47,7 @@ export function useGeneSetExport({ addGeneSet }: UseGeneSetExportArgs) {
           args.recordType = recordType;
         }
         const geneSet = await createGeneSetFromStrategy(args);
-        addGeneSet(geneSet);
+        await invalidateGeneSets();
         router.push(`/workbench/${geneSet.id}`);
       } catch (err) {
         console.error("Failed to open strategy in workbench:", err);
@@ -58,7 +55,7 @@ export function useGeneSetExport({ addGeneSet }: UseGeneSetExportArgs) {
         setExportingGeneSet(false);
       }
     },
-    [addGeneSet, router],
+    [invalidateGeneSets, router],
   );
 
   return { exportingGeneSet, handleExportAsGeneSet };

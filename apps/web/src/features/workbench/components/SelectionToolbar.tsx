@@ -13,6 +13,7 @@ import { Button } from "@/lib/components/ui/Button";
 import { deleteGeneSet } from "../api/geneSets";
 import { exportAsTxt, exportAsCsv, exportMultipleAsCsv } from "../utils/export";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 import type { GeneSet } from "@pathfinder/shared";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import {
@@ -25,7 +26,7 @@ import {
 interface SelectionToolbarProps {
   activeSet: GeneSet | null;
   selectedSets: GeneSet[];
-  allSetsCount: number;
+  allSetIds: string[];
   onCompare: () => void;
   onOverlap: () => void;
 }
@@ -33,13 +34,14 @@ interface SelectionToolbarProps {
 export function SelectionToolbar({
   activeSet,
   selectedSets,
-  allSetsCount,
+  allSetIds,
   onCompare,
   onOverlap,
 }: SelectionToolbarProps) {
-  const removeGeneSets = useWorkbenchStore((s) => s.removeGeneSets);
   const selectAll = useWorkbenchStore((s) => s.selectAll);
   const deselectAll = useWorkbenchStore((s) => s.deselectAll);
+  const clearSelection = useWorkbenchStore((s) => s.clearSelection);
+  const invalidateGeneSets = useInvalidateGeneSets();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -62,14 +64,15 @@ export function SelectionToolbar({
     setDeleteError(null);
     try {
       await Promise.all(toDelete.map((gs) => deleteGeneSet(gs.id)));
-      removeGeneSets(toDelete.map((gs) => gs.id));
+      clearSelection();
+      await invalidateGeneSets();
     } catch (err) {
       console.error("Failed to delete gene set(s):", err);
       setDeleteError("Some gene sets could not be deleted. Please try again.");
     } finally {
       setDeleting(false);
     }
-  }, [toDelete, removeGeneSets]);
+  }, [toDelete, clearSelection, invalidateGeneSets]);
 
   const exportTarget =
     selectedSets.length > 0 ? selectedSets : activeSet ? [activeSet] : [];
@@ -78,7 +81,7 @@ export function SelectionToolbar({
     <>
       <div className="border-t border-border px-3 py-2.5">
         {/* Selection summary */}
-        {allSetsCount > 0 && (
+        {allSetIds.length > 0 && (
           <div className="mb-2 flex items-center justify-between">
             <p className="text-[10px] text-muted-foreground">
               {selectedSets.length > 0
@@ -87,10 +90,10 @@ export function SelectionToolbar({
             </p>
             <button
               type="button"
-              onClick={selectedSets.length === allSetsCount ? deselectAll : selectAll}
+              onClick={selectedSets.length === allSetIds.length ? deselectAll : () => selectAll(allSetIds)}
               className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
-              {selectedSets.length === allSetsCount ? (
+              {selectedSets.length === allSetIds.length ? (
                 <>
                   <Square className="h-3 w-3" /> Deselect all
                 </>

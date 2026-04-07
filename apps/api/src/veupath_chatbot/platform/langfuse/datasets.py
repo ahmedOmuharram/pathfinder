@@ -57,11 +57,11 @@ def run_evaluation_experiment(
     dataset_name: str,
     experiment_name: str,
     task_fn: Callable[..., Any],
-    evaluators: list[Callable[..., Any]],
 ) -> Any:
     """Run an evaluation experiment via Langfuse.
 
     Fetches the dataset by name, then delegates to ``DatasetClient.run_experiment``.
+    Evaluations are applied separately via scoring after the task runs.
     Returns ``None`` when Langfuse is disabled.
     """
     client = get_langfuse()
@@ -73,5 +73,4 @@ def run_evaluation_experiment(
     return dataset.run_experiment(
         name=experiment_name,
         task=task_fn,
-        evaluators=evaluators,
     )

@@ -72,7 +72,7 @@ class TestDiscoveryAgent:
     def test_discovery_agent_name(self) -> None:
         assert discovery_agent.name == "discovery"
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_discovery_agent_runs_with_test_model(self) -> None:
         deps = _make_deps()
 
@@ -99,7 +99,7 @@ class TestDiscoveryAgent:
         assert DISCOVERY_USAGE_LIMITS.request_limit == 20
         assert DISCOVERY_USAGE_LIMITS.total_tokens_limit == 50_000
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_discovery_agent_dynamic_instructions_include_graph_state(
         self,
     ) -> None:
@@ -129,7 +129,7 @@ class TestDiscoveryAgent:
         # The agent should run without error even with graph state in instructions
         assert isinstance(result.output, str)
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_discovery_agent_no_graph_state_when_empty(self) -> None:
         """When no graph exists, pinned_graph_state returns None (no crash)."""
         deps = _make_deps()
@@ -156,7 +156,7 @@ class TestPlanningAgent:
     def test_planning_agent_name(self) -> None:
         assert planning_agent.name == "planning"
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_planning_agent_runs_with_test_model(self) -> None:
         deps = _make_deps()
 
@@ -194,7 +194,7 @@ class TestExecutionAgent:
     def test_execution_agent_name(self) -> None:
         assert execution_agent.name == "execution"
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_execution_agent_runs_with_test_model(self) -> None:
         deps = _make_deps()
 
@@ -249,7 +249,7 @@ class TestVerificationAgent:
     def test_verification_agent_name(self) -> None:
         assert verification_agent.name == "verification"
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_verification_agent_runs_with_test_model(self) -> None:
         deps = _make_deps()
 
@@ -311,7 +311,7 @@ class TestCrossAgentConsistency:
         for agent in [discovery_agent, planning_agent, execution_agent, verification_agent]:
             assert agent._deps_type is AgentDeps, f"{agent.name} deps_type is not AgentDeps"
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_all_agents_return_string_output(self) -> None:
         """All agents produce str output, not structured models."""
         deps = _make_deps()

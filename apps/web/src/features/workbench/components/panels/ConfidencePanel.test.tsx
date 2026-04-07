@@ -176,7 +176,8 @@ describe("ConfidencePanel", () => {
       expect(mockRequestJson).toHaveBeenCalled();
     });
 
-    const [url, opts] = mockRequestJson.mock.calls[0] as [
+    const [, url, opts] = mockRequestJson.mock.calls[0] as [
+      unknown,
       string,
       { method: string; body: Record<string, unknown> },
     ];
@@ -250,8 +251,8 @@ describe("ConfidencePanel", () => {
     });
 
     const body = (
-      mockRequestJson.mock.calls[0] as [string, { body: Record<string, unknown> }]
-    )[1].body;
+      mockRequestJson.mock.calls[0] as [unknown, string, { body: Record<string, unknown> }]
+    )[2].body;
 
     // G1 appears in 2 significant terms (FDR ≤ 0.05), OTHER in 1
     expect(body["enrichmentGeneCounts"]).toEqual({ G1: 2, OTHER: 1 });

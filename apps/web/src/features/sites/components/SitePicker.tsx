@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { listSites } from "@/lib/api/sites";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { sitesOptions } from "@/lib/api/sites";
 import { VEUPATHDB_SITES } from "@pathfinder/shared";
-import type { VEuPathDBSite } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
 import { Label } from "@/lib/components/ui/Label";
 import { cn } from "@/lib/utils/cn";
@@ -21,19 +21,8 @@ export function SitePicker({
   onChange,
   headerTextVariant,
 }: SitePickerProps) {
-  const [sites, setSites] = useState<VEuPathDBSite[]>(VEUPATHDB_SITES);
-  const [loading, setLoading] = useState(true);
+  const { data: sites = VEUPATHDB_SITES, isLoading: loading } = useQuery(sitesOptions());
   const setSelectedSiteInfo = useSessionStore((state) => state.setSelectedSiteInfo);
-
-  useEffect(() => {
-    listSites()
-      .then(setSites)
-      .catch((err) => {
-        console.warn("[SitePicker] Failed to load sites, using fallback:", err);
-        setSites(VEUPATHDB_SITES);
-      })
-      .finally(() => setLoading(false));
-  }, []);
 
   const selectedSite = sites.find((s) => s.id === value);
 

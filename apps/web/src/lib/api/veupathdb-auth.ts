@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import { AppError } from "@/lib/errors/AppError";
 import { requestJson } from "./http";
 import { AuthStatusResponseSchema, AuthSuccessResponseSchema } from "./schemas/auth";
@@ -58,4 +59,12 @@ export async function refreshAuth(siteId: string): Promise<{ success: boolean }>
     `/api/v1/veupathdb/auth/refresh`,
     { method: "POST", query: { siteId } },
   );
+}
+
+export function authStatusOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ["auth", "status", siteId] as const,
+    queryFn: () => getVeupathdbAuthStatus(siteId),
+    enabled: siteId !== "",
+  });
 }

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
 import { useConversationSidebarData } from "./useConversationSidebarData";
 
@@ -23,7 +23,6 @@ const fakeStrategy: Strategy = {
 // Track the latest state returned by the fetching mock so tests can
 // dynamically update it (e.g. simulate a fetch completing).
 let fetchingState: Record<string, unknown> = {};
-let fetchingSetters: Record<string, (...args: unknown[]) => void> = {};
 
 vi.mock("@/features/sidebar/hooks/useStrategyFetching", () => ({
   useStrategyFetching: () => fetchingState,
@@ -41,21 +40,14 @@ function makeArgs() {
 }
 
 function initFetchingState(overrides: Partial<typeof fetchingState> = {}) {
-  const setStrategyItems = vi.fn();
-  const setDismissedItems = vi.fn();
-  fetchingSetters = { setStrategyItems, setDismissedItems };
   fetchingState = {
-    strategyItems: [],
-    setStrategyItems,
-    dismissedItems: [],
-    setDismissedItems,
-    hasInitiallyLoaded: false,
+    strategies: [],
+    dismissedStrategies: [],
+    isLoading: false,
+    isFetched: false,
     isSyncing: false,
-    refreshStrategies: vi.fn().mockResolvedValue(undefined),
-    refetchStrategies: vi.fn().mockResolvedValue(undefined),
+    invalidate: vi.fn().mockResolvedValue(undefined),
     handleManualRefresh: vi.fn().mockResolvedValue(undefined),
-    markAsDeleted: vi.fn(),
-    hasFetched: { current: false },
     ...overrides,
   };
 }
@@ -70,7 +62,7 @@ describe("useConversationSidebarData", () => {
   });
 
   it("shows hasInitiallyLoaded=false until the first fetch completes", () => {
-    initFetchingState({ hasInitiallyLoaded: false });
+    initFetchingState({ isFetched: false });
 
     const { result } = renderHook(() => useConversationSidebarData(makeArgs()));
 
@@ -79,8 +71,8 @@ describe("useConversationSidebarData", () => {
 
   it("populates filtered list after fetch", () => {
     initFetchingState({
-      strategyItems: [fakeStrategy],
-      hasInitiallyLoaded: true,
+      strategies: [fakeStrategy],
+      isFetched: true,
     });
 
     const { result } = renderHook(() => useConversationSidebarData(makeArgs()));
@@ -91,8 +83,8 @@ describe("useConversationSidebarData", () => {
 
   it("shows empty list when fetch returns no strategies", () => {
     initFetchingState({
-      strategyItems: [],
-      hasInitiallyLoaded: true,
+      strategies: [],
+      isFetched: true,
     });
 
     const { result } = renderHook(() => useConversationSidebarData(makeArgs()));
@@ -103,11 +95,11 @@ describe("useConversationSidebarData", () => {
 
   it("filters conversations by search query", () => {
     initFetchingState({
-      strategyItems: [
+      strategies: [
         fakeStrategy,
         { ...fakeStrategy, id: "s2", name: "Gene Analysis" },
       ],
-      hasInitiallyLoaded: true,
+      isFetched: true,
     });
 
     const { result } = renderHook(() => useConversationSidebarData(makeArgs()));
@@ -131,8 +123,8 @@ describe("useConversationSidebarData", () => {
       name: "Old Strategy",
     };
     initFetchingState({
-      dismissedItems: [dismissedStrategy],
-      hasInitiallyLoaded: true,
+      dismissedStrategies: [dismissedStrategy],
+      isFetched: true,
     });
 
     const { result } = renderHook(() => useConversationSidebarData(makeArgs()));

@@ -10,7 +10,8 @@ Three hooks are applied after tool execution:
    ``StepOkResponse`` JSON with a compact one-liner (the model sees the
    full graph via the pinned dynamic instruction).
 
-These are plain async functions applied via ``HookedFunctionToolset``.
+These are plain async functions applied via PydanticAI's native ``Hooks``
+capability (``after_tool_execute``).
 """
 
 from __future__ import annotations
@@ -20,7 +21,8 @@ import json
 from typing import Any, cast
 
 from pydantic import ConfigDict, Field, ValidationError
-from pydantic_ai.tools import RunContext
+from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.tools import RunContext, ToolDefinition
 
 from veupath_chatbot.ai.agents.state import SearchOverview
 from veupath_chatbot.ai.context.rendering import render_slim_step_result
@@ -286,17 +288,21 @@ def _slim_graph_result(result_text: str, graph: StrategyGraph) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Public hook entry points (called by HookedFunctionToolset)
+# Public hook entry points (used as after_tool_execute in Hooks capability)
 # ---------------------------------------------------------------------------
 
 
 async def apply_discovery_hook(
-    tool_name: str,
-    result: Any,
     ctx: RunContext[AgentDeps],
+    /,
+    *,
+    call: ToolCallPart,
+    tool_def: ToolDefinition,
+    args: dict[str, Any],
+    result: Any,
 ) -> Any:
     """Apply discovery-tracking post-tool logic for get_search_overview."""
-    if tool_name != "get_search_overview":
+    if call.tool_name != "get_search_overview":
         return result
     if isinstance(result, str):
         _track_search_discovery(ctx.deps, result)
@@ -347,12 +353,16 @@ async def _apply_single_root_build(
 
 
 async def apply_auto_build_hook(
-    tool_name: str,
-    result: Any,
     ctx: RunContext[AgentDeps],
+    /,
+    *,
+    call: ToolCallPart,
+    tool_def: ToolDefinition,
+    args: dict[str, Any],
+    result: Any,
 ) -> Any:
     """Apply auto-build and result-slimming for graph-mutating tools."""
-    if tool_name not in _GRAPH_MUTATING_TOOLS:
+    if call.tool_name not in _GRAPH_MUTATING_TOOLS:
         return result
 
     deps = ctx.deps

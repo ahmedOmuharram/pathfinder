@@ -36,8 +36,8 @@ describe("useWorkbenchChatHistory", () => {
       expect(result.current.historyLoaded).toBe(true);
     });
 
-    expect(result.current.messages).toHaveLength(2);
-    expect(result.current.messages[0]).toEqual(
+    expect(result.current.historyMessages).toHaveLength(2);
+    expect(result.current.historyMessages[0]).toEqual(
       expect.objectContaining({ role: "user", content: "hi" }),
     );
   });
@@ -55,7 +55,7 @@ describe("useWorkbenchChatHistory", () => {
       expect(result.current.historyLoaded).toBe(true);
     });
 
-    expect(result.current.messages).toHaveLength(2);
+    expect(result.current.historyMessages).toHaveLength(2);
   });
 
   it("preserves toolCalls from loaded messages", async () => {
@@ -67,10 +67,10 @@ describe("useWorkbenchChatHistory", () => {
     const { result } = renderHook(() => useWorkbenchChatHistory("exp-1"));
 
     await waitFor(() => {
-      expect(result.current.messages).toHaveLength(1);
+      expect(result.current.historyMessages).toHaveLength(1);
     });
 
-    expect(result.current.messages[0]?.toolCalls).toEqual(toolCalls);
+    expect(result.current.historyMessages[0]?.toolCalls).toEqual(toolCalls);
   });
 
   it("preserves citations from loaded messages", async () => {
@@ -82,10 +82,10 @@ describe("useWorkbenchChatHistory", () => {
     const { result } = renderHook(() => useWorkbenchChatHistory("exp-1"));
 
     await waitFor(() => {
-      expect(result.current.messages).toHaveLength(1);
+      expect(result.current.historyMessages).toHaveLength(1);
     });
 
-    expect(result.current.messages[0]?.citations).toEqual(citations);
+    expect(result.current.historyMessages[0]?.citations).toEqual(citations);
   });
 
   it("does not fetch when experimentId is null", async () => {
@@ -108,6 +108,6 @@ describe("useWorkbenchChatHistory", () => {
       expect(result.current.historyLoaded).toBe(true);
     });
 
-    expect(result.current.messages).toHaveLength(0);
+    expect(result.current.historyMessages).toHaveLength(0);
   });
 });

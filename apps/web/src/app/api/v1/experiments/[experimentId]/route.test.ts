@@ -24,6 +24,18 @@ function ctx(experimentId: string): Ctx {
   return { params: Promise.resolve({ experimentId }) };
 }
 
+function getFirstCall() {
+  const calls = proxyMock.mock.calls;
+  if (calls.length === 0) {
+    throw new Error("Expected at least one mock call");
+  }
+  const call = calls[0];
+  if (!call) {
+    throw new Error("Expected at least one mock call");
+  }
+  return call;
+}
+
 describe("GET /api/v1/experiments/:experimentId", () => {
   beforeEach(() => proxyMock.mockClear());
 
@@ -32,7 +44,7 @@ describe("GET /api/v1/experiments/:experimentId", () => {
     await GET(req, ctx("exp-123"));
 
     expect(proxyMock).toHaveBeenCalledOnce();
-    const [, path] = proxyMock.mock.calls[0];
+    const path = getFirstCall()[1];
     expect(path).toBe("/api/v1/experiments/exp-123");
   });
 
@@ -40,7 +52,7 @@ describe("GET /api/v1/experiments/:experimentId", () => {
     const req = makeReq("/api/v1/experiments/exp%2F123");
     await GET(req, ctx("exp/123"));
 
-    const [, path] = proxyMock.mock.calls[0];
+    const path = getFirstCall()[1];
     expect(path).toBe("/api/v1/experiments/exp%2F123");
   });
 
@@ -48,7 +60,7 @@ describe("GET /api/v1/experiments/:experimentId", () => {
     const req = makeReq("/api/v1/experiments/exp-1?include=details");
     await GET(req, ctx("exp-1"));
 
-    const [, path] = proxyMock.mock.calls[0];
+    const path = getFirstCall()[1];
     expect(path).toBe("/api/v1/experiments/exp-1?include=details");
   });
 });
@@ -60,7 +72,9 @@ describe("DELETE /api/v1/experiments/:experimentId", () => {
     const req = makeReq("/api/v1/experiments/exp-123", { method: "DELETE" });
     await DELETE(req, ctx("exp-123"));
 
-    const [, path, opts] = proxyMock.mock.calls[0];
+    const call = getFirstCall();
+    const path = call[1];
+    const opts = call[2];
     expect(path).toBe("/api/v1/experiments/exp-123");
     expect(opts).toEqual({ method: "DELETE" });
   });
@@ -77,7 +91,9 @@ describe("PATCH /api/v1/experiments/:experimentId", () => {
     });
     await PATCH(req, ctx("exp-123"));
 
-    const [, path, opts] = proxyMock.mock.calls[0];
+    const call = getFirstCall();
+    const path = call[1];
+    const opts = call[2];
     expect(path).toBe("/api/v1/experiments/exp-123");
     expect(opts).toEqual({ method: "PATCH", includeBody: true });
   });
@@ -94,7 +110,7 @@ describe("POST /api/v1/experiments/:experimentId", () => {
     });
     await POST(req, ctx("exp-123"));
 
-    const [, , opts] = proxyMock.mock.calls[0];
+    const opts = getFirstCall()[2];
     expect(opts).toEqual({ method: "POST", includeBody: true });
   });
 
@@ -106,7 +122,7 @@ describe("POST /api/v1/experiments/:experimentId", () => {
     });
     await POST(req, ctx("exp-123"));
 
-    const [, path] = proxyMock.mock.calls[0];
+    const path = getFirstCall()[1];
     expect(path).toBe("/api/v1/experiments/exp-123/run");
   });
 });

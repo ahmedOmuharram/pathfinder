@@ -1,8 +1,20 @@
-import { useEffect, useRef } from "react";
-import { useDebouncedCallback } from "use-debounce";
+import { useEffect, useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import type { StrategyPlan } from "@pathfinder/shared";
 
 type StepCountsResponse = { counts?: Record<string, number | null> };
+
+/**
+ * Debounces a value by `ms`. Returns the last stable value after the delay.
+ */
+function useDebouncedValue<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
 
 export function useStepCounts(args: {
   siteId: string;
@@ -12,8 +24,6 @@ export function useStepCounts(args: {
   setStepCounts: (counts: Record<string, number | null | undefined>) => void;
   fetchCounts: (siteId: string, plan: StrategyPlan) => Promise<StepCountsResponse>;
   debounceMs?: number;
-  /** Increment to force a re-fetch even when planHash hasn't changed. */
-  refreshKey?: number;
 }) {
   const {
     siteId,
@@ -23,70 +33,34 @@ export function useStepCounts(args: {
     setStepCounts,
     fetchCounts,
     debounceMs = 650,
-    refreshKey = 0,
   } = args;
 
-  const lastRequestKeyRef = useRef<string | null>(null);
-  const requestIdRef = useRef(0);
+  const planValid = plan != null && planHash != null && planHash !== "";
+  const debouncedPlanHash = useDebouncedValue(planHash, debounceMs);
 
-  const debouncedFetchCounts = useDebouncedCallback(() => {
-    if (plan == null || planHash == null || planHash === "") return;
+  const { data } = useQuery({
+    queryKey: ["strategies", "step-counts", siteId, debouncedPlanHash] as const,
+    queryFn: () => fetchCounts(siteId, plan!),
+    enabled: planValid && stepIds.length > 0 && debouncedPlanHash != null,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
 
-    const stepIdsKey = stepIds.slice().sort().join("|");
-    const requestKey = `${planHash}:${stepIdsKey}:${refreshKey}`;
-    lastRequestKeyRef.current = requestKey;
-    const requestId = (requestIdRef.current += 1);
-
-    // Don't flash "Loading..." — keep existing counts while fetching.
-    // Only clear to undefined if we have no counts at all.
-    fetchCounts(siteId, plan)
-      .then((response) => {
-        if (requestId !== requestIdRef.current) return;
-        const counts = response.counts ?? {};
-        const next: Record<string, number | null> = {};
-        for (const stepId of stepIds) {
-          next[stepId] = counts[stepId] ?? null;
-        }
-        setStepCounts(next);
-      })
-      .catch((err) => {
-        console.error("[useStepCounts]", err);
-        if (requestId !== requestIdRef.current) return;
-        const next: Record<string, number | null> = {};
-        for (const stepId of stepIds) next[stepId] = null;
-        setStepCounts(next);
-      });
-  }, debounceMs);
-
+  // Write TQ data to the strategy store so graph nodes can read it.
   useEffect(() => {
-    if (stepIds.length === 0) return;
-
-    // If the graph/plan is currently invalid (e.g. multiple outputs), don't wait on
-    // step counts at all. Immediately show unknown counts ("?") and invalidate any
-    // in-flight request so it can't overwrite the UI later.
-    if (plan == null || planHash == null || planHash === "") {
-      requestIdRef.current += 1;
-      lastRequestKeyRef.current = null;
-      const next: Record<string, number | null> = {};
-      for (const stepId of stepIds) next[stepId] = null;
-      setStepCounts(next);
-      return;
+    const next: Record<string, number | null> = {};
+    const counts = data?.counts ?? {};
+    for (const stepId of stepIds) {
+      next[stepId] = counts[stepId] ?? null;
     }
+    setStepCounts(next);
+  }, [data, stepIds, setStepCounts]);
 
-    const stepIdsKey = stepIds.slice().sort().join("|");
-    const requestKey = `${planHash}:${stepIdsKey}:${refreshKey}`;
-    if (lastRequestKeyRef.current === requestKey) return;
-
-    debouncedFetchCounts();
-  }, [
-    siteId,
-    plan,
-    planHash,
-    stepIds,
-    setStepCounts,
-    fetchCounts,
-    debounceMs,
-    refreshKey,
-    debouncedFetchCounts,
-  ]);
+  // When plan is invalid, immediately show null counts.
+  useEffect(() => {
+    if (planValid || stepIds.length === 0) return;
+    const next: Record<string, number | null> = {};
+    for (const stepId of stepIds) next[stepId] = null;
+    setStepCounts(next);
+  }, [planValid, stepIds, setStepCounts]);
 }

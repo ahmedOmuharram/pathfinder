@@ -76,7 +76,7 @@ def _register_search(state: AgentToolState, search_name: str) -> None:
 # ── test_create_leaf_step_with_empty_parameters ───────────────────────────
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @patch("veupath_chatbot.ai.tools.standalone.strategy_build.create_step", new_callable=AsyncMock)
 async def test_create_leaf_step_with_empty_parameters(
     mock_create_step: AsyncMock,
@@ -119,7 +119,7 @@ async def test_create_leaf_step_with_empty_parameters(
 # ── test_combine_steps_with_same_step_twice ───────────────────────────────
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @patch("veupath_chatbot.ai.tools.standalone.strategy_build.create_step", new_callable=AsyncMock)
 async def test_combine_steps_with_same_step_twice(
     mock_create_step: AsyncMock,

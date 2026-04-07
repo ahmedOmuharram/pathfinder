@@ -97,17 +97,15 @@ def _rank_by_semantic_similarity(
 ) -> list[tuple[str, str, bool]]:
     """Rank candidates by biencoder cosine similarity to the query."""
     try:
+        import numpy as np  # noqa: PLC0415
+
         from veupath_chatbot.services.catalog.semantic_index import (  # noqa: PLC0415
             _get_model,
         )
 
         model = _get_model()
-        query_emb = model.encode([query], normalize_embeddings=True)
-        label_embs = model.encode(
-            [label for _, label, _ in candidates],
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
+        query_emb = np.array(list(model.embed([query])))
+        label_embs = np.array(list(model.embed([label for _, label, _ in candidates])))
         sims = (label_embs @ query_emb.T).flatten()
         ranked = sorted(
             zip(candidates, sims, strict=True), key=lambda x: -x[1]

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Target, Play, Loader2 } from "lucide-react";
 import type { Experiment, EnrichmentAnalysisType } from "@pathfinder/shared";
 import { Button } from "@/lib/components/ui/Button";
@@ -24,13 +25,18 @@ import { GeneChipInput } from "../GeneChipInput";
 import { SaveControlSetForm } from "../SaveControlSetForm";
 import { ControlSetQuickPick } from "../ControlSetQuickPick";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useSessionStore } from "@/state/useSessionStore";
+import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
+import { queryKeyPrefixes } from "@/lib/query/keys";
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function EvaluatePanel() {
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
+  const queryClient = useQueryClient();
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
   const setLastExperiment = useWorkbenchStore((s) => s.setLastExperiment);
@@ -102,6 +108,7 @@ export function EvaluatePanel() {
         setExperiment(data);
         setLastExperiment(data, activeSetId ?? null);
         setLoading(false);
+        void queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.experiments });
       },
       onError: (errMsg) => {
         setError(errMsg);
@@ -143,6 +150,7 @@ export function EvaluatePanel() {
     enableStepAnalysis,
     enrichmentTypes,
     setLastExperiment,
+    queryClient,
   ]);
 
   return (

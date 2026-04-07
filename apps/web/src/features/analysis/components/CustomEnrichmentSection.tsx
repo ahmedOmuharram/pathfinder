@@ -1,11 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Play } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Badge } from "@/lib/components/ui/Badge";
 import { Card } from "@/lib/components/ui/Card";
 import { Input } from "@/lib/components/ui/Input";
 import { runCustomEnrichment, type CustomEnrichmentResult } from "@/lib/api/analysis";
-import { useAsyncAction } from "@/lib/utils/asyncAction";
 
 interface CustomEnrichmentSectionProps {
   experimentId: string;
@@ -17,22 +17,17 @@ export function CustomEnrichmentSection({
   const [geneSetName, setGeneSetName] = useState("");
   const [geneIdsText, setGeneIdsText] = useState("");
   const [results, setResults] = useState<CustomEnrichmentResult[]>([]);
-  const { run, error, loading } = useAsyncAction();
 
-  const handleTest = useCallback(async () => {
-    const ids = geneIdsText
-      .split(/[\n,\t]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (ids.length === 0 || !geneSetName.trim()) return;
-
-    await run(async () => {
-      const result = await runCustomEnrichment(experimentId, geneSetName.trim(), ids);
+  const enrichMutation = useMutation({
+    mutationFn: async (args: { name: string; ids: string[] }) => {
+      return runCustomEnrichment(experimentId, args.name, args.ids);
+    },
+    onSuccess: (result) => {
       setResults((prev) => [result, ...prev]);
       setGeneSetName("");
       setGeneIdsText("");
-    });
-  }, [experimentId, geneSetName, geneIdsText, run]);
+    },
+  });
 
   return (
     <div className="space-y-4">
@@ -59,17 +54,25 @@ export function CustomEnrichmentSection({
         <Button
           size="sm"
           onClick={() => {
-            void handleTest();
+            const ids = geneIdsText
+              .split(/[\n,\t]+/)
+              .map((s) => s.trim())
+              .filter(Boolean);
+            if (ids.length > 0 && geneSetName.trim()) {
+              enrichMutation.mutate({ name: geneSetName.trim(), ids });
+            }
           }}
-          disabled={loading || !geneSetName.trim() || !geneIdsText.trim()}
-          loading={loading}
+          disabled={enrichMutation.isPending || !geneSetName.trim() || !geneIdsText.trim()}
+          loading={enrichMutation.isPending}
         >
           <Play className="h-3.5 w-3.5" />
           Run Fisher&apos;s Exact Test
         </Button>
       </div>
 
-      {error != null && <p className="text-xs text-destructive">{error}</p>}
+      {enrichMutation.error != null && (
+        <p className="text-xs text-destructive">{enrichMutation.error.message}</p>
+      )}
 
       {results.length > 0 && (
         <div className="space-y-2">

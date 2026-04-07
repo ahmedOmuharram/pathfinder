@@ -150,7 +150,7 @@ def test_allowed_tools_support_tools_are_always_present() -> None:
 # ── emit_delta / emit_thoughts ──────────────────────────────────────────
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def testemit_delta_puts_correct_event_type() -> None:
     queue: asyncio.Queue[JSONObject] = asyncio.Queue()
     await emit_delta(queue, "msg-1", "Hello world")
@@ -163,7 +163,7 @@ async def testemit_delta_puts_correct_event_type() -> None:
     assert data["messageId"] == "msg-1"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def testemit_thoughts_puts_multiple_events() -> None:
     queue: asyncio.Queue[JSONObject] = asyncio.Queue()
     await emit_thoughts(queue, ["thought-A", "thought-B"])
@@ -177,7 +177,7 @@ async def testemit_thoughts_puts_multiple_events() -> None:
     assert data1["thought"] == "thought-B"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def testemit_thoughts_no_events_for_empty_list() -> None:
     queue: asyncio.Queue[JSONObject] = asyncio.Queue()
     await emit_thoughts(queue, [])

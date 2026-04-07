@@ -16,15 +16,14 @@ class ModelCatalogEntryResponse(BaseModel):
     provider: ModelProvider
     model: str
     description: str = ""
-    supports_reasoning: bool = Field(default=False, alias="supportsReasoning")
+    supports_reasoning: bool = Field(default=False, serialization_alias="supportsReasoning")
     enabled: bool = True
-    context_size: int = Field(default=0, alias="contextSize")
-    default_reasoning_budget: int = Field(default=0, alias="defaultReasoningBudget")
-    input_price: float = Field(default=0.0, alias="inputPrice")
-    cached_input_price: float = Field(default=0.0, alias="cachedInputPrice")
-    output_price: float = Field(default=0.0, alias="outputPrice")
+    context_size: int = Field(default=0, serialization_alias="contextSize")
+    default_reasoning_budget: int = Field(default=0, serialization_alias="defaultReasoningBudget")
+    input_price: float = Field(default=0.0, serialization_alias="inputPrice")
+    cached_input_price: float = Field(default=0.0, serialization_alias="cachedInputPrice")
+    output_price: float = Field(default=0.0, serialization_alias="outputPrice")
 
-    model_config = {"populate_by_name": True}
 
 
 class ModelListResponse(BaseModel):
@@ -32,9 +31,10 @@ class ModelListResponse(BaseModel):
 
     models: list[ModelCatalogEntryResponse]
     default: str
-    default_reasoning_effort: ReasoningEffort = Field(alias="defaultReasoningEffort")
+    default_reasoning_effort: ReasoningEffort = Field(
+        serialization_alias="defaultReasoningEffort",
+    )
 
-    model_config = {"populate_by_name": True}
 
 
 router = APIRouter(prefix="/api/v1", tags=["models"])
@@ -71,14 +71,14 @@ async def list_models() -> ModelListResponse:
             name=m.name,
             provider=m.provider,
             model=m.model,
-            supportsReasoning=m.supports_reasoning,
+            supports_reasoning=m.supports_reasoning,
             enabled=_provider_enabled(m.provider),
-            contextSize=m.context_size,
-            defaultReasoningBudget=m.default_reasoning_budget,
+            context_size=m.context_size,
+            default_reasoning_budget=m.default_reasoning_budget,
             description=m.description,
-            inputPrice=m.input_price,
-            cachedInputPrice=m.cached_input_price,
-            outputPrice=m.output_price,
+            input_price=m.input_price,
+            cached_input_price=m.cached_input_price,
+            output_price=m.output_price,
         )
         for m in get_model_catalog()
         if is_mock or m.provider != "mock"
@@ -86,5 +86,5 @@ async def list_models() -> ModelListResponse:
     return ModelListResponse(
         models=models,
         default=settings.default_model_id,
-        defaultReasoningEffort=settings.default_reasoning_effort,
+        default_reasoning_effort=settings.default_reasoning_effort,
     )

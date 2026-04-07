@@ -6,11 +6,12 @@
  * gene sets via the `EntityRef` discriminated union.
  */
 
+import { queryOptions } from "@tanstack/react-query";
 import type { z } from "zod";
 import { requestJson } from "@/lib/api/http";
 import {
   AttributesResponseSchema,
-  RecordAttributeSchema,
+  type RecordAttributeSchema,
   RecordsResponseSchema,
   RecordDetailSchema,
   DistributionResponseSchema,
@@ -77,4 +78,21 @@ export function getDistribution(ref: EntityRef, attributeName: string) {
     DistributionResponseSchema,
     `${basePath(ref)}/results/distributions/${encodeURIComponent(attributeName)}`,
   );
+}
+
+export function attributesOptions(entityRef: EntityRef) {
+  return queryOptions({
+    queryKey: ["experiments", "attributes", entityRef.type, entityRef.id] as const,
+    queryFn: () => getAttributes(entityRef),
+    staleTime: 60_000,
+  });
+}
+
+export function distributionOptions(entityRef: EntityRef, attr: string) {
+  return queryOptions({
+    queryKey: ["experiments", "distribution", entityRef.type, entityRef.id, attr] as const,
+    queryFn: () => getDistribution(entityRef, attr),
+    staleTime: 60_000,
+    enabled: attr !== "",
+  });
 }

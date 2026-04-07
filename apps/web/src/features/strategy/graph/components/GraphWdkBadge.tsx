@@ -20,7 +20,7 @@ export function GraphWdkBadge() {
   const href = wdkUrl != null && wdkUrl !== "" ? wdkUrl : (wdkUrlFallback ?? undefined);
 
   return (
-    <div className="pointer-events-auto absolute left-4 top-4 z-10 rounded-lg border border-border bg-card/90 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">
+    <div className="pointer-events-auto rounded-lg border border-border bg-card/90 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur">
       {wdkStrategyId != null && (
         <div className="font-medium">
           Synced{" "}

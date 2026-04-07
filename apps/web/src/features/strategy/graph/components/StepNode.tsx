@@ -1,11 +1,11 @@
 "use client";
 
-import { Handle, Position } from "reactflow";
-import type { NodeProps } from "reactflow";
+import { Handle, Position, NodeToolbar } from "@xyflow/react";
+import type { Node, NodeProps } from "@xyflow/react";
 import type { Step } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
 import { OpBadge } from "./OpBadge";
-import { AlertTriangle, MessageSquarePlus } from "lucide-react";
+import { AlertTriangle, ExternalLink, MessageSquarePlus } from "lucide-react";
 import { getZeroResultSuggestions } from "@/features/strategy/validation/zeroResultAdvisor";
 
 type StepNodeData = {
@@ -34,7 +34,7 @@ const TYPE_STYLES: Record<string, { container: string }> = {
   },
 };
 
-export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
+export function StepNode({ data, selected }: NodeProps<Node<StepNodeData>>) {
   const {
     step,
     onAddToChat,
@@ -160,16 +160,30 @@ export function StepNode({ data, selected }: NodeProps<StepNodeData>) {
           aria-label="Unsaved changes"
         />
       )}
-      <button
-        type="button"
-        onClick={handleAddToChat}
-        data-testid={`rf-add-to-chat-${step.id}`}
-        className="absolute -right-2 -top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors duration-150 hover:border-input hover:text-foreground z-20"
-        title="Add to chat"
-      >
-        <MessageSquarePlus className="h-4 w-4" />
-        <span className="sr-only">Add to chat</span>
-      </button>
+      <NodeToolbar position={Position.Top} offset={8} align="end">
+        <div className="flex items-center gap-1 rounded-lg border border-border bg-card px-1 py-0.5 shadow-sm">
+          {onOpenDetails != null && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onOpenDetails(step.id); }}
+              data-testid={`rf-open-details-${step.id}`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"
+              title="View details"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleAddToChat}
+            data-testid={`rf-add-to-chat-${step.id}`}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground"
+            title="Add to chat"
+          >
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </NodeToolbar>
       <div className="relative z-10 flex h-full flex-col items-center justify-center gap-1">
         <div className="w-full text-center text-sm font-medium leading-tight text-foreground line-clamp-2 break-words">
           {step.displayName}

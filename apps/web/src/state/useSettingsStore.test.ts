@@ -32,8 +32,6 @@ describe("state/useSettingsStore - defaults", () => {
     expect(state.showRawToolCalls).toBe(false);
     expect(state.showTokenUsage).toBe(true);
     expect(state.disabledTools).toEqual([]);
-    expect(state.modelCatalog).toEqual([]);
-    expect(state.catalogDefault).toBeNull();
   });
 });
 
@@ -286,87 +284,6 @@ describe("disabledTools", () => {
 
     const persisted = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
     expect(persisted.disabledTools).toEqual(["tool_z"]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// setModelCatalog
-// ---------------------------------------------------------------------------
-
-describe("setModelCatalog", () => {
-  it("sets model catalog and catalog default", async () => {
-    const mod = await import("./useSettingsStore");
-    const store = mod.useSettingsStore;
-
-    const models = [
-      {
-        id: "openai/gpt-5",
-        name: "GPT-5",
-        provider: "openai" as const,
-        model: "gpt-5",
-        supportsReasoning: true,
-        enabled: true,
-        contextSize: 400_000,
-        defaultReasoningBudget: 0,
-        description: "OpenAI GPT-5",
-        inputPrice: 2.5,
-        cachedInputPrice: 1.25,
-        outputPrice: 10,
-      },
-      {
-        id: "anthropic/claude-4",
-        name: "Claude 4",
-        provider: "anthropic" as const,
-        model: "claude-4",
-        supportsReasoning: true,
-        enabled: true,
-        contextSize: 200_000,
-        defaultReasoningBudget: 8192,
-        description: "Anthropic Claude 4",
-        inputPrice: 3,
-        cachedInputPrice: 1.5,
-        outputPrice: 15,
-      },
-    ];
-
-    store.getState().setModelCatalog(models, "openai/gpt-5");
-
-    expect(store.getState().modelCatalog).toEqual(models);
-    expect(store.getState().catalogDefault).toBe("openai/gpt-5");
-  });
-
-  it("does not persist catalog to localStorage", async () => {
-    const localStorage = makeLocalStorage();
-    vi.stubGlobal("window", { localStorage });
-
-    const mod = await import("./useSettingsStore");
-    mod.useSettingsStore.getState().setModelCatalog(
-      [
-        {
-          id: "openai/gpt-5",
-          name: "GPT-5",
-          provider: "openai" as const,
-          model: "gpt-5",
-          supportsReasoning: true,
-          enabled: true,
-          contextSize: 400_000,
-          defaultReasoningBudget: 0,
-          description: "OpenAI GPT-5",
-          inputPrice: 2.5,
-          cachedInputPrice: 1.25,
-          outputPrice: 10,
-        },
-      ],
-      "openai/gpt-5",
-    );
-
-    // The catalog should NOT appear in persisted data - only user-editable fields
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const persisted = JSON.parse(raw);
-      expect(persisted.modelCatalog).toBeUndefined();
-      expect(persisted.catalogDefault).toBeUndefined();
-    }
   });
 });
 

@@ -17,23 +17,16 @@ import { ChatInputBar } from "@/features/chat/components/ChatInputBar";
 import { useChatPanelState } from "@/features/chat/hooks/useChatPanelState";
 import { useSessionStore } from "@/state/useSessionStore";
 
-import type { GeneSet } from "@pathfinder/shared";
-
 interface UnifiedChatPanelProps {
   siteId: string;
   pendingAskNode?: NodeSelection | null;
   onConsumeAskNode?: () => void;
-  /** Workbench store bindings — injected by page to avoid cross-feature import. */
-  addGeneSet: (gs: GeneSet) => void;
-  geneSets: GeneSet[];
 }
 
 export function UnifiedChatPanel({
   siteId,
   pendingAskNode = null,
   onConsumeAskNode,
-  addGeneSet,
-  geneSets,
 }: UnifiedChatPanelProps) {
   const veupathdbName = useSessionStore((s) => s.veupathdbName);
 
@@ -65,8 +58,6 @@ export function UnifiedChatPanel({
     siteId,
     pendingAskNode,
     ...(onConsumeAskNode != null ? { onConsumeAskNode } : {}),
-    addGeneSet,
-    geneSets,
   });
 
   return (

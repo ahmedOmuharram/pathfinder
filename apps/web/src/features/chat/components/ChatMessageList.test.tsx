@@ -5,9 +5,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { AssistantMessage, Message, OptimizationProgressData } from "@pathfinder/shared";
 import { ChatMessageList } from "@/features/chat/components/ChatMessageList";
 
-vi.mock("@/state/useSettingsStore", () => ({
-  useSettingsStore: (selector: (s: { modelCatalog: [] }) => unknown) =>
-    selector({ modelCatalog: [] }),
+vi.mock("@/lib/query/hooks/useModelCatalogQuery", () => ({
+  useModelCatalogQuery: () => ({ data: undefined }),
 }));
 
 vi.mock("@/lib/components/ProviderIcon", () => ({

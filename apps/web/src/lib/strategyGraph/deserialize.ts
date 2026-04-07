@@ -1,6 +1,6 @@
-import dagre from "dagre";
-import type { Edge, Node } from "reactflow";
-import { MarkerType, Position } from "reactflow";
+import dagre from "@dagrejs/dagre";
+import type { Edge, Node } from "@xyflow/react";
+import { MarkerType, Position } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { inferStepKind } from "./kind";
 
@@ -86,7 +86,17 @@ export function deserializeStrategyToGraph(
       }
     }
 
-    dagre.layout(layoutGraph);
+    const constraints: Array<{ left: string; right: string }> = [];
+    for (const step of strategy.steps) {
+      if (step.primaryInputStepId != null && step.secondaryInputStepId != null) {
+        constraints.push({
+          left: step.primaryInputStepId,
+          right: step.secondaryInputStepId,
+        });
+      }
+    }
+
+    dagre.layout(layoutGraph, { constraints });
 
     const positions = new Map<string, { x: number; y: number }>();
     for (const step of strategy.steps) {

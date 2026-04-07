@@ -86,7 +86,7 @@ def _add_combined(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_delete_step_refuses_last_step() -> None:
     """Deleting the only step should return an error suggesting clear_strategy."""
     session = _make_session()
@@ -105,7 +105,7 @@ async def test_delete_step_refuses_last_step() -> None:
     assert "clear_strategy" in result.message
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_delete_step_missing_step_returns_error() -> None:
     """Deleting a step_id not in the graph should return NOT_FOUND-style error."""
     session = _make_session()
@@ -125,7 +125,7 @@ async def test_delete_step_missing_step_returns_error() -> None:
     assert "nonexistent_step" in result.message
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_delete_step_removes_leaf_from_combined() -> None:
     """Deleting a leaf that's part of a combine should collapse the combine."""
     session = _make_session()
@@ -158,7 +158,7 @@ async def test_delete_step_removes_leaf_from_combined() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_update_step_invalid_operator_returns_error() -> None:
     """Setting an invalid operator on a binary step should return VALIDATION_ERROR."""
     session = _make_session()
@@ -179,7 +179,7 @@ async def test_update_step_invalid_operator_returns_error() -> None:
     assert "INVALID_OPERATOR" in result.message
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_update_step_operator_on_leaf_returns_error() -> None:
     """Setting operator on a non-binary (leaf) step should return error."""
     session = _make_session()
@@ -203,7 +203,7 @@ async def test_update_step_operator_on_leaf_returns_error() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_undo_with_no_history_returns_error() -> None:
     """Undo with insufficient history should return a validation error."""
     session = _make_session()
@@ -222,7 +222,7 @@ async def test_undo_with_no_history_returns_error() -> None:
     assert result.get("ok") is False or result.get("code") == "VALIDATION_ERROR"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_undo_restores_previous_state() -> None:
     """After saving history and making a change, undo should restore prior state."""
     session = _make_session()

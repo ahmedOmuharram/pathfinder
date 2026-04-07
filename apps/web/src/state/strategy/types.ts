@@ -44,12 +44,8 @@ export interface HistorySlice {
 }
 
 export interface ListSlice {
-  strategies: Strategy[];
   executedStrategies: Strategy[];
 
-  setStrategies: (items: Strategy[]) => void;
-  addStrategyToList: (item: Strategy) => void;
-  removeStrategyFromList: (id: string) => void;
   addExecutedStrategy: (strategy: Strategy) => void;
 }
 

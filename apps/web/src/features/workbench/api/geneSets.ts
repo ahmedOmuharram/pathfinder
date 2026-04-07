@@ -2,6 +2,7 @@
  * Gene set API client — CRUD and set-operation endpoints.
  */
 
+import { queryOptions } from "@tanstack/react-query";
 import type { EnrichmentResult, GeneSet } from "@pathfinder/shared";
 import { requestJson, requestVoid } from "@/lib/api/http";
 import { GeneSetSchema, GeneSetListSchema } from "@/lib/api/schemas/gene-set";
@@ -113,4 +114,11 @@ export function createGeneSetFromStrategy(
   if (args.recordType != null) req.recordType = args.recordType;
   if (args.parameters != null) req.parameters = args.parameters;
   return createGeneSet(req);
+}
+
+export function geneSetsListOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ["gene-sets", "list", siteId] as const,
+    queryFn: () => listGeneSets(siteId),
+  });
 }

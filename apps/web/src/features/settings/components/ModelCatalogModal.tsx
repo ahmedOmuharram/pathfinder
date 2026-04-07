@@ -13,7 +13,7 @@ import { Check } from "lucide-react";
 import type { ModelCatalogEntry, ModelProvider } from "@pathfinder/shared";
 import { Modal } from "@/lib/components/Modal";
 import { ProviderIcon } from "@/lib/components/ProviderIcon";
-import { useSettingsStore } from "@/state/useSettingsStore";
+import { useModelCatalogQuery } from "@/lib/query/hooks/useModelCatalogQuery";
 
 import { formatCompactClean, formatPrice } from "@/lib/utils/format";
 import { PROVIDER_TABS } from "@/lib/models/providerMeta";
@@ -45,7 +45,8 @@ export function ModelCatalogModal({
   onOpenChange,
   onSelect,
 }: ModelCatalogModalProps) {
-  const catalog = useSettingsStore((s) => s.modelCatalog);
+  const { data } = useModelCatalogQuery();
+  const catalog = useMemo(() => data?.models ?? [], [data]);
   const [providerFilter, setProviderFilter] = useState<"all" | ModelProvider>("all");
   const [sortKey, setSortKey] = useState<SortKey>("inputPrice");
   const [sortDir, setSortDir] = useState<SortDir>("asc");

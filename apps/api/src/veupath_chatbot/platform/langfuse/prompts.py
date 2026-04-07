@@ -72,13 +72,20 @@ def seed_prompts() -> None:
     for name, filename in _LOCAL_FILES.items():
         try:
             client.get_prompt(name)
-        except _LANGFUSE_ERRORS:
+        except langfuse.api.Error:
+            # Prompt does not exist — seed it. The broader _LANGFUSE_ERRORS
+            # tuple is used for the create call since creation can fail for
+            # various reasons (network, invalid args, etc.).
             text = (_PROMPTS_DIR / filename).read_text()
-            client.create_prompt(
-                name=name,
-                prompt=text,
-                labels=["production"],
-            )
-            logger.info("Seeded prompt to Langfuse", name=name)
+            try:
+                client.create_prompt(
+                    name=name,
+                    prompt=text,
+                    type="text",
+                    labels=["production"],
+                )
+                logger.info("Seeded prompt to Langfuse", name=name)
+            except _LANGFUSE_ERRORS:
+                logger.warning("Failed to seed prompt", name=name, exc_info=True)
         else:
             logger.debug("Prompt already exists in Langfuse", name=name)

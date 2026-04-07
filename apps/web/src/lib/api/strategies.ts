@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import type { StrategyPlan, Strategy, PlanningArtifact } from "@pathfinder/shared";
 import { z } from "zod";
 import { APIError, requestJson, requestVoid } from "./http";
@@ -195,4 +196,18 @@ export async function undoTurn(
     `/api/v1/chat/${streamId}/undo`,
     { method: "POST", body: { entryId } },
   );
+}
+
+export function strategiesListOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ["strategies", "list", siteId] as const,
+    queryFn: () => syncWdkStrategies(siteId),
+  });
+}
+
+export function dismissedStrategiesOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ["strategies", "dismissed", siteId] as const,
+    queryFn: () => listDismissedStrategies(siteId),
+  });
 }

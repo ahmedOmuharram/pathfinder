@@ -39,9 +39,9 @@ export const ExperimentSummarySchema = z.object({
   totalPositives: z.number(),
   totalNegatives: z.number(),
   createdAt: DateTimeString,
-  batchId: z.string().nullable(),
-  benchmarkId: z.string().nullable(),
-  controlSetLabel: z.string().nullable(),
+  batchId: z.string().nullable().optional(),
+  benchmarkId: z.string().nullable().optional(),
+  controlSetLabel: z.string().nullable().optional(),
   isPrimaryBenchmark: z.boolean(),
 });
 

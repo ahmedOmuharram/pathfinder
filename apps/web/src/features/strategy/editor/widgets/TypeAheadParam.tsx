@@ -1,174 +1,266 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { Controller, useFormContext } from "react-hook-form";
 import { useDebouncedCallback } from "use-debounce";
+import { cn } from "@/lib/utils/cn";
+import { isMultiParam } from "@/features/strategy/parameters/spec";
 import type { ParamWidgetProps } from "./types";
+import type { VocabOption } from "@/lib/utils/vocab";
 
 const MAX_VISIBLE = 50;
 
-export function TypeAheadParam({
-  spec: _spec,
-  value,
-  multi,
-  multiValue,
-  options,
-  onChangeSingle,
-  onChangeMulti,
-  fieldBorderClass,
-}: ParamWidgetProps) {
-  const currentLabel =
-    !multi && value != null && value !== ""
-      ? (options.find((o) => o.value === value)?.label ?? value)
-      : "";
+export function TypeAheadParam({ spec, name, options }: ParamWidgetProps) {
+  const { control } = useFormContext();
+  const multi = isMultiParam(spec);
 
-  const [searchTerm, setSearchTerm] = useState(currentLabel);
-  const [filteredOptions, setFilteredOptions] = useState<typeof options>([]);
+  return (
+    <Controller
+      name={name}
+      control={control}
+      render={({ field, fieldState }) => {
+        const hasError = fieldState.error != null;
+        const errorMessage = fieldState.error?.message;
+
+        const common = {
+          onBlur: field.onBlur,
+          fieldRef: field.ref,
+          name,
+          options,
+          hasError,
+          errorMessage,
+        };
+
+        return multi ? (
+          <MultiTypeAhead
+            {...common}
+            value={Array.isArray(field.value) ? (field.value as string[]) : []}
+            onChange={(v) => field.onChange(v)}
+          />
+        ) : (
+          <SingleTypeAhead
+            {...common}
+            value={(field.value ?? "") as string}
+            onChange={(v) => field.onChange(v)}
+          />
+        );
+      }}
+    />
+  );
+}
+
+function useOutsideClick(
+  ref: React.RefObject<HTMLDivElement | null>,
+  onOutside: () => void,
+) {
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onOutside();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [ref, onOutside]);
+}
+
+type BaseInnerProps = {
+  onBlur: () => void;
+  fieldRef: React.RefCallback<HTMLElement>;
+  name: string;
+  options: VocabOption[];
+  hasError: boolean;
+  errorMessage: string | undefined;
+};
+
+type SingleInnerProps = BaseInnerProps & {
+  value: string;
+  onChange: (v: string) => void;
+};
+
+type MultiInnerProps = BaseInnerProps & {
+  value: string[];
+  onChange: (v: string[]) => void;
+};
+
+function SingleTypeAhead({
+  value,
+  onChange,
+  onBlur,
+  fieldRef,
+  name,
+  options,
+  hasError,
+  errorMessage,
+}: SingleInnerProps) {
+  const resolveLabel = (v: string) =>
+    v ? (options.find((o) => o.value === v)?.label ?? v) : "";
+
+  const [searchTerm, setSearchTerm] = useState(resolveLabel(value));
+  const [filtered, setFiltered] = useState<VocabOption[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Sync searchTerm with external value changes (single-pick only).
-  // Uses the React-recommended "set state during render" pattern for derived state.
   const [prevValue, setPrevValue] = useState(value);
-  if (!multi && value !== prevValue) {
+  if (value !== prevValue) {
     setPrevValue(value);
-    const label =
-      value != null && value !== ""
-        ? (options.find((o) => o.value === value)?.label ?? value)
-        : "";
-    if (label !== searchTerm) {
-      setSearchTerm(label);
-    }
+    const label = resolveLabel(value);
+    if (label !== searchTerm) setSearchTerm(label);
   }
 
-  const filterOptions = useDebouncedCallback((term: string) => {
-    if (!term.trim()) {
-      setFilteredOptions([]);
-      setIsOpen(false);
-      return;
-    }
+  const doFilter = useDebouncedCallback((term: string) => {
+    if (!term.trim()) { setFiltered([]); setIsOpen(false); return; }
     const lower = term.toLowerCase();
-    const matches = options.filter((opt) => opt.label.toLowerCase().includes(lower));
-    setFilteredOptions(matches);
+    setFiltered(options.filter((o) => o.label.toLowerCase().includes(lower)));
     setIsOpen(true);
   }, 200);
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const term = e.target.value;
-      setSearchTerm(term);
-      filterOptions(term);
-    },
-    [filterOptions],
-  );
-
-  const handleSelectSingle = useCallback(
-    (val: string) => {
-      const opt = options.find((o) => o.value === val);
-      setSearchTerm(opt?.label ?? val);
-      setIsOpen(false);
-      setFilteredOptions([]);
-      onChangeSingle(val);
-    },
-    [onChangeSingle, options],
-  );
-
-  const handleSelectMulti = useCallback(
-    (val: string) => {
-      if (!multiValue.includes(val)) {
-        onChangeMulti([...multiValue, val]);
-      }
-      setSearchTerm("");
-      setIsOpen(false);
-      setFilteredOptions([]);
-    },
-    [multiValue, onChangeMulti],
-  );
-
-  const handleRemoveChip = useCallback(
-    (val: string) => {
-      onChangeMulti(multiValue.filter((v) => v !== val));
-    },
-    [multiValue, onChangeMulti],
-  );
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      setIsOpen(false);
-      setFilteredOptions([]);
-    }
-  }, []);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const visibleOptions = filteredOptions.slice(0, MAX_VISIBLE);
-  const remaining = filteredOptions.length - MAX_VISIBLE;
+  const close = useCallback(() => { setIsOpen(false); setFiltered([]); }, []);
+  useOutsideClick(containerRef, close);
 
   return (
     <div ref={containerRef} className="relative">
-      {multi && multiValue.length > 0 && (
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => { setSearchTerm(e.target.value); doFilter(e.target.value); }}
+        onKeyDown={(e) => { if (e.key === "Escape") close(); }}
+        onBlur={onBlur}
+        ref={fieldRef as React.RefCallback<HTMLInputElement>}
+        placeholder="Type to search..."
+        aria-invalid={hasError ? "true" : undefined}
+        aria-describedby={hasError ? `${name}-error` : undefined}
+        className={cn(
+          "w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground placeholder:text-muted-foreground",
+          hasError ? "border-destructive/30 bg-destructive/5" : "border-border",
+        )}
+      />
+      {isOpen && (
+        <DropdownList
+          options={filtered}
+          onSelect={(val) => {
+            setSearchTerm(options.find((o) => o.value === val)?.label ?? val);
+            close();
+            onChange(val);
+          }}
+          isSelected={(v) => v === value}
+        />
+      )}
+      <ErrorMsg id={`${name}-error`} msg={errorMessage} show={hasError} />
+    </div>
+  );
+}
+
+function MultiTypeAhead({
+  value: selected,
+  onChange,
+  onBlur,
+  fieldRef,
+  name,
+  options,
+  hasError,
+  errorMessage,
+}: MultiInnerProps) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filtered, setFiltered] = useState<VocabOption[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const doFilter = useDebouncedCallback((term: string) => {
+    if (!term.trim()) { setFiltered([]); setIsOpen(false); return; }
+    const lower = term.toLowerCase();
+    setFiltered(options.filter((o) => o.label.toLowerCase().includes(lower)));
+    setIsOpen(true);
+  }, 200);
+
+  const close = useCallback(() => { setIsOpen(false); setFiltered([]); }, []);
+  useOutsideClick(containerRef, close);
+
+  return (
+    <div ref={containerRef} className="relative">
+      {selected.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-1">
-          {multiValue.map((val) => {
-            const opt = options.find((o) => o.value === val);
-            return (
-              <span
-                key={val}
-                className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs"
+          {selected.map((val) => (
+            <span key={val} className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs">
+              {options.find((o) => o.value === val)?.label ?? val}
+              <button
+                type="button"
+                onClick={() => onChange(selected.filter((v) => v !== val))}
+                className="text-muted-foreground hover:text-foreground"
               >
-                {opt?.label ?? val}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveChip(val)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  ×
-                </button>
-              </span>
-            );
-          })}
+                ×
+              </button>
+            </span>
+          ))}
         </div>
       )}
       <input
         type="text"
         value={searchTerm}
-        onChange={handleInputChange}
-        onKeyDown={handleKeyDown}
+        onChange={(e) => { setSearchTerm(e.target.value); doFilter(e.target.value); }}
+        onKeyDown={(e) => { if (e.key === "Escape") close(); }}
+        onBlur={onBlur}
+        ref={fieldRef as React.RefCallback<HTMLInputElement>}
         placeholder="Type to search..."
-        className={`w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground placeholder:text-muted-foreground ${fieldBorderClass ?? "border-border"}`}
+        aria-invalid={hasError ? "true" : undefined}
+        aria-describedby={hasError ? `${name}-error` : undefined}
+        className={cn(
+          "w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground placeholder:text-muted-foreground",
+          hasError ? "border-destructive/30 bg-destructive/5" : "border-border",
+        )}
       />
       {isOpen && (
-        <ul className="absolute z-50 mt-1 w-full rounded-md border border-border bg-card shadow-lg max-h-48 overflow-y-auto">
-          {visibleOptions.length === 0 && (
-            <li className="px-2 py-1.5 text-sm text-muted-foreground">No matches</li>
-          )}
-          {visibleOptions.map((opt) => (
-            <li
-              key={opt.value}
-              role="option"
-              aria-selected={
-                multi ? multiValue.includes(opt.value) : value === opt.value
-              }
-              onClick={() =>
-                multi ? handleSelectMulti(opt.value) : handleSelectSingle(opt.value)
-              }
-              className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground"
-            >
-              {opt.label}
-            </li>
-          ))}
-          {remaining > 0 && (
-            <li className="px-2 py-1.5 text-xs text-muted-foreground">
-              {remaining} more...
-            </li>
-          )}
-        </ul>
+        <DropdownList
+          options={filtered}
+          onSelect={(val) => {
+            if (!selected.includes(val)) {
+              onChange([...selected, val]);
+            }
+            setSearchTerm("");
+            close();
+          }}
+          isSelected={(v) => selected.includes(v)}
+        />
       )}
+      <ErrorMsg id={`${name}-error`} msg={errorMessage} show={hasError} />
     </div>
+  );
+}
+
+function DropdownList({
+  options,
+  onSelect,
+  isSelected,
+}: {
+  options: VocabOption[];
+  onSelect: (val: string) => void;
+  isSelected: (val: string) => boolean;
+}) {
+  const visible = options.slice(0, MAX_VISIBLE);
+  const remaining = options.length - MAX_VISIBLE;
+
+  return (
+    <ul className="absolute z-50 mt-1 w-full rounded-md border border-border bg-card shadow-lg max-h-48 overflow-y-auto">
+      {visible.length === 0 && (
+        <li className="px-2 py-1.5 text-sm text-muted-foreground">No matches</li>
+      )}
+      {visible.map((opt) => (
+        <li
+          key={opt.value}
+          role="option"
+          aria-selected={isSelected(opt.value)}
+          onClick={() => onSelect(opt.value)}
+          className="px-2 py-1.5 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground"
+        >
+          {opt.label}
+        </li>
+      ))}
+      {remaining > 0 && (
+        <li className="px-2 py-1.5 text-xs text-muted-foreground">{remaining} more...</li>
+      )}
+    </ul>
+  );
+}
+
+function ErrorMsg({ id, msg, show }: { id: string; msg: string | undefined; show: boolean }) {
+  if (!show || msg == null) return null;
+  return (
+    <p id={id} role="alert" className="mt-1 text-xs text-destructive">{msg}</p>
   );
 }

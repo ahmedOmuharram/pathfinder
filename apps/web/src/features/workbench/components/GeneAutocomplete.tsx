@@ -1,10 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, Search } from "lucide-react";
 import type { GeneSearchResult } from "@pathfinder/shared";
 import { searchGenes } from "@/lib/api/genes";
 import { Input } from "@/lib/components/ui/Input";
+
+function useDebouncedValue(value: string, ms: number): string {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return debounced;
+}
 
 interface GeneAutocompleteProps {
   siteId: string;
@@ -20,39 +30,34 @@ export function GeneAutocomplete({
   excludeIds,
 }: GeneAutocompleteProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<GeneSearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounced search
+  const debouncedQuery = useDebouncedValue(query, 300);
+  const trimmedQuery = debouncedQuery.trim();
+
+  const { data: searchResults, isFetching } = useQuery({
+    queryKey: ["genes", "search", siteId, trimmedQuery] as const,
+    queryFn: () => searchGenes(siteId, trimmedQuery, null, 10),
+    enabled: trimmedQuery.length > 0 && siteId !== "",
+    staleTime: 30_000,
+  });
+
+  const results = useMemo(() => {
+    if (searchResults == null) return [];
+    return excludeIds
+      ? searchResults.results.filter((r) => !excludeIds.has(r.geneId))
+      : searchResults.results;
+  }, [searchResults, excludeIds]);
+
+  // Open/close dropdown based on results
   useEffect(() => {
-    if (!query.trim() || !siteId) {
-      setResults([]);
+    if (trimmedQuery.length === 0) {
       setOpen(false);
       return;
     }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      void (async () => {
-        setLoading(true);
-        try {
-          const resp = await searchGenes(siteId, query.trim(), null, 10);
-          const filtered = excludeIds
-            ? resp.results.filter((r) => !excludeIds.has(r.geneId))
-            : resp.results;
-          setResults(filtered);
-          setOpen(filtered.length > 0);
-        } finally {
-          setLoading(false);
-        }
-      })();
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [query, siteId, excludeIds]);
+    setOpen(results.length > 0);
+  }, [results, trimmedQuery]);
 
   // Close on outside click
   useEffect(() => {
@@ -71,7 +76,6 @@ export function GeneAutocomplete({
       onSelect(geneId);
       setQuery("");
       setOpen(false);
-      setResults([]);
     },
     [onSelect],
   );
@@ -94,14 +98,14 @@ export function GeneAutocomplete({
           placeholder={placeholder}
           className="h-7 bg-background pl-7 pr-7 text-xs"
         />
-        {loading && (
+        {isFetching && (
           <Loader2 className="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-muted-foreground" />
         )}
       </div>
 
       {open && results.length > 0 && (
         <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-lg animate-hover-card-in">
-          {results.map((gene) => (
+          {results.map((gene: GeneSearchResult) => (
             <button
               key={gene.geneId}
               type="button"

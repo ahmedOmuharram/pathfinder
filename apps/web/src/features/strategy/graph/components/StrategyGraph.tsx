@@ -13,7 +13,7 @@
 import { useCallback, useState } from "react";
 import { type CombineOperator } from "@pathfinder/shared";
 import type { Strategy } from "@pathfinder/shared";
-import "reactflow/dist/style.css";
+import "@xyflow/react/dist/style.css";
 import { StepEditor } from "@/features/strategy/editor/StepEditor";
 import { X } from "lucide-react";
 import { EmptyGraphState } from "@/features/strategy/graph/components/EmptyGraphState";

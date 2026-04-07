@@ -5,24 +5,23 @@
  *
  * Owns delete-confirmation modal state (soft-delete), permanent-delete
  * confirmation (hard-delete from WDK), and the restore-from-dismissed flow.
+ *
+ * Uses useQueryClient() directly for optimistic cache updates.
  */
 
-import { type Dispatch, type SetStateAction, useCallback, useState } from "react";
-import { deleteStrategy, restoreStrategy } from "@/lib/api/strategies";
+import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { deleteStrategy, restoreStrategy, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import { toUserMessage } from "@/lib/api/errors";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useSettingsStore } from "@/state/useSettingsStore";
 import { useStrategyStore } from "@/state/strategy/store";
 import type { Strategy } from "@pathfinder/shared";
-import { runDeleteStrategyWorkflow } from "@/features/sidebar/services/strategySidebarWorkflows";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 
 interface UseDeleteWorkflowArgs {
+  siteId: string;
   reportError: (message: string) => void;
-  refetchStrategies: () => Promise<void>;
-  setStrategyItems: Dispatch<SetStateAction<Strategy[]>>;
-  setDismissedItems: Dispatch<SetStateAction<Strategy[]>>;
-  markAsDeleted: (id: string) => void;
 }
 
 export interface DeleteWorkflow {
@@ -42,23 +41,23 @@ export interface DeleteWorkflow {
 }
 
 export function useDeleteWorkflow({
+  siteId,
   reportError,
-  refetchStrategies,
-  setStrategyItems,
-  setDismissedItems,
-  markAsDeleted,
 }: UseDeleteWorkflowArgs): DeleteWorkflow {
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
   const deleteFromWdk = useSettingsStore((s) => s.deleteFromWdk);
-  const removeStrategy = useStrategyStore((s) => s.removeStrategyFromList);
   const clearStrategy = useStrategyStore((s) => s.clear);
+  const queryClient = useQueryClient();
 
   const [deleteTarget, setDeleteTarget] = useState<ConversationItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<string | null>(
     null,
   );
+
+  const listKey = strategiesListOptions(siteId).queryKey;
+  const dismissedKey = dismissedStrategiesOptions(siteId).queryKey;
 
   // --- Soft-delete ---
   const confirmDelete = useCallback(async () => {
@@ -67,23 +66,43 @@ export function useDeleteWorkflow({
     try {
       const si = deleteTarget.strategyItem;
       if (si) {
-        markAsDeleted(si.id);
-        await runDeleteStrategyWorkflow({
-          item: si,
-          currentStrategyId: strategyId ?? null,
-          setStrategyItems,
-          setDismissedItems,
-          clearStrategy,
-          removeStrategy,
-          setStrategyId,
-          setDeleteError: () => {},
-          deleteStrategyApi: deleteStrategy,
-          deleteFromWdk,
-          refetchStrategies: () => {
-            void refetchStrategies();
-          },
-          reportError: (msg) => reportError(msg),
-        });
+        // Optimistic: remove from main list.
+        queryClient.setQueryData<Strategy[]>(listKey, (old) =>
+          (old ?? []).filter((entry) => entry.id !== si.id),
+        );
+
+        // For WDK-linked strategies that will be soft-deleted (dismissed),
+        // optimistically add to the dismissed list.
+        const willSoftDelete = si.wdkStrategyId != null && !deleteFromWdk;
+        if (willSoftDelete) {
+          queryClient.setQueryData<Strategy[]>(dismissedKey, (old) => [
+            ...(old ?? []),
+            si,
+          ]);
+        }
+
+        // If deleting active strategy, reset active state.
+        if (strategyId === si.id) {
+          clearStrategy();
+          setStrategyId(null);
+        }
+
+        try {
+          await deleteStrategy(si.id, deleteFromWdk);
+        } catch (e) {
+          // Rollback optimistic dismissed addition on failure.
+          if (willSoftDelete) {
+            queryClient.setQueryData<Strategy[]>(dismissedKey, (old) =>
+              (old ?? []).filter((s) => s.id !== si.id),
+            );
+          }
+          reportError(
+            toUserMessage(e, "Failed to delete strategy. Please try again."),
+          );
+        } finally {
+          void queryClient.invalidateQueries({ queryKey: listKey });
+          void queryClient.invalidateQueries({ queryKey: dismissedKey });
+        }
       }
     } finally {
       setIsDeleting(false);
@@ -95,11 +114,9 @@ export function useDeleteWorkflow({
     deleteFromWdk,
     setStrategyId,
     clearStrategy,
-    removeStrategy,
-    setStrategyItems,
-    setDismissedItems,
-    markAsDeleted,
-    refetchStrategies,
+    queryClient,
+    listKey,
+    dismissedKey,
     reportError,
   ]);
 
@@ -108,16 +125,18 @@ export function useDeleteWorkflow({
     async (strategyIdToRestore: string) => {
       try {
         const restored = await restoreStrategy(strategyIdToRestore);
-        setDismissedItems((prev) => prev.filter((s) => s.id !== strategyIdToRestore));
-        setStrategyItems((prev) => [
+        queryClient.setQueryData<Strategy[]>(dismissedKey, (old) =>
+          (old ?? []).filter((s) => s.id !== strategyIdToRestore),
+        );
+        queryClient.setQueryData<Strategy[]>(listKey, (old) => [
           restored,
-          ...prev.filter((s) => s.id !== restored.id),
+          ...(old ?? []).filter((s) => s.id !== restored.id),
         ]);
       } catch (err) {
         reportError(toUserMessage(err, "Failed to restore strategy."));
       }
     },
-    [reportError, setDismissedItems, setStrategyItems],
+    [reportError, queryClient, dismissedKey, listKey],
   );
 
   // --- Permanent delete (dismissed strategy -> hard-delete from WDK) ---
@@ -125,13 +144,15 @@ export function useDeleteWorkflow({
     if (permanentDeleteTarget == null) return;
     try {
       await deleteStrategy(permanentDeleteTarget, true);
-      setDismissedItems((prev) => prev.filter((s) => s.id !== permanentDeleteTarget));
+      queryClient.setQueryData<Strategy[]>(dismissedKey, (old) =>
+        (old ?? []).filter((s) => s.id !== permanentDeleteTarget),
+      );
     } catch (err) {
       reportError(toUserMessage(err, "Failed to permanently delete strategy."));
     } finally {
       setPermanentDeleteTarget(null);
     }
-  }, [permanentDeleteTarget, setDismissedItems, reportError]);
+  }, [permanentDeleteTarget, queryClient, dismissedKey, reportError]);
 
   return {
     deleteTarget,

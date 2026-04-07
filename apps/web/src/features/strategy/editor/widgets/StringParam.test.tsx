@@ -1,127 +1,121 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { FormProvider, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { StringParam } from "./StringParam";
-import type { ParamWidgetProps } from "./types";
+import type { ParamSpec } from "@pathfinder/shared";
 
 afterEach(cleanup);
 
-function makeProps(overrides: Partial<ParamWidgetProps> = {}): ParamWidgetProps {
+function makeSpec(overrides: Partial<ParamSpec> = {}): ParamSpec {
   return {
-    spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true },
-    value: undefined,
-    multi: false,
-    multiValue: [],
-    options: [],
-    vocabTree: null,
-    onChangeSingle: vi.fn(),
-    onChangeMulti: vi.fn(),
+    name: "test_param",
+    type: "string",
+    displayName: "Test",
+    displayType: "",
+    allowEmptyValue: true,
+    isVisible: true,
+    isNumber: false,
+    countOnlyLeaves: false,
     ...overrides,
-  };
+  } as ParamSpec;
 }
 
-describe("StringParam", () => {
+/** Test wrapper that creates a form and renders a StringParam inside it. */
+function TestForm({
+  spec,
+  schema,
+  defaultValue,
+}: {
+  spec: ParamSpec;
+  schema: z.ZodObject<Record<string, z.ZodTypeAny>>;
+  defaultValue?: string;
+}) {
+  const form = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: { [spec.name]: defaultValue ?? "" },
+    mode: "onBlur",
+  });
+  return (
+    <FormProvider {...form}>
+      <StringParam spec={spec} name={spec.name} options={[]} vocabTree={null} />
+    </FormProvider>
+  );
+}
+
+describe("StringParam (form-aware)", () => {
   it("renders a text input by default", () => {
-    render(<StringParam {...makeProps()} />);
-    const input = screen.getByRole("textbox");
-    expect(input).toBeTruthy();
-    expect(input.getAttribute("type")).toBe("text");
+    const spec = makeSpec();
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
+    expect(screen.getByRole("textbox")).toBeTruthy();
   });
 
-  it("renders with the provided value", () => {
-    render(<StringParam {...makeProps({ value: "hello" })} />);
+  it("renders with default value from form", () => {
+    const spec = makeSpec();
+    render(
+      <TestForm spec={spec} schema={z.object({ test_param: z.string() })} defaultValue="hello" />,
+    );
     const input: HTMLInputElement = screen.getByRole("textbox");
     expect(input.value).toBe("hello");
   });
 
-  it("renders empty string when value is undefined", () => {
-    render(<StringParam {...makeProps({ value: undefined })} />);
+  it("renders number input for numeric params", () => {
+    const spec = makeSpec({ isNumber: true });
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
+    const input = screen.getByRole("spinbutton");
+    expect(input.getAttribute("type")).toBe("number");
+  });
+
+  it("updates form value on change", () => {
+    const spec = makeSpec();
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "abc" } });
     const input: HTMLInputElement = screen.getByRole("textbox");
-    expect(input.value).toBe("");
+    expect(input.value).toBe("abc");
   });
 
-  it("calls onChangeSingle when typing", () => {
-    const onChangeSingle = vi.fn();
-    render(<StringParam {...makeProps({ onChangeSingle })} />);
+  it("shows validation error for required field on blur", async () => {
+    const spec = makeSpec({ allowEmptyValue: false });
+    const schema = z.object({ test_param: z.string().min(1, { message: "Required" }) });
+    render(<TestForm spec={spec} schema={schema} defaultValue="" />);
     const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "abc" } });
-    expect(onChangeSingle).toHaveBeenCalledWith("abc");
+    fireEvent.blur(input);
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeTruthy();
+      expect(screen.getByRole("alert").textContent).toBe("Required");
+    });
   });
 
-  it("renders a number input when spec.isNumber is true", () => {
-    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: true, isVisible: true } })} />);
-    const input = screen.getByRole("spinbutton");
-    expect(input).toBeTruthy();
-    expect(input.getAttribute("type")).toBe("number");
+  it("sets aria-invalid when field has error", async () => {
+    const spec = makeSpec({ allowEmptyValue: false });
+    const schema = z.object({ test_param: z.string().min(1, { message: "Required" }) });
+    render(<TestForm spec={spec} schema={schema} defaultValue="" />);
+    fireEvent.blur(screen.getByRole("textbox"));
+    await waitFor(() => {
+      expect(screen.getByRole("textbox").getAttribute("aria-invalid")).toBe("true");
+    });
   });
 
-  it("renders a number input when spec.type contains 'number'", () => {
-    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "number", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
-    const input = screen.getByRole("spinbutton");
-    expect(input.getAttribute("type")).toBe("number");
+  it("sets aria-required for non-empty params", () => {
+    const spec = makeSpec({ allowEmptyValue: false });
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
+    expect(screen.getByRole("textbox").getAttribute("aria-required")).toBe("true");
   });
 
-  it("renders a number input when spec.type is 'integer'", () => {
-    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "integer", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
-    const input = screen.getByRole("spinbutton");
-    expect(input.getAttribute("type")).toBe("number");
+  it("does not set aria-required for optional params", () => {
+    const spec = makeSpec({ allowEmptyValue: true });
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
+    expect(screen.getByRole("textbox").getAttribute("aria-required")).toBeNull();
   });
 
-  it("renders a number input when spec.type is 'float'", () => {
-    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "Float", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
-    const input = screen.getByRole("spinbutton");
-    expect(input.getAttribute("type")).toBe("number");
-  });
-
-  it("sets min, max, step from spec for numeric inputs", () => {
-    render(
-      <StringParam
-        {...makeProps({
-          spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: true, isVisible: true, min: 0, max: 100, increment: 5 },
-        })}
-      />,
-    );
+  it("renders with min/max/step for numeric params", () => {
+    const spec = makeSpec({ isNumber: true, min: 0, max: 100, increment: 5 });
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
     const input = screen.getByRole("spinbutton");
     expect(input.getAttribute("min")).toBe("0");
     expect(input.getAttribute("max")).toBe("100");
     expect(input.getAttribute("step")).toBe("5");
-  });
-
-  it("does not set min/max/step when they are null", () => {
-    render(
-      <StringParam
-        {...makeProps({
-          spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: true, isVisible: true, min: null, max: null, increment: null },
-        })}
-      />,
-    );
-    const input = screen.getByRole("spinbutton");
-    expect(input.getAttribute("min")).toBeNull();
-    expect(input.getAttribute("max")).toBeNull();
-    expect(input.getAttribute("step")).toBeNull();
-  });
-
-  it("marks input as required when allowEmptyValue is false", () => {
-    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "string", allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
-    const input = screen.getByRole("textbox");
-    expect((input as HTMLInputElement).required).toBe(true);
-  });
-
-  it("does not mark input as required when allowEmptyValue is true", () => {
-    render(<StringParam {...makeProps({ spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
-    const input = screen.getByRole("textbox");
-    expect((input as HTMLInputElement).required).toBe(false);
-  });
-
-  it("applies fieldBorderClass to the input", () => {
-    render(<StringParam {...makeProps({ fieldBorderClass: "border-red-500" })} />);
-    const input = screen.getByRole("textbox");
-    expect(input.className).toContain("border-red-500");
-  });
-
-  it("uses default border class when fieldBorderClass is not provided", () => {
-    render(<StringParam {...makeProps()} />);
-    const input = screen.getByRole("textbox");
-    expect(input.className).toContain("border-border");
   });
 });

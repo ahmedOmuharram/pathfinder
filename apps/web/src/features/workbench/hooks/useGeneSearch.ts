@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useDebouncedCallback } from "use-debounce";
 import type { GeneSearchResult } from "@pathfinder/shared";
-import { listOrganisms, searchGenes } from "@/lib/api/genes";
+import { searchGenes, organismsOptions } from "@/lib/api/genes";
 import { useSessionStore } from "@/state/useSessionStore";
 
 const PAGE_SIZE = 30;
@@ -44,7 +45,7 @@ export function useGeneSearch(onSelectionsCleared: () => void): GeneSearchState 
   const [error, setError] = useState<string | null>(null);
 
   // Organism filter
-  const [organisms, setOrganisms] = useState<string[]>([]);
+  const { data: organisms = [] } = useQuery(organismsOptions(selectedSite));
   const [selectedOrganism, setSelectedOrganism] = useState<string | null>(null);
   const [organismFilter, setOrganismFilter] = useState("");
 
@@ -55,19 +56,6 @@ export function useGeneSearch(onSelectionsCleared: () => void): GeneSearchState 
       ),
     [organisms, organismFilter],
   );
-
-  // Fetch all organisms on mount / site change
-  useEffect(() => {
-    let cancelled = false;
-    listOrganisms(selectedSite)
-      .then((orgs) => {
-        if (!cancelled) setOrganisms(orgs);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedSite]);
 
   // Search implementation
   const currentQueryRef = useRef("");

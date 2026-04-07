@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { Edge } from "reactflow";
+import type { Edge } from "@xyflow/react";
 import { CombineOperator, type Step } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
 

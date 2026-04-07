@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getVeupathdbAuthStatus, logoutVeupathdb } from "@/lib/api/veupathdb-auth";
 import { useSessionStore } from "@/state/useSessionStore";
 import { Modal } from "@/lib/components/Modal";
@@ -10,7 +11,7 @@ import { cn } from "@/lib/utils/cn";
 
 interface SiteAuthProps {
   siteId: string;
-  /** When "inline", show sign-in form directly. When "button", show "Sign in →" that opens a modal. */
+  /** When "inline", show sign-in form directly. When "button", show "Sign in ->" that opens a modal. */
   authDisplay?: "button" | "inline";
   /** When in header with banner, use "light" for white text + shadow. */
   headerTextVariant?: HeaderTextVariant;
@@ -21,10 +22,6 @@ export function SiteAuth({
   authDisplay = "button",
   headerTextVariant,
 }: SiteAuthProps) {
-  const [authStatus, setAuthStatus] = useState<{
-    signedIn: boolean;
-    name?: string | null;
-  } | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
@@ -32,22 +29,19 @@ export function SiteAuth({
   const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
   const authVersion = useSessionStore((state) => state.authVersion);
 
-  const displaySignedIn = veupathdbSignedIn === true || authStatus?.signedIn === true;
-  const displayName = veupathdbName ?? authStatus?.name ?? "";
+  const { data: authStatus } = useQuery({
+    queryKey: ["auth", "status", siteId, authVersion] as const,
+    queryFn: () => getVeupathdbAuthStatus(siteId),
+    enabled: siteId !== "",
+  });
 
   useEffect(() => {
-    if (siteId === "") return;
-    getVeupathdbAuthStatus(siteId)
-      .then((status) => {
-        setAuthStatus(status);
-        setVeupathdbAuth(status.signedIn, status.name ?? null);
-      })
-      .catch((err) => {
-        console.warn("[SiteAuth] Failed to check auth status:", err);
-        setAuthStatus({ signedIn: false });
-        setVeupathdbAuth(false, null);
-      });
-  }, [siteId, setVeupathdbAuth, authVersion]);
+    if (authStatus == null) return;
+    setVeupathdbAuth(authStatus.signedIn, authStatus.name ?? null);
+  }, [authStatus, setVeupathdbAuth]);
+
+  const displaySignedIn = veupathdbSignedIn === true || authStatus?.signedIn === true;
+  const displayName = veupathdbName ?? authStatus?.name ?? "";
 
   const lightClass =
     "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition-colors duration-150 hover:text-primary hover:drop-shadow-none";
@@ -73,7 +67,6 @@ export function SiteAuth({
               void (async () => {
                 try {
                   await logoutVeupathdb(siteId);
-                  setAuthStatus({ signedIn: false });
                   setVeupathdbAuth(false, null);
                 } catch {
                   console.warn("[SiteAuth] Failed to log out");
@@ -99,7 +92,7 @@ export function SiteAuth({
 
       {authDisplay === "inline" && !displaySignedIn && (
         <div className="mt-4">
-          <SignInForm onSuccess={() => setAuthStatus({ signedIn: true })} />
+          <SignInForm onSuccess={() => setVeupathdbAuth(true, null)} />
         </div>
       )}
 
@@ -114,7 +107,7 @@ export function SiteAuth({
           <SignInForm
             onSuccess={() => {
               setShowLoginModal(false);
-              setAuthStatus({ signedIn: true });
+              setVeupathdbAuth(true, null);
             }}
           />
         </div>

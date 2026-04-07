@@ -2,6 +2,7 @@
 
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useSessionStore } from "@/state/useSessionStore";
+import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { EmptyState } from "@/lib/components/ui/EmptyState";
 import { Layers } from "lucide-react";
 import { WorkbenchChat } from "./WorkbenchChat";
@@ -26,7 +27,8 @@ import {
 // ---------------------------------------------------------------------------
 
 function ActiveSetHeader() {
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
 

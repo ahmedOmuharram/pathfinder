@@ -9,6 +9,8 @@ import type { z } from "zod";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useSessionStore } from "@/state/useSessionStore";
+import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,7 +23,8 @@ type EnsembleScore = z.infer<typeof EnsembleScoreSchema>;
 // ---------------------------------------------------------------------------
 
 export function EnsemblePanel() {
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
   const selectedSetIds = useWorkbenchStore((s) => s.selectedSetIds);
   const toggleSetSelection = useWorkbenchStore((s) => s.toggleSetSelection);
 

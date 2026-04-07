@@ -236,7 +236,7 @@ async def _collect_events(
 class TestE2EPipelineEventOrdering:
     """Verify SSE event ordering and completeness across all 4 phases."""
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_message_end_is_last_event(self) -> None:
         """message_end MUST be the final event in the stream."""
         _prepopulate_catalog()
@@ -248,7 +248,7 @@ class TestE2EPipelineEventOrdering:
         assert len(events) > 0, "Pipeline emitted no events"
         assert events[-1].get("type") == "message_end"
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_assistant_message_exists(self) -> None:
         """At least one assistant_message event must exist."""
         _prepopulate_catalog()
@@ -260,7 +260,7 @@ class TestE2EPipelineEventOrdering:
         event_types = [e.get("type") for e in events]
         assert "assistant_message" in event_types
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_tool_call_start_end_pairing(self) -> None:
         """Every tool_call_start must have a matching tool_call_end."""
         _prepopulate_catalog()
@@ -293,7 +293,7 @@ class TestE2EPipelineEventOrdering:
 class TestE2EPipelinePhaseExecution:
     """Verify that events from each phase appear in the stream."""
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_discovery_phase_tool_calls(self) -> None:
         """Discovery phase calls get_search_overview."""
         _prepopulate_catalog()
@@ -307,7 +307,7 @@ class TestE2EPipelinePhaseExecution:
             f"Discovery phase did not call get_search_overview. Tool calls: {tool_names}"
         )
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_planning_phase_tool_calls(self) -> None:
         """Planning phase calls create_plan and submit_plan."""
         _prepopulate_catalog()
@@ -324,7 +324,7 @@ class TestE2EPipelinePhaseExecution:
             f"Planning phase did not call submit_plan. Tool calls: {tool_names}"
         )
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_execution_phase_tool_calls(self) -> None:
         """Execution phase calls create_leaf_step."""
         _prepopulate_catalog()
@@ -338,7 +338,7 @@ class TestE2EPipelinePhaseExecution:
             f"Execution phase did not call create_leaf_step. Tool calls: {tool_names}"
         )
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_verification_phase_emits_text(self) -> None:
         """Verification phase produces text (assistant_delta or assistant_message)."""
         _prepopulate_catalog()
@@ -355,7 +355,7 @@ class TestE2EPipelinePhaseExecution:
 class TestE2EPipelineStructuredHandoff:
     """Verify structured handoff state after pipeline completion."""
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_discovery_populates_agent_state(self) -> None:
         """After the pipeline, GenesByTaxon is registered as discovered."""
         _prepopulate_catalog()
@@ -372,7 +372,7 @@ class TestE2EPipelineStructuredHandoff:
         assert overview.search_name == "GenesByTaxon"
         assert overview.record_type == "transcript"
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_plan_reaches_terminal_status(self) -> None:
         """After the pipeline, the active plan exists and has a terminal status."""
         _prepopulate_catalog()
@@ -388,7 +388,7 @@ class TestE2EPipelineStructuredHandoff:
             f"Plan status is {plan.status}, expected COMPLETE or FAILED"
         )
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_graph_has_steps(self) -> None:
         """After execution, the strategy graph has at least 1 step."""
         _prepopulate_catalog()
@@ -407,7 +407,7 @@ class TestE2EPipelineStructuredHandoff:
 class TestE2EPipelineFullTraversal:
     """Run the full pipeline once and verify all invariants together."""
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_full_pipeline_traversal(self) -> None:
         """Full pipeline produces correct events and leaves correct state.
 

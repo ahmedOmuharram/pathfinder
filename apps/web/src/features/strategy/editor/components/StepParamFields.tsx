@@ -1,11 +1,10 @@
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { FormProvider, useFormContext, type UseFormReturn } from "react-hook-form";
 import { extractVocabTree, type VocabOption } from "@/lib/utils/vocab";
 import { extractSpecVocabulary } from "./stepEditorUtils";
-import { isMultiParam, type ParamSpec } from "@/features/strategy/parameters/spec";
-import type { StepParameters } from "@/lib/strategyGraph/types";
+import type { ParamSpec } from "@/features/strategy/parameters/spec";
 import { Label } from "@/lib/components/ui/Label";
 import {
   resolveDisplayType,
@@ -24,17 +23,20 @@ import {
 } from "../widgets/PhyleticProfileParam";
 import { AdvancedParamsGroup } from "../widgets/AdvancedParamsGroup";
 import type { ParamWidgetProps } from "../widgets/types";
+import { useParamForm } from "../hooks/useParamForm";
+import { useDependentParams } from "../hooks/useDependentParams";
 
 type StepParamFieldsProps = {
   paramSpecs: ParamSpec[];
-  showRaw: boolean;
-  parameters: StepParameters;
   vocabOptions: Record<string, VocabOption[]>;
-  dependentOptions: Record<string, VocabOption[]>;
-  dependentLoading: Record<string, boolean>;
-  dependentErrors: Record<string, string | null>;
-  validationErrorKeys: Set<string>;
-  setParameters: Dispatch<SetStateAction<StepParameters>>;
+  /** Site identifier (e.g. "plasmodb") for dependent param refresh. */
+  siteId: string;
+  /** Normalized record type (e.g. "transcript") for dependent param refresh. */
+  recordType: string;
+  /** WDK search name (e.g. "GenesByTaxon") for dependent param refresh. */
+  searchName: string;
+  /** Callback to expose the RHF form instance to the parent. */
+  onFormReady?: (form: UseFormReturn) => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -57,60 +59,34 @@ function renderWidget(displayType: string, props: ParamWidgetProps): React.React
 }
 
 // ---------------------------------------------------------------------------
-// Value coercion helpers
-// ---------------------------------------------------------------------------
-
-function toSingleValue(raw: unknown): string | undefined {
-  if (raw === null || raw === undefined) return undefined;
-  if (Array.isArray(raw)) return raw.length > 0 ? String(raw[0]) : undefined;
-  return String(raw);
-}
-
-function toMultiValue(raw: unknown, options: VocabOption[]): string[] {
-  if (raw === null || raw === undefined) return [];
-
-  // WDK wire format stores multi-pick values as JSON-encoded strings.
-  // Decode them before matching against options.
-  let decoded: unknown = raw;
-  if (typeof raw === "string") {
-    const trimmed = raw.trim();
-    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      try {
-        const parsed: unknown = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) decoded = parsed;
-      } catch {
-        /* not JSON, use as-is */
-      }
-    }
-  }
-
-  const valueSet = new Set(options.map((o) => o.value));
-  const labelToValue = new Map(options.map((o) => [o.rawLabel ?? o.label, o.value]));
-  const list = Array.isArray(decoded) ? decoded : [decoded];
-  return list
-    .map((entry) => {
-      const str = String(entry);
-      if (valueSet.has(str)) return str;
-      return labelToValue.get(str) ?? str;
-    })
-    .filter((s) => s !== "");
-}
-
-// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export function StepParamFields({
   paramSpecs,
-  showRaw,
-  parameters,
   vocabOptions,
-  dependentOptions,
-  dependentLoading,
-  dependentErrors,
-  validationErrorKeys,
-  setParameters,
+  siteId,
+  recordType,
+  searchName,
+  onFormReady,
 }: StepParamFieldsProps) {
+  const form = useParamForm(paramSpecs);
+
+  // Expose form instance to parent via callback.
+  const onFormReadyRef = useMemo(() => onFormReady, [onFormReady]);
+  useEffect(() => {
+    onFormReadyRef?.(form);
+  }, [form, onFormReadyRef]);
+
+  // Dependent param refresh — driven by form watch internally.
+  const { dependentOptions, dependentLoading, dependentErrors } = useDependentParams({
+    control: form.control,
+    specs: paramSpecs,
+    siteId,
+    recordType,
+    searchName,
+  });
+
   // 1. Detect composite widgets
   const claimedParamNames = useMemo(
     () => new Set(claimsPhyleticParams(paramSpecs)),
@@ -123,7 +99,7 @@ export function StepParamFields({
     const normal: ParamSpec[] = [];
     const advanced: ParamSpec[] = [];
     for (const spec of paramSpecs) {
-      if (spec.name == null || spec.name === "") continue;
+      if (spec.name === "") continue;
       if (claimedParamNames.has(spec.name)) {
         composite.push(spec);
         continue;
@@ -138,8 +114,6 @@ export function StepParamFields({
     return { compositeSpecs: composite, normalSpecs: normal, advancedSpecs: advanced };
   }, [paramSpecs, claimedParamNames]);
 
-  if (showRaw) return null;
-
   const visibleCount = normalSpecs.length + advancedSpecs.length;
   const hasComposite = compositeSpecs.length > 0;
 
@@ -151,96 +125,79 @@ export function StepParamFields({
     );
   }
 
-  // Shared handler for composite widget
-  const handleCompositeChange = (updates: StepParameters) => {
-    setParameters((prev) => ({ ...prev, ...updates }));
-  };
-
   return (
-    <div className="space-y-3">
-      {/* Composite widgets */}
-      {hasComposite && (
-        <PhyleticProfileParam
-          specs={compositeSpecs}
-          allSpecs={paramSpecs}
-          parameters={parameters}
-          onChange={handleCompositeChange}
-        />
-      )}
+    <FormProvider {...form}>
+      <div className="space-y-3">
+        {/* Composite widgets */}
+        {hasComposite && (
+          <PhyleticProfileParam
+            specs={compositeSpecs}
+            allSpecs={paramSpecs}
+          />
+        )}
 
-      {/* Normal params */}
-      {normalSpecs.map((spec) => (
-        <ParamField
-          key={spec.name}
-          spec={spec}
-          parameters={parameters}
-          vocabOptions={vocabOptions}
-          dependentOptions={dependentOptions}
-          dependentLoading={dependentLoading}
-          dependentErrors={dependentErrors}
-          validationErrorKeys={validationErrorKeys}
-          setParameters={setParameters}
-        />
-      ))}
+        {/* Normal params */}
+        {normalSpecs.map((spec) => (
+          <ParamField
+            key={spec.name}
+            spec={spec}
+            vocabOptions={vocabOptions}
+            dependentOptions={dependentOptions}
+            dependentLoading={dependentLoading}
+            dependentErrors={dependentErrors}
+          />
+        ))}
 
-      {/* Advanced params (collapsible) */}
-      {advancedSpecs.length > 0 && (
-        <AdvancedParamsGroup
-          count={advancedSpecs.length}
-          hasErrors={advancedSpecs.some(
-            (s) => s.name != null && s.name !== "" && validationErrorKeys.has(s.name),
-          )}
-        >
-          {advancedSpecs.map((spec) => (
-            <ParamField
-              key={spec.name}
-              spec={spec}
-              parameters={parameters}
-              vocabOptions={vocabOptions}
-              dependentOptions={dependentOptions}
-              dependentLoading={dependentLoading}
-              dependentErrors={dependentErrors}
-              validationErrorKeys={validationErrorKeys}
-              setParameters={setParameters}
-            />
-          ))}
-        </AdvancedParamsGroup>
-      )}
-    </div>
+        {/* Advanced params (collapsible) */}
+        {advancedSpecs.length > 0 && (
+          <AdvancedParamsGroup
+            count={advancedSpecs.length}
+            hasErrors={advancedSpecs.some(
+              (s) => s.name !== "" && form.formState.errors[s.name] != null,
+            )}
+          >
+            {advancedSpecs.map((spec) => (
+              <ParamField
+                key={spec.name}
+                spec={spec}
+                vocabOptions={vocabOptions}
+                dependentOptions={dependentOptions}
+                dependentLoading={dependentLoading}
+                dependentErrors={dependentErrors}
+              />
+            ))}
+          </AdvancedParamsGroup>
+        )}
+      </div>
+    </FormProvider>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Individual param field — wraps a widget with label, error, help
+// Individual param field — wraps a widget with label, help, dependent status
 // ---------------------------------------------------------------------------
 
 function ParamField({
   spec,
-  parameters,
   vocabOptions,
   dependentOptions,
   dependentLoading,
   dependentErrors,
-  validationErrorKeys,
-  setParameters,
 }: {
   spec: ParamSpec;
-  parameters: StepParameters;
   vocabOptions: Record<string, VocabOption[]>;
   dependentOptions: Record<string, VocabOption[]>;
   dependentLoading: Record<string, boolean>;
   dependentErrors: Record<string, string | null>;
-  validationErrorKeys: Set<string>;
-  setParameters: Dispatch<SetStateAction<StepParameters>>;
 }) {
-  const paramName = spec.name ?? "";
+  const { formState: { errors } } = useFormContext();
+
+  const paramName = spec.name;
   const label = spec.displayName ?? paramName;
   const options = vocabOptions[paramName] ?? dependentOptions[paramName] ?? [];
-  const rawValue = parameters[paramName];
-  const multi = isMultiParam(spec);
   const vocabulary = extractSpecVocabulary(spec);
   const vocabTree = extractVocabTree(vocabulary);
-  const hasFieldError = validationErrorKeys.has(paramName);
+  const hasFieldError = errors[paramName] != null;
 
   const fieldWrapperClass = hasFieldError
     ? "rounded-md border border-destructive/20 bg-destructive/5 p-2"
@@ -248,37 +205,22 @@ function ParamField({
   const fieldLabelClass = hasFieldError
     ? "mb-1 block text-xs font-semibold uppercase tracking-wide text-destructive"
     : "mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
-  const fieldBorderClass = hasFieldError
-    ? "border-destructive/30 bg-destructive/5"
-    : "border-border bg-card";
 
   const displayType = resolveDisplayType(spec);
-
-  const onChangeSingle = (value: string) => {
-    setParameters((prev) => ({ ...prev, [paramName]: value }));
-  };
-  const onChangeMulti = (value: string[]) => {
-    setParameters((prev) => ({ ...prev, [paramName]: value }));
-  };
 
   return (
     <div className={fieldWrapperClass}>
       <Label className={fieldLabelClass}>
         {label}
-        {spec.allowEmptyValue != null && spec.allowEmptyValue === false && (
+        {spec.allowEmptyValue === false && (
           <span className="ml-1 text-destructive">*</span>
         )}
       </Label>
       {renderWidget(displayType, {
         spec,
-        value: toSingleValue(rawValue),
-        multi,
-        multiValue: toMultiValue(rawValue, options),
+        name: paramName,
         options,
         vocabTree,
-        onChangeSingle,
-        onChangeMulti,
-        fieldBorderClass,
       })}
       <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
         {dependentLoading[paramName] === true && <span>Loading options...</span>}

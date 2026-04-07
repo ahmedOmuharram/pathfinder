@@ -15,6 +15,7 @@ from veupath_chatbot.ai.agents.execution import (
     EXECUTION_USAGE_LIMITS,
     execution_agent,
 )
+from veupath_chatbot.ai.models.settings import build_model_settings
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.ai.tools.toolsets.execution import build_toolset
 from veupath_chatbot.domain.strategy.plan import (
@@ -120,13 +121,15 @@ async def run_step_with_agent(
         toolset_for_run = full_toolset
 
     resolved = resolve_model(config.model_id)
+    settings = build_model_settings(config.model_id)
 
     try:
-        with execution_agent.override(model=resolved, toolsets=[toolset_for_run]):
+        with execution_agent.override(model=resolved, model_settings=settings, toolsets=[toolset_for_run]):
             async with execution_agent.iter(
                 instruction,
                 deps=config.deps,
                 usage_limits=usage_limits,
+                metadata=config.run_metadata,
             ) as run:
                 async for node in run:
                     if Agent.is_model_request_node(node):

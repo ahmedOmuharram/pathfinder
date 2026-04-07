@@ -43,10 +43,6 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
   const actions = useConversationSidebarActions({
     siteId,
     reportError,
-    refetchStrategies: data.refetchStrategies,
-    setStrategyItems: data.setStrategyItems,
-    setDismissedItems: data.setDismissedItems,
-    markAsDeleted: data.markAsDeleted,
     setNewConversationInFlight: data.setNewConversationInFlight,
   });
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { RecordType } from "@pathfinder/shared";
-import { getRecordTypes } from "@/lib/api/sites";
+import { recordTypesOptions } from "@/lib/api/sites";
 import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
 
 interface UseStepRecordTypeArgs {
@@ -21,8 +22,17 @@ export function useStepRecordType({
   const [recordTypeValue, setRecordTypeValue] = useState(
     normalizeRecordType(initialRecordType ?? recordType),
   );
-  const [recordTypeOptions, setRecordTypeOptions] = useState<RecordType[]>([]);
   const [recordTypeFilter, setRecordTypeFilter] = useState("");
+
+  const { data: rawRecordTypes = [] } = useQuery(recordTypesOptions(siteId));
+
+  const recordTypeOptions: RecordType[] = useMemo(
+    () =>
+      [...rawRecordTypes].sort((a, b) =>
+        (a.displayName || a.name).localeCompare(b.displayName || b.name),
+      ),
+    [rawRecordTypes],
+  );
 
   // Derive the effective record type: clear invalid values at render time
   // instead of syncing via useEffect (avoids extra render + dual state).
@@ -36,29 +46,6 @@ export function useStepRecordType({
 
   const normalizedRecordTypeValue = normalizeRecordType(validatedRecordTypeValue);
   const apiRecordTypeValue = normalizedRecordTypeValue;
-
-  // -------------------------------------------------------------------------
-  // Data fetching: record types
-  // -------------------------------------------------------------------------
-  useEffect(() => {
-    let isActive = true;
-    getRecordTypes(siteId)
-      .then((results) => {
-        if (!isActive) return;
-        const options = [...results].sort((a, b) =>
-          (a.displayName || a.name).localeCompare(b.displayName || b.name),
-        );
-        setRecordTypeOptions(options);
-      })
-      .catch((err) => {
-        console.error("[StepEditor.loadRecordTypes]", err);
-        if (!isActive) return;
-        setRecordTypeOptions([]);
-      });
-    return () => {
-      isActive = false;
-    };
-  }, [siteId]);
 
   const resolveRecordTypeForSearch = useCallback(
     (searchRecordType?: string | null) => {

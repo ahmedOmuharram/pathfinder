@@ -28,12 +28,7 @@ export function StepEditor({
     <Modal open onClose={onClose} title="Edit step" maxWidth="max-w-4xl">
       <StepEditorHeader onClose={onClose} />
       <StepEditorForm state={state} />
-      <StepEditorFooter
-        onClose={onClose}
-        onSave={() => {
-          void state.handleSave();
-        }}
-      />
+      <StepEditorFooter onClose={onClose} />
     </Modal>
   );
 }

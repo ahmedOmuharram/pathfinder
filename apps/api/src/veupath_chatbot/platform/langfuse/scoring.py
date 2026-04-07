@@ -35,6 +35,7 @@ def emit_evaluation_scores(trace_id: str, metrics: ExperimentMetrics) -> None:
                 trace_id=trace_id,
                 name=name,
                 value=value,
+                data_type="NUMERIC",
             )
         except _LANGFUSE_ERRORS:
             logger.warning("Failed to emit Langfuse score", name=name, exc_info=True)

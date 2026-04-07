@@ -12,7 +12,7 @@ re-encoding — making catalog warm-up instant.
 import asyncio
 import time
 
-from veupath_chatbot.integrations.veupathdb.discovery import get_discovery_service
+from veupath_chatbot.integrations.veupathdb.discovery_service import get_discovery_service
 from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
 from veupath_chatbot.services.catalog.semantic_index import warm_up_model
 

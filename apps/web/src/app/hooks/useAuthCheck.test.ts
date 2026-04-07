@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { createTestWrapper } from "@/lib/query/testing";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -58,7 +59,8 @@ describe("useAuthCheck", () => {
 
   async function importAndRender() {
     const { useAuthCheck } = await import("./useAuthCheck");
-    return renderHook(() => useAuthCheck());
+    const { Wrapper } = createTestWrapper();
+    return renderHook(() => useAuthCheck(), { wrapper: Wrapper });
   }
 
   // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, startTransition } from "react";
-
-type SiteSummary = { id: string; baseUrl?: string | null };
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { sitesOptions } from "@/lib/api/sites";
 
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.replace(/\/service\/?$/, "").replace(/\/a\/?$/, "");
@@ -9,48 +9,15 @@ function normalizeBaseUrl(baseUrl: string): string {
 export function useWdkUrlFallback(args: {
   wdkStrategyId: number | null | undefined;
   siteId: string | undefined;
-  listSites: () => Promise<SiteSummary[]>;
 }): string | null {
-  const { wdkStrategyId, siteId, listSites } = args;
-  const [fallback, setFallback] = useState<string | null>(null);
-  const siteBaseUrlCacheRef = useRef<Record<string, string>>({});
+  const { wdkStrategyId, siteId } = args;
 
-  useEffect(() => {
-    if (wdkStrategyId == null || siteId == null || siteId === "") {
-      startTransition(() => {
-        setFallback(null);
-      });
-      return;
-    }
+  const { data: sites } = useQuery(sitesOptions());
 
-    let isActive = true;
-
-    const cachedBaseUrl = siteBaseUrlCacheRef.current[siteId];
-    if (cachedBaseUrl != null && cachedBaseUrl !== "") {
-      const url = normalizeBaseUrl(cachedBaseUrl);
-      setFallback(`${url}/app/workspace/strategies/${wdkStrategyId}`);
-      return;
-    }
-
-    listSites()
-      .then((sites) => {
-        if (!isActive) return;
-        const match = sites.find((site) => site.id === siteId);
-        if (match?.baseUrl == null || match.baseUrl === "") return;
-        siteBaseUrlCacheRef.current[siteId] = match.baseUrl;
-        const url = normalizeBaseUrl(match.baseUrl);
-        setFallback(`${url}/app/workspace/strategies/${wdkStrategyId}`);
-      })
-      .catch((err) => {
-        console.error("[useWdkUrlFallback]", err);
-        if (!isActive) return;
-        setFallback(null);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [wdkStrategyId, siteId, listSites]);
-
-  return fallback;
+  return useMemo(() => {
+    if (wdkStrategyId == null || siteId == null || siteId === "" || sites == null) return null;
+    const site = sites.find((s) => s.id === siteId);
+    if (site?.baseUrl == null || site.baseUrl === "") return null;
+    return `${normalizeBaseUrl(site.baseUrl)}/app/workspace/strategies/${wdkStrategyId}`;
+  }, [wdkStrategyId, siteId, sites]);
 }

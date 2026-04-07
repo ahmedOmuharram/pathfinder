@@ -7,7 +7,6 @@ import { UnifiedChatPanel } from "@/features/chat/components/UnifiedChatPanel";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
-import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
 import { ToastContainer } from "@/app/components/ToastContainer";
 import { LoginModal } from "@/app/components/LoginModal";
@@ -87,11 +86,7 @@ function HomePageInner() {
   );
 
   // --- Workbench gene set export ---
-  const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
-  const { exportingGeneSet, handleExportAsGeneSet } = useGeneSetExport({
-    addGeneSet,
-  });
+  const { exportingGeneSet, handleExportAsGeneSet } = useGeneSetExport();
 
   const { displayStrategy, hasGraph } = useStableGraph(strategy);
   const activePlan = usePlanStore((s) => s.activePlan);
@@ -151,8 +146,6 @@ function HomePageInner() {
               siteId={selectedSite}
               pendingAskNode={pendingAskNode}
               onConsumeAskNode={() => setPendingAskNode(null)}
-              addGeneSet={addGeneSet}
-              geneSets={geneSets}
             />
           </div>
 

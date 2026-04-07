@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Edge, Node, ReactFlowInstance } from "reactflow";
+import type { Edge, Node } from "@xyflow/react";
+import { useReactFlow, useNodesInitialized } from "@xyflow/react";
 import { useEventListener } from "usehooks-ts";
 import { usePrevious } from "@/lib/hooks/usePrevious";
 import type { Step, Strategy } from "@pathfinder/shared";
@@ -43,7 +44,8 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
 
   const [layoutSeed, setLayoutSeed] = useState(0);
   const [userHasMoved, setUserHasMoved] = useState(false);
-  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const { fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const prevLayoutSeed = usePrevious(layoutSeed);
   const prevStrategyId = usePrevious(strategy?.id ?? null);
 
@@ -57,15 +59,13 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
   const [autoFitTrigger, setAutoFitTrigger] = useState(0);
 
   useEffect(() => {
-    if (isCompact) return;
+    if (isCompact || !nodesInitialized) return;
     const prev = autoFitResetRef.current ? 0 : (prevNodeCount ?? 0);
     if (autoFitResetRef.current) autoFitResetRef.current = false;
     if (nodes.length > prev && !userHasMoved) {
-      requestAnimationFrame(() =>
-        reactFlowInstanceRef.current?.fitView({ padding: 0.3, duration: 300 }),
-      );
+      fitView({ padding: 0.3, duration: 300 });
     }
-  }, [isCompact, nodes.length, prevNodeCount, userHasMoved, autoFitTrigger]);
+  }, [isCompact, nodesInitialized, nodes.length, prevNodeCount, userHasMoved, autoFitTrigger, fitView]);
 
   const resetAutoFit = useCallback(() => {
     autoFitResetRef.current = true;
@@ -177,20 +177,15 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     setUserHasMoved(true);
   }, []);
 
-  const handleInit = useCallback((instance: ReactFlowInstance) => {
-    reactFlowInstanceRef.current = instance;
-  }, []);
-
   const resetViewTracking = useCallback(() => {
     setUserHasMoved(false);
-    reactFlowInstanceRef.current?.fitView({ padding: 0.3, duration: 300 });
-  }, []);
+    fitView({ padding: 0.3, duration: 300 });
+  }, [fitView]);
 
   return {
     handleNodeDragStop,
     handleRelayout,
     handleMoveStart,
-    handleInit,
     resetViewTracking,
   } as const;
 }

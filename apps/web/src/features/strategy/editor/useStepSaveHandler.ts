@@ -26,10 +26,12 @@ interface StepSaveHandlerArgs {
   isSearchNameAvailable: boolean;
   kind: StepKind;
   parameters: StepParameters;
-  showRaw: boolean;
-  rawParams: string;
   paramSpecs: ParamSpec[];
   hiddenDefaults: StepParameters;
+  /** Returns the current dirty-field map from RHF formState.dirtyFields.
+   *  Called lazily at save time so the value is never stale. When non-empty,
+   *  only dirty params (plus hidden defaults) are included in the PATCH payload. */
+  getDirtyFields: () => Partial<Record<string, boolean>>;
   recordTypeValue: string | null | undefined;
   resolveRecordTypeForSearch: (rt?: string | null) => string;
   operatorValue: string;
@@ -37,6 +39,9 @@ interface StepSaveHandlerArgs {
   onUpdate: (updates: Partial<Step>) => void;
   onClose: () => void;
   setError: (error: string | null) => void;
+  /** Set a field-level error from WDK validation `byKey` entries. Backed by
+   *  `form.setError()` in the caller. */
+  setFieldError: (name: string, error: { type: string; message: string }) => void;
 }
 
 /**
@@ -57,34 +62,43 @@ export function buildStepSaveHandler(args: StepSaveHandlerArgs): () => Promise<v
     isSearchNameAvailable,
     kind,
     parameters,
-    showRaw,
-    rawParams,
     paramSpecs,
     hiddenDefaults,
+    getDirtyFields,
     resolveRecordTypeForSearch,
     operatorValue,
     colocationParams,
     onUpdate,
     onClose,
     setError,
+    setFieldError,
   } = args;
 
   return async () => {
     try {
       const nextName = name.trim() || oldName;
       const nextSearchName = searchName || (step.searchName ?? "");
-      let parsedParams = parameters;
-      if (showRaw) {
-        parsedParams = JSON.parse(rawParams) as StepParameters;
-      }
-      parsedParams = coerceParametersForSpecs(
-        parsedParams,
+      const coercedParams = coerceParametersForSpecs(
+        parameters,
         paramSpecs,
         // Normal save path: do not accept stringified arrays/CSV.
         { allowStringParsing: false },
       );
+
+      // Gap 3: Serialize multi-pick arrays to JSON strings for WDK.
+      const serializedParams = serializeMultiPickValues(coercedParams);
+
+      // Gap 1: When dirtyFields has entries, only include params the user
+      // actually changed. Hidden defaults are always included (they are
+      // invisible to the user and required by WDK).
+      const dirtyFields = getDirtyFields();
+      const hasDirtyEntries = Object.keys(dirtyFields).some((k) => dirtyFields[k] === true);
+      const filteredParams = hasDirtyEntries
+        ? filterToDirtyParams(serializedParams, dirtyFields)
+        : serializedParams;
+
       // Merge hidden param defaults (lowest priority — user edits win).
-      parsedParams = { ...hiddenDefaults, ...parsedParams };
+      const parsedParams = { ...hiddenDefaults, ...filteredParams };
       // Do not enforce business-required checks here (backend is authoritative).
       const updates: Partial<Step> = {
         displayName: nextName,
@@ -152,6 +166,14 @@ export function buildStepSaveHandler(args: StepSaveHandlerArgs): () => Promise<v
           if (formatted.message != null && formatted.message !== "") {
             validationMessage = formatted.message;
           }
+          // Gap 2: Map WDK field-level validation errors to form field errors.
+          const byKey = response.validation.errors?.byKey;
+          if (byKey != null) {
+            for (const [fieldName, messages] of Object.entries(byKey)) {
+              if (!Array.isArray(messages) || messages.length === 0) continue;
+              setFieldError(fieldName, { type: "server", message: messages[0]! });
+            }
+          }
         } catch (err) {
           validationMessage = `Cannot be saved: ${toUserMessage(err, "validation failed.")}`;
         }
@@ -166,8 +188,41 @@ export function buildStepSaveHandler(args: StepSaveHandlerArgs): () => Promise<v
           : null;
       onUpdate(updates);
       onClose();
-    } catch {
-      setError("Invalid JSON in parameters");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save step");
     }
   };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Keep only parameters whose key is marked dirty in RHF's dirtyFields map. */
+function filterToDirtyParams(
+  params: StepParameters,
+  dirtyFields: Partial<Record<string, boolean>>,
+): StepParameters {
+  const filtered: StepParameters = {};
+  for (const key of Object.keys(params)) {
+    if (dirtyFields[key] === true) {
+      filtered[key] = params[key];
+    }
+  }
+  return filtered;
+}
+
+/**
+ * Serialize multi-pick array values to JSON strings for WDK.
+ *
+ * WDK expects multi-pick parameter values as JSON-encoded string arrays
+ * (e.g. `'["GO:0006915","GO:0006916"]'`). After coercion, multi-pick
+ * values are `string[]`. This converts them to their JSON string form.
+ */
+function serializeMultiPickValues(params: StepParameters): StepParameters {
+  const result: StepParameters = {};
+  for (const [key, value] of Object.entries(params)) {
+    result[key] = Array.isArray(value) ? JSON.stringify(value) : value;
+  }
+  return result;
 }

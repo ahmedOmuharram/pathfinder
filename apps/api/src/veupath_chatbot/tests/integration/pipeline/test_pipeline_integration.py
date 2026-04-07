@@ -393,7 +393,7 @@ class TestDiscoveryAgentWithFunctionModel:
     runs unmodified.
     """
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_discovery_agent_calls_get_search_overview(self) -> None:
         """FunctionModel drives the agent to call get_search_overview.
 
@@ -508,7 +508,7 @@ class TestPlanToolsWithRealAgentState:
     No network or testcontainers needed.
     """
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_create_plan_populates_agent_state(self) -> None:
         """create_plan stores a StrategyPlan in agent_state.active_plan."""
         deps = _make_deps()
@@ -561,7 +561,7 @@ class TestPlanToolsWithRealAgentState:
         assert "organism" in plan.steps[0].parameters
         assert plan.steps[0].parameters["organism"].value == '["Plasmodium falciparum 3D7"]'
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_submit_plan_changes_status_to_presented(self) -> None:
         """submit_plan validates and sets status to PRESENTED, emitting events."""
         deps = _make_deps()
@@ -616,7 +616,7 @@ class TestPlanToolsWithRealAgentState:
         assert "plan_presented" in event_types
         assert "graph_plan" in event_types
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_create_multi_step_plan_with_connections(self) -> None:
         """Multi-step plan with connections validates topology."""
         deps = _make_deps()
@@ -696,7 +696,7 @@ class TestPlanToolsWithRealAgentState:
         assert step_ids.index("leaf_1") < step_ids.index("combine_1")
         assert step_ids.index("leaf_2") < step_ids.index("combine_1")
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_create_plan_rejects_invalid_topology(self) -> None:
         """create_plan returns a ToolErrorPayload for broken connections."""
         deps = _make_deps()
@@ -728,7 +728,7 @@ class TestPlanToolsWithRealAgentState:
         assert result.code == "TOPOLOGY_ERROR"
         assert result.ok is False
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_plan_history_tracks_previous_plans(self) -> None:
         """Creating a second plan archives the first in plan_history."""
         deps = _make_deps()

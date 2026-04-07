@@ -48,6 +48,8 @@ async def _emit_to_redis(
             "type": event_type.encode(),
             "data": json.dumps(event_data, default=str).encode(),
         },
+        maxlen=10_000,
+        approximate=True,
     )
 
 

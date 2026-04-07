@@ -32,10 +32,10 @@ describe("deserializeStrategyToGraph", () => {
 
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
     // Single root (b) => output handles are hidden for all nodes.
-    expect(nodeById.get("a")?.data?.showOutputHandle).toBe(false);
-    expect(nodeById.get("b")?.data?.showOutputHandle).toBe(false);
+    expect(nodeById.get("a")?.data?.["showOutputHandle"]).toBe(false);
+    expect(nodeById.get("b")?.data?.["showOutputHandle"]).toBe(false);
     // b has its primary input already => primary slot should not be shown.
-    expect(nodeById.get("b")?.data?.showPrimaryInputHandle).toBe(false);
+    expect(nodeById.get("b")?.data?.["showPrimaryInputHandle"]).toBe(false);
   });
 
   test("shows output handles when there are multiple roots", () => {
@@ -49,8 +49,8 @@ describe("deserializeStrategyToGraph", () => {
 
     const { nodes } = deserializeStrategyToGraph(strategy);
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
-    expect(nodeById.get("a")?.data?.showOutputHandle).toBe(true);
-    expect(nodeById.get("b")?.data?.showOutputHandle).toBe(true);
+    expect(nodeById.get("a")?.data?.["showOutputHandle"]).toBe(true);
+    expect(nodeById.get("b")?.data?.["showOutputHandle"]).toBe(true);
   });
 
   test("combine creates primary/secondary edges with L/R labels and hides filled input handles", () => {
@@ -91,8 +91,8 @@ describe("deserializeStrategyToGraph", () => {
     );
 
     const comb = nodes.find((n) => n.id === "comb");
-    expect(comb?.data?.showPrimaryInputHandle).toBe(false);
-    expect(comb?.data?.showSecondaryInputHandle).toBe(false);
+    expect(comb?.data?.["showPrimaryInputHandle"]).toBe(false);
+    expect(comb?.data?.["showSecondaryInputHandle"]).toBe(false);
   });
 
   test("combine with missing secondary input shows secondary input handle affordance", () => {
@@ -114,8 +114,8 @@ describe("deserializeStrategyToGraph", () => {
     // Only primary edge exists.
     expect(edges).toHaveLength(1);
     const comb = nodes.find((n) => n.id === "comb");
-    expect(comb?.data?.showPrimaryInputHandle).toBe(false);
-    expect(comb?.data?.showSecondaryInputHandle).toBe(true);
+    expect(comb?.data?.["showPrimaryInputHandle"]).toBe(false);
+    expect(comb?.data?.["showSecondaryInputHandle"]).toBe(true);
   });
 
   test("preserves existing positions when provided; forceRelayout overrides", () => {
@@ -178,8 +178,8 @@ describe("deserializeStrategyToGraph", () => {
       unsaved,
     );
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
-    expect(nodeById.get("a")?.data?.isUnsaved).toBe(false);
-    expect(nodeById.get("b")?.data?.isUnsaved).toBe(true);
+    expect(nodeById.get("a")?.data?.["isUnsaved"]).toBe(false);
+    expect(nodeById.get("b")?.data?.["isUnsaved"]).toBe(true);
   });
 
   test("skips edges for primary/secondary inputs that reference missing steps", () => {
@@ -235,9 +235,9 @@ describe("deserializeStrategyToGraph", () => {
       onAddToChat,
       onOpenDetails,
     );
-    expect(nodes[0]!.data.onOperatorChange).toBe(onOperatorChange);
-    expect(nodes[0]!.data.onAddToChat).toBe(onAddToChat);
-    expect(nodes[0]!.data.onOpenDetails).toBe(onOpenDetails);
+    expect(nodes[0]!.data["onOperatorChange"]).toBe(onOperatorChange);
+    expect(nodes[0]!.data["onAddToChat"]).toBe(onAddToChat);
+    expect(nodes[0]!.data["onOpenDetails"]).toBe(onOpenDetails);
   });
 
   test("transform node with missing primary input shows primary input handle", () => {
@@ -248,8 +248,8 @@ describe("deserializeStrategyToGraph", () => {
 
     const { nodes } = deserializeStrategyToGraph(strategy);
     const tNode = nodes.find((n) => n.id === "t");
-    expect(tNode?.data?.showPrimaryInputHandle).toBe(true);
-    expect(tNode?.data?.showSecondaryInputHandle).toBe(false);
+    expect(tNode?.data?.["showPrimaryInputHandle"]).toBe(true);
+    expect(tNode?.data?.["showSecondaryInputHandle"]).toBe(false);
   });
 
   test("secondary edge always gets R label", () => {
@@ -281,6 +281,32 @@ describe("deserializeStrategyToGraph", () => {
     } as unknown as Strategy;
 
     const { nodes } = deserializeStrategyToGraph(strategy);
-    expect(nodes[0]!.data.isUnsaved).toBe(false);
+    expect(nodes[0]!.data["isUnsaved"]).toBe(false);
+  });
+
+  test("primary input is positioned to the left of secondary input", () => {
+    const strategy = {
+      id: "s-order",
+      steps: [
+        { id: "secondary", displayName: "Secondary" },
+        { id: "primary", displayName: "Primary" },
+        {
+          id: "comb",
+          displayName: "Combine",
+          primaryInputStepId: "primary",
+          secondaryInputStepId: "secondary",
+          operator: "UNION",
+        },
+      ],
+    } as unknown as Strategy;
+
+    const { nodes } = deserializeStrategyToGraph(strategy);
+    const primaryNode = nodes.find((n) => n.id === "primary");
+    const secondaryNode = nodes.find((n) => n.id === "secondary");
+    expect(primaryNode).toBeTruthy();
+    expect(secondaryNode).toBeTruthy();
+    // In LR layout, lower Y = higher on screen = visually "above"
+    // dagre v3 constraints enforce primary above secondary
+    expect(primaryNode!.position.y).toBeLessThanOrEqual(secondaryNode!.position.y);
   });
 });

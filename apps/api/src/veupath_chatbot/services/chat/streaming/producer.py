@@ -5,6 +5,7 @@ and abort capability.  The classifier determines the entry point.
 """
 
 import asyncio
+import time
 from uuid import uuid4
 
 from opentelemetry import trace
@@ -27,6 +28,12 @@ from veupath_chatbot.platform.event_schemas import (
     MessageEndEventData,
 )
 from veupath_chatbot.platform.logging import get_logger
+from veupath_chatbot.platform.metrics import (
+    phase_duration_s,
+    pipeline_errors,
+    pipeline_runs,
+    token_usage,
+)
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.streaming.events import emit_phase_event
 from veupath_chatbot.services.chat.streaming.node_streaming import TurnCounters
@@ -111,6 +118,38 @@ async def run_sm_phase(
     return discovery_messages, False
 
 
+def _set_phase_span_attributes(
+    span: trace.Span,
+    phase: str,
+    intent: Intent,
+    model_id: str,
+    deps: AgentDeps,
+) -> None:
+    """Set app + GenAI semantic convention attributes on a phase span."""
+    span.set_attribute("app.phase", phase)
+    span.set_attribute("app.intent", intent.value)
+    span.set_attribute("gen_ai.agent.name", phase)
+    span.set_attribute("gen_ai.operation.name", "invoke_agent")
+    span.set_attribute("gen_ai.request.model", model_id)
+    graph = deps.strategy_session.get_graph(None)
+    if graph is not None:
+        span.set_attribute("gen_ai.conversation.id", graph.id)
+
+
+def _record_turn_metrics(
+    intent: Intent,
+    outcome: str,
+    model_id: str,
+    counters: TurnCounters,
+) -> None:
+    """Record pipeline-level OTEL metrics for a completed turn."""
+    attrs = {"intent": intent.value, "outcome": outcome, "model": model_id}
+    pipeline_runs.add(1, attrs)
+    token_usage.add(counters.input_tokens, {"model": model_id, "type": "input"})
+    token_usage.add(counters.output_tokens, {"model": model_id, "type": "output"})
+    token_usage.add(counters.cache_read_tokens, {"model": model_id, "type": "cached"})
+
+
 async def produce_events(
     deps: AgentDeps,
     message: str,
@@ -146,6 +185,7 @@ async def produce_events(
         # Skip discovery — searches are already known from existing strategy.
         sm.send("finish_discovery")
 
+    outcome = "completed"
     try:
         discovery_messages: list[ModelMessage] | None = None
 
@@ -155,8 +195,7 @@ async def produce_events(
             await emit_phase_event(queue, phase, "started")
 
             with tracer.start_as_current_span(f"pipeline.{phase}") as phase_span:
-                phase_span.set_attribute("app.phase", phase)
-                phase_span.set_attribute("app.intent", intent.value)
+                _set_phase_span_attributes(phase_span, phase, intent, model_id, deps)
 
                 # Discovery and verification get the user's original message.
                 # Planning and execution get empty prompts (they work from
@@ -175,8 +214,13 @@ async def produce_events(
                     usage_limits=PHASE_LIMITS.get(phase),
                 )
 
+                phase_start = time.monotonic()
                 discovery_messages, should_break = await run_sm_phase(
                     sm, config, discovery_messages,
+                )
+                phase_duration_s.record(
+                    time.monotonic() - phase_start,
+                    {"phase": phase, "intent": intent.value},
                 )
 
             if should_break:
@@ -205,7 +249,9 @@ async def produce_events(
                 ).model_dump(by_alias=True),
             }
         )
-    except Exception as e:  # pragma: no cover
+    except Exception as e:
+        outcome = "error"
+        pipeline_errors.add(1, {"error_type": type(e).__name__})
         logger.error(
             "Stream error",
             exc_info=True,
@@ -221,6 +267,8 @@ async def produce_events(
             }
         )
     finally:
+        _record_turn_metrics(intent, outcome, model_id, counters)
+
         estimated_cost = estimate_cost(
             model_id,
             prompt_tokens=counters.input_tokens,

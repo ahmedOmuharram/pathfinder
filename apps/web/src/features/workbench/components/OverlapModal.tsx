@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Modal } from "@/lib/components/Modal";
 import { SetVenn } from "@/lib/components/SetVenn";
 import { Button } from "@/lib/components/ui/Button";
 import { createGeneSet } from "../api/geneSets";
 import type { GeneSet } from "@pathfinder/shared";
-import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useSessionStore } from "@/state/useSessionStore";
+import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 
 interface OverlapModalProps {
   open: boolean;
@@ -27,37 +28,28 @@ interface PairwiseResult {
 
 export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
   const selectedSite = useSessionStore((s) => s.selectedSite);
-  const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
+  const invalidateGeneSets = useInvalidateGeneSets();
 
   const [clickedRegion, setClickedRegion] = useState<{
     label: string;
     geneIds: string[];
   } | null>(null);
-  const [creatingSet, setCreatingSet] = useState(false);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
-  const [createError, setCreateError] = useState<string | null>(null);
 
-  const handleCreateGeneSet = useCallback(async () => {
-    if (!clickedRegion || clickedRegion.geneIds.length === 0) return;
-    setCreatingSet(true);
-    setCreateError(null);
-    setCreateSuccess(null);
-
-    try {
-      const gs = await createGeneSet({
-        name: clickedRegion.label,
+  const createMutation = useMutation({
+    mutationFn: async (region: { label: string; geneIds: string[] }) => {
+      return createGeneSet({
+        name: region.label,
         source: "derived",
-        geneIds: clickedRegion.geneIds,
+        geneIds: region.geneIds,
         siteId: selectedSite,
       });
-      addGeneSet(gs);
+    },
+    onSuccess: async (gs) => {
+      await invalidateGeneSets();
       setCreateSuccess(`Created "${gs.name}" with ${gs.geneIds.length} genes`);
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create gene set.");
-    } finally {
-      setCreatingSet(false);
-    }
-  }, [clickedRegion, selectedSite, addGeneSet]);
+    },
+  });
 
   const unresolvedSets = sets.filter(
     (s) => s.geneIds.length === 0 && s.wdkStepId != null,
@@ -171,7 +163,7 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
                 onClick={() => {
                   setClickedRegion(null);
                   setCreateSuccess(null);
-                  setCreateError(null);
+                  createMutation.reset();
                 }}
                 className="text-[10px] text-muted-foreground hover:text-foreground"
               >
@@ -196,10 +188,12 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  void handleCreateGeneSet();
+                  if (clickedRegion && clickedRegion.geneIds.length > 0) {
+                    createMutation.mutate(clickedRegion);
+                  }
                 }}
-                loading={creatingSet}
-                disabled={creatingSet}
+                loading={createMutation.isPending}
+                disabled={createMutation.isPending}
                 className="gap-1 text-xs"
               >
                 <Plus className="h-3 w-3" />
@@ -208,8 +202,10 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
               {createSuccess != null && createSuccess !== "" && (
                 <span className="text-xs text-success">{createSuccess}</span>
               )}
-              {createError != null && createError !== "" && (
-                <span className="text-xs text-destructive">{createError}</span>
+              {createMutation.error != null && (
+                <span className="text-xs text-destructive">
+                  {createMutation.error.message}
+                </span>
               )}
             </div>
           </div>

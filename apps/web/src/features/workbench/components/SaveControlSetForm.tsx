@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { Bookmark, Loader2 } from "lucide-react";
 import { createControlSet } from "../api/controlSets";
 import { Button } from "@/lib/components/ui/Button";
@@ -25,15 +26,12 @@ export function SaveControlSetForm({
   const [name, setName] = useState("");
   const [tags, setTags] = useState("");
   const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const canSave = positiveIds.length > 0;
 
-  const handleSave = useCallback(async () => {
-    if (!name.trim() || !canSave) return;
-    setSaving(true);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       const body: Parameters<typeof createControlSet>[0] = {
         name: name.trim(),
         siteId,
@@ -47,7 +45,9 @@ export function SaveControlSetForm({
       };
       const trimmedNotes = notes.trim();
       if (trimmedNotes !== "") body.provenanceNotes = trimmedNotes;
-      await createControlSet(body);
+      return createControlSet(body);
+    },
+    onSuccess: () => {
       setSuccess(true);
       setTimeout(() => {
         setExpanded(false);
@@ -57,20 +57,8 @@ export function SaveControlSetForm({
         setSuccess(false);
         onSaved?.();
       }, 1500);
-    } finally {
-      setSaving(false);
-    }
-  }, [
-    name,
-    canSave,
-    siteId,
-    recordType,
-    positiveIds,
-    negativeIds,
-    tags,
-    notes,
-    onSaved,
-  ]);
+    },
+  });
 
   if (!expanded) {
     return (
@@ -122,11 +110,13 @@ export function SaveControlSetForm({
         <Button
           size="sm"
           onClick={() => {
-            void handleSave();
+            if (name.trim() && canSave) {
+              saveMutation.mutate();
+            }
           }}
-          disabled={saving || !name.trim()}
+          disabled={saveMutation.isPending || !name.trim()}
         >
-          {saving ? (
+          {saveMutation.isPending ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
             <Bookmark className="h-3 w-3" />

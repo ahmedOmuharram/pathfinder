@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { useFormContext } from "react-hook-form";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
-import type { StepParameters } from "@/lib/strategyGraph/types";
 import {
   type PhyleticNode,
   type TriState,
@@ -21,11 +21,9 @@ import {
 
 export { claimsPhyleticParams } from "./phyleticProfileLogic";
 
-type CompositeWidgetProps = {
+type PhyleticProfileParamProps = {
   specs: ParamSpec[];
   allSpecs: ParamSpec[];
-  parameters: StepParameters;
-  onChange: (updates: StepParameters) => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -121,14 +119,14 @@ function TreeNodeRow({
 
 export function PhyleticProfileParam({
   specs,
-  parameters,
-  onChange,
-}: CompositeWidgetProps) {
-  // Build tree from vocab data
+}: PhyleticProfileParamProps) {
+  const { setValue, getValues } = useFormContext();
+
+  // Read form values for tree building
   const termMapVocab =
-    parameters["phyletic_term_map"] ?? findSpecVocab(specs, "phyletic_term_map");
+    (getValues("phyletic_term_map") as unknown) ?? findSpecVocab(specs, "phyletic_term_map");
   const indentMapVocab =
-    parameters["phyletic_indent_map"] ?? findSpecVocab(specs, "phyletic_indent_map");
+    (getValues("phyletic_indent_map") as unknown) ?? findSpecVocab(specs, "phyletic_indent_map");
 
   const tree = useMemo(
     () => buildPhyleticTree(termMapVocab, indentMapVocab),
@@ -137,8 +135,8 @@ export function PhyleticProfileParam({
 
   const codeToLabel = useMemo(() => buildCodeToLabel(tree), [tree]);
 
-  // Initialize state from current profile_pattern
-  const initialPattern = String(parameters["profile_pattern"] ?? "");
+  // Initialize state from current profile_pattern in form
+  const initialPattern = String(getValues("profile_pattern") ?? "");
   const [states, setStates] = useState<Map<string, TriState>>(() =>
     decodeProfilePattern(initialPattern),
   );
@@ -174,21 +172,17 @@ export function PhyleticProfileParam({
           next.set(code, newState);
         }
 
-        // Fire onChange with all 5 params
+        // Update form fields via setValue
         const pattern = encodeProfilePattern(next);
         const { included, excluded } = buildSpeciesLists(next, codeToLabel);
-        onChange({
-          profile_pattern: pattern,
-          included_species: included,
-          excluded_species: excluded,
-          phyletic_indent_map: parameters["phyletic_indent_map"],
-          phyletic_term_map: parameters["phyletic_term_map"],
-        });
+        setValue("profile_pattern", pattern, { shouldDirty: true });
+        setValue("included_species", included, { shouldDirty: true });
+        setValue("excluded_species", excluded, { shouldDirty: true });
 
         return next;
       });
     },
-    [codeToLabel, onChange, parameters],
+    [codeToLabel, setValue],
   );
 
   const handleToggleExpand = useCallback((code: string) => {

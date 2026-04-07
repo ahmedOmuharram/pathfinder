@@ -5,10 +5,10 @@
  * for the unified chat panel.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { listModels } from "@/lib/api/models";
 import { useSettingsStore } from "@/state/useSettingsStore";
+import { useModelCatalogQuery } from "@/lib/query/hooks/useModelCatalogQuery";
 import { buildModelSelection } from "@/features/chat/components/MessageComposer";
 import type { ReasoningEffort, ModelCatalogEntry } from "@pathfinder/shared";
 
@@ -23,9 +23,10 @@ interface UnifiedChatModels {
 }
 
 export function useUnifiedChatModels(): UnifiedChatModels {
-  const modelCatalog = useSettingsStore((s) => s.modelCatalog);
-  const setModelCatalog = useSettingsStore((s) => s.setModelCatalog);
-  const catalogDefault = useSettingsStore((s) => s.catalogDefault);
+  const { data } = useModelCatalogQuery();
+  const modelCatalog = data?.models ?? [];
+  const catalogDefault = data?.default ?? null;
+
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const defaultReasoningEffort = useSettingsStore((s) => s.defaultReasoningEffort);
   const modelOverrides = useSettingsStore((s) => s.modelOverrides);
@@ -38,18 +39,11 @@ export function useUnifiedChatModels(): UnifiedChatModels {
   const selectedModelId = localModelId ?? defaultModelId;
   const reasoningEffort = localEffort ?? defaultReasoningEffort;
 
-  // Fetch model catalog once on mount
-  useEffect(() => {
-    listModels()
-      .then((res) => setModelCatalog(res.models, res.default))
-      .catch((err) => console.warn("[UnifiedChat] Failed to load models:", err));
-  }, [setModelCatalog]);
-
   const currentModelSelection = buildModelSelection(
     selectedModelId,
     reasoningEffort,
     modelCatalog,
-    selectedModelId ? modelOverrides[selectedModelId] : undefined,
+    selectedModelId != null ? modelOverrides[selectedModelId] : undefined,
   );
 
   return {

@@ -5,16 +5,19 @@
  *
  * Owns inline-rename UI state (which item is being renamed, the
  * current rename value) and commits renames to the API.
+ *
+ * Uses useQueryClient() directly for cache invalidation after rename.
  */
 
 import { useCallback, useState } from "react";
-import { updateStrategy as updateStrategyApi } from "@/lib/api/strategies";
+import { useQueryClient } from "@tanstack/react-query";
+import { updateStrategy as updateStrategyApi, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import { toUserMessage } from "@/lib/api/errors";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 
 interface UseRenameWorkflowArgs {
+  siteId: string;
   reportError: (message: string) => void;
-  refetchStrategies: () => Promise<void>;
 }
 
 export interface RenameWorkflow {
@@ -27,9 +30,10 @@ export interface RenameWorkflow {
 }
 
 export function useRenameWorkflow({
+  siteId,
   reportError,
-  refetchStrategies,
 }: UseRenameWorkflowArgs): RenameWorkflow {
+  const queryClient = useQueryClient();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
@@ -47,13 +51,14 @@ export function useRenameWorkflow({
       }
       try {
         await updateStrategyApi(item.id, { name: next });
-        void refetchStrategies();
+        void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
+        void queryClient.invalidateQueries({ queryKey: dismissedStrategiesOptions(siteId).queryKey });
       } catch (err) {
         reportError(toUserMessage(err, "Failed to rename."));
       }
       setRenamingId(null);
     },
-    [renameValue, refetchStrategies, reportError],
+    [renameValue, queryClient, siteId, reportError],
   );
 
   const cancelRename = useCallback(() => setRenamingId(null), []);

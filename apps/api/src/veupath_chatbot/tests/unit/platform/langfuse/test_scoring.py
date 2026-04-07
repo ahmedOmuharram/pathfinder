@@ -81,6 +81,9 @@ def test_emit_scores_passes_correct_values() -> None:
     assert calls_by_name["f1_score"]["value"] == 0.87
     assert calls_by_name["mcc"]["value"] == 0.7
     assert calls_by_name["sensitivity"]["trace_id"] == "trace-abc"
+    # All scores should specify NUMERIC data type
+    for call_kwargs in calls_by_name.values():
+        assert call_kwargs["data_type"] == "NUMERIC"
 
 
 def test_emit_scores_continues_on_individual_failure() -> None:

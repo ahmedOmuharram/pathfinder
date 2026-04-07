@@ -13,7 +13,6 @@ import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 import { WorkbenchSidebar } from "@/features/workbench/components/WorkbenchSidebar";
 import { GeneSearchSidebar } from "@/features/workbench/components/GeneSearchSidebar";
 import { SidebarEdgeTab } from "@/features/workbench/components/SidebarEdgeTab";
-import { listGeneSets } from "@/features/workbench/api/geneSets";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { Button } from "@/lib/components/ui/Button";
 import {
@@ -47,26 +46,16 @@ export default function WorkbenchLayout({ children }: { children: ReactNode }) {
   const leftSidebarOpen = useWorkbenchStore((s) => s.leftSidebarOpen);
   const toggleLeftSidebar = useWorkbenchStore((s) => s.toggleLeftSidebar);
 
-  // Load gene sets from API on mount / site change.
-  // Uses mergeGeneSets (not addGeneSet) so the layout never auto-activates —
-  // activation is the page's responsibility (/workbench = none, /workbench/[id] = id).
-  const mergeGeneSets = useWorkbenchStore((s) => s.mergeGeneSets);
+  // Reset workbench UI state on site change (selection, panels, etc.).
+  // Gene-set data is handled by TanStack Query (keyed by siteId).
   const resetWorkbench = useWorkbenchStore((s) => s.reset);
   const prevSiteRef = useRef(selectedSite);
   useEffect(() => {
-    if (!veupathdbSignedIn || authLoading) return;
     if (prevSiteRef.current !== selectedSite) {
       resetWorkbench();
       prevSiteRef.current = selectedSite;
     }
-    listGeneSets(selectedSite)
-      .then((sets) => {
-        mergeGeneSets(sets);
-      })
-      .catch((err) => {
-        console.error("[loadGeneSets]", err);
-      });
-  }, [selectedSite, veupathdbSignedIn, authLoading, resetWorkbench, mergeGeneSets]);
+  }, [selectedSite, resetWorkbench]);
 
   if (authLoading || configLoading) {
     return (

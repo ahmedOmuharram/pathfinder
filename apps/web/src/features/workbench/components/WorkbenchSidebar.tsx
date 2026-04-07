@@ -9,6 +9,8 @@ import { TooltipProvider } from "@/lib/components/ui/Tooltip";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { performSetOperation, createGeneSet } from "../api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
+import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
+import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 import { GeneSetCard } from "./GeneSetCard";
 import { GeneSetFilter } from "./GeneSetFilter";
 import { SetVenn } from "@/lib/components/SetVenn";
@@ -24,14 +26,14 @@ interface WorkbenchSidebarProps {
 
 export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
   const router = useRouter();
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
+  const invalidateGeneSets = useInvalidateGeneSets();
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);
   const selectedSetIds = useWorkbenchStore((s) => s.selectedSetIds);
   const setActiveSet = useWorkbenchStore((s) => s.setActiveSet);
   const toggleSetSelection = useWorkbenchStore((s) => s.toggleSetSelection);
-  const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
   const clearSelection = useWorkbenchStore((s) => s.clearSelection);
-  const selectedSite = useSessionStore((s) => s.selectedSite);
 
   const [filter, setFilter] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -65,14 +67,14 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
           geneIds,
           siteId: selectedSite,
         });
-        addGeneSet(gs);
+        await invalidateGeneSets();
         setActiveSet(gs.id);
         router.push(`/workbench/${gs.id}`);
       } catch (err) {
         console.error("Failed to create set from Venn region:", err);
       }
     },
-    [selectedSite, addGeneSet, setActiveSet, router],
+    [selectedSite, invalidateGeneSets, setActiveSet, router],
   );
 
   const handleComposeExecute = useCallback(
@@ -88,7 +90,7 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
           setBId: setB.id,
           name: result.name,
         });
-        addGeneSet(gs);
+        await invalidateGeneSets();
         setActiveSet(gs.id);
         router.push(`/workbench/${gs.id}`);
         clearSelection();
@@ -98,7 +100,7 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
         setComposing(false);
       }
     },
-    [selectedSets, addGeneSet, setActiveSet, router, clearSelection],
+    [selectedSets, invalidateGeneSets, setActiveSet, router, clearSelection],
   );
 
   return (
@@ -204,7 +206,7 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
         <SelectionToolbar
           activeSet={activeSet}
           selectedSets={selectedSets}
-          allSetsCount={geneSets.length}
+          allSetIds={geneSets.map((gs) => gs.id)}
           onCompare={() => setShowCompare(true)}
           onOverlap={() => setShowOverlap(true)}
         />

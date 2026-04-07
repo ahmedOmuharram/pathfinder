@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Database } from "lucide-react";
-import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useSessionStore } from "@/state/useSessionStore";
+import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 
 interface GeneSetPickerProps {
   onSelect: (geneIds: string[]) => void;
 }
 
 export function GeneSetPicker({ onSelect }: GeneSetPickerProps) {
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

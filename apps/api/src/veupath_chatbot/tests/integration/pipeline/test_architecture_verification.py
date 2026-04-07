@@ -112,7 +112,7 @@ class TestArchitectureStage2StateMachine:
 class TestArchitectureStage3DiscoveryAgent:
     """Stage 3: Discovery agent runs with TestModel and produces results."""
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_discovery_agent_runs(self) -> None:
         deps = _make_deps()
         with discovery_agent.override(model=TestModel(call_tools=[])):
@@ -129,7 +129,7 @@ class TestArchitectureStage3DiscoveryAgent:
 class TestArchitectureStage4PlanningAgent:
     """Stage 4: Planning creates a plan, submit_plan pauses for approval."""
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_create_and_submit_plan(self) -> None:
         deps = _make_deps()
         ctx = _make_ctx(deps)
@@ -208,7 +208,7 @@ class TestArchitectureStage5PlanGuidedExecution:
     def test_execution_usage_limits_are_tight(self) -> None:
         assert EXECUTION_USAGE_LIMITS.request_limit == 3
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_execution_agent_runs_with_test_model(self) -> None:
         deps = _make_deps()
         with execution_agent.override(model=TestModel(call_tools=[])):
@@ -223,7 +223,7 @@ class TestArchitectureStage5PlanGuidedExecution:
 class TestArchitectureStage6VerificationAgent:
     """Stage 6: Verification agent runs and produces results."""
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_verification_agent_runs(self) -> None:
         deps = _make_deps()
         with verification_agent.override(model=TestModel(call_tools=[])):
@@ -239,7 +239,7 @@ class TestArchitectureStage6VerificationAgent:
 class TestArchitectureCrossPhaseContext:
     """Cross-phase message passing: discovery → planning."""
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_discovery_messages_passed_to_planning(self) -> None:
         """Discovery agent's messages can be captured for planning."""
         deps = _make_deps()

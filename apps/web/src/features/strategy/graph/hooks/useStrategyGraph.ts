@@ -5,7 +5,6 @@ import { CombineOperator, DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
 import { computeStepCounts } from "@/lib/api/strategies";
-import { listSites } from "@/lib/api/sites";
 import { useStepCounts } from "@/features/strategy/services/useStepCounts";
 import { useWdkUrlFallback } from "@/features/strategy/services/useWdkUrlFallback";
 import { useGraphConnections } from "@/features/strategy/graph/hooks/useGraphConnections";
@@ -124,7 +123,6 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   const wdkUrlFallback = useWdkUrlFallback({
     wdkStrategyId: strategy?.wdkStrategyId,
     siteId: strategy?.siteId ?? selectedSite,
-    listSites,
   });
 
   // --- Step counts ---
@@ -240,7 +238,6 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     handleOrthologChoose: handlers.handleOrthologChoose,
     handleRelayout: layout.handleRelayout,
     handleMoveStart: layout.handleMoveStart,
-    handleInit: layout.handleInit,
     resetViewTracking: layout.resetViewTracking,
     triggerSync,
 

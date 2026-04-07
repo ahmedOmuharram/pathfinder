@@ -170,7 +170,7 @@ describe("parseChatSSEEvent", () => {
   it("parses tool_call_start with all required fields", () => {
     const evt = parseChatSSEEvent({
       type: "tool_call_start",
-      data: JSON.stringify({ id: "tc1", name: "search_genes", arguments: "{}" }),
+      data: JSON.stringify({ id: "tc1", name: "search_genes", arguments: {} }),
     });
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("tool_call_start");
@@ -278,7 +278,7 @@ describe("parseChatSSEEvent", () => {
       data: JSON.stringify({
         id: "tc1",
         name: "search",
-        arguments: "{}",
+        arguments: {},
         extraField: "preserved",
       }),
     });
@@ -413,11 +413,11 @@ describe("SSE event data Zod schemas", () => {
       const result = ToolCallStartDataSchema.safeParse({
         id: "tc1",
         name: "search_genes",
-        arguments: '{"query": "kinase"}',
+        arguments: { query: "kinase" },
       });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.arguments).toBe('{"query": "kinase"}');
+        expect(result.data.arguments).toEqual({ query: "kinase" });
       }
     });
 

@@ -140,10 +140,14 @@ describe("EnsemblePanel", () => {
     render(<EnsemblePanel />);
     fireEvent.click(screen.getByRole("button", { name: /compute/i }));
 
-    expect(mockRequestJson).toHaveBeenCalledWith("/api/v1/gene-sets/ensemble", {
-      method: "POST",
-      body: { geneSetIds: ["s1", "s3"], positiveControls: undefined },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets/ensemble",
+      {
+        method: "POST",
+        body: { geneSetIds: ["s1", "s3"], positiveControls: undefined },
+      },
+    );
   });
 
   // -----------------------------------------------------------------------

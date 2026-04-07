@@ -47,7 +47,6 @@ def shutdown_langfuse() -> None:
     """Flush and shutdown the Langfuse client. Called during app shutdown."""
     global _client, _initialized  # noqa: PLW0603
     if _client is not None:
-        _client.flush()
         _client.shutdown()
         _client = None
     _initialized = False

@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { RecordAttribute } from "@/lib/types/wdk";
-import { getAttributes, type EntityRef } from "@/features/analysis/api/stepResults";
+import { attributesOptions, type EntityRef } from "@/features/analysis/api/stepResults";
 import { isDistributableAttr } from "@/features/analysis/components/DistributionExplorer/attributeFilters";
 
 interface AttributeFilteringState {
@@ -12,40 +13,26 @@ interface AttributeFilteringState {
 }
 
 export function useAttributeFiltering(entityRef: EntityRef): AttributeFilteringState {
-  const [attributes, setAttributes] = useState<RecordAttribute[]>([]);
   const [selectedAttr, setSelectedAttr] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const { id: entityId, type: entityType } = entityRef;
+  const { data, isPending, error } = useQuery({
+    ...attributesOptions(entityRef),
+    select: (raw) => raw.attributes.filter(isDistributableAttr),
+  });
 
+  const attributes = useMemo(() => data ?? [], [data]);
+
+  // Auto-select first distributable attribute when data loads or entityRef changes.
+  const firstAttrName = attributes[0]?.name ?? "";
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setSelectedAttr("");
+    setSelectedAttr(firstAttrName);
+  }, [firstAttrName]);
 
-    getAttributes({ id: entityId, type: entityType })
-      .then(({ attributes: attrs }) => {
-        if (cancelled) return;
-        const displayable = attrs.filter(isDistributableAttr);
-        setAttributes(displayable);
-        const first = displayable[0];
-        if (first != null) {
-          setSelectedAttr(first.name);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) setError(String(err));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [entityId, entityType]);
-
-  return { attributes, selectedAttr, setSelectedAttr, loading, error };
+  return {
+    attributes,
+    selectedAttr,
+    setSelectedAttr,
+    loading: isPending,
+    error: error != null ? (error instanceof Error ? error.message : String(error)) : null,
+  };
 }

@@ -37,10 +37,6 @@ export function useStepParameters({
   initialParameters,
 }: UseStepParametersArgs) {
   const [parameters, setParametersRaw] = useState<StepParameters>(initialParameters);
-  const [rawParams, setRawParams] = useState(
-    JSON.stringify(initialParameters, null, 2),
-  );
-  const [showRaw, setShowRaw] = useState(false);
 
   // Dependent parameter state
   const [dependentOptions, setDependentOptions] = useState<Record<string, VocabOption[]>>({});
@@ -171,7 +167,6 @@ export function useStepParameters({
     if (prevIdentityKey === identityKey) return;
     startTransition(() => {
       setParametersRaw({});
-      setRawParams("{}");
     });
   }, [identityKey, prevIdentityKey]);
 
@@ -195,18 +190,6 @@ export function useStepParameters({
         return coerceParametersForSpecs(prev, paramSpecs, {
           allowStringParsing: false,
         });
-      });
-      setRawParams((prev) => {
-        try {
-          const obj = JSON.parse(prev) as StepParameters;
-          if (Object.keys(obj).length === 0) return prev;
-          const coerced = coerceParametersForSpecs(obj, paramSpecs, {
-            allowStringParsing: false,
-          });
-          return JSON.stringify(coerced, null, 2);
-        } catch {
-          return prev;
-        }
       });
     });
   }, [paramSpecs, isLoading]);
@@ -247,10 +230,6 @@ export function useStepParameters({
   return {
     parameters,
     setParameters,
-    rawParams,
-    setRawParams,
-    showRaw,
-    setShowRaw,
     paramSpecs,
     isLoading,
     vocabOptions,

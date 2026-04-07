@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { Connection, Edge } from "reactflow";
+import type { Connection, Edge } from "@xyflow/react";
 import type { Step } from "@pathfinder/shared";
 import {
   buildGraphIndices,

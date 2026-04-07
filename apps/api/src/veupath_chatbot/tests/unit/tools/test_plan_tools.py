@@ -102,7 +102,7 @@ def _register_search(state: AgentToolState, search_name: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_create_plan_stores_plan_in_agent_state() -> None:
     """create_plan should set deps.agent_state.active_plan with correct counts."""
     deps = _make_deps()
@@ -137,7 +137,7 @@ async def test_create_plan_stores_plan_in_agent_state() -> None:
     assert plan.status == PlanStatus.DRAFT
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_submit_plan_validates_topology() -> None:
     """submit_plan should reject a plan with a disconnected step reference."""
     deps = _make_deps()
@@ -162,7 +162,7 @@ async def test_submit_plan_validates_topology() -> None:
     assert "step_ghost" in result.message
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_submit_plan_validates_parameters() -> None:
     """submit_plan should reject when a leaf step has unset required params."""
     deps = _make_deps()
@@ -214,7 +214,7 @@ async def test_submit_plan_validates_parameters() -> None:
     assert "organism" in submit_result.message
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_update_plan_applies_step_patches() -> None:
     """update_plan with a StepPatch should modify the step's parameter."""
     deps = _make_deps()
@@ -252,7 +252,7 @@ async def test_update_plan_applies_step_patches() -> None:
     assert patched_step.parameters["organism"].status == ParamStatus.SET
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_get_plan_returns_active_plan() -> None:
     """get_plan should return the same plan that create_plan stored."""
     deps = _make_deps()
@@ -278,7 +278,7 @@ async def test_get_plan_returns_active_plan() -> None:
     assert get_result.steps[0].search_name == "GenesByTaxon"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_get_plan_returns_error_when_no_plan() -> None:
     """get_plan should return a ToolErrorPayload when no plan exists."""
     deps = _make_deps()
@@ -290,7 +290,7 @@ async def test_get_plan_returns_error_when_no_plan() -> None:
     assert result.code == "NO_ACTIVE_PLAN"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_update_plan_returns_error_when_no_plan() -> None:
     """update_plan should return a ToolErrorPayload when no plan exists."""
     deps = _make_deps()
@@ -302,7 +302,7 @@ async def test_update_plan_returns_error_when_no_plan() -> None:
     assert result.code == "NO_ACTIVE_PLAN"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_create_plan_archives_previous_plan() -> None:
     """Creating a second plan should archive the first."""
     deps = _make_deps()

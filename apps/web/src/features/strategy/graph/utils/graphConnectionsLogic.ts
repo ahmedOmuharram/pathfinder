@@ -1,4 +1,4 @@
-import type { Connection, Edge } from "reactflow";
+import type { Connection, Edge } from "@xyflow/react";
 import type { Step } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
 import { resolveRecordType } from "@/lib/strategyGraph";

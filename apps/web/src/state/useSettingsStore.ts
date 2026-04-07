@@ -6,7 +6,7 @@
  */
 
 import { create } from "zustand";
-import type { ModelCatalogEntry, ReasoningEffort } from "@pathfinder/shared";
+import type { ReasoningEffort } from "@pathfinder/shared";
 
 const STORAGE_KEY = "pathfinder-settings";
 
@@ -32,11 +32,6 @@ interface SettingsState {
   /** When true, sidebar delete removes from WDK too (not just dismiss). */
   deleteFromWdk: boolean;
 
-  /** Cached model catalog from the API. */
-  modelCatalog: ModelCatalogEntry[];
-  /** Unified server default model catalog ID (e.g. "openai/gpt-5"). */
-  catalogDefault: string | null;
-
   // Actions
   setDefaultModelId: (id: string | null) => void;
   setDefaultReasoningEffort: (effort: ReasoningEffort) => void;
@@ -50,7 +45,6 @@ interface SettingsState {
   setDisabledTools: (tools: string[]) => void;
   toggleTool: (name: string) => void;
   setDeleteFromWdk: (v: boolean) => void;
-  setModelCatalog: (models: ModelCatalogEntry[], defaultModelId: string) => void;
   resetToDefaults: () => void;
 }
 
@@ -102,8 +96,6 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   showTokenUsage: persisted.showTokenUsage ?? true,
   disabledTools: persisted.disabledTools ?? [],
   deleteFromWdk: persisted.deleteFromWdk ?? false,
-  modelCatalog: [],
-  catalogDefault: null,
 
   setDefaultModelId: (id) => {
     set({ defaultModelId: id });
@@ -152,8 +144,6 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
     set({ deleteFromWdk: v });
     persist({ deleteFromWdk: v });
   },
-  setModelCatalog: (models, defaultModelId) =>
-    set({ modelCatalog: models, catalogDefault: defaultModelId }),
   resetToDefaults: () => {
     const defaults = {
       defaultModelId: null,

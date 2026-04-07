@@ -24,7 +24,7 @@ def _make_ctx(deps: AgentDeps) -> MagicMock:
     return ctx
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @patch("veupath_chatbot.ai.tools.standalone.catalog.catalog.get_record_types", new_callable=AsyncMock)
 async def test_get_record_types_returns_site_record_types(
     mock_get_rt: AsyncMock,
@@ -47,7 +47,7 @@ async def test_get_record_types_returns_site_record_types(
     mock_get_rt.assert_awaited_once_with("plasmodb")
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @patch("veupath_chatbot.ai.tools.standalone.catalog.catalog.search_for_searches", new_callable=AsyncMock)
 async def test_search_for_searches_returns_matches_with_universal(
     mock_search: AsyncMock,
@@ -82,7 +82,7 @@ async def test_search_for_searches_returns_matches_with_universal(
     assert taxon_result["recordType"] == "transcript"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_search_for_searches_rejects_vague_query() -> None:
     deps = _make_deps()
     ctx = _make_ctx(deps)
@@ -93,7 +93,7 @@ async def test_search_for_searches_rejects_vague_query() -> None:
     assert result[0]["error"] == "query_too_vague"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @patch("veupath_chatbot.ai.tools.standalone.catalog.catalog.list_searches", new_callable=AsyncMock)
 async def test_list_searches_for_record_type(
     mock_list: AsyncMock,

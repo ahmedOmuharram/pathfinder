@@ -9,7 +9,7 @@ import type { z } from "zod";
 import { useSessionStore } from "@/state/useSessionStore";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
-import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,7 +31,7 @@ function pct(value: number): string {
 
 export function ReverseSearchPanel() {
   const siteId = useSessionStore((s) => s.selectedSite);
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
+  const { data: geneSets = [] } = useGeneSetsQuery(siteId);
   const hasGeneSets = geneSets.length > 0;
 
   const [positiveInput, setPositiveInput] = useState<string[]>([]);

@@ -25,7 +25,7 @@ def _make_deps(site_id: str = "plasmodb") -> AgentDeps:
     )
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_planning_agent_result_is_string() -> None:
     """planning_agent.run should produce a string result."""
     deps = _make_deps()
@@ -41,20 +41,20 @@ async def test_planning_agent_result_is_string() -> None:
     assert len(result.output) > 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_planning_agent_has_correct_name() -> None:
     """Verify the agent's name attribute."""
     assert planning_agent.name == "planning"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_planning_usage_limits_are_configured() -> None:
     """Verify the default usage limits for the planning phase."""
     assert PLANNING_USAGE_LIMITS.request_limit == 15
     assert PLANNING_USAGE_LIMITS.total_tokens_limit == 40_000
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_planning_agent_calls_create_plan() -> None:
     """FunctionModel returns a create_plan tool call; verify the plan lands in state."""
     deps = _make_deps()

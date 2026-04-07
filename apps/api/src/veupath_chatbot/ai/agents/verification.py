@@ -8,6 +8,7 @@ for downstream use.
 from __future__ import annotations
 
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import Thinking
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import UsageLimits
 
@@ -17,6 +18,7 @@ from veupath_chatbot.ai.agents._instructions import (
     pinned_context_summary,
     pinned_graph_state,
 )
+from veupath_chatbot.ai.capabilities.security import SecurityGuardrail
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.ai.tools.toolsets.verification import build_toolset
 
@@ -70,6 +72,8 @@ verification_agent: Agent[AgentDeps, str] = Agent(
     deps_type=AgentDeps,
     instructions=_VERIFICATION_INSTRUCTIONS,
     toolsets=[build_toolset()],
+    capabilities=[Thinking(effort="high"), SecurityGuardrail()],
+    description="Inspects strategy results and validates correctness",
     name="verification",
     defer_model_check=True,
 )

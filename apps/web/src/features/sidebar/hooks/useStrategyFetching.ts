@@ -3,24 +3,14 @@
 /**
  * Strategy data-fetching and syncing for the conversation sidebar.
  *
- * Owns the sync/refetch lifecycle, optimistic deletion filtering,
- * and the manual-refresh spinner state.
+ * Uses TanStack Query for the strategies list and dismissed list.
+ * Returns read-only data and invalidation functions — consumers
+ * that need optimistic cache updates use useQueryClient() directly.
  */
 
-import {
-  type Dispatch,
-  type SetStateAction,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  startTransition,
-} from "react";
-import {
-  listDismissedStrategies,
-  listStrategies,
-  syncWdkStrategies,
-} from "@/lib/api/strategies";
+import { useCallback, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import type { Strategy } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
@@ -31,174 +21,104 @@ interface UseStrategyFetchingArgs {
 }
 
 export interface StrategyFetchingResult {
-  strategyItems: Strategy[];
-  setStrategyItems: Dispatch<SetStateAction<Strategy[]>>;
-  dismissedItems: Strategy[];
-  setDismissedItems: Dispatch<SetStateAction<Strategy[]>>;
-  hasInitiallyLoaded: boolean;
+  strategies: Strategy[];
+  dismissedStrategies: Strategy[];
+  isLoading: boolean;
+  isFetched: boolean;
   isSyncing: boolean;
-  refreshStrategies: () => Promise<void>;
-  refetchStrategies: () => Promise<void>;
+  invalidate: () => Promise<void>;
   handleManualRefresh: () => Promise<void>;
-  /** Mark an ID as recently deleted so stale refetch responses won't re-add it. */
-  markAsDeleted: (id: string) => void;
-  /** Whether the first fetch has completed (exposed for auto-conversation logic). */
-  hasFetched: React.RefObject<boolean>;
 }
 
 export function useStrategyFetching({
   siteId,
   reportError,
 }: UseStrategyFetchingArgs): StrategyFetchingResult {
-  const authVersion = useSessionStore((s) => s.authVersion);
+  const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
+  const authStatusKnown = useSessionStore((s) => s.authStatusKnown);
   const draftStrategy = useStrategyStore((s) => s.strategy);
+  const queryClient = useQueryClient();
 
-  const [strategyItems, setStrategyItems] = useState<Strategy[]>([]);
-  const [dismissedItems, setDismissedItems] = useState<Strategy[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
 
-  // Guards
-  const syncInFlight = useRef(false);
-  const prevSiteRef = useRef(siteId);
-  const hasFetched = useRef(false);
-  const recentlyDeletedIds = useRef(new Set<string>());
+  const queryEnabled = authStatusKnown && veupathdbSignedIn && siteId !== "";
 
-  // Clear stale items immediately on site change + unblock fetch guard.
+  const listOpts = strategiesListOptions(siteId);
+  const dismissedOpts = dismissedStrategiesOptions(siteId);
+
+  // --- TanStack Query: strategies list ---
+  const strategiesQuery = useQuery({
+    ...listOpts,
+    enabled: queryEnabled,
+  });
+
+  // --- TanStack Query: dismissed strategies ---
+  const dismissedQuery = useQuery({
+    ...dismissedOpts,
+    enabled: queryEnabled,
+  });
+
+  // Report errors from TQ queries.
   useEffect(() => {
-    if (prevSiteRef.current !== siteId) {
-      prevSiteRef.current = siteId;
-      setStrategyItems([]);
-      setHasInitiallyLoaded(false);
-      syncInFlight.current = false;
-      hasFetched.current = false;
+    if (strategiesQuery.error) {
+      console.warn("[ConversationSidebar] Failed to sync strategies:", strategiesQuery.error);
+      reportError(
+        strategiesQuery.error instanceof Error
+          ? strategiesQuery.error.message
+          : String(strategiesQuery.error),
+      );
     }
-  }, [siteId]);
+  }, [strategiesQuery.error, reportError]);
 
-  /** Apply fetched data, filtering out any IDs in the recentlyDeletedIds set
-   *  so that stale refetch responses don't undo optimistic deletions.
-   *  For dismissed items, preserves optimistic additions that the server
-   *  hasn't seen yet (the soft-delete may not have committed when the
-   *  refetch query ran). */
-  const applyFetchResult = useCallback(
-    (strategies: Strategy[], dismissed: Strategy[]) => {
-      const excluded = recentlyDeletedIds.current;
-      if (excluded.size > 0) {
-        const filteredStrategies = strategies.filter((s) => !excluded.has(s.id));
-        useStrategyStore.getState().setStrategies(filteredStrategies);
-        setStrategyItems(filteredStrategies);
-        const serverDismissedIds = new Set(dismissed.map((s) => s.id));
-        setDismissedItems((prev) => {
-          const optimisticExtras = prev.filter(
-            (s) => excluded.has(s.id) && !serverDismissedIds.has(s.id),
-          );
-          return [...dismissed, ...optimisticExtras];
-        });
-        for (const id of excluded) {
-          if (!strategies.some((s) => s.id === id)) {
-            excluded.delete(id);
-          }
-        }
-      } else {
-        useStrategyStore.getState().setStrategies(strategies);
-        setStrategyItems(strategies);
-        setDismissedItems(dismissed);
-      }
-    },
-    [],
-  );
+  useEffect(() => {
+    if (dismissedQuery.error) {
+      console.warn("[ConversationSidebar] Failed to fetch dismissed:", dismissedQuery.error);
+      reportError(
+        dismissedQuery.error instanceof Error
+          ? dismissedQuery.error.message
+          : String(dismissedQuery.error),
+      );
+    }
+  }, [dismissedQuery.error, reportError]);
 
-  const refreshStrategies = useCallback(() => {
-    if (syncInFlight.current) return Promise.resolve();
-    syncInFlight.current = true;
-    const fetchSite = siteId;
-    return Promise.all([syncWdkStrategies(siteId), listDismissedStrategies(siteId)])
-      .then(([strategies, dismissed]) => {
-        if (fetchSite !== prevSiteRef.current) return;
-        hasFetched.current = true;
-        setHasInitiallyLoaded(true);
-        applyFetchResult(strategies, dismissed);
-      })
-      .catch((err) => {
-        console.warn("[ConversationSidebar] Failed to sync strategies:", err);
-        reportError(err instanceof Error ? err.message : String(err));
-        setHasInitiallyLoaded(true);
-      })
-      .finally(() => {
-        syncInFlight.current = false;
-      });
-  }, [siteId, applyFetchResult, reportError]);
+  // --- Derived data from TQ cache ---
+  const strategies: Strategy[] = strategiesQuery.data ?? [];
+  const dismissedStrategies: Strategy[] = dismissedQuery.data ?? [];
 
-  const refetchStrategies = useCallback(() => {
-    if (syncInFlight.current) return Promise.resolve();
-    syncInFlight.current = true;
-    const fetchSite = siteId;
-    return Promise.all([listStrategies(siteId), listDismissedStrategies(siteId)])
-      .then(([strategies, dismissed]) => {
-        if (fetchSite !== prevSiteRef.current) return;
-        hasFetched.current = true;
-        setHasInitiallyLoaded(true);
-        applyFetchResult(strategies, dismissed);
-      })
-      .catch((err) => {
-        console.warn("[ConversationSidebar] Failed to fetch strategies:", err);
-        reportError(err instanceof Error ? err.message : String(err));
-        setHasInitiallyLoaded(true);
-      })
-      .finally(() => {
-        syncInFlight.current = false;
-      });
-  }, [siteId, applyFetchResult, reportError]);
+  // --- Invalidation-based refresh ---
+  const invalidate = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: listOpts.queryKey }),
+      queryClient.invalidateQueries({ queryKey: dismissedOpts.queryKey }),
+    ]);
+  }, [queryClient, listOpts.queryKey, dismissedOpts.queryKey]);
 
   const handleManualRefresh = useCallback(async () => {
     setIsSyncing(true);
     try {
-      await refreshStrategies();
+      await invalidate();
     } finally {
       setIsSyncing(false);
     }
-  }, [refreshStrategies]);
-
-  const markAsDeleted = useCallback((id: string) => {
-    recentlyDeletedIds.current.add(id);
-  }, []);
+  }, [invalidate]);
 
   // --- Effects ---
-
-  // Refresh on mount / site change
-  useEffect(() => {
-    startTransition(() => {
-      void refreshStrategies();
-    });
-  }, [refreshStrategies]);
-
-  // Retry sync after auth cookie refresh (signaled by authVersion bump).
-  const prevAuthVersionRef = useRef(authVersion);
-  useEffect(() => {
-    if (prevAuthVersionRef.current === authVersion) return;
-    prevAuthVersionRef.current = authVersion;
-    syncInFlight.current = false;
-    void refreshStrategies();
-  }, [authVersion, refreshStrategies]);
 
   // Re-fetch strategies when draft strategy changes (local DB only).
   useEffect(() => {
     if (draftStrategy) {
-      void refetchStrategies();
+      void queryClient.invalidateQueries({ queryKey: listOpts.queryKey });
+      void queryClient.invalidateQueries({ queryKey: dismissedOpts.queryKey });
     }
-  }, [draftStrategy, refetchStrategies]);
+  }, [draftStrategy, queryClient, listOpts.queryKey, dismissedOpts.queryKey]);
 
   return {
-    strategyItems,
-    setStrategyItems,
-    dismissedItems,
-    setDismissedItems,
-    hasInitiallyLoaded,
+    strategies,
+    dismissedStrategies,
+    isLoading: strategiesQuery.isLoading,
+    isFetched: strategiesQuery.isFetched,
     isSyncing,
-    refreshStrategies,
-    refetchStrategies,
+    invalidate,
     handleManualRefresh,
-    markAsDeleted,
-    hasFetched,
   };
 }

@@ -3,7 +3,7 @@
  * Tests for useWorkbenchChat hook — focuses on testable behavior:
  * stop() calling cancelOperation, tool call preservation from loaded messages,
  * auto-trigger gating on historyLoaded, error state on SSE errors, and
- * workbench_gene_set events calling addGeneSet on the store.
+ * workbench_gene_set events invalidating the TanStack Query cache.
  */
 
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
@@ -16,11 +16,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 const mockGetMessages = vi.hoisted(() => vi.fn());
 const mockStreamChat = vi.hoisted(() => vi.fn());
 const mockCancelOperation = vi.hoisted(() => vi.fn());
-
-const mockAddGeneSet = vi.hoisted(() => vi.fn());
-const mockStoreGetState = vi.hoisted(() =>
-  vi.fn(() => ({ addGeneSet: mockAddGeneSet })),
-);
+const mockInvalidateGeneSets = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 // ---------------------------------------------------------------------------
 // vi.mock declarations
@@ -35,10 +31,8 @@ vi.mock("@/lib/operationSubscribe", () => ({
   cancelOperation: (...args: unknown[]) => mockCancelOperation(...args),
 }));
 
-vi.mock("@/state/useWorkbenchStore", () => ({
-  useWorkbenchStore: Object.assign(() => null, {
-    getState: mockStoreGetState,
-  }),
+vi.mock("@/lib/query/hooks/useInvalidateGeneSets", () => ({
+  useInvalidateGeneSets: () => mockInvalidateGeneSets,
 }));
 
 // ---------------------------------------------------------------------------
@@ -323,10 +317,10 @@ describe("useWorkbenchChat", () => {
   });
 
   // -----------------------------------------------------------------------
-  // 5. workbench_gene_set events call addGeneSet on the store
+  // 5. workbench_gene_set events invalidate the gene-set query cache
   // -----------------------------------------------------------------------
   describe("workbench_gene_set event", () => {
-    it("calls addGeneSet on the store when workbench_gene_set event is received", async () => {
+    it("invalidates gene-set queries when workbench_gene_set event is received", async () => {
       let capturedOnMessage!: (event: ChatSSEEvent) => void;
       mockStreamChat.mockImplementation(
         (
@@ -369,68 +363,10 @@ describe("useWorkbenchChat", () => {
         });
       });
 
-      expect(mockAddGeneSet).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: "gs-new-1",
-          name: "AI-derived set",
-          geneCount: 42,
-          source: "derived",
-          siteId: "PlasmoDB",
-          geneIds: [],
-          stepCount: 1,
-        }),
-      );
+      expect(mockInvalidateGeneSets).toHaveBeenCalled();
     });
 
-    it("maps invalid source values to 'derived'", async () => {
-      let capturedOnMessage!: (event: ChatSSEEvent) => void;
-      mockStreamChat.mockImplementation(
-        (
-          _experimentId: string,
-          _message: string,
-          _siteId: string,
-          callbacks: { onMessage: (event: ChatSSEEvent) => void },
-        ) => {
-          capturedOnMessage = callbacks.onMessage;
-          return {
-            promise: Promise.resolve({
-              operationId: "op-1",
-              streamId: "s-1",
-            }),
-            cancel: vi.fn(),
-          };
-        },
-      );
-
-      renderHook(() => useWorkbenchChat("exp-1", "PlasmoDB"));
-
-      await waitFor(() => {
-        expect(mockStreamChat).toHaveBeenCalled();
-      });
-
-      act(() => {
-        capturedOnMessage({
-          type: "workbench_gene_set",
-          data: {
-            geneSet: {
-              id: "gs-2",
-              name: "Weird Source",
-              geneCount: 10,
-              source: "unknown_source",
-              siteId: "ToxoDB",
-            },
-          },
-        });
-      });
-
-      expect(mockAddGeneSet).toHaveBeenCalledWith(
-        expect.objectContaining({
-          source: "derived",
-        }),
-      );
-    });
-
-    it("does not call addGeneSet when geneSet data is missing", async () => {
+    it("does not invalidate when geneSet data is missing", async () => {
       let capturedOnMessage!: (event: ChatSSEEvent) => void;
       mockStreamChat.mockImplementation(
         (
@@ -463,7 +399,7 @@ describe("useWorkbenchChat", () => {
         });
       });
 
-      expect(mockAddGeneSet).not.toHaveBeenCalled();
+      expect(mockInvalidateGeneSets).not.toHaveBeenCalled();
     });
   });
 });

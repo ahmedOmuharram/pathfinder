@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, startTransition } from "react";
+import { useCallback, useEffect, useRef, startTransition } from "react";
+import type { UseFormReturn } from "react-hook-form";
 import { usePrevious } from "@/lib/hooks/usePrevious";
 import type { Step } from "@pathfinder/shared";
 import { coerceParametersForSpecs } from "@/features/strategy/parameters/coerce";
@@ -64,6 +65,29 @@ export function useStepEditorState({
   });
 
   // ---------------------------------------------------------------------------
+  // RHF form instance — exposed from StepParamFields via onFormReady callback.
+  // We store the form in a ref so it is never stale and so reading it doesn't
+  // trigger re-renders. The getDirtyFields / setFieldError callbacks read
+  // the ref lazily at invocation time (event handler scope, not render scope).
+  // ---------------------------------------------------------------------------
+  const formRef = useRef<UseFormReturn | null>(null);
+  const onFormReady = useCallback((form: UseFormReturn) => {
+    formRef.current = form;
+  }, []);
+
+  const getDirtyFields = useCallback((): Partial<Record<string, boolean>> => {
+    const fields = formRef.current?.formState.dirtyFields;
+    return (fields ?? {}) as Partial<Record<string, boolean>>;
+  }, []);
+
+  const setFieldError = useCallback(
+    (name: string, error: { type: string; message: string }) => {
+      formRef.current?.setError(name, error);
+    },
+    [],
+  );
+
+  // ---------------------------------------------------------------------------
   // Sync form state when a different step is selected
   // ---------------------------------------------------------------------------
   const prevStepId = usePrevious(step.id);
@@ -83,7 +107,6 @@ export function useStepEditorState({
     const nextName = nextOldName;
     const nextSearchName = step.searchName ?? "";
     const nextRecordType = normalizeRecordType(step.recordType ?? recordType);
-    const nextRawParams = JSON.stringify(nextParams, null, 2);
     // Batch state updates to avoid cascading renders
     startTransition(() => {
       metadata.setOldName(nextOldName);
@@ -93,8 +116,6 @@ export function useStepEditorState({
       metadata.setColocationParams(step.colocationParams);
       recordTypeState.setRecordTypeValue(nextRecordType);
       paramState.setParameters(nextParams);
-      paramState.setRawParams(nextRawParams);
-      paramState.setShowRaw(false);
     });
   }, [
     prevStepId,
@@ -115,30 +136,59 @@ export function useStepEditorState({
   ]);
 
   // ---------------------------------------------------------------------------
-  // Save handler (extracted concern)
+  // Save handler (extracted concern).
+  // Built lazily at invocation time (not during render) so that
+  // getDirtyFields/setFieldError can safely read from the formRef.
   // ---------------------------------------------------------------------------
-  const handleSave = buildStepSaveHandler({
-    step,
-    siteId,
-    name: metadata.name ?? "",
-    oldName: metadata.oldName ?? "",
-    searchName: searchState.searchName,
-    selectedSearch: searchState.selectedSearch,
-    isSearchNameAvailable: searchState.isSearchNameAvailable,
-    kind: metadata.kind,
-    parameters: paramState.parameters,
-    showRaw: paramState.showRaw,
-    rawParams: paramState.rawParams,
-    paramSpecs: paramState.paramSpecs,
-    hiddenDefaults: paramState.hiddenDefaults,
-    recordTypeValue: recordTypeState.recordTypeValue,
-    resolveRecordTypeForSearch: recordTypeState.resolveRecordTypeForSearch,
-    operatorValue: metadata.operatorValue,
-    colocationParams: metadata.colocationParams,
-    onUpdate,
-    onClose,
-    setError: validation.setError,
-  });
+  const handleSave = useCallback(
+    async () => {
+      const handler = buildStepSaveHandler({
+        step,
+        siteId,
+        name: metadata.name ?? "",
+        oldName: metadata.oldName ?? "",
+        searchName: searchState.searchName,
+        selectedSearch: searchState.selectedSearch,
+        isSearchNameAvailable: searchState.isSearchNameAvailable,
+        kind: metadata.kind,
+        parameters: paramState.parameters,
+        paramSpecs: paramState.paramSpecs,
+        hiddenDefaults: paramState.hiddenDefaults,
+        getDirtyFields,
+        recordTypeValue: recordTypeState.recordTypeValue,
+        resolveRecordTypeForSearch: recordTypeState.resolveRecordTypeForSearch,
+        operatorValue: metadata.operatorValue,
+        colocationParams: metadata.colocationParams,
+        onUpdate,
+        onClose,
+        setError: validation.setError,
+        setFieldError,
+      });
+      await handler();
+    },
+    [
+      step,
+      siteId,
+      metadata.name,
+      metadata.oldName,
+      metadata.kind,
+      metadata.operatorValue,
+      metadata.colocationParams,
+      searchState.searchName,
+      searchState.selectedSearch,
+      searchState.isSearchNameAvailable,
+      paramState.parameters,
+      paramState.paramSpecs,
+      paramState.hiddenDefaults,
+      getDirtyFields,
+      recordTypeState.recordTypeValue,
+      recordTypeState.resolveRecordTypeForSearch,
+      onUpdate,
+      onClose,
+      validation.setError,
+      setFieldError,
+    ],
+  );
 
   // ---------------------------------------------------------------------------
   // Public surface -- same shape as before for consumers
@@ -186,11 +236,7 @@ export function useStepEditorState({
     dependentErrors: paramState.dependentErrors,
     validationErrorKeys: validation.validationErrorKeys,
 
-    // Raw params editor
-    showRaw: paramState.showRaw,
-    setShowRaw: paramState.setShowRaw,
-    rawParams: paramState.rawParams,
-    setRawParams: paramState.setRawParams,
+    // Validation / loading
     error: validation.error,
     setError: validation.setError,
     isLoading: paramState.isLoading,
@@ -200,6 +246,9 @@ export function useStepEditorState({
     setOperatorValue: metadata.setOperatorValue,
     colocationParams: metadata.colocationParams,
     setColocationParams: metadata.setColocationParams,
+
+    // Form integration
+    onFormReady,
 
     // Actions
     handleSave,

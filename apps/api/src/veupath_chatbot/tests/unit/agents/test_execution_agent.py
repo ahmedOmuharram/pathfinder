@@ -428,7 +428,7 @@ class TestExecutionAgentFunctionModel:
     to verify the FunctionModel -> tool call -> result -> text response cycle.
     """
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_agent_calls_get_strategy_via_function_model(self) -> None:
         """FunctionModel drives the agent to call get_strategy and produce text."""
         deps = _make_deps()
@@ -493,7 +493,7 @@ class TestExecutionAgentFunctionModel:
                         tool_call_found = True
         assert tool_call_found, "Expected get_strategy tool call in captured messages"
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_agent_tool_names_visible_to_function_model(self) -> None:
         """Verify the FunctionModel receives tool definitions from the execution toolset."""
         deps = _make_deps()

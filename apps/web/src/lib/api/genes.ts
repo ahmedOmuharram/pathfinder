@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import type { GeneSearchResponse, GeneResolveResponse } from "@pathfinder/shared";
 import { requestJson } from "./http";
 import {
@@ -40,4 +41,13 @@ export async function resolveGeneIds(
     `/api/v1/sites/${encodeURIComponent(siteId)}/genes/resolve`,
     { method: "POST", body: { geneIds } },
   )) as GeneResolveResponse;
+}
+
+export function organismsOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ["genes", "organisms", siteId] as const,
+    queryFn: () => listOrganisms(siteId),
+    staleTime: 5 * 60_000,
+    enabled: siteId !== "",
+  });
 }

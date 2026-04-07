@@ -22,7 +22,7 @@ import { PlanPinnedBar } from "@/features/chat/components/plan/PlanPinnedBar";
 import { AssistantMessageParts } from "@/features/chat/components/message/AssistantMessageParts";
 import { MessageFeedback } from "@/features/chat/components/message/MessageFeedback";
 import { TokenUsageDisplay } from "@/features/chat/components/message/TokenUsageDisplay";
-import { useSettingsStore } from "@/state/useSettingsStore";
+import { useModelCatalogQuery } from "@/lib/query/hooks/useModelCatalogQuery";
 import { useSessionStore } from "@/state/useSessionStore";
 import { usePlanStore } from "@/state/usePlanStore";
 
@@ -82,7 +82,8 @@ export function ChatMessageList({
 }: ChatMessageListProps) {
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const [showCitationTags, setShowCitationTags] = useState(false);
-  const catalog = useSettingsStore((s) => s.modelCatalog);
+  const { data: catalogData } = useModelCatalogQuery();
+  const catalog = catalogData?.models ?? [];
   const strategyId = useSessionStore((s) => s.strategyId);
   const activePlan = usePlanStore((s) => s.activePlan);
   const isPlanPinned = usePlanStore((s) => s.isPlanPinned);
@@ -175,7 +176,7 @@ export function ChatMessageList({
               ? decodeNodeSelection(message.content)
               : { selection: null, message: message.content };
           const nodeData = decoded.selection;
-          const hasText = decoded.message != null && decoded.message.length > 0;
+          const hasText = decoded.message.length > 0;
           const undoSnapshot = undoSnapshots[index];
           const nodeList = Array.isArray(nodeData?.nodes) ? nodeData.nodes : [];
           const nodeIds = Array.isArray(nodeData?.nodeIds) ? nodeData.nodeIds : [];

@@ -3,7 +3,6 @@
 import { StepCombineOperatorSelect } from "./components/StepCombineOperatorSelect";
 import { StepNameFields } from "./components/StepNameFields";
 import { StepParamFields } from "./components/StepParamFields";
-import { StepRawParamsEditor } from "./components/StepRawParamsEditor";
 import { StepSearchSelector } from "./components/StepSearchSelector";
 import type { StepEditorState } from "./useStepEditorState";
 
@@ -19,11 +18,7 @@ export function StepEditorForm({ state }: StepEditorFormProps) {
           {state.stepValidationError}
         </div>
       )}
-      <StepNameFields
-        oldName={state.oldName ?? ""}
-        name={state.name ?? ""}
-        onNameChange={state.setName}
-      />
+      <StepNameFields oldName={state.oldName ?? ""} />
 
       {(state.kind === "search" || state.kind === "transform") && (
         <>
@@ -51,26 +46,11 @@ export function StepEditorForm({ state }: StepEditorFormProps) {
 
           <StepParamFields
             paramSpecs={state.paramSpecs}
-            showRaw={state.showRaw}
-            parameters={state.parameters}
             vocabOptions={state.vocabOptions}
-            dependentOptions={state.dependentOptions}
-            dependentLoading={state.dependentLoading}
-            dependentErrors={state.dependentErrors}
-            validationErrorKeys={state.validationErrorKeys}
-            setParameters={state.setParameters}
-          />
-
-          <StepRawParamsEditor
-            showRaw={state.showRaw}
-            rawParams={state.rawParams}
-            error={state.error}
-            isLoading={state.isLoading}
-            onShowRawChange={state.setShowRaw}
-            onRawParamsChange={(nextValue) => {
-              state.setRawParams(nextValue);
-              state.setError(null);
-            }}
+            siteId={state.siteId}
+            recordType={state.recordType ?? ""}
+            searchName={state.searchName}
+            onFormReady={state.onFormReady}
           />
         </>
       )}

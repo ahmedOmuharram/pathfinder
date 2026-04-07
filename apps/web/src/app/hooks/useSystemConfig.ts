@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { getSystemConfig } from "@/lib/api/health";
+import { useQuery } from "@tanstack/react-query";
+import { systemConfigOptions } from "@/lib/api/health";
 
 /**
  * Checks whether the backend has at least one LLM provider configured.
@@ -15,29 +15,11 @@ export function useSystemConfig(): {
   setupRequired: boolean;
   retry: () => void;
 } {
-  const [configLoading, setConfigLoading] = useState(true);
-  const [setupRequired, setSetupRequired] = useState(false);
+  const { data, isPending, refetch } = useQuery(systemConfigOptions());
 
-  const check = useCallback(() => {
-    setConfigLoading(true);
-    getSystemConfig()
-      .then((cfg) => {
-        setSetupRequired(!cfg.llmConfigured);
-      })
-      .catch(() => {
-        // If the endpoint is unreachable, don't block on setup screen —
-        // the auth check will surface the API-down error instead.
-        setSetupRequired(false);
-      })
-      .finally(() => {
-        setConfigLoading(false);
-      });
-  }, []);
+  // On error, setupRequired defaults to false — if the endpoint is
+  // unreachable, the auth check will surface the API-down error instead.
+  const setupRequired = data?.llmConfigured === false;
 
-  useEffect(() => {
-    const id = setTimeout(check, 0);
-    return () => clearTimeout(id);
-  }, [check]);
-
-  return { configLoading, setupRequired, retry: check };
+  return { configLoading: isPending, setupRequired, retry: () => { void refetch(); } };
 }

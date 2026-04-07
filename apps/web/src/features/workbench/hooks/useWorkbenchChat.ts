@@ -1,11 +1,16 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useReducer } from "react";
 import type { ChatSSEEvent } from "@/lib/sse_events";
 import type { Citation } from "@pathfinder/shared";
 import { cancelOperation } from "@/lib/operationSubscribe";
 import { streamWorkbenchChat } from "../api/workbenchChatApi";
-import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 import { useWorkbenchChatHistory } from "./useWorkbenchChatHistory";
 import { useWorkbenchChatAutoTrigger } from "./useWorkbenchChatAutoTrigger";
+import {
+  chatMessageReducer,
+  initialChatMessageState,
+} from "@/lib/chatMessageReducer";
+import type { ChatMessageState, ChatMessageAction } from "@/lib/chatMessageReducer";
 
 export interface WorkbenchMessage {
   id: string;
@@ -29,15 +34,55 @@ interface UseWorkbenchChatReturn {
   stop: () => void;
 }
 
+function createAssistantMessage(id: string, content: string): WorkbenchMessage {
+  return { id, role: "assistant", content };
+}
+
+function createUserMessage(id: string, content: string): WorkbenchMessage {
+  return { id, role: "user", content };
+}
+
+/**
+ * Typed reducer wrapper — chatMessageReducer is generic, so we bind it
+ * to WorkbenchMessage here to satisfy useReducer's signature.
+ */
+function workbenchReducer(
+  state: ChatMessageState<WorkbenchMessage>,
+  action: ChatMessageAction<WorkbenchMessage>,
+): ChatMessageState<WorkbenchMessage> {
+  return chatMessageReducer(state, action);
+}
+
 export function useWorkbenchChat(
   experimentId: string | null,
   siteId: string,
 ): UseWorkbenchChatReturn {
   // ---------------------------------------------------------------------------
+  // Message state via shared reducer
+  // ---------------------------------------------------------------------------
+  const [state, dispatch] = useReducer(
+    workbenchReducer,
+    undefined,
+    initialChatMessageState<WorkbenchMessage>,
+  );
+
+  // ---------------------------------------------------------------------------
   // History loading (separate concern)
   // ---------------------------------------------------------------------------
-  const history = useWorkbenchChatHistory(experimentId);
-  const { messages, setMessages, historyLoaded } = history;
+  const { historyLoaded, historyMessages } = useWorkbenchChatHistory(experimentId);
+
+  // Track which experiment's history has been dispatched to the reducer.
+  // Using useState (not useRef) so the synchronous dispatch-during-render
+  // pattern satisfies the react-hooks/refs lint rule.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  if (historyLoaded && loadedFor !== experimentId) {
+    setLoadedFor(experimentId);
+    dispatch({
+      type: "load_history",
+      messages: historyMessages,
+      counterStart: historyMessages.length,
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Streaming + event handling state
@@ -45,15 +90,10 @@ export function useWorkbenchChat(
   const [streaming, setStreaming] = useState(false);
   const [activeToolCalls, setActiveToolCalls] = useState<ActiveToolCall[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const invalidateGeneSets = useInvalidateGeneSets();
 
   const cancelRef = useRef<(() => void) | null>(null);
   const operationIdRef = useRef<string | null>(null);
-  const currentAssistantIdRef = useRef<string | null>(null);
-
-  const msgCounterRef = useRef(0);
-  function nextMsgId(): string {
-    return `wb-msg-${++msgCounterRef.current}`;
-  }
 
   // ---------------------------------------------------------------------------
   // SSE event handler
@@ -61,124 +101,67 @@ export function useWorkbenchChat(
   const handleEvent = useCallback(
     (event: ChatSSEEvent) => {
       switch (event.type) {
-        case "assistant_delta": {
-          const delta = event.data.delta ?? "";
-          if (delta === "") return;
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (
-              last?.role === "assistant" &&
-              last.id === currentAssistantIdRef.current
-            ) {
-              return [...prev.slice(0, -1), { ...last, content: last.content + delta }];
-            }
-            const id = nextMsgId();
-            currentAssistantIdRef.current = id;
-            return [...prev, { id, role: "assistant", content: delta }];
+        case "assistant_delta":
+          dispatch({
+            type: "append_delta",
+            delta: event.data.delta ?? "",
+            createMessage: createAssistantMessage,
           });
           break;
-        }
-        case "assistant_message": {
-          const content = event.data.content ?? "";
-          if (content === "") return;
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (
-              last?.role === "assistant" &&
-              last.id === currentAssistantIdRef.current
-            ) {
-              return [...prev.slice(0, -1), { ...last, content }];
-            }
-            const id = nextMsgId();
-            currentAssistantIdRef.current = id;
-            return [...prev, { id, role: "assistant", content }];
+
+        case "assistant_message":
+          dispatch({
+            type: "set_full_message",
+            content: event.data.content ?? "",
+            createMessage: createAssistantMessage,
           });
           break;
-        }
-        case "citations": {
-          const citations = event.data.citations;
-          if (citations == null || citations.length === 0) return;
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (last?.role === "assistant") {
-              return [...prev.slice(0, -1), { ...last, citations }];
-            }
-            return prev;
+
+        case "citations":
+          dispatch({
+            type: "set_citations",
+            citations: event.data.citations,
           });
           break;
-        }
+
         case "tool_call_start":
           setActiveToolCalls((prev) => [
             ...prev,
             { id: event.data.id, name: event.data.name },
           ]);
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (
-              last?.role === "assistant" &&
-              last.id === currentAssistantIdRef.current
-            ) {
-              const existing = last.toolCalls ?? [];
-              return [
-                ...prev.slice(0, -1),
-                {
-                  ...last,
-                  toolCalls: [
-                    ...existing,
-                    { id: event.data.id, name: event.data.name },
-                  ],
-                },
-              ];
-            }
-            return prev;
+          dispatch({
+            type: "start_tool_call",
+            id: event.data.id,
+            name: event.data.name,
           });
           break;
+
         case "tool_call_end":
           setActiveToolCalls((prev) => prev.filter((tc) => tc.id !== event.data.id));
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (last?.role === "assistant" && last.toolCalls != null) {
-              return [
-                ...prev.slice(0, -1),
-                {
-                  ...last,
-                  toolCalls: last.toolCalls.map((tc) =>
-                    tc.id === event.data.id ? { ...tc, result: event.data.result ?? "" } : tc,
-                  ),
-                },
-              ];
-            }
-            return prev;
+          dispatch({
+            type: "end_tool_call",
+            id: event.data.id,
+            result: event.data.result ?? "",
           });
           break;
+
         case "message_end":
           setStreaming(false);
           setActiveToolCalls([]);
-          currentAssistantIdRef.current = null;
+          dispatch({ type: "end_stream" });
           break;
+
         case "error":
           setStreaming(false);
           setActiveToolCalls([]);
-          currentAssistantIdRef.current = null;
+          dispatch({ type: "end_stream" });
           setError(event.data.error !== "" ? event.data.error : "An error occurred");
           break;
+
         case "workbench_gene_set": {
           const gs = event.data.geneSet;
           if (gs?.id != null && gs.name != null && gs.geneCount != null && gs.source != null && gs.siteId != null) {
-            useWorkbenchStore.getState().addGeneSet({
-              id: gs.id,
-              name: gs.name,
-              geneCount: gs.geneCount,
-              source: (["strategy", "paste", "upload", "derived", "saved"].includes(
-                gs.source,
-              )
-                ? gs.source
-                : "derived") as "strategy" | "paste" | "upload" | "derived" | "saved",
-              siteId: gs.siteId,
-              geneIds: [],
-              createdAt: new Date().toISOString(),
-              stepCount: 1,
-            });
+            void invalidateGeneSets();
           }
           break;
         }
@@ -205,7 +188,7 @@ export function useWorkbenchChat(
           break;
       }
     },
-    [setMessages],
+    [invalidateGeneSets],
   );
 
   // ---------------------------------------------------------------------------
@@ -218,14 +201,13 @@ export function useWorkbenchChat(
       // Cancel any existing stream
       cancelRef.current?.();
 
-      // Add user message
-      setMessages((prev) => [
-        ...prev,
-        { id: nextMsgId(), role: "user", content: text },
-      ]);
+      // Add user message via reducer
+      dispatch({
+        type: "add_user_message",
+        message: createUserMessage(`wb-msg-${state.msgCounter + 1}`, text),
+      });
       setStreaming(true);
       setError(null);
-      currentAssistantIdRef.current = null;
 
       const { promise, cancel } = streamWorkbenchChat(experimentId, text, siteId, {
         onMessage: handleEvent,
@@ -251,7 +233,7 @@ export function useWorkbenchChat(
           // Error already handled by onError callback
         });
     },
-    [experimentId, siteId, streaming, handleEvent, setMessages],
+    [experimentId, siteId, streaming, handleEvent, state.msgCounter],
   );
 
   // ---------------------------------------------------------------------------
@@ -260,7 +242,7 @@ export function useWorkbenchChat(
   useWorkbenchChatAutoTrigger({
     experimentId,
     historyLoaded,
-    messageCount: messages.length,
+    messageCount: state.messages.length,
     streaming,
     sendMessage,
   });
@@ -285,5 +267,5 @@ export function useWorkbenchChat(
     };
   }, []);
 
-  return { messages, streaming, activeToolCalls, error, sendMessage, stop };
+  return { messages: state.messages, streaming, activeToolCalls, error, sendMessage, stop };
 }

@@ -17,7 +17,11 @@ from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import veupathdb_auth_token_ctx
 from veupath_chatbot.platform.errors import UnauthorizedError, ValidationError
 from veupath_chatbot.platform.logging import get_logger
-from veupath_chatbot.platform.security import create_user_token, get_optional_user
+from veupath_chatbot.platform.security import (
+    create_user_token,
+    get_optional_user,
+    limiter,
+)
 from veupath_chatbot.platform.types import JSONObject, as_json_object
 from veupath_chatbot.services.wdk import get_site, get_wdk_client
 from veupath_chatbot.transport.http.deps import UserRepo
@@ -138,7 +142,9 @@ def _build_success_response(
 
 
 @router.post("/login", response_model=AuthSuccessResponse)
+@limiter.limit("10/minute")
 async def login_with_password(
+    request: Request,
     user_repo: UserRepo,
     payload: LoginPayload | None = None,
     redirect_to: str | None = Query(None, alias="redirectTo"),

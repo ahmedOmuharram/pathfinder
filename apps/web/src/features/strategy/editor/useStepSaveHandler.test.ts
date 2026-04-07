@@ -39,17 +39,17 @@ function makeBaseArgs(overrides: Record<string, unknown> = {}) {
     isSearchNameAvailable: true,
     kind: "search" as const,
     parameters: { organism: "Plasmodium falciparum 3D7" },
-    showRaw: false,
-    rawParams: "{}",
     paramSpecs: [],
     hiddenDefaults: {},
     recordTypeValue: "transcript",
     resolveRecordTypeForSearch: (rt?: string | null) => rt ?? "transcript",
     operatorValue: "",
     colocationParams: null,
+    getDirtyFields: () => ({}),
     onUpdate: vi.fn(),
     onClose: vi.fn(),
     setError: vi.fn(),
+    setFieldError: vi.fn(),
     ...overrides,
   };
 }
@@ -131,17 +131,6 @@ describe("buildStepSaveHandler", () => {
         }),
       }),
     );
-  });
-
-  it("sets error on invalid JSON when showRaw is true", async () => {
-    const args = makeBaseArgs({ showRaw: true, rawParams: "{bad json" });
-
-    const handleSave = buildStepSaveHandler(args);
-    await handleSave();
-
-    expect(args.setError).toHaveBeenCalledWith("Invalid JSON in parameters");
-    expect(args.onUpdate).not.toHaveBeenCalled();
-    expect(args.onClose).not.toHaveBeenCalled();
   });
 
   it("requires operator for combine steps", async () => {
@@ -240,5 +229,142 @@ describe("buildStepSaveHandler", () => {
     expect(params?.organism).toBe("Plasmodium falciparum 3D7");
     // Hidden defaults fill in missing params
     expect(params?.hiddenParam).toBe("default-val");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gap 1: Dirty-only PATCH — only send params that the user actually changed
+  // ---------------------------------------------------------------------------
+
+  it("only includes dirty params and hidden defaults in the update", async () => {
+    const args = makeBaseArgs({
+      parameters: { organism: "Plasmodium falciparum 3D7", otherParam: "unchanged" },
+      hiddenDefaults: { hiddenParam: "default-val" },
+      getDirtyFields: () => ({ organism: true }),
+    });
+    mockValidateSearchParams.mockResolvedValue({
+      validation: { isValid: true, errors: { general: [], byKey: {} } },
+    });
+
+    const handleSave = buildStepSaveHandler(args);
+    await handleSave();
+
+    const params = args.onUpdate.mock.calls[0]?.[0]?.parameters;
+    // Dirty param included
+    expect(params?.organism).toBe("Plasmodium falciparum 3D7");
+    // Hidden default included
+    expect(params?.hiddenParam).toBe("default-val");
+    // Non-dirty param excluded
+    expect(params).not.toHaveProperty("otherParam");
+  });
+
+  it("includes all params when dirtyFields is empty (no form context)", async () => {
+    const args = makeBaseArgs({
+      parameters: { organism: "Plasmodium falciparum 3D7", otherParam: "val" },
+      getDirtyFields: () => ({}),
+    });
+    mockValidateSearchParams.mockResolvedValue({
+      validation: { isValid: true, errors: { general: [], byKey: {} } },
+    });
+
+    const handleSave = buildStepSaveHandler(args);
+    await handleSave();
+
+    const params = args.onUpdate.mock.calls[0]?.[0]?.parameters;
+    expect(params?.organism).toBe("Plasmodium falciparum 3D7");
+    expect(params?.otherParam).toBe("val");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gap 2: WDK field-level validation errors → setFieldError
+  // ---------------------------------------------------------------------------
+
+  it("calls setFieldError for each byKey validation error", async () => {
+    const setFieldError = vi.fn();
+    const args = makeBaseArgs({
+      setFieldError,
+    });
+    const failResponse: SearchValidationResponse = {
+      validation: {
+        isValid: false,
+        errors: {
+          general: [],
+          byKey: {
+            organism: ["Invalid organism value"],
+            text_expression: ["Expression too short", "Must contain wildcard"],
+          },
+        },
+      },
+    };
+    mockValidateSearchParams.mockResolvedValue(failResponse);
+
+    const handleSave = buildStepSaveHandler(args);
+    await handleSave();
+
+    expect(setFieldError).toHaveBeenCalledWith("organism", {
+      type: "server",
+      message: "Invalid organism value",
+    });
+    expect(setFieldError).toHaveBeenCalledWith("text_expression", {
+      type: "server",
+      message: "Expression too short",
+    });
+  });
+
+  it("does not call setFieldError when byKey is empty", async () => {
+    const setFieldError = vi.fn();
+    const args = makeBaseArgs({
+      setFieldError,
+    });
+    mockValidateSearchParams.mockResolvedValue({
+      validation: {
+        isValid: false,
+        errors: { general: ["Something wrong"], byKey: {} },
+      },
+    });
+
+    const handleSave = buildStepSaveHandler(args);
+    await handleSave();
+
+    expect(setFieldError).not.toHaveBeenCalled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gap 3: Multi-pick serialization — arrays → JSON strings for WDK
+  // ---------------------------------------------------------------------------
+
+  it("serializes multi-pick array values to JSON strings", async () => {
+    const args = makeBaseArgs({
+      parameters: { organism: ["GO:0006915", "GO:0006916"] },
+      paramSpecs: [
+        { name: "organism", type: "multi-pick-vocabulary", allowMultipleValues: true },
+      ],
+    });
+    mockValidateSearchParams.mockResolvedValue({
+      validation: { isValid: true, errors: { general: [], byKey: {} } },
+    });
+
+    const handleSave = buildStepSaveHandler(args);
+    await handleSave();
+
+    const params = args.onUpdate.mock.calls[0]?.[0]?.parameters;
+    expect(params?.organism).toBe('["GO:0006915","GO:0006916"]');
+  });
+
+  it("does not double-serialize already-string parameters", async () => {
+    const args = makeBaseArgs({
+      parameters: { organism: "Plasmodium falciparum 3D7" },
+      paramSpecs: [
+        { name: "organism", type: "string" },
+      ],
+    });
+    mockValidateSearchParams.mockResolvedValue({
+      validation: { isValid: true, errors: { general: [], byKey: {} } },
+    });
+
+    const handleSave = buildStepSaveHandler(args);
+    await handleSave();
+
+    const params = args.onUpdate.mock.calls[0]?.[0]?.parameters;
+    expect(params?.organism).toBe("Plasmodium falciparum 3D7");
   });
 });

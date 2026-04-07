@@ -5,6 +5,7 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -26,13 +27,21 @@ WORKDIR /app/apps/api
 RUN --mount=type=cache,target=/root/.cache/uv \
     UV_LINK_MODE=copy uv sync --frozen --no-install-project
 
-# Pre-download the sentence-transformer model into the image so startup
-# doesn't depend on HuggingFace availability or rate limits.
+# Pre-download the fastembed ONNX model into the image so startup
+# doesn't depend on network availability or rate limits.
 # Lives in the same cached layer group as deps — code changes don't bust this.
-RUN .venv/bin/python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('nomic-ai/nomic-embed-text-v1.5', trust_remote_code=True)"
+RUN .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='nomic-ai/nomic-embed-text-v1.5')"
 
-# Prevent HuggingFace from phoning home at runtime — the model is cached.
-ENV HF_HUB_OFFLINE=1
+# Pre-download LLM Guard scanner models (PromptInjection, Toxicity, Sensitive,
+# NoRefusal) so the first request doesn't block on network downloads.
+RUN .venv/bin/python -c "\
+from llm_guard.input_scanners import PromptInjection, Toxicity; \
+from llm_guard.output_scanners import Sensitive, NoRefusal; \
+PromptInjection(use_onnx=True); \
+Toxicity(use_onnx=True); \
+Sensitive(use_onnx=True); \
+NoRefusal(use_onnx=True); \
+print('LLM Guard models cached')"
 
 # ── Fast layer: application code (re-runs on every code change, but cheap) ──
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { TokenUsage } from "@pathfinder/shared";
 import { useSettingsStore } from "@/state/useSettingsStore";
+import { useModelCatalogQuery } from "@/lib/query/hooks/useModelCatalogQuery";
 import { formatCompact, formatCost } from "@/lib/utils/format";
 
 interface TokenUsageDisplayProps {
@@ -12,7 +13,8 @@ interface TokenUsageDisplayProps {
 export function TokenUsageDisplay({ usage }: TokenUsageDisplayProps) {
   const show = useSettingsStore((s) => s.showTokenUsage);
   const [expanded, setExpanded] = useState(false);
-  const catalog = useSettingsStore((s) => s.modelCatalog);
+  const { data } = useModelCatalogQuery();
+  const catalog = data?.models ?? [];
 
   if (!show || !usage.totalTokens) return null;
 

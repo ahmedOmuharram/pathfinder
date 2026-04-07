@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import type {
   ParamSpec,
   RecordType,
@@ -90,4 +91,39 @@ export async function validateSearchParams(
     )}/${encodeURIComponent(searchName)}/validate`,
     { method: "POST", body: { contextValues } },
   )) as SearchValidationResponse;
+}
+
+export function sitesOptions() {
+  return queryOptions({
+    queryKey: ["sites"] as const,
+    queryFn: listSites,
+    staleTime: Infinity,
+  });
+}
+
+export function recordTypesOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ["sites", siteId, "record-types"] as const,
+    queryFn: () => getRecordTypes(siteId),
+    staleTime: 5 * 60_000,
+    enabled: siteId !== "",
+  });
+}
+
+export function searchesOptions(siteId: string, recordType?: string | null) {
+  return queryOptions({
+    queryKey: ["sites", siteId, "searches", recordType ?? "all"] as const,
+    queryFn: () => getSearches(siteId, recordType),
+    staleTime: 5 * 60_000,
+    enabled: siteId !== "",
+  });
+}
+
+export function paramSpecsOptions(siteId: string, recordType: string, searchName: string) {
+  return queryOptions({
+    queryKey: ["sites", siteId, "param-specs", recordType, searchName] as const,
+    queryFn: () => getParamSpecs(siteId, recordType, searchName),
+    staleTime: 5 * 60_000,
+    enabled: siteId !== "" && recordType !== "" && searchName !== "",
+  });
 }

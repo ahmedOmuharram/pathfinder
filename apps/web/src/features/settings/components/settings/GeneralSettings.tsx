@@ -8,6 +8,7 @@ import { useState, useCallback } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { ModelCatalogEntry, ModelProvider } from "@pathfinder/shared";
 import { useSettingsStore, type ModelOverrides } from "@/state/useSettingsStore";
+import { useModelCatalogQuery } from "@/lib/query/hooks/useModelCatalogQuery";
 import { ModelPicker } from "@/features/settings/components/ModelPicker";
 import { ReasoningToggle } from "@/lib/components/ReasoningToggle";
 import { Input } from "@/lib/components/ui/Input";
@@ -31,8 +32,9 @@ function groupByProvider(models: ModelCatalogEntry[]) {
 }
 
 export function GeneralSettings() {
-  const modelCatalog = useSettingsStore((s) => s.modelCatalog);
-  const catalogDefault = useSettingsStore((s) => s.catalogDefault);
+  const { data } = useModelCatalogQuery();
+  const modelCatalog = data?.models ?? [];
+  const catalogDefault = data?.default ?? null;
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const setDefaultModelId = useSettingsStore((s) => s.setDefaultModelId);
   const defaultReasoningEffort = useSettingsStore((s) => s.defaultReasoningEffort);

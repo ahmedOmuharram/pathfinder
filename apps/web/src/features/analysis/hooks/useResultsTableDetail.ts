@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { WdkRecord, RecordDetail } from "@/lib/types/wdk";
 import { getRecordDetail, type EntityRef } from "@/features/analysis/api/stepResults";
 
@@ -12,49 +13,34 @@ interface ResultsTableDetailState {
 
 export function useResultsTableDetail(entityRef: EntityRef): ResultsTableDetailState {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const [detail, setDetail] = useState<RecordDetail | null>(null);
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [recordId, setRecordId] = useState<WdkRecord["id"] | null>(null);
 
-  const handleExpandRowAsync = useCallback(
-    async (key: string, recordId: WdkRecord["id"]) => {
-      if (expandedKey === key) {
-        setExpandedKey(null);
-        setDetail(null);
-        setDetailError(null);
-        return;
-      }
-      setExpandedKey(key);
-      setDetail(null);
-      setDetailError(null);
-      setDetailLoading(true);
-      try {
-        const d = await getRecordDetail(entityRef, recordId);
-        setDetail(d);
-      } catch (err) {
-        setDetail(null);
-        setDetailError(
-          err instanceof Error ? err.message : "Failed to load record details",
-        );
-      } finally {
-        setDetailLoading(false);
-      }
-    },
-    [entityRef, expandedKey],
-  );
+  const { data, error, isPending } = useQuery({
+    queryKey: ["experiments", "records", entityRef.type, entityRef.id, { detail: true, key: expandedKey }] as const,
+    queryFn: () => getRecordDetail(entityRef, recordId!),
+    enabled: expandedKey != null && recordId != null,
+  });
 
   const handleExpandRow = useCallback(
-    (key: string, recordId: WdkRecord["id"]) => {
-      void handleExpandRowAsync(key, recordId);
+    (key: string, id: WdkRecord["id"]) => {
+      if (expandedKey === key) {
+        setExpandedKey(null);
+        setRecordId(null);
+      } else {
+        setExpandedKey(key);
+        setRecordId(id);
+      }
     },
-    [handleExpandRowAsync],
+    [expandedKey],
   );
 
   return {
     expandedKey,
-    detail,
-    detailError,
-    detailLoading,
+    detail: data ?? null,
+    detailError: error
+      ? (error instanceof Error ? error.message : "Failed to load record details")
+      : null,
+    detailLoading: isPending && expandedKey != null,
     handleExpandRow,
   };
 }

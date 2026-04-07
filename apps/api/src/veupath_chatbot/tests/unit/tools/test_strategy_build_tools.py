@@ -57,7 +57,7 @@ def _register_search(state: AgentToolState, search_name: str) -> None:
     )
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_create_leaf_step_requires_discovery() -> None:
     session = _make_session()
     state = AgentToolState()
@@ -77,7 +77,7 @@ async def test_create_leaf_step_requires_discovery() -> None:
     assert result.details["required_action"] == "get_search_overview(search_name='GenesByTaxon')"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @patch("veupath_chatbot.ai.tools.standalone.strategy_build.create_step", new_callable=AsyncMock)
 async def test_create_leaf_step_after_discovery(
     mock_create_step: AsyncMock,
@@ -118,7 +118,7 @@ async def test_create_leaf_step_after_discovery(
     assert result.graph_id == graph.id
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @patch("veupath_chatbot.ai.tools.standalone.strategy_build.create_step", new_callable=AsyncMock)
 async def test_combine_steps_creates_union(
     mock_create_step: AsyncMock,
@@ -163,7 +163,7 @@ async def test_combine_steps_creates_union(
     assert result.step.id == combined.id
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_combine_steps_rejects_missing_step() -> None:
     session = _make_session()
     deps = _make_deps(session)
@@ -187,7 +187,7 @@ async def test_combine_steps_rejects_missing_step() -> None:
     assert "nonexistent-id" in result.message
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_combine_steps_rejects_invalid_operator() -> None:
     session = _make_session()
     deps = _make_deps(session)
@@ -213,7 +213,7 @@ async def test_combine_steps_rejects_invalid_operator() -> None:
     assert "INTERSECT" in result.message
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_transform_step_requires_discovery_with_params() -> None:
     session = _make_session()
     state = AgentToolState()
@@ -237,7 +237,7 @@ async def test_transform_step_requires_discovery_with_params() -> None:
     assert result.code == "DISCOVERY_REQUIRED"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_transform_step_missing_input_step() -> None:
     session = _make_session()
     state = AgentToolState()

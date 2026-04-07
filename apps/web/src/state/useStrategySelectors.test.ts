@@ -16,7 +16,6 @@ describe("state/useStrategySelectors", () => {
   beforeEach(() => {
     useStrategyStore.getState().clear();
     useStrategyStore.setState({
-      strategies: [],
       executedStrategies: [],
       graphValidationStatus: {},
     });
@@ -39,22 +38,10 @@ describe("state/useStrategySelectors", () => {
     expect(result.current.stepsById["s1"]?.displayName).toBe("Search 1");
   });
 
-  it("useStrategyList returns strategies, executedStrategies, graphValidationStatus", () => {
-    useStrategyStore.getState().addStrategyToList({
-      id: "s1",
-      name: "A",
-      siteId: "plasmodb",
-      recordType: "gene",
-      steps: [],
-      rootStepId: null,
-      isSaved: false,
-      createdAt: "t1",
-      updatedAt: "t1",
-    });
+  it("useStrategyList returns executedStrategies and graphValidationStatus", () => {
     useStrategyStore.getState().setGraphValidationStatus("s1", true);
 
     const { result } = renderHook(() => useStrategyList());
-    expect(result.current.strategies).toHaveLength(1);
     expect(result.current.graphValidationStatus["s1"]).toBe(true);
   });
 
@@ -78,9 +65,6 @@ describe("state/useStrategySelectors", () => {
 
   it("useStrategyListActions returns list mutation actions", () => {
     const { result } = renderHook(() => useStrategyListActions());
-    expect(typeof result.current.setStrategies).toBe("function");
-    expect(typeof result.current.addStrategyToList).toBe("function");
-    expect(typeof result.current.removeStrategyFromList).toBe("function");
     expect(typeof result.current.addExecutedStrategy).toBe("function");
     expect(typeof result.current.setGraphValidationStatus).toBe("function");
   });

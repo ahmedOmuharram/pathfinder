@@ -3,6 +3,7 @@
 import { useCallback, useRef, type MutableRefObject } from "react";
 import type { Message, ToolCall } from "@pathfinder/shared";
 import { getStrategy } from "@/lib/api/strategies";
+import { addStrategyToCache } from "@/lib/query/mutations/addStrategyToCache";
 import { useStrategyStore } from "@/state/strategy/store";
 import type { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import { attachThinkingToLastAssistant } from "@/features/chat/utils/attachThinkingToLastAssistant";
@@ -25,7 +26,7 @@ export function useChatStrategyActions(
   const setStrategyMeta = useStrategyStore((s) => s.setStrategyMeta);
   const clearStrategy = useStrategyStore((s) => s.clear);
   const stepsById = useStrategyStore((s) => s.stepsById);
-  const addStrategy = useStrategyStore((s) => s.addStrategyToList);
+  const addStrategy = addStrategyToCache;
   const addExecutedStrategy = useStrategyStore((s) => s.addExecutedStrategy);
 
   // --- Load graph from API ---

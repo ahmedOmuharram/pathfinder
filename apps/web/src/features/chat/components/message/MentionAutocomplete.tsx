@@ -8,9 +8,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { FileText, FlaskConical, Loader2 } from "lucide-react";
-import type { ChatMention, ExperimentSummary, Strategy } from "@pathfinder/shared";
-import { useStrategyList } from "@/state/useStrategySelectors";
+import type { ChatMention, ExperimentSummary } from "@pathfinder/shared";
+import { listStrategies, strategiesListOptions } from "@/lib/api/strategies";
 import { listExperiments } from "@/lib/api/experiments";
 
 interface MentionAutocompleteProps {
@@ -37,15 +38,19 @@ export function MentionAutocomplete({
   onSelect,
   onDismiss,
 }: MentionAutocompleteProps) {
-  const { strategies: storeStrategies } = useStrategyList();
+  const strategiesQuery = useQuery({
+    queryKey: strategiesListOptions(siteId).queryKey,
+    queryFn: () => listStrategies(siteId),
+    enabled: siteId !== "",
+  });
   const [experiments, setExperiments] = useState<ExperimentSummary[]>([]);
   const [loadingExperiments, setLoadingExperiments] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const strategies = useMemo(
-    () => storeStrategies.filter((s) => (s.stepCount ?? 0) > 0),
-    [storeStrategies],
+    () => (strategiesQuery.data ?? []).filter((s) => (s.stepCount ?? 0) > 0),
+    [strategiesQuery.data],
   );
 
   useEffect(() => {
@@ -81,7 +86,7 @@ export function MentionAutocomplete({
       if (q && !s.name.toLowerCase().includes(q)) continue;
       result.push({
         mention: { type: "strategy", id: s.id, displayName: s.name },
-        subtitle: `${s.stepCount ?? 0} step${(s.stepCount ?? 0) !== 1 ? "s" : ""}${s.recordType ? ` · ${s.recordType}` : ""}`,
+        subtitle: `${s.stepCount ?? 0} step${(s.stepCount ?? 0) !== 1 ? "s" : ""}${s.recordType != null && s.recordType !== "" ? ` · ${s.recordType}` : ""}`,
         icon: FileText,
       });
     }

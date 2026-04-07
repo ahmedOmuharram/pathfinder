@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, startTransition } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { Search } from "@pathfinder/shared";
-import { getSearches } from "@/lib/api/sites";
+import { searchesOptions } from "@/lib/api/sites";
 import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
 
 interface UseStepSearchArgs {
@@ -22,11 +23,32 @@ export function useStepSearch({
   resolveRecordTypeForSearch,
 }: UseStepSearchArgs) {
   const [editableSearchName, setEditableSearchName] = useState(initialSearchName);
-  const [searchOptions, setSearchOptions] = useState<Search[]>([]);
-  const [isLoadingSearches, setIsLoadingSearches] = useState(false);
-  const [searchListError, setSearchListError] = useState<string | null>(null);
 
   const searchName = editableSearchName.trim();
+
+  const resolvedRecordType = resolveRecordTypeForSearch();
+  const normalizedRecordType = normalizeRecordType(resolvedRecordType || recordType);
+
+  const {
+    data: rawSearches = [],
+    isLoading: isLoadingSearches,
+    error: searchQueryError,
+  } = useQuery(searchesOptions(siteId, normalizedRecordType));
+
+  const searchOptions: Search[] = useMemo(
+    () =>
+      [...rawSearches].sort((a, b) =>
+        (a.displayName || a.name).localeCompare(b.displayName || b.name),
+      ),
+    [rawSearches],
+  );
+
+  const searchListError = useMemo(() => {
+    if (searchQueryError != null) return "Failed to load search list.";
+    if (!isLoadingSearches && searchOptions.length === 0 && normalizedRecordType != null && normalizedRecordType !== "")
+      return "No searches available for this record type.";
+    return null;
+  }, [searchQueryError, isLoadingSearches, searchOptions.length, normalizedRecordType]);
 
   const selectedSearch = useMemo(() => {
     if (searchName === "") return null;
@@ -49,50 +71,6 @@ export function useStepSearch({
       return label.includes(query) || option.name.toLowerCase().includes(query);
     });
   }, [editableSearchName, searchOptions]);
-
-  // -------------------------------------------------------------------------
-  // Data fetching: searches
-  // -------------------------------------------------------------------------
-  useEffect(() => {
-    let isActive = true;
-    const resolvedRecordType = resolveRecordTypeForSearch();
-    const normalizedRecordType = normalizeRecordType(resolvedRecordType || recordType);
-    if (normalizedRecordType == null || normalizedRecordType === "") {
-      startTransition(() => {
-        setSearchOptions([]);
-        setSearchListError(null);
-      });
-      return;
-    }
-    startTransition(() => {
-      setIsLoadingSearches(true);
-      setSearchListError(null);
-    });
-    getSearches(siteId, normalizedRecordType)
-      .then((results) => {
-        if (!isActive) return;
-        const options = [...results].sort((a, b) =>
-          (a.displayName || a.name).localeCompare(b.displayName || b.name),
-        );
-        setSearchOptions(options);
-        if (options.length === 0) {
-          setSearchListError("No searches available for this record type.");
-        }
-      })
-      .catch((err) => {
-        console.error("[StepEditor.loadSearches]", err);
-        if (!isActive) return;
-        setSearchOptions([]);
-        setSearchListError("Failed to load search list.");
-      })
-      .finally(() => {
-        if (!isActive) return;
-        setIsLoadingSearches(false);
-      });
-    return () => {
-      isActive = false;
-    };
-  }, [siteId, recordType, resolveRecordTypeForSearch]);
 
   return {
     editableSearchName,

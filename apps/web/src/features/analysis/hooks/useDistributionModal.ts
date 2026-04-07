@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { WdkRecord } from "@/lib/types/wdk";
 import { getRecords, type EntityRef } from "@/features/analysis/api/stepResults";
 
@@ -15,41 +16,35 @@ export function useDistributionModal(
   selectedAttr: string,
 ): DistributionModalState {
   const [modalValue, setModalValue] = useState<string | null>(null);
-  const [modalRecords, setModalRecords] = useState<WdkRecord[]>([]);
-  const [loadingModal, setLoadingModal] = useState(false);
 
-  const handleBarClickAsync = useCallback(
-    async (value: string) => {
-      setModalValue(value);
-      setModalRecords([]);
-      setLoadingModal(true);
+  const { data, isPending } = useQuery({
+    queryKey: ["experiments", "records", entityRef.type, entityRef.id, {
+      modal: true,
+      filterAttribute: selectedAttr,
+      filterValue: modalValue,
+    }] as const,
+    queryFn: () =>
+      getRecords(entityRef, {
+        attributes: [selectedAttr, "gene_product"],
+        filterAttribute: selectedAttr,
+        filterValue: modalValue!,
+        limit: 500,
+      }),
+    enabled: modalValue != null,
+    staleTime: 60_000,
+  });
 
-      try {
-        const { records } = await getRecords(entityRef, {
-          attributes: [selectedAttr, "gene_product"],
-          filterAttribute: selectedAttr,
-          filterValue: value,
-          limit: 500,
-        });
-        setModalRecords(records);
-      } catch {
-        setModalRecords([]);
-      } finally {
-        setLoadingModal(false);
-      }
-    },
-    [entityRef, selectedAttr],
-  );
+  const handleBarClick = useCallback((value: string) => {
+    setModalValue(value);
+  }, []);
 
   const closeModal = useCallback(() => setModalValue(null), []);
 
   return {
     modalValue,
-    modalRecords,
-    loadingModal,
-    handleBarClick: (value: string) => {
-      void handleBarClickAsync(value);
-    },
+    modalRecords: data?.records ?? [],
+    loadingModal: isPending && modalValue != null,
+    handleBarClick,
     closeModal,
   };
 }

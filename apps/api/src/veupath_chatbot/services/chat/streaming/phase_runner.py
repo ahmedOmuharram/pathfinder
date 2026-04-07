@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
+from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import UsageLimits
 
@@ -22,6 +23,7 @@ from veupath_chatbot.ai.agents.verification import (
     verification_agent,
 )
 from veupath_chatbot.ai.models.mock import get_mock_model
+from veupath_chatbot.ai.models.settings import build_model_settings
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.streaming.node_streaming import (
@@ -65,8 +67,24 @@ class PhaseConfig:
     message_history: list[ModelMessage] | None = None
     usage_limits: UsageLimits | None = None
 
+    @property
+    def run_metadata(self) -> dict[str, str]:
+        """Metadata for pydantic-ai agent runs — flows to OTEL spans."""
+        return {
+            "phase": self.phase,
+            "site_id": self.deps.site_id,
+            "user_id": str(self.deps.user_id or ""),
+        }
+
 
 # ── Model resolution ──────────────────────────────────────────────────────
+
+# Cross-provider fallback chains. If the primary fails, try alternatives.
+_FALLBACK_CHAINS: dict[str, list[str]] = {
+    "anthropic": ["openai:gpt-5", "google:gemini-3.1-pro-preview"],
+    "openai": ["anthropic:claude-sonnet-4-6", "google:gemini-3.1-pro-preview"],
+    "google": ["anthropic:claude-sonnet-4-6", "openai:gpt-5"],
+}
 
 
 def is_mock_model(model_id: str) -> bool:
@@ -74,16 +92,20 @@ def is_mock_model(model_id: str) -> bool:
     return model_id.startswith("mock/")
 
 
-def resolve_model(model_id: str) -> str | FunctionModel:
+def resolve_model(model_id: str) -> FallbackModel | FunctionModel:
     """Resolve a model ID to a pydantic-ai model instance.
 
     Mock IDs (``mock/*``) return the deterministic FunctionModel.
-    All other IDs are passed through as model name strings — pydantic-ai
-    resolves them via its provider registry (Anthropic, OpenAI, etc.).
+    All other IDs are wrapped in a FallbackModel with cross-provider
+    fallbacks for production resilience.
     """
     if is_mock_model(model_id):
         return get_mock_model()
-    return model_id
+
+    provider = model_id.split(":", 1)[0] if ":" in model_id else ""
+    fallbacks = _FALLBACK_CHAINS.get(provider, [])
+
+    return FallbackModel(model_id, *fallbacks)
 
 
 # ── Phase execution ───────────────────────────────────────────────────────
@@ -97,9 +119,10 @@ async def run_phase(config: PhaseConfig) -> list[ModelMessage]:
     """
     agent = PHASE_AGENTS[config.phase]
 
-    # Override the agent's model with the resolved model for this turn.
+    # Override the agent's model (and provider-specific settings) for this turn.
     resolved = resolve_model(config.model_id)
-    with agent.override(model=resolved):
+    settings = build_model_settings(config.model_id)
+    with agent.override(model=resolved, model_settings=settings):
         return await _run_phase_inner(config, agent)
 
 
@@ -112,6 +135,7 @@ async def _run_phase_inner(
         deps=config.deps,
         message_history=config.message_history,
         usage_limits=config.usage_limits,
+        metadata=config.run_metadata,
     ) as run:
         async for node in run:
             if Agent.is_model_request_node(node):

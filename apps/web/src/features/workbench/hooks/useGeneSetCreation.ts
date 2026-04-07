@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import type { ResolvedGene } from "@pathfinder/shared";
 import { resolveGeneIds } from "@/lib/api/genes";
 import { createGeneSet } from "../api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
-import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 
 interface UseGeneSetCreationOptions {
   onCreated: () => void;
@@ -13,44 +14,59 @@ interface UseGeneSetCreationOptions {
 
 export function useGeneSetCreation({ onCreated }: UseGeneSetCreationOptions) {
   const selectedSite = useSessionStore((s) => s.selectedSite);
-  const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
+  const invalidateGeneSets = useInvalidateGeneSets();
 
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [resolvedGenes, setResolvedGenes] = useState<ResolvedGene[] | null>(null);
-  const [unresolvedIds, setUnresolvedIds] = useState<string[]>([]);
-  const [verified, setVerified] = useState(false);
+
+  const verifyMutation = useMutation({
+    mutationFn: (parsedIds: string[]) => resolveGeneIds(selectedSite, parsedIds),
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+    onMutate: () => {
+      setError(null);
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (args: { name: string; geneIds: string[]; source: "paste" | "upload" }) =>
+      createGeneSet({
+        name: args.name,
+        source: args.source,
+        geneIds: args.geneIds,
+        siteId: selectedSite,
+      }),
+    onSuccess: async () => {
+      await invalidateGeneSets();
+      onCreated();
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+    onMutate: () => {
+      setError(null);
+    },
+  });
+
+  const verified = verifyMutation.isSuccess;
+  const resolvedGenes: ResolvedGene[] | null = verifyMutation.data?.resolved ?? null;
+  const unresolvedIds: string[] = verifyMutation.data?.unresolved ?? [];
 
   const resetVerification = useCallback(() => {
-    setVerified(false);
-    setResolvedGenes(null);
-    setUnresolvedIds([]);
+    verifyMutation.reset();
     setError(null);
-  }, []);
+  }, [verifyMutation]);
 
   const handleVerify = useCallback(
-    async (parsedIds: string[]) => {
+    (parsedIds: string[]) => {
       if (parsedIds.length === 0) return;
-      setVerifying(true);
-      setError(null);
-
-      try {
-        const result = await resolveGeneIds(selectedSite, parsedIds);
-        setResolvedGenes(result.resolved);
-        setUnresolvedIds(result.unresolved);
-        setVerified(true);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to verify gene IDs.");
-      } finally {
-        setVerifying(false);
-      }
+      verifyMutation.mutate(parsedIds);
     },
-    [selectedSite],
+    [verifyMutation],
   );
 
   const handleSubmit = useCallback(
-    async (name: string, parsedIds: string[], source: "paste" | "upload") => {
+    (name: string, parsedIds: string[], source: "paste" | "upload") => {
       setError(null);
 
       const trimmedName = name.trim();
@@ -67,30 +83,16 @@ export function useGeneSetCreation({ onCreated }: UseGeneSetCreationOptions) {
         return;
       }
 
-      setIsSubmitting(true);
-      try {
-        const geneSet = await createGeneSet({
-          name: trimmedName,
-          source,
-          geneIds: idsToSubmit,
-          siteId: selectedSite,
-        });
-        addGeneSet(geneSet);
-        onCreated();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create gene set.");
-      } finally {
-        setIsSubmitting(false);
-      }
+      createMutation.mutate({ name: trimmedName, geneIds: idsToSubmit, source });
     },
-    [selectedSite, verified, resolvedGenes, addGeneSet, onCreated],
+    [verified, resolvedGenes, createMutation],
   );
 
   return {
     error,
     setError,
-    isSubmitting,
-    verifying,
+    isSubmitting: createMutation.isPending,
+    verifying: verifyMutation.isPending,
     resolvedGenes,
     unresolvedIds,
     verified,

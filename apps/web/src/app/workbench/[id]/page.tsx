@@ -3,12 +3,15 @@
 import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useSessionStore } from "@/state/useSessionStore";
+import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { WorkbenchMain } from "@/features/workbench/components/WorkbenchMain";
 
 export default function WorkbenchGeneSetPage() {
   const { id } = useParams<{ id: string }>();
   const setActiveSet = useWorkbenchStore((s) => s.setActiveSet);
-  const geneSets = useWorkbenchStore((s) => s.geneSets);
+  const selectedSite = useSessionStore((s) => s.selectedSite);
+  const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
 
   // Activate the URL-specified gene set once it's loaded.
   useEffect(() => {

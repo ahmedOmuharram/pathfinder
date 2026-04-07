@@ -46,6 +46,8 @@ async def emit(
             "type": event_type.encode(),
             "data": json.dumps(event_data, default=str).encode(),
         },
+        maxlen=50_000,
+        approximate=True,
     )
     entry_id = (
         entry_id_bytes.decode()

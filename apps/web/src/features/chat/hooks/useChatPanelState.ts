@@ -10,7 +10,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   ChatMention,
-  GeneSet,
   Message,
   PlanningArtifact,
   Strategy,
@@ -44,17 +43,12 @@ interface UseChatPanelStateArgs {
   siteId: string;
   pendingAskNode?: NodeSelection | null;
   onConsumeAskNode?: () => void;
-  /** Workbench store bindings — injected from page to avoid cross-feature import. */
-  addGeneSet: (gs: GeneSet) => void;
-  geneSets: GeneSet[];
 }
 
 export function useChatPanelState({
   siteId,
   pendingAskNode = null,
   onConsumeAskNode,
-  addGeneSet,
-  geneSets,
 }: UseChatPanelStateArgs) {
   // --- Global state ---
   const strategyId = useSessionStore((s) => s.strategyId);
@@ -92,7 +86,7 @@ export function useChatPanelState({
   );
 
   // --- Workbench bridge ---
-  const { handleWorkbenchGeneSet } = useWorkbenchBridge(addGeneSet, geneSets);
+  const { handleWorkbenchGeneSet } = useWorkbenchBridge();
 
   const clearMessages = useCallback(() => setMessages([]), []);
   const { handleError, apiError, setApiError } = useChatErrorHandling(

@@ -3,6 +3,7 @@ const path = require("path");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  reactCompiler: true,
   output: "standalone",
   // Disable built-in gzip compression so SSE streams are flushed per-event
   // instead of being buffered by the compressor.  In production, the reverse

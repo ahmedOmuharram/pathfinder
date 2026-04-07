@@ -10,9 +10,11 @@ itself is configured with the full execution toolset as default.
 from __future__ import annotations
 
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import UsageLimits
 
+from veupath_chatbot.ai.agents._hooks import apply_auto_build_hook
 from veupath_chatbot.ai.agents._instructions import (
     base_system_prompt,
     mentioned_context,
@@ -20,6 +22,7 @@ from veupath_chatbot.ai.agents._instructions import (
     pinned_context_summary,
     pinned_graph_state,
 )
+from veupath_chatbot.ai.capabilities.security import SecurityGuardrail
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.ai.tools.toolsets.execution import build_toolset
 
@@ -62,11 +65,15 @@ via the pinned graph state), not from the plan's placeholder IDs.
 # Agent
 # ---------------------------------------------------------------------------
 
+_execution_hooks: Hooks[AgentDeps] = Hooks(after_tool_execute=apply_auto_build_hook)
+
 execution_agent: Agent[AgentDeps, str] = Agent(
     "anthropic:claude-sonnet-4-5",
     deps_type=AgentDeps,
     instructions=_EXECUTION_INSTRUCTIONS,
     toolsets=[build_toolset()],
+    capabilities=[_execution_hooks, Thinking(effort="medium"), SecurityGuardrail()],
+    description="Builds WDK strategies by executing planned operations",
     name="execution",
     defer_model_check=True,
 )

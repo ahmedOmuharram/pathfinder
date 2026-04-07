@@ -5,6 +5,7 @@ import { CombineOperator, CombineOperatorLabels } from "@pathfinder/shared";
 import { OpBadge } from "@/features/strategy/graph/components/OpBadge";
 import { Label } from "@/lib/components/ui/Label";
 import { ColocationEditor, resolveParams } from "@/features/strategy/editor/components/ColocationEditor";
+import type { ColocationFormValues } from "../schema/colocationSchema";
 
 type StepCombineOperatorSelectProps = {
   operatorValue: string;
@@ -22,10 +23,10 @@ export function StepCombineOperatorSelect({
   onColocationParamsChange,
 }: StepCombineOperatorSelectProps) {
   const showColocate = operatorValue === "COLOCATE";
-  const params = resolveParams(colocationParams);
+  const resolved = resolveParams(colocationParams);
 
-  function patchParams(patch: Partial<ColocationParams>) {
-    onColocationParamsChange({ ...params, ...patch });
+  function handleColocationChange(values: ColocationFormValues) {
+    onColocationParamsChange(values);
   }
 
   return (
@@ -61,7 +62,10 @@ export function StepCombineOperatorSelect({
       </div>
 
       {showColocate && (
-        <ColocationEditor params={params} onPatch={patchParams} />
+        <ColocationEditor
+          initialValues={resolved}
+          onChange={handleColocationChange}
+        />
       )}
     </div>
   );

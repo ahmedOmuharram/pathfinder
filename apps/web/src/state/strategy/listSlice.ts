@@ -1,5 +1,9 @@
 /**
- * List slice — sidebar strategy list and executed strategies tracking.
+ * List slice — executed strategies tracking.
+ *
+ * The sidebar strategy list cache lives in TanStack Query and is managed
+ * by `addStrategyToCache` in `lib/query/mutations/`. This slice only
+ * tracks strategies that have been executed against WDK.
  */
 
 import type { StateCreator } from "zustand";
@@ -9,28 +13,7 @@ import { normalizeStrategyId } from "./helpers";
 export const createListSlice: StateCreator<StrategyState, [], [], ListSlice> = (
   set,
 ) => ({
-  strategies: [],
   executedStrategies: [],
-
-  setStrategies: (items) => set({ strategies: items }),
-
-  addStrategyToList: (item) =>
-    set((state) => {
-      const existing = state.strategies.find((c) => c.id === item.id);
-      if (existing) {
-        return {
-          strategies: state.strategies.map((c) =>
-            c.id === item.id ? { ...c, ...item } : c,
-          ),
-        };
-      }
-      return { strategies: [item, ...state.strategies] };
-    }),
-
-  removeStrategyFromList: (id) =>
-    set((state) => ({
-      strategies: state.strategies.filter((c) => c.id !== id),
-    })),
 
   addExecutedStrategy: (strategy) =>
     set((state) => {

@@ -292,44 +292,9 @@ describe("state/useStrategyStore", () => {
 describe("state/useStrategyStore (list management)", () => {
   beforeEach(() => {
     useStrategyStore.setState({
-      strategies: [],
       executedStrategies: [],
       graphValidationStatus: {},
     });
-  });
-
-  it("adds and updates strategies by id", () => {
-    const { addStrategyToList } = useStrategyStore.getState();
-    addStrategyToList({
-      id: "s1",
-      name: "A",
-      title: "A",
-      siteId: "plasmodb",
-      recordType: "gene",
-      stepCount: 0,
-      steps: [],
-      rootStepId: null,
-      isSaved: false,
-      createdAt: "t1",
-      updatedAt: "t1",
-    });
-    addStrategyToList({
-      id: "s1",
-      name: "A2",
-      title: "A2",
-      siteId: "plasmodb",
-      recordType: "gene",
-      stepCount: 1,
-      steps: [],
-      rootStepId: null,
-      isSaved: false,
-      createdAt: "t1",
-      updatedAt: "t2",
-    });
-
-    const { strategies } = useStrategyStore.getState();
-    expect(strategies).toHaveLength(1);
-    expect(strategies[0]).toMatchObject({ id: "s1", name: "A2", stepCount: 1 });
   });
 
   it("normalizes executed strategy id when missing", () => {
@@ -359,40 +324,6 @@ describe("state/useStrategyStore (list management)", () => {
     expect(useStrategyStore.getState().graphValidationStatus).toEqual({
       s1: true,
     });
-  });
-
-  it("removes strategy by id", () => {
-    const { addStrategyToList, removeStrategyFromList } = useStrategyStore.getState();
-    addStrategyToList({
-      id: "s1",
-      name: "A",
-      title: "A",
-      siteId: "plasmodb",
-      recordType: "gene",
-      stepCount: 0,
-      steps: [],
-      rootStepId: null,
-      isSaved: false,
-      createdAt: "t1",
-      updatedAt: "t1",
-    });
-    addStrategyToList({
-      id: "s2",
-      name: "B",
-      title: "B",
-      siteId: "plasmodb",
-      recordType: "gene",
-      stepCount: 0,
-      steps: [],
-      rootStepId: null,
-      isSaved: false,
-      createdAt: "t1",
-      updatedAt: "t1",
-    });
-    removeStrategyFromList("s1");
-    const { strategies } = useStrategyStore.getState();
-    expect(strategies).toHaveLength(1);
-    expect(strategies[0]?.id).toBe("s2");
   });
 
   it("updates existing executed strategy when id matches", () => {

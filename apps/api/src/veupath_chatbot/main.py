@@ -12,7 +12,10 @@ from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 
 from veupath_chatbot import __version__
-from veupath_chatbot.ai.orchestration.observability import setup_observability
+from veupath_chatbot.ai.orchestration.observability import (
+    setup_observability,
+    shutdown_observability,
+)
 from veupath_chatbot.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
@@ -129,6 +132,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     await close_all_clients()
     await close_redis()
     await close_db()
+    # Flush and shutdown OTEL TracerProvider before Langfuse SDK.
+    shutdown_observability()
     # Flush and shutdown the Langfuse SDK client.
     from veupath_chatbot.platform.langfuse.client import (  # noqa: PLC0415
         shutdown_langfuse,

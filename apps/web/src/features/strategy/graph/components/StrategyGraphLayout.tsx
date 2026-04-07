@@ -1,14 +1,15 @@
 "use client";
 
-import React from "react";
-import ReactFlow, {
+import {
+  ReactFlow,
   Background,
   ConnectionMode,
   Controls,
   MiniMap,
+  Panel,
   SelectionMode,
   type NodeTypes,
-} from "reactflow";
+} from "@xyflow/react";
 import type { Step, StepKind } from "@pathfinder/shared";
 import { StepNode } from "@/features/strategy/graph/components/StepNode";
 import {
@@ -50,8 +51,6 @@ export function StrategyGraphLayout() {
     <div className="flex h-full w-full flex-col">
       {!g.isCompact && <StrategyGraphDetailsHeader />}
       <div className="relative flex-1">
-        <GraphWdkBadge />
-        <GraphToolbar />
         {!g.isCompact && <StrategyGraphActionButtons />}
         <ReactFlow
           nodes={g.nodes}
@@ -64,12 +63,11 @@ export function StrategyGraphLayout() {
           isValidConnection={g.isValidConnection}
           nodeTypes={NODE_TYPES}
           defaultEdgeOptions={{ type: "step" }}
-          onInit={g.handleInit}
           onMoveStart={g.handleMoveStart}
           onPaneClick={() => g.setEdgeMenu(null)}
           onEdgeClick={
             g.isCompact
-              ? undefined
+              ? () => {}
               : (event, edge) => {
                   event.stopPropagation();
                   g.setEdgeMenu({ edge, x: event.clientX, y: event.clientY });
@@ -84,7 +82,7 @@ export function StrategyGraphLayout() {
           connectionMode={ConnectionMode.Loose}
           onNodeClick={
             g.isCompact
-              ? undefined
+              ? () => {}
               : (_, node) => {
                   const data = node.data as { step?: Step } | undefined;
                   const step = data?.step;
@@ -97,8 +95,18 @@ export function StrategyGraphLayout() {
           snapGrid={SNAP_GRID}
           minZoom={0.1}
           maxZoom={2}
+          colorMode="system"
+          connectionRadius={20}
+          nodesFocusable={!g.isCompact}
+          edgesFocusable={!g.isCompact}
           className="bg-muted"
         >
+          <Panel position="top-left">
+            <GraphWdkBadge />
+          </Panel>
+          <Panel position="top-right">
+            <GraphToolbar />
+          </Panel>
           <Background color="#e2e8f0" gap={28} size={1} />
           {!g.isCompact && (
             <Controls className="bg-card border-border text-muted-foreground" />

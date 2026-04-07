@@ -1,3 +1,4 @@
+import { queryOptions } from "@tanstack/react-query";
 import type { ModelCatalogEntry, ReasoningEffort } from "@pathfinder/shared";
 import { requestJson } from "./http";
 import { ModelCatalogResponseSchema } from "./schemas/model";
@@ -13,4 +14,12 @@ export async function listModels(): Promise<ModelCatalogResponse> {
     ModelCatalogResponseSchema,
     "/api/v1/models",
   )) as ModelCatalogResponse;
+}
+
+export function modelCatalogOptions() {
+  return queryOptions({
+    queryKey: ["models", "catalog"] as const,
+    queryFn: listModels,
+    staleTime: Infinity,
+  });
 }

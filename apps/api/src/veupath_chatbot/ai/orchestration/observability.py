@@ -6,12 +6,18 @@ when its prerequisite is missing.  ``setup_observability`` composes them.
 
 import base64
 import logging
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as importlib_version
+from uuid import uuid4
 
 from fastapi import FastAPI
-from opentelemetry import trace
+from opentelemetry import metrics, trace
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
     OTLPLogExporter as GrpcLogExporter,
+)
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+    OTLPMetricExporter,
 )
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
     OTLPSpanExporter as GrpcSpanExporter,
@@ -25,11 +31,12 @@ from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from pydantic_ai import Agent
-from pydantic_ai.agent import InstrumentationSettings
+from pydantic_ai import Agent, InstrumentationSettings
 
 from veupath_chatbot.platform.config import get_settings
 from veupath_chatbot.platform.context import (
@@ -41,7 +48,35 @@ from veupath_chatbot.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
-_RESOURCE = Resource.create({"service.name": "pathfinder-api"})
+class _OtelState:
+    """Module-level mutable state for OTEL providers (avoids ``global``)."""
+
+    provider: TracerProvider | None = None
+    meter_provider: MeterProvider | None = None
+
+
+_otel = _OtelState()
+
+
+def _get_version() -> str:
+    """Read the package version from installed metadata."""
+    try:
+        return importlib_version("pathfinder-api")
+    except PackageNotFoundError:
+        return "0.0.0-dev"
+
+
+def _build_resource() -> Resource:
+    """Build the OTEL Resource with enriched semantic convention attributes."""
+    settings = get_settings()
+    return Resource.create(
+        {
+            "service.name": "pathfinder-api",
+            "service.version": _get_version(),
+            "deployment.environment.name": settings.api_env,
+            "service.instance.id": str(uuid4()),
+        }
+    )
 
 
 def _configure_exporters() -> TracerProvider | None:
@@ -74,10 +109,30 @@ def _configure_exporters() -> TracerProvider | None:
     if not processors:
         return None
 
-    provider = TracerProvider(resource=_RESOURCE)
+    _otel.provider = TracerProvider(resource=_build_resource())
     for proc in processors:
-        provider.add_span_processor(proc)
-    return provider
+        _otel.provider.add_span_processor(proc)
+    return _otel.provider
+
+
+def _configure_metrics_export(resource: Resource) -> None:
+    """Create a MeterProvider with a SigNoz gRPC exporter.
+
+    No-ops when SigNoz is not configured (Langfuse does not support OTEL
+    metrics ingestion).
+    """
+    settings = get_settings()
+    if not settings.signoz_otel_endpoint:
+        return
+
+    exporter = OTLPMetricExporter(
+        endpoint=settings.signoz_otel_endpoint,
+        insecure=True,
+    )
+    reader = PeriodicExportingMetricReader(exporter, export_interval_millis=15_000)
+    _otel.meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
+    metrics.set_meter_provider(_otel.meter_provider)
+    logger.info("OTEL metrics: SigNoz", endpoint=settings.signoz_otel_endpoint)
 
 
 def _configure_log_export() -> None:
@@ -96,7 +151,7 @@ def _configure_log_export() -> None:
         endpoint=settings.signoz_otel_endpoint,
         insecure=True,
     )
-    log_provider = LoggerProvider(resource=_RESOURCE)
+    log_provider = LoggerProvider(resource=_build_resource())
     log_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
     set_logger_provider(log_provider)
 
@@ -171,6 +226,7 @@ def setup_observability(
         return
 
     trace.set_tracer_provider(provider)
+    _configure_metrics_export(provider.resource)
     _configure_log_export()
 
     if app is not None:
@@ -182,6 +238,22 @@ def setup_observability(
     _instrument_agents()
 
 
+def shutdown_observability() -> None:
+    """Flush and shutdown OTEL providers. Called during app shutdown."""
+    if _otel.meter_provider is not None:
+        _otel.meter_provider.shutdown()
+        _otel.meter_provider = None
+    if _otel.provider is not None:
+        _otel.provider.shutdown()
+        _otel.provider = None
+    logger.info("OTEL providers shut down")
+
+
 def get_tracer() -> trace.Tracer:
     """Return a tracer for custom spans (pipeline phases, classification)."""
     return trace.get_tracer("pathfinder.pipeline")
+
+
+def get_meter() -> metrics.Meter:
+    """Return a meter for ad-hoc custom metrics."""
+    return metrics.get_meter("pathfinder.pipeline")

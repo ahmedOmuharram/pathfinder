@@ -5,10 +5,13 @@
  *
  * Owns the duplicate-strategy modal state and handles
  * the full duplicate flow: load strategy, build plan, create copy.
+ *
+ * Uses useQueryClient() directly for cache invalidation after duplication.
  */
 
 import { type Dispatch, type SetStateAction, useCallback, useState } from "react";
-import { createStrategy, getStrategy } from "@/lib/api/strategies";
+import { useQueryClient } from "@tanstack/react-query";
+import { createStrategy, getStrategy, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import type { Strategy } from "@pathfinder/shared";
 import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
 import {
@@ -19,7 +22,7 @@ import {
 } from "@/features/sidebar/utils/duplicateModalState";
 
 interface UseDuplicateWorkflowArgs {
-  refetchStrategies: () => Promise<void>;
+  siteId: string;
 }
 
 export interface DuplicateWorkflow {
@@ -30,8 +33,9 @@ export interface DuplicateWorkflow {
 }
 
 export function useDuplicateWorkflow({
-  refetchStrategies,
+  siteId,
 }: UseDuplicateWorkflowArgs): DuplicateWorkflow {
+  const queryClient = useQueryClient();
   const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState | null>(
     null,
   );
@@ -45,9 +49,10 @@ export function useDuplicateWorkflow({
         siteId: baseStrategy.siteId,
         plan,
       });
-      void refetchStrategies();
+      void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
+      void queryClient.invalidateQueries({ queryKey: dismissedStrategiesOptions(siteId).queryKey });
     },
-    [refetchStrategies],
+    [queryClient, siteId],
   );
 
   const startDuplicate = useCallback((strategy: Strategy) => {

@@ -1,6 +1,7 @@
 """Execution-phase toolset — 12 tools for building and editing strategies."""
 
-from veupath_chatbot.ai.agents._hooks import apply_auto_build_hook
+from pydantic_ai.toolsets.function import FunctionToolset
+
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.ai.tools.standalone.conversation import (
     clear_strategy,
@@ -22,12 +23,11 @@ from veupath_chatbot.ai.tools.standalone.strategy_edit import (
     update_step,
 )
 from veupath_chatbot.ai.tools.standalone.strategy_graph import get_strategy
-from veupath_chatbot.ai.tools.toolsets.hooked import HookedFunctionToolset
 
 
-def build_toolset() -> HookedFunctionToolset[AgentDeps]:
+def build_toolset() -> FunctionToolset[AgentDeps]:
     """Build the execution-phase toolset."""
-    return HookedFunctionToolset(
+    return FunctionToolset(
         tools=[
             create_leaf_step,
             combine_steps,
@@ -42,5 +42,4 @@ def build_toolset() -> HookedFunctionToolset[AgentDeps]:
             clear_strategy,
             get_strategy,
         ],
-        post_hooks=[apply_auto_build_hook],
     )

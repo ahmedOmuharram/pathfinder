@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import type { Connection, Edge } from "reactflow";
+import type { Connection, Edge } from "@xyflow/react";
 import { type CombineOperator } from "@pathfinder/shared";
 import type { Step } from "@pathfinder/shared";
 import {
@@ -36,8 +36,8 @@ export function useGraphConnections({
   const indices = useMemo(() => buildGraphIndices(steps), [steps]);
 
   const isValidConnection = useCallback(
-    (connection: Connection) => {
-      return isValidGraphConnection(connection, indices);
+    (connection: Edge | Connection) => {
+      return isValidGraphConnection(connection as Connection, indices);
     },
     [indices],
   );

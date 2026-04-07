@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { type Node, useNodesState, useEdgesState } from "reactflow";
+import { type Node, type Edge, useNodesState, useEdgesState } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
 import { validateStepsForSave } from "@/features/strategy/validation/save";
@@ -34,10 +34,10 @@ function computeWarningGroupNodes(
     const minX = Math.min(...targetNodes.map((n) => n.position.x));
     const minY = Math.min(...targetNodes.map((n) => n.position.y));
     const maxX = Math.max(
-      ...targetNodes.map((n) => n.position.x + (n.width ?? DEFAULT_NODE_WIDTH)),
+      ...targetNodes.map((n) => n.position.x + (n.measured?.width ?? DEFAULT_NODE_WIDTH)),
     );
     const maxY = Math.max(
-      ...targetNodes.map((n) => n.position.y + (n.height ?? DEFAULT_NODE_HEIGHT)),
+      ...targetNodes.map((n) => n.position.y + (n.measured?.height ?? DEFAULT_NODE_HEIGHT)),
     );
     const groupWidth = maxX - minX + WARNING_PADDING * 2;
     const groupHeight = maxY - minY + WARNING_PADDING * 2;
@@ -105,8 +105,8 @@ interface UseStrategyGraphNodesOptions {
 export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   const { strategy, siteId } = options;
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedStep, setSelectedStep] = useState<Step | null>(null);
   const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 

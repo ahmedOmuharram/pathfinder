@@ -115,7 +115,7 @@ class TestVerificationAgentFunctionModel:
     to verify the FunctionModel -> tool call -> result -> text response cycle.
     """
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_agent_calls_get_strategy_via_function_model(self) -> None:
         """FunctionModel drives the agent to call get_strategy and produce text."""
         deps = _make_deps()
@@ -188,7 +188,7 @@ class TestVerificationAgentFunctionModel:
                     tool_call_found = True
         assert tool_call_found, "Expected get_strategy tool call in captured messages"
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_agent_tool_result_flows_to_response(self) -> None:
         """Verify the tool result is available in messages when the model responds."""
         deps = _make_deps()
@@ -262,7 +262,7 @@ class TestVerificationToolVisibility:
     all 18 verification tools are visible to the model.
     """
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_all_18_tools_visible_to_function_model(self) -> None:
         """Verify the FunctionModel receives all 18 tool definitions."""
         deps = _make_deps()
@@ -287,7 +287,7 @@ class TestVerificationToolVisibility:
         assert len(captured_tool_names) == 18
         assert frozenset(captured_tool_names) == EXPECTED_TOOLS
 
-    @pytest.mark.anyio
+    @pytest.mark.asyncio
     async def test_individual_tool_categories_present(self) -> None:
         """Verify tools from each category (results, export, workbench, etc.) are present."""
         deps = _make_deps()
@@ -348,38 +348,45 @@ class TestVerificationToolVisibility:
 
 
 class TestVerificationDynamicInstructions:
-    """Verify the 4 dynamic instruction functions are registered on the agent."""
+    """Verify the 4 dynamic instruction functions are registered on the agent.
+
+    In pydantic-ai 1.77+, ``_instructions`` is a flat list containing both
+    the static string and dynamic callables (no separate ``_instructions_functions``).
+    """
 
     def test_five_instruction_entries_registered(self) -> None:
         """The agent has 1 static instruction string + 4 dynamic instruction functions."""
-        assert isinstance(verification_agent._instructions, str)
-        assert len(verification_agent._instructions_functions) == 4
+        statics = [i for i in verification_agent._instructions if isinstance(i, str)]
+        dynamics = [i for i in verification_agent._instructions if callable(i)]
+        assert len(statics) == 1
+        assert len(dynamics) == 4
 
     def test_static_instruction_is_string(self) -> None:
         """The static instruction is a string containing 'Verification Agent'."""
-        assert isinstance(verification_agent._instructions, str)
-        assert "Verification Agent" in verification_agent._instructions
+        statics = [i for i in verification_agent._instructions if isinstance(i, str)]
+        assert len(statics) == 1
+        assert "Verification Agent" in statics[0]
 
     def test_pinned_context_summary_registered(self) -> None:
         """_pinned_context_summary is registered as a dynamic instruction."""
-        names = [runner.function.__name__ for runner in verification_agent._instructions_functions]
+        names = [f.__name__ for f in verification_agent._instructions if callable(f)]
         assert "_pinned_context_summary" in names
 
     def test_pinned_graph_state_registered(self) -> None:
         """_pinned_graph_state is registered as a dynamic instruction."""
-        names = [runner.function.__name__ for runner in verification_agent._instructions_functions]
+        names = [f.__name__ for f in verification_agent._instructions if callable(f)]
         assert "_pinned_graph_state" in names
 
     def test_mentioned_context_registered(self) -> None:
         """_mentioned_context is registered as a dynamic instruction."""
-        names = [runner.function.__name__ for runner in verification_agent._instructions_functions]
+        names = [f.__name__ for f in verification_agent._instructions if callable(f)]
         assert "_mentioned_context" in names
 
     def test_all_four_dynamic_functions_present(self) -> None:
         """All 4 dynamic instruction functions are registered (no more, no fewer)."""
-        runners = verification_agent._instructions_functions
-        assert len(runners) == 4
-        names = frozenset(runner.function.__name__ for runner in runners)
+        dynamics = [f for f in verification_agent._instructions if callable(f)]
+        assert len(dynamics) == 4
+        names = frozenset(f.__name__ for f in dynamics)
         assert names == frozenset(
             {"_base_system_prompt", "_pinned_context_summary", "_pinned_graph_state", "_mentioned_context"}
         )

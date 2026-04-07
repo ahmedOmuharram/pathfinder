@@ -18,12 +18,11 @@ export function useCurrentStrategy() {
   return { strategy, stepsById };
 }
 
-/** Returns the strategy list and executed strategies (sidebar data). */
+/** Returns the executed strategies and graph validation status. */
 export function useStrategyList() {
-  const strategies = useStrategyStore((s) => s.strategies);
   const executedStrategies = useStrategyStore((s) => s.executedStrategies);
   const graphValidationStatus = useStrategyStore((s) => s.graphValidationStatus);
-  return { strategies, executedStrategies, graphValidationStatus };
+  return { executedStrategies, graphValidationStatus };
 }
 
 /** Returns undo/redo state. */
@@ -65,17 +64,11 @@ export function useStrategyActions() {
   };
 }
 
-/** Returns list mutation actions (add/remove strategies from sidebar). */
+/** Returns list mutation actions (track executed, graph validation). */
 export function useStrategyListActions() {
-  const setStrategies = useStrategyStore((s) => s.setStrategies);
-  const addStrategyToList = useStrategyStore((s) => s.addStrategyToList);
-  const removeStrategyFromList = useStrategyStore((s) => s.removeStrategyFromList);
   const addExecutedStrategy = useStrategyStore((s) => s.addExecutedStrategy);
   const setGraphValidationStatus = useStrategyStore((s) => s.setGraphValidationStatus);
   return {
-    setStrategies,
-    addStrategyToList,
-    removeStrategyFromList,
     addExecutedStrategy,
     setGraphValidationStatus,
   };

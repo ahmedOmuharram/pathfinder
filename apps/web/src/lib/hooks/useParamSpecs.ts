@@ -7,6 +7,7 @@ import { getParamSpecs } from "@/lib/api/sites";
 import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
 import { buildContextValues } from "@/lib/utils/buildContextValues";
 import type { StepParameters } from "@/lib/strategyGraph/types";
+import { useParamSpecsQuery } from "@/lib/query/hooks/useParamSpecsQuery";
 
 interface AdvancedOptions {
   siteId: string;
@@ -70,7 +71,7 @@ export function useParamSpecs(
 }
 
 // ---------------------------------------------------------------------------
-// Simple variant (no debounce, no record-type resolution)
+// Simple variant — delegates to TanStack Query hook
 // ---------------------------------------------------------------------------
 
 function useParamSpecsSimple(
@@ -78,34 +79,8 @@ function useParamSpecsSimple(
   recordType: string,
   searchName: string,
 ): UseParamSpecsResult {
-  const [paramSpecs, setParamSpecs] = useState<ParamSpec[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (!siteId || !recordType || !searchName) return;
-
-    let active = true;
-
-    async function load() {
-      setIsLoading(true);
-      try {
-        const specs = await getParamSpecs(siteId, recordType, searchName);
-        if (active) setParamSpecs(specs);
-      } catch (err) {
-        console.error("[useParamSpecs]", err);
-        if (active) setParamSpecs([]);
-      } finally {
-        if (active) setIsLoading(false);
-      }
-    }
-
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [siteId, recordType, searchName]);
-
-  return useMemo(() => ({ paramSpecs, isLoading }), [paramSpecs, isLoading]);
+  const { data, isLoading } = useParamSpecsQuery(siteId, recordType, searchName);
+  return useMemo(() => ({ paramSpecs: data ?? [], isLoading }), [data, isLoading]);
 }
 
 // ---------------------------------------------------------------------------

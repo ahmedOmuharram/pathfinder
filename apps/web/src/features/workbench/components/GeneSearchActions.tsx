@@ -5,6 +5,7 @@ import { Loader2, Plus, ThumbsDown, ThumbsUp } from "lucide-react";
 import { createGeneSet } from "@/features/workbench/api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 import { Button } from "@/lib/components/ui/Button";
 import { Input } from "@/lib/components/ui/Input";
 import { SaveControlSetForm } from "./SaveControlSetForm";
@@ -23,7 +24,7 @@ export function GeneSearchActions({
   onError,
 }: GeneSearchActionsProps) {
   const selectedSite = useSessionStore((s) => s.selectedSite);
-  const addGeneSet = useWorkbenchStore((s) => s.addGeneSet);
+  const invalidateGeneSets = useInvalidateGeneSets();
   const evaluateOpen = useWorkbenchStore((s) => s.expandedPanels.has("evaluate"));
   const appendPositiveControls = useWorkbenchStore((s) => s.appendPositiveControls);
   const appendNegativeControls = useWorkbenchStore((s) => s.appendNegativeControls);
@@ -39,13 +40,13 @@ export function GeneSearchActions({
     const name = newSetName.trim() || `Search: ${query.trim()}`;
     setCreating(true);
     try {
-      const gs = await createGeneSet({
+      await createGeneSet({
         name,
         source: "paste",
         geneIds: [...selectedIds],
         siteId: selectedSite,
       });
-      addGeneSet(gs);
+      await invalidateGeneSets();
       onClearSelection();
       setShowNameInput(false);
       setNewSetName("");
@@ -59,7 +60,7 @@ export function GeneSearchActions({
     newSetName,
     query,
     selectedSite,
-    addGeneSet,
+    invalidateGeneSets,
     onClearSelection,
     onError,
   ]);

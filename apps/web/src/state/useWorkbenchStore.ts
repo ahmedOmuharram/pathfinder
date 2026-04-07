@@ -1,9 +1,12 @@
 /**
- * Workbench state store — manages gene sets and analysis panel UI state.
+ * Workbench state store — manages gene-set selection and analysis panel UI state.
+ *
+ * Gene-set data itself lives in TanStack Query (useGeneSetsQuery).
+ * This store only tracks selection/activation IDs and UI controls.
  */
 
 import { create } from "zustand";
-import type { Experiment, GeneSet } from "@pathfinder/shared";
+import type { Experiment } from "@pathfinder/shared";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,7 +32,6 @@ export type PanelId =
 // ---------------------------------------------------------------------------
 
 interface WorkbenchState {
-  geneSets: GeneSet[];
   activeSetId: string | null;
   selectedSetIds: string[];
   expandedPanels: Set<PanelId>;
@@ -38,17 +40,11 @@ interface WorkbenchState {
   geneSearchOpen: boolean;
   leftSidebarOpen: boolean;
 
-  // Actions — gene sets
-  addGeneSet: (geneSet: GeneSet) => void;
-  /** Merge fetched gene sets into the store without changing activeSetId. */
-  mergeGeneSets: (sets: GeneSet[]) => void;
-  removeGeneSet: (id: string) => void;
-  updateGeneSet: (id: string, patch: Partial<GeneSet>) => void;
+  // Actions — gene set selection
   setActiveSet: (id: string | null) => void;
   toggleSetSelection: (id: string) => void;
   clearSelection: () => void;
-  removeGeneSets: (ids: string[]) => void;
-  selectAll: () => void;
+  selectAll: (ids: string[]) => void;
   deselectAll: () => void;
 
   // Actions — panels
@@ -81,7 +77,6 @@ interface WorkbenchState {
 // ---------------------------------------------------------------------------
 
 const initialState = {
-  geneSets: [] as GeneSet[],
   activeSetId: null as string | null,
   selectedSetIds: [] as string[],
   expandedPanels: new Set<PanelId>(),
@@ -100,36 +95,7 @@ const initialState = {
 export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
   ...initialState,
 
-  // -- Gene set actions -----------------------------------------------------
-
-  addGeneSet: (geneSet) =>
-    set((s) => ({
-      geneSets: [...s.geneSets, geneSet],
-      // Auto-activate when no set is active yet
-      activeSetId: s.activeSetId ?? geneSet.id,
-    })),
-
-  mergeGeneSets: (sets) =>
-    set((s) => {
-      const existingIds = new Set(s.geneSets.map((gs) => gs.id));
-      const newSets = sets.filter((gs) => !existingIds.has(gs.id));
-      if (newSets.length === 0) return s;
-      return { geneSets: [...s.geneSets, ...newSets] };
-    }),
-
-  removeGeneSet: (id) =>
-    set((s) => {
-      const geneSets = s.geneSets.filter((gs) => gs.id !== id);
-      const activeSetId =
-        s.activeSetId === id ? (geneSets[0]?.id ?? null) : s.activeSetId;
-      const selectedSetIds = s.selectedSetIds.filter((sid) => sid !== id);
-      return { geneSets, activeSetId, selectedSetIds };
-    }),
-
-  updateGeneSet: (id, patch) =>
-    set((s) => ({
-      geneSets: s.geneSets.map((gs) => (gs.id === id ? { ...gs, ...patch } : gs)),
-    })),
+  // -- Gene set selection actions ----------------------------------------------
 
   setActiveSet: (id) =>
     set((s) => ({
@@ -149,19 +115,7 @@ export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
 
   clearSelection: () => set({ selectedSetIds: [] }),
 
-  removeGeneSets: (ids) =>
-    set((s) => {
-      const removeSet = new Set(ids);
-      const geneSets = s.geneSets.filter((gs) => !removeSet.has(gs.id));
-      const activeSetId =
-        s.activeSetId != null && removeSet.has(s.activeSetId)
-          ? (geneSets[0]?.id ?? null)
-          : s.activeSetId;
-      const selectedSetIds = s.selectedSetIds.filter((sid) => !removeSet.has(sid));
-      return { geneSets, activeSetId, selectedSetIds };
-    }),
-
-  selectAll: () => set((s) => ({ selectedSetIds: s.geneSets.map((gs) => gs.id) })),
+  selectAll: (ids) => set({ selectedSetIds: ids }),
 
   deselectAll: () => set({ selectedSetIds: [] }),
 
@@ -225,7 +179,6 @@ export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
 
   reset: () =>
     set({
-      geneSets: [],
       activeSetId: null,
       selectedSetIds: [],
       expandedPanels: new Set<PanelId>(),

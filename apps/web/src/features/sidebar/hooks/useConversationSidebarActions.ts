@@ -5,10 +5,13 @@
  *
  * Composes sub-hooks for rename, delete, and duplicate workflows,
  * and owns selection, new-conversation, and saved-toggle handlers.
+ *
+ * All cache operations use useQueryClient() directly — no shim props.
  */
 
-import { type Dispatch, type SetStateAction, useCallback } from "react";
-import { getStrategy, openStrategy, updateStrategy as updateStrategyApi } from "@/lib/api/strategies";
+import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getStrategy, openStrategy, updateStrategy as updateStrategyApi, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import { toUserMessage } from "@/lib/api/errors";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
@@ -22,12 +25,6 @@ import { useDeleteWorkflow, type DeleteWorkflow } from "@/features/sidebar/hooks
 interface UseConversationSidebarActionsArgs {
   siteId: string;
   reportError: (message: string) => void;
-  /** Lightweight re-fetch from local DB only (no WDK sync). */
-  refetchStrategies: () => Promise<void>;
-  setStrategyItems: Dispatch<SetStateAction<Strategy[]>>;
-  setDismissedItems: Dispatch<SetStateAction<Strategy[]>>;
-  /** Mark a strategy ID as recently deleted to prevent stale refetch re-adds. */
-  markAsDeleted: (id: string) => void;
   setNewConversationInFlight: (inFlight: boolean) => void;
 }
 
@@ -46,10 +43,6 @@ interface ConversationSidebarActions extends RenameWorkflow, DuplicateWorkflow, 
 export function useConversationSidebarActions({
   siteId,
   reportError,
-  refetchStrategies,
-  setStrategyItems,
-  setDismissedItems,
-  markAsDeleted,
   setNewConversationInFlight,
 }: UseConversationSidebarActionsArgs): ConversationSidebarActions {
   // --- Store selectors ---
@@ -60,19 +53,18 @@ export function useConversationSidebarActions({
   const setStrategy = useStrategyStore((s) => s.setStrategy);
   const clearStrategy = useStrategyStore((s) => s.clear);
 
+  const queryClient = useQueryClient();
+
   // --- Derived ---
   const activeId = strategyId ?? null;
 
+  const listKey = strategiesListOptions(siteId).queryKey;
+  const dismissedKey = dismissedStrategiesOptions(siteId).queryKey;
+
   // --- Sub-hooks ---
-  const rename = useRenameWorkflow({ reportError, refetchStrategies });
-  const duplicate = useDuplicateWorkflow({ refetchStrategies });
-  const deleteWorkflow = useDeleteWorkflow({
-    reportError,
-    refetchStrategies,
-    setStrategyItems,
-    setDismissedItems,
-    markAsDeleted,
-  });
+  const rename = useRenameWorkflow({ siteId, reportError });
+  const duplicate = useDuplicateWorkflow({ siteId });
+  const deleteWorkflow = useDeleteWorkflow({ siteId, reportError });
 
   // --- Selection ---
   const handleSelect = useCallback(
@@ -93,7 +85,8 @@ export function useConversationSidebarActions({
         .catch((err) => {
           setStrategyId(null);
           reportError(toUserMessage(err, "Couldn't load strategy. Refreshing list."));
-          void refetchStrategies();
+          void queryClient.invalidateQueries({ queryKey: listKey });
+          void queryClient.invalidateQueries({ queryKey: dismissedKey });
         });
     },
     [
@@ -102,7 +95,9 @@ export function useConversationSidebarActions({
       setStrategy,
       setStrategyMeta,
       reportError,
-      refetchStrategies,
+      queryClient,
+      listKey,
+      dismissedKey,
     ],
   );
 
@@ -114,7 +109,7 @@ export function useConversationSidebarActions({
       clearStrategy();
       setStrategyId(res.strategyId);
       const now = new Date().toISOString();
-      setStrategyItems((prev) => [
+      queryClient.setQueryData<Strategy[]>(listKey, (old) => [
         {
           id: res.strategyId,
           name: DEFAULT_STREAM_NAME,
@@ -127,9 +122,10 @@ export function useConversationSidebarActions({
           stepCount: 0,
           isSaved: false,
         },
-        ...prev.filter((s) => s.id !== res.strategyId),
+        ...(old ?? []).filter((s) => s.id !== res.strategyId),
       ]);
-      void refetchStrategies();
+      void queryClient.invalidateQueries({ queryKey: listKey });
+      void queryClient.invalidateQueries({ queryKey: dismissedKey });
     } catch (error) {
       reportError(
         typeof error === "string" ? error : "Failed to start a new conversation.",
@@ -141,9 +137,10 @@ export function useConversationSidebarActions({
     siteId,
     setStrategyId,
     clearStrategy,
-    setStrategyItems,
+    queryClient,
+    listKey,
+    dismissedKey,
     setNewConversationInFlight,
-    refetchStrategies,
     reportError,
   ]);
 
@@ -153,8 +150,8 @@ export function useConversationSidebarActions({
       const nextSaved = !si.isSaved;
       try {
         await updateStrategyApi(si.id, { isSaved: nextSaved });
-        setStrategyItems((items) =>
-          items.map((item) =>
+        queryClient.setQueryData<Strategy[]>(listKey, (old) =>
+          (old ?? []).map((item) =>
             item.id === si.id ? { ...item, isSaved: nextSaved } : item,
           ),
         );
@@ -167,7 +164,7 @@ export function useConversationSidebarActions({
         );
       }
     },
-    [reportError, setStrategyItems],
+    [reportError, queryClient, listKey],
   );
 
   return {

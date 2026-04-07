@@ -5,20 +5,21 @@
  *
  * Ensures there is always an active conversation selected. When no
  * strategy is active, picks the most recent one or creates a new one.
+ *
+ * Uses useQueryClient() directly for optimistic cache updates.
  */
 
 import { useCallback, useEffect, useRef, startTransition } from "react";
-import { openStrategy } from "@/lib/api/strategies";
+import { useQueryClient } from "@tanstack/react-query";
+import { openStrategy, strategiesListOptions } from "@/lib/api/strategies";
 import { DEFAULT_STREAM_NAME, type Strategy } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
-import type { Dispatch, SetStateAction } from "react";
 import { resolveActiveConversation } from "@/features/sidebar/utils/resolveActiveConversation";
 
 interface UseAutoConversationArgs {
   siteId: string;
   strategyItems: Strategy[];
-  setStrategyItems: Dispatch<SetStateAction<Strategy[]>>;
-  hasFetched: React.RefObject<boolean>;
+  isFetched: boolean;
 }
 
 export interface AutoConversationResult {
@@ -29,17 +30,19 @@ export interface AutoConversationResult {
 export function useAutoConversation({
   siteId,
   strategyItems,
-  setStrategyItems,
-  hasFetched,
+  isFetched,
 }: UseAutoConversationArgs): AutoConversationResult {
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
   const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
   const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
+  const queryClient = useQueryClient();
 
   const autoCreateInFlight = useRef(false);
   const newConversationInFlight = useRef(false);
   const prevSiteRef = useRef(siteId);
+
+  const listKey = strategiesListOptions(siteId).queryKey;
 
   // Reset auto-create guard on site change.
   useEffect(() => {
@@ -58,7 +61,7 @@ export function useAutoConversation({
       strategyId,
       hasAuth: veupathdbSignedIn,
       strategyItems,
-      hasFetched: hasFetched.current,
+      hasFetched: isFetched,
     });
 
     switch (action.type) {
@@ -76,21 +79,24 @@ export function useAutoConversation({
         try {
           const res = await openStrategy({ siteId });
           const now = new Date().toISOString();
-          setStrategyItems((prev) => [
-            ...prev,
-            {
-              id: res.strategyId,
-              name: DEFAULT_STREAM_NAME,
-              updatedAt: now,
-              createdAt: now,
-              siteId,
-              recordType: null,
-              steps: [],
-              rootStepId: null,
-              stepCount: 0,
-              isSaved: false,
-            },
-          ]);
+          queryClient.setQueryData<Strategy[]>(
+            listKey,
+            (old) => [
+              ...(old ?? []),
+              {
+                id: res.strategyId,
+                name: DEFAULT_STREAM_NAME,
+                updatedAt: now,
+                createdAt: now,
+                siteId,
+                recordType: null,
+                steps: [],
+                rootStepId: null,
+                stepCount: 0,
+                isSaved: false,
+              },
+            ],
+          );
           // Only set if no other flow (e.g. chat send) grabbed strategyId
           // while the async openStrategy was in-flight.
           const currentId = useSessionStore.getState().strategyId;
@@ -112,8 +118,9 @@ export function useAutoConversation({
     strategyItems,
     setStrategyId,
     siteId,
-    setStrategyItems,
-    hasFetched,
+    queryClient,
+    isFetched,
+    listKey,
   ]);
 
   // Ensure there's always an active conversation selected.

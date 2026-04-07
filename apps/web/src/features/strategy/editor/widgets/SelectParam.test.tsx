@@ -1,42 +1,72 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { FormProvider, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { SelectParam } from "./SelectParam";
-import type { ParamWidgetProps } from "./types";
+import type { ParamSpec } from "@pathfinder/shared";
+import type { VocabOption } from "@/lib/utils/vocab";
 
 afterEach(cleanup);
 
-const sampleOptions = [
+const sampleOptions: VocabOption[] = [
   { label: "Alpha", value: "a" },
   { label: "Beta", value: "b" },
   { label: "Gamma", value: "c" },
   { label: "Delta", value: "d" },
 ];
 
-function makeProps(overrides: Partial<ParamWidgetProps> = {}): ParamWidgetProps {
+function makeSpec(overrides: Partial<ParamSpec> = {}): ParamSpec {
   return {
-    spec: { name: "test-param", type: "string", allowEmptyValue: true, countOnlyLeaves: false, isNumber: false, isVisible: true },
-    value: undefined,
-    multi: false,
-    multiValue: [],
-    options: sampleOptions,
-    vocabTree: null,
-    onChangeSingle: vi.fn(),
-    onChangeMulti: vi.fn(),
+    name: "test_param",
+    type: "string",
+    displayName: "Test",
+    displayType: "",
+    allowEmptyValue: true,
+    isVisible: true,
+    isNumber: false,
+    countOnlyLeaves: false,
     ...overrides,
-  };
+  } as ParamSpec;
+}
+
+/** Test wrapper that creates a form and renders a SelectParam inside it. */
+function TestForm({
+  spec,
+  schema,
+  defaultValue,
+  options = sampleOptions,
+}: {
+  spec: ParamSpec;
+  schema: z.ZodObject<Record<string, z.ZodTypeAny>>;
+  defaultValue?: string | string[];
+  options?: VocabOption[];
+}) {
+  const form = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: { [spec.name]: defaultValue ?? "" },
+    mode: "onBlur",
+  });
+  return (
+    <FormProvider {...form}>
+      <SelectParam spec={spec} name={spec.name} options={options} vocabTree={null} />
+    </FormProvider>
+  );
 }
 
 describe("SelectParam — single-pick", () => {
   it("renders a native <select> element", () => {
-    render(<SelectParam {...makeProps()} />);
+    const spec = makeSpec();
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
     const select = screen.getByRole("combobox");
     expect(select).toBeTruthy();
     expect(select.tagName).toBe("SELECT");
   });
 
   it("renders all options plus the placeholder", () => {
-    render(<SelectParam {...makeProps()} />);
+    const spec = makeSpec();
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
     const options = screen.getAllByRole("option");
     // 1 placeholder + 4 options
     expect(options.length).toBe(5);
@@ -44,36 +74,63 @@ describe("SelectParam — single-pick", () => {
   });
 
   it("omits placeholder when allowEmptyValue is false", () => {
-    render(<SelectParam {...makeProps({ spec: { name: "test-param", type: "string", allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true } })} />);
+    const spec = makeSpec({ allowEmptyValue: false });
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
     const options = screen.getAllByRole("option");
     expect(options.length).toBe(4);
     expect(options[0]!.textContent).toBe("Alpha");
   });
 
-  it("selects the current value", () => {
-    render(<SelectParam {...makeProps({ value: "b" })} />);
+  it("selects the current value from form default", () => {
+    const spec = makeSpec();
+    render(
+      <TestForm spec={spec} schema={z.object({ test_param: z.string() })} defaultValue="b" />,
+    );
     const select: HTMLSelectElement = screen.getByRole("combobox");
     expect(select.value).toBe("b");
   });
 
-  it("calls onChangeSingle when selection changes", () => {
-    const onChangeSingle = vi.fn();
-    render(<SelectParam {...makeProps({ onChangeSingle })} />);
-    const select = screen.getByRole("combobox");
+  it("updates form value when selection changes", () => {
+    const spec = makeSpec();
+    render(<TestForm spec={spec} schema={z.object({ test_param: z.string() })} />);
+    const select: HTMLSelectElement = screen.getByRole("combobox");
     fireEvent.change(select, { target: { value: "c" } });
-    expect(onChangeSingle).toHaveBeenCalledWith("c");
+    expect(select.value).toBe("c");
   });
 
-  it("applies fieldBorderClass", () => {
-    render(<SelectParam {...makeProps({ fieldBorderClass: "border-red-500" })} />);
-    const select = screen.getByRole("combobox");
-    expect(select.className).toContain("border-red-500");
+  it("shows validation error for required field on blur", async () => {
+    const spec = makeSpec({ allowEmptyValue: false });
+    const schema = z.object({ test_param: z.string().min(1, { message: "Required" }) });
+    render(<TestForm spec={spec} schema={schema} defaultValue="" />);
+    fireEvent.blur(screen.getByRole("combobox"));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeTruthy();
+      expect(screen.getByRole("alert").textContent).toBe("Required");
+    });
+  });
+
+  it("sets aria-invalid when field has error", async () => {
+    const spec = makeSpec({ allowEmptyValue: false });
+    const schema = z.object({ test_param: z.string().min(1, { message: "Required" }) });
+    render(<TestForm spec={spec} schema={schema} defaultValue="" />);
+    fireEvent.blur(screen.getByRole("combobox"));
+    await waitFor(() => {
+      expect(screen.getByRole("combobox").getAttribute("aria-invalid")).toBe("true");
+    });
   });
 });
 
 describe("SelectParam — multi-pick", () => {
+  const multiSpec = makeSpec({ multiPick: true });
+
   it("renders checkboxes instead of a select", () => {
-    render(<SelectParam {...makeProps({ multi: true, multiValue: [] })} />);
+    render(
+      <TestForm
+        spec={multiSpec}
+        schema={z.object({ test_param: z.array(z.string()) })}
+        defaultValue={[]}
+      />,
+    );
     expect(screen.queryByRole("combobox")).toBeNull();
     const checkboxes = screen.getAllByRole("checkbox");
     // 4 option checkboxes + 1 "Select all" (since options.length > 3)
@@ -81,22 +138,37 @@ describe("SelectParam — multi-pick", () => {
   });
 
   it("shows 'Select all' toggle when options > 3", () => {
-    render(<SelectParam {...makeProps({ multi: true, multiValue: [] })} />);
+    render(
+      <TestForm
+        spec={multiSpec}
+        schema={z.object({ test_param: z.array(z.string()) })}
+        defaultValue={[]}
+      />,
+    );
     expect(screen.getByText(/Select all/)).toBeTruthy();
   });
 
   it("does not show 'Select all' when options <= 3", () => {
     const fewOptions = sampleOptions.slice(0, 3);
     render(
-      <SelectParam
-        {...makeProps({ multi: true, multiValue: [], options: fewOptions })}
+      <TestForm
+        spec={multiSpec}
+        schema={z.object({ test_param: z.array(z.string()) })}
+        defaultValue={[]}
+        options={fewOptions}
       />,
     );
     expect(screen.queryByText(/Select all/)).toBeNull();
   });
 
-  it("checks selected values", () => {
-    render(<SelectParam {...makeProps({ multi: true, multiValue: ["a", "c"] })} />);
+  it("checks selected values from form default", () => {
+    render(
+      <TestForm
+        spec={multiSpec}
+        schema={z.object({ test_param: z.array(z.string()) })}
+        defaultValue={["a", "c"]}
+      />,
+    );
     const checkboxes = screen.getAllByRole("checkbox");
     // "Select all" is first, then a, b, c, d
     const [selectAll, a, b, c, d] = checkboxes;
@@ -107,58 +179,75 @@ describe("SelectParam — multi-pick", () => {
     expect((selectAll as HTMLInputElement).checked).toBe(false);
   });
 
-  it("toggles individual checkbox", () => {
-    const onChangeMulti = vi.fn();
+  it("toggles individual checkbox and updates form", () => {
     render(
-      <SelectParam {...makeProps({ multi: true, multiValue: ["a"], onChangeMulti })} />,
+      <TestForm
+        spec={multiSpec}
+        schema={z.object({ test_param: z.array(z.string()) })}
+        defaultValue={["a"]}
+      />,
     );
-    // Click "Beta" checkbox
     fireEvent.click(screen.getByText("Beta"));
-    expect(onChangeMulti).toHaveBeenCalledWith(["a", "b"]);
+    const checkboxes = screen.getAllByRole("checkbox");
+    // After toggle: a and b should be checked
+    const [, a, b] = checkboxes;
+    expect((a as HTMLInputElement).checked).toBe(true);
+    expect((b as HTMLInputElement).checked).toBe(true);
   });
 
   it("removes value when unchecking", () => {
-    const onChangeMulti = vi.fn();
     render(
-      <SelectParam
-        {...makeProps({
-          multi: true,
-          multiValue: ["a", "b"],
-          onChangeMulti,
-        })}
+      <TestForm
+        spec={multiSpec}
+        schema={z.object({ test_param: z.array(z.string()) })}
+        defaultValue={["a", "b"]}
       />,
     );
     fireEvent.click(screen.getByText("Alpha"));
-    expect(onChangeMulti).toHaveBeenCalledWith(["b"]);
+    const checkboxes = screen.getAllByRole("checkbox");
+    const [, a, b] = checkboxes;
+    expect((a as HTMLInputElement).checked).toBe(false);
+    expect((b as HTMLInputElement).checked).toBe(true);
   });
 
   it("'Select all' selects all values", () => {
-    const onChangeMulti = vi.fn();
     render(
-      <SelectParam {...makeProps({ multi: true, multiValue: [], onChangeMulti })} />,
-    );
-    fireEvent.click(screen.getByText(/Select all/));
-    expect(onChangeMulti).toHaveBeenCalledWith(["a", "b", "c", "d"]);
-  });
-
-  it("'Select all' deselects when all are already selected", () => {
-    const onChangeMulti = vi.fn();
-    render(
-      <SelectParam
-        {...makeProps({
-          multi: true,
-          multiValue: ["a", "b", "c", "d"],
-          onChangeMulti,
-        })}
+      <TestForm
+        spec={multiSpec}
+        schema={z.object({ test_param: z.array(z.string()) })}
+        defaultValue={[]}
       />,
     );
     fireEvent.click(screen.getByText(/Select all/));
-    expect(onChangeMulti).toHaveBeenCalledWith([]);
+    const checkboxes = screen.getAllByRole("checkbox");
+    for (const cb of checkboxes) {
+      expect((cb as HTMLInputElement).checked).toBe(true);
+    }
+  });
+
+  it("'Select all' deselects when all are already selected", () => {
+    render(
+      <TestForm
+        spec={multiSpec}
+        schema={z.object({ test_param: z.array(z.string()) })}
+        defaultValue={["a", "b", "c", "d"]}
+      />,
+    );
+    fireEvent.click(screen.getByText(/Select all/));
+    const checkboxes = screen.getAllByRole("checkbox");
+    for (const cb of checkboxes) {
+      expect((cb as HTMLInputElement).checked).toBe(false);
+    }
   });
 
   it("renders empty panel when no options", () => {
     render(
-      <SelectParam {...makeProps({ multi: true, multiValue: [], options: [] })} />,
+      <TestForm
+        spec={multiSpec}
+        schema={z.object({ test_param: z.array(z.string()) })}
+        defaultValue={[]}
+        options={[]}
+      />,
     );
     expect(screen.queryByRole("checkbox")).toBeNull();
   });

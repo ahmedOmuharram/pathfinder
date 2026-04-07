@@ -8,15 +8,18 @@ VEuPathDB site, and gathering relevant literature context.
 from __future__ import annotations
 
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import UsageLimits
 
+from veupath_chatbot.ai.agents._hooks import apply_discovery_hook
 from veupath_chatbot.ai.agents._instructions import (
     base_system_prompt,
     mentioned_context,
     pinned_context_summary,
     pinned_graph_state,
 )
+from veupath_chatbot.ai.capabilities.security import SecurityGuardrail
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.ai.tools.toolsets.discovery import build_toolset
 
@@ -67,11 +70,15 @@ can express the user's constraints.
 # Agent
 # ---------------------------------------------------------------------------
 
+_discovery_hooks: Hooks[AgentDeps] = Hooks(after_tool_execute=apply_discovery_hook)
+
 discovery_agent: Agent[AgentDeps, str] = Agent(
     "anthropic:claude-sonnet-4-5",
     deps_type=AgentDeps,
     instructions=_DISCOVERY_INSTRUCTIONS,
     toolsets=[build_toolset()],
+    capabilities=[_discovery_hooks, Thinking(effort="medium"), SecurityGuardrail()],
+    description="Explores WDK catalog, searches, parameters, and literature",
     name="discovery",
     defer_model_check=True,
 )

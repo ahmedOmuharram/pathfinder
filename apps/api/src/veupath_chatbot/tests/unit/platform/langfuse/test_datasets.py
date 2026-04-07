@@ -82,7 +82,6 @@ def test_run_experiment_noop_when_disabled() -> None:
             dataset_name="ds",
             experiment_name="exp",
             task_fn=lambda item: None,
-            evaluators=[],
         )
     assert result is None
 
@@ -95,7 +94,6 @@ def test_run_experiment_delegates_to_dataset_client() -> None:
     mock_client.get_dataset.return_value = mock_dataset
 
     task = MagicMock()
-    evaluator = MagicMock()
 
     with patch(
         "veupath_chatbot.platform.langfuse.datasets.get_langfuse",
@@ -105,14 +103,12 @@ def test_run_experiment_delegates_to_dataset_client() -> None:
             dataset_name="my-dataset",
             experiment_name="my-experiment",
             task_fn=task,
-            evaluators=[evaluator],
         )
 
     mock_client.get_dataset.assert_called_once_with("my-dataset")
     mock_dataset.run_experiment.assert_called_once_with(
         name="my-experiment",
         task=task,
-        evaluators=[evaluator],
     )
     assert result == "experiment-result"
 
