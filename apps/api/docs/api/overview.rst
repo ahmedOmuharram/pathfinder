@@ -78,9 +78,9 @@ What Kani Does
 
 Pathfinder extends Kani with:
 
-- :py:class:`veupath_chatbot.ai.agents.executor.PathfinderAgent` — Unified agent; handles research, planning, and
+- :py:class:`pathfinder.ai.agents.executor.PathfinderAgent` — Unified agent; handles research, planning, and
   strategy building with a single tool set.
-- :py:class:`veupath_chatbot.ai.agents.subtask.SubtaskAgent` — Sub-agent for delegated tasks; has core tools
+- :py:class:`pathfinder.ai.agents.subtask.SubtaskAgent` — Sub-agent for delegated tasks; has core tools
   (catalog, graph, execution, research) but not delegation, optimization, workbench, export, or artifacts.
 
 Unified Agent
@@ -119,8 +119,8 @@ gametocyte gene search", "create step with fold_change=2").
 
 1. Main agent calls ``delegate_strategy_subtasks(goal, plan)``.
 2. Orchestrator validates and normalizes the ``plan`` into a
-   :py:class:`veupath_chatbot.ai.orchestration.delegation.DelegationPlan` (tasks + combines + dependencies).
-3. For each task node (in dependency order), spawn a :py:class:`veupath_chatbot.ai.agents.subtask.SubtaskAgent`.
+   :py:class:`pathfinder.ai.orchestration.delegation.DelegationPlan` (tasks + combines + dependencies).
+3. For each task node (in dependency order), spawn a :py:class:`pathfinder.ai.agents.subtask.SubtaskAgent`.
 4. Sub-agent receives task description, dependency context (results from
    upstream tasks), and runs tools to create the step.
 5. Orchestrator creates any combine/transform steps that link sub-agent
@@ -147,14 +147,14 @@ A **delegation plan** is a nested binary tree that mirrors the final strategy:
 
 The agent produces delegation plans when it has a concrete build approach
 and consumes them via ``delegate_strategy_subtasks(goal, plan)``.
-:py:func:`veupath_chatbot.ai.orchestration.delegation.build_delegation_plan` normalizes and validates the plan into
-:py:class:`veupath_chatbot.ai.orchestration.delegation.DelegationPlan`.
+:py:func:`pathfinder.ai.orchestration.delegation.build_delegation_plan` normalizes and validates the plan into
+:py:class:`pathfinder.ai.orchestration.delegation.DelegationPlan`.
 
 SSE Event Contract
 ------------------
 
-The chat stream emits these event types (schemas in :py:mod:`veupath_chatbot.transport.http.schemas.sse`,
-streaming logic in :py:mod:`veupath_chatbot.services.chat.streaming`):
+The chat stream emits these event types (schemas in :py:mod:`pathfinder.transport.http.schemas.sse`,
+streaming logic in :py:mod:`pathfinder.services.chat.streaming`):
 
 .. list-table:: SSE Event Types
    :widths: 30 70
@@ -195,7 +195,7 @@ streaming logic in :py:mod:`veupath_chatbot.services.chat.streaming`):
 Chat requests can include **mentions**: references to a strategy or an
 experiment. The backend loads the referenced entity and injects a rich context
 block into the prompt so the agent can reason about "this strategy" or "this
-experiment". See :py:mod:`veupath_chatbot.services.chat.mention_context`:
+experiment". See :py:mod:`pathfinder.services.chat.mention_context`:
 ``build_mention_context(mentions, stream_repo)``. Mention types are
 ``"strategy"`` and ``"experiment"``; each mention has ``type``, ``id``, and
 ``displayName``.

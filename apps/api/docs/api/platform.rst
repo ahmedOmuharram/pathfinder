@@ -64,7 +64,7 @@ URL, and feature flags. Loaded via pydantic-settings.
 
 **Key function:** :py:func:`get_settings`
 
-.. automodule:: veupath_chatbot.platform.config
+.. automodule:: pathfinder.platform.config
    :members:
    :undoc-members:
    :show-inheritance:
@@ -75,7 +75,7 @@ Types
 **Purpose:** Shared type aliases for untyped dict/list payloads. JSONObject,
 JSONArray, JSONValue. Used throughout the codebase.
 
-.. automodule:: veupath_chatbot.platform.types
+.. automodule:: pathfinder.platform.types
    :members:
    :undoc-members:
    :show-inheritance:
@@ -89,7 +89,7 @@ HTTP error responses.
 
 **Key classes:** :py:class:`WDKError`, :py:class:`ValidationError`
 
-.. automodule:: veupath_chatbot.platform.errors
+.. automodule:: pathfinder.platform.errors
    :members:
    :undoc-members:
    :show-inheritance:
@@ -100,7 +100,7 @@ Security
 **Purpose:** Authentication and authorization. Token validation, permission
 checks, user context. Used by HTTP deps and routers.
 
-.. automodule:: veupath_chatbot.platform.security
+.. automodule:: pathfinder.platform.security
    :members:
    :undoc-members:
    :show-inheritance:
@@ -113,7 +113,7 @@ JSON/structlog output. Used by all modules.
 
 **Key function:** :py:func:`get_logger`
 
-.. automodule:: veupath_chatbot.platform.logging
+.. automodule:: pathfinder.platform.logging
    :members:
    :undoc-members:
    :show-inheritance:
@@ -124,7 +124,7 @@ Context
 **Purpose:** Context variables for request-scoped state. Auth tokens,
 user IDs, and other per-request data propagated via contextvars.
 
-.. automodule:: veupath_chatbot.platform.context
+.. automodule:: pathfinder.platform.context
    :members:
    :undoc-members:
    :show-inheritance:
@@ -135,7 +135,7 @@ Events
 **Purpose:** Application event bus for cross-cutting concerns and
 inter-service communication.
 
-.. automodule:: veupath_chatbot.platform.events
+.. automodule:: pathfinder.platform.events
    :members:
    :undoc-members:
    :show-inheritance:
@@ -145,7 +145,7 @@ Health
 
 **Purpose:** Health check logic and readiness probe implementation.
 
-.. automodule:: veupath_chatbot.platform.health
+.. automodule:: pathfinder.platform.health
    :members:
    :undoc-members:
    :show-inheritance:
@@ -155,7 +155,7 @@ Redis
 
 **Purpose:** Redis client management, connection pooling, and utilities.
 
-.. automodule:: veupath_chatbot.platform.redis
+.. automodule:: pathfinder.platform.redis
    :members:
    :undoc-members:
    :show-inheritance:
@@ -165,7 +165,7 @@ Store
 
 **Purpose:** Generic store abstractions for in-memory + persistence patterns.
 
-.. automodule:: veupath_chatbot.platform.store
+.. automodule:: pathfinder.platform.store
    :members:
    :undoc-members:
    :show-inheritance:
@@ -175,7 +175,7 @@ Tasks
 
 **Purpose:** Background task infrastructure and management.
 
-.. automodule:: veupath_chatbot.platform.tasks
+.. automodule:: pathfinder.platform.tasks
    :members:
    :undoc-members:
    :show-inheritance:
@@ -185,7 +185,7 @@ Tool Errors
 
 **Purpose:** Tool-specific error formatting and handling utilities.
 
-.. automodule:: veupath_chatbot.platform.tool_errors
+.. automodule:: pathfinder.platform.tool_errors
    :members:
    :undoc-members:
    :show-inheritance:
@@ -195,7 +195,7 @@ Parsing
 
 **Purpose:** Input parsing utilities for request processing.
 
-.. automodule:: veupath_chatbot.platform.parsing
+.. automodule:: pathfinder.platform.parsing
    :members:
    :undoc-members:
    :show-inheritance:
@@ -205,7 +205,7 @@ Pydantic Validation
 
 **Purpose:** Pydantic validation helpers and custom validators.
 
-.. automodule:: veupath_chatbot.platform.pydantic_validation
+.. automodule:: pathfinder.platform.pydantic_validation
    :members:
    :undoc-members:
    :show-inheritance:

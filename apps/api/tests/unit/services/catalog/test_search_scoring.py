@@ -1,6 +1,6 @@
 """Unit tests for search scoring, filtering, and annotation."""
 
-from veupath_chatbot.services.catalog.searches import (
+from pathfinder.services.catalog.searches import (
     annotate_search,
     is_chooser_search,
     score_search,

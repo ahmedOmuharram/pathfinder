@@ -21,7 +21,7 @@ Unified Registry
 strategy, research, validation, optimization, and artifact tools into a single
 mixin so the agent can use all capabilities per-turn.
 
-.. automodule:: veupath_chatbot.ai.tools.unified_registry
+.. automodule:: pathfinder.ai.tools.unified_registry
    :members:
    :undoc-members:
    :show-inheritance:
@@ -37,7 +37,7 @@ Each tool queries WDK directly for live results.
 ``list_searches``, ``get_search_parameters``, ``get_dependent_vocab``, plus
 strategy tools for create_step, list_current_steps, build_strategy, etc.
 
-.. automodule:: veupath_chatbot.ai.tools.registry
+.. automodule:: pathfinder.ai.tools.registry
    :members:
    :undoc-members:
    :show-inheritance:
@@ -48,7 +48,7 @@ Research Registry
 **Purpose:** Research tools mixin: web search and literature search. Provides
 ``web_search`` and ``literature_search`` tools.
 
-.. automodule:: veupath_chatbot.ai.tools.research_registry
+.. automodule:: pathfinder.ai.tools.research_registry
    :members:
    :undoc-members:
    :show-inheritance:
@@ -60,7 +60,7 @@ Result Tools
 download URLs, and result summaries. Includes WDK error handling for common
 API failures.
 
-.. automodule:: veupath_chatbot.ai.tools.result_tools
+.. automodule:: pathfinder.ai.tools.result_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -72,7 +72,7 @@ Strategy Tool Registry
 mixin. Auto-discovers ``@ai_function`` methods on composed tool instances via
 ``__getattr__`` and ``__dir__`` delegation pattern.
 
-.. automodule:: veupath_chatbot.ai.tools.strategy_registry
+.. automodule:: pathfinder.ai.tools.strategy_registry
    :members:
    :undoc-members:
    :show-inheritance:
@@ -85,7 +85,7 @@ counts for built steps). Includes WDK error handling for common API failures.
 
 **Key class:** :py:class:`ExecutionTools`
 
-.. automodule:: veupath_chatbot.ai.tools.execution_tools
+.. automodule:: pathfinder.ai.tools.execution_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -96,7 +96,7 @@ Catalog Tools
 **Purpose:** Catalog discovery tools: site listing, record types, search queries,
 parameter specs. Called by the agent to explore VEuPathDB data.
 
-.. automodule:: veupath_chatbot.ai.tools.catalog_tools
+.. automodule:: pathfinder.ai.tools.catalog_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -107,7 +107,7 @@ Conversation Tools
 **Purpose:** Conversation management tools: save/load strategy, update name,
 session control. Used by the agent to manage the user's session.
 
-.. automodule:: veupath_chatbot.ai.tools.conversation_tools
+.. automodule:: pathfinder.ai.tools.conversation_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -118,7 +118,7 @@ Query Validation
 **Purpose:** Validate tool arguments and queries before execution. Catch
 malformed inputs before they reach WDK.
 
-.. automodule:: veupath_chatbot.ai.tools.query_validation
+.. automodule:: pathfinder.ai.tools.query_validation
    :members:
    :undoc-members:
    :show-inheritance:
@@ -128,24 +128,24 @@ Agent Tool Submodules
 
 Individual tool modules for artifact management, gene lookup, optimization,
 and experiment tools. These are mixed into the unified agent via
-:py:class:`~veupath_chatbot.ai.tools.unified_registry.UnifiedToolRegistryMixin`.
+:py:class:`~pathfinder.ai.tools.unified_registry.UnifiedToolRegistryMixin`.
 
-.. automodule:: veupath_chatbot.ai.tools.planner.artifact_tools
+.. automodule:: pathfinder.ai.tools.planner.artifact_tools
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.tools.planner.experiment_tools
+.. automodule:: pathfinder.ai.tools.planner.experiment_tools
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.tools.planner.gene_tools
+.. automodule:: pathfinder.ai.tools.planner.gene_tools
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.tools.planner.optimization_tools
+.. automodule:: pathfinder.ai.tools.planner.optimization_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -156,32 +156,32 @@ Strategy Tool Submodules
 Individual strategy tool modules for step creation, graph building,
 attachment operations, discovery, and editing.
 
-.. automodule:: veupath_chatbot.ai.tools.strategy_tools.step_ops
+.. automodule:: pathfinder.ai.tools.strategy_tools.step_ops
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.tools.strategy_tools.graph_ops
+.. automodule:: pathfinder.ai.tools.strategy_tools.graph_ops
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.tools.strategy_tools.edit_ops
+.. automodule:: pathfinder.ai.tools.strategy_tools.edit_ops
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.tools.strategy_tools.discovery_ops
+.. automodule:: pathfinder.ai.tools.strategy_tools.discovery_ops
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.tools.strategy_tools.attachment_ops
+.. automodule:: pathfinder.ai.tools.strategy_tools.attachment_ops
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.tools.strategy_tools.operations
+.. automodule:: pathfinder.ai.tools.strategy_tools.operations
    :members:
    :undoc-members:
    :show-inheritance:
@@ -191,7 +191,7 @@ Export Tools
 
 **Purpose:** Data export tools for strategies, gene sets, and experiment results.
 
-.. automodule:: veupath_chatbot.ai.tools.export_tools
+.. automodule:: pathfinder.ai.tools.export_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -201,12 +201,12 @@ Workbench Tools
 
 **Purpose:** Workbench data access and analysis tools.
 
-.. automodule:: veupath_chatbot.ai.tools.workbench_read_tools
+.. automodule:: pathfinder.ai.tools.workbench_read_tools
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.tools.planner.workbench_tools
+.. automodule:: pathfinder.ai.tools.planner.workbench_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -216,7 +216,7 @@ WDK Error Handler
 
 **Purpose:** Error handling and formatting for WDK API errors during tool execution.
 
-.. automodule:: veupath_chatbot.ai.tools.wdk_error_handler
+.. automodule:: pathfinder.ai.tools.wdk_error_handler
    :members:
    :undoc-members:
    :show-inheritance:

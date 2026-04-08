@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 DEFAULT_LIMIT = 300
-SRC_ROOT = Path("src/veupath_chatbot")
+SRC_ROOT = Path("src/pathfinder")
 
 # Directories and files exempt from the line limit.
 EXEMPT_PATTERNS: set[str] = {

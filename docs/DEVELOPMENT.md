@@ -48,13 +48,13 @@ uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 cd apps/api
 
 # Unit tests
-uv run pytest src/veupath_chatbot/tests/unit/ -v
+uv run pytest src/pathfinder/tests/unit/ -v
 
 # All tests (unit + integration)
-uv run pytest src/veupath_chatbot/tests/ -v
+uv run pytest src/pathfinder/tests/ -v
 
 # With coverage
-uv run pytest --cov=src/veupath_chatbot --cov-report=term-missing
+uv run pytest --cov=src/pathfinder --cov-report=term-missing
 
 # Coverage as XML (for CI / SonarQube)
 uv run pytest --cov=src --cov-report=xml
@@ -79,7 +79,7 @@ npx playwright test
 
 ```bash
 # Run API tests inside the container
-docker compose exec api uv run pytest src/veupath_chatbot/tests/ -v
+docker compose exec api uv run pytest src/pathfinder/tests/ -v
 ```
 
 ## Linting and type checking
@@ -91,7 +91,7 @@ cd apps/api
 
 uv run ruff check src/                   # Lint
 uv run ruff format --check src/          # Format check (no changes)
-uv run mypy --strict src/veupath_chatbot/ # Type check
+uv run mypy --strict src/pathfinder/ # Type check
 ```
 
 ### Web

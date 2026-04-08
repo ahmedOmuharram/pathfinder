@@ -188,9 +188,9 @@ Persistence
 -----------
 
 Experiments are stored in the **experiments** table (see
-:py:class:`veupath_chatbot.persistence.models.ExperimentRow`): id, site_id,
+:py:class:`pathfinder.persistence.models.ExperimentRow`): id, site_id,
 name, status, data (full JSON), batch_id, benchmark_id, created_at, updated_at.
-The experiment store (:py:mod:`veupath_chatbot.services.experiment.store`)
+The experiment store (:py:mod:`pathfinder.services.experiment.store`)
 keeps an in-memory cache and persists every mutation to PostgreSQL.
 
 Control Sets
@@ -198,7 +198,7 @@ Control Sets
 
 Reusable positive/negative gene sets are managed at **/api/v1/control-sets**
 (CRUD). They can be referenced when creating experiments (e.g.
-control_set_id). See :py:class:`veupath_chatbot.persistence.models.ControlSet`.
+control_set_id). See :py:class:`pathfinder.persistence.models.ControlSet`.
 
 Experiment Streaming (CQRS)
 ----------------------------
@@ -208,7 +208,7 @@ event model. Events are persisted to Redis Streams; operations are tracked in
 PostgreSQL. This is how long-running experiments (single, batch, benchmark)
 are kicked off and their progress communicated to the frontend via SSE.
 
-.. automodule:: veupath_chatbot.services.experiment.core.streaming
+.. automodule:: pathfinder.services.experiment.core.streaming
    :members:
    :undoc-members:
    :show-inheritance:
@@ -218,27 +218,27 @@ Service Layer
 
 Core experiment service, orchestration, and store.
 
-.. automodule:: veupath_chatbot.services.experiment.service
+.. automodule:: pathfinder.services.experiment.service
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.store
+.. automodule:: pathfinder.services.experiment.store
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.helpers
+.. automodule:: pathfinder.services.experiment.helpers
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment._deserialize
+.. automodule:: pathfinder.services.experiment._deserialize
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.materialization
+.. automodule:: pathfinder.services.experiment.materialization
    :members:
    :undoc-members:
    :show-inheritance:
@@ -250,7 +250,7 @@ Classification
 Adds ``_classification`` field to WDK records based on gene ID membership in
 positive and negative control sets.
 
-.. automodule:: veupath_chatbot.services.experiment.classification
+.. automodule:: pathfinder.services.experiment.classification
    :members:
    :undoc-members:
    :show-inheritance:
@@ -261,7 +261,7 @@ Evaluation Service
 **Purpose:** Re-evaluation and threshold sweep service. Pure business logic
 for recomputing experiment metrics with updated controls or parameters.
 
-.. automodule:: veupath_chatbot.services.experiment.evaluation
+.. automodule:: pathfinder.services.experiment.evaluation
    :members:
    :undoc-members:
    :show-inheritance:
@@ -286,17 +286,17 @@ Metrics and Evaluation
 
 Classification metrics, rank metrics, and statistical utilities.
 
-.. automodule:: veupath_chatbot.services.experiment.metrics
+.. automodule:: pathfinder.services.experiment.metrics
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.rank_metrics
+.. automodule:: pathfinder.services.experiment.rank_metrics
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.stats
+.. automodule:: pathfinder.services.experiment.stats
    :members:
    :undoc-members:
    :show-inheritance:
@@ -306,42 +306,42 @@ Analysis Features
 
 Cross-validation, enrichment, overlap, comparison, robustness, and reporting.
 
-.. automodule:: veupath_chatbot.services.experiment.cross_validation
+.. automodule:: pathfinder.services.experiment.cross_validation
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.enrichment
+.. automodule:: pathfinder.services.experiment.enrichment
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.custom_enrichment
+.. automodule:: pathfinder.services.experiment.custom_enrichment
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.enrichment_compare
+.. automodule:: pathfinder.services.experiment.enrichment_compare
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.overlap
+.. automodule:: pathfinder.services.experiment.overlap
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.robustness
+.. automodule:: pathfinder.services.experiment.robustness
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.report
+.. automodule:: pathfinder.services.experiment.report
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.tree_knobs
+.. automodule:: pathfinder.services.experiment.tree_knobs
    :members:
    :undoc-members:
    :show-inheritance:
@@ -351,17 +351,17 @@ AI Analysis
 
 AI-powered analysis helpers and tool definitions.
 
-.. automodule:: veupath_chatbot.services.experiment.ai_analysis_helpers
+.. automodule:: pathfinder.services.experiment.ai_analysis_helpers
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.ai_analysis_tools
+.. automodule:: pathfinder.services.experiment.ai_analysis_tools
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.assistant
+.. automodule:: pathfinder.services.experiment.assistant
    :members:
    :undoc-members:
    :show-inheritance:
@@ -373,7 +373,7 @@ AI Refinement Tools
 tools decorated with ``@ai_function`` that allow the workbench agent to
 add search steps, combine results with gene lists, and trigger re-evaluation.
 
-.. automodule:: veupath_chatbot.services.experiment.ai_refinement_tools
+.. automodule:: pathfinder.services.experiment.ai_refinement_tools
    :members:
    :undoc-members:
    :show-inheritance:
@@ -384,42 +384,42 @@ Step Analysis
 Multi-step strategy analysis: per-step evaluation, operator comparison,
 contribution analysis, and parameter sensitivity.
 
-.. automodule:: veupath_chatbot.services.experiment.step_analysis
+.. automodule:: pathfinder.services.experiment.step_analysis
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.step_analysis.orchestrator
+.. automodule:: pathfinder.services.experiment.step_analysis.orchestrator
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.step_analysis.phase_step_eval
+.. automodule:: pathfinder.services.experiment.step_analysis.phase_step_eval
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.step_analysis.phase_operators
+.. automodule:: pathfinder.services.experiment.step_analysis.phase_operators
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.step_analysis.phase_contribution
+.. automodule:: pathfinder.services.experiment.step_analysis.phase_contribution
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.step_analysis.phase_sensitivity
+.. automodule:: pathfinder.services.experiment.step_analysis.phase_sensitivity
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.step_analysis._evaluation
+.. automodule:: pathfinder.services.experiment.step_analysis._evaluation
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.step_analysis._tree_utils
+.. automodule:: pathfinder.services.experiment.step_analysis._tree_utils
    :members:
    :undoc-members:
    :show-inheritance:
@@ -429,52 +429,52 @@ Types
 
 Pydantic models for experiment configuration, metrics, enrichment, and results.
 
-.. automodule:: veupath_chatbot.services.experiment.types
+.. automodule:: pathfinder.services.experiment.types
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.types.experiment
+.. automodule:: pathfinder.services.experiment.types.experiment
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.types.core
+.. automodule:: pathfinder.services.experiment.types.core
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.types.metrics
+.. automodule:: pathfinder.services.experiment.types.metrics
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.types.enrichment
+.. automodule:: pathfinder.services.experiment.types.enrichment
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.types.optimization
+.. automodule:: pathfinder.services.experiment.types.optimization
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.types.rank
+.. automodule:: pathfinder.services.experiment.types.rank
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.types.step_analysis
+.. automodule:: pathfinder.services.experiment.types.step_analysis
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.types.serialization
+.. automodule:: pathfinder.services.experiment.types.serialization
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.types.json_codec
+.. automodule:: pathfinder.services.experiment.types.json_codec
    :members:
    :undoc-members:
    :show-inheritance:

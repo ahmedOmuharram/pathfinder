@@ -77,7 +77,7 @@ OpenAI Responses Engine
 **Purpose:** OpenAI engine using the Responses API. Strips
 ``reasoning.encrypted_content`` from non-reasoning models to prevent 400 errors.
 
-.. automodule:: veupath_chatbot.ai.engines.responses_openai
+.. automodule:: pathfinder.ai.engines.responses_openai
    :members:
    :undoc-members:
    :show-inheritance:
@@ -90,7 +90,7 @@ Adds cache control markers to system messages, reducing cost by up to 90% on
 repeated conversations. Also fixes Pydantic validation errors for bare
 thinking-block responses.
 
-.. automodule:: veupath_chatbot.ai.engines.cached_anthropic
+.. automodule:: pathfinder.ai.engines.cached_anthropic
    :members:
    :undoc-members:
    :show-inheritance:
@@ -108,7 +108,7 @@ services -> integrations -> persistence) without LLM API costs or
 non-determinism. Test scenarios define expected tool call sequences that the
 mock replays in order.
 
-.. automodule:: veupath_chatbot.ai.engines.mock
+.. automodule:: pathfinder.ai.engines.mock
    :members:
    :undoc-members:
    :show-inheritance:

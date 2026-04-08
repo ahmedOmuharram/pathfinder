@@ -23,7 +23,7 @@ startup background tasks.
 configurations and ensures clean setup/teardown of database connections and Redis
 pools via FastAPI lifespan events.
 
-.. automodule:: veupath_chatbot.main
+.. automodule:: pathfinder.main
    :members:
    :undoc-members:
    :show-inheritance:
@@ -37,7 +37,7 @@ FastAPI application. Generates ``packages/spec/openapi.yaml`` and
 This is intentionally NOT run at runtime — it writes repo files during
 development.
 
-.. automodule:: veupath_chatbot.devtools.openapi
+.. automodule:: pathfinder.devtools.openapi
    :members:
    :undoc-members:
    :show-inheritance:
@@ -51,7 +51,7 @@ injection, and experiment ownership checks. Used by routers.
 **Key functions:** :py:func:`get_current_user_with_db_row`,
 :py:func:`get_experiment_owned_by_user`
 
-.. automodule:: veupath_chatbot.transport.http.deps
+.. automodule:: pathfinder.transport.http.deps
    :members:
    :undoc-members:
    :show-inheritance:
@@ -62,7 +62,7 @@ SSE Helpers
 **Purpose:** SSE event formatting utilities. Encode events as SSE-formatted
 strings with proper ``data:`` prefixes and newline terminators.
 
-.. automodule:: veupath_chatbot.transport.http.sse
+.. automodule:: pathfinder.transport.http.sse
    :members:
    :undoc-members:
    :show-inheritance:
@@ -73,142 +73,142 @@ Routers
 FastAPI routers that define the HTTP API surface. Each router handles a
 specific domain area.
 
-.. automodule:: veupath_chatbot.transport.http.routers.chat
+.. automodule:: pathfinder.transport.http.routers.chat
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.sites.catalog
+.. automodule:: pathfinder.transport.http.routers.sites.catalog
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.sites.genes
+.. automodule:: pathfinder.transport.http.routers.sites.genes
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.sites.params
+.. automodule:: pathfinder.transport.http.routers.sites.params
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.models
+.. automodule:: pathfinder.transport.http.routers.models
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.health
+.. automodule:: pathfinder.transport.http.routers.health
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.control_sets
+.. automodule:: pathfinder.transport.http.routers.control_sets
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.veupathdb_auth
+.. automodule:: pathfinder.transport.http.routers.veupathdb_auth
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.dev
+.. automodule:: pathfinder.transport.http.routers.dev
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.exports
+.. automodule:: pathfinder.transport.http.routers.exports
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.gene_sets
+.. automodule:: pathfinder.transport.http.routers.gene_sets
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.internal
+.. automodule:: pathfinder.transport.http.routers.internal
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.operations
+.. automodule:: pathfinder.transport.http.routers.operations
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.tools
+.. automodule:: pathfinder.transport.http.routers.tools
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.user_data
+.. automodule:: pathfinder.transport.http.routers.user_data
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.strategies.crud
+.. automodule:: pathfinder.transport.http.routers.strategies.crud
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.strategies.plan
+.. automodule:: pathfinder.transport.http.routers.strategies.plan
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.strategies.counts
+.. automodule:: pathfinder.transport.http.routers.strategies.counts
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.strategies.wdk_import
+.. automodule:: pathfinder.transport.http.routers.strategies.wdk_import
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.experiments.crud
+.. automodule:: pathfinder.transport.http.routers.experiments.crud
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.experiments.execution
+.. automodule:: pathfinder.transport.http.routers.experiments.execution
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.experiments.evaluation
+.. automodule:: pathfinder.transport.http.routers.experiments.evaluation
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.experiments.analysis
+.. automodule:: pathfinder.transport.http.routers.experiments.analysis
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.experiments.cross_validation
+.. automodule:: pathfinder.transport.http.routers.experiments.cross_validation
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.experiments.enrichment
+.. automodule:: pathfinder.transport.http.routers.experiments.enrichment
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.experiments.comparison
+.. automodule:: pathfinder.transport.http.routers.experiments.comparison
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.experiments.chat
+.. automodule:: pathfinder.transport.http.routers.experiments.chat
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.routers.experiments.results
+.. automodule:: pathfinder.transport.http.routers.experiments.results
    :members:
    :undoc-members:
    :show-inheritance:
@@ -219,7 +219,7 @@ Workbench Chat
 **Purpose:** Workbench chat orchestration. Mirrors the main chat orchestrator
 but scoped to (user_id, experiment_id) pairs for experiment-context conversations.
 
-.. automodule:: veupath_chatbot.services.workbench_chat.orchestrator
+.. automodule:: pathfinder.services.workbench_chat.orchestrator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -229,67 +229,67 @@ Schemas
 
 Pydantic request/response models (DTOs) for the HTTP API.
 
-.. automodule:: veupath_chatbot.transport.http.schemas.chat
+.. automodule:: pathfinder.transport.http.schemas.chat
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.strategies
+.. automodule:: pathfinder.transport.http.schemas.strategies
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.plan
+.. automodule:: pathfinder.transport.http.schemas.plan
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.sites
+.. automodule:: pathfinder.transport.http.schemas.sites
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.steps
+.. automodule:: pathfinder.transport.http.schemas.steps
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.experiments
+.. automodule:: pathfinder.transport.http.schemas.experiments
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.health
+.. automodule:: pathfinder.transport.http.schemas.health
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.veupathdb_auth
+.. automodule:: pathfinder.transport.http.schemas.veupathdb_auth
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.gene_sets
+.. automodule:: pathfinder.transport.http.schemas.gene_sets
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.workbench_chat
+.. automodule:: pathfinder.transport.http.schemas.workbench_chat
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.optimization
+.. automodule:: pathfinder.transport.http.schemas.optimization
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.sse
+.. automodule:: pathfinder.transport.http.schemas.sse
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.transport.http.schemas.experiment_responses
+.. automodule:: pathfinder.transport.http.schemas.experiment_responses
    :members:
    :undoc-members:
    :show-inheritance:

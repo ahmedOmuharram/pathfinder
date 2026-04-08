@@ -53,20 +53,20 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/veupath_chatbot"]
+packages = ["src/pathfinder"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
-testpaths = ["src/veupath_chatbot/tests"]
+testpaths = ["src/pathfinder/tests"]
 markers = [
     "live_wdk: tests that make live HTTP calls to VEuPathDB WDK endpoints (require network)",
     "vcr: tests backed by VCR cassettes (auto-registered by pytest-recording)",
 ]
 
 [tool.coverage.run]
-source = ["src/veupath_chatbot"]
+source = ["src/pathfinder"]
 omit = ["*/tests/*"]
 
 [tool.ruff]
@@ -138,35 +138,35 @@ max-branches = 10
     "FBT",      # boolean args in test helpers are fine
     "S311",     # deterministic seeds for shuffling is fine
 ]
-"src/veupath_chatbot/ai/capabilities/security.py" = [
+"src/pathfinder/ai/capabilities/security.py" = [
     "S106",  # pad_token="[PAD]" is tokenizer config, not a password
 ]
-"src/veupath_chatbot/ai/orchestration/pipeline.py" = [
+"src/pathfinder/ai/orchestration/pipeline.py" = [
     "N801",  # python-statemachine compound states require lowercase class names
 ]
-"src/veupath_chatbot/ai/context/reconstruction.py" = [
+"src/pathfinder/ai/context/reconstruction.py" = [
     "C901",     # discovery extraction inspects multiple nested data sources
     "PLR0912",  # branching inherent to parsing tool calls from Redis history
 ]
-"src/veupath_chatbot/services/chat/streaming.py" = [
+"src/pathfinder/services/chat/streaming.py" = [
     "PLR0912",  # _produce_events routes on intent + handles phase transitions
 ]
-"src/veupath_chatbot/ai/prompts/**" = [
+"src/pathfinder/ai/prompts/**" = [
     "E501",  # prompt strings are long by nature
 ]
 "scripts/**" = [
     "T20",    # scripts use print() for CLI output
     "S101",   # assert in scripts is fine
 ]
-"src/veupath_chatbot/ai/tools/standalone/**" = [
+"src/pathfinder/ai/tools/standalone/**" = [
     "PLR0913",  # tool functions need many params for LLM tool interface
     "FBT",      # boolean params required for LLM tool descriptions
 ]
-"src/veupath_chatbot/ai/orchestration/classifier.py" = [
+"src/pathfinder/ai/orchestration/classifier.py" = [
     "C901",     # request classification is inherently branchy
     "PLR0911",  # many return paths for many intent categories
 ]
-"src/veupath_chatbot/devtools/**" = [
+"src/pathfinder/devtools/**" = [
     "T20",      # devtools scripts use print() for CLI output
     "C901",     # stream analysis inspects many event types
     "PLR0912",  # branching inherent to multi-event-type parsing
@@ -175,7 +175,7 @@ max-branches = 10
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["veupath_chatbot"]
+known-first-party = ["pathfinder"]
 
 [tool.mypy]
 python_version = "3.14"
@@ -185,13 +185,13 @@ plugins = ["pydantic.mypy"]
 warn_return_any = true
 warn_unused_ignores = true
 disable_error_code = ["import-untyped", "untyped-decorator"]
-exclude = ["scripts/", "docs/", "src/veupath_chatbot/tests/"]
+exclude = ["scripts/", "docs/", "src/pathfinder/tests/"]
 
 [tool.pydantic-mypy]
 init_typed = false
 
 [[tool.mypy.overrides]]
-module = "veupath_chatbot.tests.*"
+module = "pathfinder.tests.*"
 disable_error_code = [
     "no-untyped-def",
     "arg-type",
@@ -202,7 +202,7 @@ disable_error_code = [
 ]
 
 [tool.vulture]
-paths = ["src/veupath_chatbot", "vulture_whitelist.py"]
+paths = ["src/pathfinder", "vulture_whitelist.py"]
 exclude = ["tests/", "*/conftest.py"]
 min_confidence = 80
 
@@ -240,19 +240,19 @@ pythonPlatform = "Linux"
 # Import Linter — backend architecture enforcement
 # ---------------------------------------------------------------------------
 [tool.importlinter]
-root_packages = ["veupath_chatbot"]
+root_packages = ["pathfinder"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "Domain layer is pure (no I/O, no other layers)"
 type = "forbidden"
-source_modules = ["veupath_chatbot.domain"]
+source_modules = ["pathfinder.domain"]
 forbidden_modules = [
-    "veupath_chatbot.integrations",
-    "veupath_chatbot.services",
-    "veupath_chatbot.transport",
-    "veupath_chatbot.persistence",
-    "veupath_chatbot.ai",
+    "pathfinder.integrations",
+    "pathfinder.services",
+    "pathfinder.transport",
+    "pathfinder.persistence",
+    "pathfinder.ai",
     "httpx",
     "sqlalchemy",
     "asyncpg",
@@ -263,48 +263,48 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "Transport never imports integrations or persistence directly"
 type = "forbidden"
-source_modules = ["veupath_chatbot.transport"]
+source_modules = ["pathfinder.transport"]
 forbidden_modules = [
-    "veupath_chatbot.integrations",
-    "veupath_chatbot.persistence",
+    "pathfinder.integrations",
+    "pathfinder.persistence",
 ]
 
 [[tool.importlinter.contracts]]
 name = "AI tools never import integrations or persistence directly"
 type = "forbidden"
-source_modules = ["veupath_chatbot.ai.tools"]
+source_modules = ["pathfinder.ai.tools"]
 forbidden_modules = [
-    "veupath_chatbot.integrations",
-    "veupath_chatbot.persistence",
+    "pathfinder.integrations",
+    "pathfinder.persistence",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Services never import transport or AI"
 type = "forbidden"
-source_modules = ["veupath_chatbot.services"]
+source_modules = ["pathfinder.services"]
 forbidden_modules = [
-    "veupath_chatbot.transport",
-    "veupath_chatbot.ai",
+    "pathfinder.transport",
+    "pathfinder.ai",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Integrations never import services, transport, or AI"
 type = "forbidden"
-source_modules = ["veupath_chatbot.integrations"]
+source_modules = ["pathfinder.integrations"]
 forbidden_modules = [
-    "veupath_chatbot.services",
-    "veupath_chatbot.transport",
-    "veupath_chatbot.ai",
+    "pathfinder.services",
+    "pathfinder.transport",
+    "pathfinder.ai",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Persistence never imports services, transport, AI, or integrations"
 type = "forbidden"
-source_modules = ["veupath_chatbot.persistence"]
+source_modules = ["pathfinder.persistence"]
 forbidden_modules = [
-    "veupath_chatbot.services",
-    "veupath_chatbot.transport",
-    "veupath_chatbot.ai",
-    "veupath_chatbot.integrations",
+    "pathfinder.services",
+    "pathfinder.transport",
+    "pathfinder.ai",
+    "pathfinder.integrations",
 ]
 

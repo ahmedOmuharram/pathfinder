@@ -61,7 +61,7 @@ gene sets, and operations. Define the schema and relationships.
 
 **Key classes:** :py:class:`User`, :py:class:`ControlSet`, :py:class:`ExperimentRow`, :py:class:`Stream`
 
-.. automodule:: veupath_chatbot.persistence.models
+.. automodule:: pathfinder.persistence.models
    :members:
    :undoc-members:
    :show-inheritance:
@@ -74,7 +74,7 @@ Used by FastAPI dependency injection and background tasks.
 
 **Key functions:** :py:func:`get_db_session`, :py:func:`init_db`, :py:func:`close_db`
 
-.. automodule:: veupath_chatbot.persistence.session
+.. automodule:: pathfinder.persistence.session
    :members:
    :undoc-members:
    :show-inheritance:
@@ -85,17 +85,17 @@ Repositories
 **Purpose:** Data access layer. Encapsulates queries and CRUD operations.
 Split into domain-specific repository modules.
 
-.. automodule:: veupath_chatbot.persistence.repositories.user
+.. automodule:: pathfinder.persistence.repositories.user
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.persistence.repositories.stream
+.. automodule:: pathfinder.persistence.repositories.stream
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.persistence.repositories.control_set
+.. automodule:: pathfinder.persistence.repositories.control_set
    :members:
    :undoc-members:
    :show-inheritance:

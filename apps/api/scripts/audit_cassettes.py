@@ -147,8 +147,8 @@ def main() -> None:
     parser.add_argument(
         "--cassette-dir",
         type=Path,
-        default=Path("src/veupath_chatbot/tests/cassettes"),
-        help="Path to cassettes directory (default: src/veupath_chatbot/tests/cassettes)",
+        default=Path("src/pathfinder/tests/cassettes"),
+        help="Path to cassettes directory (default: src/pathfinder/tests/cassettes)",
     )
     args = parser.parse_args()
 

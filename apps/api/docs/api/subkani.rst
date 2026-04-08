@@ -14,19 +14,19 @@ Orchestrator
 plan, spawns sub-agents, runs tasks with dependencies, creates combine steps,
 emits subkani events.
 
-**Key function:** :py:func:`veupath_chatbot.ai.orchestration.subkani.orchestrator.delegate_strategy_subtasks`
+**Key function:** :py:func:`pathfinder.ai.orchestration.subkani.orchestrator.delegate_strategy_subtasks`
 
 **Flow:**
 
-1. Build and validate :py:class:`veupath_chatbot.ai.orchestration.delegation.DelegationPlan` from the nested plan.
+1. Build and validate :py:class:`pathfinder.ai.orchestration.delegation.DelegationPlan` from the nested plan.
 2. Create or get the strategy graph.
 3. For each task node (in dependency order):
-   - Run :py:func:`veupath_chatbot.ai.orchestration.subkani.orchestrator.run_subkani_task` — spawn SubtaskAgent, pass dependency context.
+   - Run :py:func:`pathfinder.ai.orchestration.subkani.orchestrator.run_subkani_task` — spawn SubtaskAgent, pass dependency context.
    - Collect step IDs from results.
 4. For each combine node, create the combine step via strategy_tools.
 5. Emit ``subkani_task_start``, ``subkani_tool_call_*``, ``subkani_task_end``.
 
-.. automodule:: veupath_chatbot.ai.orchestration.subkani.orchestrator
+.. automodule:: pathfinder.ai.orchestration.subkani.orchestrator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -37,9 +37,9 @@ Subtask Scheduler
 **Purpose:** Run task nodes with dependency ordering. Uses topological sort
 so that nodes run only after their dependencies complete.
 
-**Key functions:** :py:func:`veupath_chatbot.ai.orchestration.scheduler.run_nodes_with_dependencies`, :py:func:`veupath_chatbot.ai.orchestration.scheduler.partition_task_results`
+**Key functions:** :py:func:`pathfinder.ai.orchestration.scheduler.run_nodes_with_dependencies`, :py:func:`pathfinder.ai.orchestration.scheduler.partition_task_results`
 
-.. automodule:: veupath_chatbot.ai.orchestration.scheduler
+.. automodule:: pathfinder.ai.orchestration.scheduler
    :members:
    :undoc-members:
    :show-inheritance:
@@ -50,7 +50,7 @@ Sub-kani Prompts
 **Purpose:** Prompt construction for sub-kani execution rounds. Composes task
 descriptions, goals, graph context, and dependency rules into execution prompts.
 
-.. automodule:: veupath_chatbot.ai.orchestration.subkani.prompts
+.. automodule:: pathfinder.ai.orchestration.subkani.prompts
    :members:
    :undoc-members:
    :show-inheritance:
@@ -65,7 +65,7 @@ error aggregation.
 **Key types:** ``SubKaniRoundResult`` -- Captures token usage, created step IDs,
 and errors from a sub-kani round.
 
-.. automodule:: veupath_chatbot.ai.orchestration.subkani.utils
+.. automodule:: pathfinder.ai.orchestration.subkani.utils
    :members:
    :undoc-members:
    :show-inheritance:

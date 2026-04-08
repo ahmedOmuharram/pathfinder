@@ -34,7 +34,7 @@ Enrichment Service
 via WDK, handles multiple enrichment types, and formats results for the
 experiment analysis pipeline.
 
-.. automodule:: veupath_chatbot.services.wdk.enrichment_service
+.. automodule:: pathfinder.services.wdk.enrichment_service
    :members:
    :undoc-members:
    :show-inheritance:
@@ -45,7 +45,7 @@ WDK Helpers
 **Purpose:** Shared WDK helpers for record parsing, attribute inspection,
 and parameter merging. Used across experiments, gene sets, and workbench.
 
-.. automodule:: veupath_chatbot.services.wdk.helpers
+.. automodule:: pathfinder.services.wdk.helpers
    :members:
    :undoc-members:
    :show-inheritance:
@@ -57,7 +57,7 @@ Record Type Resolution
 matching (exact, name, display) handles WDK's inconsistent naming across
 sites.
 
-.. automodule:: veupath_chatbot.services.wdk.record_types
+.. automodule:: pathfinder.services.wdk.record_types
    :members:
    :undoc-members:
    :show-inheritance:
@@ -69,7 +69,7 @@ Step Results Service
 attribute listing, record retrieval, distribution computation, and analysis
 endpoint logic. Used by experiments, gene sets, and workbench endpoints.
 
-.. automodule:: veupath_chatbot.services.wdk.step_results
+.. automodule:: pathfinder.services.wdk.step_results
    :members:
    :undoc-members:
    :show-inheritance:

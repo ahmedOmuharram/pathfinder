@@ -4,7 +4,7 @@
 Run from the api directory:
     uv run python scripts/generate_embeddings.py
 
-Outputs .npz files to src/veupath_chatbot/data/embeddings/ which should
+Outputs .npz files to src/pathfinder/data/embeddings/ which should
 be committed to the repo.  On startup, the API loads these instead of
 re-encoding — making catalog warm-up instant.
 """
@@ -12,9 +12,9 @@ re-encoding — making catalog warm-up instant.
 import asyncio
 import time
 
-from veupath_chatbot.integrations.veupathdb.discovery_service import get_discovery_service
-from veupath_chatbot.integrations.veupathdb.site_router import get_site_router
-from veupath_chatbot.services.catalog.semantic_index import warm_up_model
+from pathfinder.integrations.veupathdb.discovery_service import get_discovery_service
+from pathfinder.integrations.veupathdb.site_router import get_site_router
+from pathfinder.services.catalog.semantic_index import warm_up_model
 
 
 async def main() -> None:
@@ -37,7 +37,7 @@ async def main() -> None:
             elapsed = time.time() - t0
             print(f"  {site.id}: FAILED ({elapsed:.1f}s) - {e}")
 
-    print("\nDone. Commit the .npz files in src/veupath_chatbot/data/embeddings/")
+    print("\nDone. Commit the .npz files in src/pathfinder/data/embeddings/")
 
 
 if __name__ == "__main__":

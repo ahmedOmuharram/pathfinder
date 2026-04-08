@@ -80,7 +80,7 @@ with DOI, PMID, authors, abstract.
 
 **Key class:** :py:class:`LiteratureSearchService` — method: :py:meth:`search`
 
-.. automodule:: veupath_chatbot.services.research.literature_search
+.. automodule:: pathfinder.services.research.literature_search
    :members:
    :undoc-members:
    :show-inheritance:
@@ -93,7 +93,7 @@ agent needs to look up external information.
 
 **Key class:** :py:class:`WebSearchService`
 
-.. automodule:: veupath_chatbot.services.research.web_search
+.. automodule:: pathfinder.services.research.web_search
    :members:
    :undoc-members:
    :show-inheritance:
@@ -108,7 +108,7 @@ literature search and citation processing.
 **Key functions:** :py:func:`passes_filters`, :py:func:`dedupe_key`,
 :py:func:`rerank_score`, :py:func:`norm_text`
 
-.. automodule:: veupath_chatbot.services.research.utils
+.. automodule:: pathfinder.services.research.utils
    :members:
    :undoc-members:
    :show-inheritance:
@@ -120,42 +120,42 @@ API clients for literature sources. Each implements search for its backend.
 All clients inherit from :py:class:`BaseClient` / :py:class:`StandardClient`
 defined in the base module.
 
-.. automodule:: veupath_chatbot.services.research.clients._base
+.. automodule:: pathfinder.services.research.clients._base
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.research.clients.semanticscholar
+.. automodule:: pathfinder.services.research.clients.semanticscholar
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.research.clients.europepmc
+.. automodule:: pathfinder.services.research.clients.europepmc
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.research.clients.pubmed
+.. automodule:: pathfinder.services.research.clients.pubmed
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.research.clients.crossref
+.. automodule:: pathfinder.services.research.clients.crossref
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.research.clients.openalex
+.. automodule:: pathfinder.services.research.clients.openalex
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.research.clients.arxiv
+.. automodule:: pathfinder.services.research.clients.arxiv
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.research.clients.preprint
+.. automodule:: pathfinder.services.research.clients.preprint
    :members:
    :undoc-members:
    :show-inheritance:

@@ -27,7 +27,7 @@ Resolves model ID from override, persisted state, or server default.
 
 **Key functions:** :py:func:`create_agent`, :py:func:`resolve_effective_model_id`
 
-.. automodule:: veupath_chatbot.ai.agents.factory
+.. automodule:: pathfinder.ai.agents.factory
    :members:
    :undoc-members:
    :show-inheritance:
@@ -42,7 +42,7 @@ populate the model picker and enforce constraints.
 **Key types:** :py:class:`ModelProvider`, :py:class:`ReasoningEffort`
 **Key functions:** :py:func:`get_model_entry`, :py:func:`build_reasoning_hyperparams`
 
-.. automodule:: veupath_chatbot.ai.models.catalog
+.. automodule:: pathfinder.ai.models.catalog
    :members:
    :undoc-members:
    :show-inheritance:
@@ -53,17 +53,17 @@ Prompts
 **Purpose:** System prompts for the unified agent and sub-kani agents.
 Prompt templates with site context, strategy state, and tool instructions.
 
-.. automodule:: veupath_chatbot.ai.prompts.executor_prompt
+.. automodule:: pathfinder.ai.prompts.executor_prompt
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.prompts.loader
+.. automodule:: pathfinder.ai.prompts.loader
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.ai.prompts.workbench_chat
+.. automodule:: pathfinder.ai.prompts.workbench_chat
    :members:
    :undoc-members:
    :show-inheritance:
@@ -75,7 +75,7 @@ Model Pricing
 per request accounting for prompt tokens, completion tokens, and cached token
 discounts.
 
-.. automodule:: veupath_chatbot.ai.models.pricing
+.. automodule:: pathfinder.ai.models.pricing
    :members:
    :undoc-members:
    :show-inheritance:

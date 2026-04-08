@@ -1,0 +1,230 @@
+"""AST node types for strategy representation (untyped tree)."""
+
+from uuid import uuid4
+
+from pydantic import Field, ValidationError, model_validator
+
+from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
+from pathfinder.integrations.veupathdb.wdk_models import (
+    WDKSerializedParams,
+    encode_wdk_params,
+)
+from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.platform.types import JSONObject, JSONValue
+
+# Sentinel search names for non-search nodes in the step graph.
+COMBINE_SEARCH_NAME = "__combine__"
+
+
+def generate_step_id() -> str:
+    """Generate a unique step ID."""
+    return f"step_{uuid4().hex[:8]}"
+
+
+class StepFilter(CamelModel):
+    """Filter applied to a step's result.
+
+    WDK FilterValueArray element: { name: string, value: any, disabled?: boolean }.
+    """
+
+    name: str
+    value: JSONValue = None
+    disabled: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+        if not isinstance(data, dict):
+            msg = "StepFilter requires a dict"
+            raise TypeError(msg)
+        name = data.get("name")
+        if not isinstance(name, str) or not name:
+            msg = "StepFilter requires a non-empty 'name'"
+            raise ValueError(msg)
+        return dict(data)
+
+    @classmethod
+    def from_list(cls, raw: object) -> list[StepFilter]:
+        """Parse a tolerant list from raw JSON, silently dropping invalid items."""
+        if not isinstance(raw, list):
+            return []
+        result: list[StepFilter] = []
+        for item in raw:
+            try:
+                result.append(cls.model_validate(item))
+            except ValueError, TypeError, ValidationError:
+                continue
+        return result
+
+
+class StepAnalysis(CamelModel):
+    """Analysis configuration for a step.
+
+    WDK fields: analysisType (str), parameters (JSONObject), customName (str|null).
+    """
+
+    analysis_type: str
+    parameters: JSONObject = Field(default_factory=dict)
+    custom_name: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+        if not isinstance(data, dict):
+            msg = "StepAnalysis requires a dict"
+            raise TypeError(msg)
+        result: dict[str, JSONValue] = dict(data)
+        # Accept both camelCase alias and snake_case field name
+        at = result.get("analysisType") or result.get("analysis_type")
+        if not isinstance(at, str) or not at:
+            msg = "StepAnalysis requires 'analysisType'"
+            raise ValueError(msg)
+        # Coerce non-dict parameters to empty dict
+        if not isinstance(result.get("parameters"), dict):
+            result["parameters"] = {}
+        # Coerce non-string customName to None
+        cn = result.get("customName") or result.get("custom_name")
+        if cn is not None and not isinstance(cn, str):
+            result.pop("customName", None)
+            result.pop("custom_name", None)
+        return result
+
+    @classmethod
+    def from_list(cls, raw: object) -> list[StepAnalysis]:
+        """Parse a tolerant list from raw JSON, silently dropping invalid items."""
+        if not isinstance(raw, list):
+            return []
+        result: list[StepAnalysis] = []
+        for item in raw:
+            try:
+                result.append(cls.model_validate(item))
+            except ValueError, TypeError, ValidationError:
+                continue
+        return result
+
+
+class StepReport(CamelModel):
+    """Report request attached to a step.
+
+    WDK fields: reportName (str, default "standard"), config (JSONObject).
+    """
+
+    report_name: str = "standard"
+    config: JSONObject = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+        if not isinstance(data, dict):
+            msg = "StepReport requires a dict"
+            raise TypeError(msg)
+        result: dict[str, JSONValue] = dict(data)
+        # Coerce non-dict config to empty dict
+        if not isinstance(result.get("config"), dict):
+            result["config"] = {}
+        return result
+
+    @classmethod
+    def from_list(cls, raw: object) -> list[StepReport]:
+        """Parse a tolerant list from raw JSON, silently dropping invalid items."""
+        if not isinstance(raw, list):
+            return []
+        result: list[StepReport] = []
+        for item in raw:
+            try:
+                result.append(cls.model_validate(item))
+            except ValueError, TypeError, ValidationError:
+                continue
+        return result
+
+
+class PlanStepNode(CamelModel):
+    """Recursive strategy node.
+
+    Kind is inferred from structure:
+    - combine: primary_input and secondary_input
+    - transform: primary_input only
+    - search: no inputs
+
+    ``parameters`` accepts ``JSONObject`` (LLM's natural output).
+    ``WDKSerializedParams`` applies a ``PlainSerializer`` so that
+    ``model_dump(exclude_none=True)`` produces WDK-compatible
+    ``dict[str, str]`` (``Record<string, ParameterValue>``).
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _default_combine_search_name(cls, data: JSONValue) -> JSONValue:
+        """Inject ``__combine__`` for combine nodes missing ``searchName``."""
+        if not isinstance(data, dict):
+            return data
+        has_search = "searchName" in data or "search_name" in data
+        has_both_inputs = (
+            "primaryInput" in data or "primary_input" in data
+        ) and ("secondaryInput" in data or "secondary_input" in data)
+        if not has_search and has_both_inputs:
+            data["searchName"] = COMBINE_SEARCH_NAME
+        return data
+
+    search_name: str
+    parameters: WDKSerializedParams = Field(default_factory=dict)
+
+    @property
+    def wdk_parameters(self) -> dict[str, str]:
+        """Parameters encoded to WDK's ``Record<string, string>``."""
+        return encode_wdk_params(self.parameters)
+
+    primary_input: PlanStepNode | None = None
+    secondary_input: PlanStepNode | None = None
+    operator: CombineOp | None = None
+    colocation_params: ColocationParams | None = None
+    display_name: str | None = None
+    filters: list[StepFilter] = Field(default_factory=list)
+    analyses: list[StepAnalysis] = Field(default_factory=list)
+    reports: list[StepReport] = Field(default_factory=list)
+    wdk_weight: int | None = None
+    id: str = Field(default_factory=generate_step_id)
+
+    @model_validator(mode="after")
+    def _validate_structure(self) -> PlanStepNode:
+        if self.secondary_input is not None and self.primary_input is None:
+            msg = "secondaryInput requires primaryInput"
+            raise ValueError(msg)
+        if self.secondary_input is not None and not self.operator:
+            msg = "operator is required when secondaryInput is present"
+            raise ValueError(msg)
+        if self.operator == CombineOp.COLOCATE and self.colocation_params is None:
+            msg = "colocationParams is required when operator is COLOCATE"
+            raise ValueError(msg)
+        if self.operator != CombineOp.COLOCATE and self.colocation_params is not None:
+            msg = "colocationParams is only allowed when operator is COLOCATE"
+            raise ValueError(msg)
+        return self
+
+    def infer_kind(self) -> str:
+        if self.primary_input is not None and self.secondary_input is not None:
+            return "combine"
+        if self.search_name == COMBINE_SEARCH_NAME:
+            return "combine"
+        if self.primary_input is not None:
+            return "transform"
+        return "search"
+
+
+def walk_step_tree(root: PlanStepNode) -> list[PlanStepNode]:
+    """Depth-first traversal of a PlanStepNode tree.
+
+    Visits primary_input before secondary_input, appends current node last.
+    Visits primary_input before secondary_input, appends current node last.
+    """
+    steps: list[PlanStepNode] = []
+
+    def visit(node: PlanStepNode) -> None:
+        if node.primary_input is not None:
+            visit(node.primary_input)
+        if node.secondary_input is not None:
+            visit(node.secondary_input)
+        steps.append(node)
+
+    visit(root)
+    return steps

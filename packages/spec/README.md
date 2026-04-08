@@ -33,7 +33,7 @@ From repo root:
 
 ```bash
 cd apps/api
-uv run python -m veupath_chatbot.devtools.openapi generate
+uv run python -m pathfinder.devtools.openapi generate
 ```
 
 ### Generate TypeScript types from the spec

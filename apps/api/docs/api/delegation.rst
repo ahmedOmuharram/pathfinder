@@ -33,8 +33,8 @@ Plan Schema
 Delegation Plan (Compiled)
 --------------------------
 
-:py:func:`veupath_chatbot.ai.orchestration.delegation.build_delegation_plan` normalizes and validates the model-produced
-plan into a strict :py:class:`veupath_chatbot.ai.orchestration.delegation.DelegationPlan`:
+:py:func:`pathfinder.ai.orchestration.delegation.build_delegation_plan` normalizes and validates the model-produced
+plan into a strict :py:class:`pathfinder.ai.orchestration.delegation.DelegationPlan`:
 
 - ``goal`` — User goal string.
 - ``tasks`` — Flat list of task nodes (dependency order).
@@ -45,7 +45,7 @@ plan into a strict :py:class:`veupath_chatbot.ai.orchestration.delegation.Delega
 If validation fails, returns an error payload (tool_error) instead of a
 DelegationPlan.
 
-.. automodule:: veupath_chatbot.ai.orchestration.delegation
+.. automodule:: pathfinder.ai.orchestration.delegation
    :members:
    :undoc-members:
    :show-inheritance:

@@ -52,7 +52,7 @@ repos:
         stages: [pre-push]
       - id: pytest-api
         name: pytest (api)
-        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run python -m pytest src/veupath_chatbot/tests/unit/ -v"
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run python -m pytest src/pathfinder/tests/unit/ -v"
         language: system
         pass_filenames: false
         types: [python]
@@ -67,7 +67,7 @@ repos:
         stages: [pre-push]
       - id: openapi-generate-api
         name: openapi spec regenerate (api)
-        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run python -m veupath_chatbot.devtools.openapi generate"
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run python -m pathfinder.devtools.openapi generate"
         language: system
         pass_filenames: false
         types: [python]

@@ -82,7 +82,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Scrub secrets from VCR cassettes")
     parser.add_argument(
         "--cassette-dir",
-        default="src/veupath_chatbot/tests/cassettes",
+        default="src/pathfinder/tests/cassettes",
         help="Path to cassettes directory",
     )
     parser.add_argument(

@@ -40,7 +40,7 @@ Chat Events
 
 **Purpose:** Chat event type definitions for the event bus.
 
-.. automodule:: veupath_chatbot.services.chat.events
+.. automodule:: pathfinder.services.chat.events
    :members:
    :undoc-members:
    :show-inheritance:
@@ -55,7 +55,7 @@ Coordinates between the agent and the strategy store.
 
 **Key functions:** Main orchestration entry point, tool result handling
 
-.. automodule:: veupath_chatbot.services.chat.orchestrator
+.. automodule:: pathfinder.services.chat.orchestrator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -66,7 +66,7 @@ Chat Streaming
 **Purpose:** Stream processing for the chat agent. Handles SSE event
 formatting and stream lifecycle management.
 
-.. automodule:: veupath_chatbot.services.chat.streaming
+.. automodule:: pathfinder.services.chat.streaming
    :members:
    :undoc-members:
    :show-inheritance:
@@ -77,7 +77,7 @@ Mention Context
 **Purpose:** Build rich context from @-mentions (strategies and experiments).
 Loads referenced entities and formats them for the agent's system prompt.
 
-.. automodule:: veupath_chatbot.services.chat.mention_context
+.. automodule:: pathfinder.services.chat.mention_context
    :members:
    :undoc-members:
    :show-inheritance:
@@ -88,7 +88,7 @@ Chat Utils
 **Purpose:** Shared utilities for chat processing: node selection parsing,
 message formatting, and stream helpers.
 
-.. automodule:: veupath_chatbot.services.chat.utils
+.. automodule:: pathfinder.services.chat.utils
    :members:
    :undoc-members:
    :show-inheritance:

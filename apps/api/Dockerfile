@@ -67,8 +67,8 @@ COPY apps/api/alembic apps/api/alembic
 
 # Copy application code (exclude tests — they add ~300MB of VCR cassettes)
 COPY apps/api/src/data apps/api/src/data
-COPY apps/api/src/veupath_chatbot apps/api/src/veupath_chatbot
-RUN rm -rf apps/api/src/veupath_chatbot/tests
+COPY apps/api/src/pathfinder apps/api/src/pathfinder
+RUN rm -rf apps/api/src/pathfinder/tests
 
 # Copy optional Ollama models config (glob avoids failure if missing)
 COPY ollama_models.yam[l] ./
@@ -86,4 +86,4 @@ HEALTHCHECK --interval=10s --timeout=10s --start-period=300s --retries=5 \
     CMD curl -f http://localhost:8000/health/ready || exit 1
 
 # Run the application
-CMD ["uv", "run", "uvicorn", "veupath_chatbot.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "pathfinder.main:app", "--host", "0.0.0.0", "--port", "8000"]

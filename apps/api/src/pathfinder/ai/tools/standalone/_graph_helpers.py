@@ -1,0 +1,261 @@
+"""Graph snapshot building, step serialization, and strategy naming.
+
+Functions that operate on ``StrategyGraph`` to produce serialized
+responses and context payloads for AI tool results.
+"""
+
+from pathfinder.ai.tools.standalone._validation_helpers import (
+    ContextPlanPayload,
+    StepOkResponse,
+    is_placeholder_name,
+)
+from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.explain import explain_operation
+from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
+from pathfinder.integrations.veupathdb.wdk_models import WDKValidation
+from pathfinder.platform.event_schemas import GraphEdge, GraphSnapshotContent
+from pathfinder.platform.types import JSONObject
+from pathfinder.services.strategies.schemas import StepResponse
+
+# ---------------------------------------------------------------------------
+# Strategy naming
+# ---------------------------------------------------------------------------
+
+
+def derive_strategy_name(
+    record_type: str | None,
+    root_step: PlanStepNode,
+) -> str:
+    base = None
+    kind = root_step.infer_kind()
+    if kind in {"search", "transform"}:
+        base = root_step.display_name or root_step.search_name
+    elif kind == "combine":
+        if root_step.operator is not None:
+            base = root_step.display_name or explain_operation(root_step.operator)
+        else:
+            base = root_step.display_name
+    base = (base or "").strip()
+    if not base:
+        base = f"{record_type.title()} strategy" if record_type else "Strategy"
+    if record_type and record_type.lower() not in base.lower():
+        base = f"{record_type.title()} - {base}"
+    return base[:120]
+
+
+def derive_strategy_description(
+    record_type: str | None,
+    root_step: PlanStepNode,
+) -> str:
+    kind = root_step.infer_kind()
+    if kind == "search":
+        summary = root_step.display_name or root_step.search_name
+        verb = "Find"
+    elif kind == "transform":
+        summary = root_step.display_name or root_step.search_name
+        verb = "Transform"
+    else:
+        if root_step.operator is not None:
+            summary = explain_operation(root_step.operator)
+        else:
+            summary = root_step.display_name or "combine"
+        verb = "Combine"
+    summary = (summary or "").strip()
+    if not summary:
+        summary = "results"
+    if record_type:
+        return f"{verb} {record_type} results for {summary}."
+    return f"{verb} results for {summary}."
+
+
+# ---------------------------------------------------------------------------
+# Step serialization
+# ---------------------------------------------------------------------------
+
+
+def build_step_response(
+    graph: StrategyGraph | None,
+    step: PlanStepNode,
+) -> StepResponse:
+    """Build a StepResponse from a PlanStepNode + graph enrichment."""
+    wdk_step_id: int | None = None
+    validation: WDKValidation | None = None
+    estimated_size: int | None = None
+    record_type: str | None = None
+    wdk_push_error: str | None = None
+
+    if graph:
+        record_type = graph.record_type
+        wdk_step_id = graph.wdk_step_ids.get(step.id)
+        validation = graph.step_validations.get(step.id)
+        wdk_push_error = graph.wdk_push_errors.get(step.id)
+        count = graph.step_counts.get(step.id)
+        if isinstance(count, int):
+            estimated_size = count
+
+    return StepResponse(
+        id=step.id,
+        kind=step.infer_kind(),
+        display_name=step.display_name or step.search_name,
+        search_name=step.search_name,
+        record_type=record_type,
+        parameters=dict(step.parameters) if step.parameters else None,
+        operator=step.operator.value if step.operator else None,
+        colocation_params=step.colocation_params,
+        primary_input_step_id=step.primary_input.id if step.primary_input else None,
+        secondary_input_step_id=step.secondary_input.id
+        if step.secondary_input
+        else None,
+        estimated_size=estimated_size,
+        wdk_step_id=wdk_step_id,
+        is_built=wdk_step_id is not None,
+        is_filtered=bool(step.filters),
+        wdk_push_error=wdk_push_error,
+        validation=validation,
+        filters=step.filters or None,
+        analyses=step.analyses or None,
+        reports=step.reports or None,
+    )
+
+
+def serialize_step(graph: StrategyGraph, step: PlanStepNode) -> StepResponse:
+    """Serialize a step for AI tool responses."""
+    return build_step_response(graph, step)
+
+
+# ---------------------------------------------------------------------------
+# Graph snapshot and context plan
+# ---------------------------------------------------------------------------
+
+
+def find_root_step_ids(graph: StrategyGraph) -> list[str]:
+    """Return root step IDs in sorted order.
+
+    Uses the incrementally-maintained ``graph.roots`` set (O(1)) instead of
+    recomputing from scratch.
+    """
+    return sorted(graph.roots)
+
+
+def build_graph_snapshot(
+    session: StrategySession, graph: StrategyGraph
+) -> GraphSnapshotContent:
+    ctx = build_context_plan(session, graph)
+    roots = find_root_step_ids(graph)
+
+    steps: list[JSONObject] = [
+        build_step_response(graph, step).model_dump(
+            by_alias=True, exclude_none=True, mode="json"
+        )
+        for step in graph.steps.values()
+    ]
+    edges: list[GraphEdge] = [
+        GraphEdge(source_id=inp.id, target_id=step.id, kind=kind)
+        for step in graph.steps.values()
+        for kind, inp in [
+            ("primary", step.primary_input),
+            ("secondary", step.secondary_input),
+        ]
+        if inp is not None
+    ]
+
+    return GraphSnapshotContent(
+        graph_id=graph.id,
+        graph_name=graph.name,
+        record_type=ctx.record_type if ctx else None,
+        name=ctx.name if ctx else graph.name,
+        description=ctx.description if ctx else None,
+        root_step_id=roots[0] if len(roots) == 1 else None,
+        steps=steps,
+        edges=edges,
+        plan=ctx.plan if ctx else None,
+    )
+
+
+def build_context_plan(
+    session: StrategySession, graph: StrategyGraph
+) -> ContextPlanPayload | None:
+    # Prefer the single subtree root from graph.roots; fall back to
+    # last_step_id when roots is ambiguous or not yet populated.
+    if len(graph.roots) == 1:
+        root_id = next(iter(graph.roots))
+    elif graph.last_step_id:
+        root_id = graph.last_step_id
+    else:
+        return None
+    root_step = graph.get_step(root_id)
+    if not root_step:
+        return None
+    record_type = graph.record_type
+    if not record_type:
+        return None
+    name = graph.name
+    description = graph.description
+    if is_placeholder_name(name):
+        name = derive_strategy_name(record_type, root_step)
+    if not description:
+        description = derive_strategy_description(record_type, root_step)
+    graph.name = name or graph.name
+    graph.description = description
+    plan = graph.to_plan(root_id)
+    if not plan:
+        return None
+    # Ensure description is in the plan dict
+    if description:
+        plan["description"] = description
+    return ContextPlanPayload(
+        graph_id=graph.id,
+        graph_name=graph.name,
+        plan=plan,
+        record_type=record_type,
+        name=name,
+        description=description,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Response builders (combine step + graph context)
+# ---------------------------------------------------------------------------
+
+
+def step_ok_response(
+    session: StrategySession, graph: StrategyGraph, step: PlanStepNode
+) -> StepOkResponse:
+    """Serialize a step as an ``ok=True`` response with a full graph snapshot.
+
+    This combines the three-step pattern used after successful step
+    mutations: serialize the step, mark ok, wrap with graph context.
+    """
+    ctx = build_context_plan(session, graph)
+    return StepOkResponse(
+        step=serialize_step(graph, step),
+        graph_id=ctx.graph_id if ctx else graph.id,
+        graph_name=ctx.graph_name if ctx else graph.name,
+        record_type=ctx.record_type if ctx else None,
+        name=ctx.name if ctx else graph.name,
+        description=ctx.description if ctx else None,
+        plan=ctx.plan if ctx else None,
+        graph_snapshot=build_graph_snapshot(session, graph),
+    )
+
+
+def with_plan_payload(
+    session: StrategySession, graph: StrategyGraph, payload: JSONObject
+) -> JSONObject:
+    plan_payload = build_context_plan(session, graph)
+    if plan_payload:
+        payload.update(plan_payload.model_dump(by_alias=True, exclude_none=True))
+    else:
+        payload.setdefault("graphId", graph.id)
+        payload.setdefault("graphName", graph.name)
+    return payload
+
+
+def with_full_graph(
+    session: StrategySession, graph: StrategyGraph, payload: JSONObject
+) -> JSONObject:
+    response = with_plan_payload(session, graph, payload)
+    response["graphSnapshot"] = build_graph_snapshot(session, graph).model_dump(
+        by_alias=True, exclude_none=True, mode="json"
+    )
+    return response

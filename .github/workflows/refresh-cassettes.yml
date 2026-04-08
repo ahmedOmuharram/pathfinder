@@ -82,7 +82,7 @@ jobs:
         id: changes
         working-directory: apps/api
         run: |
-          if git diff --quiet src/veupath_chatbot/tests/cassettes/; then
+          if git diff --quiet src/pathfinder/tests/cassettes/; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -95,7 +95,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           BRANCH="chore/refresh-cassettes-$(date +%Y%m%d)"
           git checkout -b "$BRANCH"
-          git add apps/api/src/veupath_chatbot/tests/cassettes/
+          git add apps/api/src/pathfinder/tests/cassettes/
           git commit -m "chore: refresh WDK cassettes $(date +%Y-%m-%d)"
           git push -u origin "$BRANCH"
           gh pr create \

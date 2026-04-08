@@ -22,7 +22,7 @@ and serialization layer.
 
 **Key types:** :py:class:`PlanStepNode`, :py:class:`StrategyAST`
 
-.. automodule:: veupath_chatbot.domain.strategy.ast
+.. automodule:: pathfinder.domain.strategy.ast
    :members:
    :undoc-members:
    :show-inheritance:
@@ -36,7 +36,7 @@ parameters, WDK operator mapping. Used when building and manipulating plans.
 **Key classes:** :py:class:`CombineOp`, :py:class:`ColocationParams`
 **Key functions:** :py:func:`get_wdk_operator`, :py:func:`parse_op`
 
-.. automodule:: veupath_chatbot.domain.strategy.ops
+.. automodule:: pathfinder.domain.strategy.ops
    :members:
    :undoc-members:
    :show-inheritance:
@@ -50,7 +50,7 @@ UI display.
 
 **Key function:** :py:func:`validate_strategy`
 
-.. automodule:: veupath_chatbot.domain.strategy.validate
+.. automodule:: pathfinder.domain.strategy.validate
    :members:
    :undoc-members:
    :show-inheritance:
@@ -65,32 +65,32 @@ flattening, canonicalization, and value decoding. Used by catalog and tools.
 **Key functions (normalize):** :py:class:`ParameterNormalizer`
 **Key functions (canonicalize):** Value coercion for WDK wire format
 
-.. automodule:: veupath_chatbot.domain.parameters.specs
+.. automodule:: pathfinder.domain.parameters.specs
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.domain.parameters.normalize
+.. automodule:: pathfinder.domain.parameters.normalize
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.domain.parameters.canonicalize
+.. automodule:: pathfinder.domain.parameters.canonicalize
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.domain.parameters._decode_values
+.. automodule:: pathfinder.domain.parameters._decode_values
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.domain.parameters._value_helpers
+.. automodule:: pathfinder.domain.parameters._value_helpers
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.domain.parameters.vocab_utils
+.. automodule:: pathfinder.domain.parameters.vocab_utils
    :members:
    :undoc-members:
    :show-inheritance:
@@ -102,7 +102,7 @@ Strategy Tree Walkers
 dict-based (raw JSON) and AST-based (typed Pydantic) tree structures. Used by
 validation, compilation, and analysis.
 
-.. automodule:: veupath_chatbot.domain.strategy.tree
+.. automodule:: pathfinder.domain.strategy.tree
    :members:
    :undoc-members:
    :show-inheritance:
@@ -110,22 +110,22 @@ validation, compilation, and analysis.
 Strategy — Additional Modules
 ------------------------------
 
-.. automodule:: veupath_chatbot.domain.strategy.compile
+.. automodule:: pathfinder.domain.strategy.compile
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.domain.strategy.explain
+.. automodule:: pathfinder.domain.strategy.explain
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.domain.strategy.metadata
+.. automodule:: pathfinder.domain.strategy.metadata
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.domain.strategy.session
+.. automodule:: pathfinder.domain.strategy.session
    :members:
    :undoc-members:
    :show-inheritance:
@@ -135,7 +135,7 @@ Research (Domain)
 
 **Purpose:** Citation formatting and research output processing.
 
-.. automodule:: veupath_chatbot.domain.research.citations
+.. automodule:: pathfinder.domain.research.citations
    :members:
    :undoc-members:
    :show-inheritance:

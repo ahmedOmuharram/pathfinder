@@ -4,17 +4,17 @@ FastAPI backend for PathFinder. It exposes a streaming chat API (SSE) that runs 
 
 ### Key entrypoints
 
-- **App**: `src/veupath_chatbot/main.py`
-- **Chat SSE endpoint**: `src/veupath_chatbot/transport/http/routers/chat.py` (`POST /api/v1/chat`)
-- **Chat orchestration**: `src/veupath_chatbot/services/chat/orchestrator.py`
-- **Streaming implementation**: `src/veupath_chatbot/transport/http/streaming.py`
-- **Unified agent**: `src/veupath_chatbot/ai/agents/executor.py` (`PathfinderAgent`)
-- **Agent factory**: `src/veupath_chatbot/ai/agents/factory.py`
+- **App**: `src/pathfinder/main.py`
+- **Chat SSE endpoint**: `src/pathfinder/transport/http/routers/chat.py` (`POST /api/v1/chat`)
+- **Chat orchestration**: `src/pathfinder/services/chat/orchestrator.py`
+- **Streaming implementation**: `src/pathfinder/transport/http/streaming.py`
+- **Unified agent**: `src/pathfinder/ai/agents/executor.py` (`PathfinderAgent`)
+- **Agent factory**: `src/pathfinder/ai/agents/factory.py`
 
 ### Package structure
 
 ```
-src/veupath_chatbot/
+src/pathfinder/
   ai/                        # Agent construction and orchestration
     agents/                  #   Unified PathfinderAgent, subtask agent, factory
     models/                  #   Model catalog: provider mappings, reasoning config
@@ -168,7 +168,7 @@ docker compose up -d db redis
 ```bash
 cd apps/api
 uv sync --extra dev
-uv run uvicorn veupath_chatbot.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn pathfinder.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 API will be available at:
@@ -197,7 +197,7 @@ uv run mypy src
 
 ### Persistence & migrations (current state)
 
-- Uses SQLAlchemy async sessions (`src/veupath_chatbot/persistence/session.py`).
+- Uses SQLAlchemy async sessions (`src/pathfinder/persistence/session.py`).
 - Dev defaults to **PostgreSQL** (to match Docker/production).
 - Uses **Alembic** for schema migrations (see `alembic/versions/`). Initial schema is also bootstrapped via `create_all` for development convenience.
 

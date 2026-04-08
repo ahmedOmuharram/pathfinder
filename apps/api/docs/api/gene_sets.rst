@@ -71,7 +71,7 @@ Gene Set Store
 **Purpose:** Write-through gene set store. In-memory dict for fast reads,
 PostgreSQL persistence for durability. Thread-safe via asyncio.
 
-.. automodule:: veupath_chatbot.services.gene_sets.store
+.. automodule:: pathfinder.services.gene_sets.store
    :members:
    :undoc-members:
    :show-inheritance:
@@ -81,7 +81,7 @@ Gene Set Types
 
 **Purpose:** Core data model for gene sets.
 
-.. automodule:: veupath_chatbot.services.gene_sets.types
+.. automodule:: pathfinder.services.gene_sets.types
    :members:
    :undoc-members:
    :show-inheritance:
@@ -92,7 +92,7 @@ Gene Set Operations
 **Purpose:** CRUD operations on gene sets — create, update, delete, list,
 and derived set operations (intersection, union, difference).
 
-.. automodule:: veupath_chatbot.services.gene_sets.operations
+.. automodule:: pathfinder.services.gene_sets.operations
    :members:
    :undoc-members:
    :show-inheritance:
@@ -115,7 +115,7 @@ Confidence Scoring
 status (TP/FP/FN/TN), ensemble frequency (how many gene sets include this gene),
 and enrichment support (GO term / pathway membership) into a single score.
 
-.. automodule:: veupath_chatbot.services.gene_sets.confidence
+.. automodule:: pathfinder.services.gene_sets.confidence
    :members:
    :undoc-members:
    :show-inheritance:
@@ -127,7 +127,7 @@ Ensemble Analysis
 Genes appearing in more sets get higher scores (consensus voting). Returns
 sorted results for the workbench UI.
 
-.. automodule:: veupath_chatbot.services.gene_sets.ensemble
+.. automodule:: pathfinder.services.gene_sets.ensemble
    :members:
    :undoc-members:
    :show-inheritance:
@@ -139,7 +139,7 @@ Reverse Search
 Uses pure set intersection — no WDK API calls needed. Scores on recall,
 precision, and F1 for given positive controls.
 
-.. automodule:: veupath_chatbot.services.gene_sets.reverse_search
+.. automodule:: pathfinder.services.gene_sets.reverse_search
    :members:
    :undoc-members:
    :show-inheritance:

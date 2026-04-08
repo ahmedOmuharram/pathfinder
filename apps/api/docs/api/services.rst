@@ -28,42 +28,42 @@ literature or user input.
 - :py:func:`lookup_genes_by_text` — Search by free text (name, symbol, description)
 - :py:func:`resolve_gene_ids` — Resolve a list of known IDs to full records via WDK
 
-.. automodule:: veupath_chatbot.services.gene_lookup
+.. automodule:: pathfinder.services.gene_lookup
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.gene_lookup.lookup
+.. automodule:: pathfinder.services.gene_lookup.lookup
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.gene_lookup.enrich
+.. automodule:: pathfinder.services.gene_lookup.enrich
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.gene_lookup.organism
+.. automodule:: pathfinder.services.gene_lookup.organism
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.gene_lookup.result
+.. automodule:: pathfinder.services.gene_lookup.result
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.gene_lookup.scoring
+.. automodule:: pathfinder.services.gene_lookup.scoring
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.gene_lookup.site_search
+.. automodule:: pathfinder.services.gene_lookup.site_search
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.gene_lookup.wdk
+.. automodule:: pathfinder.services.gene_lookup.wdk
    :members:
    :undoc-members:
    :show-inheritance:
@@ -77,47 +77,47 @@ trial runs a temporary WDK strategy and scores the result.
 
 **Key types:** ``ParameterSpec``, ``OptimizationConfig``, ``OptimizationResult``
 
-.. automodule:: veupath_chatbot.services.parameter_optimization
+.. automodule:: pathfinder.services.parameter_optimization
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.parameter_optimization.config
+.. automodule:: pathfinder.services.parameter_optimization.config
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.parameter_optimization.core
+.. automodule:: pathfinder.services.parameter_optimization.core
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.parameter_optimization.scoring
+.. automodule:: pathfinder.services.parameter_optimization.scoring
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.parameter_optimization.trials
+.. automodule:: pathfinder.services.parameter_optimization.trials
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.parameter_optimization.sampler
+.. automodule:: pathfinder.services.parameter_optimization.sampler
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.parameter_optimization.early_stop
+.. automodule:: pathfinder.services.parameter_optimization.early_stop
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.parameter_optimization.builders
+.. automodule:: pathfinder.services.parameter_optimization.builders
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.parameter_optimization.evaluation
+.. automodule:: pathfinder.services.parameter_optimization.evaluation
    :members:
    :undoc-members:
    :show-inheritance:
@@ -129,7 +129,7 @@ Catalog (Parameter Validation)
 and validates parameter values against WDK search specs before step creation
 or strategy execution.
 
-.. automodule:: veupath_chatbot.services.catalog.param_validation
+.. automodule:: pathfinder.services.catalog.param_validation
    :members:
    :undoc-members:
    :show-inheritance:
@@ -141,12 +141,12 @@ Export Service
 exports. Generates downloadable files from strategy results, gene sets, and
 enrichment results, storing them briefly in Redis for client retrieval.
 
-.. automodule:: veupath_chatbot.services.export.service
+.. automodule:: pathfinder.services.export.service
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.parameter_optimization.callbacks
+.. automodule:: pathfinder.services.parameter_optimization.callbacks
    :members:
    :undoc-members:
    :show-inheritance:
@@ -160,7 +160,7 @@ optimization and for validation.
 
 **Key function:** :py:func:`run_positive_negative_controls`
 
-.. automodule:: veupath_chatbot.services.control_tests
+.. automodule:: pathfinder.services.control_tests
    :members:
    :undoc-members:
    :show-inheritance:
@@ -172,7 +172,7 @@ Control Helpers
 Encodes gene ID lists in various formats (newline, comma, JSON) and handles
 temporary strategy cleanup.
 
-.. automodule:: veupath_chatbot.services.control_helpers
+.. automodule:: pathfinder.services.control_helpers
    :members:
    :undoc-members:
    :show-inheritance:
@@ -184,7 +184,7 @@ Search Reranking
 Robust fuzzy matching with exactness bonuses for gene ID lookups. Used to
 improve relevance of WDK search results.
 
-.. automodule:: veupath_chatbot.services.search_rerank
+.. automodule:: pathfinder.services.search_rerank
    :members:
    :undoc-members:
    :show-inheritance:
@@ -202,7 +202,7 @@ when the agent needs to discover or validate parameters.
 - :py:func:`validate_search_params` — Validate parameter values
 - :py:func:`get_refreshed_dependent_params` — Refresh dependent parameter options
 
-.. automodule:: veupath_chatbot.services.catalog.parameters
+.. automodule:: pathfinder.services.catalog.parameters
    :members:
    :undoc-members:
    :show-inheritance:
@@ -212,12 +212,12 @@ Catalog (Sites & Record Types)
 
 **Purpose:** Sites, record types, and search listing. Entry point for discovery.
 
-.. automodule:: veupath_chatbot.services.catalog.sites
+.. automodule:: pathfinder.services.catalog.sites
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.catalog.searches
+.. automodule:: pathfinder.services.catalog.searches
    :members:
    :undoc-members:
    :show-inheritance:
@@ -229,7 +229,7 @@ Catalog (Parameter Resolution)
 Resolves search parameter specs with allowed values, handles dependent
 vocabularies, and flattens nested parameter structures for agent consumption.
 
-.. automodule:: veupath_chatbot.services.catalog.param_resolution
+.. automodule:: pathfinder.services.catalog.param_resolution
    :members:
    :undoc-members:
    :show-inheritance:
@@ -240,7 +240,7 @@ Strategy Session
 **Purpose:** Load and merge strategy state with conversation messages. Used
 when switching strategies or restoring sessions.
 
-.. automodule:: veupath_chatbot.domain.strategy.session
+.. automodule:: pathfinder.domain.strategy.session
    :members:
    :undoc-members:
    :show-inheritance:
@@ -259,22 +259,22 @@ known positive/negative gene controls, and step trees that demonstrate
 real research workflows (e.g. drug resistance genes in PlasmoDB, virulence
 factors in TriTrypDB).
 
-.. automodule:: veupath_chatbot.services.experiment.seed
+.. automodule:: pathfinder.services.experiment.seed
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.seed.runner
+.. automodule:: pathfinder.services.experiment.seed.runner
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.seed.helpers
+.. automodule:: pathfinder.services.experiment.seed.helpers
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.experiment.seed.types
+.. automodule:: pathfinder.services.experiment.seed.types
    :members:
    :undoc-members:
    :show-inheritance:

@@ -1,0 +1,63 @@
+"""Plan normalization endpoints (frontend-consumer alignment)."""
+
+from collections.abc import Mapping
+
+from fastapi import APIRouter
+
+from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
+from pathfinder.platform.errors import WDKError
+from pathfinder.platform.types import JSONValue
+from pathfinder.services.strategies.plan_normalize import (
+    canonicalize_plan_parameters,
+)
+from pathfinder.services.wdk import (
+    encode_wdk_params,
+    get_strategy_api,
+)
+from pathfinder.transport.http.schemas import (
+    PlanNormalizeRequest,
+    PlanNormalizeResponse,
+)
+
+router = APIRouter(prefix="/api/v1/strategies", tags=["strategies"])
+
+
+@router.post("/plan/normalize", response_model=PlanNormalizeResponse)
+async def normalize_plan(payload: PlanNormalizeRequest) -> PlanNormalizeResponse:
+    """Normalize/coerce plan parameters using backend-owned rules.
+
+    This endpoint exists so the frontend can be a consumer of backend canonicalization
+    (and avoid re-implementing CSV/JSON parsing and WDK quirks).
+    """
+    api = get_strategy_api(payload.siteId)
+
+    async def load_details(
+        record_type: str, name: str, params: Mapping[str, JSONValue]
+    ) -> WDKSearchResponse:
+        # Use context-dependent search details so vocab-dependent params (e.g. min/max/avg ops)
+        # validate correctly when the plan already contains concrete selections.
+        params_dict = dict(params) if isinstance(params, Mapping) else {}
+        context = encode_wdk_params(params_dict)
+        try:
+            return await api.client.get_search_details_with_params(
+                record_type,
+                name,
+                context=context,
+                expand_params=True,
+            )
+        except WDKError:
+            # Some WDK deployments/questions error on POST /searches/{name} when certain context
+            # values are provided (500 Internal Error). Fall back to GET details so we can still
+            # canonicalize plan shapes without blocking the user.
+            return await api.client.get_search_details(
+                record_type,
+                name,
+                expand_params=True,
+            )
+
+    canonical = await canonicalize_plan_parameters(
+        plan=payload.plan,
+        site_id=payload.siteId,
+        load_search_details=load_details,
+    )
+    return PlanNormalizeResponse(plan=canonical)

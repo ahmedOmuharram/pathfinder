@@ -1,0 +1,284 @@
+"""Vocabulary utilities."""
+
+import math
+import re
+
+from pathfinder.platform.errors import ValidationError
+from pathfinder.platform.logging import get_logger
+from pathfinder.platform.types import JSONArray, JSONObject
+
+logger = get_logger(__name__)
+
+
+def numeric_equivalent(a: str | None, b: str | None) -> bool:
+    """Check if two string values represent the same number.
+
+    Handles precision differences between WDK vocab values (often floats)
+    and imported strategy parameters (often full-precision decimals).
+    """
+    if not a or not b:
+        return False
+    try:
+        fa = float(str(a).strip())
+        fb = float(str(b).strip())
+    except (ValueError, TypeError) as exc:
+        logger.debug("Failed to compare numeric equivalence", error=str(exc))
+        return False
+    return (
+        math.isfinite(fa)
+        and math.isfinite(fb)
+        and math.isclose(fa, fb, rel_tol=1e-9, abs_tol=1e-12)
+    )
+
+
+def _looks_numeric(value: str) -> bool:
+    """Quick check if a string could plausibly be a number."""
+    try:
+        float(value)
+    except ValueError:
+        return False
+    else:
+        return True
+
+
+def match_vocab_value(
+    *,
+    vocab: JSONObject | JSONArray | None,
+    param_name: str,
+    value: str,
+) -> str:
+    """Match a user-supplied value against a vocabulary, returning the canonical form.
+
+    Tries exact display match, exact value match, then numeric equivalence.
+    Raises ``ValidationError`` if no match is found.
+    """
+    if not vocab:
+        return value
+    value_norm = value.strip() if isinstance(value, str) else str(value)
+
+    entries = flatten_vocab(vocab, prefer_term=True)
+    try_numeric = _looks_numeric(value_norm)
+    for entry in entries:
+        display = entry.get("display") or ""
+        raw_value = entry.get("value")
+        canonical = raw_value if raw_value is not None else (display or value)
+        if value_norm in (display, raw_value or ""):
+            return canonical
+        if try_numeric and (
+            numeric_equivalent(value_norm, display)
+            or numeric_equivalent(value_norm, raw_value)
+        ):
+            return canonical
+
+    # Suggest exact substring matches.
+    value_lower = value_norm.lower()
+    suggestions: list[str] = [
+        (entry.get("value") or entry.get("display") or "")
+        for entry in entries
+        if value_lower in (entry.get("display") or "").lower()
+        or value_lower in (entry.get("value") or "").lower()
+    ][:10]
+
+    detail = f"Parameter '{param_name}' does not accept '{value}'."
+    if suggestions:
+        detail += f" Did you mean one of: {suggestions}"
+    else:
+        detail += (
+            f" Do NOT guess or invent parameter values."
+            f" Call get_dependent_vocab(param_name='{param_name}', query='<keyword>')"
+            f" to see valid values, then copy an EXACT value from the allowedValues_tree"
+            f" in the response. Example: if the tree shows"
+            f" '    amastigote esmeraldo-like_Trypanosoma cruzi CL Brener Esmeraldo-like'"
+            f" then pass exactly that full string as the value."
+        )
+
+    raise ValidationError(
+        title="Invalid parameter value",
+        detail=detail,
+        errors=[
+            {"param": param_name, "value": value, "suggestions": ", ".join(suggestions)}
+        ],
+    )
+
+
+def normalize_vocab_key(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip()).lower()
+
+
+def _choose_value(data: JSONObject, *, prefer_term: bool) -> str | None:
+    """Pick the canonical value from a vocab entry dict.
+
+    Prefers ``term`` when *prefer_term* is True, otherwise prefers ``value``.
+    Falls back to the other field when the preferred one is absent.
+    """
+    term_raw = data.get("term")
+    value_raw = data.get("value")
+    term = term_raw if isinstance(term_raw, str) else None
+    value = value_raw if isinstance(value_raw, str) else None
+    if prefer_term:
+        return term or value
+    return value or term
+
+
+def _flatten_tree_vocab(
+    vocabulary: JSONObject, *, prefer_term: bool
+) -> list[dict[str, str | None]]:
+    """Flatten a dict/tree-shaped WDK vocabulary into a flat entry list.
+
+    Walks the tree depth-first, emitting every node (parents **and** leaves).
+    WDK only accepts leaf values, but PathFinder accepts parents and expands
+    them to leaves at WDK submission time via ``_expand_tree_params_to_leaves``.
+    """
+    entries: list[dict[str, str | None]] = []
+
+    def walk(node: JSONObject) -> None:
+        data_raw = node.get("data", {})
+        data = data_raw if isinstance(data_raw, dict) else {}
+        display_raw = data.get("display")
+        display = display_raw if isinstance(display_raw, str) else None
+        raw_value = _choose_value(data, prefer_term=prefer_term)
+        children_raw = node.get("children", [])
+        children = [
+            c
+            for c in (children_raw if isinstance(children_raw, list) else [])
+            if isinstance(c, dict)
+        ]
+        entries.append({"display": display, "value": raw_value})
+        for child in children:
+            walk(child)
+
+    walk(vocabulary)
+    return entries
+
+
+def _flatten_list_vocab(
+    vocabulary: JSONArray, *, prefer_term: bool
+) -> list[dict[str, str | None]]:
+    """Flatten a list-shaped WDK vocabulary into a flat entry list.
+
+    Handles three sub-formats:
+    - **List of lists** -- ``[[value, display], ...]``
+    - **List of dicts** -- ``[{term, display, value}, ...]``
+    - **List of scalars** -- ``["val1", "val2", ...]``
+    """
+    entries: list[dict[str, str | None]] = []
+    for item in vocabulary:
+        if isinstance(item, list):
+            if not item or item[0] is None:
+                continue
+            value = str(item[0])
+            display_from_list = (
+                str(item[1]) if len(item) > 1 and item[1] is not None else value
+            )
+            entries.append({"display": display_from_list, "value": value})
+        elif isinstance(item, dict):
+            display_raw = item.get("display")
+            display_from_dict = display_raw if isinstance(display_raw, str) else None
+            raw_value = _choose_value(item, prefer_term=prefer_term)
+            entries.append({"display": display_from_dict, "value": raw_value})
+        else:
+            entries.append({"display": str(item), "value": str(item)})
+    return entries
+
+
+def flatten_vocab(
+    vocabulary: JSONObject | JSONArray, *, prefer_term: bool = False
+) -> list[dict[str, str | None]]:
+    """Flatten any WDK vocabulary format into a uniform list of entries.
+
+    Dispatches to format-specific helpers based on the vocabulary shape:
+    - Dict (tree) vocabularies are walked depth-first.
+    - List vocabularies handle list-of-lists, list-of-dicts, and list-of-scalars.
+    """
+    if isinstance(vocabulary, dict) and vocabulary:
+        return _flatten_tree_vocab(vocabulary, prefer_term=prefer_term)
+    if isinstance(vocabulary, list):
+        return _flatten_list_vocab(vocabulary, prefer_term=prefer_term)
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Tree-vocabulary helpers (for dict/tree-shaped WDK vocabularies)
+# ---------------------------------------------------------------------------
+
+TERM_FIELDS: tuple[str, ...] = ("term",)
+BROAD_VALUE_FIELDS: tuple[str, ...] = ("value", "id", "term", "name", "display")
+
+
+def _get_node_data(node: JSONObject) -> JSONObject:
+    """Extract the ``data`` sub-dict from a vocab tree node."""
+    raw = node.get("data", {})
+    return raw if isinstance(raw, dict) else {}
+
+
+def get_node_value(
+    node: JSONObject, *, fields: tuple[str, ...] = TERM_FIELDS
+) -> str | None:
+    """Extract the first non-None field value from a vocab node's data.
+
+    Tries *fields* in order, returning the first found as a string.
+    """
+    data = _get_node_data(node)
+    for field in fields:
+        raw = data.get(field)
+        if raw is not None:
+            return str(raw)
+    return None
+
+
+def get_node_term(node: JSONObject) -> str | None:
+    """Return the ``term`` string from a vocab tree node, or None."""
+    return get_node_value(node, fields=TERM_FIELDS)
+
+
+def get_vocab_children(node: JSONObject) -> list[JSONObject]:
+    """Return typed child nodes from a vocab tree node."""
+    raw = node.get("children", [])
+    if not isinstance(raw, list):
+        return []
+    return [child for child in raw if isinstance(child, dict)]
+
+
+def find_vocab_node(
+    root: JSONObject,
+    match: str,
+    *,
+    fields: tuple[str, ...] = ("term", "display"),
+    normalize: bool = False,
+) -> JSONObject | None:
+    """Find a node matching *match* against specified data fields (DFS).
+
+    When *normalize* is True, also tries normalized (lowercased, whitespace-collapsed)
+    comparison via ``normalize_vocab_key``.
+    """
+    data = _get_node_data(root)
+    candidates = [str(data[f]) for f in fields if data.get(f) is not None]
+    if match in candidates:
+        return root
+    if normalize:
+        norm = normalize_vocab_key(match)
+        if any(normalize_vocab_key(c) == norm for c in candidates):
+            return root
+    for child in get_vocab_children(root):
+        found = find_vocab_node(child, match, fields=fields, normalize=normalize)
+        if found:
+            return found
+    return None
+
+
+def collect_leaf_terms(
+    node: JSONObject, *, fields: tuple[str, ...] = TERM_FIELDS
+) -> list[str]:
+    """Collect all leaf values under *node* (inclusive).
+
+    Uses ``get_node_value`` with the specified *fields* for value extraction.
+    Defaults to extracting ``term`` values.
+    """
+    children = get_vocab_children(node)
+    if not children:
+        value = get_node_value(node, fields=fields)
+        return [value] if value else []
+    leaves: list[str] = []
+    for child in children:
+        leaves.extend(collect_leaf_terms(child, fields=fields))
+    return leaves

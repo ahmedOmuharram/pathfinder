@@ -72,7 +72,7 @@ then build the strategy.
 - :py:func:`is_internal_wdk_strategy_name` — Check if strategy is a Pathfinder helper (in ``helpers``)
 - :py:func:`strip_internal_wdk_strategy_name` — Remove internal name prefix (in ``helpers``)
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.api
+.. automodule:: pathfinder.integrations.veupathdb.strategy_api.api
    :members:
    :undoc-members:
    :show-inheritance:
@@ -86,7 +86,7 @@ request formatting, response parsing, and retries.
 **Key class:** :py:class:`VEuPathDBClient` — methods: ``get``, ``post``, ``put``,
 ``patch``, ``delete``; search details and report execution helpers.
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.client
+.. automodule:: pathfinder.integrations.veupathdb.client
    :members:
    :undoc-members:
    :show-inheritance:
@@ -101,7 +101,7 @@ repeated WDK calls.
 **Key class:** :py:class:`SearchCatalog` — ``load``, ``get_record_types``,
 ``get_searches``, ``get_search_details``
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.discovery
+.. automodule:: pathfinder.integrations.veupathdb.discovery
    :members:
    :undoc-members:
    :show-inheritance:
@@ -119,7 +119,7 @@ services. Manages site routing and client lifecycle.
    :py:func:`get_discovery_service` is defined in ``integrations.veupathdb.discovery``,
    not in the factory module.
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.factory
+.. automodule:: pathfinder.integrations.veupathdb.factory
    :members:
    :undoc-members:
    :show-inheritance:
@@ -130,42 +130,42 @@ Strategy API — Submodules
 The Strategy API is split into focused submodules for steps, strategies,
 reports, and shared helpers.
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.base
+.. automodule:: pathfinder.integrations.veupathdb.strategy_api.base
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.steps
+.. automodule:: pathfinder.integrations.veupathdb.strategy_api.steps
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.strategies
+.. automodule:: pathfinder.integrations.veupathdb.strategy_api.strategies
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.reports
+.. automodule:: pathfinder.integrations.veupathdb.strategy_api.reports
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.helpers
+.. automodule:: pathfinder.integrations.veupathdb.strategy_api.helpers
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.analyses
+.. automodule:: pathfinder.integrations.veupathdb.strategy_api.analyses
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.filters
+.. automodule:: pathfinder.integrations.veupathdb.strategy_api.filters
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.strategy_api.records
+.. automodule:: pathfinder.integrations.veupathdb.strategy_api.records
    :members:
    :undoc-members:
    :show-inheritance:
@@ -175,7 +175,7 @@ Parameter Utils
 
 **Purpose:** Parameter parsing and formatting utilities for WDK parameter specs.
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.param_utils
+.. automodule:: pathfinder.integrations.veupathdb.param_utils
    :members:
    :undoc-members:
    :show-inheritance:
@@ -186,7 +186,7 @@ Site Router
 **Purpose:** Route requests to the correct VEuPathDB site by site ID.
 Manages site URL mappings.
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.site_router
+.. automodule:: pathfinder.integrations.veupathdb.site_router
    :members:
    :undoc-members:
    :show-inheritance:
@@ -197,7 +197,7 @@ Site Search
 **Purpose:** Site-level search across VEuPathDB. Used for gene lookup
 and catalog discovery.
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.site_search
+.. automodule:: pathfinder.integrations.veupathdb.site_search
    :members:
    :undoc-members:
    :show-inheritance:
@@ -208,7 +208,7 @@ Temporary Results
 **Purpose:** Create and manage temporary WDK results for step reports,
 downloads, and analysis. Handles user session resolution.
 
-.. automodule:: veupath_chatbot.integrations.veupathdb.temporary_results
+.. automodule:: pathfinder.integrations.veupathdb.temporary_results
    :members:
    :undoc-members:
    :show-inheritance:

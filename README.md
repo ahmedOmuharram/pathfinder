@@ -75,11 +75,11 @@ The API streams **Server-Sent Events (SSE)** for:
 
 Key entrypoints:
 
-- API app: `apps/api/src/veupath_chatbot/main.py`
-- Chat orchestration: `apps/api/src/veupath_chatbot/services/chat/orchestrator.py`
-- SSE streaming: `apps/api/src/veupath_chatbot/transport/http/streaming.py`
-- Unified tool registry: `apps/api/src/veupath_chatbot/ai/tools/unified_registry.py`
-- Graph step creation + validation: `apps/api/src/veupath_chatbot/ai/tools/strategy_tools/step_ops.py`
+- API app: `apps/api/src/pathfinder/main.py`
+- Chat orchestration: `apps/api/src/pathfinder/services/chat/orchestrator.py`
+- SSE streaming: `apps/api/src/pathfinder/transport/http/streaming.py`
+- Unified tool registry: `apps/api/src/pathfinder/ai/tools/unified_registry.py`
+- Graph step creation + validation: `apps/api/src/pathfinder/ai/tools/strategy_tools/step_ops.py`
 
 ## Running locally
 
@@ -218,7 +218,7 @@ API:
 ```bash
 cd apps/api
 uv sync --extra dev
-uv run uvicorn veupath_chatbot.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn pathfinder.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 If you’re not running the full stack via Docker Compose, you still need local services:
@@ -243,8 +243,8 @@ Quick reference — see **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** for the f
 # API
 cd apps/api
 uv run ruff check src/                              # Lint
-uv run mypy --strict src/veupath_chatbot/            # Type check
-uv run pytest src/veupath_chatbot/tests/ -v          # Tests
+uv run mypy --strict src/pathfinder/            # Type check
+uv run pytest src/pathfinder/tests/ -v          # Tests
 uv run pytest --cov=src --cov-report=term-missing    # Coverage
 
 # Web

@@ -22,7 +22,7 @@ save or push to VEuPathDB.
 
 **Key function:** :py:func:`canonicalize_plan_parameters`
 
-.. automodule:: veupath_chatbot.services.strategies.plan_normalize
+.. automodule:: pathfinder.services.strategies.plan_normalize
    :members:
    :undoc-members:
    :show-inheritance:
@@ -35,7 +35,7 @@ search names, step structure. Returns structured validation errors with field pa
 
 **Key function:** :py:func:`validate_plan_or_raise`
 
-.. automodule:: veupath_chatbot.services.strategies.plan_validation
+.. automodule:: pathfinder.services.strategies.plan_validation
    :members:
    :undoc-members:
    :show-inheritance:
@@ -60,7 +60,7 @@ internal ``StrategyAST``, extracts field values, and normalizes parameters.
    runs once per editor mount via ``coerceParametersForSpecs`` in the
    ``useStepParameters`` hook.
 
-.. automodule:: veupath_chatbot.services.strategies.wdk_conversion
+.. automodule:: pathfinder.services.strategies.wdk_conversion
    :members:
    :undoc-members:
    :show-inheritance:
@@ -71,7 +71,7 @@ WDK Sync
 **Purpose:** Fetch WDK strategies and sync into CQRS projections.
 Lazy detail fetching, isSaved sync, and projection upsert.
 
-.. automodule:: veupath_chatbot.services.strategies.wdk_sync
+.. automodule:: pathfinder.services.strategies.wdk_sync
    :members:
    :undoc-members:
    :show-inheritance:
@@ -83,7 +83,7 @@ WDK Step Counts
 for leaf-only strategies (fast) and temporary WDK compilation for complex
 strategies. Results are cached by plan hash.
 
-.. automodule:: veupath_chatbot.services.strategies.wdk_counts
+.. automodule:: pathfinder.services.strategies.wdk_counts
    :members:
    :undoc-members:
    :show-inheritance:
@@ -94,7 +94,7 @@ Strategy Build
 **Purpose:** High-level strategy build orchestration. Coordinates step
 creation and graph assembly.
 
-.. automodule:: veupath_chatbot.services.strategies.build
+.. automodule:: pathfinder.services.strategies.build
    :members:
    :undoc-members:
    :show-inheritance:
@@ -105,7 +105,7 @@ Step Creation
 **Purpose:** Create individual strategy steps with parameter validation
 and WDK integration.
 
-.. automodule:: veupath_chatbot.services.strategies.step_creation
+.. automodule:: pathfinder.services.strategies.step_creation
    :members:
    :undoc-members:
    :show-inheritance:
@@ -115,7 +115,7 @@ Auto Import
 
 **Purpose:** Automatic import of WDK strategies into PathFinder.
 
-.. automodule:: veupath_chatbot.services.strategies.auto_import
+.. automodule:: pathfinder.services.strategies.auto_import
    :members:
    :undoc-members:
    :show-inheritance:
@@ -126,7 +126,7 @@ Auto Push
 **Purpose:** Best-effort auto-push: sync a local strategy back to VEuPathDB
 WDK after mutations. Runs as a background task with per-strategy locking.
 
-.. automodule:: veupath_chatbot.services.strategies.auto_push
+.. automodule:: pathfinder.services.strategies.auto_push
    :members:
    :undoc-members:
    :show-inheritance:
@@ -137,7 +137,7 @@ Session Factory
 **Purpose:** Create and restore strategy sessions. Loads strategy state
 from the database for chat context.
 
-.. automodule:: veupath_chatbot.services.strategies.session_factory
+.. automodule:: pathfinder.services.strategies.session_factory
    :members:
    :undoc-members:
    :show-inheritance:
@@ -148,7 +148,7 @@ Step Builders
 **Purpose:** Build WDK step payloads from the strategy plan AST. Creates
 the correct step structure for WDK API calls.
 
-.. automodule:: veupath_chatbot.services.strategies.step_builders
+.. automodule:: pathfinder.services.strategies.step_builders
    :members:
    :undoc-members:
    :show-inheritance:
@@ -159,37 +159,37 @@ Strategy Engine
 **Purpose:** Core strategy execution engine. Graph integrity checks,
 step ordering, and execution helpers.
 
-.. automodule:: veupath_chatbot.services.strategies.engine.base
+.. automodule:: pathfinder.services.strategies.engine.base
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.strategies.engine.graph_integrity
+.. automodule:: pathfinder.services.strategies.engine.graph_integrity
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.strategies.engine.helpers
+.. automodule:: pathfinder.services.strategies.engine.helpers
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.strategies.engine.graph_ops
+.. automodule:: pathfinder.services.strategies.engine.graph_ops
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.strategies.engine.id_mapping
+.. automodule:: pathfinder.services.strategies.engine.id_mapping
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.strategies.engine.step_builder
+.. automodule:: pathfinder.services.strategies.engine.step_builder
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: veupath_chatbot.services.strategies.engine.validation
+.. automodule:: pathfinder.services.strategies.engine.validation
    :members:
    :undoc-members:
    :show-inheritance:

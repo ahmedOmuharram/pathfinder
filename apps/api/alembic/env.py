@@ -12,8 +12,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from veupath_chatbot.persistence.models import Base
-from veupath_chatbot.platform.config import get_settings
+from pathfinder.persistence.models import Base
+from pathfinder.platform.config import get_settings
 
 config = context.config
 
