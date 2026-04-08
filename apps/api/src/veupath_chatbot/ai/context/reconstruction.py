@@ -5,7 +5,6 @@ message history.  The orchestration pipeline does not pass reconstructed
 ChatMessage objects to agents — each phase starts with fresh history.
 """
 
-import logging
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -16,10 +15,11 @@ from veupath_chatbot.ai.context.rendering import (
     build_turn_summary,
     render_context_summary,
 )
+from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.types import JSONObject, JSONValue
 from veupath_chatbot.services.catalog.overview_formatting import SearchOverviewResult
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------

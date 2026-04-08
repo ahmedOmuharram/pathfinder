@@ -6,12 +6,17 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Response
 
 from veupath_chatbot.domain.strategy.ast import walk_step_tree
+from veupath_chatbot.integrations.veupathdb.wdk_models import (
+    WDKSearchResponse,
+    encode_wdk_params,
+)
 from veupath_chatbot.persistence.repositories.stream import ProjectionUpdate
 from veupath_chatbot.platform.errors import (
     AppError,
     ErrorCode,
     NotFoundError,
     ValidationError,
+    WDKError,
 )
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
@@ -21,6 +26,9 @@ from veupath_chatbot.platform.stream_readers import (
 )
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.orchestrator import cancel_chat_operation
+from veupath_chatbot.services.strategies.plan_normalize import (
+    canonicalize_plan_parameters,
+)
 from veupath_chatbot.services.strategies.plan_validation import validate_plan_or_raise
 from veupath_chatbot.services.strategies.session_factory import build_strategy_session
 from veupath_chatbot.services.strategies.step_wdk_push import push_all_steps_to_wdk
@@ -187,9 +195,33 @@ async def push_strategy(
     """Push a strategy to WDK: normalize plan, persist locally, sync to WDK."""
     projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
 
-    # Validate and normalize plan.
+    # Validate, canonicalize, then serialize the plan.
     plan_in = request.plan.model_dump(exclude_none=True)
     payload = validate_plan_or_raise(plan_in)
+
+    # Canonicalize parameters so user-edited values from the graph editor
+    # are validated against WDK specs (vocabulary matching, leaf enforcement,
+    # numeric range checking) before reaching WDK.
+    api = get_strategy_api(request.site_id)
+
+    async def _load_details(
+        record_type: str, name: str, params: object
+    ) -> WDKSearchResponse:
+        params_dict = dict(params) if isinstance(params, dict) else {}
+        context = encode_wdk_params(params_dict)
+        try:
+            return await api.client.get_search_details_with_params(
+                record_type, name, context=context, expand_params=True,
+            )
+        except WDKError:
+            return await api.client.get_search_details(
+                record_type, name, expand_params=True,
+            )
+
+    payload = await canonicalize_plan_parameters(
+        plan=payload, site_id=request.site_id, load_search_details=_load_details,
+    )
+
     plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
 
     # Preserve WDK state from existing projection so session_factory

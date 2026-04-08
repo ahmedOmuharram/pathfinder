@@ -1,7 +1,7 @@
-const path = require("path");
+import type { NextConfig } from "next";
+import path from "path";
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   reactCompiler: true,
   output: "standalone",
@@ -11,7 +11,7 @@ const nextConfig = {
   compress: false,
   transpilePackages: ["@pathfinder/shared"],
   turbopack: {
-    root: path.resolve(__dirname, "../.."),
+    root: path.resolve(process.cwd(), "../.."),
   },
   experimental: {
     serverActions: {
@@ -19,7 +19,7 @@ const nextConfig = {
     },
   },
   async rewrites() {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const apiBase = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
     return [
       {
         source: "/health/:path*",
@@ -53,4 +53,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

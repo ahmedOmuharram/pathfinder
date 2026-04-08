@@ -1,9 +1,10 @@
 """Operations endpoints: subscribe via Redis Streams, discover active operations."""
 
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterable
+from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from sqlalchemy import select
 
@@ -21,21 +22,6 @@ router = APIRouter(prefix="/api/v1/operations", tags=["operations"])
 
 _EXPERIMENT_OP_TYPES = frozenset({"experiment", "batch", "benchmark"})
 
-
-async def _verify_operation_access(
-    session: DBSession, op: Operation, user_id: CurrentUser
-) -> None:
-    """Verify the current user owns the stream for non-experiment operations."""
-    if op.type in _EXPERIMENT_OP_TYPES:
-        return
-    stream_result = await session.execute(
-        select(Stream.user_id).where(Stream.id == op.stream_id)
-    )
-    stream_owner = stream_result.scalar_one_or_none()
-    if stream_owner != user_id:
-        raise ForbiddenError
-
-
 # Event types that signal end of an operation.
 _END_EVENT_TYPES = frozenset(
     {
@@ -48,6 +34,48 @@ _END_EVENT_TYPES = frozenset(
         "seed_complete",
     }
 )
+
+
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
+
+
+async def _resolve_operation(
+    operation_id: str,
+    session: DBSession,
+    user_id: CurrentUser,
+) -> Operation:
+    """Look up an operation by ID and verify the caller owns it.
+
+    Raises 404 if the operation doesn't exist and 403 if the caller
+    isn't the stream owner.  Used as a FastAPI dependency so that auth
+    checks run *before* the handler (and any SSE generator) starts.
+    """
+    result = await session.execute(
+        select(Operation).where(Operation.operation_id == operation_id)
+    )
+    op = result.scalar_one_or_none()
+    if op is None:
+        raise NotFoundError(title="Operation not found")
+
+    if op.type not in _EXPERIMENT_OP_TYPES:
+        stream_result = await session.execute(
+            select(Stream.user_id).where(Stream.id == op.stream_id)
+        )
+        stream_owner = stream_result.scalar_one_or_none()
+        if stream_owner != user_id:
+            raise ForbiddenError
+
+    return op
+
+
+VerifiedOp = Annotated[Operation, Depends(_resolve_operation)]
+
+
+# ---------------------------------------------------------------------------
+# SSE helpers
+# ---------------------------------------------------------------------------
 
 
 async def _is_op_still_active(
@@ -126,45 +154,45 @@ async def _stream_events(
                     return
 
 
-@router.get("/{operation_id}/subscribe")
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{operation_id}/subscribe", response_class=EventSourceResponse)
 async def subscribe(
     operation_id: str,
     session: DBSession,
-    user_id: CurrentUser,
+    op: VerifiedOp,
     last_event_id: str | None = Query(
         default=None,
         alias="lastEventId",
         description="Resume from this Redis entry ID (for reconnection).",
     ),
-) -> EventSourceResponse:
-    """SSE stream backed by Redis Streams."""
-    result = await session.execute(
-        select(Operation).where(Operation.operation_id == operation_id)
-    )
-    op = result.scalar_one_or_none()
-    if op is None:
-        raise NotFoundError(title="Operation not found")
+) -> AsyncIterable[ServerSentEvent]:
+    """SSE stream backed by Redis Streams.
 
-    await _verify_operation_access(session, op, user_id)
+    Auth and operation lookup are handled by the ``VerifiedOp`` dependency,
+    so this handler is a clean async generator that FastAPI encodes into
+    SSE wire format automatically.
+    """
     is_experiment = op.type in _EXPERIMENT_OP_TYPES
     stream_key = f"op:{operation_id}" if is_experiment else f"stream:{op.stream_id}"
 
-    return EventSourceResponse(
-        _stream_events(
-            stream_key=stream_key,
-            operation_id=operation_id,
-            session=session,
-            is_experiment=is_experiment,
-            start_cursor=last_event_id or "0-0",
-        ),
-    )
+    async for event in _stream_events(
+        stream_key=stream_key,
+        operation_id=operation_id,
+        session=session,
+        is_experiment=is_experiment,
+        start_cursor=last_event_id or "0-0",
+    ):
+        yield event
 
 
 @router.post("/{operation_id}/cancel", status_code=202)
 async def cancel(
     operation_id: str,
-    session: DBSession,
-    user_id: CurrentUser,
+    op: VerifiedOp,
 ) -> JSONObject:
     """Cancel a running operation.
 
@@ -172,15 +200,6 @@ async def cancel(
     the LLM agent. The producer's CancelledError handler emits a
     ``message_end`` event so any connected subscribers close cleanly.
     """
-    result = await session.execute(
-        select(Operation).where(Operation.operation_id == operation_id)
-    )
-    op = result.scalar_one_or_none()
-    if op is None:
-        raise NotFoundError(title="Operation not found")
-
-    await _verify_operation_access(session, op, user_id)
-
     if op.status != "active":
         return {"operationId": operation_id, "status": op.status, "cancelled": False}
 

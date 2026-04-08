@@ -25,7 +25,7 @@ def test_all_providers_have_all_tiers() -> None:
 
 
 def test_preset_returns_correct_type() -> None:
-    """Each preset value is a TierPreset dataclass."""
+    """Each preset value is a TierPreset."""
     for tiers in TIER_PRESETS.values():
         for preset in tiers.values():
             assert isinstance(preset, TierPreset)

@@ -7,12 +7,13 @@ Cloud models are hardcoded.  Ollama (local) models are loaded from an
 optional YAML file pointed to by ``OLLAMA_MODELS_CONFIG``.
 """
 
-from dataclasses import dataclass
 from functools import lru_cache
 
 import yaml
+from pydantic import BaseModel, ConfigDict
 
 from veupath_chatbot.platform.config import _REPO_ROOT
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import ModelProvider
 
 __all__ = [
@@ -23,9 +24,10 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True, slots=True)
-class ModelEntry:
+class ModelEntry(CamelModel):
     """A single model in the catalog."""
+
+    model_config = ConfigDict(frozen=True)
 
     id: str  # e.g. "openai/gpt-5"
     name: str  # human-readable display name
@@ -277,6 +279,25 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
 )
 
 
+class _OllamaYamlItem(BaseModel):
+    """A single entry in ``ollama_models.yaml``."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    model: str = ""
+    name: str = ""
+    thinking: bool = False
+    context_size: int = 0
+
+
+class _OllamaYamlConfig(BaseModel):
+    """Top-level structure of ``ollama_models.yaml``."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    models: list[_OllamaYamlItem] = []
+
+
 def _load_ollama_models() -> tuple[ModelEntry, ...]:
     """Load Ollama model entries from the YAML config file.
 
@@ -300,26 +321,24 @@ def _load_ollama_models() -> tuple[ModelEntry, ...]:
     if not data:
         return ()
 
+    config = _OllamaYamlConfig.model_validate(data)
     entries: list[ModelEntry] = []
     seen: set[str] = set()
-    for item in data.get("models", []):
-        model_name = item.get("model", "")
-        if not model_name or model_name in seen:
+    for item in config.models:
+        if not item.model or item.model in seen:
             continue
-        display = item.get("name", model_name)
-        thinking = bool(item.get("thinking", False))
-        context_size = item.get("context_size")
+        display = item.name or item.model
         entries.append(
             ModelEntry(
-                id=f"ollama/{model_name}",
+                id=f"ollama/{item.model}",
                 name=f"{display} (local)",
                 provider="ollama",
-                model=model_name,
-                supports_reasoning=thinking,
-                context_size=int(context_size) if context_size else 0,
+                model=item.model,
+                supports_reasoning=item.thinking,
+                context_size=item.context_size,
             )
         )
-        seen.add(model_name)
+        seen.add(item.model)
 
     return tuple(entries)
 

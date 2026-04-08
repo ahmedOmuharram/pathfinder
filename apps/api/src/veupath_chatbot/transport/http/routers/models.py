@@ -1,38 +1,28 @@
 """Models endpoint — exposes available LLM models and their status."""
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict
 
-from veupath_chatbot.ai.models.catalog import get_model_catalog
+from veupath_chatbot.ai.models.catalog import ModelEntry, get_model_catalog
 from veupath_chatbot.platform.config import get_settings
+from veupath_chatbot.platform.pydantic_base import CamelModel
 from veupath_chatbot.platform.types import ModelProvider, TierName
 
 
-class ModelCatalogEntryResponse(BaseModel):
-    """A single model in the catalog — for API responses."""
+class ModelCatalogEntryResponse(ModelEntry):
+    """API response model — adds ``enabled`` status per provider configuration."""
 
-    id: str
-    name: str
-    provider: ModelProvider
-    model: str
-    description: str = ""
-    supports_reasoning: bool = Field(default=False, serialization_alias="supportsReasoning")
+    model_config = ConfigDict(frozen=False)
+
     enabled: bool = True
-    context_size: int = Field(default=0, serialization_alias="contextSize")
-    default_reasoning_budget: int = Field(default=0, serialization_alias="defaultReasoningBudget")
-    input_price: float = Field(default=0.0, serialization_alias="inputPrice")
-    cached_input_price: float = Field(default=0.0, serialization_alias="cachedInputPrice")
-    output_price: float = Field(default=0.0, serialization_alias="outputPrice")
 
 
-
-class ModelListResponse(BaseModel):
+class ModelListResponse(CamelModel):
     """Response for the /models endpoint."""
 
     models: list[ModelCatalogEntryResponse]
-    default_provider: ModelProvider = Field(serialization_alias="defaultProvider")
-    default_tier: TierName = Field(serialization_alias="defaultTier")
-
+    default_provider: ModelProvider
+    default_tier: TierName
 
 
 router = APIRouter(prefix="/api/v1", tags=["models"])
@@ -63,20 +53,10 @@ async def list_models() -> ModelListResponse:
     """
     settings = get_settings()
     is_mock = settings.chat_provider.strip().lower() == "mock"
-    models: list[ModelCatalogEntryResponse] = [
+    models = [
         ModelCatalogEntryResponse(
-            id=m.id,
-            name=m.name,
-            provider=m.provider,
-            model=m.model,
-            supports_reasoning=m.supports_reasoning,
+            **m.model_dump(),
             enabled=_provider_enabled(m.provider),
-            context_size=m.context_size,
-            default_reasoning_budget=m.default_reasoning_budget,
-            description=m.description,
-            input_price=m.input_price,
-            cached_input_price=m.cached_input_price,
-            output_price=m.output_price,
         )
         for m in get_model_catalog()
         if is_mock or m.provider != "mock"

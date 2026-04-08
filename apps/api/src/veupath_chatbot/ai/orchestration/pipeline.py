@@ -7,12 +7,13 @@ Cross-turn state lives in ``AgentDeps``, not here.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from statemachine import HistoryState, State, StateChart
 
-logger = logging.getLogger(__name__)
+from veupath_chatbot.platform.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Phase names as they appear in state IDs (lowercase, matching class names).
 _PHASE_IDS = ("discovery", "planning", "execution", "verification")
