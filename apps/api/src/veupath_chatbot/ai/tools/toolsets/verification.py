@@ -15,6 +15,7 @@ from veupath_chatbot.ai.tools.standalone.results import (
     get_sample_records,
 )
 from veupath_chatbot.ai.tools.standalone.strategy_graph import get_strategy
+from veupath_chatbot.ai.tools.standalone.think import think
 from veupath_chatbot.ai.tools.standalone.workbench import (
     create_workbench_gene_set,
     list_workbench_gene_sets,
@@ -53,5 +54,6 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             get_ensemble_analysis,
             get_result_gene_lists,
             get_strategy,
+            think,
         ],
     )

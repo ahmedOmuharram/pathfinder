@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WdkRecord } from "@/lib/types/wdk";
 import { getRecords, type EntityRef } from "@/features/analysis/api/stepResults";
@@ -34,11 +34,11 @@ export function useDistributionModal(
     staleTime: 60_000,
   });
 
-  const handleBarClick = useCallback((value: string) => {
+  const handleBarClick = (value: string) => {
     setModalValue(value);
-  }, []);
+  };
 
-  const closeModal = useCallback(() => setModalValue(null), []);
+  const closeModal = () => setModalValue(null);
 
   return {
     modalValue,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useState } from "react";
 import { useDebouncedCallback } from "use-debounce";
 import type { Step } from "@pathfinder/shared";
 
@@ -10,20 +10,20 @@ export function useSaveValidation(args: {
 }) {
   const { steps, buildStepSignature, debounceMs = 500, validate } = args;
 
-  const validationInputKey = useMemo(() => {
-    if (steps.length === 0) return "";
-    return steps
-      .map((step) => `${step.id}:${buildStepSignature(step)}`)
-      .sort()
-      .join("|");
-  }, [steps, buildStepSignature]);
+  const validationInputKey = steps.length === 0
+    ? ""
+    : steps
+        .map((step) => `${step.id}:${buildStepSignature(step)}`)
+        .sort()
+        .join("|");
 
   const debouncedValidate = useDebouncedCallback(() => {
     void validate();
   }, debounceMs);
 
-  useEffect(() => {
-    if (steps.length === 0) return;
-    debouncedValidate();
-  }, [steps, validationInputKey, debouncedValidate]);
+  const [prevKey, setPrevKey] = useState(validationInputKey);
+  if (validationInputKey !== prevKey) {
+    setPrevKey(validationInputKey);
+    if (steps.length > 0) debouncedValidate();
+  }
 }

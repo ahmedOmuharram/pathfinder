@@ -11,6 +11,12 @@ import { GET, POST } from "./route";
 
 const proxyMock = vi.mocked(proxyJsonRequest);
 
+function lastCall() {
+  const call = proxyMock.mock.calls[0];
+  if (call == null) throw new Error("proxyJsonRequest was not called");
+  return call;
+}
+
 type Ctx = { params: Promise<{ experimentId: string; action: string[] }> };
 
 function makeReq(
@@ -31,7 +37,7 @@ describe("GET /api/v1/experiments/:experimentId/:action", () => {
     const req = makeReq("/api/v1/experiments/exp-1/cross-validate");
     await GET(req, ctx("exp-1", ["cross-validate"]));
 
-    const [, path] = proxyMock.mock.calls[0];
+    const [, path] = lastCall();
     expect(path).toBe("/api/v1/experiments/exp-1/cross-validate");
   });
 
@@ -39,7 +45,7 @@ describe("GET /api/v1/experiments/:experimentId/:action", () => {
     const req = makeReq("/api/v1/experiments/exp-1/importable-strategies/details");
     await GET(req, ctx("exp-1", ["importable-strategies", "details"]));
 
-    const [, path] = proxyMock.mock.calls[0];
+    const [, path] = lastCall();
     expect(path).toBe("/api/v1/experiments/exp-1/importable-strategies/details");
   });
 
@@ -47,7 +53,7 @@ describe("GET /api/v1/experiments/:experimentId/:action", () => {
     const req = makeReq("/api/v1/experiments/exp%2F1/my%20action");
     await GET(req, ctx("exp/1", ["my action"]));
 
-    const [, path] = proxyMock.mock.calls[0];
+    const [, path] = lastCall();
     expect(path).toBe("/api/v1/experiments/exp%2F1/my%20action");
   });
 
@@ -55,7 +61,7 @@ describe("GET /api/v1/experiments/:experimentId/:action", () => {
     const req = makeReq("/api/v1/experiments/exp-1/enrich?recordType=gene");
     await GET(req, ctx("exp-1", ["enrich"]));
 
-    const [, path] = proxyMock.mock.calls[0];
+    const [, path] = lastCall();
     expect(path).toBe("/api/v1/experiments/exp-1/enrich?recordType=gene");
   });
 });
@@ -71,7 +77,7 @@ describe("POST /api/v1/experiments/:experimentId/:action", () => {
     });
     await POST(req, ctx("exp-1", ["enrich"]));
 
-    const [, path, opts] = proxyMock.mock.calls[0];
+    const [, path, opts] = lastCall();
     expect(path).toBe("/api/v1/experiments/exp-1/enrich");
     expect(opts).toEqual({ method: "POST", includeBody: true });
   });

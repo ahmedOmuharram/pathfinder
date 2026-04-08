@@ -1,59 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useIntersectionObserver } from "usehooks-ts";
 
 interface AutoScrollResult {
-  /** Ref to attach to the sentinel element at the bottom of the message list. */
-  bottomRef: React.RefObject<HTMLDivElement | null>;
-  /** Whether the user is currently scrolled near the bottom. */
+  bottomRef: (node: HTMLDivElement | null) => void;
   isAtBottom: boolean;
-  /** Programmatically scroll to the bottom. */
   scrollToBottom: () => void;
 }
 
-/**
- * Smart auto-scroll for the chat message list.
- *
- * Uses an IntersectionObserver on a sentinel element placed at the end of the
- * messages to determine whether the user is "near the bottom". Auto-scrolling
- * only fires when the sentinel is in view (i.e. the user hasn't scrolled up).
- *
- * Returns `isAtBottom` and `scrollToBottom` so the component can render a
- * floating scroll-to-bottom button when the user has scrolled away during
- * streaming.
- */
-export function useChatAutoScroll(
-  key: string,
-): AutoScrollResult {
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
+export function useChatAutoScroll(key: string): AutoScrollResult {
+  const nodeRef = useRef<HTMLDivElement | null>(null);
 
-  // Track intersection state via observer.
-  useEffect(() => {
-    const sentinel = bottomRef.current;
-    if (!sentinel) return;
+  const { ref: observerRef, isIntersecting: isAtBottom } = useIntersectionObserver({
+    threshold: 0.1,
+  });
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry) {
-          setIsAtBottom(entry.isIntersecting);
-        }
-      },
-      { threshold: 0.1 },
-    );
+  const bottomRef = (node: HTMLDivElement | null) => {
+    nodeRef.current = node;
+    observerRef(node);
+  };
 
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, []);
+  const [prevKey, setPrevKey] = useState(key);
+  if (key !== prevKey) {
+    setPrevKey(key);
+    if (isAtBottom) {
+      queueMicrotask(() => nodeRef.current?.scrollIntoView({ behavior: "smooth" }));
+    }
+  }
 
-  // Auto-scroll when content changes, but only if the user is near the bottom.
-  useEffect(() => {
-    if (!isAtBottom) return;
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [key, isAtBottom]);
-
-  const scrollToBottom = useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  const scrollToBottom = () => {
+    nodeRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   return { bottomRef, isAtBottom, scrollToBottom };
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { Modal } from "@/lib/components/Modal";
 import { SetVenn } from "@/lib/components/SetVenn";
 import type { GeneSet } from "@pathfinder/shared";
@@ -13,7 +12,7 @@ interface CompareModalProps {
 }
 
 export function CompareModal({ open, onClose, setA, setB }: CompareModalProps) {
-  const comparison = useMemo(() => {
+  const comparison = (() => {
     const idsA = setA.geneIds;
     const idsB = setB.geneIds;
     const a = new Set(idsA);
@@ -24,7 +23,7 @@ export function CompareModal({ open, onClose, setA, setB }: CompareModalProps) {
     const unionSize = new Set([...idsA, ...idsB]).size;
     const jaccard = unionSize > 0 ? shared.length / unionSize : 0;
     return { shared, onlyA, onlyB, unionSize, jaccard };
-  }, [setA.geneIds, setB.geneIds]);
+  })();
 
   return (
     <Modal

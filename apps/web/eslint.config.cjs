@@ -62,6 +62,25 @@ module.exports = defineConfig([
 
             // --- React ---
             "react-hooks/exhaustive-deps": "error",
+            "no-restricted-imports": [
+              "error",
+              {
+                paths: [
+                  {
+                    name: "react",
+                    importNames: ["useEffect"],
+                    message:
+                      "useEffect is banned. Use TanStack Query, usehooks-ts, Zustand subscribe, or render-time patterns instead. See https://react.dev/learn/you-might-not-need-an-effect",
+                  },
+                  {
+                    name: "react",
+                    importNames: ["useMemo", "useCallback"],
+                    message:
+                      "useMemo/useCallback are redundant — React Compiler (babel-plugin-react-compiler) handles memoization automatically with better data-flow analysis than manual dependency arrays.",
+                  },
+                ],
+              },
+            ],
 
             // --- No stray console.log ---
             "no-console": ["error", { allow: ["warn", "error"] }],

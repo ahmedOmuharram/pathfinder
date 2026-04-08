@@ -10,7 +10,7 @@
  * the `StepNode` component but differ significantly in interaction model and
  * state management, so they are kept separate.
  */
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { type CombineOperator } from "@pathfinder/shared";
 import type { Strategy } from "@pathfinder/shared";
 import "@xyflow/react/dist/style.css";
@@ -62,10 +62,10 @@ export function StrategyGraph(props: StrategyGraphProps) {
   const showHints =
     variant !== "compact" && !!strategy && strategy.steps.length > 0 && !hintsDismissed;
 
-  const dismissHints = useCallback(() => {
+  const dismissHints = () => {
     setHintsDismissed(true);
     localStorage.setItem(HINTS_KEY, "1");
-  }, []);
+  };
 
   if (strategy == null || strategy.steps.length === 0) {
     const emptyProps: { isCompact: boolean; onSwitchToChat?: () => void } = {
@@ -143,6 +143,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
         )}
         {!g.isCompact && g.selectedStep != null && (
           <StepEditor
+            key={`${g.selectedStep.id}:${g.selectedStep.searchName ?? ""}`}
             step={g.selectedStep}
             siteId={siteId}
             recordType={strategy.recordType ?? null}

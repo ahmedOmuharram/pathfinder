@@ -1,8 +1,6 @@
 /**
  * Zod schemas for GeneSet API responses.
  *
- * All object schemas use .passthrough() so extra fields from the backend
- * are preserved rather than stripped.
  */
 import { z } from "zod";
 import { DateTimeString } from "./common";

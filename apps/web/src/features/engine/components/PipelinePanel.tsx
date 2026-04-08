@@ -1,0 +1,115 @@
+import type { ModelCatalogEntry, ModelProvider, PipelinePhase, TierName } from "@pathfinder/shared";
+import { useShallow } from "zustand/react/shallow";
+import { useEngineStore } from "@/state/useEngineStore";
+import { PhaseCard } from "./PhaseCard";
+import { ChevronDown } from "lucide-react";
+
+const PHASES: PipelinePhase[] = ["discovery", "planning", "execution", "verification"];
+const PHASE_TRANSITIONS: Record<string, string> = {
+  "discovery→planning": "Findings",
+  "planning→execution": "Plan",
+  "execution→verification": "Strategy",
+};
+const TIER_OPTIONS: { value: TierName; label: string }[] = [
+  { value: "quality", label: "Quality" },
+  { value: "balanced", label: "Balanced" },
+  { value: "fast", label: "Fast" },
+];
+const PROVIDER_OPTIONS: { value: ModelProvider; label: string }[] = [
+  { value: "anthropic", label: "Anthropic" },
+  { value: "openai", label: "OpenAI" },
+  { value: "google", label: "Google" },
+  { value: "ollama", label: "Ollama" },
+];
+
+interface PipelinePanelProps {
+  models: ModelCatalogEntry[];
+  selectedPhase: PipelinePhase | null;
+  onSelectPhase: (phase: PipelinePhase) => void;
+  onProviderChange: (provider: ModelProvider) => void;
+  onTierChange: (tier: TierName) => void;
+}
+
+export function PipelinePanel({
+  models,
+  selectedPhase,
+  onSelectPhase,
+  onProviderChange,
+  onTierChange,
+}: PipelinePanelProps) {
+  const { provider, tier, phases, setPhaseEffort } = useEngineStore(
+    useShallow((s) => ({
+      provider: s.provider,
+      tier: s.tier,
+      phases: s.phases,
+      setPhaseEffort: s.setPhaseEffort,
+    })),
+  );
+  const isOllama = provider === "ollama";
+
+  return (
+    <div className="flex h-full flex-col gap-4 p-4">
+      {/* Provider */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">Provider</label>
+        <select
+          value={provider}
+          onChange={(e) => onProviderChange(e.target.value as ModelProvider)}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+        >
+          {PROVIDER_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Tier */}
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">Tier</label>
+        <select
+          value={tier}
+          onChange={(e) => onTierChange(e.target.value as TierName)}
+          disabled={isOllama}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm disabled:opacity-50"
+        >
+          {TIER_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+          {tier === "custom" && <option value="custom">Custom</option>}
+        </select>
+      </div>
+
+      <div className="h-px bg-border" />
+
+      {/* Pipeline visualization */}
+      <div className="flex flex-1 flex-col gap-1">
+        <span className="text-xs font-medium text-muted-foreground">Pipeline</span>
+        {PHASES.map((phase, i) => (
+          <div key={phase}>
+            <PhaseCard
+              phase={phase}
+              config={phases[phase]}
+              models={models}
+              isSelected={selectedPhase === phase}
+              onSelect={() => onSelectPhase(phase)}
+              onEffortChange={(effort) => setPhaseEffort(phase, effort)}
+            />
+            {i < PHASES.length - 1 && (
+              <div className="flex items-center justify-center gap-1.5 py-0.5">
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-[10px] text-muted-foreground">
+                  {PHASE_TRANSITIONS[`${PHASES[i]}→${PHASES[i + 1]}`]}
+                </span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+    </div>
+  );
+}

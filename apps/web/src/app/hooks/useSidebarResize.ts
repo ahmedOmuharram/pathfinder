@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useEventListener } from "usehooks-ts";
 
 interface UseSidebarResizeArgs {
@@ -18,24 +18,21 @@ export function useSidebarResize({
   const [dragging, setDragging] = useState(false);
   const layoutRef = useRef<HTMLDivElement>(null);
 
-  const handleMove = useCallback(
-    (event: MouseEvent) => {
-      if (!dragging) return;
-      const container = layoutRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const maxAllowed = rect.width - minMain;
-      const next = Math.min(
-        Math.max(x, minSidebar),
-        Math.max(minSidebar, Math.min(maxSidebar, maxAllowed)),
-      );
-      setSidebarWidth(next);
-    },
-    [dragging, minSidebar, maxSidebar, minMain],
-  );
+  const handleMove = (event: MouseEvent) => {
+    if (!dragging) return;
+    const container = layoutRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const maxAllowed = rect.width - minMain;
+    const next = Math.min(
+      Math.max(x, minSidebar),
+      Math.max(minSidebar, Math.min(maxSidebar, maxAllowed)),
+    );
+    setSidebarWidth(next);
+  };
 
-  const handleUp = useCallback(() => setDragging(false), []);
+  const handleUp = () => setDragging(false);
 
   useEventListener("mousemove", handleMove);
   useEventListener("mouseup", handleUp);

@@ -195,7 +195,6 @@ describe("BatchPanel", () => {
     storeState["activeSetId"] = "set-1";
     storeState["geneSets"] = [];
     storeState["expandedPanels"] = new Set(["batch"]);
-    // Default: listOrganisms resolves to empty array so useEffect never blows up
     mockListOrganisms.mockResolvedValue([]);
   });
 

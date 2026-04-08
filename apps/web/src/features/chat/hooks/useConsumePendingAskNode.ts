@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 
 export function useConsumePendingAskNode(args: {
@@ -9,10 +9,10 @@ export function useConsumePendingAskNode(args: {
 }) {
   const { enabled, pendingAskNode, setDraftSelection, onConsumeAskNode } = args;
 
-  useEffect(() => {
-    if (!enabled) return;
-    if (!pendingAskNode) return;
+  const [consumed, setConsumed] = useState<NodeSelection | null>(null);
+  if (enabled && pendingAskNode && pendingAskNode !== consumed) {
+    setConsumed(pendingAskNode);
     setDraftSelection(pendingAskNode);
     onConsumeAskNode?.();
-  }, [enabled, pendingAskNode, setDraftSelection, onConsumeAskNode]);
+  }
 }

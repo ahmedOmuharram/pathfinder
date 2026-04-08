@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { submitFeedback } from "@/lib/api/feedback";
@@ -15,21 +15,21 @@ type FeedbackState = "none" | "positive" | "negative";
 export function MessageFeedback({ traceId, streamId }: MessageFeedbackProps) {
   const [state, setState] = useState<FeedbackState>("none");
 
-  const handlePositive = useCallback(() => {
+  const handlePositive = () => {
     if (traceId == null || traceId === "") return;
     setState("positive");
     submitFeedback({ traceId, streamId, value: 1 }).catch(() => {
       setState("none");
     });
-  }, [traceId, streamId]);
+  };
 
-  const handleNegative = useCallback(() => {
+  const handleNegative = () => {
     if (traceId == null || traceId === "") return;
     setState("negative");
     submitFeedback({ traceId, streamId, value: 0 }).catch(() => {
       setState("none");
     });
-  }, [traceId, streamId]);
+  };
 
   if (traceId == null || traceId === "") return null;
 

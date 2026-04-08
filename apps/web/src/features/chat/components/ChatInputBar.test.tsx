@@ -44,12 +44,6 @@ const baseProps = {
   onSend: vi.fn(),
   isStreaming: false,
   onStop: vi.fn(),
-  models: [],
-  selectedModelId: null,
-  onModelChange: vi.fn(),
-  reasoningEffort: "medium" as const,
-  onReasoningChange: vi.fn(),
-  serverDefaultModelId: null,
   siteId: "PlasmoDB",
 };
 

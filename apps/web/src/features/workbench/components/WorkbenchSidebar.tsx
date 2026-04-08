@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { ScrollArea } from "@/lib/components/ui/ScrollArea";
 import { TooltipProvider } from "@/lib/components/ui/Tooltip";
+import { useShallow } from "zustand/react/shallow";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { performSetOperation, createGeneSet } from "../api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -29,11 +30,21 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
   const selectedSite = useSessionStore((s) => s.selectedSite);
   const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
   const invalidateGeneSets = useInvalidateGeneSets();
-  const activeSetId = useWorkbenchStore((s) => s.activeSetId);
-  const selectedSetIds = useWorkbenchStore((s) => s.selectedSetIds);
-  const setActiveSet = useWorkbenchStore((s) => s.setActiveSet);
-  const toggleSetSelection = useWorkbenchStore((s) => s.toggleSetSelection);
-  const clearSelection = useWorkbenchStore((s) => s.clearSelection);
+  const {
+    activeSetId,
+    selectedSetIds,
+    setActiveSet,
+    toggleSetSelection,
+    clearSelection,
+  } = useWorkbenchStore(
+    useShallow((s) => ({
+      activeSetId: s.activeSetId,
+      selectedSetIds: s.selectedSetIds,
+      setActiveSet: s.setActiveSet,
+      toggleSetSelection: s.toggleSetSelection,
+      clearSelection: s.clearSelection,
+    })),
+  );
 
   const [filter, setFilter] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -44,13 +55,12 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
   // Derived state
   const activeSet = geneSets.find((gs) => gs.id === activeSetId) ?? null;
   const selectedSets = geneSets.filter((gs) => selectedSetIds.includes(gs.id));
-  const activeGeneIds = useMemo(() => activeSet?.geneIds ?? [], [activeSet]);
+  const activeGeneIds = activeSet?.geneIds ?? [];
 
-  const filteredSets = useMemo(() => {
-    if (!filter.trim()) return geneSets;
-    const q = filter.trim().toLowerCase();
-    return geneSets.filter((gs) => gs.name.toLowerCase().includes(q));
-  }, [geneSets, filter]);
+  const filterQuery = filter.trim().toLowerCase();
+  const filteredSets = filterQuery
+    ? geneSets.filter((gs) => gs.name.toLowerCase().includes(filterQuery))
+    : geneSets;
 
   const showFilter = geneSets.length >= 5;
   const showVenn = selectedSets.length >= 2 && selectedSets.length <= 5;
@@ -58,50 +68,44 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
 
   // -- Handlers ---------------------------------------------------------------
 
-  const handleVennRegionClick = useCallback(
-    async (geneIds: string[], label: string) => {
-      try {
-        const gs = await createGeneSet({
-          name: label,
-          source: "derived",
-          geneIds,
-          siteId: selectedSite,
-        });
-        await invalidateGeneSets();
-        setActiveSet(gs.id);
-        router.push(`/workbench/${gs.id}`);
-      } catch (err) {
-        console.error("Failed to create set from Venn region:", err);
-      }
-    },
-    [selectedSite, invalidateGeneSets, setActiveSet, router],
-  );
+  const handleVennRegionClick = async (geneIds: string[], label: string) => {
+    try {
+      const gs = await createGeneSet({
+        name: label,
+        source: "derived",
+        geneIds,
+        siteId: selectedSite,
+      });
+      await invalidateGeneSets();
+      setActiveSet(gs.id);
+      router.push(`/workbench/${gs.id}`);
+    } catch (err) {
+      console.error("Failed to create set from Venn region:", err);
+    }
+  };
 
-  const handleComposeExecute = useCallback(
-    async (result: { operation: string; geneIds: string[]; name: string }) => {
-      const setA = selectedSets[0];
-      const setB = selectedSets[1];
-      if (selectedSets.length !== 2 || setA == null || setB == null) return;
-      setComposing(true);
-      try {
-        const gs = await performSetOperation({
-          operation: result.operation as "intersect" | "union" | "minus",
-          setAId: setA.id,
-          setBId: setB.id,
-          name: result.name,
-        });
-        await invalidateGeneSets();
-        setActiveSet(gs.id);
-        router.push(`/workbench/${gs.id}`);
-        clearSelection();
-      } catch (err) {
-        console.error("Failed to execute set operation:", err);
-      } finally {
-        setComposing(false);
-      }
-    },
-    [selectedSets, invalidateGeneSets, setActiveSet, router, clearSelection],
-  );
+  const handleComposeExecute = async (result: { operation: string; geneIds: string[]; name: string }) => {
+    const setA = selectedSets[0];
+    const setB = selectedSets[1];
+    if (selectedSets.length !== 2 || setA == null || setB == null) return;
+    setComposing(true);
+    try {
+      const gs = await performSetOperation({
+        operation: result.operation as "intersect" | "union" | "minus",
+        setAId: setA.id,
+        setBId: setB.id,
+        name: result.name,
+      });
+      await invalidateGeneSets();
+      setActiveSet(gs.id);
+      router.push(`/workbench/${gs.id}`);
+      clearSelection();
+    } catch (err) {
+      console.error("Failed to execute set operation:", err);
+    } finally {
+      setComposing(false);
+    }
+  };
 
   return (
     <TooltipProvider delayDuration={300}>

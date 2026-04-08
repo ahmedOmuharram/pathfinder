@@ -27,7 +27,7 @@ describe("handleChatEvent — realistic execute mode", () => {
     const { ctx, state, toolCallsBuffer } = makeCtx({
       strategyIdAtStart: "strat-001",
       currentStrategy,
-      session: new StreamingSession(currentStrategy),
+      session: new StreamingSession(),
       getStrategy: vi.fn(async () => currentStrategy),
     });
 
@@ -116,7 +116,7 @@ describe("handleChatEvent — realistic execute mode", () => {
       clearStrategy: vi.fn(),
       addStep: vi.fn(),
       loadGraph: vi.fn(),
-      session: new StreamingSession(null),
+      session: new StreamingSession(),
       currentStrategy: null,
       setMessages: batchState.setMessages,
       setUndoSnapshots: batchState.setUndoSnapshots,

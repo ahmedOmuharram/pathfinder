@@ -13,7 +13,7 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from veupath_chatbot.platform.types import ReasoningEffort
+from veupath_chatbot.platform.types import ModelProvider, TierName
 
 _API_DIR = Path(__file__).resolve().parents[3]  # apps/api/
 _REPO_ROOT = _API_DIR.parents[1]  # repo root
@@ -125,9 +125,9 @@ class Settings(BaseSettings):
     # Ollama (local models via OpenAI-compatible API)
     ollama_base_url: str = "http://localhost:11434/v1"
 
-    # Unified model defaults (applies to both planning and execution modes)
-    default_model_id: str = "openai/gpt-4.1"
-    default_reasoning_effort: ReasoningEffort = "medium"
+    # Unified model defaults — provider + tier resolve to per-phase models.
+    default_provider: ModelProvider = "anthropic"
+    default_tier: TierName = "balanced"
 
     # VEuPathDB
     veupathdb_default_site: str = "veupathdb"

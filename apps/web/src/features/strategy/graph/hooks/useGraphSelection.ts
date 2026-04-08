@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import type { Node } from "@xyflow/react";
 import type { Strategy } from "@pathfinder/shared";
 import { buildNodeSelectionPayload } from "@/features/strategy/graph/utils/nodeSelectionPayload";
@@ -19,21 +19,15 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const setPendingAskNode = useSessionStore((s) => s.setPendingAskNode);
 
-  const buildSelectionPayload = useCallback(
-    (nodeIds: string[]) => buildNodeSelectionPayload(strategy, nodeIds),
-    [strategy],
-  );
+  const buildSelectionPayload = (nodeIds: string[]) => buildNodeSelectionPayload(strategy, nodeIds);
 
-  const handleAddToChat = useCallback(
-    (stepId: string) => {
-      if (!stepId) return;
-      const detail = buildSelectionPayload([stepId]);
-      setPendingAskNode(detail);
-    },
-    [buildSelectionPayload, setPendingAskNode],
-  );
+  const handleAddToChat = (stepId: string) => {
+    if (!stepId) return;
+    const detail = buildSelectionPayload([stepId]);
+    setPendingAskNode(detail);
+  };
 
-  const handleAddSelectionToChat = useCallback(() => {
+  const handleAddSelectionToChat = () => {
     setSelectedNodeIds((currentSelection) => {
       if (currentSelection.length > 0) {
         const detail = buildSelectionPayload(currentSelection);
@@ -41,19 +35,16 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
       }
       return currentSelection;
     });
-  }, [buildSelectionPayload, setPendingAskNode]);
+  };
 
-  const handleSelectionChange = useCallback(
-    (selectedNodes: Node[]) => {
-      if (isCompact) return;
-      const nextIds = selectedNodes.map((node) => node.id).sort();
-      setSelectedNodeIds((prev) => {
-        if (areNodeIdsEqual(prev, nextIds)) return prev;
-        return nextIds;
-      });
-    },
-    [isCompact],
-  );
+  const handleSelectionChange = (selectedNodes: Node[]) => {
+    if (isCompact) return;
+    const nextIds = selectedNodes.map((node) => node.id).sort();
+    setSelectedNodeIds((prev) => {
+      if (areNodeIdsEqual(prev, nextIds)) return prev;
+      return nextIds;
+    });
+  };
 
   return {
     interactionMode,

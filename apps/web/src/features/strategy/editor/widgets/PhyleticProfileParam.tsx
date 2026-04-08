@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState } from "react";
 import { useFormContext } from "react-hook-form";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
 import {
@@ -128,12 +128,9 @@ export function PhyleticProfileParam({
   const indentMapVocab =
     (getValues("phyletic_indent_map") as unknown) ?? findSpecVocab(specs, "phyletic_indent_map");
 
-  const tree = useMemo(
-    () => buildPhyleticTree(termMapVocab, indentMapVocab),
-    [termMapVocab, indentMapVocab],
-  );
+  const tree = buildPhyleticTree(termMapVocab, indentMapVocab);
 
-  const codeToLabel = useMemo(() => buildCodeToLabel(tree), [tree]);
+  const codeToLabel = buildCodeToLabel(tree);
 
   // Initialize state from current profile_pattern in form
   const initialPattern = String(getValues("profile_pattern") ?? "");
@@ -146,8 +143,8 @@ export function PhyleticProfileParam({
   const [searchQuery, setSearchQuery] = useState("");
 
   // Compute summary counts
-  const allCodes = useMemo(() => collectCodes(tree), [tree]);
-  const summary = useMemo(() => {
+  const allCodes = collectCodes(tree);
+  const summary = (() => {
     let included = 0;
     let excluded = 0;
     let unconstrained = 0;
@@ -158,34 +155,31 @@ export function PhyleticProfileParam({
       else unconstrained++;
     }
     return { included, excluded, unconstrained };
-  }, [allCodes, states]);
+  })();
 
-  const handleToggleState = useCallback(
-    (code: string) => {
-      setStates((prev) => {
-        const next = new Map(prev);
-        const current = next.get(code) ?? "unconstrained";
-        const newState = nextTriState(current);
-        if (newState === "unconstrained") {
-          next.delete(code);
-        } else {
-          next.set(code, newState);
-        }
+  const handleToggleState = (code: string) => {
+    setStates((prev) => {
+      const next = new Map(prev);
+      const current = next.get(code) ?? "unconstrained";
+      const newState = nextTriState(current);
+      if (newState === "unconstrained") {
+        next.delete(code);
+      } else {
+        next.set(code, newState);
+      }
 
-        // Update form fields via setValue
-        const pattern = encodeProfilePattern(next);
-        const { included, excluded } = buildSpeciesLists(next, codeToLabel);
-        setValue("profile_pattern", pattern, { shouldDirty: true });
-        setValue("included_species", included, { shouldDirty: true });
-        setValue("excluded_species", excluded, { shouldDirty: true });
+      // Update form fields via setValue
+      const pattern = encodeProfilePattern(next);
+      const { included, excluded } = buildSpeciesLists(next, codeToLabel);
+      setValue("profile_pattern", pattern, { shouldDirty: true });
+      setValue("included_species", included, { shouldDirty: true });
+      setValue("excluded_species", excluded, { shouldDirty: true });
 
-        return next;
-      });
-    },
-    [codeToLabel, setValue],
-  );
+      return next;
+    });
+  };
 
-  const handleToggleExpand = useCallback((code: string) => {
+  const handleToggleExpand = (code: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(code)) {
@@ -195,7 +189,7 @@ export function PhyleticProfileParam({
       }
       return next;
     });
-  }, []);
+  };
 
   return (
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">

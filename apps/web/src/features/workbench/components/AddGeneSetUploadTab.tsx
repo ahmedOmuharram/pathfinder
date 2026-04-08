@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { FileUp, Search } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Input } from "@/lib/components/ui/Input";
@@ -53,28 +53,25 @@ export function AddGeneSetUploadTab({ onClose, onCreated }: AddGeneSetUploadTabP
   const parsedIds = parseGeneIds(fileText);
   const detectedCount = parsedIds.length;
 
-  const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      resetVerification();
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = reader.result as string;
-        setFileText(text);
-        setFileName(file.name);
-        if (!name) {
-          setName(stripExtension(file.name));
-        }
-      };
-      reader.onerror = () => {
-        setError("Failed to read file. Please try again.");
-      };
-      reader.readAsText(file);
-    },
-    [name, resetVerification, setError],
-  );
+    resetVerification();
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      setFileText(text);
+      setFileName(file.name);
+      if (!name) {
+        setName(stripExtension(file.name));
+      }
+    };
+    reader.onerror = () => {
+      setError("Failed to read file. Please try again.");
+    };
+    reader.readAsText(file);
+  };
 
   return (
     <>

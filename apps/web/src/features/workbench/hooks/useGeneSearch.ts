@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useDebouncedCallback } from "use-debounce";
+import { useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useDebounce } from "use-debounce";
 import type { GeneSearchResult } from "@pathfinder/shared";
 import { searchGenes, organismsOptions } from "@/lib/api/genes";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -38,10 +38,7 @@ export function useGeneSearch(onSelectionsCleared: () => void): GeneSearchState 
 
   // Search state
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<GeneSearchResult[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [debouncedQuery] = useDebounce(query, 300);
   const [error, setError] = useState<string | null>(null);
 
   // Organism filter
@@ -49,91 +46,74 @@ export function useGeneSearch(onSelectionsCleared: () => void): GeneSearchState 
   const [selectedOrganism, setSelectedOrganism] = useState<string | null>(null);
   const [organismFilter, setOrganismFilter] = useState("");
 
-  const filteredOrganisms = useMemo(
-    () =>
-      organisms.filter((org) =>
-        org.toLowerCase().includes(organismFilter.toLowerCase()),
+  const filteredOrganisms = organisms.filter((org) =>
+    org.toLowerCase().includes(organismFilter.toLowerCase()),
+  );
+
+  const clearKey = `${debouncedQuery}|${selectedOrganism}`;
+  const [prevClearKey, setPrevClearKey] = useState(clearKey);
+  if (clearKey !== prevClearKey) {
+    setPrevClearKey(clearKey);
+    onSelectionsCleared();
+  }
+
+  // Infinite query for gene search
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isFetchingNextPage,
+    error: queryError,
+  } = useInfiniteQuery({
+    queryKey: [
+      "genes",
+      "search",
+      selectedSite,
+      debouncedQuery,
+      selectedOrganism,
+    ],
+    queryFn: ({ pageParam }) =>
+      searchGenes(
+        selectedSite,
+        debouncedQuery,
+        selectedOrganism,
+        PAGE_SIZE,
+        pageParam,
       ),
-    [organisms, organismFilter],
-  );
-
-  // Search implementation
-  const currentQueryRef = useRef("");
-  const resultsLengthRef = useRef(0);
-  resultsLengthRef.current = results.length;
-
-  const doSearch = useCallback(
-    async (q: string, organism: string | null, append = false) => {
-      if (!q.trim()) {
-        if (!append) {
-          setResults([]);
-          setTotalCount(0);
-        }
-        return;
-      }
-
-      const offset = append ? resultsLengthRef.current : 0;
-      if (append) {
-        setLoadingMore(true);
-      } else {
-        setLoading(true);
-      }
-      setError(null);
-
-      try {
-        currentQueryRef.current = q;
-        const resp = await searchGenes(selectedSite, q, organism, PAGE_SIZE, offset);
-        if (currentQueryRef.current !== q) return;
-
-        if (append) {
-          setResults((prev) => [...prev, ...resp.results]);
-        } else {
-          setResults(resp.results);
-        }
-        setTotalCount(resp.totalCount);
-      } catch (err) {
-        if (currentQueryRef.current === q) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      } finally {
-        setLoading(false);
-        setLoadingMore(false);
-      }
+    initialPageParam: 0,
+    getNextPageParam: (_lastPage, allPages) => {
+      const loaded = allPages.reduce(
+        (sum, page) => sum + page.results.length,
+        0,
+      );
+      const total = allPages[0]?.totalCount ?? 0;
+      return loaded < total ? loaded : undefined;
     },
-    [selectedSite],
-  );
+    enabled: debouncedQuery.trim().length > 0 && selectedSite !== "",
+  });
 
-  // Trigger search on query change (debounced)
-  const debouncedSearch = useDebouncedCallback((q: string, organism: string | null) => {
-    onSelectionsCleared();
-    void doSearch(q, organism);
-  }, 300);
+  // Derive flat results from pages
+  const results = data?.pages.flatMap((page) => page.results) ?? [];
+  const totalCount = data?.pages[0]?.totalCount ?? 0;
 
-  useEffect(() => {
-    onSelectionsCleared();
-    if (!query.trim()) {
-      setResults([]);
-      setTotalCount(0);
-      return;
-    }
-    debouncedSearch(query, selectedOrganism);
-  }, [query, selectedOrganism, selectedSite, debouncedSearch, onSelectionsCleared]);
-
-  const loadMore = useCallback(() => {
-    void doSearch(query, selectedOrganism, true);
-  }, [doSearch, query, selectedOrganism]);
+  // Derive error string from query error or local error state
+  const derivedError =
+    error ?? (queryError instanceof Error ? queryError.message : null);
 
   return {
     query,
     setQuery,
     results,
     totalCount,
-    loading,
-    loadingMore,
-    error,
+    loading: isFetching && !isFetchingNextPage,
+    loadingMore: isFetchingNextPage,
+    error: derivedError,
     setError,
-    hasMore: results.length < totalCount,
-    loadMore,
+    hasMore: hasNextPage,
+    loadMore: () => {
+      void fetchNextPage();
+    },
     organisms,
     selectedOrganism,
     setSelectedOrganism,

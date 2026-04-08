@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useRef } from "react";
 import type { Node } from "@xyflow/react";
 import type { Step } from "@pathfinder/shared";
 
@@ -41,35 +41,29 @@ export function useNodePositionHistory(args: {
   const historyIndexRef = useRef(-1);
   const historyKeyRef = useRef<string | null>(null);
 
-  const pushSnapshot = useCallback(
-    (nodes: Node[]) => {
-      if (nodes.length === 0) return;
-      const nextKey = buildNodePositionKey(nodes);
-      if (nextKey === historyKeyRef.current) return;
+  const pushSnapshot = (nodes: Node[]) => {
+    if (nodes.length === 0) return;
+    const nextKey = buildNodePositionKey(nodes);
+    if (nextKey === historyKeyRef.current) return;
 
-      const snapshot = cloneNodes(nodes);
-      const history = historyRef.current.slice(0, historyIndexRef.current + 1);
-      history.push(snapshot);
-      if (history.length > maxSnapshots) history.shift();
+    const snapshot = cloneNodes(nodes);
+    const history = historyRef.current.slice(0, historyIndexRef.current + 1);
+    history.push(snapshot);
+    if (history.length > maxSnapshots) history.shift();
 
-      historyRef.current = history;
-      historyIndexRef.current = history.length - 1;
-      historyKeyRef.current = nextKey;
-    },
-    [maxSnapshots],
-  );
+    historyRef.current = history;
+    historyIndexRef.current = history.length - 1;
+    historyKeyRef.current = nextKey;
+  };
 
-  const reset = useCallback(
-    (nodes: Node[]) => {
-      historyRef.current = [];
-      historyIndexRef.current = -1;
-      historyKeyRef.current = null;
-      pushSnapshot(nodes);
-    },
-    [pushSnapshot],
-  );
+  const reset = (nodes: Node[]) => {
+    historyRef.current = [];
+    historyIndexRef.current = -1;
+    historyKeyRef.current = null;
+    pushSnapshot(nodes);
+  };
 
-  const tryUndo = useCallback((): boolean => {
+  const tryUndo = (): boolean => {
     if (historyIndexRef.current <= 0) return false;
     historyIndexRef.current -= 1;
     const snapshot = historyRef.current[historyIndexRef.current];
@@ -77,9 +71,9 @@ export function useNodePositionHistory(args: {
     historyKeyRef.current = buildNodePositionKey(snapshot);
     setNodes(cloneNodes(snapshot));
     return true;
-  }, [setNodes]);
+  };
 
-  const tryRedo = useCallback((): boolean => {
+  const tryRedo = (): boolean => {
     const history = historyRef.current;
     if (historyIndexRef.current >= history.length - 1) return false;
     historyIndexRef.current += 1;
@@ -88,7 +82,7 @@ export function useNodePositionHistory(args: {
     historyKeyRef.current = buildNodePositionKey(snapshot);
     setNodes(cloneNodes(snapshot));
     return true;
-  }, [setNodes]);
+  };
 
   return {
     pushSnapshot,

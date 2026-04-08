@@ -367,15 +367,21 @@ export const VEUPATHDB_SITES: VEuPathDBSite[] = [
 export type ModelProvider = "openai" | "anthropic" | "google" | "ollama" | "mock";
 export type ReasoningEffort = "none" | "low" | "medium" | "high";
 
-/** Model selection passed with each chat request. */
-export interface ModelSelection {
-  provider?: ModelProvider;
-  model?: string;
-  reasoningEffort?: ReasoningEffort;
-  contextSize?: number;
-  responseTokens?: number;
-  reasoningBudget?: number;
+export interface PipelinePhaseConfig {
+  modelId: string;
+  reasoningEffort: ReasoningEffort;
 }
+
+export interface PipelineConfig {
+  discovery: PipelinePhaseConfig;
+  planning: PipelinePhaseConfig;
+  execution: PipelinePhaseConfig;
+  verification: PipelinePhaseConfig;
+}
+
+export type TierName = "quality" | "balanced" | "fast" | "custom";
+
+export type PipelinePhase = "discovery" | "planning" | "execution" | "verification";
 
 // ── Message discriminated union ──────────────────────────────────────
 // role is the discriminant. Fields that only apply to one role live on

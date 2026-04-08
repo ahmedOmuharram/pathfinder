@@ -1,9 +1,11 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useSessionStore } from "@/state/useSessionStore";
 import { TopBar } from "@/app/components/TopBar";
 import { LoginModal } from "@/app/components/LoginModal";
+import { LoadingScreen } from "@/app/components/LoadingScreen";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { useAuthCheck } from "@/app/hooks/useAuthCheck";
 import { useAuthRefresh } from "@/app/hooks/useAuthRefresh";
@@ -14,75 +16,60 @@ import { WorkbenchSidebar } from "@/features/workbench/components/WorkbenchSideb
 import { GeneSearchSidebar } from "@/features/workbench/components/GeneSearchSidebar";
 import { SidebarEdgeTab } from "@/features/workbench/components/SidebarEdgeTab";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
+import { QueryBoundary } from "@/lib/components/QueryBoundary";
+import { AppShellError } from "@/app/components/AppShellError";
 import { Button } from "@/lib/components/ui/Button";
 import {
-  AlertTriangle,
   Layers,
   List,
-  Loader2,
   MessageCircle,
-  RefreshCw,
   Search,
   Settings,
 } from "lucide-react";
 import Link from "next/link";
 
 export default function WorkbenchLayout({ children }: { children: ReactNode }) {
-  const { selectedSite, setSelectedSite } = useSessionStore();
-  const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
-  const { authLoading, apiError, retry: retryAuth } = useAuthCheck();
-  const { configLoading, setupRequired, retry: retryConfig } = useSystemConfig();
+  return (
+    <QueryBoundary
+      loadingFallback={<LoadingScreen />}
+      ErrorFallback={AppShellError}
+    >
+      <WorkbenchLayoutInner>{children}</WorkbenchLayoutInner>
+    </QueryBoundary>
+  );
+}
+
+function WorkbenchLayoutInner({ children }: { children: ReactNode }) {
+  const { selectedSite, switchSite, veupathdbSignedIn } = useSessionStore(
+    useShallow((s) => ({
+      selectedSite: s.selectedSite,
+      switchSite: s.switchSite,
+      veupathdbSignedIn: s.veupathdbSignedIn,
+    })),
+  );
+  useAuthCheck();
+  const { setupRequired, retry: retryConfig } = useSystemConfig();
   useSiteTheme(selectedSite);
   useAuthRefresh();
 
-  const handleSiteChange = useCallback(
-    (nextSite: string) => setSelectedSite(nextSite),
-    [setSelectedSite],
-  );
+  const handleSiteChange = (nextSite: string) => switchSite(nextSite);
 
   const [showSettings, setShowSettings] = useState(false);
-  const geneSearchOpen = useWorkbenchStore((s) => s.geneSearchOpen);
-  const toggleGeneSearch = useWorkbenchStore((s) => s.toggleGeneSearch);
-  const leftSidebarOpen = useWorkbenchStore((s) => s.leftSidebarOpen);
-  const toggleLeftSidebar = useWorkbenchStore((s) => s.toggleLeftSidebar);
-
-  // Reset workbench UI state on site change (selection, panels, etc.).
-  // Gene-set data is handled by TanStack Query (keyed by siteId).
-  const resetWorkbench = useWorkbenchStore((s) => s.reset);
-  const prevSiteRef = useRef(selectedSite);
-  useEffect(() => {
-    if (prevSiteRef.current !== selectedSite) {
-      resetWorkbench();
-      prevSiteRef.current = selectedSite;
-    }
-  }, [selectedSite, resetWorkbench]);
-
-  if (authLoading || configLoading) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center bg-background text-foreground">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="mt-3 text-sm text-muted-foreground">Loading...</p>
-      </div>
-    );
-  }
+  const {
+    geneSearchOpen,
+    toggleGeneSearch,
+    leftSidebarOpen,
+    toggleLeftSidebar,
+  } = useWorkbenchStore(
+    useShallow((s) => ({
+      geneSearchOpen: s.geneSearchOpen,
+      toggleGeneSearch: s.toggleGeneSearch,
+      leftSidebarOpen: s.leftSidebarOpen,
+      toggleLeftSidebar: s.toggleLeftSidebar,
+    })),
+  );
 
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
-
-  if (apiError !== null) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 bg-background text-foreground">
-        <AlertTriangle className="h-10 w-10 text-destructive" />
-        <div className="text-center">
-          <p className="text-sm font-medium">Unable to connect to the API</p>
-          <p className="mt-1 max-w-sm text-xs text-muted-foreground">{apiError}</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={retryAuth}>
-          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-          Retry
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">

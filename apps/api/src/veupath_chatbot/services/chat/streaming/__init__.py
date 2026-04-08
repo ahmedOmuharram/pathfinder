@@ -10,6 +10,7 @@ import contextlib
 from collections.abc import AsyncIterator
 
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
+from veupath_chatbot.platform.event_schemas import PipelineConfig
 from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.chat.streaming.producer import produce_events
 
@@ -18,7 +19,7 @@ async def stream_pipeline(
     deps: AgentDeps,
     message: str,
     *,
-    model_id: str = "",
+    pipeline: PipelineConfig,
 ) -> AsyncIterator[JSONObject]:
     """Stream chat responses from the pydantic-ai pipeline as SSE-friendly events.
 
@@ -33,7 +34,7 @@ async def stream_pipeline(
     deps.event_queue = queue
 
     producer = asyncio.create_task(
-        produce_events(deps, message, queue, model_id)
+        produce_events(deps, message, queue, pipeline)
     )
     try:
         while True:

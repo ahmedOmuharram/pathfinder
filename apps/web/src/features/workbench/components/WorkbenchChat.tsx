@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef } from "react";
 import {
   MessageCircle,
   ChevronDown,
@@ -28,33 +28,27 @@ export function WorkbenchChat({ experimentId, siteId }: WorkbenchChatProps) {
   const { messages, streaming, activeToolCalls, error, sendMessage, stop } =
     useWorkbenchChat(experimentId, siteId);
 
-  // Auto-scroll on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  const scrollKey = `${messages.length}|${activeToolCalls.length}`;
+  const [prevScrollKey, setPrevScrollKey] = useState(scrollKey);
+  if (scrollKey !== prevScrollKey) {
+    setPrevScrollKey(scrollKey);
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }
+
+  const handleSubmit = (e?: { preventDefault: () => void }) => {
+    e?.preventDefault();
+    const text = input.trim();
+    if (!text || streaming) return;
+    setInput("");
+    sendMessage(text);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
     }
-  }, [messages, activeToolCalls]);
-
-  const handleSubmit = useCallback(
-    (e?: { preventDefault: () => void }) => {
-      e?.preventDefault();
-      const text = input.trim();
-      if (!text || streaming) return;
-      setInput("");
-      sendMessage(text);
-    },
-    [input, streaming, sendMessage],
-  );
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSubmit();
-      }
-    },
-    [handleSubmit],
-  );
+  };
 
   return (
     <Card>

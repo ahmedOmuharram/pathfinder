@@ -30,7 +30,7 @@ function TestForm({
   defaultValue,
 }: {
   spec: ParamSpec;
-  schema: z.ZodObject<Record<string, z.ZodTypeAny>>;
+  schema: z.ZodObject<Record<string, z.ZodType>>;
   defaultValue?: string;
 }) {
   const form = useForm({

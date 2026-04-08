@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getVeupathdbAuthStatus, logoutVeupathdb } from "@/lib/api/veupathdb-auth";
+import { authStatusOptions, logoutVeupathdb } from "@/lib/api/veupathdb-auth";
 import { useSessionStore } from "@/state/useSessionStore";
 import { Modal } from "@/lib/components/Modal";
 import { SignInForm } from "@/features/sites/components/SignInForm";
@@ -27,18 +27,13 @@ export function SiteAuth({
   const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
   const veupathdbName = useSessionStore((state) => state.veupathdbName);
   const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
-  const authVersion = useSessionStore((state) => state.authVersion);
+  const { data: authStatus } = useQuery(authStatusOptions(siteId));
 
-  const { data: authStatus } = useQuery({
-    queryKey: ["auth", "status", siteId, authVersion] as const,
-    queryFn: () => getVeupathdbAuthStatus(siteId),
-    enabled: siteId !== "",
-  });
-
-  useEffect(() => {
-    if (authStatus == null) return;
+  const [prevAuthStatus, setPrevAuthStatus] = useState(authStatus);
+  if (authStatus != null && authStatus !== prevAuthStatus) {
+    setPrevAuthStatus(authStatus);
     setVeupathdbAuth(authStatus.signedIn, authStatus.name ?? null);
-  }, [authStatus, setVeupathdbAuth]);
+  }
 
   const displaySignedIn = veupathdbSignedIn === true || authStatus?.signedIn === true;
   const displayName = veupathdbName ?? authStatus?.name ?? "";

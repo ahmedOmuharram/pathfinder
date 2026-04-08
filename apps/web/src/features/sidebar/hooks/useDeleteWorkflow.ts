@@ -9,7 +9,7 @@
  * Uses useQueryClient() directly for optimistic cache updates.
  */
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { deleteStrategy, restoreStrategy, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import { toUserMessage } from "@/lib/api/errors";
@@ -60,7 +60,7 @@ export function useDeleteWorkflow({
   const dismissedKey = dismissedStrategiesOptions(siteId).queryKey;
 
   // --- Soft-delete ---
-  const confirmDelete = useCallback(async () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
@@ -108,21 +108,10 @@ export function useDeleteWorkflow({
       setIsDeleting(false);
       setDeleteTarget(null);
     }
-  }, [
-    deleteTarget,
-    strategyId,
-    deleteFromWdk,
-    setStrategyId,
-    clearStrategy,
-    queryClient,
-    listKey,
-    dismissedKey,
-    reportError,
-  ]);
+  };
 
   // --- Restore dismissed ---
-  const handleRestore = useCallback(
-    async (strategyIdToRestore: string) => {
+  const handleRestore = async (strategyIdToRestore: string) => {
       try {
         const restored = await restoreStrategy(strategyIdToRestore);
         queryClient.setQueryData<Strategy[]>(dismissedKey, (old) =>
@@ -134,13 +123,14 @@ export function useDeleteWorkflow({
         ]);
       } catch (err) {
         reportError(toUserMessage(err, "Failed to restore strategy."));
-      }
-    },
-    [reportError, queryClient, dismissedKey, listKey],
-  );
+      } finally {
+        void queryClient.invalidateQueries({ queryKey: listKey });
+        void queryClient.invalidateQueries({ queryKey: dismissedKey });
+    }
+  };
 
   // --- Permanent delete (dismissed strategy -> hard-delete from WDK) ---
-  const confirmPermanentDelete = useCallback(async () => {
+  const confirmPermanentDelete = async () => {
     if (permanentDeleteTarget == null) return;
     try {
       await deleteStrategy(permanentDeleteTarget, true);
@@ -150,9 +140,10 @@ export function useDeleteWorkflow({
     } catch (err) {
       reportError(toUserMessage(err, "Failed to permanently delete strategy."));
     } finally {
+      void queryClient.invalidateQueries({ queryKey: dismissedKey });
       setPermanentDeleteTarget(null);
     }
-  }, [permanentDeleteTarget, queryClient, dismissedKey, reportError]);
+  };
 
   return {
     deleteTarget,

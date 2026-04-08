@@ -39,7 +39,7 @@ function TestForm({
   options = sampleOptions,
 }: {
   spec: ParamSpec;
-  schema: z.ZodObject<Record<string, z.ZodTypeAny>>;
+  schema: z.ZodObject<Record<string, z.ZodType>>;
   defaultValue?: string | string[];
   options?: VocabOption[];
 }) {

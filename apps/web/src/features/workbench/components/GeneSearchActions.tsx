@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Loader2, Plus, ThumbsDown, ThumbsUp } from "lucide-react";
 import { createGeneSet } from "@/features/workbench/api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -35,7 +35,7 @@ export function GeneSearchActions({
 
   const hasSelection = selectedIds.size > 0;
 
-  const handleCreateGeneSet = useCallback(async () => {
+  const handleCreateGeneSet = async () => {
     if (selectedIds.size === 0) return;
     const name = newSetName.trim() || `Search: ${query.trim()}`;
     setCreating(true);
@@ -55,27 +55,19 @@ export function GeneSearchActions({
     } finally {
       setCreating(false);
     }
-  }, [
-    selectedIds,
-    newSetName,
-    query,
-    selectedSite,
-    invalidateGeneSets,
-    onClearSelection,
-    onError,
-  ]);
+  };
 
-  const handleAddPositive = useCallback(() => {
+  const handleAddPositive = () => {
     if (selectedIds.size === 0) return;
     appendPositiveControls([...selectedIds]);
     onClearSelection();
-  }, [selectedIds, appendPositiveControls, onClearSelection]);
+  };
 
-  const handleAddNegative = useCallback(() => {
+  const handleAddNegative = () => {
     if (selectedIds.size === 0) return;
     appendNegativeControls([...selectedIds]);
     onClearSelection();
-  }, [selectedIds, appendNegativeControls, onClearSelection]);
+  };
 
   return (
     <div className="space-y-2 border-t border-border px-3 py-3">

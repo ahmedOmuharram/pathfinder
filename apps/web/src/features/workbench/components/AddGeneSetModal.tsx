@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Modal } from "@/lib/components/Modal";
 import { cn } from "@/lib/utils/cn";
 import { AddGeneSetPasteTab } from "./AddGeneSetPasteTab";
@@ -21,15 +21,15 @@ const TABS: { value: Tab; label: string }[] = [
 export function AddGeneSetModal({ open, onClose }: AddGeneSetModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>("paste");
 
-  const handleClose = useCallback(() => {
+  const handleClose = () => {
     setActiveTab("paste");
     onClose();
-  }, [onClose]);
+  };
 
-  const handleCreated = useCallback(() => {
+  const handleCreated = () => {
     setActiveTab("paste");
     onClose();
-  }, [onClose]);
+  };
 
   return (
     <Modal

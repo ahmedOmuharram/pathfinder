@@ -85,10 +85,20 @@ class WorkbenchProducerIds:
 def resolve_model_id(
     model_override: str | None = None,
 ) -> str:
-    """Resolve the effective model ID from overrides or settings default."""
+    """Resolve the effective model ID from overrides or settings default.
+
+    Falls back to the execution-phase model from the default tier preset,
+    since workbench chat is closest to execution-style work.
+    """
     if model_override:
         return model_override
-    return get_settings().default_model_id
+    settings = get_settings()
+    from veupath_chatbot.ai.models.tiers import get_tier_preset  # noqa: PLC0415
+
+    preset = get_tier_preset(settings.default_provider, settings.default_tier)
+    if preset is not None:
+        return preset.execution.model_id
+    return f"{settings.default_provider}/default"
 
 
 async def build_chat_history_from_redis(

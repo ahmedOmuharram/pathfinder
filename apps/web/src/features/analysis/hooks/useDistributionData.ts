@@ -1,12 +1,12 @@
-import { useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import type { DistributionResponse } from "@/lib/types/wdk";
-import { distributionOptions, type EntityRef } from "@/features/analysis/api/stepResults";
+import {
+  distributionOptions,
+  getDistribution,
+  type EntityRef,
+} from "@/features/analysis/api/stepResults";
 import type { DistributionEntry } from "@/features/analysis/components/DistributionExplorer/types";
 import { APIError } from "@/lib/api/http";
-
-const NO_DATA_MESSAGE =
-  "No distribution data available for this attribute. Try a different one.";
 
 export function parseDistribution(raw: DistributionResponse): DistributionEntry[] {
   const isNumericBinned = raw.histogram[0]?.binStart !== "";
@@ -19,17 +19,23 @@ export function parseDistribution(raw: DistributionResponse): DistributionEntry[
   return isNumericBinned ? parsed : parsed.sort((a, b) => b.count - a.count);
 }
 
-function formatDistributionError(error: Error): string {
-  if (error instanceof APIError && (error.status === 404 || error.status === 422)) {
-    return NO_DATA_MESSAGE;
-  }
-  return error.message;
-}
+const EMPTY_DISTRIBUTION: DistributionResponse = {
+  histogram: [],
+  statistics: {
+    subsetSize: 0,
+    subsetMin: null,
+    subsetMax: null,
+    subsetMean: null,
+    numVarValues: 0,
+    numDistinctValues: 0,
+    numDistinctEntityRecords: 0,
+    numMissingCases: 0,
+  },
+};
 
 interface DistributionDataState {
   distribution: DistributionEntry[];
-  loading: boolean;
-  error: string | null;
+  noData: boolean;
   refresh: () => void;
 }
 
@@ -39,32 +45,34 @@ export function useDistributionData(
 ): DistributionDataState {
   const queryClient = useQueryClient();
 
-  const distOpts = distributionOptions(entityRef, selectedAttr);
+  const { enabled: _enabled, ...distOpts } = distributionOptions(entityRef, selectedAttr);
 
-  const { data, isPending, error } = useQuery({
+  const { data } = useSuspenseQuery({
     ...distOpts,
+    queryFn: async () => {
+      try {
+        return await getDistribution(entityRef, selectedAttr);
+      } catch (err) {
+        if (err instanceof APIError && (err.status === 404 || err.status === 422)) {
+          return EMPTY_DISTRIBUTION;
+        }
+        throw err;
+      }
+    },
     select: parseDistribution,
   });
 
-  const distribution = data ?? [];
+  const distribution = data;
 
-  const errorMessage =
-    error !== null
-      ? formatDistributionError(error)
-      : distribution.length === 0 && !isPending && selectedAttr !== ""
-        ? NO_DATA_MESSAGE
-        : null;
-
-  const refresh = useCallback(() => {
+  const refresh = () => {
     void queryClient.invalidateQueries({
       queryKey: distOpts.queryKey,
     });
-  }, [queryClient, distOpts.queryKey]);
+  };
 
   return {
     distribution,
-    loading: isPending && selectedAttr !== "",
-    error: errorMessage,
+    noData: distribution.length === 0 && selectedAttr !== "",
     refresh,
   };
 }

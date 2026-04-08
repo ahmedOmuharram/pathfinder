@@ -1,5 +1,6 @@
 "use client";
 
+import { useShallow } from "zustand/react/shallow";
 import { usePlanStore } from "@/state/usePlanStore";
 import { PlanThinkingBlock } from "./PlanThinkingBlock";
 import { StrategyPlanCard } from "./StrategyPlanCard";
@@ -10,9 +11,13 @@ interface PlanPanelProps {
 }
 
 export function PlanPanel({ onClose, onCollapse }: PlanPanelProps) {
-  const activePlan = usePlanStore((s) => s.activePlan);
-  const planThoughts = usePlanStore((s) => s.planThoughts);
-  const sendMessage = usePlanStore((s) => s.sendMessage);
+  const { activePlan, planThoughts, sendMessage } = usePlanStore(
+    useShallow((s) => ({
+      activePlan: s.activePlan,
+      planThoughts: s.planThoughts,
+      sendMessage: s.sendMessage,
+    })),
+  );
   if (activePlan == null) return null;
 
   const noopSend = (_text: string, _metadata?: Record<string, unknown>) => {};

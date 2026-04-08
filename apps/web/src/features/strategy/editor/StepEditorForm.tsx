@@ -32,25 +32,23 @@ export function StepEditorForm({ state }: StepEditorFormProps) {
             onRecordTypeValueChange={state.setRecordTypeValue}
             editableSearchName={state.editableSearchName}
             onSearchNameChange={state.setEditableSearchName}
-            isLoadingSearches={state.isLoadingSearches}
             searchOptions={state.searchOptions}
             filteredSearchOptions={state.filteredSearchOptions}
             searchName={state.searchName}
             selectedSearch={state.selectedSearch}
             isSearchNameAvailable={state.isSearchNameAvailable}
-            searchListError={state.searchListError}
             recordTypeValue={state.recordTypeValue ?? null}
             recordType={state.recordType}
             recordTypeOptions={state.recordTypeOptions}
           />
 
           <StepParamFields
+            form={state.form}
             paramSpecs={state.paramSpecs}
             vocabOptions={state.vocabOptions}
             siteId={state.siteId}
             recordType={state.recordType ?? ""}
             searchName={state.searchName}
-            onFormReady={state.onFormReady}
           />
         </>
       )}

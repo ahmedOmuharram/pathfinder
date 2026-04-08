@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { ArrowRightLeft, Plus } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
@@ -33,7 +33,7 @@ export function ComposeBar({ setA, setB, onExecute, loading }: ComposeBarProps) 
   const left = swapped ? setB : setA;
   const right = swapped ? setA : setB;
 
-  const result = useMemo(() => {
+  const result = (() => {
     switch (operation) {
       case "intersect":
         return setIntersect(left.geneIds, right.geneIds);
@@ -42,14 +42,14 @@ export function ComposeBar({ setA, setB, onExecute, loading }: ComposeBarProps) 
       case "minus":
         return setDifference(left.geneIds, right.geneIds);
     }
-  }, [operation, left.geneIds, right.geneIds]);
+  })();
 
   const opSymbol = OPS.find((o) => o.key === operation)!.symbol;
   const resultName = `${left.name} ${opSymbol} ${right.name}`;
 
-  const handleExecute = useCallback(() => {
+  const handleExecute = () => {
     onExecute({ operation, geneIds: result, name: resultName });
-  }, [operation, result, resultName, onExecute]);
+  };
 
   return (
     <div className="space-y-2.5">

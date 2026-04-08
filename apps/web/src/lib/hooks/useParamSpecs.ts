@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useDebouncedCallback } from "use-debounce";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useDebounce } from "use-debounce";
 import type { ParamSpec, Search } from "@pathfinder/shared";
 import { getParamSpecs } from "@/lib/api/sites";
 import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
@@ -80,7 +80,7 @@ function useParamSpecsSimple(
   searchName: string,
 ): UseParamSpecsResult {
   const { data, isLoading } = useParamSpecsQuery(siteId, recordType, searchName);
-  return useMemo(() => ({ paramSpecs: data ?? [], isLoading }), [data, isLoading]);
+  return { paramSpecs: data ?? [], isLoading };
 }
 
 // ---------------------------------------------------------------------------
@@ -98,53 +98,41 @@ function useParamSpecsAdvanced({
   contextValues,
   enabled = true,
 }: AdvancedOptions): UseParamSpecsResult {
-  const [paramSpecs, setParamSpecs] = useState<ParamSpec[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Stable identity key — only changes when the search itself changes,
-  // NOT when contextValues/isSearchNameAvailable flicker during renders.
-  const resolvedRecordType = useMemo(() => {
+  const resolvedRecordType = (() => {
     const result = resolveRecordTypeForSearch(selectedSearch?.recordType);
     const preferred =
       (result !== "" ? result : null) ?? apiRecordTypeValue ?? recordType;
     return normalizeRecordType(preferred);
-  }, [recordType, selectedSearch, apiRecordTypeValue, resolveRecordTypeForSearch]);
+  })();
 
-  const debouncedFetch = useDebouncedCallback((rt: string, ctx: StepParameters) => {
-    let isActive = true;
-    setIsLoading(true);
-    getParamSpecs(siteId, rt, searchName, buildContextValues(ctx))
-      .then((details) => {
-        if (!isActive) return;
-        setParamSpecs(details);
-      })
-      .catch((err) => {
-        console.error("[useParamSpecs]", err);
-        // Don't clear on error — keep stale specs rather than flashing
-        // empty. Params only clear on real identity change.
-      })
-      .finally(() => {
-        if (!isActive) return;
-        setIsLoading(false);
-      });
-    return () => {
-      isActive = false;
-    };
-  }, 250);
+  const contextSerialized = JSON.stringify(buildContextValues(contextValues ?? {}));
+  const [debouncedContext] = useDebounce(contextSerialized, 250);
 
-  // Primary fetch: fires when search identity changes.
-  // contextValues included in deps so the linter is satisfied — the 250ms
-  // debounce prevents rapid-fire fetches when the user types.
-  useEffect(() => {
-    if (
-      !enabled ||
-      searchName === "" ||
-      resolvedRecordType == null ||
-      resolvedRecordType === ""
-    )
-      return;
-    debouncedFetch(resolvedRecordType, contextValues ?? {});
-  }, [enabled, siteId, searchName, resolvedRecordType, contextValues, debouncedFetch]);
+  const queryEnabled =
+    enabled &&
+    searchName !== "" &&
+    resolvedRecordType != null &&
+    resolvedRecordType !== "";
 
-  return { paramSpecs, isLoading };
+  const { data, isLoading } = useQuery({
+    queryKey: [
+      "param-specs-advanced",
+      siteId,
+      resolvedRecordType,
+      searchName,
+      debouncedContext,
+    ] as const,
+    queryFn: () =>
+      getParamSpecs(
+        siteId,
+        resolvedRecordType!,
+        searchName,
+        JSON.parse(debouncedContext) as Record<string, string>,
+      ),
+    enabled: queryEnabled,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
+
+  return { paramSpecs: data ?? [], isLoading };
 }

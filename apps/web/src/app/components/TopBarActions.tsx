@@ -1,12 +1,13 @@
-import { Layers, MessageCircle, Settings } from "lucide-react";
+import { Brain, Layers, MessageCircle, Settings } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/lib/components/ui/Button";
 
 interface TopBarActionsProps {
   onOpenSettings: () => void;
+  onOpenEngine: () => void;
 }
 
-export function TopBarActions({ onOpenSettings }: TopBarActionsProps) {
+export function TopBarActions({ onOpenSettings, onOpenEngine }: TopBarActionsProps) {
   return (
     <div className="flex items-center gap-1">
       <span
@@ -25,6 +26,14 @@ export function TopBarActions({ onOpenSettings }: TopBarActionsProps) {
         Workbench
       </Link>
       <div className="mx-1 h-5 w-px bg-border" />
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onOpenEngine}
+        aria-label="AI Engine"
+      >
+        <Brain className="h-4 w-4" aria-hidden />
+      </Button>
       <Button
         variant="ghost"
         size="icon"

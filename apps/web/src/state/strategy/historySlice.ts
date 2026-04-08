@@ -4,6 +4,7 @@
 
 import type { Strategy } from "@pathfinder/shared";
 import type { StateCreator } from "zustand";
+import type { DevtoolsMutators } from "@/state/middleware";
 import type { StrategyState, HistorySlice } from "./types";
 import { buildStepsById } from "./helpers";
 
@@ -29,7 +30,7 @@ export function pushHistory(
   return { history: nextHistory, historyIndex: nextHistory.length - 1 };
 }
 
-export const createHistorySlice: StateCreator<StrategyState, [], [], HistorySlice> = (
+export const createHistorySlice: StateCreator<StrategyState, DevtoolsMutators, [], HistorySlice> = (
   set,
   get,
 ) => ({

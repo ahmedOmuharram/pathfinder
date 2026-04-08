@@ -21,6 +21,7 @@ from veupath_chatbot.ai.agents._instructions import (
 from veupath_chatbot.ai.capabilities.security import SecurityGuardrail
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.ai.tools.toolsets.planning import build_toolset
+from veupath_chatbot.domain.strategy.plan import PlanStatus, StepStatus
 
 # ---------------------------------------------------------------------------
 # Static instructions
@@ -100,6 +101,36 @@ def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
 @planning_agent.instructions
 def _mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:
     return mentioned_context(ctx)
+
+
+@planning_agent.instructions
+def _replan_context(ctx: RunContext[AgentDeps]) -> str | None:
+    """Inject failure context when re-entering planning after a failed execution."""
+    plan = ctx.deps.agent_state.active_plan
+    if plan is None or plan.status != PlanStatus.FAILED:
+        return None
+
+    failed = [s for s in plan.steps if s.status == StepStatus.FAILED]
+    if not failed:
+        return None
+
+    lines = [
+        "## Replanning Required",
+        "",
+        "The previous execution plan failed. Create a NEW plan with a "
+        "different approach. Do NOT reuse the same searches or parameters "
+        "that failed.",
+        "",
+        "### Failed Steps",
+    ]
+    for step in failed:
+        reason = step.failure_reason or "unknown error"
+        lines.append(
+            f"- **{step.display_name}** ({step.step_type}, "
+            f"search: `{step.search_name}`): {reason}"
+        )
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------

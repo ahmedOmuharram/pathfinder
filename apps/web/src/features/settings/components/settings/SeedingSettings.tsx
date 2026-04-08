@@ -4,7 +4,7 @@
  * SeedingSettings -- seed demo strategies for VEuPathDB databases.
  */
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useSessionStore } from "@/state/useSessionStore";
 import { seedExperiments } from "@/lib/api/experiments";
 import Image from "next/image";
@@ -66,21 +66,18 @@ export function SeedingSettings() {
   const [seedingDb, setSeedingDb] = useState<string | null>(null);
   const [seedStatus, setSeedStatus] = useState<string | null>(null);
 
-  const handleSeed = useCallback(
-    async (siteId?: string) => {
-      setSeedingDb(siteId ?? "all");
-      setSeedStatus("Starting...");
-      try {
-        await seedExperiments((message) => setSeedStatus(message), siteId);
-      } catch (err) {
-        setSeedStatus(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
-      } finally {
-        setSeedingDb(null);
-        bumpAuthVersion();
-      }
-    },
-    [bumpAuthVersion],
-  );
+  const handleSeed = async (siteId?: string) => {
+    setSeedingDb(siteId ?? "all");
+    setSeedStatus("Starting...");
+    try {
+      await seedExperiments((message) => setSeedStatus(message), siteId);
+    } catch (err) {
+      setSeedStatus(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+    } finally {
+      setSeedingDb(null);
+      bumpAuthVersion();
+    }
+  };
 
   return (
     <div className="space-y-5">

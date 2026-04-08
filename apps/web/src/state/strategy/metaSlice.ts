@@ -3,9 +3,10 @@
  */
 
 import type { StateCreator } from "zustand";
+import type { DevtoolsMutators } from "@/state/middleware";
 import type { StrategyState, MetaSlice } from "./types";
 
-export const createMetaSlice: StateCreator<StrategyState, [], [], MetaSlice> = (
+export const createMetaSlice: StateCreator<StrategyState, DevtoolsMutators, [], MetaSlice> = (
   set,
 ) => ({
   graphValidationStatus: {},

@@ -10,7 +10,7 @@
  * - `ConversationList` — list rendering
  */
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { AlertTriangle, Archive, Loader2, RefreshCw } from "lucide-react";
 import { Modal } from "@/lib/components/Modal";
 import { Input } from "@/lib/components/ui/Input";
@@ -32,10 +32,7 @@ interface ConversationSidebarProps {
 export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProps) {
   const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
 
-  const reportError = useCallback(
-    (message: string) => onToast?.({ type: "error", message }),
-    [onToast],
-  );
+  const reportError = (message: string) => onToast?.({ type: "error", message });
 
   const [showDismissed, setShowDismissed] = useState(false);
 

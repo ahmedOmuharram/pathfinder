@@ -8,7 +8,6 @@
  * secondary input floats above it via absolute positioning.
  */
 
-import { useMemo } from "react";
 import { Layers, Loader2, Pencil } from "lucide-react";
 import type { Strategy } from "@pathfinder/shared";
 import {
@@ -128,16 +127,14 @@ export function CompactStrategyView({
   onExportAsGeneSet,
   exportingGeneSet = false,
 }: CompactStrategyViewProps) {
-  const spine = useMemo(() => {
-    if (
-      strategy == null ||
-      strategy.steps.length === 0 ||
-      strategy.rootStepId == null ||
-      strategy.rootStepId === ""
-    )
-      return [];
-    return buildSpineLayout(strategy.steps, strategy.rootStepId);
-  }, [strategy]);
+  const spine = (
+    strategy == null ||
+    strategy.steps.length === 0 ||
+    strategy.rootStepId == null ||
+    strategy.rootStepId === ""
+  )
+    ? []
+    : buildSpineLayout(strategy.steps, strategy.rootStepId);
 
   const canOpenInWorkbench =
     strategy?.wdkStrategyId != null && onExportAsGeneSet != null;

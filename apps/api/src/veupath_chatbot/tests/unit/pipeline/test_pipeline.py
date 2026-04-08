@@ -1,5 +1,7 @@
 """Unit tests for the AgentPipeline state machine."""
 
+import pytest
+from statemachine import State, StateChart
 
 from veupath_chatbot.ai.orchestration.pipeline import (
     AgentPipeline,
@@ -249,3 +251,39 @@ class TestPipelineTracker:
 
         assert "planning" in entered_phases
         assert "completed" in entered_phases
+
+    def test_guard_error_propagates(self) -> None:
+        """Guard exceptions must propagate, not be silently swallowed.
+
+        Uses a minimal StateChart (not AgentPipeline) because python-statemachine
+        resolves guard references at class definition time, making instance
+        monkey-patching ineffective.
+        """
+
+        class GuardBugChart(StateChart[None]):
+            allow_event_without_transition = True
+            catch_errors_as_events = False
+
+            s1 = State(initial=True)
+            s2 = State(final=True)
+            go = s1.to(s2, cond="buggy_guard")
+
+            def buggy_guard(self) -> bool:
+                msg = "guard bug"
+                raise RuntimeError(msg)
+
+        sm = GuardBugChart()
+        with pytest.raises(RuntimeError, match="guard bug"):
+            sm.send("go")
+
+    def test_listener_error_propagates(self) -> None:
+        """Listener callback exceptions must propagate, not be silently swallowed."""
+
+        class BuggyListener:
+            def on_enter_planning(self) -> None:
+                msg = "listener bug"
+                raise RuntimeError(msg)
+
+        pipeline = create_pipeline(listeners=[BuggyListener()])
+        with pytest.raises(RuntimeError, match="listener bug"):
+            pipeline.send("finish_discovery")

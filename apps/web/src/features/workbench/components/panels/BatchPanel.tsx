@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Layers, Play, Loader2 } from "lucide-react";
 import type { Experiment } from "@pathfinder/shared";
@@ -54,7 +54,7 @@ export function BatchPanel() {
     activeSet.parameters != null,
   );
 
-  const handleRun = useCallback(async () => {
+  const handleRun = async () => {
     if (!activeSet) return;
     if (selectedOrganisms.length === 0) return;
     if (organismParamName == null || organismParamName === "") return;
@@ -107,14 +107,7 @@ export function BatchPanel() {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
     }
-  }, [
-    activeSet,
-    selectedOrganisms,
-    organismParamName,
-    positiveControls,
-    negativeControls,
-    queryClient,
-  ]);
+  };
 
   return (
     <AnalysisPanelContainer

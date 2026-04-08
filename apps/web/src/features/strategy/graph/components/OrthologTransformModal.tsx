@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, startTransition } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { Search } from "@pathfinder/shared";
-import { getSearches } from "@/lib/api/sites";
+import { searchesOptions } from "@/lib/api/sites";
 import { Modal } from "@/lib/components/Modal";
 import { Label } from "@/lib/components/ui/Label";
 
@@ -21,46 +22,20 @@ export function OrthologTransformModal(props: {
   onChoose: (search: Search, options: { insertBetween: boolean }) => void;
 }) {
   const { open, siteId, recordType, onCancel, onChoose } = props;
-  const [isLoading, setIsLoading] = useState(false);
-  const [searches, setSearches] = useState<Search[]>([]);
+  const { enabled: _enabled, ...searchOpts } = searchesOptions(siteId, recordType);
+  const {
+    data: allSearches = [],
+    isPending: isLoading,
+    error: queryError,
+  } = useQuery({ ...searchOpts, enabled: open && siteId !== "" });
+  const searches = allSearches.filter(looksLikeOrthologSearch);
   const [selectedName, setSelectedName] = useState<string>("");
   const [insertBetween, setInsertBetween] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const error = queryError != null
+    ? (queryError instanceof Error ? queryError.message : "Failed to load searches.")
+    : null;
 
-  useEffect(() => {
-    if (!open) return;
-    let alive = true;
-    startTransition(() => {
-      setIsLoading(true);
-      setError(null);
-    });
-    getSearches(siteId, recordType)
-      .then((all) => {
-        if (!alive) return;
-        const matches = all.filter(looksLikeOrthologSearch);
-        setSearches(matches);
-        setSelectedName(matches[0]?.name ?? "");
-      })
-      .catch((e: unknown) => {
-        if (!alive) return;
-        const message = e instanceof Error ? e.message : "Failed to load searches.";
-        setError(message);
-        setSearches([]);
-        setSelectedName("");
-      })
-      .finally(() => {
-        if (!alive) return;
-        setIsLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [open, siteId, recordType]);
-
-  const selected = useMemo(
-    () => searches.find((s) => s.name === selectedName) ?? null,
-    [searches, selectedName],
-  );
+  const selected = searches.find((s) => s.name === selectedName) ?? searches[0] ?? null;
 
   return (
     <Modal

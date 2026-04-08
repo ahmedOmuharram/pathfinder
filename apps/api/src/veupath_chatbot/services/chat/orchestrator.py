@@ -17,7 +17,7 @@ from veupath_chatbot.persistence.models import Stream
 from veupath_chatbot.persistence.repositories import StreamRepository
 from veupath_chatbot.platform.context import operation_id_ctx, stream_id_ctx
 from veupath_chatbot.platform.errors import InternalError
-from veupath_chatbot.platform.event_schemas import UserMessageEventData
+from veupath_chatbot.platform.event_schemas import PipelineConfig, UserMessageEventData
 from veupath_chatbot.platform.events import emit
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
@@ -35,21 +35,21 @@ logger = get_logger(__name__)
 # Used to cancel operations from the HTTP layer.
 _active_tasks: dict[str, asyncio.Task[None]] = {}
 
-# ── Model resolution ──────────────────────────────────────────────
+# ── Pipeline resolution ──────────────────────────────────────────
 # Injected at startup via configure().
 
-_resolve_model_id_holder: dict[str, Callable[..., str]] = {}
+_resolve_pipeline_holder: dict[str, Callable[..., PipelineConfig]] = {}
 
 
 def configure(
     *,
-    resolve_model_id_fn: Callable[..., str],
+    resolve_pipeline_fn: Callable[..., PipelineConfig],
 ) -> None:
-    """Wire model resolution into the orchestrator.
+    """Wire pipeline resolution into the orchestrator.
 
     Called once at application startup from the composition root.
     """
-    _resolve_model_id_holder["v"] = resolve_model_id_fn
+    _resolve_pipeline_holder["v"] = resolve_pipeline_fn
 
 
 async def _ensure_stream(
@@ -125,7 +125,7 @@ async def start_chat_stream(
 
     _selected_nodes, model_message = parse_selected_nodes(message)
 
-    if "v" not in _resolve_model_id_holder:
+    if "v" not in _resolve_pipeline_holder:
         msg = (
             "Chat orchestrator not configured. "
             "Call services.chat.orchestrator.configure() at startup."
@@ -148,7 +148,7 @@ async def start_chat_stream(
             operation_id=operation_id,
             turn=turn,
             config=cfg,
-            resolve_model_id_fn=_resolve_model_id_holder["v"],
+            resolve_pipeline_fn=_resolve_pipeline_holder["v"],
         )
     )
     _active_tasks[operation_id] = task

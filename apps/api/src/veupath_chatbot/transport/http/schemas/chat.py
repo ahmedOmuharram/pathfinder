@@ -6,11 +6,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from veupath_chatbot.platform.event_schemas import PipelineConfig
 from veupath_chatbot.platform.types import (
     JSONObject,
     JSONValue,
-    ModelProvider,
-    ReasoningEffort,
 )
 from veupath_chatbot.services.chat.types import ChatMention
 from veupath_chatbot.services.strategies.schemas import StrategyPlanPayload
@@ -26,25 +25,13 @@ class ChatRequest(BaseModel):
     site_id: str = Field(alias="siteId")
     message: str = Field(min_length=1, max_length=200_000)
 
-    # Per-request model overrides (optional; falls back to server defaults).
-    provider: ModelProvider | None = Field(default=None)
-    model_id: str | None = Field(default=None, alias="model")
-    reasoning_effort: ReasoningEffort | None = Field(
-        default=None, alias="reasoningEffort"
-    )
+    # Per-phase model configuration (required).
+    pipeline: PipelineConfig = Field(alias="pipeline")
 
     # Thesis experiment controls.
     disable_rag: bool = Field(default=False, alias="disableRag")
     temperature: float | None = Field(default=None)
     seed: int | None = Field(default=None)
-
-    # Per-model tuning overrides from user settings.
-    context_size: int | None = Field(default=None, alias="contextSize")
-    response_tokens: int | None = Field(default=None, alias="responseTokens")
-    reasoning_budget: int | None = Field(default=None, alias="reasoningBudget")
-
-    # Tools the user has disabled in the UI.
-    disabled_tools: list[str] = Field(default_factory=list, alias="disabledTools")
 
     # @-mention references to strategies and experiments.
     mentions: list[ChatMention] = Field(default_factory=list)

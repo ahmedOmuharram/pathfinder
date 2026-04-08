@@ -58,7 +58,7 @@ from veupath_chatbot.transport.http.routers import (
     operations,
     sites,
     strategies,
-    tools,
+    tiers,
     undo,
     user_data,
     veupathdb_auth,
@@ -154,24 +154,49 @@ def _wire_ai_dependencies() -> None:
     """
     settings = get_settings()
 
-    # In mock mode, force the deterministic mock model so the pipeline
-    # uses FunctionModel instead of calling a real LLM provider.
-    if settings.chat_provider.strip().lower() == "mock":
-        settings.default_model_id = "mock/deterministic"
-
-    def _resolve_model_id(
-        model_override: str | None = None,
-        persisted_model_id: str | None = None,
-    ) -> str:
-        if model_override:
-            return model_override
-        if persisted_model_id:
-            return persisted_model_id
-        return settings.default_model_id
-
-    orchestrator.configure(
-        resolve_model_id_fn=_resolve_model_id,
+    from veupath_chatbot.ai.models.tiers import get_tier_preset  # noqa: PLC0415
+    from veupath_chatbot.platform.event_schemas import (  # noqa: PLC0415
+        PipelineConfig,
+        PipelinePhaseConfig,
     )
+
+    def _build_mock_pipeline() -> PipelineConfig:
+        mock_phase = PipelinePhaseConfig(model_id="mock/deterministic", reasoning_effort="medium")
+        return PipelineConfig(
+            discovery=mock_phase, planning=mock_phase,
+            execution=mock_phase, verification=mock_phase,
+        )
+
+    is_mock = settings.chat_provider.strip().lower() == "mock"
+
+    def _resolve_pipeline(
+        pipeline_override: PipelineConfig | None = None,
+        persisted_pipeline: dict[str, object] | None = None,
+    ) -> PipelineConfig:
+        if is_mock:
+            return _build_mock_pipeline()
+        if pipeline_override is not None:
+            return pipeline_override
+        if persisted_pipeline is not None:
+            return PipelineConfig.model_validate(persisted_pipeline)
+        preset = get_tier_preset(settings.default_provider, settings.default_tier)
+        if preset is None:
+            fallback = PipelinePhaseConfig(
+                model_id=f"{settings.default_provider}/default",
+                reasoning_effort="medium",
+            )
+            return PipelineConfig(
+                discovery=fallback, planning=fallback,
+                execution=fallback, verification=fallback,
+            )
+        return PipelineConfig(
+            discovery=PipelinePhaseConfig(model_id=preset.discovery.model_id, reasoning_effort=preset.discovery.reasoning_effort),
+            planning=PipelinePhaseConfig(model_id=preset.planning.model_id, reasoning_effort=preset.planning.reasoning_effort),
+            execution=PipelinePhaseConfig(model_id=preset.execution.model_id, reasoning_effort=preset.execution.reasoning_effort),
+            verification=PipelinePhaseConfig(model_id=preset.verification.model_id, reasoning_effort=preset.verification.reasoning_effort),
+        )
+
+    orchestrator.configure(resolve_pipeline_fn=_resolve_pipeline)
 
 
 def create_app() -> FastAPI:
@@ -267,7 +292,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(sites.router)
     app.include_router(models.router)
-    app.include_router(tools.router)
+    app.include_router(tiers.router)
     app.include_router(chat.router)
     app.include_router(undo.router)
     app.include_router(strategies.router)

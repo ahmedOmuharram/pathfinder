@@ -1,8 +1,6 @@
 /**
  * Zod schemas for Strategy / Step API responses.
  *
- * All object schemas use .passthrough() so extra fields from the backend
- * are preserved rather than stripped.
  */
 import { z } from "zod";
 import { DateTimeString, ParamRecord, UuidString } from "./common";
@@ -143,8 +141,8 @@ export const StrategyListItemListSchema = z.array(StrategyListItemSchema);
 
 /**
  * Minimal PlanStepNode schema — recursive tree structure.
- * We validate the known top-level fields but use .passthrough() to keep
- * the recursive children as-is since Zod lazy schemas are expensive.
+ * We validate the known top-level fields; recursive children are kept
+ * as-is since Zod lazy schemas are expensive.
  */
 const PlanStepNodeSchema: z.ZodType<{
   searchName: string;

@@ -184,7 +184,7 @@ class StreamProjection(Base):
     record_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     wdk_strategy_id: Mapped[int | None] = mapped_column(nullable=True)
     is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
-    model_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    pipeline: Mapped[JSONObject | None] = mapped_column(JSON, nullable=True)
     message_count: Mapped[int] = mapped_column(Integer, default=0)
     step_count: Mapped[int] = mapped_column(Integer, default=0)
     plan: Mapped[JSONObject] = mapped_column(JSON, default=dict)

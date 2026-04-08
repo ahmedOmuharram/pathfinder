@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useIsomorphicLayoutEffect } from "usehooks-ts";
 import { VennDiagram, VennSeries, VennArc, VennLabel, ChartTooltip } from "reaviz";
 import {
   computeVennData,
@@ -42,70 +43,55 @@ export function SetVenn({
   onRegionClick,
 }: SetVennProps) {
   const [colors, setColors] = useState(FALLBACK_COLORS);
-  useEffect(() => {
-    queueMicrotask(() => setColors(resolveChartColors()));
+  useIsomorphicLayoutEffect(() => {
+    setColors(resolveChartColors());
   }, []);
 
   // Real counts for display, log-scaled data for circle sizing
-  const realData = useMemo(() => computeVennData(sets), [sets]);
-  const data = useMemo(() => logScaleVennData(realData), [realData]);
+  const realData = computeVennData(sets);
+  const data = logScaleVennData(realData);
 
   // Lookup: joined key → real gene count
-  const realCountMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const d of realData) {
-      map.set(d.key.join("|"), d.data);
-    }
-    return map;
-  }, [realData]);
+  const realCountMap = new Map<string, number>();
+  for (const d of realData) {
+    realCountMap.set(d.key.join("|"), d.data);
+  }
 
   // Total unique genes across all sets (for percentage calculation)
-  const totalGenes = useMemo(() => {
+  const totalGenes = (() => {
     const all = new Set<string>();
     for (const s of sets) {
       for (const g of s.geneIds) all.add(g);
     }
     return all.size;
-  }, [sets]);
+  })();
 
   // Format label: show real count and percentage
-  const formatLabel = useCallback(
-    (d: VennLayoutItem) => {
-      const realCount = realCountMap.get(d.data.key) ?? Math.round(d.data.size);
-      const pct = totalGenes > 0 ? ((realCount / totalGenes) * 100).toFixed(1) : "0.0";
-      return `${realCount.toLocaleString()} (${pct}%)`;
-    },
-    [realCountMap, totalGenes],
-  );
+  const formatLabel = (d: VennLayoutItem) => {
+    const realCount = realCountMap.get(d.data.key) ?? Math.round(d.data.size);
+    const pct = totalGenes > 0 ? ((realCount / totalGenes) * 100).toFixed(1) : "0.0";
+    return `${realCount.toLocaleString()} (${pct}%)`;
+  };
 
   // Format tooltip: show set name(s) with real count
-  const formatTooltip = useCallback(
-    (d: { x: string; y: number }) => {
-      const key = d.x.replace(/ \| /g, "|");
-      const realCount = realCountMap.get(key) ?? Math.round(d.y);
-      return `${d.x}: ${realCount.toLocaleString()}`;
-    },
-    [realCountMap],
-  );
+  const formatTooltip = (d: { x: string; y: number }) => {
+    const key = d.x.replace(/ \| /g, "|");
+    const realCount = realCountMap.get(key) ?? Math.round(d.y);
+    return `${d.x}: ${realCount.toLocaleString()}`;
+  };
 
-  const exclusiveRegions = useMemo(
-    () => (onRegionClick ? computeExclusiveRegions(sets) : null),
-    [sets, onRegionClick],
-  );
+  const exclusiveRegions = onRegionClick ? computeExclusiveRegions(sets) : null;
 
-  const handleArcClick = useCallback(
-    (event: { value: { sets: string[]; size: number }; nativeEvent: MouseEvent }) => {
-      if (!onRegionClick || !exclusiveRegions) return;
-      const regionKey = event.value.sets.join(",");
-      const geneIds = exclusiveRegions.get(regionKey) ?? [];
-      const label =
-        event.value.sets.length === 1
-          ? `Only ${event.value.sets[0]}`
-          : event.value.sets.join(" \u2229 ");
-      onRegionClick(geneIds, label);
-    },
-    [onRegionClick, exclusiveRegions],
-  );
+  const handleArcClick = (event: { value: { sets: string[]; size: number }; nativeEvent: MouseEvent }) => {
+    if (!onRegionClick || !exclusiveRegions) return;
+    const regionKey = event.value.sets.join(",");
+    const geneIds = exclusiveRegions.get(regionKey) ?? [];
+    const label =
+      event.value.sets.length === 1
+        ? `Only ${event.value.sets[0]}`
+        : event.value.sets.join(" \u2229 ");
+    onRegionClick(geneIds, label);
+  };
 
   return (
     <div className="flex flex-col items-center gap-1">

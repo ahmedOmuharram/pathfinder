@@ -4,17 +4,30 @@
  * AdvancedSettings -- debug toggles.
  */
 
+import { useShallow } from "zustand/react/shallow";
 import { useSettingsStore } from "@/state/useSettingsStore";
 import { SettingsField } from "./SettingsField";
 
 export function AdvancedSettings() {
-  const showRawToolCalls = useSettingsStore((s) => s.showRawToolCalls);
-  const setShowRawToolCalls = useSettingsStore((s) => s.setShowRawToolCalls);
-  const showTokenUsage = useSettingsStore((s) => s.showTokenUsage);
-  const setShowTokenUsage = useSettingsStore((s) => s.setShowTokenUsage);
-  const deleteFromWdk = useSettingsStore((s) => s.deleteFromWdk);
-  const setDeleteFromWdk = useSettingsStore((s) => s.setDeleteFromWdk);
-  const resetToDefaults = useSettingsStore((s) => s.resetToDefaults);
+  const {
+    showRawToolCalls,
+    setShowRawToolCalls,
+    showTokenUsage,
+    setShowTokenUsage,
+    deleteFromWdk,
+    setDeleteFromWdk,
+    resetToDefaults,
+  } = useSettingsStore(
+    useShallow((s) => ({
+      showRawToolCalls: s.showRawToolCalls,
+      setShowRawToolCalls: s.setShowRawToolCalls,
+      showTokenUsage: s.showTokenUsage,
+      setShowTokenUsage: s.setShowTokenUsage,
+      deleteFromWdk: s.deleteFromWdk,
+      setDeleteFromWdk: s.setDeleteFromWdk,
+      resetToDefaults: s.resetToDefaults,
+    })),
+  );
 
   return (
     <div className="space-y-5">

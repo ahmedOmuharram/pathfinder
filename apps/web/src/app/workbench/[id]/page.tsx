@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -13,12 +13,12 @@ export default function WorkbenchGeneSetPage() {
   const selectedSite = useSessionStore((s) => s.selectedSite);
   const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
 
-  // Activate the URL-specified gene set once it's loaded.
-  useEffect(() => {
-    if (id && geneSets.some((gs) => gs.id === id)) {
-      setActiveSet(id);
-    }
-  }, [id, geneSets, setActiveSet]);
+  const geneSetExists = geneSets.some((gs) => gs.id === id);
+  const [prevActivated, setPrevActivated] = useState<string | null>(null);
+  if (id && geneSetExists && prevActivated !== id) {
+    setPrevActivated(id);
+    setActiveSet(id);
+  }
 
   return <WorkbenchMain />;
 }

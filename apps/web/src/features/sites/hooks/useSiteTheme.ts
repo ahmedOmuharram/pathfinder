@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useIsomorphicLayoutEffect } from "usehooks-ts";
 import { applySiteTheme } from "@/features/sites/siteTheme";
 
 /**
@@ -6,7 +6,7 @@ import { applySiteTheme } from "@/features/sites/siteTheme";
  * site ID changes.
  */
 export function useSiteTheme(siteId: string): void {
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (siteId) applySiteTheme(siteId);
   }, [siteId]);
 }

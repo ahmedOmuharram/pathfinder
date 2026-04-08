@@ -194,7 +194,7 @@ def _handle_model_selected(
     messages: list[JSONObject],
 ) -> None:
     event = ModelSelectedEventData.model_validate(data)
-    turn.model_id = event.model_id
+    turn.model_id = event.pipeline.planning.model_id
 
 
 def _handle_assistant_message(

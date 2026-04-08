@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback } from "react";
 import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 
 /**
@@ -12,18 +11,15 @@ import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 export function useWorkbenchBridge() {
   const invalidateGeneSets = useInvalidateGeneSets();
 
-  const handleWorkbenchGeneSet = useCallback(
-    (_gs: {
-      id: string;
-      name: string;
-      geneCount: number;
-      source: string;
-      siteId: string;
-    }) => {
-      void invalidateGeneSets();
-    },
-    [invalidateGeneSets],
-  );
+  const handleWorkbenchGeneSet = (_gs: {
+    id: string;
+    name: string;
+    geneCount: number;
+    source: string;
+    siteId: string;
+  }) => {
+    void invalidateGeneSets();
+  };
 
   return { handleWorkbenchGeneSet };
 }

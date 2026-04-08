@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/lib/components/ui/Button";
 import { getAttributes, type EntityRef } from "@/features/analysis/api/stepResults";
 import { useResultsTableRecords } from "@/features/analysis/hooks/useResultsTableRecords";
@@ -17,8 +18,6 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
   const [attributes, setAttributes] = useState<RecordAttribute[]>([]);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const [attrError, setAttrError] = useState<string | null>(null);
-
   /* ---------- records / pagination ---------- */
   const recordsState = useResultsTableRecords(entityRef, visibleColumns);
   const { resetSort, setOffset } = recordsState;
@@ -26,46 +25,48 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
   /* ---------- row expansion ---------- */
   const detailState = useResultsTableDetail(entityRef);
 
-  /* ---------- fetch attributes on entity change ---------- */
-  useEffect(() => {
-    let cancelled = false;
-    getAttributes(entityRef)
-      .then(({ attributes: attrs }) => {
-        if (cancelled) return;
-        setAttrError(null);
-        resetSort();
-        const displayable = attrs.filter((a) => a.isDisplayable !== false);
-        setAttributes(displayable);
-        if (displayable.length === 0) {
-          setVisibleColumns(new Set());
-          return;
-        }
-        setVisibleColumns(new Set(displayable.slice(0, 6).map((a) => a.name)));
-      })
-      .catch((err) => {
-        if (!cancelled) setAttrError(String(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [entityRef, resetSort]);
+  const entityKey = `${entityRef.type}|${entityRef.id}`;
+  const { data: fetchedAttributes, error: attrQueryError } = useQuery({
+    queryKey: ["step-attributes", entityKey] as const,
+    queryFn: () => getAttributes(entityRef),
+    staleTime: 60_000,
+  });
+
+  const attrError = attrQueryError instanceof Error ? attrQueryError.message : null;
+
+  const [prevEntityKey, setPrevEntityKey] = useState(entityKey);
+  if (entityKey !== prevEntityKey && fetchedAttributes) {
+    setPrevEntityKey(entityKey);
+    resetSort();
+    const displayable = fetchedAttributes.attributes.filter((a) => a.isDisplayable !== false);
+    setAttributes(displayable);
+    setVisibleColumns(
+      displayable.length > 0
+        ? new Set(displayable.slice(0, 6).map((a) => a.name))
+        : new Set(),
+    );
+  }
+  if (fetchedAttributes && attributes.length === 0 && prevEntityKey === entityKey) {
+    const displayable = fetchedAttributes.attributes.filter((a) => a.isDisplayable !== false);
+    if (displayable.length > 0) {
+      setAttributes(displayable);
+      setVisibleColumns(new Set(displayable.slice(0, 6).map((a) => a.name)));
+    }
+  }
 
   /* ---------- handlers ---------- */
-  const toggleColumn = useCallback(
-    (name: string) => {
-      setVisibleColumns((prev) => {
-        const next = new Set(prev);
-        if (next.has(name)) {
-          next.delete(name);
-        } else {
-          next.add(name);
-        }
-        return next;
-      });
-      setOffset(0);
-    },
-    [setOffset],
-  );
+  const toggleColumn = (name: string) => {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+    setOffset(0);
+  };
 
   /* ---------- derived values ---------- */
   const totalCount = recordsState.meta?.totalCount ?? 0;

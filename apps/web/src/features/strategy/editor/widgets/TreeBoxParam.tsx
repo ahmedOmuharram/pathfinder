@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Controller, useFormContext } from "react-hook-form";
 import { cn } from "@/lib/utils/cn";
 import { isMultiParam } from "@/features/strategy/parameters/spec";
@@ -66,7 +66,7 @@ function TreeBoxInner({
 
   const allLeaves = collectAllLeaves(vocabTree);
 
-  const toggleExpand = useCallback((nodeValue: string) => {
+  const toggleExpand = (nodeValue: string) => {
     setExpandedNodes((prev) => {
       const next = new Set(prev);
       if (next.has(nodeValue)) {
@@ -76,7 +76,7 @@ function TreeBoxInner({
       }
       return next;
     });
-  }, []);
+  };
 
   const lowerSearch = searchTerm.toLowerCase();
 

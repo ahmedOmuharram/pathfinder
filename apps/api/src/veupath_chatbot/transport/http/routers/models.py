@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from veupath_chatbot.ai.models.catalog import get_model_catalog
 from veupath_chatbot.platform.config import get_settings
-from veupath_chatbot.platform.types import ModelProvider, ReasoningEffort
+from veupath_chatbot.platform.types import ModelProvider, TierName
 
 
 class ModelCatalogEntryResponse(BaseModel):
@@ -30,10 +30,8 @@ class ModelListResponse(BaseModel):
     """Response for the /models endpoint."""
 
     models: list[ModelCatalogEntryResponse]
-    default: str
-    default_reasoning_effort: ReasoningEffort = Field(
-        serialization_alias="defaultReasoningEffort",
-    )
+    default_provider: ModelProvider = Field(serialization_alias="defaultProvider")
+    default_tier: TierName = Field(serialization_alias="defaultTier")
 
 
 
@@ -85,6 +83,6 @@ async def list_models() -> ModelListResponse:
     ]
     return ModelListResponse(
         models=models,
-        default=settings.default_model_id,
-        default_reasoning_effort=settings.default_reasoning_effort,
+        default_provider=settings.default_provider,
+        default_tier=settings.default_tier,
     )

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState, startTransition } from "react";
+import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { APIError } from "@/lib/api/http";
 import { getStrategy } from "@/lib/api/strategies";
 import { mergeMessages } from "@/features/chat/utils/mergeMessages";
@@ -41,102 +42,66 @@ export function useUnifiedChatDataLoading({
   onStrategyNotFound,
 }: UseUnifiedChatDataLoadingParams): UseUnifiedChatDataLoadingReturn {
   const authVersion = useSessionStore((s) => s.authVersion);
-  const [isLoading, setIsLoading] = useState(strategyId != null && strategyId !== "");
-
-  // Track whether the last load failed so auth-retry only fires when needed.
-  const loadFailedRef = useRef(false);
-  // Track the previous authVersion to distinguish initial mount from auth bumps.
-  const prevAuthVersionRef = useRef(authVersion);
-
   const { applyThinkingPayload } = thinking;
 
-  const applyStrategy = useCallback(
-    (strategy: Strategy) => {
-      const incoming = (strategy.messages ?? []).filter(
-        (m): m is Message => m.role === "user" || m.role === "assistant",
-      );
-      setMessages((prev) => mergeMessages(prev, incoming));
-      if (strategy.modelId != null && strategy.modelId !== "")
-        setSelectedModelId(strategy.modelId);
-      if (strategy.thinking != null) {
-        applyThinkingPayload(strategy.thinking);
-      }
-      if (strategy.id !== "" && sessionRef.current?.snapshotApplied !== true) {
-        setStrategy(strategy);
-        setStrategyMeta({
-          name: strategy.name,
-          ...(strategy.recordType != null ? { recordType: strategy.recordType } : {}),
-          siteId: strategy.siteId,
-        });
-      }
-    },
-    [setMessages, setSelectedModelId, setStrategy, setStrategyMeta, applyThinkingPayload],
-  );
+  const [applied, setApplied] = useState<string | null>(null);
 
-  // Single unified loading effect — handles both initial load and auth retry.
-  // Including authVersion in deps means this re-runs on auth refresh, but we
-  // guard the auth-retry path with loadFailedRef so a successful load is not
-  // re-fetched when auth changes.
-  useEffect(() => {
-    const isAuthRetry = prevAuthVersionRef.current !== authVersion;
-    prevAuthVersionRef.current = authVersion;
-
-    if (strategyId == null || strategyId === "") {
-      startTransition(() => setMessages([]));
-      loadFailedRef.current = false;
-      setIsLoading(false);
-      return;
+  const applyStrategy = (strategy: Strategy) => {
+    const incoming = (strategy.messages ?? []).filter(
+      (m): m is Message => m.role === "user" || m.role === "assistant",
+    );
+    setMessages((prev) => mergeMessages(prev, incoming));
+    const planningPhase = strategy.pipeline?.["planning"] as
+      | { modelId?: string }
+      | undefined;
+    const restoredModelId = planningPhase?.modelId;
+    if (restoredModelId != null && restoredModelId !== "")
+      setSelectedModelId(restoredModelId);
+    if (strategy.thinking != null) {
+      applyThinkingPayload(strategy.thinking);
     }
+    if (strategy.id !== "" && sessionRef.current?.snapshotApplied !== true) {
+      setStrategy(strategy);
+      setStrategyMeta({
+        name: strategy.name,
+        ...(strategy.recordType != null ? { recordType: strategy.recordType } : {}),
+        siteId: strategy.siteId,
+      });
+    }
+  };
 
-    // On auth bump, only retry if the previous load actually failed.
-    if (isAuthRetry && !loadFailedRef.current) return;
-
-    setIsLoading(true);
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const strategy = await getStrategy(strategyId);
-        if (cancelled) return;
-        loadFailedRef.current = false;
-        setApiError(null);
-        applyStrategy(strategy);
-      } catch (err) {
-        if (cancelled) return;
-
-        if (err instanceof APIError && (err.status === 404 || err.status === 403)) {
-          onStrategyNotFound?.();
-          setIsLoading(false);
-          return;
-        }
-
-        // Single retry
-        try {
-          const strategy = await getStrategy(strategyId);
-          if (cancelled) return;
-          loadFailedRef.current = false;
-          setApiError(null);
-          applyStrategy(strategy);
-        } catch (retryErr) {
-          if (cancelled) return;
-          loadFailedRef.current = true;
-          setApiError(
-            retryErr instanceof APIError
-              ? `Could not load conversation (${retryErr.status}).`
-              : "Could not load conversation.",
-          );
-        }
-      } finally {
-        if (!cancelled) setIsLoading(false);
+  const { data, isPending } = useQuery({
+    queryKey: ["chat-data-loading", strategyId, authVersion] as const,
+    queryFn: async () => {
+      const strategy = await getStrategy(strategyId!);
+      return strategy;
+    },
+    enabled: strategyId != null && strategyId !== "",
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: (failureCount, err) => {
+      if (err instanceof APIError && (err.status === 404 || err.status === 403)) return false;
+      return failureCount < 1;
+    },
+    throwOnError: (err) => {
+      if (err instanceof APIError && (err.status === 404 || err.status === 403)) {
+        onStrategyNotFound?.();
+      } else {
+        setApiError(
+          err instanceof APIError
+            ? `Could not load conversation (${err.status}).`
+            : "Could not load conversation.",
+        );
       }
-    };
+      return false;
+    },
+  });
 
-    void load();
+  if (data && applied !== `${strategyId}:${authVersion}`) {
+    setApplied(`${strategyId}:${authVersion}`);
+    setApiError(null);
+    applyStrategy(data);
+  }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [strategyId, authVersion, applyStrategy, setMessages, onStrategyNotFound, setApiError]);
-
-  return { isLoading };
+  return { isLoading: isPending && strategyId != null && strategyId !== "" };
 }

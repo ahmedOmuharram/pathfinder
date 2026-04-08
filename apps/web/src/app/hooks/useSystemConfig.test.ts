@@ -3,8 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { createTestWrapper } from "@/lib/query/testing";
-import { APIError } from "@/lib/api/http";
+import { createSuspenseWrapper } from "@/lib/query/testing";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -41,7 +40,7 @@ function makeConfigResponse(overrides: { llmConfigured: boolean }) {
 
 async function importAndRender() {
   const { useSystemConfig } = await import("./useSystemConfig");
-  const { Wrapper } = createTestWrapper();
+  const { Wrapper } = createSuspenseWrapper();
   return renderHook(() => useSystemConfig(), { wrapper: Wrapper });
 }
 
@@ -55,23 +54,13 @@ describe("useSystemConfig", () => {
     mockGetSystemConfig.mockReset();
   });
 
-  it("returns configLoading=true and setupRequired=false initially", async () => {
-    // Never-resolving promise keeps the query in pending state.
-    mockGetSystemConfig.mockReturnValue(new Promise(() => {}));
-
-    const { result } = await importAndRender();
-
-    expect(result.current.configLoading).toBe(true);
-    expect(result.current.setupRequired).toBe(false);
-  });
-
-  it("returns setupRequired=false when LLM is configured", async () => {
+  it("suspends until config resolves, then returns setupRequired=false when LLM is configured", async () => {
     mockGetSystemConfig.mockResolvedValue(makeConfigResponse({ llmConfigured: true }));
 
     const { result } = await importAndRender();
 
     await waitFor(() => {
-      expect(result.current.configLoading).toBe(false);
+      expect(result.current).not.toBeNull();
     });
 
     expect(result.current.setupRequired).toBe(false);
@@ -83,56 +72,28 @@ describe("useSystemConfig", () => {
     const { result } = await importAndRender();
 
     await waitFor(() => {
-      expect(result.current.configLoading).toBe(false);
+      expect(result.current).not.toBeNull();
     });
 
     expect(result.current.setupRequired).toBe(true);
   });
 
-  it("handles network failure gracefully — setupRequired stays false", async () => {
-    mockGetSystemConfig.mockRejectedValue(
-      new APIError("Service Unavailable", {
-        status: 503,
-        statusText: "Service Unavailable",
-        url: "http://localhost:8000/health/config",
-        data: null,
-      }),
-    );
-
-    const { result } = await importAndRender();
-
-    await waitFor(() => {
-      expect(result.current.configLoading).toBe(false);
-    });
-
-    // On error, data is undefined so `data?.llmConfigured === false` is false.
-    expect(result.current.setupRequired).toBe(false);
-  });
-
-  it("retry() triggers a new fetch after initial failure", async () => {
-    // First call rejects, second call succeeds.
+  it("retry() triggers a refetch after initial success", async () => {
     mockGetSystemConfig
-      .mockRejectedValueOnce(
-        new APIError("Service Unavailable", {
-          status: 503,
-          statusText: "Service Unavailable",
-          url: "http://localhost:8000/health/config",
-          data: null,
-        }),
-      )
+      .mockResolvedValueOnce(makeConfigResponse({ llmConfigured: false }))
       .mockResolvedValueOnce(makeConfigResponse({ llmConfigured: true }));
 
     const { result } = await importAndRender();
 
-    // Wait for the first (failed) attempt to settle.
     await waitFor(() => {
-      expect(result.current.configLoading).toBe(false);
+      expect(result.current).not.toBeNull();
     });
 
-    expect(result.current.setupRequired).toBe(false);
+    // First response: llmConfigured=false → setupRequired=true
+    expect(result.current.setupRequired).toBe(true);
     expect(mockGetSystemConfig).toHaveBeenCalledTimes(1);
 
-    // Trigger retry — refetches with the second mock value.
+    // Trigger retry
     result.current.retry();
 
     await waitFor(() => {
@@ -140,9 +101,8 @@ describe("useSystemConfig", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.configLoading).toBe(false);
+      // Second response: llmConfigured=true → setupRequired=false
+      expect(result.current.setupRequired).toBe(false);
     });
-
-    expect(result.current.setupRequired).toBe(false);
   });
 });

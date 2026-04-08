@@ -7,12 +7,13 @@
  * positioned relative to the textarea caret.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useEventListener } from "usehooks-ts";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, FlaskConical, Loader2 } from "lucide-react";
-import type { ChatMention, ExperimentSummary } from "@pathfinder/shared";
+import type { ChatMention } from "@pathfinder/shared";
 import { listStrategies, strategiesListOptions } from "@/lib/api/strategies";
-import { listExperiments } from "@/lib/api/experiments";
+import { experimentsListOptions } from "@/lib/api/experiments";
 
 interface MentionAutocompleteProps {
   siteId: string;
@@ -43,42 +44,20 @@ export function MentionAutocomplete({
     queryFn: () => listStrategies(siteId),
     enabled: siteId !== "",
   });
-  const [experiments, setExperiments] = useState<ExperimentSummary[]>([]);
-  const [loadingExperiments, setLoadingExperiments] = useState(false);
+  const experimentsQuery = useQuery({
+    ...experimentsListOptions(siteId),
+    enabled: siteId !== "" && visible,
+  });
   const [focusIndex, setFocusIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const strategies = useMemo(
-    () => (strategiesQuery.data ?? []).filter((s) => (s.stepCount ?? 0) > 0),
-    [strategiesQuery.data],
-  );
+  const strategies = (strategiesQuery.data ?? []).filter((s) => (s.stepCount ?? 0) > 0);
 
-  useEffect(() => {
-    if (!visible) return;
-    let cancelled = false;
+  const experiments = (experimentsQuery.data ?? []).filter((e) => e.status === "completed");
 
-    queueMicrotask(() => {
-      if (!cancelled) setLoadingExperiments(true);
-    });
+  const loadingExperiments = experimentsQuery.isPending && visible;
 
-    listExperiments(siteId)
-      .then((exps) => {
-        if (!cancelled) setExperiments(exps.filter((e) => e.status === "completed"));
-      })
-      .catch((err) => {
-        console.error("[MentionAutocomplete.listExperiments]", err);
-        if (!cancelled) setExperiments([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingExperiments(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, siteId]);
-
-  const options = useMemo<MentionOption[]>(() => {
+  const options: MentionOption[] = (() => {
     const q = query.toLowerCase();
     const result: MentionOption[] = [];
 
@@ -103,39 +82,35 @@ export function MentionAutocomplete({
     }
 
     return result.slice(0, 10);
-  }, [strategies, experiments, query]);
+  })();
 
-  useEffect(() => {
-    queueMicrotask(() => setFocusIndex(0));
-  }, [options.length, query]);
+  const optionsKey = `${options.length}:${query}`;
+  const [prevOptionsKey, setPrevOptionsKey] = useState(optionsKey);
+  if (optionsKey !== prevOptionsKey) {
+    setPrevOptionsKey(optionsKey);
+    setFocusIndex(0);
+  }
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!visible || options.length === 0) return;
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setFocusIndex((i) => (i + 1) % options.length);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setFocusIndex((i) => (i - 1 + options.length) % options.length);
-      } else if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        e.stopPropagation();
-        const focused = options[focusIndex];
-        if (focused != null) onSelect(focused.mention);
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        onDismiss();
-      }
-    },
-    [visible, options, focusIndex, onSelect, onDismiss],
-  );
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (!visible || options.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusIndex((i) => (i + 1) % options.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusIndex((i) => (i - 1 + options.length) % options.length);
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      e.stopPropagation();
+      const focused = options[focusIndex];
+      if (focused != null) onSelect(focused.mention);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onDismiss();
+    }
+  };
 
-  useEffect(() => {
-    if (!visible) return;
-    document.addEventListener("keydown", handleKeyDown, true);
-    return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, [visible, handleKeyDown]);
+  useEventListener("keydown", handleKeyDown, undefined, true);
 
   if (!visible) return null;
 

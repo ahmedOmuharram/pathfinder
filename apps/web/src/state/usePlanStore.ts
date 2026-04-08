@@ -2,7 +2,8 @@
  * Plan state store — manages the active strategy plan and related UI state.
  */
 
-import { create } from "zustand";
+import { createStore } from "./middleware";
+import { useSessionStore } from "./useSessionStore";
 
 import type { InteractivePlan } from "@/lib/types/plan";
 
@@ -36,7 +37,7 @@ interface PlanState {
   clearPhase: () => void;
 }
 
-export const usePlanStore = create<PlanState>()((set) => ({
+export const usePlanStore = createStore<PlanState>("PlanStore", (set) => ({
   activePlan: null,
   isPlanPinned: false,
   planThoughts: [],
@@ -58,3 +59,13 @@ export const usePlanStore = create<PlanState>()((set) => ({
   setPhase: (phase, status) => set({ currentPhase: phase, phaseStatus: status }),
   clearPhase: () => set({ currentPhase: null, phaseStatus: null }),
 }));
+
+useSessionStore.subscribe(
+  (s) => s.strategyId,
+  (current, previous) => {
+    if (previous != null && previous !== "" && current !== previous) {
+      usePlanStore.getState().clearPlan();
+      usePlanStore.getState().clearThoughts();
+    }
+  },
+);

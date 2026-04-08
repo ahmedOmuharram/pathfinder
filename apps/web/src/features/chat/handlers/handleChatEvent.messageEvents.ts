@@ -357,7 +357,8 @@ export function handleModelSelectedEvent(
   ctx: ChatEventContext,
   data: ModelSelectedData,
 ) {
-  const { modelId } = data;
+  // Extract the planning model as the representative model ID.
+  const modelId = data.pipeline?.planning?.modelId;
   if (typeof modelId === "string") {
     ctx.setSelectedModelId?.(modelId || null);
     // Store for stamping on subsequent assistant messages in this turn.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { CombineOperator, DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
@@ -38,9 +38,9 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   const [descriptionValue, setDescriptionValue] = useState("");
   const [detailsCollapsed, setDetailsCollapsed] = useState(false);
 
-  const toggleDetailsCollapsed = useCallback(() => {
+  const toggleDetailsCollapsed = () => {
     setDetailsCollapsed((prev) => !prev);
-  }, []);
+  };
 
   // --- Store selectors ---
   const draftStrategy = useStrategyStore((state) => state.strategy);
@@ -112,7 +112,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     nodes: graphNodes.nodes,
     setNodes: graphNodes.setNodes,
     setEdges: graphNodes.setEdges,
-    nodePositionsRef: graphNodes.nodePositionsRef,
+    nodePositions: graphNodes.nodePositions,
     handleAddToChat,
     handleOpenDetails: handlers.handleOpenDetails,
     setSelectedNodeIds,
@@ -137,25 +137,18 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     fetchCounts: computeStepCounts,
   });
 
-  // --- Draft details sync (defer setState to avoid synchronous setState in effect) ---
-  useEffect(() => {
-    if (!graphNodes.isDraftView) return;
-    const name = draftStrategy?.name ?? DEFAULT_STREAM_NAME;
-    const description = draftStrategy?.description ?? "";
-    queueMicrotask(() => {
-      setNameValue(name);
-      setDescriptionValue(description);
-    });
-  }, [
-    graphNodes.isDraftView,
-    draftStrategy?.name,
-    draftStrategy?.description,
-    setNameValue,
-    setDescriptionValue,
-  ]);
+  const draftSyncKey = graphNodes.isDraftView
+    ? `${draftStrategy?.name}|${draftStrategy?.description}`
+    : null;
+  const [prevDraftSyncKey, setPrevDraftSyncKey] = useState(draftSyncKey);
+  if (draftSyncKey != null && draftSyncKey !== prevDraftSyncKey) {
+    setPrevDraftSyncKey(draftSyncKey);
+    setNameValue(draftStrategy?.name ?? DEFAULT_STREAM_NAME);
+    setDescriptionValue(draftStrategy?.description ?? "");
+  }
 
   // --- Name/description commit ---
-  const handleNameCommit = useCallback(async () => {
+  const handleNameCommit = async () => {
     const name = nameValue.trim();
     if (name === "" || name === draftStrategy?.name) {
       setNameValue(draftStrategy?.name ?? DEFAULT_STREAM_NAME);
@@ -163,9 +156,9 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     }
     setStrategyMeta({ name });
     triggerSync();
-  }, [nameValue, draftStrategy?.name, setNameValue, setStrategyMeta, triggerSync]);
+  };
 
-  const handleDescriptionCommit = useCallback(async () => {
+  const handleDescriptionCommit = async () => {
     const description = descriptionValue.trim();
     if (description === (draftStrategy?.description ?? "")) {
       setDescriptionValue(draftStrategy?.description ?? "");
@@ -173,22 +166,13 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     }
     setStrategyMeta({ description });
     triggerSync();
-  }, [
-    descriptionValue,
-    draftStrategy?.description,
-    setDescriptionValue,
-    setStrategyMeta,
-    triggerSync,
-  ]);
+  };
 
   // --- Wrap updateStep to trigger sync after user edits ---
-  const updateStepAndSync = useCallback(
-    (stepId: string, updates: Partial<Step>) => {
-      updateStep(stepId, updates);
-      triggerSync();
-    },
-    [updateStep, triggerSync],
-  );
+  const updateStepAndSync = (stepId: string, updates: Partial<Step>) => {
+    updateStep(stepId, updates);
+    triggerSync();
+  };
 
   return {
     // State

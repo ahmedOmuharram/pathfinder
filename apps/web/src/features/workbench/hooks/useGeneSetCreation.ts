@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { ResolvedGene } from "@pathfinder/shared";
 import { resolveGeneIds } from "@/lib/api/genes";
@@ -52,41 +52,35 @@ export function useGeneSetCreation({ onCreated }: UseGeneSetCreationOptions) {
   const resolvedGenes: ResolvedGene[] | null = verifyMutation.data?.resolved ?? null;
   const unresolvedIds: string[] = verifyMutation.data?.unresolved ?? [];
 
-  const resetVerification = useCallback(() => {
+  const resetVerification = () => {
     verifyMutation.reset();
     setError(null);
-  }, [verifyMutation]);
+  };
 
-  const handleVerify = useCallback(
-    (parsedIds: string[]) => {
-      if (parsedIds.length === 0) return;
-      verifyMutation.mutate(parsedIds);
-    },
-    [verifyMutation],
-  );
+  const handleVerify = (parsedIds: string[]) => {
+    if (parsedIds.length === 0) return;
+    verifyMutation.mutate(parsedIds);
+  };
 
-  const handleSubmit = useCallback(
-    (name: string, parsedIds: string[], source: "paste" | "upload") => {
-      setError(null);
+  const handleSubmit = (name: string, parsedIds: string[], source: "paste" | "upload") => {
+    setError(null);
 
-      const trimmedName = name.trim();
-      if (!trimmedName) {
-        setError("Please enter a name for the gene set.");
-        return;
-      }
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("Please enter a name for the gene set.");
+      return;
+    }
 
-      const idsToSubmit =
-        verified && resolvedGenes ? resolvedGenes.map((g) => g.geneId) : parsedIds;
+    const idsToSubmit =
+      verified && resolvedGenes ? resolvedGenes.map((g) => g.geneId) : parsedIds;
 
-      if (idsToSubmit.length === 0) {
-        setError("No valid gene IDs to add.");
-        return;
-      }
+    if (idsToSubmit.length === 0) {
+      setError("No valid gene IDs to add.");
+      return;
+    }
 
-      createMutation.mutate({ name: trimmedName, geneIds: idsToSubmit, source });
-    },
-    [verified, resolvedGenes, createMutation],
-  );
+    createMutation.mutate({ name: trimmedName, geneIds: idsToSubmit, source });
+  };
 
   return {
     error,

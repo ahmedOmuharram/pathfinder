@@ -16,21 +16,15 @@ export class StreamingSession {
   /** Whether at least one graph snapshot was applied during this session. */
   snapshotApplied = false;
 
-  /** Latest strategy value, seeded at stream start and kept in sync via effect. */
-  latestStrategy: Strategy | null;
-
-  constructor(initialStrategy: Strategy | null) {
-    this.latestStrategy = initialStrategy;
-  }
+  constructor() {}
 
   /**
    * Capture the current strategy as an undo point, but only once per
    * streaming session (the first mutation wins).
    */
-  captureUndoSnapshot(graphId: string): void {
-    const snapshot = this.latestStrategy;
-    if (!this.undoSnapshot && snapshot?.id === graphId) {
-      this.undoSnapshot = snapshot;
+  captureUndoSnapshot(graphId: string, currentStrategy: Strategy | null): void {
+    if (!this.undoSnapshot && currentStrategy?.id === graphId) {
+      this.undoSnapshot = currentStrategy;
     }
   }
 

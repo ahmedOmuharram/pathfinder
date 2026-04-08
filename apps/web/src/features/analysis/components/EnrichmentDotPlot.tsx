@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import type { EnrichmentTerm } from "@pathfinder/shared";
 import {
   BarChart,
@@ -138,7 +137,7 @@ interface EnrichmentDotPlotProps {
 }
 
 export function EnrichmentDotPlot({ terms }: EnrichmentDotPlotProps) {
-  const { data, maxGeneCount } = useMemo(() => {
+  const { data, maxGeneCount } = (() => {
     const top = [...terms]
       .sort((a, b) => a.pValue - b.pValue)
       .slice(0, MAX_CHART_TERMS)
@@ -160,7 +159,7 @@ export function EnrichmentDotPlot({ terms }: EnrichmentDotPlotProps) {
       }),
       maxGeneCount: maxGC,
     };
-  }, [terms]);
+  })();
 
   const chartHeight = Math.max(data.length * 28 + 40, 140);
 

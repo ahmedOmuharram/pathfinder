@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type {
   Message,
   ToolCall,
@@ -50,7 +50,7 @@ interface ChatMessageListProps {
   onCancelOptimization?: () => void;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   /** Sentinel ref for auto-scroll IntersectionObserver. */
-  bottomRef?: React.RefObject<HTMLDivElement | null>;
+  bottomRef?: ((node: HTMLDivElement | null) => void) | React.RefObject<HTMLDivElement | null>;
   /** Whether the user is scrolled near the bottom. */
   isAtBottom?: boolean;
   /** Scroll to the bottom of the message list. */
@@ -87,24 +87,6 @@ export function ChatMessageList({
   const strategyId = useSessionStore((s) => s.strategyId);
   const activePlan = usePlanStore((s) => s.activePlan);
   const isPlanPinned = usePlanStore((s) => s.isPlanPinned);
-
-  // Track when the plan card scrolls out of view to show the pinned bar.
-  useEffect(() => {
-    if (!activePlan) return;
-    const card = document.querySelector(`[data-plan-id="${activePlan.id}"]`);
-    if (!card) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry) {
-          usePlanStore.getState().setPinned(!entry.isIntersecting);
-        }
-      },
-      { threshold: 0.1 },
-    );
-    observer.observe(card);
-    return () => observer.disconnect();
-  }, [activePlan]);
 
   // Find the last assistant message so we can attach live streaming parts to it.
   const lastAssistantIndex = (() => {

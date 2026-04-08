@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { requestJson } from "@/lib/api/http";
@@ -42,7 +42,7 @@ export function ReverseSearchPanel() {
 
   const disabled = !siteId;
 
-  const handleSearch = useCallback(async () => {
+  const handleSearch = async () => {
     if (positiveInput.length === 0) {
       setError("Enter at least one positive gene ID.");
       return;
@@ -71,7 +71,7 @@ export function ReverseSearchPanel() {
     } finally {
       setLoading(false);
     }
-  }, [positiveInput, negativeInput, siteId]);
+  };
 
   return (
     <AnalysisPanelContainer

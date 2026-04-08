@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import type { RankMetrics } from "@pathfinder/shared";
 import {
   LineChart,
@@ -23,41 +22,27 @@ interface RankMetricsSectionProps {
 const K_DISPLAY_ORDER = [10, 25, 50, 100, 250];
 
 export function RankMetricsSection({ rankMetrics }: RankMetricsSectionProps) {
-  const kRows = useMemo(() => {
-    return K_DISPLAY_ORDER.map((k) => ({
-      k,
-      precision: rankMetrics.precisionAtK?.[String(k)] ?? null,
-      recall: rankMetrics.recallAtK?.[String(k)] ?? null,
-      enrichment: rankMetrics.enrichmentAtK?.[String(k)] ?? null,
-    })).filter((r) => r.precision !== null);
-  }, [rankMetrics]);
+  const kRows = K_DISPLAY_ORDER.map((k) => ({
+    k,
+    precision: rankMetrics.precisionAtK?.[String(k)] ?? null,
+    recall: rankMetrics.recallAtK?.[String(k)] ?? null,
+    enrichment: rankMetrics.enrichmentAtK?.[String(k)] ?? null,
+  })).filter((r) => r.precision !== null);
 
-  const prCurveData = useMemo(
-    () =>
-      (rankMetrics.prCurve ?? []).map(([precision, recall]) => ({
-        precision,
-        recall,
-      })),
-    [rankMetrics],
-  );
+  const prCurveData = (rankMetrics.prCurve ?? []).map(([precision, recall]) => ({
+    precision,
+    recall,
+  }));
 
-  const listSizeData = useMemo(
-    () =>
-      (rankMetrics.listSizeVsRecall ?? []).map(([size, recall]) => ({
-        size,
-        recall,
-      })),
-    [rankMetrics],
-  );
+  const listSizeData = (rankMetrics.listSizeVsRecall ?? []).map(([size, recall]) => ({
+    size,
+    recall,
+  }));
 
-  const enrichmentData = useMemo(
-    () =>
-      kRows.map((r) => ({
-        name: `K=${r.k}`,
-        enrichment: r.enrichment,
-      })),
-    [kRows],
-  );
+  const enrichmentData = kRows.map((r) => ({
+    name: `K=${r.k}`,
+    enrichment: r.enrichment,
+  }));
 
   if (kRows.length === 0) return null;
 

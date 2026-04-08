@@ -29,7 +29,7 @@ import {
   DecisionPresentedDataSchema, PhaseChangeDataSchema,
 } from "./sse_events.schemas";
 import { isRecord } from "@/lib/utils/isRecord";
-import { z } from "zod";
+import type { z } from "zod";
 
 /* ── Re-exports: types ───────────────────────────────────────────────── */
 export type {
@@ -78,11 +78,9 @@ function asRecord(data: unknown): RawSSEData | null {
 /**
  * Try to parse `data` with a Zod schema and cast to the target type.
  *
- * Zod's `.passthrough()` adds `[x: string]: unknown` to the inferred type,
- * which makes optional `.nullish()` fields include `| undefined`.  With
- * `exactOptionalPropertyTypes` this is incompatible with target types that
- * use `T | null` (no undefined).  The cast via `Target` strips the index
- * signature after Zod has validated the data.
+ * The schema is typed as `z.ZodType<unknown>` so it can accept any
+ * `z.looseObject()` schema.  The cast to `Target` narrows the validated
+ * output to the caller's expected type.
  */
 function zodNarrow<Target>(
   schema: z.ZodType<unknown>,

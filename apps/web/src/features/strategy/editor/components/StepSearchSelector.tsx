@@ -29,13 +29,11 @@ type StepSearchSelectorProps = {
   onRecordTypeValueChange: (nextValue: string) => void;
   editableSearchName: string;
   onSearchNameChange: (nextValue: string) => void;
-  isLoadingSearches: boolean;
   searchOptions: Search[];
   filteredSearchOptions: Search[];
   searchName: string;
   selectedSearch: Search | null;
   isSearchNameAvailable: boolean;
-  searchListError: string | null;
   recordTypeValue: string | null | undefined;
   recordType: string | null;
   recordTypeOptions: RecordType[];
@@ -51,13 +49,11 @@ export function StepSearchSelector({
   onRecordTypeValueChange,
   editableSearchName,
   onSearchNameChange,
-  isLoadingSearches,
   searchOptions,
   filteredSearchOptions,
   searchName,
   selectedSearch,
   isSearchNameAvailable,
-  searchListError,
   recordTypeValue,
   recordType,
   recordTypeOptions,
@@ -113,7 +109,7 @@ export function StepSearchSelector({
         <Input
           value={editableSearchName}
           onChange={(event) => onSearchNameChange(event.target.value)}
-          disabled={isLoadingSearches || searchOptions.length === 0}
+          disabled={searchOptions.length === 0}
           placeholder="Search..."
           className="bg-card"
         />
@@ -181,12 +177,6 @@ export function StepSearchSelector({
           <p className="mt-1 text-xs text-muted-foreground">
             Pick a search to see its description and parameters.
           </p>
-        )}
-        {searchListError != null && searchListError !== "" && (
-          <p className="mt-1 text-xs text-destructive">{searchListError}</p>
-        )}
-        {(searchListError == null || searchListError === "") && isLoadingSearches && (
-          <p className="mt-1 text-xs text-muted-foreground">Loading search list...</p>
         )}
       </div>
     </>

@@ -7,10 +7,11 @@
  */
 
 import type { StateCreator } from "zustand";
+import type { DevtoolsMutators } from "@/state/middleware";
 import type { StrategyState, ListSlice } from "./types";
 import { normalizeStrategyId } from "./helpers";
 
-export const createListSlice: StateCreator<StrategyState, [], [], ListSlice> = (
+export const createListSlice: StateCreator<StrategyState, DevtoolsMutators, [], ListSlice> = (
   set,
 ) => ({
   executedStrategies: [],

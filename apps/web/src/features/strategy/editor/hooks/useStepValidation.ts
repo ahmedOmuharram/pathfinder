@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { ParamSpec } from "@pathfinder/shared";
 
 interface UseStepValidationArgs {
@@ -14,7 +14,7 @@ export function useStepValidation({
 }: UseStepValidationArgs) {
   const [error, setError] = useState<string | null>(null);
 
-  const validationErrorKeys = useMemo(() => {
+  const validationErrorKeys = (() => {
     if (stepValidationError == null || stepValidationError === "")
       return new Set<string>();
     const keys = new Set<string>();
@@ -35,7 +35,7 @@ export function useStepValidation({
         }
       });
     return keys;
-  }, [stepValidationError, paramSpecs]);
+  })();
 
   return {
     error,

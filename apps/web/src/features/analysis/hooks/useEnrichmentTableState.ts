@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState } from "react";
 import type { EnrichmentTerm } from "@pathfinder/shared";
 import type { SortDir } from "../constants";
 import type { SortKey } from "../components/enrichment-utils";
@@ -17,7 +17,7 @@ export function useEnrichmentTableState(terms: EnrichmentTerm[]): EnrichmentTabl
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  const sorted = useMemo(() => {
+  const sorted = (() => {
     const copy = [...terms];
     copy.sort((a, b) => {
       const av = a[sortKey];
@@ -30,23 +30,20 @@ export function useEnrichmentTableState(terms: EnrichmentTerm[]): EnrichmentTabl
         : String(bv).localeCompare(String(av));
     });
     return copy;
-  }, [terms, sortKey, sortDir]);
+  })();
 
-  const toggleSort = useCallback(
-    (key: SortKey) => {
-      if (sortKey === key) {
-        setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
-      } else {
-        setSortKey(key);
-        setSortDir(
-          key === "termName" || key === "pValue" || key === "fdr" ? "asc" : "desc",
-        );
-      }
-    },
-    [sortKey],
-  );
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(
+        key === "termName" || key === "pValue" || key === "fdr" ? "asc" : "desc",
+      );
+    }
+  };
 
-  const toggleExpand = useCallback((termId: string) => {
+  const toggleExpand = (termId: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
       if (next.has(termId)) {
@@ -56,7 +53,7 @@ export function useEnrichmentTableState(terms: EnrichmentTerm[]): EnrichmentTabl
       }
       return next;
     });
-  }, []);
+  };
 
   return { sorted, sortKey, sortDir, expandedIds, toggleSort, toggleExpand };
 }

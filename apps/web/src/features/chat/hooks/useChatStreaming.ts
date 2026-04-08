@@ -1,15 +1,14 @@
-import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   ChatMention,
   UserMessage,
   ToolCall,
-  ModelSelection,
   Strategy,
 } from "@pathfinder/shared";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { streamChat } from "@/features/chat/stream";
-import { useSettingsStore } from "@/state/useSettingsStore";
+
+import { useEngineStore } from "@/state/useEngineStore";
 import { encodeNodeSelection } from "@/features/chat/node_selection";
 import { strategiesListOptions } from "@/lib/api/strategies";
 import { queryKeyPrefixes } from "@/lib/query/keys";
@@ -47,7 +46,6 @@ interface UseChatStreamingArgs extends StreamEventDepsGroup {
   setDraftSelection: (selection: NodeSelection | null) => void;
   sessionRef: { current: StreamingSession | null };
   createSession: () => StreamingSession;
-  modelSelection?: ModelSelection | null;
   onStreamComplete?: () => void;
   onStreamError?: (error: Error) => void;
   setChatIsStreaming?: (streaming: boolean) => void;
@@ -79,7 +77,6 @@ export function useChatStreaming({
   currentStrategy,
   attachThinkingToLastAssistant,
   setSelectedModelId,
-  modelSelection,
   onApiError,
   onWorkbenchGeneSet,
   onStreamComplete,
@@ -116,11 +113,10 @@ export function useChatStreaming({
   });
 
   // --- Core stream execution ---
-  const executeStream = useCallback(
-    async (
-      content: string,
-      streamContext: { strategyId?: string; mentions?: ChatMention[]; metadata?: Record<string, unknown> },
-    ): Promise<string | null> => {
+  const executeStream = async (
+    content: string,
+    streamContext: { strategyId?: string; mentions?: ChatMention[]; metadata?: Record<string, unknown> },
+  ): Promise<string | null> => {
       lifecycle.beginStream();
 
       const session = createSession();
@@ -149,7 +145,7 @@ export function useChatStreaming({
       );
 
       try {
-        const { disabledTools } = useSettingsStore.getState();
+        const pipeline = useEngineStore.getState().getPipelinePayload();
         const result = await streamChat(
           content,
           siteId,
@@ -160,8 +156,7 @@ export function useChatStreaming({
           },
           streamContext,
           undefined,
-          modelSelection ?? undefined,
-          disabledTools.length > 0 ? disabledTools : undefined,
+          pipeline,
         );
 
         lifecycle.trackOperation(result.subscription, result.operationId);
@@ -170,30 +165,15 @@ export function useChatStreaming({
           setStrategyId(result.strategyId);
         }
         return result.entryId;
-      } catch (e) {
-        const error = e instanceof Error ? e : new Error(String(e));
-        lifecycle.handleStreamError(error, callbacks.toolCalls, onStreamError);
-        return null;
-      }
-    },
-    [
-      lifecycle,
-      createSession,
-      sessionRef,
-      strategyId,
-      buildStreamCallbacks,
-      siteId,
-      queryClient,
-      modelSelection,
-      setStrategyId,
-      onStreamComplete,
-      onStreamError,
-    ],
-  );
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      lifecycle.handleStreamError(error, callbacks.toolCalls, onStreamError);
+      return null;
+    }
+  };
 
   // --- Public API ---
-  const handleSendMessage = useCallback(
-    async (content: string, mentions?: ChatMention[], metadata?: Record<string, unknown>) => {
+  const handleSendMessage = async (content: string, mentions?: ChatMention[], metadata?: Record<string, unknown>) => {
       const finalContent = encodeNodeSelection(draftSelection, content);
       const userMessage: UserMessage = {
         role: "user",
@@ -226,16 +206,11 @@ export function useChatStreaming({
           return updated;
         });
       }
-    },
-    [draftSelection, setMessages, setDraftSelection, strategyId, executeStream],
-  );
+    };
 
-  const handleAutoExecute = useCallback(
-    async (prompt: string, targetStrategyId: string) => {
-      await executeStream(prompt, { strategyId: targetStrategyId });
-    },
-    [executeStream],
-  );
+  const handleAutoExecute = async (prompt: string, targetStrategyId: string) => {
+    await executeStream(prompt, { strategyId: targetStrategyId });
+  };
 
   return {
     handleSendMessage,

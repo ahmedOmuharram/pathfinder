@@ -10,4 +10,4 @@ export type {
   BatchOrganismTarget,
 } from "./streaming";
 
-export { listControlSets } from "./controlSets";
+export { listControlSets, controlSetsOptions } from "./controlSets";

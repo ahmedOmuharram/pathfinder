@@ -1,11 +1,7 @@
-/**
- * Auto-triggers workbench chat interpretation on first open.
- *
- * Fires a sendMessage call when an experiment is opened for the first
- * time and there is no existing conversation history.
- */
+"use client";
 
-import { useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEventCallback } from "usehooks-ts";
 
 const AUTO_TRIGGER_PROMPT =
   "Please interpret these experiment results. Provide a clear scientific assessment, " +
@@ -27,20 +23,21 @@ export function useWorkbenchChatAutoTrigger({
   streaming,
   sendMessage,
 }: UseWorkbenchChatAutoTriggerArgs): void {
-  const autoTriggeredRef = useRef<string | null>(null);
-  const sendMessageRef = useRef(sendMessage);
+  const stableSend = useEventCallback(sendMessage);
 
-  useEffect(() => {
-    sendMessageRef.current = sendMessage;
-  }, [sendMessage]);
-
-  useEffect(() => {
-    if (experimentId == null) return;
-    if (!historyLoaded) return;
-    if (autoTriggeredRef.current === experimentId) return;
-    if (messageCount > 0 || streaming) return;
-
-    autoTriggeredRef.current = experimentId;
-    sendMessageRef.current(AUTO_TRIGGER_PROMPT);
-  }, [experimentId, historyLoaded, messageCount, streaming]);
+  useQuery({
+    queryKey: ["workbench-auto-trigger", experimentId],
+    queryFn: () => {
+      stableSend(AUTO_TRIGGER_PROMPT);
+      return { triggered: true };
+    },
+    enabled:
+      experimentId != null &&
+      historyLoaded &&
+      messageCount === 0 &&
+      !streaming,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+  });
 }

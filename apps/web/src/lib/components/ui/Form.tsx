@@ -77,10 +77,7 @@ function FormField<
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
 >(props: ControllerProps<TFieldValues, TName>) {
-  const contextValue = React.useMemo<FormFieldContextValue<TFieldValues, TName>>(
-    () => ({ name: props.name }),
-    [props.name],
-  );
+  const contextValue: FormFieldContextValue<TFieldValues, TName> = { name: props.name };
 
   return (
     <FormFieldContext.Provider value={contextValue}>
@@ -93,33 +90,31 @@ function FormField<
 // FormItem — container div with generated id for aria wiring
 // ---------------------------------------------------------------------------
 
-const FormItem = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => {
+function FormItem({
+  className,
+  ref,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDivElement> }) {
   const id = React.useId();
 
-  const contextValue = React.useMemo<FormItemContextValue>(
-    () => ({ id }),
-    [id],
-  );
+  const contextValue: FormItemContextValue = { id };
 
   return (
     <FormItemContext.Provider value={contextValue}>
       <div ref={ref} className={cn("space-y-2", className)} {...props} />
     </FormItemContext.Provider>
   );
-});
-FormItem.displayName = "FormItem";
+}
 
 // ---------------------------------------------------------------------------
 // FormLabel — label wired to the form control via htmlFor
 // ---------------------------------------------------------------------------
 
-const FormLabel = React.forwardRef<
-  HTMLLabelElement,
-  React.ComponentPropsWithoutRef<typeof Label>
->(({ className, ...props }, ref) => {
+function FormLabel({
+  className,
+  ref,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof Label> & { ref?: React.Ref<HTMLLabelElement> }) {
   const { error, formItemId } = useFormField();
 
   return (
@@ -130,17 +125,16 @@ const FormLabel = React.forwardRef<
       {...props}
     />
   );
-});
-FormLabel.displayName = "FormLabel";
+}
 
 // ---------------------------------------------------------------------------
 // FormControl — Slot that sets id + aria attributes on its single child
 // ---------------------------------------------------------------------------
 
-const FormControl = React.forwardRef<
-  HTMLElement,
-  React.ComponentPropsWithoutRef<typeof Slot>
->(({ ...props }, ref) => {
+function FormControl({
+  ref,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof Slot> & { ref?: React.Ref<HTMLElement> }) {
   const { error, formItemId, formDescriptionId, formMessageId } =
     useFormField();
 
@@ -159,17 +153,17 @@ const FormControl = React.forwardRef<
       {...props}
     />
   );
-});
-FormControl.displayName = "FormControl";
+}
 
 // ---------------------------------------------------------------------------
 // FormDescription — help text wired via aria-describedby
 // ---------------------------------------------------------------------------
 
-const FormDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => {
+function FormDescription({
+  className,
+  ref,
+  ...props
+}: React.HTMLAttributes<HTMLParagraphElement> & { ref?: React.Ref<HTMLParagraphElement> }) {
   const { formDescriptionId } = useFormField();
 
   return (
@@ -180,17 +174,18 @@ const FormDescription = React.forwardRef<
       {...props}
     />
   );
-});
-FormDescription.displayName = "FormDescription";
+}
 
 // ---------------------------------------------------------------------------
 // FormMessage — displays validation error with role="alert"
 // ---------------------------------------------------------------------------
 
-const FormMessage = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
->(({ className, children, ...props }, ref) => {
+function FormMessage({
+  className,
+  children,
+  ref,
+  ...props
+}: React.HTMLAttributes<HTMLParagraphElement> & { ref?: React.Ref<HTMLParagraphElement> }) {
   const { error, formMessageId } = useFormField();
   const body = extractErrorMessage(error) ?? children;
 
@@ -209,8 +204,7 @@ const FormMessage = React.forwardRef<
       {body}
     </p>
   );
-});
-FormMessage.displayName = "FormMessage";
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

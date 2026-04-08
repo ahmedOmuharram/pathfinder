@@ -1,20 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useOnClickOutside } from "usehooks-ts";
+import { useDebounce } from "use-debounce";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Search } from "lucide-react";
 import type { GeneSearchResult } from "@pathfinder/shared";
 import { searchGenes } from "@/lib/api/genes";
 import { Input } from "@/lib/components/ui/Input";
-
-function useDebouncedValue(value: string, ms: number): string {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), ms);
-    return () => clearTimeout(id);
-  }, [value, ms]);
-  return debounced;
-}
 
 interface GeneAutocompleteProps {
   siteId: string;
@@ -30,10 +23,10 @@ export function GeneAutocomplete({
   excludeIds,
 }: GeneAutocompleteProps) {
   const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const debouncedQuery = useDebouncedValue(query, 300);
+  const [debouncedQuery] = useDebounce(query, 300);
   const trimmedQuery = debouncedQuery.trim();
 
   const { data: searchResults, isFetching } = useQuery({
@@ -43,48 +36,36 @@ export function GeneAutocomplete({
     staleTime: 30_000,
   });
 
-  const results = useMemo(() => {
-    if (searchResults == null) return [];
-    return excludeIds
+  const results = searchResults == null
+    ? []
+    : excludeIds
       ? searchResults.results.filter((r) => !excludeIds.has(r.geneId))
       : searchResults.results;
-  }, [searchResults, excludeIds]);
 
-  // Open/close dropdown based on results
-  useEffect(() => {
-    if (trimmedQuery.length === 0) {
-      setOpen(false);
-      return;
-    }
-    setOpen(results.length > 0);
-  }, [results, trimmedQuery]);
+  const hasResults = trimmedQuery.length > 0 && results.length > 0;
+  const open = hasResults && !dismissed;
+
+  const [prevTrimmedQuery, setPrevTrimmedQuery] = useState(trimmedQuery);
+  if (trimmedQuery !== prevTrimmedQuery) {
+    setPrevTrimmedQuery(trimmedQuery);
+    if (dismissed) setDismissed(false);
+  }
 
   // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  const handleSelect = useCallback(
-    (geneId: string) => {
-      onSelect(geneId);
-      setQuery("");
-      setOpen(false);
-    },
-    [onSelect],
+  useOnClickOutside(dropdownRef as React.RefObject<HTMLElement>, () =>
+    setDismissed(true),
   );
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleSelect = (geneId: string) => {
+    onSelect(geneId);
+    setQuery("");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
-      setOpen(false);
+      setDismissed(true);
     }
-  }, []);
+  };
 
   return (
     <div ref={dropdownRef} className="relative">

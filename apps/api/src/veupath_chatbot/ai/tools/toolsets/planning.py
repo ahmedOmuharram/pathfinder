@@ -13,6 +13,7 @@ from veupath_chatbot.ai.tools.standalone.plan import (
     update_plan,
 )
 from veupath_chatbot.ai.tools.standalone.strategy_graph import get_strategy
+from veupath_chatbot.ai.tools.standalone.think import think
 
 
 def build_toolset() -> FunctionToolset[AgentDeps]:
@@ -27,5 +28,6 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             resolve_gene_ids_to_records,
             set_conversation_title,
             get_strategy,
+            think,
         ],
     )

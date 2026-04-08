@@ -23,6 +23,7 @@ from veupath_chatbot.ai.tools.standalone.strategy_edit import (
     update_step,
 )
 from veupath_chatbot.ai.tools.standalone.strategy_graph import get_strategy
+from veupath_chatbot.ai.tools.standalone.think import think
 
 
 def build_toolset() -> FunctionToolset[AgentDeps]:
@@ -41,5 +42,6 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             rename_strategy,
             clear_strategy,
             get_strategy,
+            think,
         ],
     )

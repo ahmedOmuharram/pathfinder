@@ -10,7 +10,6 @@
  * different size/interactivity trade-offs -- merging them would add more
  * complexity than it removes.
  */
-import { useMemo } from "react";
 import type { OptimizationTrial } from "@pathfinder/shared";
 import {
   LineChart,
@@ -62,7 +61,7 @@ export function OptimizationChart({
   currentTrial: number;
   isDone: boolean;
 }) {
-  const chartData = useMemo<ScoreChartDatum[]>(() => {
+  const chartData: ScoreChartDatum[] = (() => {
     if (trials.length < 2) return [];
 
     let best = -Infinity;
@@ -74,7 +73,7 @@ export function OptimizationChart({
         bestSoFar: parseFloat(best.toFixed(4)),
       };
     });
-  }, [trials]);
+  })();
 
   if (chartData.length < 2) return null;
 

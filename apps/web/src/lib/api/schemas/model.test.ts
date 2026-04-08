@@ -51,15 +51,16 @@ describe("ModelCatalogEntrySchema", () => {
 describe("ModelCatalogResponseSchema", () => {
   const validResponse = {
     models: [validEntry],
-    default: "openai/gpt-5",
-    defaultReasoningEffort: "medium" as const,
+    defaultProvider: "openai" as const,
+    defaultTier: "balanced" as const,
   };
 
   it("parses a valid catalog response", () => {
     const result = ModelCatalogResponseSchema.safeParse(validResponse);
     expect(result.success).toBe(true);
     expect(result.data?.models).toHaveLength(1);
-    expect(result.data?.default).toBe("openai/gpt-5");
+    expect(result.data?.defaultProvider).toBe("openai");
+    expect(result.data?.defaultTier).toBe("balanced");
   });
 
   it("strips unknown fields", () => {
@@ -71,18 +72,18 @@ describe("ModelCatalogResponseSchema", () => {
     expect((result.data as Record<string, unknown>)["version"]).toBeUndefined();
   });
 
-  it("rejects invalid reasoningEffort enum", () => {
+  it("rejects invalid defaultTier enum", () => {
     const result = ModelCatalogResponseSchema.safeParse({
       ...validResponse,
-      defaultReasoningEffort: "ultra",
+      defaultTier: "ultra",
     });
     expect(result.success).toBe(false);
   });
 
   it("rejects missing models array", () => {
     const result = ModelCatalogResponseSchema.safeParse({
-      default: "openai/gpt-5",
-      defaultReasoningEffort: "medium",
+      defaultProvider: "openai",
+      defaultTier: "balanced",
     });
     expect(result.success).toBe(false);
   });

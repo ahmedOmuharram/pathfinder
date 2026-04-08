@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import type { ChatMention } from "@pathfinder/shared";
 
 interface MentionState {
@@ -26,7 +26,7 @@ export function useMentionState(): MentionState {
   const [mentionPos, setMentionPos] = useState({ top: 0, left: 0 });
   const mentionStartRef = useRef<number | null>(null);
 
-  const checkMentionTrigger = useCallback((value: string, cursorPos: number) => {
+  const checkMentionTrigger = (value: string, cursorPos: number) => {
     const before = value.slice(0, cursorPos);
     const atIdx = before.lastIndexOf("@");
     if (
@@ -45,35 +45,32 @@ export function useMentionState(): MentionState {
     setMentionQuery(query);
     setMentionPos({ top: 36, left: 8 });
     setMentionActive(true);
-  }, []);
+  };
 
-  const handleMentionSelect = useCallback(
-    (
-      mention: ChatMention,
-      message: string,
-      textareaRef: React.RefObject<HTMLTextAreaElement | null>,
-      setMessage: React.Dispatch<React.SetStateAction<string>>,
-    ) => {
-      const start = mentionStartRef.current ?? 0;
-      const before = message.slice(0, start);
-      const textarea = textareaRef.current;
-      const cursorPos = textarea?.selectionStart ?? message.length;
-      const after = message.slice(cursorPos);
-      setMessage(before + after);
-      setMentions((prev) => {
-        if (prev.some((m) => m.type === mention.type && m.id === mention.id))
-          return prev;
-        return [...prev, mention];
-      });
-      setMentionActive(false);
-      setTimeout(() => textareaRef.current?.focus(), 0);
-    },
-    [],
-  );
+  const handleMentionSelect = (
+    mention: ChatMention,
+    message: string,
+    textareaRef: React.RefObject<HTMLTextAreaElement | null>,
+    setMessage: React.Dispatch<React.SetStateAction<string>>,
+  ) => {
+    const start = mentionStartRef.current ?? 0;
+    const before = message.slice(0, start);
+    const textarea = textareaRef.current;
+    const cursorPos = textarea?.selectionStart ?? message.length;
+    const after = message.slice(cursorPos);
+    setMessage(before + after);
+    setMentions((prev) => {
+      if (prev.some((m) => m.type === mention.type && m.id === mention.id))
+        return prev;
+      return [...prev, mention];
+    });
+    setMentionActive(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  };
 
-  const removeMention = useCallback((idx: number) => {
+  const removeMention = (idx: number) => {
     setMentions((prev) => prev.filter((_, i) => i !== idx));
-  }, []);
+  };
 
   return {
     mentions,

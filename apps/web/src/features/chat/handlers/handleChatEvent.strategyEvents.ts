@@ -48,7 +48,7 @@ export function handleStrategyUpdateEvent(
   const targetGraphId = resolveTargetGraph(ctx, graphId, step.graphId);
   if (targetGraphId == null) return;
 
-  ctx.session.captureUndoSnapshot(targetGraphId);
+  ctx.session.captureUndoSnapshot(targetGraphId, ctx.currentStrategy);
   if (step.name != null || step.description != null || step.recordType != null) {
     ctx.setStrategyMeta({
       ...(step.graphName != null

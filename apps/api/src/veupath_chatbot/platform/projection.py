@@ -93,7 +93,7 @@ def _project_graph_plan(updates: dict[str, object], data: JSONObject) -> None:
 
 def _project_model_selected(updates: dict[str, object], data: JSONObject) -> None:
     event = ModelSelectedEventData.model_validate(data)
-    updates["model_id"] = event.model_id
+    updates["pipeline"] = event.pipeline.model_dump(by_alias=True)
 
 
 def _project_graph_cleared(updates: dict[str, object]) -> None:

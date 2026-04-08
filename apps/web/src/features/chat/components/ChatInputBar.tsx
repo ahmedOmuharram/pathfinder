@@ -1,9 +1,5 @@
 import { X } from "lucide-react";
-import type {
-  ChatMention,
-  ModelCatalogEntry,
-  ReasoningEffort,
-} from "@pathfinder/shared";
+import type { ChatMention } from "@pathfinder/shared";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { DraftSelectionBar } from "@/features/chat/components/delegation/DraftSelectionBar";
 import { MessageComposer } from "@/features/chat/components/MessageComposer";
@@ -16,12 +12,7 @@ interface ChatInputBarProps {
   onSend: (message: string, mentions?: ChatMention[]) => void;
   isStreaming: boolean;
   onStop: () => void;
-  models: ModelCatalogEntry[];
-  selectedModelId: string | null;
-  onModelChange: (modelId: string | null) => void;
-  reasoningEffort: ReasoningEffort;
-  onReasoningChange: (effort: ReasoningEffort) => void;
-  serverDefaultModelId: string | null;
+  onOpenEngine?: (() => void) | undefined;
   siteId: string;
 }
 
@@ -33,12 +24,7 @@ export function ChatInputBar({
   onSend,
   isStreaming,
   onStop,
-  models,
-  selectedModelId,
-  onModelChange,
-  reasoningEffort,
-  onReasoningChange,
-  serverDefaultModelId,
+  onOpenEngine,
   siteId,
 }: ChatInputBarProps) {
   return (
@@ -68,12 +54,7 @@ export function ChatInputBar({
         disabled={isStreaming}
         isStreaming={isStreaming}
         onStop={onStop}
-        models={models}
-        selectedModelId={selectedModelId}
-        onModelChange={onModelChange}
-        reasoningEffort={reasoningEffort}
-        onReasoningChange={onReasoningChange}
-        serverDefaultModelId={serverDefaultModelId}
+        onOpenEngine={onOpenEngine}
         siteId={siteId}
       />
     </div>

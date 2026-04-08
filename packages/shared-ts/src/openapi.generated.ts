@@ -275,7 +275,7 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tools": {
+    "/api/v1/tiers": {
         parameters: {
             query?: never;
             header?: never;
@@ -283,10 +283,10 @@ export type paths = {
             cookie?: never;
         };
         /**
-         * List Tools
-         * @description Return the list of AI tools registered across all agent phases.
+         * List Tiers
+         * @description Return tier presets grouped by provider.
          */
-        get: operations["list_tools_api_v1_tools_get"];
+        get: operations["list_tiers_api_v1_tiers_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1729,12 +1729,7 @@ export type components = {
             siteId: string;
             /** Message */
             message: string;
-            /** Provider */
-            provider?: ("openai" | "anthropic" | "google" | "ollama" | "mock") | null;
-            /** Model */
-            model?: string | null;
-            /** Reasoningeffort */
-            reasoningEffort?: ("none" | "low" | "medium" | "high") | null;
+            pipeline: components["schemas"]["PipelineConfig"];
             /**
              * Disablerag
              * @default false
@@ -1744,14 +1739,6 @@ export type components = {
             temperature?: number | null;
             /** Seed */
             seed?: number | null;
-            /** Contextsize */
-            contextSize?: number | null;
-            /** Responsetokens */
-            responseTokens?: number | null;
-            /** Reasoningbudget */
-            reasoningBudget?: number | null;
-            /** Disabledtools */
-            disabledTools?: string[];
             /** Mentions */
             mentions?: components["schemas"]["ChatMention"][];
             /** Metadata */
@@ -3120,6 +3107,10 @@ export type components = {
             llmCallCount?: number | null;
             /** Estimatedcostusd */
             estimatedCostUsd?: number | null;
+            /** Phasecosts */
+            phaseCosts?: {
+                [key: string]: components["schemas"]["PhaseCostEntry"];
+            } | null;
         };
         /**
          * MessageResponse
@@ -3224,21 +3215,23 @@ export type components = {
         ModelListResponse: {
             /** Models */
             models: components["schemas"]["ModelCatalogEntryResponse"][];
-            /** Default */
-            default: string;
             /**
-             * Defaultreasoningeffort
+             * Defaultprovider
              * @enum {string}
              */
-            defaultReasoningEffort: "none" | "low" | "medium" | "high";
+            defaultProvider: "openai" | "anthropic" | "google" | "ollama" | "mock";
+            /**
+             * Defaulttier
+             * @enum {string}
+             */
+            defaultTier: "quality" | "balanced" | "fast";
         };
         /**
          * ModelSelectedEventData
          * @description Payload for ``model_selected`` SSE events.
          */
         ModelSelectedEventData: {
-            /** Modelid */
-            modelId: string;
+            pipeline: components["schemas"]["PipelineConfig"];
         };
         /**
          * NegativeSetVariantResponse
@@ -3728,6 +3721,60 @@ export type components = {
              * @description Validation gate error message if the phase failed validation.
              */
             validationError?: string | null;
+        };
+        /**
+         * PhaseCostEntry
+         * @description Cost breakdown for a single pipeline phase.
+         */
+        PhaseCostEntry: {
+            /** Modelid */
+            modelId: string;
+            /**
+             * Tokens
+             * @default 0
+             */
+            tokens: number;
+            /**
+             * Costusd
+             * @default 0
+             */
+            costUsd: number;
+        };
+        /**
+         * PhaseTierResponse
+         * @description Single phase config in a tier preset.
+         */
+        PhaseTierResponse: {
+            /** Modelid */
+            modelId: string;
+            /**
+             * Reasoningeffort
+             * @enum {string}
+             */
+            reasoningEffort: "none" | "low" | "medium" | "high";
+        };
+        /**
+         * PipelineConfig
+         * @description Per-phase model configuration for the full pipeline.
+         */
+        PipelineConfig: {
+            discovery: components["schemas"]["PipelinePhaseConfig"];
+            planning: components["schemas"]["PipelinePhaseConfig"];
+            execution: components["schemas"]["PipelinePhaseConfig"];
+            verification: components["schemas"]["PipelinePhaseConfig"];
+        };
+        /**
+         * PipelinePhaseConfig
+         * @description Model + reasoning effort for a single pipeline phase.
+         */
+        PipelinePhaseConfig: {
+            /** Modelid */
+            modelId: string;
+            /**
+             * Reasoningeffort
+             * @enum {string}
+             */
+            reasoningEffort: "none" | "low" | "medium" | "high";
         };
         /** PlanNormalizeRequest */
         PlanNormalizeRequest: {
@@ -4555,8 +4602,7 @@ export type components = {
             /** Messages */
             messages?: components["schemas"]["MessageResponse"][] | null;
             thinking?: components["schemas"]["ThinkingResponse"] | null;
-            /** Modelid */
-            modelId?: string | null;
+            pipeline?: components["schemas"]["JSONObject"] | null;
             /**
              * Createdat
              * Format: date-time
@@ -4676,6 +4722,28 @@ export type components = {
             values?: string[] | null;
         };
         /**
+         * TierListResponse
+         * @description Response for GET /api/v1/tiers.
+         */
+        TierListResponse: {
+            /** Presets */
+            presets: {
+                [key: string]: {
+                    [key: string]: components["schemas"]["TierPresetResponse"];
+                };
+            };
+        };
+        /**
+         * TierPresetResponse
+         * @description Full tier preset with all four phases.
+         */
+        TierPresetResponse: {
+            discovery: components["schemas"]["PhaseTierResponse"];
+            planning: components["schemas"]["PhaseTierResponse"];
+            execution: components["schemas"]["PhaseTierResponse"];
+            verification: components["schemas"]["PhaseTierResponse"];
+        };
+        /**
          * TokenUsagePartialEventData
          * @description Payload for ``token_usage_partial`` SSE events.
          */
@@ -4754,11 +4822,6 @@ export type components = {
             /** Name */
             name: string;
             arguments?: components["schemas"]["JSONObject"];
-        };
-        /** ToolListResponse */
-        ToolListResponse: {
-            /** Tools */
-            tools: components["schemas"]["_ToolItem"][];
         };
         /**
          * TreeOptimizationResultResponse
@@ -4965,13 +5028,6 @@ export type components = {
          */
         WorkbenchGeneSetEventData: {
             geneSet?: components["schemas"]["GeneSetSummary"] | null;
-        };
-        /** _ToolItem */
-        _ToolItem: {
-            /** Name */
-            name: string;
-            /** Description */
-            description: string;
         };
     };
     responses: never;
@@ -5361,7 +5417,7 @@ export interface operations {
             };
         };
     };
-    list_tools_api_v1_tools_get: {
+    list_tiers_api_v1_tiers_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5376,7 +5432,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ToolListResponse"];
+                    "application/json": components["schemas"]["TierListResponse"];
                 };
             };
         };

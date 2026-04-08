@@ -2,6 +2,7 @@
 
 import type { Step } from "@pathfinder/shared";
 import { Modal } from "@/lib/components/Modal";
+import { QueryBoundary } from "@/lib/components/QueryBoundary";
 import { StepEditorHeader } from "./components/StepEditorHeader";
 import { StepEditorFooter } from "./components/StepEditorFooter";
 import { StepEditorForm } from "./StepEditorForm";
@@ -22,13 +23,24 @@ export function StepEditor({
   onUpdate,
   onClose,
 }: StepEditorProps) {
-  const state = useStepEditorState({ step, siteId, recordType, onUpdate, onClose });
-
   return (
     <Modal open onClose={onClose} title="Edit step" maxWidth="max-w-4xl">
       <StepEditorHeader onClose={onClose} />
-      <StepEditorForm state={state} />
+      <QueryBoundary>
+        <StepEditorContent
+          step={step}
+          siteId={siteId}
+          recordType={recordType}
+          onUpdate={onUpdate}
+          onClose={onClose}
+        />
+      </QueryBoundary>
       <StepEditorFooter onClose={onClose} />
     </Modal>
   );
+}
+
+function StepEditorContent(props: StepEditorProps) {
+  const state = useStepEditorState(props);
+  return <StepEditorForm state={state} />;
 }

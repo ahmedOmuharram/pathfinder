@@ -25,7 +25,7 @@ from veupath_chatbot.ai.agents.verification import (
 from veupath_chatbot.ai.models.mock import get_mock_model
 from veupath_chatbot.ai.models.settings import build_model_settings
 from veupath_chatbot.ai.orchestration.deps import AgentDeps
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.types import JSONObject, ReasoningEffort
 from veupath_chatbot.services.chat.streaming.node_streaming import (
     TurnCounters,
     merge_usage,
@@ -64,6 +64,7 @@ class PhaseConfig:
     message_id: str
     counters: TurnCounters
     model_id: str = ""
+    reasoning_effort: ReasoningEffort = "medium"
     message_history: list[ModelMessage] | None = None
     usage_limits: UsageLimits | None = None
 
@@ -98,14 +99,18 @@ def resolve_model(model_id: str) -> FallbackModel | FunctionModel:
     Mock IDs (``mock/*``) return the deterministic FunctionModel.
     All other IDs are wrapped in a FallbackModel with cross-provider
     fallbacks for production resilience.
+
+    Normalizes catalog slash format (``openai/gpt-4.1``) to pydantic-ai
+    colon format (``openai:gpt-4.1``).
     """
     if is_mock_model(model_id):
         return get_mock_model()
 
-    provider = model_id.split(":", 1)[0] if ":" in model_id else ""
+    normalized = model_id.replace("/", ":", 1)
+    provider = normalized.split(":", 1)[0]
     fallbacks = _FALLBACK_CHAINS.get(provider, [])
 
-    return FallbackModel(model_id, *fallbacks)
+    return FallbackModel(normalized, *fallbacks)
 
 
 # ── Phase execution ───────────────────────────────────────────────────────

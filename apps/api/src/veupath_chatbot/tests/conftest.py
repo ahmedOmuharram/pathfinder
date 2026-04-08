@@ -337,7 +337,7 @@ def app() -> FastAPI:
     get_settings.cache_clear()
 
     # Reset orchestrator globals so _wire_ai_dependencies() starts clean.
-    _orch._resolve_model_id_holder.clear()
+    _orch._resolve_pipeline_holder.clear()
 
     return create_app()
 

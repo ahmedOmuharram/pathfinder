@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import type {
   ExperimentMetrics,
   RankMetrics,
@@ -62,20 +62,17 @@ export function MetricsOverview({
   const e50 = rankMetrics?.enrichmentAtK?.["50"] ?? null;
   const r50 = rankMetrics?.recallAtK?.["50"] ?? null;
 
-  const radarData = useMemo(
-    () => [
-      { metric: "Sensitivity", value: metrics.sensitivity },
-      { metric: "Specificity", value: metrics.specificity },
-      { metric: "Precision", value: metrics.precision },
-      { metric: "F1", value: metrics.f1Score },
-      { metric: "Bal. Acc.", value: metrics.balancedAccuracy },
-      {
-        metric: "MCC",
-        value: Math.max(0, (metrics.mcc + 1) / 2),
-      },
-    ],
-    [metrics],
-  );
+  const radarData = [
+    { metric: "Sensitivity", value: metrics.sensitivity },
+    { metric: "Specificity", value: metrics.specificity },
+    { metric: "Precision", value: metrics.precision },
+    { metric: "F1", value: metrics.f1Score },
+    { metric: "Bal. Acc.", value: metrics.balancedAccuracy },
+    {
+      metric: "MCC",
+      value: Math.max(0, (metrics.mcc + 1) / 2),
+    },
+  ];
 
   const primary = [
     {

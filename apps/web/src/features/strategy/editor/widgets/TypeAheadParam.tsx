@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
+import { useOnClickOutside } from "usehooks-ts";
 import { Controller, useFormContext } from "react-hook-form";
 import { useDebouncedCallback } from "use-debounce";
 import { cn } from "@/lib/utils/cn";
@@ -47,18 +48,6 @@ export function TypeAheadParam({ spec, name, options }: ParamWidgetProps) {
   );
 }
 
-function useOutsideClick(
-  ref: React.RefObject<HTMLDivElement | null>,
-  onOutside: () => void,
-) {
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onOutside();
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [ref, onOutside]);
-}
 
 type BaseInnerProps = {
   onBlur: () => void;
@@ -111,8 +100,8 @@ function SingleTypeAhead({
     setIsOpen(true);
   }, 200);
 
-  const close = useCallback(() => { setIsOpen(false); setFiltered([]); }, []);
-  useOutsideClick(containerRef, close);
+  const close = () => { setIsOpen(false); setFiltered([]); };
+  useOnClickOutside(containerRef as React.RefObject<HTMLElement>, close);
 
   return (
     <div ref={containerRef} className="relative">
@@ -169,8 +158,8 @@ function MultiTypeAhead({
     setIsOpen(true);
   }, 200);
 
-  const close = useCallback(() => { setIsOpen(false); setFiltered([]); }, []);
-  useOutsideClick(containerRef, close);
+  const close = () => { setIsOpen(false); setFiltered([]); };
+  useOnClickOutside(containerRef as React.RefObject<HTMLElement>, close);
 
   return (
     <div ref={containerRef} className="relative">

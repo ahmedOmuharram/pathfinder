@@ -1,12 +1,12 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { ModelCatalogEntry, ReasoningEffort } from "@pathfinder/shared";
+import type { ModelCatalogEntry, ModelProvider, TierName } from "@pathfinder/shared";
 import { requestJson } from "./http";
 import { ModelCatalogResponseSchema } from "./schemas/model";
 
-interface ModelCatalogResponse {
+export interface ModelCatalogResponse {
   models: ModelCatalogEntry[];
-  default: string;
-  defaultReasoningEffort: ReasoningEffort;
+  defaultProvider: ModelProvider;
+  defaultTier: TierName;
 }
 
 export async function listModels(): Promise<ModelCatalogResponse> {

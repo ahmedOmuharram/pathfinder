@@ -13,8 +13,8 @@ import { isMultiParam } from "@/features/strategy/parameters/spec";
  */
 export function buildParamSchema(
   specs: ParamSpec[],
-): z.ZodObject<Record<string, z.ZodTypeAny>> {
-  const shape: Record<string, z.ZodTypeAny> = {};
+): z.ZodObject<Record<string, z.ZodType>> {
+  const shape: Record<string, z.ZodType> = {};
 
   for (const spec of specs) {
     const name = spec.name;

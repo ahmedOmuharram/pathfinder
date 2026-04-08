@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import type { EnrichmentResult } from "@pathfinder/shared";
 import { AlertCircle } from "lucide-react";
 import { Card } from "@/lib/components/ui/Card";
@@ -24,10 +24,7 @@ export function EnrichmentSection({ results }: EnrichmentSectionProps) {
   }
 
   const activeResult = results[activeTab];
-  const filtered = useMemo(
-    () => filterByPThreshold(activeResult?.terms ?? [], pThreshold),
-    [activeResult, pThreshold],
-  );
+  const filtered = filterByPThreshold(activeResult?.terms ?? [], pThreshold);
 
   return (
     <Section title="Enrichment Analysis">

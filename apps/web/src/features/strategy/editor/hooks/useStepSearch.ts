@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import type { Search } from "@pathfinder/shared";
 import { searchesOptions } from "@/lib/api/sites";
 import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
@@ -29,48 +29,29 @@ export function useStepSearch({
   const resolvedRecordType = resolveRecordTypeForSearch();
   const normalizedRecordType = normalizeRecordType(resolvedRecordType || recordType);
 
-  const {
-    data: rawSearches = [],
-    isLoading: isLoadingSearches,
-    error: searchQueryError,
-  } = useQuery(searchesOptions(siteId, normalizedRecordType));
+  const { enabled: _enabled, ...searchOpts } = searchesOptions(siteId, normalizedRecordType);
+  const { data: rawSearches } = useSuspenseQuery(searchOpts);
 
-  const searchOptions: Search[] = useMemo(
-    () =>
-      [...rawSearches].sort((a, b) =>
-        (a.displayName || a.name).localeCompare(b.displayName || b.name),
-      ),
-    [rawSearches],
+  const searchOptions: Search[] = [...rawSearches].sort((a, b) =>
+    (a.displayName || a.name).localeCompare(b.displayName || b.name),
   );
 
-  const searchListError = useMemo(() => {
-    if (searchQueryError != null) return "Failed to load search list.";
-    if (!isLoadingSearches && searchOptions.length === 0 && normalizedRecordType != null && normalizedRecordType !== "")
-      return "No searches available for this record type.";
-    return null;
-  }, [searchQueryError, isLoadingSearches, searchOptions.length, normalizedRecordType]);
+  const selectedSearch = searchName === ""
+    ? null
+    : (searchOptions.find((option) => option.name === searchName) ?? null);
 
-  const selectedSearch = useMemo(() => {
-    if (searchName === "") return null;
-    return searchOptions.find((option) => option.name === searchName) ?? null;
-  }, [searchName, searchOptions]);
+  const isSearchNameAvailable = searchName !== ""
+    ? searchOptions.some((option) => option.name === searchName)
+    : true;
 
-  const isSearchNameAvailable = useMemo(
-    () =>
-      searchName !== ""
-        ? searchOptions.some((option) => option.name === searchName)
-        : true,
-    [searchName, searchOptions],
-  );
-
-  const filteredSearchOptions = useMemo(() => {
+  const filteredSearchOptions = (() => {
     const query = editableSearchName.trim().toLowerCase();
     if (query === "") return searchOptions;
     return searchOptions.filter((option) => {
       const label = (option.displayName || option.name).toLowerCase();
       return label.includes(query) || option.name.toLowerCase().includes(query);
     });
-  }, [editableSearchName, searchOptions]);
+  })();
 
   return {
     editableSearchName,
@@ -80,7 +61,5 @@ export function useStepSearch({
     isSearchNameAvailable,
     searchOptions,
     filteredSearchOptions,
-    isLoadingSearches,
-    searchListError,
   };
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 
 /**
  * Extract a human-readable error message from an unknown thrown value.
@@ -44,7 +44,7 @@ export function useAsyncAction(): AsyncActionState {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const run = useCallback(async <T>(fn: () => Promise<T>): Promise<T | undefined> => {
+  const run = async <T>(fn: () => Promise<T>): Promise<T | undefined> => {
     setLoading(true);
     setError(null);
     try {
@@ -57,9 +57,9 @@ export function useAsyncAction(): AsyncActionState {
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  const clearError = useCallback(() => setError(null), []);
+  const clearError = () => setError(null);
 
   return { run, error, loading, clearError };
 }

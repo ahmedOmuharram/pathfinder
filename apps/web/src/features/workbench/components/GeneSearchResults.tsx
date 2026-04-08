@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 import type { GeneSearchResult } from "@pathfinder/shared";
@@ -145,30 +145,27 @@ export function GeneSearchResults({
   const [hoverPos, setHoverPos] = useState({ top: 0, right: 0 });
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleMouseEnter = useCallback(
-    (gene: GeneSearchResult, e: React.MouseEvent<HTMLDivElement>) => {
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-      const rect = e.currentTarget.getBoundingClientRect();
-      const sidebarRect = sidebarRef.current?.getBoundingClientRect();
-      hoverTimeoutRef.current = setTimeout(() => {
-        setHoveredGene(gene);
-        setHoverPos({
-          top: rect.top,
-          right: window.innerWidth - (sidebarRect?.left ?? rect.left) + 8,
-        });
-      }, 300);
-    },
-    [sidebarRef],
-  );
+  const handleMouseEnter = (gene: GeneSearchResult, e: React.MouseEvent<HTMLDivElement>) => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const sidebarRect = sidebarRef.current?.getBoundingClientRect();
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredGene(gene);
+      setHoverPos({
+        top: rect.top,
+        right: window.innerWidth - (sidebarRect?.left ?? rect.left) + 8,
+      });
+    }, 300);
+  };
 
-  const handleMouseLeave = useCallback(() => {
+  const handleMouseLeave = () => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     setHoveredGene(null);
-  }, []);
+  };
 
-  const handlePopoverEnter = useCallback(() => {
+  const handlePopoverEnter = () => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-  }, []);
+  };
 
   if (loading) {
     return (

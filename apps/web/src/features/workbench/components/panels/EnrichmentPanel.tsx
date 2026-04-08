@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Dna, Play, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { EnrichmentSection } from "@/features/analysis";
@@ -42,7 +42,7 @@ export function EnrichmentPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toggleType = useCallback((key: EnrichmentTypeKey) => {
+  const toggleType = (key: EnrichmentTypeKey) => {
     setSelectedTypes((prev) => {
       const next = new Set(prev);
       if (next.has(key)) {
@@ -52,9 +52,9 @@ export function EnrichmentPanel() {
       }
       return next;
     });
-  }, []);
+  };
 
-  const handleRun = useCallback(async () => {
+  const handleRun = async () => {
     if (!activeSet || selectedTypes.size === 0) return;
     setLoading(true);
     setError(null);
@@ -68,7 +68,7 @@ export function EnrichmentPanel() {
     } finally {
       setLoading(false);
     }
-  }, [activeSet, selectedTypes]);
+  };
 
   return (
     <AnalysisPanelContainer

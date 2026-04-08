@@ -8,11 +8,11 @@
 
 services:
   signoz-zookeeper:
-    image: bitnami/zookeeper:3.9
+    image: zookeeper:3.9
     environment:
-      ALLOW_ANONYMOUS_LOGIN: "yes"
+      ZOO_4LW_COMMANDS_WHITELIST: "ruok,stat"
     volumes:
-      - signoz_zookeeper_data:/bitnami/zookeeper
+      - signoz_zookeeper_data:/data
     healthcheck:
       test: ["CMD-SHELL", "echo ruok | nc localhost 2181"]
       interval: 10s

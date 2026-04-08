@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { Layers, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { requestJson } from "@/lib/api/http";
@@ -36,7 +36,7 @@ export function EnsemblePanel() {
   const hasEnoughSets = geneSets.length >= 2;
   const canCompute = selectedSetIds.length >= 2;
 
-  const handleCompute = useCallback(async () => {
+  const handleCompute = async () => {
     if (!canCompute) return;
 
     const selectedSets = geneSets.filter((gs) => selectedSetIds.includes(gs.id));
@@ -66,7 +66,7 @@ export function EnsemblePanel() {
     } finally {
       setLoading(false);
     }
-  }, [canCompute, selectedSetIds, positiveControls, geneSets]);
+  };
 
   return (
     <AnalysisPanelContainer

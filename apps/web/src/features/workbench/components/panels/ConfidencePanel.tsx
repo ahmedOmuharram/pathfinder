@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, ShieldCheck } from "lucide-react";
 import type {
   Experiment,
@@ -68,64 +68,37 @@ export function ConfidencePanel() {
     lastExperimentSetId === activeSetId &&
     hasClassifiedGenes(lastExperiment) === true;
 
-  const [scores, setScores] = useState<GeneConfidenceScore[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (
-      lastExperiment == null ||
-      lastExperimentSetId !== activeSetId ||
-      !hasClassifiedGenes(lastExperiment)
-    ) {
-      setScores([]);
-      setError(null);
-      return;
-    }
-
-    const experiment = lastExperiment;
-    let cancelled = false;
-
-    async function fetchScores() {
-      setLoading(true);
-      setError(null);
-
-      const { enrichmentGeneCounts, maxEnrichmentTerms } = extractEnrichmentCounts(
-        experiment.enrichmentResults ?? [],
-      );
-
-      try {
-        const data = await requestJson(
-          GeneConfidenceScoreListSchema,
-          "/api/v1/gene-sets/confidence",
-          {
-            method: "POST",
-            body: {
-              tpIds: (experiment.truePositiveGenes ?? []).map((g) => g.id),
-              fpIds: (experiment.falsePositiveGenes ?? []).map((g) => g.id),
-              fnIds: (experiment.falseNegativeGenes ?? []).map((g) => g.id),
-              tnIds: (experiment.trueNegativeGenes ?? []).map((g) => g.id),
-              enrichmentGeneCounts:
-                Object.keys(enrichmentGeneCounts).length > 0
-                  ? enrichmentGeneCounts
-                  : undefined,
-              maxEnrichmentTerms,
-            },
-          },
-        );
-        if (!cancelled) setScores(data);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void fetchScores();
-    return () => {
-      cancelled = true;
+  const requestBody = (() => {
+    if (!lastExperiment || !hasClassifiedGenes(lastExperiment)) return null;
+    const { enrichmentGeneCounts, maxEnrichmentTerms } = extractEnrichmentCounts(
+      lastExperiment.enrichmentResults ?? [],
+    );
+    return {
+      tpIds: (lastExperiment.truePositiveGenes ?? []).map((g) => g.id),
+      fpIds: (lastExperiment.falsePositiveGenes ?? []).map((g) => g.id),
+      fnIds: (lastExperiment.falseNegativeGenes ?? []).map((g) => g.id),
+      tnIds: (lastExperiment.trueNegativeGenes ?? []).map((g) => g.id),
+      enrichmentGeneCounts:
+        Object.keys(enrichmentGeneCounts).length > 0 ? enrichmentGeneCounts : undefined,
+      maxEnrichmentTerms,
     };
-  }, [lastExperiment, lastExperimentSetId, activeSetId]);
+  })();
+
+  const {
+    data: scores = [],
+    isPending: loading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ["gene-confidence", activeSetId, lastExperiment?.id] as const,
+    queryFn: () =>
+      requestJson(GeneConfidenceScoreListSchema, "/api/v1/gene-sets/confidence", {
+        method: "POST",
+        body: requestBody!,
+      }) as Promise<GeneConfidenceScore[]>,
+    enabled: isRelevant && requestBody != null,
+    retry: false,
+  });
+  const error = queryError instanceof Error ? queryError.message : null;
 
   return (
     <AnalysisPanelContainer

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { Modal } from "@/lib/components/Modal";
@@ -57,7 +57,7 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
 
   const resolvedSets = sets.filter((s) => s.geneIds.length > 0);
 
-  const analysis = useMemo(() => {
+  const analysis = (() => {
     // Pairwise comparisons
     const pairwise: PairwiseResult[] = [];
     for (let i = 0; i < sets.length; i++) {
@@ -92,7 +92,7 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
     const totalUnique = allGenes.size;
 
     return { pairwise, universal, totalUnique };
-  }, [sets]);
+  })();
 
   return (
     <Modal

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import type { RecordType } from "@pathfinder/shared";
 import { recordTypesOptions } from "@/lib/api/sites";
 import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
@@ -24,49 +24,41 @@ export function useStepRecordType({
   );
   const [recordTypeFilter, setRecordTypeFilter] = useState("");
 
-  const { data: rawRecordTypes = [] } = useQuery(recordTypesOptions(siteId));
+  const { enabled: _enabled, ...recordTypeOpts } = recordTypesOptions(siteId);
+  const { data: rawRecordTypes } = useSuspenseQuery(recordTypeOpts);
 
-  const recordTypeOptions: RecordType[] = useMemo(
-    () =>
-      [...rawRecordTypes].sort((a, b) =>
-        (a.displayName || a.name).localeCompare(b.displayName || b.name),
-      ),
-    [rawRecordTypes],
+  const recordTypeOptions: RecordType[] = [...rawRecordTypes].sort((a, b) =>
+    (a.displayName || a.name).localeCompare(b.displayName || b.name),
   );
 
-  // Derive the effective record type: clear invalid values at render time
-  // instead of syncing via useEffect (avoids extra render + dual state).
-  const validatedRecordTypeValue = useMemo(() => {
+  const validatedRecordTypeValue = (() => {
     if (recordTypeOptions.length === 0) return recordTypeValue;
     if (recordTypeValue == null || recordTypeValue === "") return recordTypeValue;
     const normalized = normalizeRecordType(recordTypeValue);
     const exists = recordTypeOptions.some((option) => option.name === normalized);
     return exists ? recordTypeValue : "";
-  }, [recordTypeOptions, recordTypeValue]);
+  })();
 
   const normalizedRecordTypeValue = normalizeRecordType(validatedRecordTypeValue);
   const apiRecordTypeValue = normalizedRecordTypeValue;
 
-  const resolveRecordTypeForSearch = useCallback(
-    (searchRecordType?: string | null) => {
-      const normalized = normalizeRecordType(searchRecordType ?? "");
-      if (normalized != null && normalized !== "") {
-        const exists = recordTypeOptions.some((option) => option.name === normalized);
-        if (exists) return normalized;
-      }
-      return normalizeRecordType(validatedRecordTypeValue ?? recordType) ?? "";
-    },
-    [recordType, recordTypeOptions, validatedRecordTypeValue],
-  );
+  const resolveRecordTypeForSearch = (searchRecordType?: string | null) => {
+    const normalized = normalizeRecordType(searchRecordType ?? "");
+    if (normalized != null && normalized !== "") {
+      const exists = recordTypeOptions.some((option) => option.name === normalized);
+      if (exists) return normalized;
+    }
+    return normalizeRecordType(validatedRecordTypeValue ?? recordType) ?? "";
+  };
 
-  const filteredRecordTypes = useMemo(() => {
+  const filteredRecordTypes = (() => {
     const query = recordTypeFilter.trim().toLowerCase();
     if (query === "") return recordTypeOptions;
     return recordTypeOptions.filter((option) => {
       const label = (option.displayName || option.name).toLowerCase();
       return label.includes(query) || option.name.toLowerCase().includes(query);
     });
-  }, [recordTypeFilter, recordTypeOptions]);
+  })();
 
   return {
     recordTypeValue: validatedRecordTypeValue,

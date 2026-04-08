@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { sitesOptions } from "@/lib/api/sites";
-import { VEUPATHDB_SITES } from "@pathfinder/shared";
 import { useSessionStore } from "@/state/useSessionStore";
 import { Label } from "@/lib/components/ui/Label";
+import { QueryBoundary } from "@/lib/components/QueryBoundary";
 import { cn } from "@/lib/utils/cn";
 import type { HeaderTextVariant } from "@/features/sites/siteBanners";
 
@@ -16,24 +15,32 @@ interface SitePickerProps {
   headerTextVariant?: HeaderTextVariant;
 }
 
-export function SitePicker({
+function SitePickerSkeleton() {
+  return (
+    <div data-testid="site-picker" className="flex items-center gap-3">
+      <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+        Database:
+      </Label>
+      <div className="h-[34px] w-36 animate-pulse rounded-md bg-muted" />
+    </div>
+  );
+}
+
+export function SitePicker(props: SitePickerProps) {
+  return (
+    <QueryBoundary loadingFallback={<SitePickerSkeleton />}>
+      <SitePickerContent {...props} />
+    </QueryBoundary>
+  );
+}
+
+function SitePickerContent({
   value,
   onChange,
   headerTextVariant,
 }: SitePickerProps) {
-  const { data: sites = VEUPATHDB_SITES, isLoading: loading } = useQuery(sitesOptions());
+  const { data: sites } = useSuspenseQuery(sitesOptions());
   const setSelectedSiteInfo = useSessionStore((state) => state.setSelectedSiteInfo);
-
-  const selectedSite = sites.find((s) => s.id === value);
-
-  useEffect(() => {
-    if (selectedSite) {
-      setSelectedSiteInfo(
-        selectedSite.id,
-        selectedSite.displayName !== "" ? selectedSite.displayName : selectedSite.name,
-      );
-    }
-  }, [selectedSite, setSelectedSiteInfo]);
 
   return (
     <div data-testid="site-picker" className="flex items-center gap-3">
@@ -50,8 +57,17 @@ export function SitePicker({
       <div className="relative">
         <select
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={loading}
+          onChange={(e) => {
+            const siteId = e.target.value;
+            const site = sites.find((s) => s.id === siteId);
+            if (site) {
+              setSelectedSiteInfo(
+                siteId,
+                site.displayName !== "" ? site.displayName : site.name,
+              );
+            }
+            onChange(siteId);
+          }}
           data-testid="site-select"
           className={cn(
             "appearance-none rounded-md border pr-8 px-3 py-1.5 text-sm shadow-xs transition-colors focus:outline-none focus:ring-2",

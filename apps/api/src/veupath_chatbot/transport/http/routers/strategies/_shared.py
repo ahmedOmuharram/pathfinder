@@ -177,7 +177,7 @@ def build_projection_response(
         isSaved=projection.is_saved,
         messages=msg_responses,
         thinking=thinking_response,
-        modelId=projection.model_id,
+        pipeline=projection.pipeline,
         createdAt=projection.stream.created_at
         if projection.stream
         else datetime.now(UTC),

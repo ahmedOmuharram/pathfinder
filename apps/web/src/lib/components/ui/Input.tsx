@@ -3,10 +3,11 @@ import { cn } from "@/lib/utils/cn";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: boolean;
+  ref?: React.Ref<HTMLInputElement>;
 }
 
-const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, error, ...props }, ref) => (
+function Input({ className, type, error, ref, ...props }: InputProps) {
+  return (
     <input
       type={type}
       aria-invalid={(error ?? false) || undefined}
@@ -24,8 +25,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       ref={ref}
       {...props}
     />
-  ),
-);
-Input.displayName = "Input";
+  );
+}
 
 export { Input };

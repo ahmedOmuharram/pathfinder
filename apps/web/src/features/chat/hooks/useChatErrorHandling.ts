@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { APIError } from "@/lib/api/http";
 import { toUserMessage } from "@/lib/api/errors";
 
@@ -17,23 +17,20 @@ export function useChatErrorHandling(
 ) {
   const [apiError, setApiError] = useState<string | null>(null);
 
-  const handleError = useCallback(
-    (error: unknown, fallback: string) => {
-      const isUnauthorized =
-        error instanceof APIError
-          ? error.status === 401
-          : error instanceof Error && /HTTP 401\b/.test(error.message);
-      if (isUnauthorized) {
-        setStrategyIdGlobal(null);
-        clearMessages();
-        setChatIsStreaming(false);
-        setApiError("Session expired. Please sign in again.");
-        return;
-      }
-      setApiError(toUserMessage(error, fallback));
-    },
-    [setStrategyIdGlobal, setChatIsStreaming, clearMessages],
-  );
+  const handleError = (error: unknown, fallback: string) => {
+    const isUnauthorized =
+      error instanceof APIError
+        ? error.status === 401
+        : error instanceof Error && /HTTP 401\b/.test(error.message);
+    if (isUnauthorized) {
+      setStrategyIdGlobal(null);
+      clearMessages();
+      setChatIsStreaming(false);
+      setApiError("Session expired. Please sign in again.");
+      return;
+    }
+    setApiError(toUserMessage(error, fallback));
+  };
 
   return { handleError, apiError, setApiError };
 }

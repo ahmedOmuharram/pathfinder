@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useState } from "react";
 import { type Node, type Edge, useNodesState, useEdgesState } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
@@ -108,7 +102,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedStep, setSelectedStep] = useState<Step | null>(null);
-  const nodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const nodePositions = new Map(nodes.map((n: Node) => [n.id, { x: n.position.x, y: n.position.y }]));
 
   const draftStrategy = useStrategyStore((state) => state.strategy);
   const setStepValidationErrors = useStrategyStore(
@@ -119,12 +113,9 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     (state) => state.setGraphValidationStatus,
   );
 
-  const editableSteps = useMemo(
-    () => draftStrategy?.steps ?? strategy?.steps ?? [],
-    [draftStrategy?.steps, strategy?.steps],
-  );
+  const editableSteps = draftStrategy?.steps ?? strategy?.steps ?? [];
 
-  const buildStepSignature = useCallback((step: Step) => {
+  const buildStepSignature = (step: Step) => {
     const kind = inferStepKind(step);
     return JSON.stringify({
       kind,
@@ -136,27 +127,15 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
       secondaryInputStepId: step.secondaryInputStepId,
       recordType: step.recordType,
     });
-  }, []);
+  };
 
-  const combineMismatchGroups = useMemo(() => {
-    const steps = draftStrategy?.steps ?? strategy?.steps ?? [];
-    return getCombineMismatchGroups(steps);
-  }, [draftStrategy?.steps, strategy?.steps]);
+  const combineMismatchGroups = getCombineMismatchGroups(draftStrategy?.steps ?? strategy?.steps ?? []);
 
-  const warningGroupNodes = useMemo(
-    () => computeWarningGroupNodes(nodes, combineMismatchGroups),
-    [nodes, combineMismatchGroups],
-  );
+  const warningGroupNodes = computeWarningGroupNodes(nodes, combineMismatchGroups);
 
   const isDraftView = draftStrategy != null && strategy?.id === draftStrategy.id;
-  const planResult = useMemo(
-    () => serializeStrategyPlan(stepsById, draftStrategy ?? strategy),
-    [stepsById, draftStrategy, strategy],
-  );
-  const planHash = useMemo(
-    () => (planResult ? JSON.stringify(planResult.plan) : null),
-    [planResult],
-  );
+  const planResult = serializeStrategyPlan(stepsById, draftStrategy ?? strategy);
+  const planHash = planResult ? JSON.stringify(planResult.plan) : null;
   const graphIdForValidation = draftStrategy?.id ?? strategy?.id ?? null;
   const graphHasValidationIssues = useStrategyStore((state) =>
     graphIdForValidation != null && graphIdForValidation !== ""
@@ -165,21 +144,13 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   );
 
   // Render nodes (warning overlays only -- no dirty dots)
-  const renderNodes = useMemo(() => {
-    return warningGroupNodes.length > 0
-      ? [...warningGroupNodes, ...nodes]
-      : nodes;
-  }, [warningGroupNodes, nodes]);
+  const renderNodes = warningGroupNodes.length > 0
+    ? [...warningGroupNodes, ...nodes]
+    : nodes;
 
-  // Sync node positions ref
-  useEffect(() => {
-    nodePositionsRef.current = new Map(
-      nodes.map((n: Node) => [n.id, { x: n.position.x, y: n.position.y }]),
-    );
-  }, [nodes]);
 
   // Validate search steps
-  const validateSearchSteps = useCallback(async () => {
+  const validateSearchSteps = async () => {
     const steps = draftStrategy?.steps ?? [];
     if (steps.length === 0) return true;
     const { errorsByStepId, hasErrors: hasFieldErrors } = await validateStepsForSave({
@@ -194,15 +165,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
       setGraphValidationStatus(graphId, hasErrors);
     }
     return !hasErrors;
-  }, [
-    draftStrategy?.steps,
-    combineMismatchGroups,
-    setStepValidationErrors,
-    setGraphValidationStatus,
-    siteId,
-    strategy,
-    draftStrategy?.id,
-  ]);
+  };
 
   useSaveValidation({
     steps: draftStrategy?.steps ?? [],
@@ -218,7 +181,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     edges,
     setEdges,
     onEdgesChange,
-    nodePositionsRef,
+    nodePositions,
 
     // Render nodes (includes warning overlays)
     renderNodes,

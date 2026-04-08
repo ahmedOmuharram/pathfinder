@@ -9,7 +9,7 @@
  * Uses useQueryClient() directly for cache invalidation after duplication.
  */
 
-import { type Dispatch, type SetStateAction, useCallback, useState } from "react";
+import { type Dispatch, type SetStateAction, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createStrategy, getStrategy, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import type { Strategy } from "@pathfinder/shared";
@@ -40,22 +40,19 @@ export function useDuplicateWorkflow({
     null,
   );
 
-  const handleDuplicate = useCallback(
-    async (strategyIdToDuplicate: string, name: string, description: string) => {
-      const baseStrategy = await getStrategy(strategyIdToDuplicate);
-      const plan = buildDuplicatePlan({ baseStrategy, name, description });
-      await createStrategy({
-        name,
-        siteId: baseStrategy.siteId,
-        plan,
-      });
-      void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
-      void queryClient.invalidateQueries({ queryKey: dismissedStrategiesOptions(siteId).queryKey });
-    },
-    [queryClient, siteId],
-  );
+  const handleDuplicate = async (strategyIdToDuplicate: string, name: string, description: string) => {
+    const baseStrategy = await getStrategy(strategyIdToDuplicate);
+    const plan = buildDuplicatePlan({ baseStrategy, name, description });
+    await createStrategy({
+      name,
+      siteId: baseStrategy.siteId,
+      plan,
+    });
+    void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
+    void queryClient.invalidateQueries({ queryKey: dismissedStrategiesOptions(siteId).queryKey });
+  };
 
-  const startDuplicate = useCallback((strategy: Strategy) => {
+  const startDuplicate = (strategy: Strategy) => {
     setDuplicateModal(initDuplicateModal(strategy));
     getStrategy(strategy.id)
       .then((loadedStrategy) => {
@@ -67,7 +64,7 @@ export function useDuplicateWorkflow({
         console.error("[startDuplicate]", err);
         setDuplicateModal((prev) => (prev ? applyDuplicateLoadFailure(prev) : prev));
       });
-  }, []);
+  };
 
   return {
     duplicateModal,

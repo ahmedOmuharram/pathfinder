@@ -26,6 +26,9 @@ ModelProvider = Literal["openai", "anthropic", "google", "ollama", "mock"]
 ReasoningEffort = Literal["none", "low", "medium", "high"]
 """Reasoning effort level for models that support it."""
 
+TierName = Literal["quality", "balanced", "fast"]
+"""Preset tier names for pipeline model selection."""
+
 
 def as_json_object(value: JSONValue) -> JSONObject:
     """Type guard: assert that a JSONValue is a JSONObject.

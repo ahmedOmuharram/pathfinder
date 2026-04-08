@@ -1,4 +1,5 @@
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
+import { useOnClickOutside } from "usehooks-ts";
 import { Columns } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import type { RecordAttribute } from "@/lib/types/wdk";
@@ -22,15 +23,9 @@ export function ResultsTableHeader({
 }: ResultsTableHeaderProps) {
   const columnsRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (columnsRef.current && !columnsRef.current.contains(e.target as Node)) {
-        onColumnsOpenChange(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onColumnsOpenChange]);
+  useOnClickOutside(columnsRef as React.RefObject<HTMLElement>, () =>
+    onColumnsOpenChange(false),
+  );
 
   return (
     <div className="flex items-center justify-between gap-3">

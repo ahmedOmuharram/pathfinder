@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import type { WdkRecord, RecordsResponse } from "@/lib/types/wdk";
 import type { WdkSortDir } from "@/features/analysis/constants";
@@ -53,29 +53,26 @@ export function useResultsTableRecords(
     placeholderData: keepPreviousData,
   });
 
-  const handleSort = useCallback(
-    (colName: string) => {
-      if (sortColumn === colName) {
-        setSortDir((d) => (d === "ASC" ? "DESC" : "ASC"));
-      } else {
-        setSortColumn(colName);
-        setSortDir("ASC");
-      }
-      setOffset(0);
-    },
-    [sortColumn],
-  );
+  const handleSort = (colName: string) => {
+    if (sortColumn === colName) {
+      setSortDir((d) => (d === "ASC" ? "DESC" : "ASC"));
+    } else {
+      setSortColumn(colName);
+      setSortDir("ASC");
+    }
+    setOffset(0);
+  };
 
-  const resetSort = useCallback(() => {
+  const resetSort = () => {
     setSortColumn(null);
     setSortDir("ASC");
-  }, []);
+  };
 
-  const invalidateAndRefetch = useCallback(() => {
+  const invalidateAndRefetch = () => {
     void queryClient.invalidateQueries({
       queryKey: ["experiments", "records", entityRef.type, entityRef.id],
     });
-  }, [queryClient, entityRef.type, entityRef.id]);
+  };
 
   return {
     records: data?.records ?? [],

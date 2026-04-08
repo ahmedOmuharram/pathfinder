@@ -37,6 +37,7 @@
     "next": "^16.1.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-error-boundary": "^6.1.1",
     "react-hook-form": "^7.72.0",
     "react-markdown": "^10.1.0",
     "reaviz": "^16.1.2",
@@ -50,6 +51,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@redux-devtools/extension": "^4.0.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^25.3.5",

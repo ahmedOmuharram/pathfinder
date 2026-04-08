@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import type { Connection, Edge } from "@xyflow/react";
 import { type CombineOperator } from "@pathfinder/shared";
 import type { Step } from "@pathfinder/shared";
@@ -33,84 +33,69 @@ export function useGraphConnections({
   triggerSync,
 }: UseGraphConnectionsArgs) {
   const [pendingCombine, setPendingCombine] = useState<PendingCombine | null>(null);
-  const indices = useMemo(() => buildGraphIndices(steps), [steps]);
+  const indices = buildGraphIndices(steps);
 
-  const isValidConnection = useCallback(
-    (connection: Edge | Connection) => {
-      return isValidGraphConnection(connection as Connection, indices);
-    },
-    [indices],
-  );
+  const isValidConnection = (connection: Edge | Connection) => {
+    return isValidGraphConnection(connection as Connection, indices);
+  };
 
-  const handleConnect = useCallback(
-    (connection: Connection) => {
-      const effect = getConnectionEffect(connection, indices);
-      if (effect.type === "patch") {
-        updateStep(effect.targetId, effect.patch);
-        triggerSync();
-      } else if (effect.type === "pendingCombine") {
-        setPendingCombine({ sourceId: effect.sourceId, targetId: effect.targetId });
-      }
-    },
-    [indices, updateStep, triggerSync],
-  );
-
-  const handleDeleteEdge = useCallback(
-    (edge: Edge) => {
-      const patch = edgeToInputPatch(edge);
-      if (!patch) return;
-      updateStep(edge.target, patch);
+  const handleConnect = (connection: Connection) => {
+    const effect = getConnectionEffect(connection, indices);
+    if (effect.type === "patch") {
+      updateStep(effect.targetId, effect.patch);
       triggerSync();
-    },
-    [updateStep, triggerSync],
-  );
+    } else if (effect.type === "pendingCombine") {
+      setPendingCombine({ sourceId: effect.sourceId, targetId: effect.targetId });
+    }
+  };
 
-  const handleCombineCreate = useCallback(
-    async (operator: CombineOperator) => {
-      if (!pendingCombine) return;
-      const { recordType, mismatch } = inferCombineRecordTypeOrMismatch({
-        sourceId: pendingCombine.sourceId,
-        targetId: pendingCombine.targetId,
-        indices,
-      });
-      if (mismatch) {
-        failCombineMismatch();
-        setPendingCombine(null);
-        return;
-      }
-      const nextStep: Step = {
-        id: generateStepId(),
-        kind: "combine",
-        displayName: `${operator} combine`,
-        operator,
-        recordType: recordType ?? null,
-        primaryInputStepId: pendingCombine.sourceId,
-        secondaryInputStepId: pendingCombine.targetId,
-        isBuilt: false,
-        isFiltered: false,
-      };
-      addStep(nextStep);
+  const handleDeleteEdge = (edge: Edge) => {
+    const patch = edgeToInputPatch(edge);
+    if (!patch) return;
+    updateStep(edge.target, patch);
+    triggerSync();
+  };
+
+  const handleCombineCreate = async (operator: CombineOperator) => {
+    if (!pendingCombine) return;
+    const { recordType, mismatch } = inferCombineRecordTypeOrMismatch({
+      sourceId: pendingCombine.sourceId,
+      targetId: pendingCombine.targetId,
+      indices,
+    });
+    if (mismatch) {
+      failCombineMismatch();
       setPendingCombine(null);
-      triggerSync();
-    },
-    [pendingCombine, indices, addStep, failCombineMismatch, triggerSync],
-  );
-
-  const handleCombineCancel = useCallback(() => {
+      return;
+    }
+    const nextStep: Step = {
+      id: generateStepId(),
+      kind: "combine",
+      displayName: `${operator} combine`,
+      operator,
+      recordType: recordType ?? null,
+      primaryInputStepId: pendingCombine.sourceId,
+      secondaryInputStepId: pendingCombine.targetId,
+      isBuilt: false,
+      isFiltered: false,
+    };
+    addStep(nextStep);
     setPendingCombine(null);
-  }, []);
+    triggerSync();
+  };
 
-  const startCombine = useCallback(
-    (sourceId: string, targetId: string) => {
-      if (!sourceId || !targetId) return;
-      if (sourceId === targetId) return;
-      // Only meaningful when the graph has multiple roots and both selections are roots.
-      if (indices.rootIds.length === 1) return;
-      if (!indices.rootSet.has(sourceId) || !indices.rootSet.has(targetId)) return;
-      setPendingCombine({ sourceId, targetId });
-    },
-    [indices.rootIds.length, indices.rootSet],
-  );
+  const handleCombineCancel = () => {
+    setPendingCombine(null);
+  };
+
+  const startCombine = (sourceId: string, targetId: string) => {
+    if (!sourceId || !targetId) return;
+    if (sourceId === targetId) return;
+    // Only meaningful when the graph has multiple roots and both selections are roots.
+    if (indices.rootIds.length === 1) return;
+    if (!indices.rootSet.has(sourceId) || !indices.rootSet.has(targetId)) return;
+    setPendingCombine({ sourceId, targetId });
+  };
 
   return {
     pendingCombine,

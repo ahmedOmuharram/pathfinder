@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Search } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { Input } from "@/lib/components/ui/Input";
@@ -37,13 +37,10 @@ export function AddGeneSetPasteTab({ onClose, onCreated }: AddGeneSetPasteTabPro
   const parsedIds = parseGeneIds(pasteText);
   const detectedCount = parsedIds.length;
 
-  const handlePasteChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setPasteText(e.target.value);
-      resetVerification();
-    },
-    [resetVerification],
-  );
+  const handlePasteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setPasteText(e.target.value);
+    resetVerification();
+  };
 
   return (
     <>

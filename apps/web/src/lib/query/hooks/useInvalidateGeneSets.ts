@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeyPrefixes } from "@/lib/query/keys";
 
@@ -10,8 +9,5 @@ import { queryKeyPrefixes } from "@/lib/query/keys";
  */
 export function useInvalidateGeneSets() {
   const queryClient = useQueryClient();
-  return useCallback(
-    () => queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.geneSets }),
-    [queryClient],
-  );
+  return () => queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.geneSets });
 }

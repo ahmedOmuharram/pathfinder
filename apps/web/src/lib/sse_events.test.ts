@@ -41,14 +41,20 @@ describe("parseChatSSEEvent", () => {
   });
 
   it("parses model_selected events", () => {
+    const pipeline = {
+      discovery: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
+      planning: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
+      execution: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
+      verification: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
+    };
     const evt = parseChatSSEEvent({
       type: "model_selected",
-      data: JSON.stringify({ modelId: "gpt-4.1" }),
+      data: JSON.stringify({ pipeline }),
     });
     expect(evt).not.toBeNull();
     expect(evt!.type).toBe("model_selected");
     if (evt!.type === "model_selected") {
-      expect(evt.data.modelId).toBe("gpt-4.1");
+      expect(evt.data.pipeline.planning.modelId).toBe("anthropic/claude-opus-4-6");
     }
   });
 
@@ -533,18 +539,34 @@ describe("SSE event data Zod schemas", () => {
   });
 
   describe("ModelSelectedDataSchema", () => {
-    it("accepts valid data", () => {
-      const result = ModelSelectedDataSchema.safeParse({ modelId: "gpt-4.1" });
+    const validPipeline = {
+      pipeline: {
+        discovery: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
+        planning: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
+        execution: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
+        verification: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
+      },
+    };
+
+    it("accepts valid pipeline data", () => {
+      const result = ModelSelectedDataSchema.safeParse(validPipeline);
       expect(result.success).toBe(true);
     });
 
-    it("rejects data missing modelId", () => {
+    it("rejects data missing pipeline", () => {
       const result = ModelSelectedDataSchema.safeParse({});
       expect(result.success).toBe(false);
     });
 
-    it("rejects non-string modelId", () => {
-      const result = ModelSelectedDataSchema.safeParse({ modelId: 42 });
+    it("rejects pipeline missing a phase", () => {
+      const result = ModelSelectedDataSchema.safeParse({
+        pipeline: {
+          discovery: { modelId: "x", reasoningEffort: "medium" },
+          planning: { modelId: "x", reasoningEffort: "high" },
+          execution: { modelId: "x", reasoningEffort: "medium" },
+          // verification missing
+        },
+      });
       expect(result.success).toBe(false);
     });
   });

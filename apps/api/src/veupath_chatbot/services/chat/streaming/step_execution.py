@@ -141,8 +141,9 @@ async def run_step_with_agent(
 
                 merge_usage(config.counters, run.usage())
                 return True
-    except Exception:
+    except Exception as exc:
         logger.exception("Step execution failed", step_id=step.id)
+        step.failure_reason = str(exc)
         return False
 
 
@@ -197,8 +198,9 @@ async def run_execution_phase(config: PhaseConfig) -> None:
                 success = await run_step_with_agent(
                     step, config, frozenset(), EXECUTION_RECOVERY_LIMITS, inputs,
                 )
-        except Exception:
+        except Exception as exc:
             logger.exception("Step execution raised an exception", step_id=step.id)
+            step.failure_reason = str(exc)
             success = False
 
         step.status = StepStatus.COMPLETE if success else StepStatus.FAILED

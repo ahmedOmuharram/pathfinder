@@ -11,7 +11,26 @@ from __future__ import annotations
 from pydantic import Field
 
 from veupath_chatbot.platform.pydantic_base import CamelModel
-from veupath_chatbot.platform.types import JSONObject
+from veupath_chatbot.platform.types import JSONObject, ReasoningEffort
+
+# ── Pipeline configuration ──────────────────────────────────────────
+
+
+class PipelinePhaseConfig(CamelModel):
+    """Model + reasoning effort for a single pipeline phase."""
+
+    model_id: str
+    reasoning_effort: ReasoningEffort
+
+
+class PipelineConfig(CamelModel):
+    """Per-phase model configuration for the full pipeline."""
+
+    discovery: PipelinePhaseConfig
+    planning: PipelinePhaseConfig
+    execution: PipelinePhaseConfig
+    verification: PipelinePhaseConfig
+
 
 # ── Message lifecycle ────────────────────────────────────────────────
 
@@ -44,6 +63,14 @@ class AssistantMessageEventData(CamelModel):
     content: str | None = None
 
 
+class PhaseCostEntry(CamelModel):
+    """Cost breakdown for a single pipeline phase."""
+
+    model_id: str
+    tokens: int = 0
+    cost_usd: float = 0.0
+
+
 class MessageEndEventData(CamelModel):
     """Payload for ``message_end`` SSE events — mirrors TokenUsageResponse."""
 
@@ -57,6 +84,7 @@ class MessageEndEventData(CamelModel):
     registered_tool_count: int | None = None
     llm_call_count: int | None = None
     estimated_cost_usd: float | None = None
+    phase_costs: dict[str, PhaseCostEntry] | None = None
 
 
 # ── Tool calls ───────────────────────────────────────────────────────
@@ -90,7 +118,7 @@ class TokenUsagePartialEventData(CamelModel):
 class ModelSelectedEventData(CamelModel):
     """Payload for ``model_selected`` SSE events."""
 
-    model_id: str
+    pipeline: PipelineConfig
 
 
 # ── Error ────────────────────────────────────────────────────────────

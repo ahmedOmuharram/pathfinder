@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useEventCallback } from "usehooks-ts";
 import type { Strategy } from "@pathfinder/shared";
 import { pushStrategy } from "@/lib/api/strategies";
 import { serializeStrategyPlan } from "@/lib/strategyGraph/serialize";
@@ -30,18 +31,15 @@ export function useAutoSync(args: UseAutoSyncArgs): UseAutoSyncResult {
   const pendingRef = useRef(false);
   const setStrategyMeta = useStrategyStore((s) => s.setStrategyMeta);
 
-  // Use a ref for the sync function so the .finally() re-trigger always
-  // calls the latest version without creating a self-referencing useCallback.
-  const syncRef = useRef<() => void>(() => {});
+  const doSyncRef = useRef<() => void>(() => {});
+  const retrigger = useEventCallback(() => doSyncRef.current());
 
-  const doSync = useCallback(() => {
-    // Skip during AI streaming -- the executor handles its own sync.
+  const doSync = () => {
     const isAiStreaming = useSessionStore.getState().chatIsStreaming;
     if (isAiStreaming) return;
 
     if (!strategy || strategy.steps.length === 0) return;
 
-    // If already syncing, mark as pending so we sync again after.
     if (syncingRef.current) {
       pendingRef.current = true;
       return;
@@ -54,7 +52,7 @@ export function useAutoSync(args: UseAutoSyncArgs): UseAutoSyncResult {
       Object.fromEntries(draftStrategy.steps.map((s) => [s.id, s])),
       draftStrategy,
     );
-    if (!planResult) return; // No root or empty
+    if (!planResult) return;
 
     syncingRef.current = true;
     setSyncStatus("syncing");
@@ -68,7 +66,6 @@ export function useAutoSync(args: UseAutoSyncArgs): UseAutoSyncResult {
       .then((updated) => {
         setSyncStatus("synced");
         setLastSyncError(null);
-        // Update store with WDK data (step counts, wdkStepIds, validation)
         setStrategyMeta({
           wdkStrategyId: updated.wdkStrategyId ?? null,
           wdkUrl: updated.wdkUrl ?? null,
@@ -86,15 +83,12 @@ export function useAutoSync(args: UseAutoSyncArgs): UseAutoSyncResult {
         syncingRef.current = false;
         if (pendingRef.current) {
           pendingRef.current = false;
-          // Re-trigger sync for changes that came in while we were syncing
-          syncRef.current();
+          retrigger();
         }
       });
-  }, [strategy, siteId, setStrategyMeta, onToast]);
+  };
 
-  useEffect(() => {
-    syncRef.current = doSync;
-  }, [doSync]);
+  doSyncRef.current = doSync;
 
   return { syncStatus, lastSyncError, triggerSync: doSync };
 }

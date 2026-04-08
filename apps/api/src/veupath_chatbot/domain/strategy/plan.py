@@ -129,6 +129,7 @@ class PlannedStep(CamelModel):
     actual_count: int | None = None
     wdk_step_id: int | None = None
     graph_step_id: str | None = None
+    failure_reason: str | None = None
 
 
 class PlannedConnection(CamelModel):

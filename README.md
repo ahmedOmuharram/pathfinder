@@ -181,6 +181,36 @@ Notes:
 
 - Compose includes **Postgres and Redis** by default.
 
+### Observability (optional)
+
+PathFinder ships with an optional observability stack for tracing, metrics, and LLM monitoring:
+
+- **SigNoz** — full-stack APM (distributed traces, metrics, logs). UI at `http://localhost:3301`
+- **Langfuse** — LLM observability (prompt traces, token usage, cost tracking). UI at `http://localhost:3100`
+
+Both are optional — the API runs without tracing when unconfigured.
+
+```bash
+# Start core services + observability
+docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+```
+
+After Langfuse starts, open `http://localhost:3100`, create a project, and copy the API keys into your `.env`:
+
+```bash
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_HOST=http://localhost:3100
+```
+
+For SigNoz, set the OTEL endpoint:
+
+```bash
+SIGNOZ_OTEL_ENDPOINT=http://localhost:4317
+```
+
+Then restart the API (`docker compose up -d --build api`) to pick up the new env vars.
+
 ### Option B: run API + Web directly (no Docker)
 
 API:

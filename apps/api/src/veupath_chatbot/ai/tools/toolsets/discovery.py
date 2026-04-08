@@ -20,6 +20,7 @@ from veupath_chatbot.ai.tools.standalone.catalog_discovery import (
 from veupath_chatbot.ai.tools.standalone.gene import lookup_gene_records
 from veupath_chatbot.ai.tools.standalone.research import literature_search, web_search
 from veupath_chatbot.ai.tools.standalone.strategy_graph import get_strategy
+from veupath_chatbot.ai.tools.standalone.think import think
 
 
 def build_toolset() -> FunctionToolset[AgentDeps]:
@@ -40,5 +41,6 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             literature_search,
             lookup_gene_records,
             get_strategy,
+            think,
         ],
     )

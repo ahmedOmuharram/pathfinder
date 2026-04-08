@@ -3,21 +3,32 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
+import { createSuspenseWrapper } from "@/lib/query/testing";
+import type { RecordAttribute } from "@/lib/types/wdk";
 
 // ---------------------------------------------------------------------------
 // Mock the stepResults API module
 // ---------------------------------------------------------------------------
 
+const mockGetAttributes = vi.hoisted(() => vi.fn());
+
 vi.mock("@/features/analysis/api/stepResults", () => ({
-  getAttributes: vi.fn(),
+  getAttributes: mockGetAttributes,
+  attributesOptions: (entityRef: { type: string; id: string }) => ({
+    queryKey: ["experiments", "attributes", entityRef.type, entityRef.id],
+    queryFn: () => mockGetAttributes(entityRef),
+    staleTime: 60_000,
+  }),
 }));
 
 // ---------------------------------------------------------------------------
 // Mock the attribute filter to pass everything through by default
 // ---------------------------------------------------------------------------
 
+const mockIsDistributable = vi.hoisted(() => vi.fn((_a: { name: string }) => true));
+
 vi.mock("@/features/analysis/components/DistributionExplorer/attributeFilters", () => ({
-  isDistributableAttr: vi.fn(() => true),
+  isDistributableAttr: mockIsDistributable,
 }));
 
 // ---------------------------------------------------------------------------
@@ -25,13 +36,7 @@ vi.mock("@/features/analysis/components/DistributionExplorer/attributeFilters", 
 // ---------------------------------------------------------------------------
 
 import { useAttributeFiltering } from "./useAttributeFiltering";
-import { getAttributes } from "@/features/analysis/api/stepResults";
-import { isDistributableAttr } from "@/features/analysis/components/DistributionExplorer/attributeFilters";
 import type { EntityRef } from "@/features/analysis/api/stepResults";
-import type { RecordAttribute } from "@/lib/types/wdk";
-
-const mockGetAttributes = vi.mocked(getAttributes);
-const mockIsDistributable = vi.mocked(isDistributableAttr);
 
 function makeAttrs(...names: string[]): RecordAttribute[] {
   return names.map((name) => ({
@@ -62,47 +67,45 @@ describe("useAttributeFiltering", () => {
     const entity1: EntityRef = { type: "experiment", id: "exp-1" };
     const entity2: EntityRef = { type: "experiment", id: "exp-2" };
 
+    const { Wrapper } = createSuspenseWrapper();
     const { result, rerender } = renderHook(
       ({ entityRef }) => useAttributeFiltering(entityRef),
-      { initialProps: { entityRef: entity1 } },
+      { wrapper: Wrapper, initialProps: { entityRef: entity1 } },
     );
 
     // Wait for first fetch to complete
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(result.current.selectedAttr).toBe("organism");
     });
-    expect(result.current.selectedAttr).toBe("organism");
 
     // Switch entity — selectedAttr should reset before new attrs load
     rerender({ entityRef: entity2 });
 
-    // During loading, selectedAttr should be reset to ""
-    expect(result.current.selectedAttr).toBe("");
-
     // After second fetch completes, auto-selects first distributable attr
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(result.current.selectedAttr).toBe("molecular_weight");
     });
-    expect(result.current.selectedAttr).toBe("molecular_weight");
   });
 
   it("auto-selects first distributable attribute when attributes load", async () => {
     const attrs = makeAttrs("url_field", "organism", "gene_product");
     // Only organism and gene_product pass the filter
-    mockIsDistributable.mockImplementation((a) => a.name !== "url_field");
+    mockIsDistributable.mockImplementation((a: { name: string }) => a.name !== "url_field");
     mockGetAttributes.mockResolvedValueOnce({
       attributes: attrs,
       recordType: "gene",
     });
 
     const entity: EntityRef = { type: "experiment", id: "exp-1" };
-    const { result } = renderHook(() => useAttributeFiltering(entity));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+    const { Wrapper } = createSuspenseWrapper();
+    const { result } = renderHook(() => useAttributeFiltering(entity), {
+      wrapper: Wrapper,
     });
 
-    expect(result.current.selectedAttr).toBe("organism");
+    await waitFor(() => {
+      expect(result.current.selectedAttr).toBe("organism");
+    });
+
     expect(result.current.attributes).toHaveLength(2);
   });
 
@@ -114,27 +117,16 @@ describe("useAttributeFiltering", () => {
     });
 
     const entity: EntityRef = { type: "experiment", id: "exp-1" };
-    const { result } = renderHook(() => useAttributeFiltering(entity));
+    const { Wrapper } = createSuspenseWrapper();
+    const { result } = renderHook(() => useAttributeFiltering(entity), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(result.current.attributes).toHaveLength(0);
     });
 
     expect(result.current.selectedAttr).toBe("");
-    expect(result.current.attributes).toHaveLength(0);
-  });
-
-  it("sets error when getAttributes fails", async () => {
-    mockGetAttributes.mockRejectedValueOnce(new Error("Network error"));
-
-    const entity: EntityRef = { type: "experiment", id: "exp-1" };
-    const { result } = renderHook(() => useAttributeFiltering(entity));
-
-    await waitFor(() => {
-      expect(result.current.loading).toBe(false);
-    });
-
-    expect(result.current.error).toContain("Network error");
   });
 
   it("allows manual selection via setSelectedAttr", async () => {
@@ -144,10 +136,13 @@ describe("useAttributeFiltering", () => {
     });
 
     const entity: EntityRef = { type: "experiment", id: "exp-1" };
-    const { result } = renderHook(() => useAttributeFiltering(entity));
+    const { Wrapper } = createSuspenseWrapper();
+    const { result } = renderHook(() => useAttributeFiltering(entity), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(result.current.selectedAttr).toBe("organism");
     });
 
     act(() => {

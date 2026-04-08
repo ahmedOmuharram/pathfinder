@@ -9,7 +9,7 @@
  * Uses useQueryClient() directly for cache invalidation after rename.
  */
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { updateStrategy as updateStrategyApi, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import { toUserMessage } from "@/lib/api/errors";
@@ -37,31 +37,28 @@ export function useRenameWorkflow({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
-  const startRename = useCallback((item: ConversationItem) => {
+  const startRename = (item: ConversationItem) => {
     setRenamingId(item.id);
     setRenameValue(item.title);
-  }, []);
+  };
 
-  const commitRename = useCallback(
-    async (item: ConversationItem) => {
-      const next = renameValue.trim();
-      if (!next || next === item.title) {
-        setRenamingId(null);
-        return;
-      }
-      try {
-        await updateStrategyApi(item.id, { name: next });
-        void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
-        void queryClient.invalidateQueries({ queryKey: dismissedStrategiesOptions(siteId).queryKey });
-      } catch (err) {
-        reportError(toUserMessage(err, "Failed to rename."));
-      }
+  const commitRename = async (item: ConversationItem) => {
+    const next = renameValue.trim();
+    if (!next || next === item.title) {
       setRenamingId(null);
-    },
-    [renameValue, queryClient, siteId, reportError],
-  );
+      return;
+    }
+    try {
+      await updateStrategyApi(item.id, { name: next });
+      void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
+      void queryClient.invalidateQueries({ queryKey: dismissedStrategiesOptions(siteId).queryKey });
+    } catch (err) {
+      reportError(toUserMessage(err, "Failed to rename."));
+    }
+    setRenamingId(null);
+  };
 
-  const cancelRename = useCallback(() => setRenamingId(null), []);
+  const cancelRename = () => setRenamingId(null);
 
   return {
     renamingId,

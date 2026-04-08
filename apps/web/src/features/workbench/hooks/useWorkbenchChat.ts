@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useEffect, useReducer } from "react";
+import { useState, useRef, useReducer } from "react";
+import { useUnmount } from "usehooks-ts";
 import type { ChatSSEEvent } from "@/lib/sse_events";
 import type { Citation } from "@pathfinder/shared";
 import { cancelOperation } from "@/lib/operationSubscribe";
@@ -98,143 +99,119 @@ export function useWorkbenchChat(
   // ---------------------------------------------------------------------------
   // SSE event handler
   // ---------------------------------------------------------------------------
-  const handleEvent = useCallback(
-    (event: ChatSSEEvent) => {
-      switch (event.type) {
-        case "assistant_delta":
-          dispatch({
-            type: "append_delta",
-            delta: event.data.delta ?? "",
-            createMessage: createAssistantMessage,
-          });
-          break;
+  const handleEvent = (event: ChatSSEEvent) => {
+    switch (event.type) {
+      case "assistant_delta":
+        dispatch({
+          type: "append_delta",
+          delta: event.data.delta ?? "",
+          createMessage: createAssistantMessage,
+        });
+        break;
 
-        case "assistant_message":
-          dispatch({
-            type: "set_full_message",
-            content: event.data.content ?? "",
-            createMessage: createAssistantMessage,
-          });
-          break;
+      case "assistant_message":
+        dispatch({
+          type: "set_full_message",
+          content: event.data.content ?? "",
+          createMessage: createAssistantMessage,
+        });
+        break;
 
-        case "citations":
-          dispatch({
-            type: "set_citations",
-            citations: event.data.citations,
-          });
-          break;
+      case "citations":
+        dispatch({
+          type: "set_citations",
+          citations: event.data.citations,
+        });
+        break;
 
-        case "tool_call_start":
-          setActiveToolCalls((prev) => [
-            ...prev,
-            { id: event.data.id, name: event.data.name },
-          ]);
-          dispatch({
-            type: "start_tool_call",
-            id: event.data.id,
-            name: event.data.name,
-          });
-          break;
+      case "tool_call_start":
+        setActiveToolCalls((prev) => [
+          ...prev,
+          { id: event.data.id, name: event.data.name },
+        ]);
+        dispatch({
+          type: "start_tool_call",
+          id: event.data.id,
+          name: event.data.name,
+        });
+        break;
 
-        case "tool_call_end":
-          setActiveToolCalls((prev) => prev.filter((tc) => tc.id !== event.data.id));
-          dispatch({
-            type: "end_tool_call",
-            id: event.data.id,
-            result: event.data.result ?? "",
-          });
-          break;
+      case "tool_call_end":
+        setActiveToolCalls((prev) => prev.filter((tc) => tc.id !== event.data.id));
+        dispatch({
+          type: "end_tool_call",
+          id: event.data.id,
+          result: event.data.result ?? "",
+        });
+        break;
 
-        case "message_end":
-          setStreaming(false);
-          setActiveToolCalls([]);
-          dispatch({ type: "end_stream" });
-          break;
+      case "message_end":
+        setStreaming(false);
+        setActiveToolCalls([]);
+        dispatch({ type: "end_stream" });
+        break;
 
-        case "error":
-          setStreaming(false);
-          setActiveToolCalls([]);
-          dispatch({ type: "end_stream" });
-          setError(event.data.error !== "" ? event.data.error : "An error occurred");
-          break;
+      case "error":
+        setStreaming(false);
+        setActiveToolCalls([]);
+        dispatch({ type: "end_stream" });
+        setError(event.data.error !== "" ? event.data.error : "An error occurred");
+        break;
 
-        case "workbench_gene_set": {
-          const gs = event.data.geneSet;
-          if (gs?.id != null && gs.name != null && gs.geneCount != null && gs.source != null && gs.siteId != null) {
-            void invalidateGeneSets();
-          }
-          break;
+      case "workbench_gene_set": {
+        const gs = event.data.geneSet;
+        if (gs?.id != null && gs.name != null && gs.geneCount != null && gs.source != null && gs.siteId != null) {
+          void invalidateGeneSets();
         }
-        case "message_start":
-        case "user_message":
-        case "planning_artifact":
-        case "reasoning":
-        case "strategy_update":
-        case "graph_snapshot":
-        case "strategy_link":
-        case "strategy_meta":
-        case "graph_cleared":
-        case "optimization_progress":
-        case "model_selected":
-        case "graph_plan":
-        case "token_usage_partial":
-        case "planning_thought":
-        case "plan_presented":
-        case "plan_updated":
-        case "decision_presented":
-        case "phase_change":
-        case "unknown":
-          // These event types are handled elsewhere or are irrelevant to the workbench chat.
-          break;
+        break;
       }
-    },
-    [invalidateGeneSets],
-  );
+      default:
+        // Other event types are handled elsewhere or are irrelevant to the workbench chat.
+        break;
+    }
+  };
 
   // ---------------------------------------------------------------------------
   // Send message
   // ---------------------------------------------------------------------------
-  const sendMessage = useCallback(
-    (text: string) => {
-      if (experimentId == null || streaming) return;
+  const sendMessage = (text: string) => {
+    if (experimentId == null || streaming) return;
 
-      // Cancel any existing stream
-      cancelRef.current?.();
+    // Cancel any existing stream
+    cancelRef.current?.();
 
-      // Add user message via reducer
-      dispatch({
-        type: "add_user_message",
-        message: createUserMessage(`wb-msg-${state.msgCounter + 1}`, text),
+    // Add user message via reducer
+    dispatch({
+      type: "add_user_message",
+      message: createUserMessage(`wb-msg-${state.msgCounter + 1}`, text),
+    });
+    setStreaming(true);
+    setError(null);
+
+    const { promise, cancel } = streamWorkbenchChat(experimentId, text, siteId, {
+      onMessage: handleEvent,
+      onError: (err) => {
+        console.error("[useWorkbenchChat] Stream error:", err);
+        setStreaming(false);
+        setActiveToolCalls([]);
+        setError(err.message !== "" ? err.message : "An error occurred");
+      },
+      onComplete: () => {
+        setStreaming(false);
+        setActiveToolCalls([]);
+        operationIdRef.current = null;
+      },
+    });
+
+    cancelRef.current = cancel;
+    void promise
+      .then(({ operationId }) => {
+        operationIdRef.current = operationId;
+      })
+      .catch(() => {
+        // Error already handled by onError callback
       });
-      setStreaming(true);
-      setError(null);
-
-      const { promise, cancel } = streamWorkbenchChat(experimentId, text, siteId, {
-        onMessage: handleEvent,
-        onError: (err) => {
-          console.error("[useWorkbenchChat] Stream error:", err);
-          setStreaming(false);
-          setActiveToolCalls([]);
-          setError(err.message !== "" ? err.message : "An error occurred");
-        },
-        onComplete: () => {
-          setStreaming(false);
-          setActiveToolCalls([]);
-          operationIdRef.current = null;
-        },
-      });
-
-      cancelRef.current = cancel;
-      void promise
-        .then(({ operationId }) => {
-          operationIdRef.current = operationId;
-        })
-        .catch(() => {
-          // Error already handled by onError callback
-        });
-    },
-    [experimentId, siteId, streaming, handleEvent, state.msgCounter],
-  );
+  };
 
   // ---------------------------------------------------------------------------
   // Auto-trigger (separate concern)
@@ -250,7 +227,7 @@ export function useWorkbenchChat(
   // ---------------------------------------------------------------------------
   // Stop + cleanup
   // ---------------------------------------------------------------------------
-  const stop = useCallback(() => {
+  const stop = () => {
     cancelRef.current?.();
     cancelRef.current = null;
     if (operationIdRef.current != null) {
@@ -259,13 +236,9 @@ export function useWorkbenchChat(
     }
     setStreaming(false);
     setActiveToolCalls([]);
-  }, []);
+  };
 
-  useEffect(() => {
-    return () => {
-      cancelRef.current?.();
-    };
-  }, []);
+  useUnmount(() => cancelRef.current?.());
 
   return { messages: state.messages, streaming, activeToolCalls, error, sendMessage, stop };
 }

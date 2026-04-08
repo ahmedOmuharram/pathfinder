@@ -5,7 +5,7 @@
  * This store only tracks selection/activation IDs and UI controls.
  */
 
-import { create } from "zustand";
+import { createStore } from "./middleware";
 import type { Experiment } from "@pathfinder/shared";
 
 // ---------------------------------------------------------------------------
@@ -56,13 +56,13 @@ interface WorkbenchState {
   toggleGeneSearch: () => void;
   toggleLeftSidebar: () => void;
 
-  // Actions — evaluate controls
+  // State + actions — evaluate controls
+  positiveControls: string[];
+  negativeControls: string[];
+  setPositiveControls: (ids: string[]) => void;
+  setNegativeControls: (ids: string[]) => void;
   appendPositiveControls: (ids: string[]) => void;
   appendNegativeControls: (ids: string[]) => void;
-  /** Pending control IDs set by the search sidebar, consumed by EvaluatePanel. */
-  pendingPositiveControls: string[];
-  pendingNegativeControls: string[];
-  clearPendingControls: () => void;
 
   // Actions — experiment
   setLastExperiment: (experiment: Experiment | null, setId: string | null) => void;
@@ -84,15 +84,15 @@ const initialState = {
   lastExperimentSetId: null as string | null,
   geneSearchOpen: false,
   leftSidebarOpen: true,
-  pendingPositiveControls: [] as string[],
-  pendingNegativeControls: [] as string[],
+  positiveControls: [] as string[],
+  negativeControls: [] as string[],
 };
 
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
-export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
+export const useWorkbenchStore = createStore<WorkbenchState>("WorkbenchStore", (set) => ({
   ...initialState,
 
   // -- Gene set selection actions ----------------------------------------------
@@ -155,18 +155,18 @@ export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
 
   // -- Evaluate controls ----------------------------------------------------
 
+  setPositiveControls: (ids) => set({ positiveControls: ids }),
+  setNegativeControls: (ids) => set({ negativeControls: ids }),
+
   appendPositiveControls: (ids) =>
     set((s) => ({
-      pendingPositiveControls: [...s.pendingPositiveControls, ...ids],
+      positiveControls: [...s.positiveControls, ...ids],
     })),
 
   appendNegativeControls: (ids) =>
     set((s) => ({
-      pendingNegativeControls: [...s.pendingNegativeControls, ...ids],
+      negativeControls: [...s.negativeControls, ...ids],
     })),
-
-  clearPendingControls: () =>
-    set({ pendingPositiveControls: [], pendingNegativeControls: [] }),
 
   // -- Experiment actions ----------------------------------------------------
 
@@ -186,7 +186,7 @@ export const useWorkbenchStore = create<WorkbenchState>()((set) => ({
       lastExperimentSetId: null,
       geneSearchOpen: false,
       leftSidebarOpen: true,
-      pendingPositiveControls: [],
-      pendingNegativeControls: [],
+      positiveControls: [],
+      negativeControls: [],
     }),
 }));

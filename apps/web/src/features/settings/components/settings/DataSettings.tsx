@@ -10,7 +10,7 @@
  * - Clear ALL data + WDK (everything locally + delete from VEuPathDB, requires "delete my data")
  */
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { requestVoid } from "@/lib/api/http";
 import { listStrategies, deleteStrategy } from "@/lib/api/strategies";
 import { useAsyncAction } from "@/lib/utils/asyncAction";
@@ -27,7 +27,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
   const [wdkConfirmText, setWdkConfirmText] = useState("");
   const { run, error } = useAsyncAction();
 
-  const clearStrategies = useCallback(async () => {
+  const clearStrategies = async () => {
     setClearing("strategies");
     await run(async () => {
       const all = await listStrategies(siteId);
@@ -36,9 +36,9 @@ export function DataSettings({ siteId }: DataSettingsProps) {
     });
     setClearing(null);
     setConfirmAction(null);
-  }, [siteId, run]);
+  };
 
-  const clearSiteData = useCallback(async () => {
+  const clearSiteData = async () => {
     setClearing("site");
     await run(async () => {
       await requestVoid("/api/v1/user/data", {
@@ -49,9 +49,9 @@ export function DataSettings({ siteId }: DataSettingsProps) {
     });
     setClearing(null);
     setConfirmAction(null);
-  }, [siteId, run]);
+  };
 
-  const clearAllLocal = useCallback(async () => {
+  const clearAllLocal = async () => {
     setClearing("all-local");
     await run(async () => {
       await requestVoid("/api/v1/user/data", {
@@ -62,9 +62,9 @@ export function DataSettings({ siteId }: DataSettingsProps) {
     });
     setClearing(null);
     setConfirmAction(null);
-  }, [run]);
+  };
 
-  const clearAllWithWdk = useCallback(async () => {
+  const clearAllWithWdk = async () => {
     setClearing("all-wdk");
     await run(async () => {
       await requestVoid("/api/v1/user/data", {
@@ -76,7 +76,7 @@ export function DataSettings({ siteId }: DataSettingsProps) {
     setClearing(null);
     setConfirmAction(null);
     setWdkConfirmText("");
-  }, [run]);
+  };
 
   return (
     <div className="space-y-4">

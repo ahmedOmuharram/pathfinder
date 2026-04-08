@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { useEventListener, useOnClickOutside } from "usehooks-ts";
 import type { Edge } from "@xyflow/react";
 import { CombineOperator, type Step } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
@@ -36,27 +37,11 @@ export function EdgeContextMenu({
 }: EdgeContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Click-outside and Escape key to close
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    // Use a timeout to avoid the current click from immediately closing
-    const timer = setTimeout(() => {
-      document.addEventListener("mousedown", handleClickOutside);
-    }, 0);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [onClose]);
+  useOnClickOutside(menuRef as React.RefObject<HTMLElement>, onClose);
+
+  useEventListener("keydown", (e) => {
+    if (e.key === "Escape") onClose();
+  });
 
   const targetStep = steps.find((s) => s.id === edge.target);
   const isCombineEdge = targetStep != null && inferStepKind(targetStep) === "combine";

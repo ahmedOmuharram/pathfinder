@@ -1,8 +1,6 @@
 /**
  * Zod schemas for Model catalog API responses.
  *
- * All object schemas use .passthrough() so extra fields from the backend
- * are preserved rather than stripped.
  */
 import { z } from "zod";
 
@@ -11,8 +9,6 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------
 
 const ModelProviderSchema = z.enum(["openai", "anthropic", "google", "ollama", "mock"]);
-
-const ReasoningEffortSchema = z.enum(["none", "low", "medium", "high"]);
 
 export const ModelCatalogEntrySchema = z.object({
   id: z.string(),
@@ -31,6 +27,6 @@ export const ModelCatalogEntrySchema = z.object({
 
 export const ModelCatalogResponseSchema = z.object({
   models: z.array(ModelCatalogEntrySchema),
-  default: z.string(),
-  defaultReasoningEffort: ReasoningEffortSchema,
+  defaultProvider: ModelProviderSchema,
+  defaultTier: z.enum(["quality", "balanced", "fast"]),
 });

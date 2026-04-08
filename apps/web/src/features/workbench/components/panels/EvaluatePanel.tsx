@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
+import { useUnmount } from "usehooks-ts";
+import { useShallow } from "zustand/react/shallow";
 import { useQueryClient } from "@tanstack/react-query";
 import { Target, Play, Loader2 } from "lucide-react";
 import type { Experiment, EnrichmentAnalysisType } from "@pathfinder/shared";
@@ -37,12 +39,25 @@ export function EvaluatePanel() {
   const queryClient = useQueryClient();
   const selectedSite = useSessionStore((s) => s.selectedSite);
   const { data: geneSets = [] } = useGeneSetsQuery(selectedSite);
-  const activeSetId = useWorkbenchStore((s) => s.activeSetId);
+  const {
+    activeSetId,
+    positiveControls,
+    negativeControls,
+    setPositiveControls,
+    setNegativeControls,
+    setLastExperiment,
+  } = useWorkbenchStore(
+    useShallow((s) => ({
+      activeSetId: s.activeSetId,
+      positiveControls: s.positiveControls,
+      negativeControls: s.negativeControls,
+      setPositiveControls: s.setPositiveControls,
+      setNegativeControls: s.setNegativeControls,
+      setLastExperiment: s.setLastExperiment,
+    })),
+  );
   const activeSet = geneSets.find((gs) => gs.id === activeSetId);
-  const setLastExperiment = useWorkbenchStore((s) => s.setLastExperiment);
 
-  const [positiveControls, setPositiveControls] = useState<string[]>([]);
-  const [negativeControls, setNegativeControls] = useState<string[]>([]);
   const [enableCV, setEnableCV] = useState(false);
   const [kFolds, setKFolds] = useState(5);
   const [enableStepAnalysis, setEnableStepAnalysis] = useState(false);
@@ -52,31 +67,7 @@ export function EvaluatePanel() {
   const [experiment, setExperiment] = useState<Experiment | null>(null);
   const subscriptionRef = useRef<OperationSubscription | null>(null);
 
-  // Consume pending controls from gene search sidebar
-  const pendingPositive = useWorkbenchStore((s) => s.pendingPositiveControls);
-  const pendingNegative = useWorkbenchStore((s) => s.pendingNegativeControls);
-  const clearPendingControls = useWorkbenchStore((s) => s.clearPendingControls);
-
-  useEffect(() => {
-    if (pendingPositive.length === 0 && pendingNegative.length === 0) return;
-    const pos = pendingPositive;
-    const neg = pendingNegative;
-    clearPendingControls();
-    queueMicrotask(() => {
-      if (pos.length > 0) {
-        setPositiveControls((prev) => [...prev, ...pos]);
-      }
-      if (neg.length > 0) {
-        setNegativeControls((prev) => [...prev, ...neg]);
-      }
-    });
-  }, [pendingPositive, pendingNegative, clearPendingControls]);
-
-  useEffect(() => {
-    return () => {
-      subscriptionRef.current?.unsubscribe();
-    };
-  }, []);
+  useUnmount(() => subscriptionRef.current?.unsubscribe());
 
   const hasSearchContext = Boolean(
     activeSet != null &&
@@ -86,7 +77,7 @@ export function EvaluatePanel() {
         activeSet.parameters != null)),
   );
 
-  const handleRun = useCallback(async () => {
+  const handleRun = async () => {
     if (!activeSet) return;
     const hasGeneIds = activeSet.geneIds.length > 0;
     const hasSearch =
@@ -140,18 +131,7 @@ export function EvaluatePanel() {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
     }
-  }, [
-    activeSet,
-    activeSetId,
-    positiveControls,
-    negativeControls,
-    enableCV,
-    kFolds,
-    enableStepAnalysis,
-    enrichmentTypes,
-    setLastExperiment,
-    queryClient,
-  ]);
+  };
 
   return (
     <AnalysisPanelContainer

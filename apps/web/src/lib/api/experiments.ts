@@ -2,6 +2,7 @@
  * Shared experiment API functions -- used by both workbench and chat features.
  */
 
+import { queryOptions } from "@tanstack/react-query";
 import type { ExperimentSummary } from "@pathfinder/shared";
 import {
   APIError,
@@ -20,6 +21,15 @@ export async function listExperiments(
     "/api/v1/experiments",
     siteId != null && siteId !== "" ? { query: { siteId } } : {},
   )) as ExperimentSummary[];
+}
+
+export function experimentsListOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ["experiments", "list", siteId] as const,
+    queryFn: () => listExperiments(siteId),
+    staleTime: 30_000,
+    enabled: siteId !== "",
+  });
 }
 
 /**

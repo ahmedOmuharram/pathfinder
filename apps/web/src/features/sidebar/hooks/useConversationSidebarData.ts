@@ -9,7 +9,6 @@
  * No setter shims — sub-hooks that need cache access use useQueryClient() directly.
  */
 
-import { useMemo } from "react";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { useStrategyFetching } from "@/features/sidebar/hooks/useStrategyFetching";
 import { useAutoConversation } from "@/features/sidebar/hooks/useAutoConversation";
@@ -55,35 +54,30 @@ export function useConversationSidebarData({
     isFetched: fetching.isFetched,
   });
 
-  // Destructure to stable references for useMemo deps.
   const { strategies, dismissedStrategies } = fetching;
 
   // --- Build conversation list ---
-  const conversations: ConversationItem[] = useMemo(() => {
-    const items: ConversationItem[] = strategies.map((s) => ({
+  const conversations: ConversationItem[] = strategies
+    .map((s) => ({
       id: s.id,
       kind: "strategy" as const,
       title: s.name,
       updatedAt: s.updatedAt,
       siteId: s.siteId,
       strategyItem: s,
-    }));
-
-    return items.sort(
+    }))
+    .sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
-  }, [strategies]);
 
-  const dismissedConversations: ConversationItem[] = useMemo(() => {
-    return dismissedStrategies.map((s) => ({
-      id: s.id,
-      kind: "strategy" as const,
-      title: s.name,
-      updatedAt: s.updatedAt,
-      siteId: s.siteId,
-      strategyItem: s,
-    }));
-  }, [dismissedStrategies]);
+  const dismissedConversations: ConversationItem[] = dismissedStrategies.map((s) => ({
+    id: s.id,
+    kind: "strategy" as const,
+    title: s.name,
+    updatedAt: s.updatedAt,
+    siteId: s.siteId,
+    strategyItem: s,
+  }));
 
   // --- Search filter ---
   const { query, setQuery, filtered } = useSearchFilter(conversations);

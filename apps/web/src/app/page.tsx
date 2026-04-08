@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { usePrevious } from "@/lib/hooks/usePrevious";
 import { UnifiedChatPanel } from "@/features/chat/components/UnifiedChatPanel";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
+import { useShallow } from "zustand/react/shallow";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
 
@@ -15,13 +15,15 @@ import { TopBarActions } from "@/app/components/TopBarActions";
 import { EmbeddedToolbar } from "@/app/components/EmbeddedToolbar";
 import { GraphEditorModal } from "@/app/components/GraphEditorModal";
 import { LoadingScreen } from "@/app/components/LoadingScreen";
-import { ApiErrorScreen } from "@/app/components/ApiErrorScreen";
+import { QueryBoundary } from "@/lib/components/QueryBoundary";
+import { AppShellError } from "@/app/components/AppShellError";
 import { useToasts } from "@/app/hooks/useToasts";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
 import { useModalState } from "@/app/hooks/useModalState";
 import { useGeneSetExport } from "@/app/hooks/useGeneSetExport";
 import { CompactStrategyView } from "@/features/strategy/graph/components/CompactStrategyView";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
+import { EngineModal } from "@/features/engine/components/EngineModal";
 import { useAuthCheck } from "@/app/hooks/useAuthCheck";
 import { useAuthRefresh } from "@/app/hooks/useAuthRefresh";
 import { useSystemConfig } from "@/app/hooks/useSystemConfig";
@@ -34,9 +36,12 @@ import { ClipboardList } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <Suspense>
+    <QueryBoundary
+      loadingFallback={<LoadingScreen />}
+      ErrorFallback={AppShellError}
+    >
       <HomePageInner />
-    </Suspense>
+    </QueryBoundary>
   );
 }
 
@@ -45,45 +50,42 @@ function HomePageInner() {
   const embedded = searchParams.get("embedded") === "true";
   const siteIdParam = searchParams.get("siteId");
 
-  const { selectedSite, setSelectedSite } = useSessionStore();
-  const setStrategyId = useSessionStore((state) => state.setStrategyId);
-  const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
-  const { authLoading, apiError, retry: retryAuth } = useAuthCheck();
-  const { configLoading, setupRequired, retry: retryConfig } = useSystemConfig();
+  const {
+    selectedSite,
+    strategyId,
+    switchSite,
+    veupathdbSignedIn,
+    pendingAskNode,
+    setPendingAskNode,
+  } = useSessionStore(
+    useShallow((s) => ({
+      selectedSite: s.selectedSite,
+      strategyId: s.strategyId,
+      switchSite: s.switchSite,
+      veupathdbSignedIn: s.veupathdbSignedIn,
+      pendingAskNode: s.pendingAskNode,
+      setPendingAskNode: s.setPendingAskNode,
+    })),
+  );
+  useAuthCheck();
+  const { setupRequired, retry: retryConfig } = useSystemConfig();
   useSiteTheme(selectedSite);
   useAuthRefresh();
-  const strategy = useStrategyStore((state) => state.strategy);
-  const clearStrategy = useStrategyStore((state) => state.clear);
+  const strategy = useStrategyStore((s) => s.strategy);
 
   const { toasts, addToast, removeToast, durationMs } = useToasts();
   const { layoutRef, sidebarWidth, startDragging } = useSidebarResize();
   const modals = useModalState();
-  const pendingAskNode = useSessionStore((state) => state.pendingAskNode);
-  const setPendingAskNode = useSessionStore((state) => state.setPendingAskNode);
 
-  const prevSite = usePrevious(selectedSite);
-
-  // Lock to a specific site when embedded with a siteId param
-  useEffect(() => {
+  const [prevSiteIdParam, setPrevSiteIdParam] = useState(siteIdParam);
+  if (siteIdParam !== prevSiteIdParam) {
+    setPrevSiteIdParam(siteIdParam);
     if (siteIdParam !== null && siteIdParam !== selectedSite) {
-      setSelectedSite(siteIdParam);
+      switchSite(siteIdParam);
     }
-  }, [siteIdParam, selectedSite, setSelectedSite]);
+  }
 
-  useEffect(() => {
-    if (prevSite !== undefined && prevSite !== selectedSite) {
-      setStrategyId(null);
-      clearStrategy();
-    }
-  }, [selectedSite, prevSite, setStrategyId, clearStrategy]);
-
-  const handleSiteChange = useCallback(
-    (nextSite: string) => {
-      if (nextSite === selectedSite) return;
-      setSelectedSite(nextSite);
-    },
-    [selectedSite, setSelectedSite],
-  );
+  const handleSiteChange = (nextSite: string) => switchSite(nextSite);
 
   // --- Workbench gene set export ---
   const { exportingGeneSet, handleExportAsGeneSet } = useGeneSetExport();
@@ -91,17 +93,13 @@ function HomePageInner() {
   const { displayStrategy, hasGraph } = useStableGraph(strategy);
   const activePlan = usePlanStore((s) => s.activePlan);
   const [planPanel, setPlanPanel] = useState<"closed" | "collapsed" | "open">("closed");
+  const [prevPlanStatus, setPrevPlanStatus] = useState(activePlan?.status);
+  if (activePlan?.status !== prevPlanStatus) {
+    setPrevPlanStatus(activePlan?.status);
+    if (activePlan?.status === "presented") setPlanPanel("open");
+  }
 
-  // Auto-open plan panel when a plan is presented
-  useEffect(() => {
-    if (activePlan?.status === "presented") {
-      setPlanPanel("open");
-    }
-  }, [activePlan?.status]);
-
-  if (authLoading || configLoading) return <LoadingScreen />;
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
-  if (apiError !== null) return <ApiErrorScreen error={apiError} onRetry={retryAuth} />;
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -120,7 +118,7 @@ function HomePageInner() {
         <TopBar
           selectedSite={selectedSite}
           onSiteChange={handleSiteChange}
-          actions={<TopBarActions onOpenSettings={modals.openSettings} />}
+          actions={<TopBarActions onOpenSettings={modals.openSettings} onOpenEngine={modals.openEngine} />}
         />
       )}
 
@@ -143,9 +141,11 @@ function HomePageInner() {
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
           <div className="min-h-0 flex-1">
             <UnifiedChatPanel
+              key={strategyId ?? "none"}
               siteId={selectedSite}
               pendingAskNode={pendingAskNode}
               onConsumeAskNode={() => setPendingAskNode(null)}
+              onOpenEngine={modals.openEngine}
             />
           </div>
 
@@ -199,6 +199,11 @@ function HomePageInner() {
         open={modals.showSettings}
         onClose={modals.closeSettings}
         siteId={selectedSite}
+      />
+
+      <EngineModal
+        open={modals.showEngine}
+        onClose={modals.closeEngine}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WdkRecord, RecordDetail } from "@/lib/types/wdk";
 import { getRecordDetail, type EntityRef } from "@/features/analysis/api/stepResults";
@@ -21,18 +21,15 @@ export function useResultsTableDetail(entityRef: EntityRef): ResultsTableDetailS
     enabled: expandedKey != null && recordId != null,
   });
 
-  const handleExpandRow = useCallback(
-    (key: string, id: WdkRecord["id"]) => {
-      if (expandedKey === key) {
-        setExpandedKey(null);
-        setRecordId(null);
-      } else {
-        setExpandedKey(key);
-        setRecordId(id);
-      }
-    },
-    [expandedKey],
-  );
+  const handleExpandRow = (key: string, id: WdkRecord["id"]) => {
+    if (expandedKey === key) {
+      setExpandedKey(null);
+      setRecordId(null);
+    } else {
+      setExpandedKey(key);
+      setRecordId(id);
+    }
+  };
 
   return {
     expandedKey,

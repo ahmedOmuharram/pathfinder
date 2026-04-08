@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from veupath_chatbot.platform.types import JSONObject
 from veupath_chatbot.services.strategies.schemas import (
     StepResponse,
     StrategyPlanPayload,
@@ -65,7 +66,7 @@ class StrategyResponse(BaseModel):
     is_saved: bool = Field(default=False, alias="isSaved")
     messages: list[MessageResponse] | None = None
     thinking: ThinkingResponse | None = None
-    model_id: str | None = Field(default=None, alias="modelId")
+    pipeline: JSONObject | None = None
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
     # Summary fields — always set, avoids needing steps loaded.

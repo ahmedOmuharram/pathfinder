@@ -101,6 +101,17 @@ export function StrategyPlanCard({ plan, onSendMessage }: StrategyPlanCardProps)
   return (
     <div
       data-plan-id={plan.id}
+      ref={(node) => {
+        if (!node) return;
+        const observer = new IntersectionObserver(
+          ([entry]) => {
+            if (entry) usePlanStore.getState().setPinned(!entry.isIntersecting);
+          },
+          { threshold: 0.1 },
+        );
+        observer.observe(node);
+        return () => observer.disconnect();
+      }}
       className="rounded-lg border border-purple-500/30 bg-card"
     >
       {/* Header */}

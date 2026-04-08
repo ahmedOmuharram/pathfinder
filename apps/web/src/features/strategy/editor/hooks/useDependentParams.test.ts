@@ -1,5 +1,5 @@
 /**
- * Tests for useDependentParams — RHF-integrated dependent parameter refresh.
+ * Tests for useDependentParams — TanStack Query-based dependent parameter refresh.
  *
  * Verifies that the hook watches upstream params via useWatch, triggers
  * refresh when values change, populates dependentOptions on success, and
@@ -12,6 +12,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { FormProvider, useForm, type UseFormReturn } from "react-hook-form";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { createTestQueryClient } from "@/lib/query/testing";
 import type { ParamSpec } from "@pathfinder/shared";
 
 // ---------------------------------------------------------------------------
@@ -89,23 +91,27 @@ const BASE_ARGS = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// FormProvider wrapper — useDependentParams calls useFormContext() internally.
-// The wrapper creates the form and exposes it via a ref so the test can call
-// setValue() to trigger watched-value changes.
+// FormProvider + QueryClientProvider wrapper
 // ---------------------------------------------------------------------------
 
 function createFormWrapper(defaultValues: Record<string, string>) {
   let formRef: UseFormReturn<Record<string, string>>;
+  const queryClient = createTestQueryClient();
 
   function Wrapper({ children }: { children: ReactNode }) {
     const form = useForm({ defaultValues });
     formRef = form;
-    return createElement(FormProvider, { ...form, children });
+    return createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      createElement(FormProvider, { ...form, children }),
+    );
   }
 
   return {
     Wrapper,
     getForm: () => formRef,
+    queryClient,
   };
 }
 
@@ -338,7 +344,7 @@ describe("useDependentParams", () => {
       );
     });
 
-    // Resolve the first (stale) — should be ignored
+    // Resolve the first (stale) — TQ ignores it because the query key has changed
     await act(async () => {
       resolveFirst([makeParamSpec({ name: "gene_list", vocabulary: ["STALE_GENE"] })]);
     });

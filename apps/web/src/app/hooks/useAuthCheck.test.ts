@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { createTestWrapper } from "@/lib/query/testing";
+import { createSuspenseWrapper } from "@/lib/query/testing";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -12,44 +12,46 @@ import { createTestWrapper } from "@/lib/query/testing";
 const mockGetVeupathdbAuthStatus = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/veupathdb-auth", () => ({
-  get getVeupathdbAuthStatus() {
-    return mockGetVeupathdbAuthStatus;
-  },
+  authStatusOptions: (siteId: string) => ({
+    queryKey: ["auth", "status", siteId],
+    queryFn: () => mockGetVeupathdbAuthStatus(siteId),
+  }),
 }));
-
-// Mock the session store with controllable state.
-// The hook reads four selectors: authStatusKnown, setVeupathdbAuth,
-// setAuthStatusKnown (from the store) and manages apiError locally.
-let mockAuthStatusKnown: boolean;
 
 const mockSetVeupathdbAuth = vi.hoisted(() => vi.fn());
 const mockSetAuthStatusKnown = vi.hoisted(() => vi.fn());
+const mockBumpAuthVersion = vi.hoisted(() => vi.fn());
+const mockInvalidateUserScopedQueries = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/query/invalidateUserScoped", () => ({
+  invalidateUserScopedQueries: mockInvalidateUserScopedQueries,
+}));
 
 vi.mock("@/state/useSessionStore", () => ({
   useSessionStore: <T>(
     selector: (s: {
-      authStatusKnown: boolean;
-      setVeupathdbAuth: (signedIn: boolean, name?: string | null) => void;
+      setVeupathdbAuth: (signedIn: boolean, name: string | null) => void;
       setAuthStatusKnown: (value: boolean) => void;
       selectedSite: string;
+      bumpAuthVersion: () => void;
     }) => T,
   ) =>
     selector({
-      authStatusKnown: mockAuthStatusKnown,
       setVeupathdbAuth: mockSetVeupathdbAuth,
       setAuthStatusKnown: mockSetAuthStatusKnown,
       selectedSite: "plasmodb",
+      bumpAuthVersion: mockBumpAuthVersion,
     }),
 }));
 
 describe("useAuthCheck", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockAuthStatusKnown = false;
-    // Default: return a never-resolving promise so nothing blows up
-    mockGetVeupathdbAuthStatus.mockReset().mockReturnValue(new Promise(() => {}));
+    mockGetVeupathdbAuthStatus.mockReset();
     mockSetVeupathdbAuth.mockReset();
     mockSetAuthStatusKnown.mockReset();
+    mockBumpAuthVersion.mockReset();
+    mockInvalidateUserScopedQueries.mockReset();
   });
 
   afterEach(() => {
@@ -59,33 +61,15 @@ describe("useAuthCheck", () => {
 
   async function importAndRender() {
     const { useAuthCheck } = await import("./useAuthCheck");
-    const { Wrapper } = createTestWrapper();
+    const { Wrapper } = createSuspenseWrapper();
     return renderHook(() => useAuthCheck(), { wrapper: Wrapper });
   }
-
-  // ---------------------------------------------------------------------------
-  // Initial state
-  // ---------------------------------------------------------------------------
-
-  it("returns authLoading=true and apiError=null initially", async () => {
-    const { result } = await importAndRender();
-
-    expect(result.current.authLoading).toBe(true);
-    expect(result.current.apiError).toBeNull();
-  });
-
-  it("returns authLoading=false when authStatusKnown is true", async () => {
-    mockAuthStatusKnown = true;
-    const { result } = await importAndRender();
-
-    expect(result.current.authLoading).toBe(false);
-  });
 
   // ---------------------------------------------------------------------------
   // Success path
   // ---------------------------------------------------------------------------
 
-  it("calls getVeupathdbAuthStatus and sets auth on success", async () => {
+  it("calls getVeupathdbAuthStatus and syncs auth state to store on success", async () => {
     mockGetVeupathdbAuthStatus.mockResolvedValue({
       signedIn: true,
       name: "Test User",
@@ -94,12 +78,6 @@ describe("useAuthCheck", () => {
 
     await importAndRender();
 
-    // Flush the setTimeout(fn, 0) in the effect
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-    });
-
-    // Flush the resolved promise
     await act(async () => {
       await vi.runAllTimersAsync();
     });
@@ -119,10 +97,6 @@ describe("useAuthCheck", () => {
     await importAndRender();
 
     await act(async () => {
-      vi.advanceTimersByTime(1);
-    });
-
-    await act(async () => {
       await vi.runAllTimersAsync();
     });
 
@@ -130,106 +104,44 @@ describe("useAuthCheck", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Error paths
+  // Auth transition invalidation
   // ---------------------------------------------------------------------------
 
-  it("sets apiError on fetch failure with Error message", async () => {
-    mockGetVeupathdbAuthStatus.mockRejectedValue(new Error("Network failure"));
-
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { result } = await importAndRender();
-
-    await act(async () => {
-      vi.advanceTimersByTime(1);
+  it("does NOT invalidate on initial mount (no prior state to transition from)", async () => {
+    mockGetVeupathdbAuthStatus.mockResolvedValue({
+      signedIn: true,
+      name: "Test User",
     });
-
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-
-    expect(result.current.apiError).toBe("Network failure");
-    expect(mockSetAuthStatusKnown).toHaveBeenCalledWith(true);
-    consoleSpy.mockRestore();
-  });
-
-  it("sets fallback apiError message for non-Error rejections", async () => {
-    mockGetVeupathdbAuthStatus.mockRejectedValue("string error");
-
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { result } = await importAndRender();
-
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-    });
-
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-
-    expect(result.current.apiError).toBe("Unable to reach the API.");
-    consoleSpy.mockRestore();
-  });
-
-  // ---------------------------------------------------------------------------
-  // Skip logic
-  // ---------------------------------------------------------------------------
-
-  it("does not run check when authStatusKnown is true and no apiError", async () => {
-    mockAuthStatusKnown = true;
 
     await importAndRender();
 
     await act(async () => {
-      vi.advanceTimersByTime(10);
+      await vi.runAllTimersAsync();
     });
 
-    // The default mock returns a pending promise, so if the hook called it
-    // we would see a call.  authStatusKnown=true + apiError=null should skip.
-    expect(mockGetVeupathdbAuthStatus).not.toHaveBeenCalled();
+    // prev === null on the first check, so no invalidation should happen
+    expect(mockInvalidateUserScopedQueries).not.toHaveBeenCalled();
+    expect(mockBumpAuthVersion).not.toHaveBeenCalled();
   });
 
-  // ---------------------------------------------------------------------------
-  // Retry
-  // ---------------------------------------------------------------------------
-
-  it("retry clears apiError and resets authStatusKnown", async () => {
-    mockGetVeupathdbAuthStatus.mockRejectedValue(new Error("fail"));
-
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { result } = await importAndRender();
-
-    await act(async () => {
-      vi.advanceTimersByTime(1);
+  it("does NOT invalidate when signed-in state is stable across re-renders", async () => {
+    mockGetVeupathdbAuthStatus.mockResolvedValue({
+      signedIn: true,
+      name: "Test User",
     });
+
+    const { rerender } = await importAndRender();
 
     await act(async () => {
       await vi.runAllTimersAsync();
     });
 
-    expect(result.current.apiError).toBe("fail");
-
-    // Call retry
-    act(() => result.current.retry());
-
-    // retry should clear apiError locally and reset authStatusKnown in the store
-    expect(result.current.apiError).toBeNull();
-    expect(mockSetAuthStatusKnown).toHaveBeenCalledWith(false);
-    consoleSpy.mockRestore();
-  });
-
-  // ---------------------------------------------------------------------------
-  // Callback stability
-  // ---------------------------------------------------------------------------
-
-  it("exposes retry as a stable function", async () => {
-    const { result, rerender } = await importAndRender();
-
-    const firstRetry = result.current.retry;
-
     await act(async () => {
       rerender();
+      await vi.runAllTimersAsync();
     });
 
-    expect(result.current.retry).toBe(firstRetry);
+    expect(mockInvalidateUserScopedQueries).not.toHaveBeenCalled();
+    expect(mockBumpAuthVersion).not.toHaveBeenCalled();
   });
 });

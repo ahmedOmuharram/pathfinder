@@ -5,6 +5,7 @@
 import type { Step } from "@pathfinder/shared";
 import type { StateCreator } from "zustand";
 import { serializeStrategyPlan, isFallbackDisplayName } from "@/lib/strategyGraph";
+import type { DevtoolsMutators } from "@/state/middleware";
 import type { StrategyState, DraftSlice } from "./types";
 import { buildStrategy } from "./helpers";
 import { pushHistory } from "./historySlice";
@@ -50,7 +51,7 @@ function ensureDisplayName(step: Step, existing: Step | undefined): Step {
 // Slice
 // ---------------------------------------------------------------------------
 
-export const createDraftSlice: StateCreator<StrategyState, [], [], DraftSlice> = (
+export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [], DraftSlice> = (
   set,
   get,
 ) => ({

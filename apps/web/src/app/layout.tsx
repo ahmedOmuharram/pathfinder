@@ -15,6 +15,9 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+// Every page requires auth + API data — nothing should be statically prerendered.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "PathFinder - VEuPathDB Strategy Builder",
   description: "AI-powered search strategy builder for VEuPathDB",

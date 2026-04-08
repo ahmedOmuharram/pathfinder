@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useRef } from "react";
 import type { Experiment } from "@pathfinder/shared";
 import {
   streamThresholdSweep,
@@ -38,7 +38,7 @@ export function useSweepState(experiment: Experiment) {
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const sweepableParams = useMemo(() => {
+  const sweepableParams = (() => {
     const configParams = experiment.config.parameters;
     if (paramSpecs.length === 0) return [];
 
@@ -72,52 +72,45 @@ export function useSweepState(experiment: Experiment) {
       }
     }
     return result;
-  }, [paramSpecs, experiment.config.parameters]);
+  })();
 
   const selectedParam = sweepableParams.find((p) => p.name === paramName) ?? null;
   const sweepType = selectedParam?.kind ?? "numeric";
 
-  const vocabDisplayMap = useMemo(() => {
-    if (!selectedParam?.vocab) return new Map<string, string>();
-    return new Map(selectedParam.vocab.map((e) => [e.value, e.display]));
-  }, [selectedParam]);
+  const vocabDisplayMap = selectedParam?.vocab
+    ? new Map(selectedParam.vocab.map((e) => [e.value, e.display]))
+    : new Map<string, string>();
 
-  const formatValue = useCallback(
-    (v: number | string): string => {
-      if (sweepType === "categorical") {
-        return vocabDisplayMap.get(String(v)) ?? String(v);
-      }
-      return typeof v === "number" ? fmtNum(v) : v;
-    },
-    [sweepType, vocabDisplayMap],
-  );
+  const formatValue = (v: number | string): string => {
+    if (sweepType === "categorical") {
+      return vocabDisplayMap.get(String(v)) ?? String(v);
+    }
+    return typeof v === "number" ? fmtNum(v) : v;
+  };
 
-  const handleParamChange = useCallback(
-    (name: string) => {
-      setParamName(name);
-      setFinalResult(null);
-      setLivePoints([]);
-      setError(null);
+  const handleParamChange = (name: string) => {
+    setParamName(name);
+    setFinalResult(null);
+    setLivePoints([]);
+    setError(null);
 
-      const param = sweepableParams.find((p) => p.name === name);
-      if (!param) return;
+    const param = sweepableParams.find((p) => p.name === name);
+    if (!param) return;
 
-      if (param.kind === "numeric" && param.numericValue != null) {
-        const cv = param.numericValue;
-        setMinVal(String(Math.max(0, cv * 0.2)));
-        setMaxVal(String(cv * 3));
-      }
+    if (param.kind === "numeric" && param.numericValue != null) {
+      const cv = param.numericValue;
+      setMinVal(String(Math.max(0, cv * 0.2)));
+      setMaxVal(String(cv * 3));
+    }
 
-      if (param.kind === "categorical" && param.vocab) {
-        setSelectedValues(
-          new Set(param.vocab.slice(0, MAX_CATEGORICAL_CHOICES).map((e) => e.value)),
-        );
-      }
-    },
-    [sweepableParams],
-  );
+    if (param.kind === "categorical" && param.vocab) {
+      setSelectedValues(
+        new Set(param.vocab.slice(0, MAX_CATEGORICAL_CHOICES).map((e) => e.value)),
+      );
+    }
+  };
 
-  const handleRun = useCallback(async () => {
+  const handleRun = async () => {
     if (!paramName || !selectedParam) return;
     setError(null);
 
@@ -190,11 +183,11 @@ export function useSweepState(experiment: Experiment) {
       setLoading(false);
       abortRef.current = null;
     }
-  }, [experiment.id, paramName, selectedParam, minVal, maxVal, steps, selectedValues]);
+  };
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = () => {
     abortRef.current?.abort();
-  }, []);
+  };
 
   const displayPoints = finalResult?.points ?? livePoints;
   const validPoints = displayPoints.filter((p) => p.metrics != null);

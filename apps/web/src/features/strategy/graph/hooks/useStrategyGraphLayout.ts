@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { Edge, Node } from "@xyflow/react";
-import { useReactFlow, useNodesInitialized } from "@xyflow/react";
+import { useReactFlow } from "@xyflow/react";
 import { useEventListener } from "usehooks-ts";
-import { usePrevious } from "@/lib/hooks/usePrevious";
 import type { Step, Strategy } from "@pathfinder/shared";
+import { useShallow } from "zustand/react/shallow";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useStrategyHistory } from "@/state/useStrategySelectors";
 import { useNodePositionHistory } from "@/features/strategy/graph/hooks/useNodePositionHistory";
@@ -17,7 +17,7 @@ interface UseStrategyGraphLayoutOptions {
   nodes: Node[];
   setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
-  nodePositionsRef: React.RefObject<Map<string, { x: number; y: number }>>;
+  nodePositions: Map<string, { x: number; y: number }>;
   handleAddToChat: (stepId: string) => void;
   handleOpenDetails: (stepId: string) => void;
   setSelectedNodeIds: (ids: string[]) => void;
@@ -35,7 +35,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     nodes,
     setNodes,
     setEdges,
-    nodePositionsRef,
+    nodePositions,
     handleAddToChat,
     handleOpenDetails,
     setSelectedNodeIds,
@@ -45,32 +45,13 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
   const [layoutSeed, setLayoutSeed] = useState(0);
   const [userHasMoved, setUserHasMoved] = useState(false);
   const { fitView } = useReactFlow();
-  const nodesInitialized = useNodesInitialized();
-  const prevLayoutSeed = usePrevious(layoutSeed);
-  const prevStrategyId = usePrevious(strategy?.id ?? null);
+  const [prevLayoutSeed, setPrevLayoutSeed] = useState(layoutSeed);
+  const [prevStrategyId, setPrevStrategyId] = useState<string | null>(strategy?.id ?? null);
 
-  const updateStep = useStrategyStore((state) => state.updateStep);
+  const { updateStep, strategy: draftStrategy } = useStrategyStore(
+    useShallow((s) => ({ updateStep: s.updateStep, strategy: s.strategy })),
+  );
   const { undo, redo, canUndo, canRedo } = useStrategyHistory();
-  const draftStrategy = useStrategyStore((state) => state.strategy);
-
-  // --- Auto-fit viewport when nodes are added ---
-  const prevNodeCount = usePrevious(nodes.length);
-  const autoFitResetRef = useRef(false);
-  const [autoFitTrigger, setAutoFitTrigger] = useState(0);
-
-  useEffect(() => {
-    if (isCompact || !nodesInitialized) return;
-    const prev = autoFitResetRef.current ? 0 : (prevNodeCount ?? 0);
-    if (autoFitResetRef.current) autoFitResetRef.current = false;
-    if (nodes.length > prev && !userHasMoved) {
-      fitView({ padding: 0.3, duration: 300 });
-    }
-  }, [isCompact, nodesInitialized, nodes.length, prevNodeCount, userHasMoved, autoFitTrigger, fitView]);
-
-  const resetAutoFit = useCallback(() => {
-    autoFitResetRef.current = true;
-    setAutoFitTrigger((t) => t + 1);
-  }, []);
 
   // --- Node position undo/redo ---
   const {
@@ -80,56 +61,52 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     tryRedo,
   } = useNodePositionHistory({ setNodes });
 
-  // --- Reset UI on strategy change (defer setState to avoid synchronous setState in effect) ---
-  useEffect(() => {
-    if (prevStrategyId === undefined) return;
-    if (prevStrategyId === (strategy?.id ?? null)) return;
-    queueMicrotask(() => {
-      setUserHasMoved(false);
-      resetAutoFit();
-      setSelectedNodeIds([]);
-    });
-  }, [strategy?.id, prevStrategyId, resetAutoFit, setSelectedNodeIds]);
+  const currentStrategyId = strategy?.id ?? null;
+  if (prevStrategyId !== currentStrategyId) {
+    setPrevStrategyId(currentStrategyId);
+    setUserHasMoved(false);
+    setSelectedNodeIds([]);
+  }
 
   // --- Undo/redo hotkeys ---
-  const handleUndoRedoKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
-      if (!(event.ctrlKey || event.metaKey)) return;
-      const key = event.key.toLowerCase();
-      if (key !== "z" && key !== "y") return;
-      event.preventDefault();
-      if (key === "y" || event.shiftKey) {
-        if (tryRedo()) return;
-        if (canRedo()) {
-          redo();
-          triggerSync();
-        }
-        return;
-      }
-      if (tryUndo()) return;
-      if (canUndo()) {
-        undo();
+  const handleUndoRedoKeyDown = (event: KeyboardEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLowerCase();
+    if (key !== "z" && key !== "y") return;
+    event.preventDefault();
+    if (key === "y" || event.shiftKey) {
+      if (tryRedo()) return;
+      if (canRedo()) {
+        redo();
         triggerSync();
       }
-    },
-    [tryUndo, tryRedo, canUndo, canRedo, undo, redo, triggerSync],
-  );
+      return;
+    }
+    if (tryUndo()) return;
+    if (canUndo()) {
+      undo();
+      triggerSync();
+    }
+  };
   useEventListener("keydown", handleUndoRedoKeyDown);
 
-  // Deserialize strategy to graph nodes/edges
-  useEffect(() => {
+  const graphKey = `${strategy?.id}|${draftStrategy?.id}|${layoutSeed}`;
+  const [prevGraphKey, setPrevGraphKey] = useState(graphKey);
+  if (graphKey !== prevGraphKey) {
     const forceRelayout =
-      prevLayoutSeed !== layoutSeed || prevStrategyId !== (strategy?.id ?? null);
+      prevLayoutSeed !== layoutSeed || prevStrategyId !== currentStrategyId;
+    setPrevGraphKey(graphKey);
+    setPrevLayoutSeed(layoutSeed);
 
     const { nodes: newNodes, edges: newEdges } = deserializeStrategyToGraph(
       strategy,
@@ -141,7 +118,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
       handleOpenDetails,
       undefined,
       {
-        existingPositions: nodePositionsRef.current,
+        existingPositions: nodePositions,
         forceRelayout,
       },
     );
@@ -150,37 +127,27 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     if (forceRelayout) {
       resetNodeHistory(newNodes);
     }
-  }, [
-    strategy,
-    setNodes,
-    setEdges,
-    updateStep,
-    draftStrategy?.id,
-    handleAddToChat,
-    handleOpenDetails,
-    layoutSeed,
-    prevLayoutSeed,
-    prevStrategyId,
-    resetNodeHistory,
-    nodePositionsRef,
-  ]);
+    if (!isCompact && !userHasMoved && (forceRelayout || newNodes.length > nodes.length)) {
+      queueMicrotask(() => void fitView({ padding: 0.3, duration: 300 }));
+    }
+  }
 
-  const handleNodeDragStop = useCallback(() => {
+  const handleNodeDragStop = () => {
     pushSnapshot(nodes);
-  }, [nodes, pushSnapshot]);
+  };
 
-  const handleRelayout = useCallback(() => {
+  const handleRelayout = () => {
     setLayoutSeed((prev) => prev + 1);
-  }, []);
+  };
 
-  const handleMoveStart = useCallback(() => {
+  const handleMoveStart = () => {
     setUserHasMoved(true);
-  }, []);
+  };
 
-  const resetViewTracking = useCallback(() => {
+  const resetViewTracking = () => {
     setUserHasMoved(false);
-    fitView({ padding: 0.3, duration: 300 });
-  }, [fitView]);
+    void fitView({ padding: 0.3, duration: 300 });
+  };
 
   return {
     handleNodeDragStop,

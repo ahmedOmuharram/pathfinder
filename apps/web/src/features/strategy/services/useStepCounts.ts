@@ -1,20 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useDebounce } from "use-debounce";
 import type { StrategyPlan } from "@pathfinder/shared";
 
 type StepCountsResponse = { counts?: Record<string, number | null> };
-
-/**
- * Debounces a value by `ms`. Returns the last stable value after the delay.
- */
-function useDebouncedValue<T>(value: T, ms: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), ms);
-    return () => clearTimeout(id);
-  }, [value, ms]);
-  return debounced;
-}
 
 export function useStepCounts(args: {
   siteId: string;
@@ -36,7 +25,7 @@ export function useStepCounts(args: {
   } = args;
 
   const planValid = plan != null && planHash != null && planHash !== "";
-  const debouncedPlanHash = useDebouncedValue(planHash, debounceMs);
+  const [debouncedPlanHash] = useDebounce(planHash, debounceMs);
 
   const { data } = useQuery({
     queryKey: ["strategies", "step-counts", siteId, debouncedPlanHash] as const,
@@ -46,21 +35,27 @@ export function useStepCounts(args: {
     staleTime: 30_000,
   });
 
-  // Write TQ data to the strategy store so graph nodes can read it.
-  useEffect(() => {
+  const countsKey = JSON.stringify(data?.counts ?? {}) + "|" + stepIds.join(",");
+  const validKey = `${planValid}|${stepIds.join(",")}`;
+
+  const [prevCountsKey, setPrevCountsKey] = useState(countsKey);
+  if (countsKey !== prevCountsKey) {
+    setPrevCountsKey(countsKey);
     const next: Record<string, number | null> = {};
     const counts = data?.counts ?? {};
     for (const stepId of stepIds) {
       next[stepId] = counts[stepId] ?? null;
     }
     setStepCounts(next);
-  }, [data, stepIds, setStepCounts]);
+  }
 
-  // When plan is invalid, immediately show null counts.
-  useEffect(() => {
-    if (planValid || stepIds.length === 0) return;
-    const next: Record<string, number | null> = {};
-    for (const stepId of stepIds) next[stepId] = null;
-    setStepCounts(next);
-  }, [planValid, stepIds, setStepCounts]);
+  const [prevValidKey, setPrevValidKey] = useState(validKey);
+  if (validKey !== prevValidKey) {
+    setPrevValidKey(validKey);
+    if (!planValid && stepIds.length > 0) {
+      const next: Record<string, number | null> = {};
+      for (const stepId of stepIds) next[stepId] = null;
+      setStepCounts(next);
+    }
+  }
 }

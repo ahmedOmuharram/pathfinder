@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BarChart3, Play, Loader2, Plus, Trash2 } from "lucide-react";
-import type { Experiment, ControlSet } from "@pathfinder/shared";
+import type { Experiment } from "@pathfinder/shared";
 import { Button } from "@/lib/components/ui/Button";
 import { Input } from "@/lib/components/ui/Input";
 import {
-  listControlSets,
+  controlSetsOptions,
   createBenchmarkStream,
   type BenchmarkControlSetInput,
 } from "@/features/workbench/api";
@@ -59,7 +59,9 @@ export function BenchmarkPanel() {
   );
 
   // Saved control sets
-  const [savedSets, setSavedSets] = useState<ControlSet[]>([]);
+  const { data: savedSets = [], error: controlSetQueryError } = useQuery(
+    controlSetsOptions(activeSet?.siteId ?? ""),
+  );
   const [selectedSavedIds, setSelectedSavedIds] = useState<Set<string>>(new Set());
 
   // Inline (manually entered) control sets
@@ -68,38 +70,18 @@ export function BenchmarkPanel() {
   // Streaming state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [controlSetError, setControlSetError] = useState<string | null>(null);
   const [results, setResults] = useState<Experiment[]>([]);
 
-  // Load saved control sets
-  useEffect(() => {
-    if (activeSet?.siteId == null || activeSet.siteId === "") return;
-    let cancelled = false;
-    listControlSets(activeSet.siteId)
-      .then((sets) => {
-        if (!cancelled) setSavedSets(sets);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          console.error("Failed to load control sets:", err);
-          setControlSetError("Failed to load saved control sets");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeSet?.siteId]);
-
-  const toggleSavedSet = useCallback((id: string) => {
+  const toggleSavedSet = (id: string) => {
     setSelectedSavedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }, []);
+  };
 
-  const addInlineSet = useCallback(() => {
+  const addInlineSet = () => {
     setInlineSets((prev) => [
       ...prev,
       {
@@ -110,26 +92,23 @@ export function BenchmarkPanel() {
         isPrimary: false,
       },
     ]);
-  }, []);
+  };
 
-  const removeInlineSet = useCallback((id: string) => {
+  const removeInlineSet = (id: string) => {
     setInlineSets((prev) => prev.filter((s) => s.id !== id));
-  }, []);
+  };
 
-  const updateInlineSet = useCallback(
-    (id: string, patch: Partial<InlineControlSet>) => {
-      setInlineSets((prev) =>
-        prev.map((s) => {
-          if (s.id === id) return { ...s, ...patch };
-          if (patch.isPrimary === true) return { ...s, isPrimary: false };
-          return s;
-        }),
-      );
-    },
-    [],
-  );
+  const updateInlineSet = (id: string, patch: Partial<InlineControlSet>) => {
+    setInlineSets((prev) =>
+      prev.map((s) => {
+        if (s.id === id) return { ...s, ...patch };
+        if (patch.isPrimary === true) return { ...s, isPrimary: false };
+        return s;
+      }),
+    );
+  };
 
-  const handleRun = useCallback(async () => {
+  const handleRun = async () => {
     if (!activeSet) return;
 
     // Build control set inputs from saved selections + inline
@@ -217,7 +196,7 @@ export function BenchmarkPanel() {
       setError(err instanceof Error ? err.message : String(err));
       setLoading(false);
     }
-  }, [activeSet, selectedSavedIds, savedSets, inlineSets, queryClient]);
+  };
 
   return (
     <AnalysisPanelContainer
@@ -333,8 +312,8 @@ export function BenchmarkPanel() {
           {loading ? "Running..." : "Run Benchmark"}
         </Button>
 
-        {controlSetError != null && controlSetError !== "" && (
-          <p className="text-xs text-destructive">{controlSetError}</p>
+        {controlSetQueryError != null && (
+          <p className="text-xs text-destructive">Failed to load saved control sets</p>
         )}
         {error != null && error !== "" && (
           <p className="text-xs text-destructive">{error}</p>

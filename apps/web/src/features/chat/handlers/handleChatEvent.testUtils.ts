@@ -106,7 +106,7 @@ export function makeCtx(overrides?: Partial<ChatEventContext>) {
     clearStrategy: vi.fn(),
     addStep: vi.fn(),
     loadGraph: vi.fn(),
-    session: new StreamingSession(null),
+    session: new StreamingSession(),
     currentStrategy: null,
     setMessages: state.setMessages,
     setUndoSnapshots: state.setUndoSnapshots,

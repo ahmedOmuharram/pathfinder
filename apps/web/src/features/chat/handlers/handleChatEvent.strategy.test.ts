@@ -17,7 +17,7 @@ describe("handleChatEvent — strategy events", () => {
       createdAt: "t",
       updatedAt: "t",
     };
-    const session = new StreamingSession(strategySnapshot);
+    const session = new StreamingSession();
     const { ctx, state } = makeCtx({ session });
 
     handleChatEvent(ctx, {
@@ -203,7 +203,7 @@ describe("handleChatEvent — strategy events", () => {
       updatedAt: "t",
     };
 
-    const session = new StreamingSession(snapshot);
+    const session = new StreamingSession();
     const { ctx } = makeCtx({ session });
 
     // Guard: mismatched graphId should do nothing when strategyIdAtStart is set.

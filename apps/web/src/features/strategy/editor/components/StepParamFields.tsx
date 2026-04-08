@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
 import { FormProvider, useFormContext, type UseFormReturn } from "react-hook-form";
 import { extractVocabTree, type VocabOption } from "@/lib/utils/vocab";
 import { extractSpecVocabulary } from "./stepEditorUtils";
@@ -23,10 +22,11 @@ import {
 } from "../widgets/PhyleticProfileParam";
 import { AdvancedParamsGroup } from "../widgets/AdvancedParamsGroup";
 import type { ParamWidgetProps } from "../widgets/types";
-import { useParamForm } from "../hooks/useParamForm";
 import { useDependentParams } from "../hooks/useDependentParams";
 
 type StepParamFieldsProps = {
+  /** RHF form instance owned by the parent. */
+  form: UseFormReturn;
   paramSpecs: ParamSpec[];
   vocabOptions: Record<string, VocabOption[]>;
   /** Site identifier (e.g. "plasmodb") for dependent param refresh. */
@@ -35,8 +35,6 @@ type StepParamFieldsProps = {
   recordType: string;
   /** WDK search name (e.g. "GenesByTaxon") for dependent param refresh. */
   searchName: string;
-  /** Callback to expose the RHF form instance to the parent. */
-  onFormReady?: (form: UseFormReturn) => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -63,21 +61,13 @@ function renderWidget(displayType: string, props: ParamWidgetProps): React.React
 // ---------------------------------------------------------------------------
 
 export function StepParamFields({
+  form,
   paramSpecs,
   vocabOptions,
   siteId,
   recordType,
   searchName,
-  onFormReady,
 }: StepParamFieldsProps) {
-  const form = useParamForm(paramSpecs);
-
-  // Expose form instance to parent via callback.
-  const onFormReadyRef = useMemo(() => onFormReady, [onFormReady]);
-  useEffect(() => {
-    onFormReadyRef?.(form);
-  }, [form, onFormReadyRef]);
-
   // Dependent param refresh — driven by form watch internally.
   const { dependentOptions, dependentLoading, dependentErrors } = useDependentParams({
     control: form.control,
@@ -88,13 +78,10 @@ export function StepParamFields({
   });
 
   // 1. Detect composite widgets
-  const claimedParamNames = useMemo(
-    () => new Set(claimsPhyleticParams(paramSpecs)),
-    [paramSpecs],
-  );
+  const claimedParamNames = new Set(claimsPhyleticParams(paramSpecs));
 
   // 2. Separate params into groups
-  const { compositeSpecs, normalSpecs, advancedSpecs } = useMemo(() => {
+  const { compositeSpecs, normalSpecs, advancedSpecs } = (() => {
     const composite: ParamSpec[] = [];
     const normal: ParamSpec[] = [];
     const advanced: ParamSpec[] = [];
@@ -112,7 +99,7 @@ export function StepParamFields({
       }
     }
     return { compositeSpecs: composite, normalSpecs: normal, advancedSpecs: advanced };
-  }, [paramSpecs, claimedParamNames]);
+  })();
 
   const visibleCount = normalSpecs.length + advancedSpecs.length;
   const hasComposite = compositeSpecs.length > 0;

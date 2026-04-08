@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import type { ColocationParams } from "@pathfinder/shared";
+import { useEventCallback } from "usehooks-ts";
 import { Controller, FormProvider, useFormContext, useWatch } from "react-hook-form";
 import { Card } from "@/lib/components/ui/Card";
 import type { ColocationFormValues } from "../schema/colocationSchema";
@@ -43,18 +43,11 @@ function ColocationChangeSync({
 }) {
   const { control } = useFormContext<ColocationFormValues>();
   const values = useWatch({ control });
-  const onChangeRef = useRef(onChange);
+  const stableOnChange = useEventCallback(onChange);
 
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    // useWatch can return partial during mount — only fire when fully populated.
-    if (values.operation != null) {
-      onChangeRef.current(values as ColocationFormValues);
-    }
-  }, [values]);
+  if (values.operation != null) {
+    queueMicrotask(() => stableOnChange(values as ColocationFormValues));
+  }
 
   return null;
 }

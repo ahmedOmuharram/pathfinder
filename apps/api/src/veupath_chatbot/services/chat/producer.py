@@ -27,6 +27,7 @@ from veupath_chatbot.platform.event_schemas import (
     ErrorEventData,
     MessageStartEventData,
     ModelSelectedEventData,
+    PipelineConfig,
 )
 from veupath_chatbot.platform.events import emit
 from veupath_chatbot.platform.logging import get_logger
@@ -182,7 +183,7 @@ async def chat_producer(
     operation_id: str,
     turn: TurnIdentity,
     config: ChatTurnConfig,
-    resolve_model_id_fn: Callable[..., str],
+    resolve_pipeline_fn: Callable[..., PipelineConfig],
 ) -> None:
     """Background task: run the LLM agent and emit every event to Redis."""
     redis = get_redis()
@@ -217,11 +218,11 @@ async def chat_producer(
             span.set_attribute("langfuse.user.id", str(turn.user_id))
             span.set_attribute("langfuse.tags", [turn.site_id])
 
-            deps, effective_model = await build_agent_deps(
+            deps, effective_pipeline = await build_agent_deps(
                 turn=turn,
                 projection=projection,
                 config=config,
-                resolve_model_id_fn=resolve_model_id_fn,
+                resolve_pipeline_fn=resolve_pipeline_fn,
                 stream_repo=bg_stream_repo,
             )
 
@@ -230,14 +231,14 @@ async def chat_producer(
                 turn.stream_id_str,
                 operation_id,
                 "model_selected",
-                ModelSelectedEventData(model_id=effective_model).model_dump(
+                ModelSelectedEventData(pipeline=effective_pipeline).model_dump(
                     by_alias=True, exclude_none=True
                 ),
                 session=session,
             )
 
             stream_iter = stream_pipeline(
-                deps, turn.model_message, model_id=effective_model
+                deps, turn.model_message, pipeline=effective_pipeline
             )
             emit_ctx = EmitContext(
                 redis=redis,

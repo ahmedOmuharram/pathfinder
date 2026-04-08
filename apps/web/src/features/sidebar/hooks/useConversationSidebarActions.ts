@@ -9,7 +9,6 @@
  * All cache operations use useQueryClient() directly — no shim props.
  */
 
-import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getStrategy, openStrategy, updateStrategy as updateStrategyApi, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import { toUserMessage } from "@/lib/api/errors";
@@ -67,8 +66,7 @@ export function useConversationSidebarActions({
   const deleteWorkflow = useDeleteWorkflow({ siteId, reportError });
 
   // --- Selection ---
-  const handleSelect = useCallback(
-    (item: ConversationItem) => {
+  const handleSelect = (item: ConversationItem) => {
       const si = item.strategyItem;
       if (!si) return;
       setStrategyId(si.id);
@@ -88,21 +86,10 @@ export function useConversationSidebarActions({
           void queryClient.invalidateQueries({ queryKey: listKey });
           void queryClient.invalidateQueries({ queryKey: dismissedKey });
         });
-    },
-    [
-      clearStrategy,
-      setStrategyId,
-      setStrategy,
-      setStrategyMeta,
-      reportError,
-      queryClient,
-      listKey,
-      dismissedKey,
-    ],
-  );
+  };
 
   // --- New conversation ---
-  const handleNewConversation = useCallback(async () => {
+  const handleNewConversation = async () => {
     setNewConversationInFlight(true);
     try {
       const res = await openStrategy({ siteId });
@@ -133,39 +120,28 @@ export function useConversationSidebarActions({
     } finally {
       setNewConversationInFlight(false);
     }
-  }, [
-    siteId,
-    setStrategyId,
-    clearStrategy,
-    queryClient,
-    listKey,
-    dismissedKey,
-    setNewConversationInFlight,
-    reportError,
-  ]);
+  };
 
   // --- Saved toggle ---
-  const handleToggleSaved = useCallback(
-    async (si: Strategy) => {
-      const nextSaved = !si.isSaved;
-      try {
-        await updateStrategyApi(si.id, { isSaved: nextSaved });
-        queryClient.setQueryData<Strategy[]>(listKey, (old) =>
-          (old ?? []).map((item) =>
-            item.id === si.id ? { ...item, isSaved: nextSaved } : item,
-          ),
-        );
-      } catch (err) {
-        reportError(
-          toUserMessage(
-            err,
-            nextSaved ? "Failed to save strategy." : "Failed to revert to draft.",
-          ),
-        );
-      }
-    },
-    [reportError, queryClient, listKey],
-  );
+  const handleToggleSaved = async (si: Strategy) => {
+    const nextSaved = !si.isSaved;
+    try {
+      await updateStrategyApi(si.id, { isSaved: nextSaved });
+      queryClient.setQueryData<Strategy[]>(listKey, (old) =>
+        (old ?? []).map((item) =>
+          item.id === si.id ? { ...item, isSaved: nextSaved } : item,
+        ),
+      );
+      void queryClient.invalidateQueries({ queryKey: listKey });
+    } catch (err) {
+      reportError(
+        toUserMessage(
+          err,
+          nextSaved ? "Failed to save strategy." : "Failed to revert to draft.",
+        ),
+      );
+    }
+  };
 
   return {
     activeId,
@@ -177,3 +153,4 @@ export function useConversationSidebarActions({
     handleToggleSaved,
   };
 }
+

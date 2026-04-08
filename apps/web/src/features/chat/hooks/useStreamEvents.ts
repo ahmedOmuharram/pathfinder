@@ -6,7 +6,6 @@
  * on each call and returns the three callbacks that ``streamChat`` needs.
  */
 
-import { useCallback } from "react";
 import type {
   Citation,
   OptimizationProgressData,
@@ -76,13 +75,12 @@ export function useStreamEvents(deps: StreamEventDeps) {
    * Called once at the start of each ``executeStream`` invocation so
    * every stream gets its own isolated mutable state.
    */
-  const buildStreamCallbacks = useCallback(
-    (
-      session: StreamingSession,
-      effectiveStrategyId: string | null,
-      onFinalize: (toolCalls: ToolCall[]) => void,
-      onError: (error: Error, toolCalls: ToolCall[]) => void,
-    ): StreamEventCallbacks => {
+  const buildStreamCallbacks = (
+    session: StreamingSession,
+    effectiveStrategyId: string | null,
+    onFinalize: (toolCalls: ToolCall[]) => void,
+    onError: (error: Error, toolCalls: ToolCall[]) => void,
+  ): StreamEventCallbacks => {
       const toolCalls: ToolCall[] = [];
       const citationsBuffer: Citation[] = [];
       const planningArtifactsBuffer: PlanningArtifact[] = [];
@@ -178,33 +176,7 @@ export function useStreamEvents(deps: StreamEventDeps) {
           onError(error, toolCalls);
         },
       };
-    },
-    [
-      siteId,
-      thinking,
-      setMessages,
-      setUndoSnapshots,
-      setStrategyId,
-      addStrategy,
-      addExecutedStrategy,
-      setWdkInfo,
-      setStrategy,
-      setStrategyMeta,
-      clearStrategy,
-      addStep,
-      loadGraph,
-      currentStrategy,
-      parseToolArguments,
-      parseToolResult,
-      applyGraphSnapshot,
-      getStrategy,
-      attachThinkingToLastAssistant,
-      setSelectedModelId,
-      setOptimizationProgress,
-      onApiError,
-      onWorkbenchGeneSet,
-    ],
-  );
+    };
 
   return { buildStreamCallbacks };
 }

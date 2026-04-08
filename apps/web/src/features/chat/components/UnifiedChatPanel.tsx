@@ -21,12 +21,14 @@ interface UnifiedChatPanelProps {
   siteId: string;
   pendingAskNode?: NodeSelection | null;
   onConsumeAskNode?: () => void;
+  onOpenEngine?: (() => void) | undefined;
 }
 
 export function UnifiedChatPanel({
   siteId,
   pendingAskNode = null,
   onConsumeAskNode,
+  onOpenEngine,
 }: UnifiedChatPanelProps) {
   const veupathdbName = useSessionStore((s) => s.veupathdbName);
 
@@ -46,7 +48,6 @@ export function UnifiedChatPanel({
     setApiError,
     draftSelection,
     setDraftSelection,
-    models,
     messagesEndRef,
     bottomRef,
     isAtBottom,
@@ -102,12 +103,7 @@ export function UnifiedChatPanel({
         }}
         isStreaming={isStreaming}
         onStop={stopStreaming}
-        models={models.modelCatalog}
-        selectedModelId={models.selectedModelId}
-        onModelChange={models.setSelectedModelId}
-        reasoningEffort={models.reasoningEffort}
-        onReasoningChange={models.setReasoningEffort}
-        serverDefaultModelId={models.catalogDefault}
+        onOpenEngine={onOpenEngine}
         siteId={siteId}
       />
     </div>

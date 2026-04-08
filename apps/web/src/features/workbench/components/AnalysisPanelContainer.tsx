@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Card } from "@/lib/components/ui/Card";
@@ -37,10 +36,10 @@ export function AnalysisPanelContainer({
   const expanded = useWorkbenchStore((s) => s.expandedPanels.has(panelId));
   const togglePanel = useWorkbenchStore((s) => s.togglePanel);
 
-  const handleToggle = useCallback(() => {
+  const handleToggle = () => {
     if (disabled) return;
     togglePanel(panelId);
-  }, [disabled, togglePanel, panelId]);
+  };
 
   const isExpanded = expanded && !disabled;
   const displaySubtitle = disabled ? (disabledReason ?? subtitle) : subtitle;

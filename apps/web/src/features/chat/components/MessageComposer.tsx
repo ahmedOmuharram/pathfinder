@@ -1,20 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { AlertTriangle, Square } from "lucide-react";
-import type {
-  ChatMention,
-  ModelCatalogEntry,
-  ModelSelection,
-  ReasoningEffort,
-} from "@pathfinder/shared";
+import { useState, useRef } from "react";
+import { Square } from "lucide-react";
+import type { ChatMention } from "@pathfinder/shared";
+import { useShallow } from "zustand/react/shallow";
 import { useSessionStore } from "@/state/useSessionStore";
-import type { ModelOverrides } from "@/state/useSettingsStore";
 import { Button } from "@/lib/components/ui/Button";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/lib/components/ui/Tooltip";
-import { ReasoningToggle } from "@/lib/components/ReasoningToggle";
-import { ModelPicker } from "@/features/settings/components/ModelPicker";
-import { ToolPicker } from "@/features/settings/components/ToolPicker";
+
+
+import { PipelinePill } from "@/features/engine/components/PipelinePill";
 import { useMentionState } from "@/features/chat/hooks/useMentionState";
 import { MentionBadges } from "./message/MentionBadges";
 import { MentionAutocomplete } from "./message/MentionAutocomplete";
@@ -24,16 +18,7 @@ interface MessageComposerProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onStop?: () => void;
-  /** Available models from the catalog. */
-  models?: ModelCatalogEntry[];
-  /** Currently selected model ID (null = server default). */
-  selectedModelId?: string | null;
-  onModelChange?: (modelId: string | null) => void;
-  /** Current reasoning effort. */
-  reasoningEffort?: ReasoningEffort;
-  onReasoningChange?: (effort: ReasoningEffort) => void;
-  /** Server default model ID for the current mode -- shown in the picker. */
-  serverDefaultModelId?: string | null;
+  onOpenEngine?: (() => void) | undefined;
   /** Site ID for @-mention data fetching. */
   siteId: string;
 }
@@ -43,12 +28,7 @@ export function MessageComposer({
   disabled,
   isStreaming = false,
   onStop,
-  models = [],
-  selectedModelId = null,
-  onModelChange,
-  reasoningEffort = "medium",
-  onReasoningChange,
-  serverDefaultModelId,
+  onOpenEngine,
   siteId,
 }: MessageComposerProps) {
   const [message, setMessage] = useState("");
@@ -67,125 +47,48 @@ export function MessageComposer({
   } = useMentionState();
 
   // Allow external prefill (e.g. from graph node "Ask about" action).
-  const composerPrefill = useSessionStore((s) => s.composerPrefill);
-  const setComposerPrefill = useSessionStore((s) => s.setComposerPrefill);
-  useEffect(() => {
-    if (!composerPrefill) return;
-    // Defer the state update to avoid synchronous setState in effect body.
-    const id = requestAnimationFrame(() => {
-      setMessage(composerPrefill.message);
-      setComposerPrefill(null);
-      textareaRef.current?.focus();
-    });
-    return () => cancelAnimationFrame(id);
-  }, [composerPrefill, setComposerPrefill]);
+  const { composerPrefill, setComposerPrefill } = useSessionStore(
+    useShallow((s) => ({
+      composerPrefill: s.composerPrefill,
+      setComposerPrefill: s.setComposerPrefill,
+    })),
+  );
+  const [consumedPrefill, setConsumedPrefill] = useState<string | null>(null);
+  if (composerPrefill && composerPrefill.message !== consumedPrefill) {
+    setConsumedPrefill(composerPrefill.message);
+    setMessage(composerPrefill.message);
+    setComposerPrefill(null);
+  }
 
-  // Auto-resize textarea
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+  const onMentionSelect = (mention: ChatMention) => {
+    handleMentionSelect(mention, message, textareaRef, setMessage);
+  };
+
+  const handleSubmit = (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+    if (mentionActive === true) return;
+    if (message.trim() !== "" && disabled !== true) {
+      onSend(message.trim(), mentions.length > 0 ? mentions : undefined);
+      setMessage("");
+      setMentions([]);
     }
-  }, [message]);
+  };
 
-  // Resolve whether selected model supports reasoning.
-  // When using server default (selectedModelId null), use serverDefaultModelId to look up the model.
-  const effectiveModelId = selectedModelId ?? serverDefaultModelId ?? null;
-  const selectedModel = models.find((m) => m.id === effectiveModelId);
-  const supportsReasoning = selectedModel?.supportsReasoning ?? false;
-
-  const onMentionSelect = useCallback(
-    (mention: ChatMention) => {
-      handleMentionSelect(mention, message, textareaRef, setMessage);
-    },
-    [handleMentionSelect, message],
-  );
-
-  const handleSubmit = useCallback(
-    (e: { preventDefault: () => void }) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (mentionActive === true) return;
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (mentionActive === true) return;
-      if (message.trim() !== "" && disabled !== true) {
-        onSend(message.trim(), mentions.length > 0 ? mentions : undefined);
-        setMessage("");
-        setMentions([]);
-      }
-    },
-    [message, disabled, onSend, mentions, mentionActive, setMentions],
-  );
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (mentionActive === true) return;
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSubmit(e);
-      }
-    },
-    [handleSubmit, mentionActive],
-  );
+      handleSubmit(e);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-2" data-testid="message-composer">
       {/* Controls row */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Model picker */}
-        {models.length > 0 && onModelChange ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <ModelPicker
-                  models={models}
-                  selectedModelId={selectedModelId}
-                  onSelect={(id) => onModelChange(id ?? null)}
-                  disabled={isStreaming}
-                  {...(serverDefaultModelId != null
-                    ? { serverDefaultId: serverDefaultModelId }
-                    : {})}
-                />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>Choose the AI model for this message</TooltipContent>
-          </Tooltip>
-        ) : onModelChange ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex items-center text-amber-500">
-                <AlertTriangle className="h-3.5 w-3.5" aria-label="Model catalog unavailable" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Model catalog unavailable</TooltipContent>
-          </Tooltip>
-        ) : null}
+        {/* Pipeline pill — opens Engine Modal */}
+        <PipelinePill onClick={onOpenEngine ?? (() => {})} />
 
-        {/* Tool picker */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div>
-              <ToolPicker disabled={isStreaming} />
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>Enable or disable AI tools</TooltipContent>
-        </Tooltip>
-
-        {/* Reasoning effort toggle */}
-        {supportsReasoning && onReasoningChange && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <ReasoningToggle
-                  value={reasoningEffort}
-                  onChange={onReasoningChange}
-                  disabled={isStreaming}
-                />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              Higher effort produces more detailed analysis
-            </TooltipContent>
-          </Tooltip>
-        )}
       </div>
 
       {/* Input row */}
@@ -205,7 +108,7 @@ export function MessageComposer({
             value={message}
             onChange={(e) => {
               setMessage(e.target.value);
-              checkMentionTrigger(e.target.value, e.target.selectionStart ?? 0);
+              checkMentionTrigger(e.target.value, e.target.selectionStart);
             }}
             onKeyDown={handleKeyDown}
             disabled={disabled}
@@ -216,7 +119,7 @@ export function MessageComposer({
                 : "Describe a research goal, or @ to reference a strategy"
             }
             rows={1}
-            className="min-w-0 w-full resize-none overflow-hidden border-0 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-w-0 w-full max-h-[200px] resize-none overflow-auto border-0 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 [field-sizing:content]"
           />
         </div>
         {isStreaming && onStop ? (
@@ -234,7 +137,7 @@ export function MessageComposer({
           <Button
             type="submit"
             size="icon"
-            disabled={disabled || !message.trim()}
+            disabled={disabled === true || message.trim() === ""}
             data-testid="send-button"
             aria-label="Send"
           >
@@ -255,29 +158,3 @@ export function MessageComposer({
   );
 }
 
-/**
- * Derive a ModelSelection object from the current composer state.
- * Returns undefined if using server defaults.
- */
-export function buildModelSelection(
-  selectedModelId: string | null,
-  reasoningEffort: ReasoningEffort,
-  models: ModelCatalogEntry[],
-  overrides?: ModelOverrides,
-): ModelSelection | undefined {
-  if (selectedModelId === null || selectedModelId === "") return undefined;
-  const entry = models.find((m) => m.id === selectedModelId);
-  if (!entry) return undefined;
-  return {
-    provider: entry.provider,
-    model: entry.id,
-    ...(entry.supportsReasoning ? { reasoningEffort } : {}),
-    ...(overrides?.contextSize != null ? { contextSize: overrides.contextSize } : {}),
-    ...(overrides?.responseTokens != null
-      ? { responseTokens: overrides.responseTokens }
-      : {}),
-    ...(overrides?.reasoningBudget != null
-      ? { reasoningBudget: overrides.reasoningBudget }
-      : {}),
-  };
-}

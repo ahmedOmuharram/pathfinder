@@ -70,7 +70,7 @@ function TestForm({
   options = flatOptions,
 }: {
   spec: ParamSpec;
-  schema: z.ZodObject<Record<string, z.ZodTypeAny>>;
+  schema: z.ZodObject<Record<string, z.ZodType>>;
   defaultValue?: string | string[];
   vocabTree?: VocabNode[] | null;
   options?: VocabOption[];

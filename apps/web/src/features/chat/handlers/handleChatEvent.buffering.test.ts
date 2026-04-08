@@ -114,7 +114,7 @@ describe("handleChatEvent — buffering & core events", () => {
       clearStrategy: vi.fn(),
       addStep: vi.fn(),
       loadGraph: vi.fn(),
-      session: new StreamingSession(null),
+      session: new StreamingSession(),
       currentStrategy: null,
       setMessages: batchState.setMessages,
       setUndoSnapshots: batchState.setUndoSnapshots,
@@ -256,22 +256,20 @@ describe("handleChatEvent — buffering & core events", () => {
     expect(state.messages[state.messages.length - 1]?.content).toContain("Boom");
   });
 
-  it("model_selected event calls setSelectedModelId", () => {
+  it("model_selected event calls setSelectedModelId with planning model", () => {
     const { ctx } = makeCtx();
     handleChatEvent(ctx, {
       type: "model_selected",
-      data: { modelId: "claude-sonnet-4-20250514" },
+      data: {
+        pipeline: {
+          discovery: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
+          planning: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
+          execution: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
+          verification: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
+        },
+      },
     } as ChatSSEEvent);
-    expect(ctx.setSelectedModelId).toHaveBeenCalledWith("claude-sonnet-4-20250514");
-  });
-
-  it("model_selected with empty modelId sets null", () => {
-    const { ctx } = makeCtx();
-    handleChatEvent(ctx, {
-      type: "model_selected",
-      data: { modelId: "" },
-    } as ChatSSEEvent);
-    expect(ctx.setSelectedModelId).toHaveBeenCalledWith(null);
+    expect(ctx.setSelectedModelId).toHaveBeenCalledWith("anthropic/claude-opus-4-6");
   });
 
   it("message_end event does not crash and is handled (not unknown)", () => {

@@ -1,8 +1,6 @@
 /**
  * Zod schemas for Analysis API responses.
  *
- * All object schemas use .passthrough() so extra fields from the backend
- * are preserved rather than stripped.
  */
 import { z } from "zod";
 import { ExperimentMetricsSchema } from "./experiment";

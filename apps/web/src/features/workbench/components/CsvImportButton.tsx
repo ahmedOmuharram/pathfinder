@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useRef } from "react";
 import { FileUp } from "lucide-react";
 
 interface CsvImportButtonProps {
@@ -21,24 +21,21 @@ export function parseGeneIds(text: string): string[] {
 export function CsvImportButton({ onImport }: CsvImportButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = reader.result as string;
-        const ids = parseGeneIds(text);
-        if (ids.length > 0) onImport(ids);
-      };
-      reader.readAsText(file);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      const ids = parseGeneIds(text);
+      if (ids.length > 0) onImport(ids);
+    };
+    reader.readAsText(file);
 
-      // Reset so same file can be re-selected
-      if (inputRef.current) inputRef.current.value = "";
-    },
-    [onImport],
-  );
+    // Reset so same file can be re-selected
+    if (inputRef.current) inputRef.current.value = "";
+  };
 
   return (
     <>

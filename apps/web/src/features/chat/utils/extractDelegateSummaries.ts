@@ -20,38 +20,36 @@ export interface RejectedDelegateSummary {
   details?: string;
 }
 
-const DelegatePayloadSchema = z
-  .object({
-    results: z
-      .array(
-        z.object({
-          task: z.string().optional(),
-          steps: z
-            .array(
-              z.object({
-                stepId: z.string().optional(),
-                displayName: z.string().optional(),
-                searchName: z.string().optional(),
-                recordType: z.string().optional(),
-              }),
-            )
-            .optional(),
-          notes: z.string().optional(),
-          instructions: z.string().optional(),
-        }),
-      )
-      .optional(),
-    rejected: z
-      .array(
-        z.object({
-          task: z.string().optional(),
-          error: z.string().optional(),
-          details: z.string().optional(),
-        }),
-      )
-      .optional(),
-  })
-  .passthrough();
+const DelegatePayloadSchema = z.looseObject({
+  results: z
+    .array(
+      z.object({
+        task: z.string().optional(),
+        steps: z
+          .array(
+            z.object({
+              stepId: z.string().optional(),
+              displayName: z.string().optional(),
+              searchName: z.string().optional(),
+              recordType: z.string().optional(),
+            }),
+          )
+          .optional(),
+        notes: z.string().optional(),
+        instructions: z.string().optional(),
+      }),
+    )
+    .optional(),
+  rejected: z
+    .array(
+      z.object({
+        task: z.string().optional(),
+        error: z.string().optional(),
+        details: z.string().optional(),
+      }),
+    )
+    .optional(),
+});
 
 export function extractDelegateSummaries(toolCalls: ToolCall[]) {
   const summaries: DelegateSummary[] = [];

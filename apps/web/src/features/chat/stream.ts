@@ -6,7 +6,7 @@ import {
 } from "@/lib/operationSubscribe";
 import type { ChatSSEEvent, RawSSEData } from "@/lib/sse_events";
 import { parseChatSSEEvent } from "@/lib/sse_events";
-import type { ChatMention, ModelSelection } from "@pathfinder/shared";
+import type { ChatMention, PipelineConfig } from "@pathfinder/shared";
 
 interface StreamChatContext {
   strategyId?: string;
@@ -33,8 +33,7 @@ export async function streamChat(
   },
   context?: StreamChatContext,
   signal?: AbortSignal,
-  modelSelection?: ModelSelection,
-  disabledTools?: string[],
+  pipeline?: PipelineConfig,
 ): Promise<StreamChatResult> {
   // POST to start the chat operation.
   const resp = await requestJson(ChatOperationResponseSchema, "/api/v1/chat",
@@ -48,26 +47,8 @@ export async function streamChat(
         ...(context?.metadata != null && Object.keys(context.metadata).length > 0
           ? { metadata: context.metadata }
           : {}),
-        // Per-request model overrides
-        ...(modelSelection?.provider != null
-          ? { provider: modelSelection.provider }
-          : {}),
-        ...(modelSelection?.model != null ? { model: modelSelection.model } : {}),
-        ...(modelSelection?.reasoningEffort != null
-          ? { reasoningEffort: modelSelection.reasoningEffort }
-          : {}),
-        // Per-model tuning overrides
-        ...(modelSelection?.contextSize != null
-          ? { contextSize: modelSelection.contextSize }
-          : {}),
-        ...(modelSelection?.responseTokens != null
-          ? { responseTokens: modelSelection.responseTokens }
-          : {}),
-        ...(modelSelection?.reasoningBudget != null
-          ? { reasoningBudget: modelSelection.reasoningBudget }
-          : {}),
-        // Disabled tools
-        ...(disabledTools != null && disabledTools.length > 0 ? { disabledTools } : {}),
+        // Pipeline config (per-phase model + reasoning effort)
+        ...(pipeline != null ? { pipeline } : {}),
       },
       ...(signal != null ? { signal } : {}),
     },

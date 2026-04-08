@@ -26,6 +26,7 @@ from veupath_chatbot.platform.event_schemas import (
     AssistantMessageEventData,
     ErrorEventData,
     MessageEndEventData,
+    PipelineConfig,
 )
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.metrics import (
@@ -49,7 +50,7 @@ logger = get_logger(__name__)
 
 
 async def classify_intent(
-    deps: AgentDeps, message: str, model_id: str,
+    deps: AgentDeps, message: str, pipeline: PipelineConfig,
 ) -> Intent:
     """Classify the request and return the resolved intent."""
     graph = deps.strategy_session.graph
@@ -60,9 +61,10 @@ async def classify_intent(
     classification = classify_request(
         message, graph=graph, has_pending_plan=has_pending,
     )
-    if classification is None and model_id:
+    planning_model = pipeline.planning.model_id
+    if classification is None and planning_model:
         classification = await classify_request_llm(
-            message, model_id=model_id, graph=graph, has_pending_plan=has_pending,
+            message, model_id=planning_model, graph=graph, has_pending_plan=has_pending,
         )
     intent = classification.intent if classification else Intent.NEW_STRATEGY
     logger.info(
@@ -75,13 +77,13 @@ async def classify_intent(
 
 
 async def check_plan_approval(
-    deps: AgentDeps, queue: asyncio.Queue[JSONObject], model_id: str,
+    deps: AgentDeps, queue: asyncio.Queue[JSONObject], pipeline: PipelineConfig,
 ) -> bool:
     """Check if the plan needs user approval. Returns True to pause the pipeline."""
     active_plan = deps.agent_state.active_plan
     if active_plan is None or active_plan.status != PlanStatus.PRESENTED:
         return False
-    if is_mock_model(model_id):
+    if is_mock_model(pipeline.planning.model_id):
         active_plan.status = PlanStatus.APPROVED
         logger.info("Mock mode — auto-approving plan")
         return False
@@ -94,6 +96,7 @@ async def run_sm_phase(
     sm: AgentPipeline,
     config: PhaseConfig,
     discovery_messages: list[ModelMessage] | None,
+    pipeline: PipelineConfig,
 ) -> tuple[list[ModelMessage] | None, bool]:
     """Execute one StateChart phase and advance the machine.
 
@@ -102,13 +105,22 @@ async def run_sm_phase(
     phase = config.phase
     if phase == "execution":
         await run_execution_phase(config)
-        sm.send("finish_execution")
+        plan = config.deps.agent_state.active_plan
+        if plan is not None and plan.status == PlanStatus.FAILED and sm.should_replan():
+            logger.info(
+                "Execution failed, replanning",
+                attempt=sm.retry_counts.get("execution", 0),
+                budget=sm.retry_budget,
+            )
+            sm.send("replan")
+        else:
+            sm.send("finish_execution")
     elif phase == "discovery":
         discovery_messages = await run_phase(config)
         sm.send("finish_discovery")
     elif phase == "planning":
         await run_phase(config)
-        if await check_plan_approval(config.deps, config.queue, config.model_id):
+        if await check_plan_approval(config.deps, config.queue, pipeline):
             return discovery_messages, True
         sm.send("submit_draft")
         sm.send("approve")
@@ -150,11 +162,19 @@ def _record_turn_metrics(
     token_usage.add(counters.cache_read_tokens, {"model": model_id, "type": "cached"})
 
 
+def _current_trace_id() -> str | None:
+    """Extract the current OTEL trace ID as a hex string, if recording."""
+    span = trace.get_current_span()
+    if not span.is_recording():
+        return None
+    return format(span.get_span_context().trace_id, "032x")
+
+
 async def produce_events(
     deps: AgentDeps,
     message: str,
     queue: asyncio.Queue[JSONObject],
-    model_id: str,
+    pipeline: PipelineConfig,
 ) -> None:
     """Run the agent pipeline driven by the StateChart.
 
@@ -165,15 +185,10 @@ async def produce_events(
     counters = TurnCounters()
     sm = create_pipeline()
 
-    current_span = trace.get_current_span()
-    current_trace_id: str | None = None
-    if current_span.is_recording():
-        ctx = current_span.get_span_context()
-        current_trace_id = format(ctx.trace_id, "032x")
-
+    current_trace = _current_trace_id()
     tracer = get_tracer()
 
-    intent = await classify_intent(deps, message, model_id)
+    intent = await classify_intent(deps, message, pipeline)
 
     # Fast-forward the StateChart for non-full-pipeline intents.
     if intent == Intent.EDIT_STRATEGY:
@@ -185,6 +200,9 @@ async def produce_events(
         # Skip discovery — searches are already known from existing strategy.
         sm.send("finish_discovery")
 
+    # Use the planning model as the representative for metrics/cost.
+    representative_model = pipeline.planning.model_id
+
     outcome = "completed"
     try:
         discovery_messages: list[ModelMessage] | None = None
@@ -195,7 +213,9 @@ async def produce_events(
             await emit_phase_event(queue, phase, "started")
 
             with tracer.start_as_current_span(f"pipeline.{phase}") as phase_span:
-                _set_phase_span_attributes(phase_span, phase, intent, model_id, deps)
+                phase_cfg = getattr(pipeline, phase)
+
+                _set_phase_span_attributes(phase_span, phase, intent, phase_cfg.model_id, deps)
 
                 # Discovery and verification get the user's original message.
                 # Planning and execution get empty prompts (they work from
@@ -209,14 +229,15 @@ async def produce_events(
                     queue=queue,
                     message_id=message_id,
                     counters=counters,
-                    model_id=model_id,
+                    model_id=phase_cfg.model_id,
+                    reasoning_effort=phase_cfg.reasoning_effort,
                     message_history=discovery_messages if phase == "planning" else None,
                     usage_limits=PHASE_LIMITS.get(phase),
                 )
 
                 phase_start = time.monotonic()
                 discovery_messages, should_break = await run_sm_phase(
-                    sm, config, discovery_messages,
+                    sm, config, discovery_messages, pipeline,
                 )
                 phase_duration_s.record(
                     time.monotonic() - phase_start,
@@ -267,10 +288,10 @@ async def produce_events(
             }
         )
     finally:
-        _record_turn_metrics(intent, outcome, model_id, counters)
+        _record_turn_metrics(intent, outcome, representative_model, counters)
 
         estimated_cost = estimate_cost(
-            model_id,
+            representative_model,
             prompt_tokens=counters.input_tokens,
             completion_tokens=counters.output_tokens,
             cached_tokens=counters.cache_read_tokens,
@@ -279,7 +300,7 @@ async def produce_events(
             {
                 "type": "message_end",
                 "data": MessageEndEventData(
-                    trace_id=current_trace_id,
+                    trace_id=current_trace,
                     prompt_tokens=counters.input_tokens,
                     completion_tokens=counters.output_tokens,
                     total_tokens=counters.input_tokens + counters.output_tokens,
@@ -288,7 +309,7 @@ async def produce_events(
                     registered_tool_count=0,
                     llm_call_count=counters.llm_call_count,
                     estimated_cost_usd=estimated_cost,
-                    model_id=model_id,
+                    model_id=representative_model,
                 ).model_dump(by_alias=True),
             }
         )

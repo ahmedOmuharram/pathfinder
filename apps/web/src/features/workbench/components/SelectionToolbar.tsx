@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Trash2,
   Download,
@@ -12,6 +12,7 @@ import {
 import { Button } from "@/lib/components/ui/Button";
 import { deleteGeneSet } from "../api/geneSets";
 import { exportAsTxt, exportAsCsv, exportMultipleAsCsv } from "../utils/export";
+import { useShallow } from "zustand/react/shallow";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
 import type { GeneSet } from "@pathfinder/shared";
@@ -38,27 +39,28 @@ export function SelectionToolbar({
   onCompare,
   onOverlap,
 }: SelectionToolbarProps) {
-  const selectAll = useWorkbenchStore((s) => s.selectAll);
-  const deselectAll = useWorkbenchStore((s) => s.deselectAll);
-  const clearSelection = useWorkbenchStore((s) => s.clearSelection);
+  const { selectAll, deselectAll, clearSelection } = useWorkbenchStore(
+    useShallow((s) => ({
+      selectAll: s.selectAll,
+      deselectAll: s.deselectAll,
+      clearSelection: s.clearSelection,
+    })),
+  );
   const invalidateGeneSets = useInvalidateGeneSets();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const toDelete = useMemo(
-    () => (selectedSets.length > 0 ? selectedSets : activeSet ? [activeSet] : []),
-    [selectedSets, activeSet],
-  );
+  const toDelete = selectedSets.length > 0 ? selectedSets : activeSet ? [activeSet] : [];
   const hasExactlyTwo = selectedSets.length === 2;
   const hasTwoOrMore = selectedSets.length >= 2;
 
-  const handleDeleteRequest = useCallback(() => {
+  const handleDeleteRequest = () => {
     if (toDelete.length === 0) return;
     setShowDeleteConfirm(true);
-  }, [toDelete.length]);
+  };
 
-  const handleDeleteConfirm = useCallback(async () => {
+  const handleDeleteConfirm = async () => {
     setShowDeleteConfirm(false);
     setDeleting(true);
     setDeleteError(null);
@@ -72,7 +74,7 @@ export function SelectionToolbar({
     } finally {
       setDeleting(false);
     }
-  }, [toDelete, clearSelection, invalidateGeneSets]);
+  };
 
   const exportTarget =
     selectedSets.length > 0 ? selectedSets : activeSet ? [activeSet] : [];

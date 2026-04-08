@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import type { ControlSet } from "@pathfinder/shared";
-import { listControlSets } from "../api/controlSets";
+import { useQuery } from "@tanstack/react-query";
+import { controlSetsOptions } from "../api/controlSets";
 
 interface ControlSetQuickPickProps {
   siteId: string;
@@ -11,19 +10,9 @@ interface ControlSetQuickPickProps {
 }
 
 export function ControlSetQuickPick({ siteId, onSelect }: ControlSetQuickPickProps) {
-  const [controlSets, setControlSets] = useState<ControlSet[] | null>(null);
+  const { data: controlSets, isPending } = useQuery(controlSetsOptions(siteId));
 
-  useEffect(() => {
-    let cancelled = false;
-    void listControlSets(siteId).then((sets) => {
-      if (!cancelled) setControlSets(sets);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [siteId]);
-
-  if (controlSets === null) {
+  if (isPending) {
     return (
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" />
@@ -32,7 +21,7 @@ export function ControlSetQuickPick({ siteId, onSelect }: ControlSetQuickPickPro
     );
   }
 
-  if (controlSets.length === 0) {
+  if (controlSets == null || controlSets.length === 0) {
     return <p className="text-xs text-muted-foreground">No saved control sets</p>;
   }
 

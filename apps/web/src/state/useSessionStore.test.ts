@@ -1,140 +1,97 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
+import { useSessionStore } from "./useSessionStore";
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.resetModules();
+beforeEach(() => {
+  useSessionStore.setState({
+    selectedSite: "veupathdb",
+    selectedSiteDisplayName: "VEuPathDB",
+    strategyId: null,
+    strategyBySite: {},
+    veupathdbSignedIn: false,
+    veupathdbName: null,
+    chatIsStreaming: false,
+    chatPreviewVersion: 0,
+    pendingAskNode: null,
+    composerPrefill: null,
+    authRefreshed: false,
+    authStatusKnown: false,
+    authVersion: 0,
+  });
 });
 
-function makeLocalStorage(initial: Record<string, string> = {}) {
-  const store = new Map<string, string>(Object.entries(initial));
-  return {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => void store.set(k, v),
-    removeItem: (k: string) => void store.delete(k),
-  };
-}
-
 describe("state/useSessionStore", () => {
-  it("setSelectedSite updates selected site", async () => {
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-    store.getState().setSelectedSite("tri TrypDB");
-    expect(store.getState().selectedSite).toBe("tri TrypDB");
+  it("setSelectedSite updates selected site", () => {
+    useSessionStore.getState().setSelectedSite("tritrypdb");
+    expect(useSessionStore.getState().selectedSite).toBe("tritrypdb");
   });
 
-  it("setSelectedSiteInfo updates site and display name", async () => {
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-    store.getState().setSelectedSiteInfo("tri TrypDB", "TrypDB");
-    expect(store.getState().selectedSite).toBe("tri TrypDB");
-    expect(store.getState().selectedSiteDisplayName).toBe("TrypDB");
+  it("setSelectedSiteInfo updates site and display name", () => {
+    useSessionStore.getState().setSelectedSiteInfo("tritrypdb", "TriTrypDB");
+    expect(useSessionStore.getState().selectedSite).toBe("tritrypdb");
+    expect(useSessionStore.getState().selectedSiteDisplayName).toBe("TriTrypDB");
   });
 
-  it("changing selected site restores strategy for new site (null when none saved)", async () => {
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-    store.getState().setStrategyId("s1");
-    store.getState().setSelectedSite("toxodb");
-    expect(store.getState().selectedSite).toBe("toxodb");
-    // No window in Node env, so restored strategy is null.
-    expect(store.getState().strategyId).toBeNull();
+  it("setStrategyId updates strategyId and strategyBySite atomically", () => {
+    useSessionStore.getState().setStrategyId("s-123");
+    const s = useSessionStore.getState();
+    expect(s.strategyId).toBe("s-123");
+    expect(s.strategyBySite).toEqual({ veupathdb: "s-123" });
   });
 
-  it("setStrategyId updates strategy id", async () => {
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-    store.getState().setStrategyId("s123");
-    expect(store.getState().strategyId).toBe("s123");
-    store.getState().setStrategyId(null);
-    expect(store.getState().strategyId).toBeNull();
+  it("setStrategyId(null) removes entry from strategyBySite", () => {
+    useSessionStore.getState().setStrategyId("s-123");
+    useSessionStore.getState().setStrategyId(null);
+    const s = useSessionStore.getState();
+    expect(s.strategyId).toBeNull();
+    expect(s.strategyBySite).toEqual({});
   });
 
-  it("setVeupathdbAuth updates auth state", async () => {
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-    store.getState().setVeupathdbAuth(true, "John Doe");
-    expect(store.getState().veupathdbSignedIn).toBe(true);
-    expect(store.getState().veupathdbName).toBe("John Doe");
-    store.getState().setVeupathdbAuth(false);
-    expect(store.getState().veupathdbSignedIn).toBe(false);
-    expect(store.getState().veupathdbName).toBeNull();
+  it("switching site restores strategyId from strategyBySite", () => {
+    useSessionStore.getState().setStrategyId("s-veu");
+    useSessionStore.getState().setSelectedSite("toxodb");
+    expect(useSessionStore.getState().strategyId).toBeNull();
+    useSessionStore.getState().setStrategyId("s-toxo");
+    useSessionStore.getState().setSelectedSite("veupathdb");
+    expect(useSessionStore.getState().strategyId).toBe("s-veu");
+    useSessionStore.getState().setSelectedSite("toxodb");
+    expect(useSessionStore.getState().strategyId).toBe("s-toxo");
   });
 
-  it("setChatIsStreaming updates streaming state", async () => {
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-    store.getState().setChatIsStreaming(true);
-    expect(store.getState().chatIsStreaming).toBe(true);
+  it("setSelectedSiteInfo also restores strategyId from strategyBySite", () => {
+    useSessionStore.getState().setStrategyId("s-veu");
+    useSessionStore.getState().setSelectedSiteInfo("toxodb", "ToxoDB");
+    expect(useSessionStore.getState().strategyId).toBeNull();
+    useSessionStore.getState().setSelectedSiteInfo("veupathdb", "VEuPathDB");
+    expect(useSessionStore.getState().strategyId).toBe("s-veu");
   });
 
-  it("restores selectedSite from localStorage on init", async () => {
-    vi.stubGlobal("window", {
-      localStorage: makeLocalStorage({ "pathfinder-selected-site": "toxodb" }),
-    });
-
-    const mod = await import("./useSessionStore");
-    expect(mod.useSessionStore.getState().selectedSite).toBe("toxodb");
+  it("setVeupathdbAuth updates auth state", () => {
+    useSessionStore.getState().setVeupathdbAuth(true, "John Doe");
+    expect(useSessionStore.getState().veupathdbSignedIn).toBe(true);
+    expect(useSessionStore.getState().veupathdbName).toBe("John Doe");
+    useSessionStore.getState().setVeupathdbAuth(false);
+    expect(useSessionStore.getState().veupathdbSignedIn).toBe(false);
+    expect(useSessionStore.getState().veupathdbName).toBeNull();
   });
 
-  it("restores strategyId scoped to site from localStorage on init", async () => {
-    vi.stubGlobal("window", {
-      localStorage: makeLocalStorage({
-        "pathfinder-selected-site": "toxodb",
-        "pathfinder-strategy-id:toxodb": "s-toxo-1",
-      }),
-    });
-
-    const mod = await import("./useSessionStore");
-    expect(mod.useSessionStore.getState().selectedSite).toBe("toxodb");
-    expect(mod.useSessionStore.getState().strategyId).toBe("s-toxo-1");
+  it("setChatIsStreaming updates streaming state", () => {
+    useSessionStore.getState().setChatIsStreaming(true);
+    expect(useSessionStore.getState().chatIsStreaming).toBe(true);
   });
 
-  it("setStrategyId persists to localStorage scoped by site", async () => {
-    const localStorage = makeLocalStorage({
-      "pathfinder-selected-site": "plasmodb",
-    });
-    vi.stubGlobal("window", { localStorage });
-
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-
-    store.getState().setStrategyId("s-new");
-    expect(localStorage.getItem("pathfinder-strategy-id:plasmodb")).toBe("s-new");
-
-    store.getState().setStrategyId(null);
-    expect(localStorage.getItem("pathfinder-strategy-id:plasmodb")).toBeNull();
+  it("bumpChatPreviewVersion increments monotonically", () => {
+    const v0 = useSessionStore.getState().chatPreviewVersion;
+    useSessionStore.getState().bumpChatPreviewVersion();
+    expect(useSessionStore.getState().chatPreviewVersion).toBe(v0 + 1);
   });
 
-  it("setSelectedSite persists to localStorage and restores strategy for new site", async () => {
-    const localStorage = makeLocalStorage({
-      "pathfinder-selected-site": "plasmodb",
-      "pathfinder-strategy-id:plasmodb": "s-plasmo",
-      "pathfinder-strategy-id:toxodb": "s-toxo",
-    });
-    vi.stubGlobal("window", { localStorage });
-
-    const mod = await import("./useSessionStore");
-    const store = mod.useSessionStore;
-
-    // Switch to toxodb — should restore s-toxo
-    store.getState().setSelectedSite("toxodb");
-    expect(store.getState().selectedSite).toBe("toxodb");
-    expect(store.getState().strategyId).toBe("s-toxo");
-    expect(localStorage.getItem("pathfinder-selected-site")).toBe("toxodb");
-
-    // Switch back to plasmodb — should restore s-plasmo
-    store.getState().setSelectedSite("plasmodb");
-    expect(store.getState().strategyId).toBe("s-plasmo");
-  });
-
-  it("restores selectedSiteDisplayName from localStorage", async () => {
-    vi.stubGlobal("window", {
-      localStorage: makeLocalStorage({
-        "pathfinder-selected-site-display": "ToxoDB",
-      }),
-    });
-
-    const mod = await import("./useSessionStore");
-    expect(mod.useSessionStore.getState().selectedSiteDisplayName).toBe("ToxoDB");
+  it("forceSignOut clears auth state", () => {
+    useSessionStore.getState().setVeupathdbAuth(true, "Jane");
+    useSessionStore.getState().setAuthRefreshed(true);
+    useSessionStore.getState().forceSignOut();
+    const s = useSessionStore.getState();
+    expect(s.veupathdbSignedIn).toBe(false);
+    expect(s.veupathdbName).toBeNull();
+    expect(s.authRefreshed).toBe(false);
   });
 });

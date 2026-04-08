@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv
 RUN pip install uv
 
-# ── Cached layer: dependencies + model (busted only by pyproject.toml/uv.lock) ──
+# ── Cached layer: dependencies + models (busted only by pyproject.toml/uv.lock) ──
 
 # Copy dependency manifests only — NOT application source code.
 COPY apps/api/pyproject.toml apps/api/
@@ -32,16 +32,30 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Lives in the same cached layer group as deps — code changes don't bust this.
 RUN .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='nomic-ai/nomic-embed-text-v1.5')"
 
-# Pre-download LLM Guard scanner models (PromptInjection, Toxicity, Sensitive,
-# NoRefusal) so the first request doesn't block on network downloads.
-RUN .venv/bin/python -c "\
-from llm_guard.input_scanners import PromptInjection, Toxicity; \
-from llm_guard.output_scanners import Sensitive, NoRefusal; \
-PromptInjection(use_onnx=True); \
-Toxicity(use_onnx=True); \
-Sensitive(use_onnx=True); \
-NoRefusal(use_onnx=True); \
-print('LLM Guard models cached')"
+# Download PIGuard ONNX model + tokenizer for prompt-injection detection.
+# Replaces the heavyweight llm-guard stack (torch + CUDA + transformers).
+RUN .venv/bin/python <<'PYEOF'
+from huggingface_hub import hf_hub_download
+import os
+model_dir = '/app/models/piguard'
+os.makedirs(model_dir, exist_ok=True)
+for fname in ('model.onnx', 'tokenizer.json'):
+    hf_hub_download(
+        repo_id='ahmedomuharram/piguard-onnx',
+        filename=fname,
+        local_dir=model_dir,
+    )
+print(f'PIGuard model downloaded to {model_dir}')
+PYEOF
+
+# Verify PIGuard loads correctly at build time.
+RUN .venv/bin/python <<'PYEOF'
+import onnxruntime
+from tokenizers import Tokenizer
+session = onnxruntime.InferenceSession('/app/models/piguard/model.onnx', providers=['CPUExecutionProvider'])
+tokenizer = Tokenizer.from_file('/app/models/piguard/tokenizer.json')
+print('PIGuard ONNX model verified')
+PYEOF
 
 # ── Fast layer: application code (re-runs on every code change, but cheap) ──
 
@@ -51,8 +65,10 @@ WORKDIR /app
 COPY apps/api/alembic.ini apps/api/
 COPY apps/api/alembic apps/api/alembic
 
-# Copy application code
-COPY apps/api/src apps/api/src
+# Copy application code (exclude tests — they add ~300MB of VCR cassettes)
+COPY apps/api/src/data apps/api/src/data
+COPY apps/api/src/veupath_chatbot apps/api/src/veupath_chatbot
+RUN rm -rf apps/api/src/veupath_chatbot/tests
 
 # Copy optional Ollama models config (glob avoids failure if missing)
 COPY ollama_models.yam[l] ./

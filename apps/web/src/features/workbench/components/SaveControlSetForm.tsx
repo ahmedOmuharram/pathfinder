@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, Loader2 } from "lucide-react";
 import { createControlSet } from "../api/controlSets";
 import { Button } from "@/lib/components/ui/Button";
@@ -22,6 +22,7 @@ export function SaveControlSetForm({
   recordType = "gene",
   onSaved,
 }: SaveControlSetFormProps) {
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [name, setName] = useState("");
   const [tags, setTags] = useState("");
@@ -57,6 +58,9 @@ export function SaveControlSetForm({
         setSuccess(false);
         onSaved?.();
       }, 1500);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["control-sets"] });
     },
   });
 

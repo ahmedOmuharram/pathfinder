@@ -1,20 +1,18 @@
 "use client";
 
 /**
- * SettingsPage -- modal-based settings with Model, Data, Advanced, and Seeding tabs.
+ * SettingsPage -- modal-based settings with Data, Advanced, and Seeding tabs.
  */
 
 import { useState } from "react";
 import { Modal } from "@/lib/components/Modal";
-import { GeneralSettings } from "./settings/GeneralSettings";
 import { DataSettings } from "./settings/DataSettings";
 import { AdvancedSettings } from "./settings/AdvancedSettings";
 import { SeedingSettings } from "./settings/SeedingSettings";
 
-type Tab = "general" | "data" | "advanced" | "seeding";
+type Tab = "data" | "advanced" | "seeding";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "general", label: "Model" },
   { id: "data", label: "Data" },
   { id: "advanced", label: "Advanced" },
   { id: "seeding", label: "Seeding" },
@@ -27,7 +25,7 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ open, onClose, siteId }: SettingsPageProps) {
-  const [tab, setTab] = useState<Tab>("general");
+  const [tab, setTab] = useState<Tab>("data");
 
   return (
     <Modal open={open} onClose={onClose} title="Settings" maxWidth="max-w-2xl" showCloseButton>
@@ -51,7 +49,6 @@ export function SettingsPage({ open, onClose, siteId }: SettingsPageProps) {
 
       {/* Tab content — scrollable */}
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        {tab === "general" && <GeneralSettings />}
         {tab === "data" && <DataSettings siteId={siteId} />}
         {tab === "advanced" && <AdvancedSettings />}
         {tab === "seeding" && <SeedingSettings />}

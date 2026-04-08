@@ -35,17 +35,11 @@ async def chat(
         stream_repo=stream_repo,
     )
     config = ChatTurnConfig(
+        pipeline=body.pipeline,
         mentions=body.mentions or None,
         disable_rag=body.disable_rag,
-        disabled_tools=body.disabled_tools,
-        provider_override=body.provider,
-        model_override=body.model_id,
-        reasoning_effort=body.reasoning_effort,
         temperature=body.temperature,
         seed=body.seed,
-        context_size=body.context_size,
-        response_tokens=body.response_tokens,
-        reasoning_budget=body.reasoning_budget,
     )
     operation_id, strategy_id, entry_id = await start_chat_stream(
         message=body.message,

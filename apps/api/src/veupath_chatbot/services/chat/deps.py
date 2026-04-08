@@ -17,6 +17,7 @@ from veupath_chatbot.ai.orchestration.deps import AgentDeps
 from veupath_chatbot.domain.strategy.plan import StrategyPlan
 from veupath_chatbot.persistence.models import StreamProjection
 from veupath_chatbot.persistence.repositories import StreamRepository
+from veupath_chatbot.platform.event_schemas import PipelineConfig
 from veupath_chatbot.platform.logging import get_logger
 from veupath_chatbot.platform.redis import get_redis
 from veupath_chatbot.platform.stream_readers import read_stream_messages
@@ -51,12 +52,12 @@ async def build_agent_deps(
     turn: TurnIdentity,
     projection: StreamProjection,
     config: ChatTurnConfig,
-    resolve_model_id_fn: Callable[..., str],
+    resolve_pipeline_fn: Callable[..., PipelineConfig],
     stream_repo: StreamRepository | None = None,
-) -> tuple[AgentDeps, str]:
-    """Build AgentDeps and resolve the effective model.
+) -> tuple[AgentDeps, PipelineConfig]:
+    """Build AgentDeps and resolve the effective pipeline.
 
-    Returns ``(deps, effective_model_id)``.
+    Returns ``(deps, effective_pipeline)``.
     """
     # Build rich context from @-mentions.
     mentioned_context: str | None = None
@@ -76,10 +77,10 @@ async def build_agent_deps(
         len(discovered_searches),
     )
 
-    # Resolve the effective model.
-    effective_model: str = resolve_model_id_fn(
-        model_override=config.model_override,
-        persisted_model_id=projection.model_id,
+    # Resolve the effective pipeline configuration.
+    effective_pipeline: PipelineConfig = resolve_pipeline_fn(
+        pipeline_override=config.pipeline,
+        persisted_pipeline=projection.pipeline,
     )
 
     # Restore the active plan from the projection.
@@ -131,4 +132,4 @@ async def build_agent_deps(
         ),
     )
 
-    return deps, effective_model
+    return deps, effective_pipeline

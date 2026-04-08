@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
+import { useState } from "react";
+import { useDebounce } from "use-debounce";
 import { useFormContext, useWatch, type Control, type FieldPath, type FieldValues } from "react-hook-form";
+import { useQueries, keepPreviousData } from "@tanstack/react-query";
 import type { ParamSpec } from "@pathfinder/shared";
 import { extractVocabOptions, type VocabOption } from "@/lib/utils/vocab";
 import { extractSpecVocabulary } from "../components/stepEditorUtils";
@@ -34,6 +36,11 @@ interface UseDependentParamsResult {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+
+// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
@@ -45,8 +52,8 @@ interface UseDependentParamsResult {
  * Returns refreshed vocabulary options, loading flags, and error messages
  * keyed by downstream (dependent) param name.
  *
- * Debounces rapid changes (250ms) and ignores stale responses using a
- * monotonically incrementing counter.
+ * Uses TanStack Query with debounced inputs for automatic staleness
+ * management, caching, and deduplication.
  */
 export function useDependentParams<T extends FieldValues = FieldValues>({
   control,
@@ -55,38 +62,17 @@ export function useDependentParams<T extends FieldValues = FieldValues>({
   recordType,
   searchName,
 }: UseDependentParamsArgs<T>): UseDependentParamsResult {
-  const [dependentOptions, setDependentOptions] = useState<Record<string, VocabOption[]>>(
-    {},
-  );
-  const [dependentLoading, setDependentLoading] = useState<Record<string, boolean>>({});
-  const [dependentErrors, setDependentErrors] = useState<Record<string, string | null>>(
-    {},
-  );
-
-  // Build the set of upstream param names (those with dependentParams).
-  const upstreamSpecs = useMemo(
-    () =>
-      specs.filter(
-        (s) =>
-          s.name !== "" &&
-          s.dependentParams != null &&
-          s.dependentParams.length > 0,
-      ),
-    [specs],
+  // Build the set of upstream param specs (those with dependentParams).
+  const upstreamSpecs = specs.filter(
+    (s) =>
+      s.name !== "" &&
+      s.dependentParams != null &&
+      s.dependentParams.length > 0,
   );
 
-  const upstreamNames = useMemo(
-    () => upstreamSpecs.map((s) => s.name),
-    [upstreamSpecs],
-  );
+  const upstreamNames = upstreamSpecs.map((s) => s.name);
 
   // Watch all upstream param values via RHF.
-  // When no upstream params exist, useWatch receives an empty array and
-  // returns an empty array — no subscriptions, no re-renders.
-  //
-  // RHF returns the values typed against the dynamic FieldValues generic.
-  // Since we pass a string[] (not a const tuple), the inferred element type
-  // is wide. We normalize to unknown[] for safe comparison below.
   // useWatch requires FieldPath<T>[] but our param names are dynamic strings
   // from WDK specs. The cast is safe because RHF's runtime doesn't validate
   // field paths — it simply subscribes to the named fields.
@@ -94,133 +80,88 @@ export function useDependentParams<T extends FieldValues = FieldValues>({
     control,
     name: upstreamNames as FieldPath<T>[],
   });
-  const watchedValues = Array.isArray(rawWatched) ? (rawWatched as unknown[]) : [rawWatched as unknown];
+  // Serialize watched values for stable comparison.
+  const watchedSerialized = (() => {
+    const values = Array.isArray(rawWatched) ? (rawWatched as unknown[]) : [rawWatched as unknown];
+    return values.map((v) => JSON.stringify(v));
+  })();
 
-  // Stale-response guard: monotonically incrementing counter.
-  const refreshCounterRef = useRef(0);
+  // Debounce the serialized values so TQ queries don't fire on every keystroke.
+  const [debouncedSerialized] = useDebounce(watchedSerialized, 250);
 
-  // Debounce timer ref for cleanup.
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Track previous watched values to detect actual changes and identify
-  // which specific upstream param changed. Initialized to `null` so the
-  // first render seeds the ref without triggering a refresh.
-  const prevWatchedRef = useRef<unknown[] | null>(null);
+  // Capture initial values once to prevent firing on mount.
+  const [initialSerialized] = useState(() => watchedSerialized);
 
   const { getValues } = useFormContext();
 
-  const doRefresh = useCallback(
-    (changedParamName: string, depParams: string[]) => {
-      const counter = ++refreshCounterRef.current;
+  // One query per upstream param. The query fires when that param's debounced
+  // value diverges from its initial mount-time value.
+  const queryResults = useQueries({
+    queries: upstreamSpecs.map((spec, idx) => {
+      const paramName = spec.name;
+      const debouncedValue = debouncedSerialized[idx] ?? "";
+      const initialValue = initialSerialized[idx] ?? "";
+      const hasChanged = debouncedValue !== initialValue;
 
-      // Set loading state for dependent params.
-      setDependentLoading((prev) => {
-        const next = { ...prev };
-        for (const dep of depParams) next[dep] = true;
-        return next;
-      });
-      setDependentErrors((prev) => {
-        const next = { ...prev };
-        for (const dep of depParams) next[dep] = null;
-        return next;
-      });
+      return {
+        queryKey: [
+          "dependent-params",
+          siteId,
+          recordType,
+          searchName,
+          paramName,
+          debouncedValue,
+        ] as const,
+        queryFn: () => {
+          const contextValues: Record<string, unknown> = { ...getValues() };
+          return refreshDependentParams(
+            siteId,
+            recordType,
+            searchName,
+            paramName,
+            contextValues,
+          );
+        },
+        enabled: hasChanged,
+        placeholderData: keepPreviousData,
+        staleTime: 0,
+        gcTime: 30_000,
+      };
+    }),
+  });
 
-      // Get ALL current form values for the context.
-      const contextValues: Record<string, unknown> = { ...getValues() };
+  // Aggregate results from all queries into the unified return shape.
+  const dependentOptions: Record<string, VocabOption[]> = {};
+  const dependentLoading: Record<string, boolean> = {};
+  const dependentErrors: Record<string, string | null> = {};
 
-      refreshDependentParams(siteId, recordType, searchName, changedParamName, contextValues)
-        .then((refreshedSpecs) => {
-          if (refreshCounterRef.current !== counter) return; // stale
-          startTransition(() => {
-            setDependentOptions((prev) => {
-              const next = { ...prev };
-              for (const spec of refreshedSpecs) {
-                if (!spec.name) continue;
-                const vocab = extractSpecVocabulary(spec);
-                if (vocab != null) {
-                  next[spec.name] = extractVocabOptions(vocab);
-                }
-              }
-              return next;
-            });
-            setDependentLoading((prev) => {
-              const next = { ...prev };
-              for (const dep of depParams) next[dep] = false;
-              return next;
-            });
-          });
-        })
-        .catch((err: unknown) => {
-          if (refreshCounterRef.current !== counter) return;
-          const msg = err instanceof Error ? err.message : String(err);
-          setDependentErrors((prev) => {
-            const next = { ...prev };
-            for (const dep of depParams) next[dep] = msg;
-            return next;
-          });
-          setDependentLoading((prev) => {
-            const next = { ...prev };
-            for (const dep of depParams) next[dep] = false;
-            return next;
-          });
-        });
-    },
-    [getValues, siteId, recordType, searchName],
-  );
+  for (let i = 0; i < upstreamSpecs.length; i++) {
+    const spec = upstreamSpecs[i]!;
+    const depParams = spec.dependentParams ?? [];
+    const result = queryResults[i];
+    if (result == null) continue;
 
-  // Effect: compare watched values to previous, find the changed upstream
-  // param, and trigger a debounced refresh.
-  useEffect(() => {
-    if (upstreamSpecs.length === 0) return;
+    const isLoading = result.isFetching;
+    const errorMsg =
+      result.error instanceof Error ? result.error.message : null;
 
-    // First render: seed the ref with initial values and skip refresh.
-    if (prevWatchedRef.current === null) {
-      prevWatchedRef.current = watchedValues.slice();
-      return;
+    // Set loading/error state for each downstream param.
+    for (const dep of depParams) {
+      dependentLoading[dep] = isLoading;
+      dependentErrors[dep] = errorMsg;
     }
 
-    const prev = prevWatchedRef.current;
-
-    // Find which upstream param changed.
-    let changedIdx = -1;
-    for (let i = 0; i < upstreamSpecs.length; i++) {
-      const prevStr = JSON.stringify(prev[i]);
-      const currStr = JSON.stringify(watchedValues[i]);
-      if (prevStr !== currStr) {
-        changedIdx = i;
-        break;
+    // Extract vocabulary options from the returned specs.
+    if (result.data != null) {
+      for (const refreshedSpec of result.data) {
+        if (!refreshedSpec.name) continue;
+        const vocab = extractSpecVocabulary(refreshedSpec);
+        if (vocab != null) {
+          dependentOptions[refreshedSpec.name] = extractVocabOptions(vocab);
+        }
       }
     }
+  }
 
-    prevWatchedRef.current = watchedValues.slice();
-
-    if (changedIdx === -1) return;
-
-    const changedSpec = upstreamSpecs[changedIdx]!;
-    const changedParamName = changedSpec.name;
-    const depParams = changedSpec.dependentParams ?? [];
-    if (depParams.length === 0) return;
-
-    // Debounce: clear any pending timer and schedule a new one.
-    if (debounceTimerRef.current != null) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = setTimeout(() => {
-      doRefresh(changedParamName, depParams);
-    }, 250);
-  }, [watchedValues, upstreamSpecs, doRefresh]);
-
-  // Cleanup debounce timer on unmount.
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current != null) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
-
-  return useMemo(
-    () => ({ dependentOptions, dependentLoading, dependentErrors }),
-    [dependentOptions, dependentLoading, dependentErrors],
-  );
+  return { dependentOptions, dependentLoading, dependentErrors };
 }

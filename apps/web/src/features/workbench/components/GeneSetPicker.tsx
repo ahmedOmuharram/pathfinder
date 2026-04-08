@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useOnClickOutside } from "usehooks-ts";
 import { Database } from "lucide-react";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
@@ -17,14 +18,7 @@ export function GeneSetPicker({ onSelect }: GeneSetPickerProps) {
 
   const setsWithGenes = geneSets.filter((gs) => gs.geneIds.length > 0);
 
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+  useOnClickOutside(ref as React.RefObject<HTMLElement>, () => setOpen(false));
 
   return (
     <div ref={ref} className="relative">

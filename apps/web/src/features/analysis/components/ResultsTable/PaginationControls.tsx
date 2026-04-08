@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { PAGE_SIZE_OPTIONS } from "./ResultsTableColumns";
@@ -25,13 +24,10 @@ export function PaginationControls({
   const hasPrev = offset > 0;
   const hasNext = offset + pageSize < totalCount;
 
-  const handlePageSizeChange = useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      onPageSizeChange(Number(e.target.value));
-      onOffsetChange(0);
-    },
-    [onPageSizeChange, onOffsetChange],
-  );
+  const handlePageSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onPageSizeChange(Number(e.target.value));
+    onOffsetChange(0);
+  };
 
   return (
     <div className="flex items-center justify-between text-xs text-muted-foreground">

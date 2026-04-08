@@ -13,9 +13,10 @@ const storeState: Record<string, unknown> = {
   expandedPanels: new Set(["evaluate"]),
   togglePanel: vi.fn(),
   setLastExperiment: vi.fn(),
-  pendingPositiveControls: [] as string[],
-  pendingNegativeControls: [] as string[],
-  clearPendingControls: vi.fn(),
+  positiveControls: [] as string[],
+  negativeControls: [] as string[],
+  setPositiveControls: vi.fn(),
+  setNegativeControls: vi.fn(),
 };
 
 vi.mock("@/state/useWorkbenchStore", () => ({
@@ -147,8 +148,8 @@ describe("EvaluatePanel", () => {
     storeState["activeSetId"] = "set-1";
     storeState["geneSets"] = [makeGeneSet()];
     storeState["expandedPanels"] = new Set(["evaluate"]);
-    storeState["pendingPositiveControls"] = [];
-    storeState["pendingNegativeControls"] = [];
+    storeState["positiveControls"] = [];
+    storeState["negativeControls"] = [];
     mockListControlSets.mockResolvedValue([]);
   });
 
@@ -228,7 +229,7 @@ describe("EvaluatePanel", () => {
     });
 
     // Set up positive controls via store pending controls
-    storeState["pendingPositiveControls"] = ["PF3D7_0100100"];
+    storeState["positiveControls"] = ["PF3D7_0100100"];
 
     const { unmount } = render(<EvaluatePanel />);
 

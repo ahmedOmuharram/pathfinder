@@ -6,7 +6,7 @@
  * / operation-id used to cancel an in-flight operation.
  */
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import type { OptimizationProgressData, ToolCall } from "@pathfinder/shared";
 import { cancelOperation, type OperationSubscription } from "@/lib/operationSubscribe";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
@@ -20,13 +20,10 @@ export function useStreamLifecycle(
   const [isStreaming, setIsStreamingRaw] = useState(false);
 
   /** Updates local streaming state and notifies the caller (e.g. global store). */
-  const setIsStreaming = useCallback(
-    (value: boolean) => {
-      setIsStreamingRaw(value);
-      onStreamingChange?.(value);
-    },
-    [onStreamingChange],
-  );
+  const setIsStreaming = (value: boolean) => {
+    setIsStreamingRaw(value);
+    onStreamingChange?.(value);
+  };
 
   const [apiError, setApiError] = useState<string | null>(null);
   const [optimizationProgress, setOptimizationProgress] =
@@ -35,7 +32,7 @@ export function useStreamLifecycle(
   const [operationId, setOperationId] = useState<string | null>(null);
 
   /** Cancel the in-flight operation and reset streaming state. */
-  const stopStreaming = useCallback(() => {
+  const stopStreaming = () => {
     if (operationId != null && operationId !== "") {
       void cancelOperation(operationId);
     }
@@ -43,57 +40,51 @@ export function useStreamLifecycle(
     setSubscription(null);
     setOperationId(null);
     setIsStreaming(false);
-  }, [subscription, operationId, setIsStreaming]);
+  };
 
   /** Prepare for a new stream -- reset transient state. */
-  const beginStream = useCallback(() => {
+  const beginStream = () => {
     setIsStreaming(true);
     setApiError(null);
     thinking.reset();
     setOptimizationProgress(null);
-  }, [thinking, setIsStreaming]);
+  };
 
   /** Called when a stream finishes (success or abort). */
-  const finalizeStream = useCallback(
-    (toolCalls: ToolCall[]) => {
-      setIsStreaming(false);
-      setSubscription(null);
-      setOperationId(null);
-      thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
-    },
-    [thinking, setIsStreaming],
-  );
+  const finalizeStream = (toolCalls: ToolCall[]) => {
+    setIsStreaming(false);
+    setSubscription(null);
+    setOperationId(null);
+    thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
+  };
 
   /** Called when a stream errors out. Returns true if the error was an abort (suppressed). */
-  const handleStreamError = useCallback(
-    (
-      error: Error,
-      toolCalls: ToolCall[],
-      onStreamError?: (error: Error) => void,
-    ): boolean => {
-      setIsStreaming(false);
-      setSubscription(null);
-      setOperationId(null);
-      thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
+  const handleStreamError = (
+    error: Error,
+    toolCalls: ToolCall[],
+    onStreamError?: (error: Error) => void,
+  ): boolean => {
+    setIsStreaming(false);
+    setSubscription(null);
+    setOperationId(null);
+    thinking.finalizeToolCalls(toolCalls.length > 0 ? [...toolCalls] : []);
 
-      const isAbort =
-        error.name === "AbortError" ||
-        (error.message !== "" && /abort/i.test(error.message));
-      if (isAbort) return true;
+    const isAbort =
+      error.name === "AbortError" ||
+      (error.message !== "" && /abort/i.test(error.message));
+    if (isAbort) return true;
 
-      console.error("Chat error:", error);
-      setApiError(error.message !== "" ? error.message : "Unable to reach the API.");
-      onStreamError?.(error);
-      return false;
-    },
-    [thinking, setIsStreaming],
-  );
+    console.error("Chat error:", error);
+    setApiError(error.message !== "" ? error.message : "Unable to reach the API.");
+    onStreamError?.(error);
+    return false;
+  };
 
   /** Record subscription + operationId after streamChat resolves. */
-  const trackOperation = useCallback((sub: OperationSubscription, opId: string) => {
+  const trackOperation = (sub: OperationSubscription, opId: string) => {
     setSubscription(sub);
     setOperationId(opId);
-  }, []);
+  };
 
   return {
     isStreaming,

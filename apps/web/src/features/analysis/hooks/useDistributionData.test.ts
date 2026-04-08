@@ -3,25 +3,21 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { createTestWrapper } from "@/lib/query/testing";
+import { createSuspenseWrapper } from "@/lib/query/testing";
 import { APIError } from "@/lib/api/http";
 import type { DistributionResponse } from "@/lib/types/wdk";
 
-const mockGetDistribution = vi.fn();
+const mockGetDistribution = vi.hoisted(() => vi.fn());
 
-vi.mock("@/features/analysis/api/stepResults", () => {
-  const { queryOptions } = require("@tanstack/react-query");
-  return {
-    getDistribution: (...args: unknown[]) => mockGetDistribution(...args),
-    distributionOptions: (entityRef: { type: string; id: string }, attr: string) =>
-      queryOptions({
-        queryKey: ["experiments", "distribution", entityRef.type, entityRef.id, attr] as const,
-        queryFn: () => mockGetDistribution(entityRef, attr),
-        staleTime: 60_000,
-        enabled: attr !== "",
-      }),
-  };
-});
+vi.mock("@/features/analysis/api/stepResults", () => ({
+  getDistribution: mockGetDistribution,
+  distributionOptions: (entityRef: { type: string; id: string }, attr: string) => ({
+    queryKey: ["experiments", "distribution", entityRef.type, entityRef.id, attr],
+    queryFn: () => mockGetDistribution(entityRef, attr),
+    staleTime: 60_000,
+    enabled: attr !== "",
+  }),
+}));
 
 import { parseDistribution, useDistributionData } from "./useDistributionData";
 import type { EntityRef } from "@/features/analysis/api/stepResults";
@@ -130,34 +126,20 @@ describe("useDistributionData", () => {
     ]);
     mockGetDistribution.mockResolvedValueOnce(response);
 
-    const { Wrapper } = createTestWrapper();
+    const { Wrapper } = createSuspenseWrapper();
     const { result } = renderHook(
       () => useDistributionData(entityRef, "go_term"),
       { wrapper: Wrapper },
     );
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(result.current.distribution).toEqual([
+        { value: "GO:0005634", count: 42 },
+        { value: "GO:0005737", count: 28 },
+      ]);
     });
 
-    expect(result.current.distribution).toEqual([
-      { value: "GO:0005634", count: 42 },
-      { value: "GO:0005737", count: 28 },
-    ]);
-    expect(result.current.error).toBeNull();
-  });
-
-  it("returns loading=true during fetch", () => {
-    mockGetDistribution.mockReturnValueOnce(new Promise(() => {}));
-
-    const { Wrapper } = createTestWrapper();
-    const { result } = renderHook(
-      () => useDistributionData(entityRef, "go_term"),
-      { wrapper: Wrapper },
-    );
-
-    expect(result.current.loading).toBe(true);
-    expect(result.current.distribution).toEqual([]);
+    expect(result.current.noData).toBe(false);
   });
 
   it("returns parsed distribution data sorted by count descending", async () => {
@@ -169,25 +151,23 @@ describe("useDistributionData", () => {
     ]);
     mockGetDistribution.mockResolvedValueOnce(response);
 
-    const { Wrapper } = createTestWrapper();
+    const { Wrapper } = createSuspenseWrapper();
     const { result } = renderHook(
       () => useDistributionData(entityRef, "gene_product"),
       { wrapper: Wrapper },
     );
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(result.current.distribution).toEqual([
+        { value: "nucleus", count: 50 },
+        { value: "membrane", count: 25 },
+        { value: "kinase activity", count: 10 },
+        { value: "cytoplasm", count: 3 },
+      ]);
     });
-
-    expect(result.current.distribution).toEqual([
-      { value: "nucleus", count: 50 },
-      { value: "membrane", count: 25 },
-      { value: "kinase activity", count: 10 },
-      { value: "cytoplasm", count: 3 },
-    ]);
   });
 
-  it("handles 404 gracefully with user-friendly message", async () => {
+  it("handles 404 gracefully with noData flag", async () => {
     mockGetDistribution.mockRejectedValueOnce(
       new APIError("Not Found", {
         status: 404,
@@ -197,24 +177,20 @@ describe("useDistributionData", () => {
       }),
     );
 
-    const { Wrapper } = createTestWrapper();
+    const { Wrapper } = createSuspenseWrapper();
     const { result } = renderHook(
       () => useDistributionData(entityRef, "go_term"),
       { wrapper: Wrapper },
     );
 
     await waitFor(() => {
-      expect(result.current.error).not.toBeNull();
+      expect(result.current.noData).toBe(true);
     });
 
-    expect(result.current.error).toBe(
-      "No distribution data available for this attribute. Try a different one.",
-    );
-    expect(result.current.loading).toBe(false);
     expect(result.current.distribution).toEqual([]);
   });
 
-  it("handles 422 gracefully with user-friendly message", async () => {
+  it("handles 422 gracefully with noData flag", async () => {
     mockGetDistribution.mockRejectedValueOnce(
       new APIError("Unprocessable Entity", {
         status: 422,
@@ -224,20 +200,17 @@ describe("useDistributionData", () => {
       }),
     );
 
-    const { Wrapper } = createTestWrapper();
+    const { Wrapper } = createSuspenseWrapper();
     const { result } = renderHook(
       () => useDistributionData(entityRef, "gene_product"),
       { wrapper: Wrapper },
     );
 
     await waitFor(() => {
-      expect(result.current.error).not.toBeNull();
+      expect(result.current.noData).toBe(true);
     });
 
-    expect(result.current.error).toBe(
-      "No distribution data available for this attribute. Try a different one.",
-    );
-    expect(result.current.loading).toBe(false);
+    expect(result.current.distribution).toEqual([]);
   });
 
   it("refetches when selectedAttr changes", async () => {
@@ -251,7 +224,7 @@ describe("useDistributionData", () => {
       .mockResolvedValueOnce(goResponse)
       .mockResolvedValueOnce(productResponse);
 
-    const { Wrapper } = createTestWrapper();
+    const { Wrapper } = createSuspenseWrapper();
     const { result, rerender } = renderHook(
       ({ attr }: { attr: string }) => useDistributionData(entityRef, attr),
       { wrapper: Wrapper, initialProps: { attr: "go_term" } },
@@ -274,17 +247,5 @@ describe("useDistributionData", () => {
     expect(mockGetDistribution).toHaveBeenCalledTimes(2);
     expect(mockGetDistribution).toHaveBeenNthCalledWith(1, entityRef, "go_term");
     expect(mockGetDistribution).toHaveBeenNthCalledWith(2, entityRef, "gene_product");
-  });
-
-  it("does not fetch when selectedAttr is empty", () => {
-    const { Wrapper } = createTestWrapper();
-    const { result } = renderHook(
-      () => useDistributionData(entityRef, ""),
-      { wrapper: Wrapper },
-    );
-
-    expect(mockGetDistribution).not.toHaveBeenCalled();
-    expect(result.current.loading).toBe(false);
-    expect(result.current.distribution).toEqual([]);
   });
 });

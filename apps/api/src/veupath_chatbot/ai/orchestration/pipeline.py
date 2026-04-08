@@ -31,9 +31,10 @@ class AgentPipeline(StateChart[None]):
     """
 
     # ------------------------------------------------------------------
-    # Class-level config (StateChart defaults are fine for most)
+    # Class-level config
     # ------------------------------------------------------------------
     allow_event_without_transition: bool = True
+    catch_errors_as_events: bool = False
 
     # ------------------------------------------------------------------
     # Phase 1 — Discovery

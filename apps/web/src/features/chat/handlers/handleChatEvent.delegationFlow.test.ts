@@ -137,7 +137,7 @@ describe("mock delegation → real strategy store", () => {
 
   it("3 strategy_update events produce valid strategy with rootStepId", () => {
     const store = useStrategyStore.getState();
-    const session = new StreamingSession(null);
+    const session = new StreamingSession();
     const { ctx } = makeCtx({
       strategyIdAtStart: STRATEGY_ID,
       session,
@@ -160,7 +160,7 @@ describe("mock delegation → real strategy store", () => {
 
   it("each step is correctly added with proper input references", () => {
     const store = useStrategyStore.getState();
-    const session = new StreamingSession(null);
+    const session = new StreamingSession();
     const { ctx } = makeCtx({
       strategyIdAtStart: STRATEGY_ID,
       session,
@@ -310,7 +310,7 @@ describe("setStrategy race condition with delegation flow", () => {
     // The guard is in useUnifiedChatDataLoading.applyStrategy:
     //   if (strategy.id && !sessionRef.current?.snapshotApplied) { setStrategy(...) }
     const { addStep, setStrategy } = useStrategyStore.getState();
-    const session = new StreamingSession(null);
+    const session = new StreamingSession();
 
     // SSE events add steps and mark snapshot applied
     addStep(
@@ -372,7 +372,7 @@ describe("setStrategy race condition with delegation flow", () => {
     // session is created but BEFORE any strategy_update events arrive.
     // The session exists (snapshotApplied = false), so the guard passes.
     // But the store is empty at this point, so the wipe is harmless.
-    const session = new StreamingSession(null);
+    const session = new StreamingSession();
     const { setStrategy, addStep } = useStrategyStore.getState();
 
     // Guard check when store is empty

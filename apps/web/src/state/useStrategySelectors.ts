@@ -1,75 +1,69 @@
 /**
  * Typed convenience selectors for the strategy store.
  *
- * These hooks provide focused slices of the strategy store so consumers
- * do not need to reach into the raw store shape.
+ * Each hook uses useShallow to create a single subscription that only
+ * re-renders when the selected fields actually change.
  */
 
+import { useShallow } from "zustand/react/shallow";
 import { useStrategyStore } from "@/state/strategy/store";
-
-// ---------------------------------------------------------------------------
-// Read selectors
-// ---------------------------------------------------------------------------
 
 /** Returns the current strategy and its step map. */
 export function useCurrentStrategy() {
-  const strategy = useStrategyStore((s) => s.strategy);
-  const stepsById = useStrategyStore((s) => s.stepsById);
-  return { strategy, stepsById };
+  return useStrategyStore(
+    useShallow((s) => ({
+      strategy: s.strategy,
+      stepsById: s.stepsById,
+    })),
+  );
 }
 
 /** Returns the executed strategies and graph validation status. */
 export function useStrategyList() {
-  const executedStrategies = useStrategyStore((s) => s.executedStrategies);
-  const graphValidationStatus = useStrategyStore((s) => s.graphValidationStatus);
-  return { executedStrategies, graphValidationStatus };
+  return useStrategyStore(
+    useShallow((s) => ({
+      executedStrategies: s.executedStrategies,
+      graphValidationStatus: s.graphValidationStatus,
+    })),
+  );
 }
 
 /** Returns undo/redo state. */
 export function useStrategyHistory() {
-  const undo = useStrategyStore((s) => s.undo);
-  const redo = useStrategyStore((s) => s.redo);
-  const canUndo = useStrategyStore((s) => s.canUndo);
-  const canRedo = useStrategyStore((s) => s.canRedo);
-  return { undo, redo, canUndo, canRedo };
+  return useStrategyStore(
+    useShallow((s) => ({
+      undo: s.undo,
+      redo: s.redo,
+      canUndo: s.canUndo,
+      canRedo: s.canRedo,
+    })),
+  );
 }
-
-// ---------------------------------------------------------------------------
-// Action selectors
-// ---------------------------------------------------------------------------
 
 /** Returns mutation actions for the current strategy draft. */
 export function useStrategyActions() {
-  const addStep = useStrategyStore((s) => s.addStep);
-  const updateStep = useStrategyStore((s) => s.updateStep);
-  const removeStep = useStrategyStore((s) => s.removeStep);
-  const setStrategy = useStrategyStore((s) => s.setStrategy);
-  const setWdkInfo = useStrategyStore((s) => s.setWdkInfo);
-  const setStrategyMeta = useStrategyStore((s) => s.setStrategyMeta);
-  const buildPlan = useStrategyStore((s) => s.buildPlan);
-  const setStepValidationErrors = useStrategyStore((s) => s.setStepValidationErrors);
-  const setStepCounts = useStrategyStore((s) => s.setStepCounts);
-  const clear = useStrategyStore((s) => s.clear);
-  return {
-    addStep,
-    updateStep,
-    removeStep,
-    setStrategy,
-    setWdkInfo,
-    setStrategyMeta,
-    buildPlan,
-    setStepValidationErrors,
-    setStepCounts,
-    clear,
-  };
+  return useStrategyStore(
+    useShallow((s) => ({
+      addStep: s.addStep,
+      updateStep: s.updateStep,
+      removeStep: s.removeStep,
+      setStrategy: s.setStrategy,
+      setWdkInfo: s.setWdkInfo,
+      setStrategyMeta: s.setStrategyMeta,
+      buildPlan: s.buildPlan,
+      setStepValidationErrors: s.setStepValidationErrors,
+      setStepCounts: s.setStepCounts,
+      clear: s.clear,
+    })),
+  );
 }
 
 /** Returns list mutation actions (track executed, graph validation). */
 export function useStrategyListActions() {
-  const addExecutedStrategy = useStrategyStore((s) => s.addExecutedStrategy);
-  const setGraphValidationStatus = useStrategyStore((s) => s.setGraphValidationStatus);
-  return {
-    addExecutedStrategy,
-    setGraphValidationStatus,
-  };
+  return useStrategyStore(
+    useShallow((s) => ({
+      addExecutedStrategy: s.addExecutedStrategy,
+      setGraphValidationStatus: s.setGraphValidationStatus,
+    })),
+  );
 }
