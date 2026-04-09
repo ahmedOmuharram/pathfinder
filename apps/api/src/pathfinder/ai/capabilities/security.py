@@ -100,7 +100,7 @@ class PIGuardScanner:
     Inference is pure NumPy — no PyTorch, no transformers at runtime.
     """
 
-    def __init__(self, model_dir: Path, threshold: float = 0.92) -> None:
+    def __init__(self, model_dir: Path, threshold: float = 0.70) -> None:
         model_path = model_dir / "model.onnx"
         tokenizer_path = model_dir / "tokenizer.json"
 
@@ -190,7 +190,7 @@ class SecurityGuardrail(AbstractCapability[AgentDeps]):
     and runs in a thread executor to avoid blocking the event loop.
     """
 
-    injection_threshold: float = 0.92
+    injection_threshold: float = 0.70
     model_dir: Path = field(default_factory=_resolve_model_dir)
 
     _scanners: list[_Scanner] = field(

@@ -117,7 +117,7 @@ class TestSecurityGuardrailConstruction:
 
     def test_default_thresholds(self) -> None:
         guardrail = SecurityGuardrail()
-        assert guardrail.injection_threshold == 0.92
+        assert guardrail.injection_threshold == 0.70
 
     def test_custom_thresholds(self) -> None:
         guardrail = SecurityGuardrail(injection_threshold=0.85)

@@ -38,6 +38,7 @@ class CatalogSnapshot(BaseModel):
     dataset_summaries: dict[str, str]
     dataset_contacts: dict[str, str]
     search_categories: dict[str, str]
+    search_category_labels: dict[str, str] = Field(default_factory=dict)
     available_categories: list[str]
 
     @property

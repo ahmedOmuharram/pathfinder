@@ -36,7 +36,6 @@ from pathfinder.platform.event_schemas import (
     StrategyLinkEventData,
 )
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.parsing import parse_jsonish
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONArray, JSONObject
 from pathfinder.services.gene_sets import GeneSetService
@@ -69,6 +68,14 @@ _GRAPH_MUTATING_TOOLS: frozenset[str] = frozenset(
 )
 
 
+class _ParamEntry(CamelModel):
+    """One parameter entry inside a search overview result."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str = ""
+
+
 class _RawSearchOverview(CamelModel):
     """Lenient parser for search overview tool results."""
 
@@ -78,8 +85,8 @@ class _RawSearchOverview(CamelModel):
     displayName: str = ""
     recordType: str = ""
     description: str = ""
-    required: list[JSONObject] = Field(default_factory=list)
-    optional: list[JSONObject] = Field(default_factory=list)
+    required: list[_ParamEntry] = Field(default_factory=list)
+    optional: list[_ParamEntry] = Field(default_factory=list)
 
 
 class _SlimParseResponse(CamelModel):
@@ -94,6 +101,23 @@ class _SlimParseResponse(CamelModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+class _ErrorFlag(CamelModel):
+    """Minimal model to detect error payloads without manual parsing."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    ok: bool = True
+
+
+def _is_error_result(text: str) -> bool:
+    """Check whether a tool result is an error that should skip auto-build."""
+    if text.startswith("ERROR:"):
+        return True
+    with contextlib.suppress(ValidationError, ValueError):
+        return not _ErrorFlag.model_validate_json(text).ok
+    return False
 
 
 def _merge_auto_build(original_text: str, extra: JSONObject) -> str:
@@ -125,20 +149,16 @@ def _build_graph_snapshot_for_event(
 
 def _track_search_discovery(deps: AgentDeps, result_text: str) -> None:
     """Extract search overview from tool result and register in agent state."""
-    parsed = parse_jsonish(result_text)
-    if not parsed or not isinstance(parsed, dict):
-        return
-
     try:
-        raw = _RawSearchOverview.model_validate(parsed)
-    except ValidationError:
+        raw = _RawSearchOverview.model_validate_json(result_text)
+    except (ValidationError, ValueError):
         return
     if not raw.searchName:
         return
 
-    required_names = [str(p.get("name", "")) for p in raw.required]
+    required_names = [p.name for p in raw.required]
     all_params = list(required_names)
-    all_params.extend(str(p.get("name", "")) for p in raw.optional)
+    all_params.extend(p.name for p in raw.optional)
 
     overview = SearchOverview(
         search_name=raw.searchName,
@@ -381,6 +401,9 @@ async def apply_auto_build_hook(
         return result
 
     result_text = result if isinstance(result, str) else str(result)
+
+    if _is_error_result(result_text):
+        return result_text
 
     if len(graph.roots) == 1:
         result_text = await _apply_single_root_build(deps, graph, result_text)

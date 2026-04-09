@@ -36,6 +36,7 @@ env/
 # IDE
 .idea/
 .vscode/
+.codex/
 .cursor/
 .claude/
 .superpowers/

@@ -18,6 +18,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_context_summary,
     pinned_graph_state,
 )
+from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.toolsets.planning import build_toolset
@@ -76,7 +77,8 @@ planning_agent: Agent[AgentDeps, str] = Agent(
     deps_type=AgentDeps,
     instructions=_PLANNING_INSTRUCTIONS,
     toolsets=[build_toolset()],
-    capabilities=[Thinking(effort="high"), SecurityGuardrail()],
+    capabilities=[ToolResilience(), Thinking(effort="high"), SecurityGuardrail()],
+    retries=3,
     description="Creates structured execution plans from discovery findings",
     name="planning",
     defer_model_check=True,
@@ -138,6 +140,6 @@ def _replan_context(ctx: RunContext[AgentDeps]) -> str | None:
 # ---------------------------------------------------------------------------
 
 PLANNING_USAGE_LIMITS = UsageLimits(
-    request_limit=15,
-    total_tokens_limit=40_000,
+    request_limit=50,
+    total_tokens_limit=500_000,
 )

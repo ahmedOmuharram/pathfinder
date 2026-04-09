@@ -42,7 +42,7 @@ async def get_record_types(
 async def search_for_searches(
     ctx: RunContext[AgentDeps],
     query: str,
-    record_type: str | None = None,
+    record_type: str = "transcript",
     keywords: list[str] | None = None,
     category: str | None = None,
     limit: int = 20,
@@ -56,9 +56,10 @@ async def search_for_searches(
     Args:
         ctx: Agent run context.
         query: Descriptive natural language query about what you're looking for.
-            Must include 5+ specific keywords -- be as descriptive as possible.
+            Be as descriptive as possible for better results.
             Example: 'gametocyte RNA-Seq differential expression DESeq analysis'
-        record_type: Filter to a specific record type (e.g., 'transcript'). Omit for all.
+        record_type: Record type to search. Defaults to 'transcript' (gene searches).
+            Use 'snp', 'pathway', 'compound', etc. for non-gene searches.
         keywords: Optional exact identifiers to match against search names (urlSegment).
             These get massive score boost. Extract from dataset names, search
             name fragments, or organism codes mentioned in the user's request.
@@ -78,16 +79,10 @@ async def search_for_searches(
         category=category,
         limit=limit,
     )
-    results: list[JSONObject] = cast(
-        "list[JSONObject]", [m.to_dict() for m in matches],
-    )
+    results: list[JSONObject] = cast("list[JSONObject]", [m.to_dict() for m in matches])
 
     seen = {str(r["name"]) for r in results}
-    results.extend(
-        u
-        for u in _UNIVERSAL_SEARCHES
-        if str(u["name"]) not in seen
-    )
+    results.extend(u for u in _UNIVERSAL_SEARCHES if str(u["name"]) not in seen)
 
     return results
 
@@ -106,29 +101,30 @@ async def browse_search_categories(
 
     Args:
         ctx: Agent run context.
-        record_type: Record type (e.g., 'transcript'). Defaults to transcript.
+        record_type: Record type. Defaults to 'transcript' (gene searches).
+            Use 'snp', 'pathway', etc. for non-gene searches.
     """
     return await catalog.browse_search_categories(ctx.deps.site_id, record_type)
 
 
 async def list_searches(
     ctx: RunContext[AgentDeps],
-    record_type: str,
+    record_type: str = "transcript",
 ) -> list[dict[str, str]]:
-    """List all search names for a record type (names only, no descriptions).
+    """List all search names (names only, no descriptions).
 
     Use search_for_searches first for targeted discovery with descriptions.
 
     Args:
         ctx: Agent run context.
-        record_type: Record type (e.g., 'gene', 'transcript').
+        record_type: Record type. Defaults to 'transcript' (gene searches).
     """
     return await catalog.list_searches(ctx.deps.site_id, record_type)
 
 
 async def list_transforms(
     ctx: RunContext[AgentDeps],
-    record_type: str,
+    record_type: str = "transcript",
 ) -> list[dict[str, str]]:
     """List available transform and combine operations (with descriptions).
 
@@ -137,15 +133,15 @@ async def list_transforms(
 
     Args:
         ctx: Agent run context.
-        record_type: Record type (e.g., 'transcript').
+        record_type: Record type. Defaults to 'transcript'.
     """
     return await catalog.list_transforms(ctx.deps.site_id, record_type)
 
 
 async def lookup_phyletic_codes(
     ctx: RunContext[AgentDeps],
-    record_type: str,
     query: str,
+    record_type: str = "transcript",
 ) -> JSONObject | ToolErrorPayload:
     """Look up phyletic species/group codes by name for GenesByOrthologPattern.
 
@@ -154,9 +150,9 @@ async def lookup_phyletic_codes(
 
     Args:
         ctx: Agent run context.
-        record_type: Record type (usually 'transcript').
         query: Species or clade name to search for (e.g., 'falciparum', 'human',
             'Apicomplexa'). Returns matching codes for use in profile_pattern.
+        record_type: Record type. Defaults to 'transcript'.
     """
     return await catalog.lookup_phyletic_codes(ctx.deps.site_id, record_type, query)
 

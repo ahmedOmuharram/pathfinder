@@ -141,9 +141,6 @@ def score_candidates(
             description=desc,
             corpus=SearchCorpus(doc_count=doc_count, term_counts=dict(corpus_counts)),
         )
-        if sc <= 0:
-            continue
-
         # Inline annotation (category + returns)
         category = ""
         dc = s.properties.get("displayCategory", [])

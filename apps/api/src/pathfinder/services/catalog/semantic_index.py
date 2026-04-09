@@ -156,21 +156,19 @@ class SemanticSearchIndex:
     def build(
         self,
         searches_by_rt: dict[str, list[WDKSearch]],
-        dataset_summaries: dict[str, str] | None = None,
-        dataset_contacts: dict[str, str] | None = None,
+        category_labels: dict[str, str] | None = None,
     ) -> None:
         """Build the index from search catalog data.
 
         Checks the disk cache first.  Only encodes with the model if
         the cache is missing or stale.
         """
-        ds_summaries = dataset_summaries or {}
-        ds_contacts = dataset_contacts or {}
+        cats = category_labels or {}
         self.entries = []
 
         for rt_name, searches in searches_by_rt.items():
             for s in searches:
-                text = self._build_enriched_text(s, ds_summaries, ds_contacts)
+                text = self._build_enriched_text(s, cats)
                 self.entries.append(
                     SearchIndexEntry(
                         search_name=s.url_segment,
@@ -234,58 +232,63 @@ class SemanticSearchIndex:
     def _build_enriched_text(
         self,
         search: WDKSearch,
-        ds_summaries: dict[str, str],
-        ds_contacts: dict[str, str],
+        category_labels: dict[str, str],
     ) -> str:
         """Build enriched text blob for a search.
 
         Structures the text to front-load discriminating signals:
-        1. Search properties (displayCategory, organisms — from WDK metadata)
-        2. Display name + short display name
-        3. Summary
-        4. Parameter names (split from snake_case)
-        5. CamelCase-split search name
-        6. Description (HTML-stripped)
-        7. Dataset summaries (by ID match in search name)
+        1. Ontology category label (top-level biological domain)
+        2. Search properties (displayCategory, organisms — from WDK metadata)
+        3. Display name + short display name
+        4. Summary
+        5. Parameter group display names
+        6. Parameter names (split from snake_case)
+        7. CamelCase-split search name
+        8. Description (HTML-stripped)
+        9. Dynamic attribute display names (result column labels)
         """
         parts: list[str] = []
 
-        # 1. All properties as readable text (displayCategory, organisms, etc.)
+        # 1. Ontology category label (e.g. "Protein features and properties")
+        cat = category_labels.get(search.url_segment, "")
+        if cat:
+            parts.append(cat)
+
+        # 2. All properties as readable text (displayCategory, organisms, etc.)
         parts.extend(
             " ".join(str(v) for v in prop_values)
             for prop_values in search.properties.values()
             if prop_values
         )
 
-        # 2. Display names
+        # 3. Display names
         parts.append(search.display_name)
-        short = getattr(search, "short_display_name", "")
-        if short and short != search.display_name:
-            parts.append(short)
+        if search.short_display_name and search.short_display_name != search.display_name:
+            parts.append(search.short_display_name)
 
-        # 3. Summary
-        summary = getattr(search, "summary", "")
-        if summary:
-            parts.append(summary)
+        # 4. Summary
+        if search.summary:
+            parts.append(search.summary)
 
-        # 4. Parameter names (snake_case → readable words)
+        # 5. Parameter group display names
+        parts.extend(g.display_name for g in search.groups if g.display_name)
+
+        # 6. Parameter names (snake_case → readable words)
         param_text = _format_param_names(search.param_names)
         if param_text:
             parts.append(param_text)
 
-        # 5. CamelCase-split search name
+        # 7. CamelCase-split search name
         name_words = " ".join(re.findall(r"[A-Z][a-z]+|[a-z]+|[A-Z]+|\d+", search.url_segment))
         parts.append(name_words)
 
-        # 6. Description (HTML-stripped)
+        # 8. Description (HTML-stripped)
         parts.append(_strip_html(search.description))
 
-        # 7. Dataset summaries by ID match
-        for ds_id, ds_summary in ds_summaries.items():
-            if ds_id in search.url_segment:
-                parts.append(_strip_html(ds_summary))
-                contact = ds_contacts.get(ds_id, "")
-                if contact:
-                    parts.append(contact)
+        # 9. Dynamic attribute display names (result column labels)
+        for attr in search.dynamic_attributes:
+            attr_name = attr.get("displayName", "") if hasattr(attr, "get") else ""
+            if attr_name and attr_name != "Search Weight":
+                parts.append(str(attr_name))
 
         return " ".join(p for p in parts if p).strip()

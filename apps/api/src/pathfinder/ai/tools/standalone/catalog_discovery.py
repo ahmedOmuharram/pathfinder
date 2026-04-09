@@ -18,7 +18,6 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _resolve_record_type,
 )
 from pathfinder.domain.strategy.types import SerializedParams
-from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
@@ -36,11 +35,23 @@ from pathfinder.services.wdk import (
 )
 
 
+def _fix_gene(record_type: str | None) -> str | None:
+    """Rewrite 'gene' to None so _resolve_record_type auto-resolves.
+
+    The 'gene' record type has almost no searches — models pick it by mistake
+    when looking for gene searches, which actually live under 'transcript'.
+    Passing None lets the SearchCatalog find the correct record type.
+    """
+    if record_type == "gene":
+        return None
+    return record_type
+
+
 async def get_search_overview(
     ctx: RunContext[AgentDeps],
     search_name: str,
     record_type: str | None = None,
-) -> SearchOverviewResult | ToolErrorPayload:
+) -> SearchOverviewResult:
     """Get a high-level overview of a search: description, parameters (required/optional), and dependencies.
 
     MUST be called before creating a step with this search -- it registers the
@@ -49,15 +60,12 @@ async def get_search_overview(
     Args:
         ctx: Agent run context.
         search_name: WDK search name (urlSegment), e.g. 'GenesByText'.
-        record_type: Record type (e.g. 'transcript'). Auto-resolved if omitted.
+        record_type: Record type. Auto-resolved from search name if omitted (recommended).
     """
     deps = ctx.deps
-    rt = await _resolve_record_type(deps.site_id, search_name, record_type)
+    rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
     client = get_wdk_client(deps.site_id)
-    try:
-        details = await client.get_search_details(rt, search_name, expand_params=True)
-    except (AppError, OSError) as e:
-        return tool_error(ErrorCode.WDK_ERROR, str(e))
+    details = await client.get_search_details(rt, search_name, expand_params=True)
     search = details.search_data
     params: list[WDKParameter] = search.parameters or []
 
@@ -107,14 +115,14 @@ async def get_parameter_options(
         ctx: Agent run context.
         search_name: WDK search name (urlSegment).
         param_name: Parameter name to inspect.
-        record_type: Record type. Auto-resolved if omitted.
+        record_type: Record type. Auto-resolved from search name if omitted (recommended).
         context_values: Current parameter values (paramName -> value) for dependent vocab refresh.
         query: Optional substring filter for large vocabularies. Case-insensitive.
             Use when vocabulary is large and you need specific entries
             (e.g. query='cruzi' for T. cruzi).
     """
     deps = ctx.deps
-    rt = await _resolve_record_type(deps.site_id, search_name, record_type)
+    rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
     has_context = bool(
         context_values
         and any(v is not None and v != "" for v in context_values.values())
@@ -122,20 +130,17 @@ async def get_parameter_options(
 
     client = get_wdk_client(deps.site_id)
 
-    try:
-        if has_context and context_values is not None:
-            encoded_ctx = encode_wdk_params(dict(context_values))
-            result = await client.get_search_details_with_params(
-                rt, search_name, context=encoded_ctx, expand_params=True,
-            )
-            all_params = result.search_data.parameters or []
-        else:
-            details = await client.get_search_details(
-                rt, search_name, expand_params=True,
-            )
-            all_params = details.search_data.parameters or []
-    except (AppError, OSError) as e:
-        return tool_error(ErrorCode.WDK_ERROR, str(e))
+    if has_context and context_values is not None:
+        encoded_ctx = encode_wdk_params(dict(context_values))
+        result = await client.get_search_details_with_params(
+            rt, search_name, context=encoded_ctx, expand_params=True,
+        )
+        all_params = result.search_data.parameters or []
+    else:
+        details = await client.get_search_details(
+            rt, search_name, expand_params=True,
+        )
+        all_params = details.search_data.parameters or []
 
     # Build dependency maps for annotation
     depends_on: dict[str, list[str]] = {}
@@ -159,7 +164,7 @@ async def get_parameter_dependencies(
     ctx: RunContext[AgentDeps],
     search_name: str,
     record_type: str | None = None,
-) -> DependencyDag | ToolErrorPayload:
+) -> DependencyDag:
     """Get the parameter dependency DAG for a search.
 
     Returns fillOrder (topologically sorted) and per-parameter dependency info.
@@ -168,15 +173,12 @@ async def get_parameter_dependencies(
     Args:
         ctx: Agent run context.
         search_name: WDK search name (urlSegment).
-        record_type: Record type. Auto-resolved if omitted.
+        record_type: Record type. Auto-resolved from search name if omitted (recommended).
     """
     deps = ctx.deps
-    rt = await _resolve_record_type(deps.site_id, search_name, record_type)
+    rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
     client = get_wdk_client(deps.site_id)
-    try:
-        details = await client.get_search_details(rt, search_name, expand_params=True)
-    except (AppError, OSError) as e:
-        return tool_error(ErrorCode.WDK_ERROR, str(e))
+    details = await client.get_search_details(rt, search_name, expand_params=True)
     params: list[WDKParameter] = details.search_data.parameters or []
 
     return _build_dependency_dag(params)

@@ -321,10 +321,12 @@ async def submit_plan(
         "type": "plan_presented",
         "data": {"plan": plan_dict},
     })
-    deps.emit_event({
-        "type": "graph_plan",
-        "data": {"plan": plan_dict},
-    })
+    proposed = _build_proposed_plan(plan)
+    if proposed is not None:
+        deps.emit_event({
+            "type": "graph_plan",
+            "data": {"plan": proposed},
+        })
 
     return plan
 

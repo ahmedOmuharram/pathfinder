@@ -39,6 +39,7 @@ class SearchCatalog:
         self._dataset_contacts: dict[str, str] = {}
         self._semantic_index: object | None = None
         self._search_categories: dict[str, str] = {}
+        self._search_category_labels: dict[str, str] = {}
         self._available_categories: set[str] = set()
         self._loaded = False
         self._lock = asyncio.Lock()
@@ -54,6 +55,7 @@ class SearchCatalog:
         self._dataset_summaries = snapshot.dataset_summaries
         self._dataset_contacts = snapshot.dataset_contacts
         self._search_categories = snapshot.search_categories
+        self._search_category_labels = snapshot.search_category_labels
         self._available_categories = set(snapshot.available_categories)
 
     def _to_snapshot(self) -> CatalogSnapshot:
@@ -64,6 +66,7 @@ class SearchCatalog:
             dataset_summaries=self._dataset_summaries,
             dataset_contacts=self._dataset_contacts,
             search_categories=self._search_categories,
+            search_category_labels=self._search_category_labels,
             available_categories=sorted(self._available_categories),
         )
 
@@ -88,9 +91,10 @@ class SearchCatalog:
 
         onto = await load_ontology_categories(client, self.site_id)
         self._search_categories = onto.search_categories
+        self._search_category_labels = onto.search_category_labels
         self._available_categories = onto.available_categories
 
-        self._semantic_index = self._build_semantic_index()
+        self._build_semantic_index()
         save_catalog_cache(self.site_id, self._to_snapshot())
 
     async def load(self, client: VEuPathDBClient) -> None:
@@ -175,8 +179,7 @@ class SearchCatalog:
             index = SemanticSearchIndex(site_id=self.site_id)
             index.build(
                 self._searches,
-                dataset_summaries=self._dataset_summaries,
-                dataset_contacts=self._dataset_contacts,
+                category_labels=self._search_category_labels,
             )
         except (AppError, OSError, ValueError, TypeError):
             logger.warning(

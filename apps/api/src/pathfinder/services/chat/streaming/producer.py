@@ -9,6 +9,7 @@ import time
 from uuid import uuid4
 
 from opentelemetry import trace
+from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage
 
 from pathfinder.ai.models.pricing import estimate_cost
@@ -21,7 +22,7 @@ from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.orchestration.observability import get_tracer
 from pathfinder.ai.orchestration.pipeline import AgentPipeline, create_pipeline
 from pathfinder.domain.strategy.plan import PlanStatus
-from pathfinder.platform.errors import sanitize_error_for_client
+from pathfinder.platform.errors import AppError, sanitize_error_for_client
 from pathfinder.platform.event_schemas import (
     AssistantMessageEventData,
     ErrorEventData,
@@ -170,6 +171,64 @@ def _current_trace_id() -> str | None:
     return format(span.get_span_context().trace_id, "032x")
 
 
+async def _finalize_stream(
+    queue: asyncio.Queue[JSONObject],
+    intent: Intent,
+    outcome: str,
+    model_id: str,
+    counters: TurnCounters,
+    trace_id: str | None,
+) -> None:
+    """Emit message_end event, record metrics, and shut down the queue."""
+    _record_turn_metrics(intent, outcome, model_id, counters)
+    estimated_cost = estimate_cost(
+        model_id,
+        prompt_tokens=counters.input_tokens,
+        completion_tokens=counters.output_tokens,
+        cached_tokens=counters.cache_read_tokens,
+    )
+    await queue.put(
+        {
+            "type": "message_end",
+            "data": MessageEndEventData(
+                trace_id=trace_id,
+                prompt_tokens=counters.input_tokens,
+                completion_tokens=counters.output_tokens,
+                total_tokens=counters.input_tokens + counters.output_tokens,
+                cached_tokens=counters.cache_read_tokens,
+                tool_call_count=counters.tool_call_count,
+                registered_tool_count=0,
+                llm_call_count=counters.llm_call_count,
+                estimated_cost_usd=estimated_cost,
+                model_id=model_id,
+            ).model_dump(by_alias=True),
+        }
+    )
+    queue.shutdown()
+
+
+async def _handle_pipeline_error(queue: asyncio.Queue[JSONObject], error: BaseException) -> None:
+    """Classify and emit a pipeline-level error event."""
+    error_type = type(error).__name__
+    pipeline_errors.add(1, {"error_type": error_type})
+    if type(error) is UsageLimitExceeded:
+        logger.warning("Agent exceeded token/request budget")
+        await _emit_error(queue, "I used too many resources processing your request. Try a simpler or more specific question.")
+    else:
+        logger.error("Stream error", error=str(error), errorType=error_type)
+        await _emit_error(queue, sanitize_error_for_client(error))
+
+
+async def _emit_error(queue: asyncio.Queue[JSONObject], message: str) -> None:
+    """Push an error event onto the SSE queue."""
+    await queue.put(
+        {
+            "type": "error",
+            "data": ErrorEventData(error=message).model_dump(by_alias=True),
+        }
+    )
+
+
 async def produce_events(
     deps: AgentDeps,
     message: str,
@@ -256,62 +315,17 @@ async def produce_events(
 
         # Emit the final assistant_message event.
         full_text = "\n\n".join(counters.accumulated_text_parts)
+        content = full_text or ("" if counters.saw_assistant_message else "I processed your request.")
         await queue.put(
             {
                 "type": "assistant_message",
-                "data": AssistantMessageEventData(
-                    message_id=message_id,
-                    content=full_text
-                    or (
-                        ""
-                        if counters.saw_assistant_message
-                        else "I processed your request."
-                    ),
-                ).model_dump(by_alias=True),
+                "data": AssistantMessageEventData(message_id=message_id, content=content).model_dump(by_alias=True),
             }
         )
-    except Exception as e:
+    except (UsageLimitExceeded, AppError, OSError, RuntimeError, ValueError, TypeError) as e:
         outcome = "error"
-        pipeline_errors.add(1, {"error_type": type(e).__name__})
-        logger.error(
-            "Stream error",
-            exc_info=True,
-            error=str(e),
-            errorType=type(e).__name__,
-        )
-        await queue.put(
-            {
-                "type": "error",
-                "data": ErrorEventData(
-                    error=sanitize_error_for_client(e)
-                ).model_dump(by_alias=True),
-            }
-        )
+        await _handle_pipeline_error(queue, e)
     finally:
-        _record_turn_metrics(intent, outcome, representative_model, counters)
-
-        estimated_cost = estimate_cost(
-            representative_model,
-            prompt_tokens=counters.input_tokens,
-            completion_tokens=counters.output_tokens,
-            cached_tokens=counters.cache_read_tokens,
+        await _finalize_stream(
+            queue, intent, outcome, representative_model, counters, current_trace,
         )
-        await queue.put(
-            {
-                "type": "message_end",
-                "data": MessageEndEventData(
-                    trace_id=current_trace,
-                    prompt_tokens=counters.input_tokens,
-                    completion_tokens=counters.output_tokens,
-                    total_tokens=counters.input_tokens + counters.output_tokens,
-                    cached_tokens=counters.cache_read_tokens,
-                    tool_call_count=counters.tool_call_count,
-                    registered_tool_count=0,
-                    llm_call_count=counters.llm_call_count,
-                    estimated_cost_usd=estimated_cost,
-                    model_id=representative_model,
-                ).model_dump(by_alias=True),
-            }
-        )
-        # Signal completion — consumer sees ShutDown on next get().
-        queue.shutdown()

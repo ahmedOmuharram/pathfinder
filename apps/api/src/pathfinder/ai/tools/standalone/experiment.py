@@ -102,11 +102,11 @@ async def run_control_tests_on_step(
 
 async def run_control_tests_on_search(
     ctx: RunContext[AgentDeps],
-    record_type: str,
     target_search_name: str,
     target_parameters: SerializedParams,
     positive_controls: list[str] | None = None,
     negative_controls: list[str] | None = None,
+    record_type: str = "transcript",
 ) -> SearchControlTestResult | ToolErrorPayload:
     """Run control tests against a standalone WDK search (not a built strategy).
 
@@ -118,11 +118,11 @@ async def run_control_tests_on_search(
 
     Args:
         ctx: Agent run context.
-        record_type: WDK record type (e.g. 'transcript').
         target_search_name: WDK search/question urlSegment to test.
         target_parameters: Target search parameter mapping.
         positive_controls: Known-positive IDs that should be returned.
         negative_controls: Known-negative IDs that should NOT be returned.
+        record_type: Record type. Defaults to 'transcript'.
     """
     has_positives = positive_controls and len(positive_controls) > 0
     has_negatives = negative_controls and len(negative_controls) > 0

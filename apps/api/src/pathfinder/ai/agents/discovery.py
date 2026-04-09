@@ -19,6 +19,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_context_summary,
     pinned_graph_state,
 )
+from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.toolsets.discovery import build_toolset
@@ -77,7 +78,8 @@ discovery_agent: Agent[AgentDeps, str] = Agent(
     deps_type=AgentDeps,
     instructions=_DISCOVERY_INSTRUCTIONS,
     toolsets=[build_toolset()],
-    capabilities=[_discovery_hooks, Thinking(effort="medium"), SecurityGuardrail()],
+    capabilities=[ToolResilience(), _discovery_hooks, Thinking(effort="medium"), SecurityGuardrail()],
+    retries=3,
     description="Explores WDK catalog, searches, parameters, and literature",
     name="discovery",
     defer_model_check=True,
@@ -109,6 +111,6 @@ def _mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:
 # ---------------------------------------------------------------------------
 
 DISCOVERY_USAGE_LIMITS = UsageLimits(
-    request_limit=20,
-    total_tokens_limit=50_000,
+    request_limit=50,
+    total_tokens_limit=500_000,
 )
