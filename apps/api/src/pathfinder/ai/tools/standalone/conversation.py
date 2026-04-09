@@ -15,6 +15,7 @@ from pathfinder.ai.tools.standalone._conversation_models import (
 )
 from pathfinder.platform.errors import ErrorCode
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
+from pathfinder.services.strategies.sync_state import WDKSyncState
 
 
 async def rename_strategy(
@@ -34,7 +35,7 @@ async def rename_strategy(
     graph = session.get_graph(graph_id)
     if not graph:
         return tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)
-    if not _has_strategy(graph):
+    if not _has_strategy(graph, session):
         return tool_error(ErrorCode.INVALID_STRATEGY, "No strategy to rename.")
 
     old_name = graph.name
@@ -49,7 +50,7 @@ async def rename_strategy(
         name=new_name,
         record_type=graph.record_type or "",
         description=graph.description,
-        plan=graph.to_plan(),
+        plan=graph.to_plan(sync_state=session.sync_state),
     )
 
 
@@ -82,12 +83,8 @@ async def clear_strategy(
     graph.roots.clear()
     graph.history.clear()
     graph.last_step_id = None
-    graph.wdk_strategy_id = None
-    graph.wdk_step_ids.clear()
-    graph.step_counts.clear()
-    graph.step_validations.clear()
-    graph.wdk_push_errors.clear()
-    graph.wdk_step_tree = None
+    # Reset WDK sync state.
+    session.sync_state = WDKSyncState()
 
     return ClearStrategyResult(
         graph_id=graph.id,

@@ -137,6 +137,9 @@ class Settings(BaseSettings):
     )
     veupathdb_cache_ttl: int = 3600
     veupathdb_auth_token: str | None = Field(default=None, repr=False)
+
+    # Semantic Scholar
+    s2_api_key: str = Field(default="", repr=False)
     veupathdb_oauth_url: str | None = None
     veupathdb_oauth_client_id: str | None = None
 

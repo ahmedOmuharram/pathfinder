@@ -33,9 +33,9 @@ async def read_stream_messages(redis: Redis, stream_id: str) -> list[JSONObject]
     turn = _TurnAccumulator()
 
     for entry_id, fields in entries:
-        event_type = fields.get(b"type", b"").decode()
+        event_type = fields.get("type", "")
         try:
-            data = json.loads(fields[b"data"])
+            data = json.loads(fields["data"])
         except json.JSONDecodeError, KeyError:
             continue
 
@@ -45,16 +45,16 @@ async def read_stream_messages(redis: Redis, stream_id: str) -> list[JSONObject]
 
 
 def _collect_open_tool_calls(
-    entries: list[tuple[bytes | str, dict[bytes, bytes]]],
+    entries: list[tuple[str, dict[str, str]]],
     start_idx: int,
 ) -> dict[str, JSONObject]:
     """Collect tool calls that have started but not ended since *start_idx*."""
     open_tools: dict[str, JSONObject] = {}
     for _eid, fields in entries[start_idx:]:
-        event_type = fields.get(b"type", b"").decode()
+        event_type = fields.get("type", "")
         if event_type == "tool_call_start":
             try:
-                data = json.loads(fields[b"data"])
+                data = json.loads(fields["data"])
                 start = ToolCallStartEventData.model_validate(data)
                 open_tools[start.id] = {
                     "id": start.id,
@@ -65,7 +65,7 @@ def _collect_open_tool_calls(
                 pass
         elif event_type == "tool_call_end":
             try:
-                data = json.loads(fields[b"data"])
+                data = json.loads(fields["data"])
                 end = ToolCallEndEventData.model_validate(data)
                 open_tools.pop(end.id, None)
             except json.JSONDecodeError, KeyError, ValueError:
@@ -84,7 +84,7 @@ async def read_stream_thinking(redis: Redis, stream_id: str) -> JSONObject | Non
     # Find the last message_start (marks beginning of a turn)
     last_start_idx = -1
     for i, (_eid, fields) in enumerate(entries):
-        if fields.get(b"type", b"") == b"message_start":
+        if fields.get("type", "") == "message_start":
             last_start_idx = i
 
     if last_start_idx < 0:
@@ -92,7 +92,7 @@ async def read_stream_thinking(redis: Redis, stream_id: str) -> JSONObject | Non
 
     # Check if this turn is still active (no message_end after last start)
     has_end = any(
-        fields.get(b"type", b"") == b"message_end"
+        fields.get("type", "") == "message_end"
         for _eid, fields in entries[last_start_idx:]
     )
     if has_end:

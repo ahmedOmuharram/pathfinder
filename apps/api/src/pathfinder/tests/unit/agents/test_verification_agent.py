@@ -24,6 +24,7 @@ from pathfinder.ai.agents.verification import (
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.services.strategies.sync_state import WDKSyncState
 
 # ---------------------------------------------------------------------------
 # Expected tool names (alphabetical, from the verification toolset)
@@ -49,6 +50,7 @@ EXPECTED_TOOLS: frozenset[str] = frozenset(
         "run_control_tests_on_search",
         "run_control_tests_on_step",
         "run_gene_set_enrichment",
+        "think",
     }
 )
 
@@ -82,7 +84,7 @@ class TestVerificationAgentConfiguration:
         """Verification agent has 18 tools."""
         toolset = verification_agent._user_toolsets[0]
         assert isinstance(toolset, FunctionToolset)
-        assert len(toolset.tools) == 18
+        assert len(toolset.tools) == 19
 
     def test_defers_model_check(self) -> None:
         """defer_model_check=True means the model is stored as a raw string."""
@@ -122,13 +124,15 @@ class TestVerificationAgentFunctionModel:
 
         # Create a graph with a step so get_strategy returns meaningful data
         graph = deps.strategy_session.create_graph("Verification Test Strategy")
+        sync_state = WDKSyncState()
+        deps.strategy_session.sync_state = sync_state
         step = PlanStepNode(
             search_name="GenesByTaxon",
             display_name="P. falciparum genes",
             parameters={"organism": "Plasmodium falciparum 3D7"},
         )
         graph.add_step(step)
-        graph.step_counts[step.id] = 3217
+        sync_state.step_counts[step.id] = 3217
 
         call_count = 0
 
@@ -194,13 +198,15 @@ class TestVerificationAgentFunctionModel:
         deps = _make_deps()
 
         graph = deps.strategy_session.create_graph("Flow Test")
+        sync_state = WDKSyncState()
+        deps.strategy_session.sync_state = sync_state
         step = PlanStepNode(
             search_name="GenesByGoTerm",
             display_name="GO term genes",
             parameters={"GoTerm": "GO:0005515"},
         )
         graph.add_step(step)
-        graph.step_counts[step.id] = 891
+        sync_state.step_counts[step.id] = 891
 
         call_count = 0
 
@@ -284,7 +290,7 @@ class TestVerificationToolVisibility:
             usage_limits=UsageLimits(request_limit=2),
         )
 
-        assert len(captured_tool_names) == 18
+        assert len(captured_tool_names) == 19
         assert frozenset(captured_tool_names) == EXPECTED_TOOLS
 
     @pytest.mark.asyncio

@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import veupathdb_auth_token_ctx
@@ -22,7 +22,7 @@ from pathfinder.platform.security import (
     get_optional_user,
     limiter,
 )
-from pathfinder.platform.types import JSONObject, as_json_object
+from pathfinder.platform.types import JSONValue
 from pathfinder.services.wdk import get_site, get_wdk_client
 from pathfinder.transport.http.deps import UserRepo
 from pathfinder.transport.http.schemas import (
@@ -38,6 +38,33 @@ router = APIRouter(prefix="/api/v1/veupathdb/auth", tags=["veupathdb-auth"])
 class LoginPayload(BaseModel):
     email: str
     password: str
+
+
+class _WDKUserProperties(BaseModel):
+    """Properties nested inside a WDK ``/users/current`` response."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    first_name: str | None = Field(default=None, alias="firstName")
+    last_name: str | None = Field(default=None, alias="lastName")
+
+
+class _WDKUserResponse(BaseModel):
+    """Typed parse of WDK ``/users/current`` — replaces isinstance chains."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    is_guest: bool = Field(default=True, alias="isGuest")
+    email: str | None = None
+    properties: _WDKUserProperties = Field(default_factory=_WDKUserProperties)
+
+
+def _parse_wdk_user(raw: JSONValue) -> _WDKUserResponse | None:
+    """Parse a raw WDK user response into a typed model.
+
+    Returns ``None`` when the response is not a dict (e.g. error string).
+    """
+    if not isinstance(raw, dict):
+        return None
+    return _WDKUserResponse.model_validate(raw)
 
 
 def _pick_redirect_url(candidate: str | None) -> str:
@@ -75,19 +102,17 @@ async def _resolve_veupathdb_email(
     try:
         site = get_site(site_id)
         client = get_wdk_client(site.id)
-        user = await client.get("/users/current")
+        raw = await client.get("/users/current")
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         logger.debug("Failed to resolve VEuPathDB email from token", error=str(exc))
         return None
     finally:
         veupathdb_auth_token_ctx.reset(reset_token)
 
-    if not isinstance(user, dict):
+    user = _parse_wdk_user(raw)
+    if user is None:
         return None
-    is_guest_value = user.get("isGuest")
-    is_guest = bool(is_guest_value if isinstance(is_guest_value, bool) else True)
-    email_value = user.get("email")
-    return str(email_value) if not is_guest and isinstance(email_value, str) else None
+    return user.email if not user.is_guest else None
 
 
 async def _link_internal_user(
@@ -283,39 +308,26 @@ async def auth_status(
     if user is None:
         return {"signedIn": False, "name": None, "email": None}
 
-    return _parse_auth_status(user)
+    return _format_auth_status(user)
 
 
-async def _fetch_wdk_user(site_id: str) -> JSONObject | None:
+async def _fetch_wdk_user(site_id: str) -> _WDKUserResponse | None:
     """Fetch the current user from WDK, returning None on failure."""
     site = get_site(site_id)
     client = get_wdk_client(site.id)
     try:
-        user = await client.get("/users/current")
+        raw = await client.get("/users/current")
     except (httpx.HTTPError, KeyError, ValueError) as exc:
         logger.debug("Failed to fetch VEuPathDB auth status", error=str(exc))
         return None
-    if not isinstance(user, dict):
-        return None
-    return as_json_object(user)
+    return _parse_wdk_user(raw)
 
 
-def _parse_auth_status(user_obj: JSONObject) -> _AuthStatusDict:
-    """Parse a WDK user response into an auth status dict."""
-    is_guest_value = user_obj.get("isGuest")
-    is_guest = bool(is_guest_value if isinstance(is_guest_value, bool) else True)
-    email_value = user_obj.get("email")
-    email: str | None = str(email_value) if isinstance(email_value, str) else None
-    properties_value = user_obj.get("properties")
-    properties: JSONObject = {}
-    if isinstance(properties_value, dict):
-        properties = {str(k): v for k, v in properties_value.items()}
-    first_value = properties.get("firstName")
-    last_value = properties.get("lastName")
-    first: str | None = str(first_value) if isinstance(first_value, str) else None
-    last: str | None = str(last_value) if isinstance(last_value, str) else None
+def _format_auth_status(user: _WDKUserResponse) -> _AuthStatusDict:
+    """Format a parsed WDK user into an auth status dict."""
+    props = user.properties
     name: str | None = None
-    if first or last:
-        name = " ".join(part for part in (first, last) if part)
-    name = name or email
-    return {"signedIn": not is_guest, "name": name, "email": email}
+    if props.first_name or props.last_name:
+        name = " ".join(part for part in (props.first_name, props.last_name) if part)
+    name = name or user.email
+    return {"signedIn": not user.is_guest, "name": name, "email": user.email}

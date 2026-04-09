@@ -4,10 +4,10 @@ Provides :class:`StrategiesMixin` with methods to create, read, update,
 and delete WDK strategies.
 """
 
-import contextlib
-
 import pydantic
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
+from pathfinder.integrations.veupathdb._helpers import _validate_list
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.strategy_api.helpers import (
     tag_internal_wdk_strategy_name,
@@ -23,6 +23,20 @@ from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
+
+_STRATEGY_SUMMARY_ADAPTER: TypeAdapter[WDKStrategySummary] = TypeAdapter(
+    WDKStrategySummary
+)
+
+
+class _DuplicatedStepTreeResponse(BaseModel):
+    """Wrapper for the ``duplicated-step-tree`` endpoint response.
+
+    WDK wraps the step tree in a ``{"stepTree": ...}`` envelope.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+    step_tree: WDKStepTree = Field(alias="stepTree")
 
 
 class StrategiesMixin(StrategyAPIBase):
@@ -91,14 +105,7 @@ class StrategiesMixin(StrategyAPIBase):
         """List strategies for the current user."""
         uid = await self._get_user_id(user_id)
         raw = await self.client.get(f"/users/{uid}/strategies")
-        if not isinstance(raw, list):
-            return []
-        result: list[WDKStrategySummary] = []
-        for item in raw:
-            if isinstance(item, dict):
-                with contextlib.suppress(pydantic.ValidationError):
-                    result.append(WDKStrategySummary.model_validate(item))
-        return result
+        return _validate_list(raw, _STRATEGY_SUMMARY_ADAPTER)
 
     async def list_public_strategies(self) -> list[WDKStrategySummary]:
         """List all public strategies from WDK.
@@ -179,6 +186,7 @@ class StrategiesMixin(StrategyAPIBase):
             f"/users/{uid}/strategies/{strategy_id}/duplicated-step-tree",
             json={},
         )
-        if isinstance(raw, dict) and "stepTree" in raw:
-            return WDKStepTree.model_validate(raw["stepTree"])
-        return WDKStepTree.model_validate(raw)
+        try:
+            return _DuplicatedStepTreeResponse.model_validate(raw).step_tree
+        except ValidationError:
+            return WDKStepTree.model_validate(raw)

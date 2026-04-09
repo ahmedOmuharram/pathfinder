@@ -16,12 +16,12 @@ from pathfinder.domain.strategy.ast import (
 )
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.validate import validate_strategy
+from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.factory import get_site, get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKIdentifier,
     WDKStepTree,
     WDKStrategyDetails,
-    WDKValidation,
 )
 from pathfinder.platform.errors import AppError, StrategyCompilationError
 from pathfinder.platform.logging import get_logger
@@ -31,6 +31,7 @@ from pathfinder.services.catalog.searches import (
     resolve_record_type_from_steps,
 )
 from pathfinder.services.strategies.build import resolve_root_step
+from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)
 
@@ -51,7 +52,7 @@ class StepDecoratorAPI(Protocol):
         value: JSONValue,
         *,
         disabled: bool = False,
-    ) -> JSONValue: ...
+    ) -> None: ...
 
     async def run_step_analysis(
         self,
@@ -178,7 +179,7 @@ def _trees_equal(a: WDKStepTree | None, b: WDKStepTree | None) -> bool:
 def _extract_counts_and_validations(
     strategy_info: WDKStrategyDetails,
     wdk_step_ids: dict[str, int],
-) -> tuple[dict[str, int | None], dict[str, WDKValidation], int | None]:
+) -> tuple[dict[str, int | None], dict[str, StepValidation], int | None]:
     """Extract per-step counts and validations from a WDK strategy payload.
 
     Maps WDK step IDs back to local step IDs and extracts ``estimatedSize``
@@ -187,7 +188,7 @@ def _extract_counts_and_validations(
     :returns: Tuple of (counts, validations, root_count).
     """
     counts: dict[str, int | None] = {}
-    validations: dict[str, WDKValidation] = {}
+    validations: dict[str, StepValidation] = {}
     root_count: int | None = None
 
     wdk_to_local = {v: k for k, v in wdk_step_ids.items()}
@@ -259,7 +260,7 @@ async def _create_or_update_wdk_strategy(
     api: StrategySyncAPI,
     step_tree: WDKStepTree,
     name: str,
-    graph: StrategyGraph,
+    sync_state: WDKSyncState,
 ) -> int:
     """Create a new WDK strategy or update an existing one.
 
@@ -267,14 +268,14 @@ async def _create_or_update_wdk_strategy(
 
     :returns: The WDK strategy ID.
     """
-    wdk_strategy_id = graph.wdk_strategy_id
+    wdk_strategy_id = sync_state.wdk_strategy_id
 
     if wdk_strategy_id is None:
         result = await api.create_strategy(step_tree, name)
         logger.info("Created WDK strategy", wdk_strategy_id=result.id)
         return result.id
 
-    if not _trees_equal(step_tree, graph.wdk_step_tree):
+    if not _trees_equal(step_tree, sync_state.wdk_step_tree):
         try:
             await api.update_strategy(
                 strategy_id=wdk_strategy_id,
@@ -313,7 +314,7 @@ async def _fetch_strategy_state(
     wdk_strategy_id: int,
     wdk_step_ids: dict[str, int],
     step_tree: WDKStepTree,
-) -> tuple[dict[str, int | None], dict[str, WDKValidation], int | None, int]:
+) -> tuple[dict[str, int | None], dict[str, StepValidation], int | None, int]:
     """Fetch strategy details and extract counts, validations, and root step ID.
 
     :returns: Tuple of (counts, validations, root_count, root_wdk_step_id).
@@ -338,6 +339,7 @@ async def _fetch_strategy_state(
 async def sync_strategy(
     *,
     graph: StrategyGraph,
+    sync_state: WDKSyncState,
     api: StrategySyncAPI,
     site: SiteInfoLike,
     site_id: str,
@@ -364,25 +366,25 @@ async def sync_strategy(
     _validate_graph(root_step, graph.record_type)
 
     # 4. Build step tree from graph topology + WDK step IDs.
-    step_tree = build_step_tree_from_graph(root_step, graph.wdk_step_ids)
+    step_tree = build_step_tree_from_graph(root_step, sync_state.wdk_step_ids)
 
     # 5. Create or update WDK strategy.
     name = strategy_name or graph.name or "Untitled Strategy"
-    wdk_strategy_id = await _create_or_update_wdk_strategy(api, step_tree, name, graph)
+    wdk_strategy_id = await _create_or_update_wdk_strategy(api, step_tree, name, sync_state)
 
     # 6. Fetch strategy details for counts and validations.
     counts, validations, root_count, root_wdk_step_id = await _fetch_strategy_state(
-        api, wdk_strategy_id, graph.wdk_step_ids, step_tree
+        api, wdk_strategy_id, sync_state.wdk_step_ids, step_tree
     )
 
     # 7. Apply step decorations (filters, analyses, reports).
-    await _maybe_apply_decorations(root_step, graph.wdk_step_ids, api)
+    await _maybe_apply_decorations(root_step, sync_state.wdk_step_ids, api)
 
-    # 8. Update graph state.
-    graph.wdk_strategy_id = wdk_strategy_id
-    graph.wdk_step_tree = step_tree
-    graph.step_counts = counts
-    graph.step_validations = validations
+    # 8. Update sync state.
+    sync_state.wdk_strategy_id = wdk_strategy_id
+    sync_state.wdk_step_tree = step_tree
+    sync_state.step_counts = counts
+    sync_state.step_validations = validations
 
     # 9. Build URL and return result.
     all_steps = walk_step_tree(root_step)
@@ -439,6 +441,7 @@ async def _maybe_apply_decorations(
 async def sync_strategy_for_site(
     *,
     graph: StrategyGraph,
+    sync_state: WDKSyncState,
     site_id: str,
     strategy_name: str | None = None,
 ) -> SyncResult:
@@ -451,6 +454,7 @@ async def sync_strategy_for_site(
     site = get_site(site_id)
     return await sync_strategy(
         graph=graph,
+        sync_state=sync_state,
         api=api,
         site=site,
         site_id=site_id,

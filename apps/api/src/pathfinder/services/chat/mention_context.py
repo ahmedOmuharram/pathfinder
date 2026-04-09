@@ -9,6 +9,7 @@ import json
 from uuid import UUID
 
 from pathfinder.domain.strategy.ast import PlanStepNode, walk_step_tree
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.persistence.repositories.stream import StreamRepository
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
@@ -80,45 +81,43 @@ async def _build_strategy_context(
         f"- **Record type**: {projection.record_type or 'unknown'}",
     ]
 
-    plan: JSONObject = projection.plan if isinstance(projection.plan, dict) else {}
-    root = _parse_plan_root(plan)
-    step_counts = _extract_step_counts(plan)
+    payload = _parse_plan_payload(projection.plan)
+    step_counts = _extract_step_counts(payload)
 
-    if root:
-        all_steps = walk_step_tree(root)
+    if payload is not None:
+        all_steps = walk_step_tree(payload.root)
         lines.append(f"- **Steps** ({len(all_steps)}):")
         lines.append("")
         for i, step in enumerate(all_steps):
             _format_step_context(lines, i, step, step_counts)
-    elif plan:
+    elif projection.plan:
         lines.append("")
         lines.append("### Strategy plan (AST):")
         lines.append("```json")
-        lines.append(json.dumps(plan, indent=2, default=str)[:4000])
+        lines.append(json.dumps(projection.plan, indent=2, default=str)[:4000])
         lines.append("```")
 
     return "\n".join(lines)
 
 
-def _parse_plan_root(plan: JSONObject) -> PlanStepNode | None:
-    """Parse the root node from a plan dict, returning None on failure."""
-    if not plan or "root" not in plan:
-        return None
-    root_raw = plan.get("root")
-    if not isinstance(root_raw, dict):
+def _parse_plan_payload(plan_raw: JSONObject) -> StrategyPlanPayload | None:
+    """Parse a raw JSON plan dict into a typed payload.
+
+    Returns ``None`` when the dict is empty or invalid.
+    """
+    if not plan_raw or "root" not in plan_raw:
         return None
     try:
-        return PlanStepNode.model_validate(root_raw)
+        return StrategyPlanPayload.model_validate(plan_raw)
     except ValueError, KeyError, TypeError:
         return None
 
 
-def _extract_step_counts(plan: JSONObject) -> dict[str, int]:
-    """Extract step_counts from a plan dict. Returns empty dict if missing."""
-    raw = plan.get("stepCounts")
-    if isinstance(raw, dict):
-        return {str(k): v for k, v in raw.items() if isinstance(v, int)}
-    return {}
+def _extract_step_counts(payload: StrategyPlanPayload | None) -> dict[str, int]:
+    """Extract step_counts from a typed plan payload. Returns empty dict if None."""
+    if payload is None or payload.step_counts is None:
+        return {}
+    return payload.step_counts
 
 
 def _format_step_context(

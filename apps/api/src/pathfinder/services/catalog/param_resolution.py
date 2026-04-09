@@ -1,10 +1,7 @@
 """WDK parameter fetching, caching, and expansion."""
 
 from pathfinder.domain.parameters.normalize import ParameterNormalizer
-from pathfinder.domain.parameters.specs import (
-    adapt_param_specs_from_search,
-    find_input_step_param,
-)
+from pathfinder.domain.parameters.specs import find_input_step_param
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.client import (
     VEuPathDBClient,
@@ -25,6 +22,7 @@ from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_discovery import fetch_search_details
 from pathfinder.services.catalog.param_formatting import (
     ParameterInfo,

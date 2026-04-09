@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from pathfinder.domain.strategy.ast import walk_step_tree
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
 from pathfinder.persistence.models import StreamProjection
@@ -23,10 +24,8 @@ from pathfinder.persistence.repositories.stream import (
 )
 from pathfinder.platform.errors import AppError, InternalError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.wdk import get_strategy_api
 
-from .schemas import StrategyPlanPayload
 from .wdk_conversion import (
     build_snapshot_from_wdk,
     normalize_synced_parameters,
@@ -45,7 +44,7 @@ class WdkProjectionSpec:
 
     wdk_id: int
     name: str
-    plan: JSONObject
+    plan: StrategyPlanPayload
     record_type: str | None
     is_saved: bool
     step_count: int = field(default=0)
@@ -61,7 +60,7 @@ def plan_needs_detail_fetch(projection: StreamProjection) -> bool:
     if projection.wdk_strategy_id is None:
         return False
     plan = projection.plan
-    if not isinstance(plan, dict) or not plan:
+    if not plan:
         return True
     return "root" not in plan
 
@@ -106,7 +105,6 @@ async def sync_to_projection(
     Shared by ``open_strategy`` and ``sync_all_wdk_strategies``.
     """
     payload, is_saved = await fetch_and_convert(api, wdk_id)
-    plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
     name = payload.name or f"WDK Strategy {wdk_id}"
 
     return await upsert_projection(
@@ -116,7 +114,7 @@ async def sync_to_projection(
         spec=WdkProjectionSpec(
             wdk_id=wdk_id,
             name=name,
-            plan=plan,
+            plan=payload,
             record_type=payload.record_type,
             is_saved=is_saved,
             step_count=len(walk_step_tree(payload.root)),
@@ -266,11 +264,10 @@ async def lazy_fetch_wdk_detail(
     try:
         api = get_strategy_api(site_id)
         payload, is_saved = await fetch_and_convert(api, wdk_id)
-        plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
         await stream_repo.update_projection(
             projection.stream_id,
             ProjectionUpdate(
-                plan=plan,
+                plan=payload,
                 record_type=payload.record_type,
                 step_count=len(walk_step_tree(payload.root)),
                 is_saved=is_saved,

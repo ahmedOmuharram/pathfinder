@@ -11,6 +11,7 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
+import { createTestWrapper } from "@/lib/query/testing";
 import { useOperationRecovery } from "./useOperationRecovery";
 
 // ---------------------------------------------------------------------------
@@ -42,6 +43,11 @@ vi.mock("@/features/chat/streaming/StreamingSession", () => ({
     snapshotApplied = false;
     consumeUndoSnapshot = vi.fn();
   },
+}));
+
+vi.mock("@/state/useSessionStore", () => ({
+  useSessionStore: (selector: (s: { authRefreshed: boolean }) => unknown) =>
+    selector({ authRefreshed: true }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -106,8 +112,14 @@ afterEach(() => {
 });
 
 describe("useOperationRecovery", () => {
+  let wrapper: ReturnType<typeof createTestWrapper>["Wrapper"];
+
+  beforeEach(() => {
+    wrapper = createTestWrapper().Wrapper;
+  });
+
   it("does not attempt recovery when strategyId is null", async () => {
-    renderHook(() => useOperationRecovery(makeArgs({ strategyId: null })));
+    renderHook(() => useOperationRecovery(makeArgs({ strategyId: null })), { wrapper });
     await flushPromises();
     expect(fetchActiveOperationsMock).not.toHaveBeenCalled();
   });
@@ -115,7 +127,7 @@ describe("useOperationRecovery", () => {
   it("attempts recovery when strategyId is set", async () => {
     fetchActiveOperationsMock.mockResolvedValue([]);
 
-    renderHook(() => useOperationRecovery(makeArgs({ strategyId: "strategy-a" })));
+    renderHook(() => useOperationRecovery(makeArgs({ strategyId: "strategy-a" })), { wrapper });
 
     await flushPromises();
 
@@ -134,8 +146,9 @@ describe("useOperationRecovery", () => {
     subscribeToOperationMock.mockReturnValue({ unsubscribe });
 
     const setIsStreaming = vi.fn();
-    renderHook(() =>
-      useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+    renderHook(
+      () => useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+      { wrapper },
     );
 
     // Wait for the nested async .then() chain to complete
@@ -155,8 +168,9 @@ describe("useOperationRecovery", () => {
   it("does not attempt recovery when isStreaming is true", async () => {
     fetchActiveOperationsMock.mockResolvedValue([]);
 
-    renderHook(() =>
-      useOperationRecovery(makeArgs({ strategyId: "strategy-a", isStreaming: true })),
+    renderHook(
+      () => useOperationRecovery(makeArgs({ strategyId: "strategy-a", isStreaming: true })),
+      { wrapper },
     );
 
     await flushPromises();
@@ -170,7 +184,7 @@ describe("useOperationRecovery", () => {
     const { rerender } = renderHook(
       (props: Parameters<typeof useOperationRecovery>[0]) =>
         useOperationRecovery(props),
-      { initialProps: args },
+      { initialProps: args, wrapper },
     );
 
     await flushPromises();
@@ -226,8 +240,9 @@ describe("useOperationRecovery", () => {
     );
 
     const setIsStreaming = vi.fn();
-    renderHook(() =>
-      useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+    renderHook(
+      () => useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+      { wrapper },
     );
 
     await waitFor(() => {
@@ -259,8 +274,9 @@ describe("useOperationRecovery", () => {
     );
 
     const setIsStreaming = vi.fn();
-    renderHook(() =>
-      useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+    renderHook(
+      () => useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+      { wrapper },
     );
 
     await waitFor(() => {
@@ -290,8 +306,9 @@ describe("useOperationRecovery", () => {
     subscribeToOperationMock.mockReturnValue({ unsubscribe: vi.fn() });
 
     const setIsStreaming = vi.fn();
-    renderHook(() =>
-      useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+    renderHook(
+      () => useOperationRecovery(makeArgs({ strategyId: "strategy-a", setIsStreaming })),
+      { wrapper },
     );
 
     await waitFor(() => {
@@ -317,7 +334,7 @@ describe("useOperationRecovery", () => {
     const { rerender } = renderHook(
       (props: Parameters<typeof useOperationRecovery>[0]) =>
         useOperationRecovery(props),
-      { initialProps: args },
+      { initialProps: args, wrapper },
     );
 
     // Wait for the nested subscription to be established

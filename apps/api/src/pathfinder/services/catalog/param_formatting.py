@@ -7,13 +7,8 @@ annotation and vocabulary rendering.
 
 from dataclasses import dataclass
 
-from pathfinder.integrations.veupathdb.wdk_parameters import (
-    WDKBaseParameter,
-    WDKEnumParam,
-    WDKParameter,
-)
+from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.catalog.vocab_rendering import (
     _MAX_VOCAB_ENTRIES,
     VocabEntry,
@@ -81,10 +76,9 @@ def _build_typed_dependency_map(
     """
     depends_on: dict[str, list[str]] = {}
     for param in params:
-        base: WDKBaseParameter = param
-        if base.dependent_params:
-            for dep in base.dependent_params:
-                depends_on.setdefault(dep, []).append(base.name)
+        if param.dependent_params:
+            for dep in param.dependent_params:
+                depends_on.setdefault(dep, []).append(param.name)
     return depends_on
 
 
@@ -98,9 +92,8 @@ def _build_typed_controls_map(
     """
     controls: dict[str, list[str]] = {}
     for param in params:
-        base: WDKBaseParameter = param
-        if base.dependent_params:
-            controls[base.name] = list(base.dependent_params)
+        if param.dependent_params:
+            controls[param.name] = list(param.dependent_params)
     return controls
 
 
@@ -111,16 +104,11 @@ class _VocabFields:
     allowed_values_note: str | None = None
 
 
-def _format_vocabulary(
-    param: WDKParameter,
-    base: WDKBaseParameter,
-) -> _VocabFields:
+def _format_vocabulary(param: WDKParameter) -> _VocabFields:
     """Extract vocabulary fields from a parameter."""
-    vocabulary: JSONValue = None
-    if isinstance(param, WDKEnumParam):
-        vocabulary = param.vocabulary
+    vocabulary = param.vocabulary
 
-    if base.type == "multi-pick-vocabulary" and isinstance(vocabulary, dict):
+    if param.type == "multi-pick-vocabulary" and isinstance(vocabulary, dict):
         tree_lines = render_vocab_tree(vocabulary, max_lines=80)
         if tree_lines:
             tree_text = "\n".join(tree_lines)
@@ -129,7 +117,7 @@ def _format_vocabulary(
             if truncated:
                 suffix += (
                     f"\nNote: tree truncated — use get_dependent_vocab("
-                    f"param_name='{base.name}', query='<keyword>') "
+                    f"param_name='{param.name}', query='<keyword>') "
                     f"to see values for a specific category."
                 )
             return _VocabFields(allowed_values_tree=tree_text + suffix)
@@ -154,13 +142,12 @@ def format_typed_param(
     controls: dict[str, list[str]],
 ) -> ParameterInfo:
     """Format a single typed WDK parameter into an AI-consumable info object."""
-    base: WDKBaseParameter = param
-    name = base.name
-    help_text = base.help or ""
+    name = param.name
+    help_text = param.help or ""
     if name == "profile_pattern":
         help_text = _PROFILE_PATTERN_HELP
 
-    vocab = _format_vocabulary(param, base)
+    vocab = _format_vocabulary(param)
 
     note: str | None = None
     vocab_depends_on: list[str] | None = None
@@ -177,12 +164,12 @@ def format_typed_param(
 
     return ParameterInfo(
         name=name,
-        display_name=base.display_name or name,
-        type=base.type,
-        required=not base.allow_empty_value,
-        is_visible=base.is_visible,
+        display_name=param.display_name or name,
+        type=param.type,
+        required=not param.allow_empty_value,
+        is_visible=param.is_visible,
         help=help_text,
-        default_value=base.initial_display_value,
+        default_value=param.initial_display_value,
         allowed_values=vocab.allowed_values,
         allowed_values_tree=vocab.allowed_values_tree,
         allowed_values_note=vocab.allowed_values_note,

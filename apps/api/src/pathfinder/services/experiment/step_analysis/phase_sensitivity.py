@@ -4,10 +4,7 @@ import asyncio
 import math
 from typing import TypedDict
 
-from pathfinder.domain.parameters.specs import (
-    ParamSpecNormalized,
-    adapt_param_specs_from_search,
-)
+from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.tree import (
     collect_plan_leaves,
@@ -18,6 +15,7 @@ from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.experiment.helpers import (
     ControlsContext,
     ProgressCallback,

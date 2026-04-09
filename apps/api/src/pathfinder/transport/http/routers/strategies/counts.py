@@ -22,7 +22,7 @@ async def compute_step_counts(
     payload = validate_plan_or_raise(plan)
 
     try:
-        counts = await compute_step_counts_for_plan(plan, payload, request.site_id)
+        counts = await compute_step_counts_for_plan(payload, request.site_id)
     except Exception as e:
         msg = f"WDK compile failed: {e}"
         raise WDKError(msg) from e

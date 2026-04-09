@@ -4,8 +4,32 @@ import json
 import os
 import re
 from collections.abc import AsyncGenerator, Coroutine, Generator
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+# ---------------------------------------------------------------------------
+# PIGuard ONNX model — MUST run before any pathfinder imports.
+# ---------------------------------------------------------------------------
+# SecurityGuardrail() is instantiated at agent module level, so the model
+# must be available before the import chain reaches it.  huggingface_hub
+# caches to ~/.cache/huggingface/hub/ — the network download only happens
+# once per machine.
+
+if "PIGUARD_MODEL_DIR" not in os.environ:
+    from huggingface_hub import hf_hub_download
+
+    _piguard_cache = Path.home() / ".cache" / "pathfinder" / "piguard"
+    _piguard_cache.mkdir(parents=True, exist_ok=True)
+    for _fname in ("model.onnx", "tokenizer.json"):
+        hf_hub_download(
+            repo_id="ahmedomuharram/piguard-onnx",
+            filename=_fname,
+            local_dir=str(_piguard_cache),
+        )
+    os.environ["PIGUARD_MODEL_DIR"] = str(_piguard_cache)
+
+# ---------------------------------------------------------------------------
 
 import httpx
 import pydantic_ai.models
@@ -298,7 +322,7 @@ async def _redis_conn(_get_test_redis_url: str) -> AsyncGenerator[Redis]:
 
     Lazily started — the container only boots when a test actually needs Redis.
     """
-    conn = Redis.from_url(_get_test_redis_url, decode_responses=False)
+    conn = Redis.from_url(_get_test_redis_url, decode_responses=True)
     await conn.ping()
     yield conn
     await conn.aclose()

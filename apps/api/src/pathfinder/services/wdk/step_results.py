@@ -102,7 +102,9 @@ class StepResultsService:
         enrichment parsing and persistence as needed.
         """
         form_meta = await self._api.get_analysis_type(self._step_id, analysis_name)
-        params = merge_analysis_params(form_meta.model_dump(by_alias=True), parameters)
+        params = merge_analysis_params(
+            form_meta.search_data.parameters or [], parameters
+        )
 
         logger.info(
             "Running WDK step analysis",

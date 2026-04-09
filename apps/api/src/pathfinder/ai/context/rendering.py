@@ -11,6 +11,7 @@ from pathfinder.ai.context.extractors import extract_tool_summary
 from pathfinder.ai.context.models import ToolCallRecord, TurnSummary
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.session import StrategyGraph
+from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.platform.types import JSONObject
 
 _MAX_KEY_ARGS = 2
@@ -165,7 +166,7 @@ def _render_plan_step_call(step: _PlanNode) -> str:
     return call + f', display_name="{step.display_name}")'
 
 
-def render_approved_plan(plan: dict[str, object]) -> str:
+def render_approved_plan(plan: JSONObject) -> str:
     """Render an approved strategy plan as pinned execution instructions.
 
     Takes the plan dict from StreamProjection.plan and produces a
@@ -230,14 +231,17 @@ def _render_step_header(step_id: str, step: PlanStepNode) -> list[str]:
 
 
 def _render_step_suffix(
-    step_id: str, graph: StrategyGraph, *, is_root: bool
+    step_id: str,
+    sync_state: SyncStateProtocol | None,
+    *,
+    is_root: bool,
 ) -> str:
     """Render the suffix (counts, wdk ID, errors) for a step."""
-    count = graph.step_counts.get(step_id)
-    wdk_id = graph.wdk_step_ids.get(step_id)
-    push_error = graph.wdk_push_errors.get(step_id)
+    count = sync_state.step_counts.get(step_id) if sync_state else None
+    wdk_id = sync_state.wdk_step_ids.get(step_id) if sync_state else None
+    push_error = sync_state.wdk_push_errors.get(step_id) if sync_state else None
 
-    validation = graph.step_validations.get(step_id)
+    validation = sync_state.step_validations.get(step_id) if sync_state else None
 
     suffix_parts: list[str] = []
     if count is not None:
@@ -272,7 +276,10 @@ def _render_step_params(step: PlanStepNode) -> str:
     return "\n  " + ", ".join(param_strs)
 
 
-def render_graph_state(graph: StrategyGraph) -> str:
+def render_graph_state(
+    graph: StrategyGraph,
+    sync_state: SyncStateProtocol | None = None,
+) -> str:
     """Render the current strategy graph as a compact text summary.
 
     Pinned in ``always_included_messages`` so the model always sees the
@@ -285,7 +292,7 @@ def render_graph_state(graph: StrategyGraph) -> str:
     lines: list[str] = []
     for step_id, step in graph.steps.items():
         parts = _render_step_header(step_id, step)
-        suffix = _render_step_suffix(step_id, graph, is_root=step_id in graph.roots)
+        suffix = _render_step_suffix(step_id, sync_state, is_root=step_id in graph.roots)
         if suffix:
             parts.append(suffix)
         line = " ".join(parts)
@@ -294,8 +301,9 @@ def render_graph_state(graph: StrategyGraph) -> str:
         lines.append(line)
 
     header = f"Current strategy graph ({len(graph.steps)} steps):"
-    if graph.wdk_strategy_id:
-        header += f" wdk_strategy={graph.wdk_strategy_id}"
+    wdk_strategy_id = sync_state.wdk_strategy_id if sync_state else None
+    if wdk_strategy_id:
+        header += f" wdk_strategy={wdk_strategy_id}"
     return header + "\n\n" + "\n\n".join(lines)
 
 

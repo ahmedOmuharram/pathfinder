@@ -5,16 +5,10 @@ from __future__ import annotations
 from pydantic import Field
 
 from pathfinder.domain.search import SearchContext
-from pathfinder.integrations.veupathdb.wdk_models import (
-    WDKModel,  # noqa: F401 — force load order
-)
-from pathfinder.integrations.veupathdb.wdk_parameters import (
-    WDKBaseParameter,
-    WDKParameter,
-)
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.searches import find_record_type_for_search
+from pathfinder.services.wdk import WDKBaseParameter, WDKParameter
 
 _UNIVERSAL_SEARCHES: list[JSONObject] = [
     {

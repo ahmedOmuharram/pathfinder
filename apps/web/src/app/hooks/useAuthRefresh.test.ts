@@ -2,7 +2,8 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
+import { createTestWrapper } from "@/lib/query/testing";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -60,7 +61,8 @@ describe("useAuthRefresh", () => {
 
   async function importAndRender() {
     const { useAuthRefresh } = await import("./useAuthRefresh");
-    return renderHook(() => useAuthRefresh());
+    const { Wrapper } = createTestWrapper();
+    return renderHook(() => useAuthRefresh(), { wrapper: Wrapper });
   }
 
   it("does not refresh when user is not signed in", async () => {
@@ -89,8 +91,6 @@ describe("useAuthRefresh", () => {
 
     await importAndRender();
 
-    // Should eagerly mark as refreshed
-    expect(mockSetAuthRefreshed).toHaveBeenCalledWith(true);
     expect(mockRefreshAuth).toHaveBeenCalledTimes(1);
 
     // Flush the promise chain
@@ -98,10 +98,12 @@ describe("useAuthRefresh", () => {
       await Promise.resolve();
     });
 
+    // authRefreshed set AFTER successful refresh
+    expect(mockSetAuthRefreshed).toHaveBeenCalledWith(true);
     expect(mockBumpAuthVersion).toHaveBeenCalledTimes(1);
   });
 
-  it("does not bump auth version on refresh failure", async () => {
+  it("does not bump auth version on refresh failure but still unblocks auth", async () => {
     mockStoreState.veupathdbSignedIn = true;
     mockStoreState.authRefreshed = false;
     mockRefreshAuth.mockRejectedValueOnce(new Error("refresh failed"));
@@ -110,22 +112,19 @@ describe("useAuthRefresh", () => {
 
     await importAndRender();
 
-    expect(mockSetAuthRefreshed).toHaveBeenCalledWith(true);
     expect(mockRefreshAuth).toHaveBeenCalledTimes(1);
 
-    // Flush the rejected promise
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
+    // Wait for TanStack Query to process the rejection and call throwOnError
+    await waitFor(() => {
+      expect(mockSetAuthRefreshed).toHaveBeenCalledWith(true);
     });
 
     expect(mockBumpAuthVersion).not.toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalledWith("[refreshAuth]", expect.any(Error));
 
     consoleSpy.mockRestore();
   });
 
-  it("sets authRefreshed before awaiting the refresh call", async () => {
+  it("sets authRefreshed after the refresh call succeeds", async () => {
     mockStoreState.veupathdbSignedIn = true;
     mockStoreState.authRefreshed = false;
 
@@ -139,9 +138,14 @@ describe("useAuthRefresh", () => {
 
     await importAndRender();
 
-    // setAuthRefreshed should be called before refreshAuth
-    expect(callOrder[0]).toBe("setAuthRefreshed");
-    expect(callOrder[1]).toBe("refreshAuth");
+    // Flush the promise chain
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // refreshAuth should be called before setAuthRefreshed
+    expect(callOrder[0]).toBe("refreshAuth");
+    expect(callOrder[1]).toBe("setAuthRefreshed");
   });
 
   it("returns void (no return value)", async () => {

@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from pathfinder.integrations.veupathdb.wdk_models import WDKSortDirection
 from pathfinder.platform.types import JSONObject, JSONValue
 from pathfinder.services.experiment.types import (
     ControlValueFormat,
@@ -12,6 +11,7 @@ from pathfinder.services.experiment.types import (
     ExperimentMode,
     OptimizationObjective,
 )
+from pathfinder.services.wdk import WDKSortDirection
 
 
 class ThresholdKnobRequest(BaseModel):

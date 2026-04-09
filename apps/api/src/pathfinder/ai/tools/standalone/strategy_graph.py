@@ -53,10 +53,13 @@ async def get_strategy(
     if not graph:
         return graph_not_found(graph_id)
 
+    sync_state = session.sync_state
+    wdk_strategy_id = sync_state.wdk_strategy_id if sync_state else None
+
     steps: list[StepResponse] | None = None
     if not summary_only:
         steps = [
-            serialize_step(graph, step)
+            serialize_step(graph, step, sync_state)
             for step in graph.steps.values()
         ]
 
@@ -64,8 +67,8 @@ async def get_strategy(
         graph_id=graph.id,
         graph_name=graph.name,
         record_type=graph.record_type,
-        wdk_strategy_id=graph.wdk_strategy_id,
-        is_built=graph.wdk_strategy_id is not None,
+        wdk_strategy_id=wdk_strategy_id,
+        is_built=wdk_strategy_id is not None,
         step_count=len(graph.steps),
         description=graph.description,
         steps=steps,

@@ -1,8 +1,11 @@
 """Search and record-type endpoint methods for VEuPathDBClient."""
 
+import contextlib
+
 import pydantic
 from pydantic import TypeAdapter
 
+from pathfinder.integrations.veupathdb._helpers import _validate_list
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKAnswer,
     WDKRecordType,
@@ -16,6 +19,10 @@ from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
+
+_SEARCH_ADAPTER: TypeAdapter[WDKSearch] = TypeAdapter(WDKSearch)
+_RECORD_TYPE_ADAPTER: TypeAdapter[WDKRecordType] = TypeAdapter(WDKRecordType)
+_PARAMETER_ADAPTER: TypeAdapter[WDKParameter] = TypeAdapter(WDKParameter)
 
 
 class SearchEndpoints:
@@ -50,37 +57,19 @@ class SearchEndpoints:
         raw = await self.get("/record-types", params=params)
         if not isinstance(raw, list):
             return []
-        result: list[WDKRecordType] = []
+        results: list[WDKRecordType] = []
         for item in raw:
             if isinstance(item, str):
-                result.append(WDKRecordType(url_segment=item, display_name=item))
-            elif isinstance(item, dict):
-                try:
-                    result.append(WDKRecordType.model_validate(item))
-                except pydantic.ValidationError:
-                    logger.warning(
-                        "Skipping unparseable record type entry",
-                        error_keys=list(item.keys())[:5],
-                    )
-        return result
+                results.append(WDKRecordType(url_segment=item, display_name=item))
+            else:
+                with contextlib.suppress(pydantic.ValidationError):
+                    results.append(_RECORD_TYPE_ADAPTER.validate_python(item))
+        return results
 
     async def get_searches(self, record_type: str) -> list[WDKSearch]:
         """Get searches for a record type."""
         raw = await self.get(f"/record-types/{record_type}/searches")
-        if not isinstance(raw, list):
-            return []
-        result: list[WDKSearch] = []
-        for item in raw:
-            if isinstance(item, dict):
-                try:
-                    result.append(WDKSearch.model_validate(item))
-                except pydantic.ValidationError:
-                    logger.warning(
-                        "Skipping unparseable search entry",
-                        record_type=record_type,
-                        error_keys=list(item.keys())[:5],
-                    )
-        return result
+        return _validate_list(raw, _SEARCH_ADAPTER)
 
     async def get_search_details(
         self,
@@ -150,20 +139,7 @@ class SearchEndpoints:
                 "contextParamValues": context,
             },
         )
-        if not isinstance(raw, list):
-            return []
-        adapter: TypeAdapter[WDKParameter] = TypeAdapter(WDKParameter)
-        result: list[WDKParameter] = []
-        for item in raw:
-            if isinstance(item, dict):
-                try:
-                    result.append(adapter.validate_python(item))
-                except pydantic.ValidationError:
-                    logger.warning(
-                        "Skipping unparseable parameter in refreshed-dependent-params",
-                        param_keys=list(item.keys())[:5],
-                    )
-        return result
+        return _validate_list(raw, _PARAMETER_ADAPTER)
 
     async def run_search_report(
         self,

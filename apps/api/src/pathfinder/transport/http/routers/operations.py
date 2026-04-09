@@ -100,16 +100,11 @@ async def _is_op_still_active(
         return not status or status == "active"
 
 
-def _decode_entry_id(entry_id_bytes: bytes | str) -> str:
-    """Decode a Redis entry ID to a string."""
-    return entry_id_bytes.decode() if hasattr(entry_id_bytes, "decode") else str(entry_id_bytes)
-
-
-def _build_sse_event(entry_id: str, fields: dict[bytes, bytes], operation_id: str) -> ServerSentEvent:
+def _build_sse_event(entry_id: str, fields: dict[str, str], operation_id: str) -> ServerSentEvent:
     """Build a ``ServerSentEvent`` from a Redis stream entry."""
-    event_type = fields.get(b"type", b"progress").decode()
+    event_type = fields.get("type", "progress")
     try:
-        data = json.loads(fields.get(b"data", b"{}"))
+        data = json.loads(fields.get("data", "{}"))
     except json.JSONDecodeError:
         logger.warning("Failed to parse event data", operation_id=operation_id, entry_id=entry_id)
         data = {}
@@ -138,18 +133,17 @@ async def _stream_events(
             continue
 
         for _stream_name, events in entries:
-            for entry_id_bytes, fields in events:
-                entry_id = _decode_entry_id(entry_id_bytes)
+            for entry_id, fields in events:
                 cursor = entry_id
 
                 if not is_experiment:
-                    event_op = fields.get(b"op", b"").decode()
+                    event_op = fields.get("op", "")
                     if event_op and event_op != operation_id:
                         continue
 
                 yield _build_sse_event(entry_id, fields, operation_id)
 
-                event_type = fields.get(b"type", b"progress").decode()
+                event_type = fields.get("type", "progress")
                 if event_type in _END_EVENT_TYPES:
                     return
 

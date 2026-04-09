@@ -6,7 +6,6 @@ the pydantic-ai pipeline requires.
 """
 
 from collections.abc import Callable
-from typing import cast
 
 from pydantic import ValidationError
 
@@ -15,13 +14,13 @@ from pathfinder.ai.context.reconstruction import reconstruct_history
 from pathfinder.ai.context.rendering import render_approved_plan
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.domain.strategy.plan import StrategyPlan
+from pathfinder.domain.strategy.plan_payload import PersistedStrategyGraph
 from pathfinder.persistence.models import StreamProjection
 from pathfinder.persistence.repositories import StreamRepository
 from pathfinder.platform.event_schemas import PipelineConfig
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.redis import get_redis
 from pathfinder.platform.stream_readers import read_stream_messages
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.chat.mention_context import build_mention_context
 from pathfinder.services.chat.types import ChatTurnConfig, TurnIdentity
 from pathfinder.services.research.literature_search import LiteratureSearchService
@@ -85,7 +84,7 @@ async def build_agent_deps(
 
     # Restore the active plan from the projection.
     restored_plan: StrategyPlan | None = None
-    if projection.plan and isinstance(projection.plan, dict):
+    if projection.plan:
         try:
             restored_plan = StrategyPlan.model_validate(projection.plan)
         except ValidationError:
@@ -97,13 +96,13 @@ async def build_agent_deps(
 
     # Reconstruct strategy session from the projection so that
     # continuation turns have full knowledge of the existing graph.
-    strategy_graph_payload: JSONObject = {
-        "id": turn.stream_id_str,
-        "name": projection.name,
-        "plan": projection.plan,
-        "recordType": projection.record_type,
-        "wdkStrategyId": projection.wdk_strategy_id,
-    }
+    strategy_graph_payload = PersistedStrategyGraph(
+        id=turn.stream_id_str,
+        name=projection.name,
+        plan=projection.plan or None,
+        record_type=projection.record_type,
+        wdk_strategy_id=projection.wdk_strategy_id,
+    )
     strategy_session = build_strategy_session(
         site_id=turn.site_id,
         strategy_graph=strategy_graph_payload,
@@ -126,7 +125,7 @@ async def build_agent_deps(
         context_summary=context_summary,
         mentioned_context=mentioned_context,
         approved_plan=(
-            render_approved_plan(cast("dict[str, object]", projection.plan))
+            render_approved_plan(projection.plan)
             if projection.plan and not projection.wdk_strategy_id
             else None
         ),

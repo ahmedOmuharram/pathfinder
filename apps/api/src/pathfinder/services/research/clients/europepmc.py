@@ -1,6 +1,7 @@
 """Europe PMC API client."""
 
 import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -15,6 +16,22 @@ from pathfinder.services.research.clients._base import (
     StandardClient,
 )
 from pathfinder.services.research.utils import truncate_text
+
+
+class _EpmcResultList(BaseModel):
+    """Inner ``resultList`` envelope in an Europe PMC response."""
+
+    model_config = ConfigDict(extra="ignore")
+    result: list[JSONValue] = Field(default_factory=list)
+
+
+class _EpmcResponse(BaseModel):
+    """Top-level envelope for the Europe PMC search response."""
+
+    model_config = ConfigDict(extra="ignore")
+    result_list: _EpmcResultList = Field(
+        alias="resultList", default_factory=_EpmcResultList
+    )
 
 
 class EuropePmcClient(StandardClient):
@@ -40,20 +57,20 @@ class EuropePmcClient(StandardClient):
         except httpx.HTTPError as exc:
             service = "EuropePMC"
             raise ExternalServiceError(service, str(exc)) from exc
-        hits = (
-            payload.get("resultList", {}).get("result", [])
-            if isinstance(payload, dict)
-            else []
-        )
+        try:
+            parsed = _EpmcResponse.model_validate(payload)
+            hits = parsed.result_list.result
+        except (ValidationError, TypeError):
+            hits = []
         return list(hits)
 
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
-        if not isinstance(raw, dict):
+        try:
+            parsed = EuropePmcRawResult.model_validate(raw).to_parsed_paper()
+        except (ValidationError, TypeError):
             return None
-
-        parsed = EuropePmcRawResult.model_validate(raw).to_parsed_paper()
         parsed.abstract = truncate_text(parsed.abstract, abstract_max_chars)
 
         citation = Citation(

@@ -29,8 +29,7 @@ from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.integrations.veupathdb.factory import get_strategy_api
-from pathfinder.integrations.veupathdb.wdk_models import WdkParams, WDKSearchConfig
+from pathfinder.domain.strategy.types import SerializedParams
 from pathfinder.platform.errors import AppError, ErrorCode, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
@@ -40,6 +39,8 @@ from pathfinder.services.catalog.param_validation import (
     validate_parameters,
 )
 from pathfinder.services.strategies.step_deletion import delete_step_connected
+from pathfinder.services.strategies.sync_state import WDKSyncState, ensure_sync_state
+from pathfinder.services.wdk import WDKSearchConfig, get_strategy_api
 
 logger = get_logger(__name__)
 
@@ -123,6 +124,7 @@ def _validate_and_set_operator(
 async def _apply_step_updates(
     site_id: str,
     graph: StrategyGraph,
+    sync_state: WDKSyncState,
     step: PlanStepNode,
     search_name: str | None,
     parameters: Mapping[str, str] | JSONObject | None,
@@ -153,7 +155,7 @@ async def _apply_step_updates(
         step.display_name = display_name
 
     if substantive_change:
-        wdk_step_id = graph.wdk_step_ids.get(step.id)
+        wdk_step_id = sync_state.wdk_step_ids.get(step.id)
         if wdk_step_id is not None and parameters is not None:
             try:
                 api = get_strategy_api(graph.site_id)
@@ -175,7 +177,7 @@ async def _apply_step_updates(
                     step_id=step.id,
                     error=str(exc),
                 )
-                graph.wdk_push_errors[step.id] = str(exc)
+                sync_state.wdk_push_errors[step.id] = str(exc)
                 return tool_error(
                     ErrorCode.WDK_ERROR,
                     f"Local step updated but WDK rejected the change: {exc}. "
@@ -210,7 +212,7 @@ async def update_step(
     ctx: RunContext[AgentDeps],
     step_id: str,
     search_name: str | None = None,
-    parameters: WdkParams | None = None,
+    parameters: SerializedParams | None = None,
     operator: str | None = None,
     display_name: str | None = None,
     graph_id: str | None = None,
@@ -237,8 +239,9 @@ async def update_step(
         return resolved
     graph, step = resolved
 
+    sync_state = ensure_sync_state(session)
     apply_error = await _apply_step_updates(
-        deps.site_id, graph, step, search_name, parameters, operator, display_name
+        deps.site_id, graph, sync_state, step, search_name, parameters, operator, display_name
     )
     return (
         apply_error
@@ -283,7 +286,8 @@ async def delete_step(
             requiresConfirmation=True,
         )
 
-    result = await delete_step_connected(graph, step_id)
+    sync_state = ensure_sync_state(session)
+    result = await delete_step_connected(graph, sync_state, step_id)
 
     response: JSONObject = {
         "deleted": cast("JSONArray", result.deleted_ids),

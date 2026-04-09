@@ -3,13 +3,14 @@
 import re
 
 import httpx
+from pydantic import ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
     _new_citation_id,
     _now_iso,
 )
-from pathfinder.domain.research.papers import ParsedPaper
+from pathfinder.domain.research.papers import ArxivRawEntry, ParsedPaper
 from pathfinder.platform.errors import ExternalServiceError
 from pathfinder.platform.types import JSONValue
 from pathfinder.services.research.clients._base import (
@@ -50,11 +51,11 @@ class ArxivClient(StandardClient):
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
-        if not isinstance(raw, dict):
+        try:
+            entry = ArxivRawEntry.model_validate(raw)
+        except (ValidationError, TypeError):
             return None
-        e = raw.get("_xml")
-        if not isinstance(e, str):
-            return None
+        e = entry.xml
 
         title = strip_tags(
             "".join(

@@ -1,8 +1,7 @@
 """Semantic Scholar API client."""
 
-import os
-
 import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -10,6 +9,7 @@ from pathfinder.domain.research.citations import (
     _now_iso,
 )
 from pathfinder.domain.research.papers import ParsedPaper, SemanticScholarRawPaper
+from pathfinder.platform.config import get_settings
 from pathfinder.platform.errors import ExternalServiceError
 from pathfinder.platform.types import JSONValue
 from pathfinder.services.research.clients._base import (
@@ -17,6 +17,13 @@ from pathfinder.services.research.clients._base import (
     StandardClient,
 )
 from pathfinder.services.research.utils import truncate_text
+
+
+class _S2Response(BaseModel):
+    """Envelope for the Semantic Scholar ``/paper/search`` response."""
+
+    model_config = ConfigDict(extra="ignore")
+    data: list[JSONValue] = Field(default_factory=list)
 
 
 class SemanticScholarClient(StandardClient):
@@ -32,7 +39,7 @@ class SemanticScholarClient(StandardClient):
             "fields": "title,year,authors,url,abstract,journal,externalIds",
         }
         headers: dict[str, str] = {"User-Agent": API_USER_AGENT}
-        api_key = os.environ.get("S2_API_KEY")
+        api_key = get_settings().s2_api_key
         if api_key:
             headers["x-api-key"] = api_key
 
@@ -46,16 +53,20 @@ class SemanticScholarClient(StandardClient):
         except httpx.HTTPError as exc:
             service = "Semantic Scholar"
             raise ExternalServiceError(service, str(exc)) from exc
-        items = payload.get("data", []) if isinstance(payload, dict) else []
+        try:
+            parsed = _S2Response.model_validate(payload)
+            items = parsed.data
+        except (ValidationError, TypeError):
+            items = []
         return list(items)
 
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
-        if not isinstance(raw, dict):
+        try:
+            parsed = SemanticScholarRawPaper.model_validate(raw).to_parsed_paper()
+        except (ValidationError, TypeError):
             return None
-
-        parsed = SemanticScholarRawPaper.model_validate(raw).to_parsed_paper()
         parsed.abstract = truncate_text(parsed.abstract, abstract_max_chars)
         parsed.snippet = parsed.abstract or parsed.journal_title
 

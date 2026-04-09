@@ -39,20 +39,15 @@ async def emit(
 
     Returns the Redis entry ID (e.g. '1709234567890-0').
     """
-    entry_id_bytes: bytes = await redis.xadd(
+    entry_id: str = await redis.xadd(
         f"stream:{stream_id}",
         {
-            "op": (operation_id or "").encode(),
-            "type": event_type.encode(),
-            "data": json.dumps(event_data, default=str).encode(),
+            "op": operation_id or "",
+            "type": event_type,
+            "data": json.dumps(event_data, default=str),
         },
         maxlen=50_000,
         approximate=True,
-    )
-    entry_id = (
-        entry_id_bytes.decode()
-        if isinstance(entry_id_bytes, bytes)
-        else str(entry_id_bytes)
     )
 
     if session:

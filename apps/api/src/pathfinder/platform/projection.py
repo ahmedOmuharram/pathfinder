@@ -77,13 +77,17 @@ def _project_graph_snapshot(updates: dict[str, object], data: JSONObject) -> Non
     if snapshot.record_type:
         updates["record_type"] = snapshot.record_type
     if snapshot.plan:
-        updates["plan"] = snapshot.plan
+        updates["plan"] = snapshot.plan.model_dump(
+            by_alias=True, exclude_none=True, mode="json"
+        )
 
 
 def _project_graph_plan(updates: dict[str, object], data: JSONObject) -> None:
     event = GraphPlanEventData.model_validate(data)
     if event.plan:
-        updates["plan"] = event.plan
+        updates["plan"] = event.plan.model_dump(
+            by_alias=True, exclude_none=True, mode="json"
+        )
         updates["step_count"] = count_plan_nodes(event.plan)
     if event.name:
         updates["name"] = event.name

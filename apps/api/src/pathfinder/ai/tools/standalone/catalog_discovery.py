@@ -17,15 +17,8 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _filter_vocab,
     _resolve_record_type,
 )
-from pathfinder.integrations.veupathdb.factory import get_wdk_client
-from pathfinder.integrations.veupathdb.wdk_models import (
-    WdkParams,
-    encode_wdk_params,
-)
-from pathfinder.integrations.veupathdb.wdk_parameters import (
-    WDKBaseParameter,
-    WDKParameter,
-)
+from pathfinder.domain.strategy.types import SerializedParams
+from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
@@ -35,13 +28,19 @@ from pathfinder.services.catalog.param_formatting import (
     ParameterInfo,
     format_typed_param,
 )
+from pathfinder.services.wdk import (
+    WDKBaseParameter,
+    WDKParameter,
+    encode_wdk_params,
+    get_wdk_client,
+)
 
 
 async def get_search_overview(
     ctx: RunContext[AgentDeps],
     search_name: str,
     record_type: str | None = None,
-) -> SearchOverviewResult:
+) -> SearchOverviewResult | ToolErrorPayload:
     """Get a high-level overview of a search: description, parameters (required/optional), and dependencies.
 
     MUST be called before creating a step with this search -- it registers the
@@ -55,7 +54,10 @@ async def get_search_overview(
     deps = ctx.deps
     rt = await _resolve_record_type(deps.site_id, search_name, record_type)
     client = get_wdk_client(deps.site_id)
-    details = await client.get_search_details(rt, search_name, expand_params=True)
+    try:
+        details = await client.get_search_details(rt, search_name, expand_params=True)
+    except (AppError, OSError) as e:
+        return tool_error(ErrorCode.WDK_ERROR, str(e))
     search = details.search_data
     params: list[WDKParameter] = search.parameters or []
 
@@ -93,7 +95,7 @@ async def get_parameter_options(
     search_name: str,
     param_name: str,
     record_type: str | None = None,
-    context_values: WdkParams | None = None,
+    context_values: SerializedParams | None = None,
     query: str | None = None,
 ) -> ParameterInfo | ToolErrorPayload:
     """Get detailed parameter info including vocabulary/allowed values.
@@ -120,17 +122,20 @@ async def get_parameter_options(
 
     client = get_wdk_client(deps.site_id)
 
-    if has_context and context_values is not None:
-        encoded_ctx = encode_wdk_params(dict(context_values))
-        result = await client.get_search_details_with_params(
-            rt, search_name, context=encoded_ctx, expand_params=True,
-        )
-        all_params = result.search_data.parameters or []
-    else:
-        details = await client.get_search_details(
-            rt, search_name, expand_params=True,
-        )
-        all_params = details.search_data.parameters or []
+    try:
+        if has_context and context_values is not None:
+            encoded_ctx = encode_wdk_params(dict(context_values))
+            result = await client.get_search_details_with_params(
+                rt, search_name, context=encoded_ctx, expand_params=True,
+            )
+            all_params = result.search_data.parameters or []
+        else:
+            details = await client.get_search_details(
+                rt, search_name, expand_params=True,
+            )
+            all_params = details.search_data.parameters or []
+    except (AppError, OSError) as e:
+        return tool_error(ErrorCode.WDK_ERROR, str(e))
 
     # Build dependency maps for annotation
     depends_on: dict[str, list[str]] = {}
@@ -154,7 +159,7 @@ async def get_parameter_dependencies(
     ctx: RunContext[AgentDeps],
     search_name: str,
     record_type: str | None = None,
-) -> DependencyDag:
+) -> DependencyDag | ToolErrorPayload:
     """Get the parameter dependency DAG for a search.
 
     Returns fillOrder (topologically sorted) and per-parameter dependency info.
@@ -168,7 +173,10 @@ async def get_parameter_dependencies(
     deps = ctx.deps
     rt = await _resolve_record_type(deps.site_id, search_name, record_type)
     client = get_wdk_client(deps.site_id)
-    details = await client.get_search_details(rt, search_name, expand_params=True)
+    try:
+        details = await client.get_search_details(rt, search_name, expand_params=True)
+    except (AppError, OSError) as e:
+        return tool_error(ErrorCode.WDK_ERROR, str(e))
     params: list[WDKParameter] = details.search_data.parameters or []
 
     return _build_dependency_dag(params)

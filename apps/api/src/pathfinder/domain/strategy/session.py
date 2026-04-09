@@ -12,9 +12,9 @@ from pathfinder.domain.strategy.ast import (
     walk_step_tree,
 )
 from pathfinder.domain.strategy.ops import CombineOp
-from pathfinder.integrations.veupathdb.wdk_models import WDKStepTree, WDKValidation
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload, _HistoryEntry
+from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -37,44 +37,40 @@ class StrategyGraph:
         # the new step is added as a root and any inputs it consumes are
         # removed.  A complete strategy has exactly one root.
         self.roots: set[str] = set()
-        self.history: list[JSONObject] = []
+        self.history: list[_HistoryEntry] = []
         self.last_step_id: str | None = None
-        # Populated after build_strategy / compile — maps local step IDs to WDK IDs.
-        self.wdk_step_ids: dict[str, int] = {}
-        # Populated after build_strategy — maps local step IDs to estimatedSize.
-        self.step_counts: dict[str, int | None] = {}
-        # Populated after build_strategy — maps local step IDs to WDK validation.
-        self.step_validations: dict[str, WDKValidation] = {}
-        # WDK strategy ID, set after build_strategy creates the strategy on WDK.
-        self.wdk_strategy_id: int | None = None
-        # WDK step tree, set after push to WDK.
-        self.wdk_step_tree: WDKStepTree | None = None
-        # Maps local step ID → push error message when WDK rejects a step.
-        # Surfaced to the model so it can fix params or delete the step.
-        self.wdk_push_errors: dict[str, str] = {}
 
-    def to_plan(self, root_step_id: str | None = None) -> JSONObject:
-        """Produce the plan dict for API responses and DB persistence."""
+    def to_plan(
+        self,
+        root_step_id: str | None = None,
+        sync_state: SyncStateProtocol | None = None,
+    ) -> StrategyPlanPayload | None:
+        """Produce a typed plan payload for API responses and DB persistence."""
         root_id = root_step_id or (
             next(iter(self.roots)) if len(self.roots) == 1 else None
         )
         root = self.steps.get(root_id) if root_id else None
         if root is None:
-            return {}
-        plan: JSONObject = {
-            "recordType": self.record_type or "",
-            "root": root.model_dump(by_alias=True, exclude_none=True, mode="json"),
-            "name": self.name,
-        }
-        if self.description:
-            plan["description"] = self.description
-        if self.step_counts:
-            plan["stepCounts"] = {
-                k: v for k, v in self.step_counts.items() if v is not None
-            }
-        if self.wdk_step_ids:
-            plan["wdkStepIds"] = dict(self.wdk_step_ids)
-        return plan
+            return None
+
+        step_counts: dict[str, int] | None = None
+        wdk_step_ids: dict[str, int] | None = None
+        if sync_state is not None:
+            if sync_state.step_counts:
+                step_counts = {
+                    k: v for k, v in sync_state.step_counts.items() if v is not None
+                }
+            if sync_state.wdk_step_ids:
+                wdk_step_ids = dict(sync_state.wdk_step_ids)
+
+        return StrategyPlanPayload(
+            record_type=self.record_type or "",
+            root=root,
+            name=self.name,
+            description=self.description or None,
+            step_counts=step_counts,
+            wdk_step_ids=wdk_step_ids,
+        )
 
     def add_step(self, step: PlanStepNode) -> str:
         """Add a step and maintain the subtree-root set.
@@ -345,32 +341,24 @@ class StrategyGraph:
     def save_history(self, description: str) -> None:
         """Save current state to history."""
         plan = self.to_plan()
-        if plan:
-            self.history.append({"description": description, "plan": plan})
+        if plan is not None:
+            self.history.append(_HistoryEntry(description=description, plan=plan))
 
     def undo(self) -> bool:
         """Undo to previous state.
 
         Restores steps, roots, and last_step_id from the history snapshot.
-        Handles both new plan-format and old AST-format entries for migration.
         """
         if len(self.history) < _MIN_UNDO_HISTORY:
             return False
         self.history.pop()  # remove current
         previous = self.history[-1]
-
-        # New format: {"plan": {...}}
-        plan_value = previous.get("plan")
-        if isinstance(plan_value, dict) and "root" in plan_value:
-            root = PlanStepNode.model_validate(plan_value["root"])
-            all_steps = walk_step_tree(root)
-            self.steps = {s.id: s for s in all_steps}
-            self.recompute_roots()
-            self.last_step_id = root.id
-            return True
-
-        # Old format entries are no longer supported (StrategyAST removed).
-        return False
+        root = previous.plan.root
+        all_steps = walk_step_tree(root)
+        self.steps = {s.id: s for s in all_steps}
+        self.recompute_roots()
+        self.last_step_id = root.id
+        return True
 
 
 class StrategySession:
@@ -379,6 +367,7 @@ class StrategySession:
     def __init__(self, site_id: str) -> None:
         self.site_id = site_id
         self.graph: StrategyGraph | None = None
+        self.sync_state: SyncStateProtocol | None = None
 
     def add_graph(self, graph: StrategyGraph) -> None:
         """Register an existing graph in the session.

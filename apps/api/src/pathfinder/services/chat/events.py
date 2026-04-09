@@ -120,8 +120,7 @@ def _extract_graph_snapshot(
 def _extract_graph_plan(
     result: JSONObject, *, get_graph: GetGraphFn = None
 ) -> JSONObject | None:
-    plan = result.get("plan")
-    if not isinstance(plan, dict):
+    if result.get("plan") is None:
         return None
     return {
         "type": EventType.GRAPH_PLAN,

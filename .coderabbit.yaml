@@ -1,0 +1,195 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "en-US"
+tone_instructions: "Be direct and concise. No filler. Lead with the issue."
+
+reviews:
+  profile: "assertive"
+  high_level_summary: true
+  high_level_summary_in_walkthrough: false
+  poem: false
+  sequence_diagrams: true
+  collapse_walkthrough: false
+  changed_files_summary: true
+  request_changes_workflow: false
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - main
+
+  # ── Files to exclude from review ──────────────────────────────────
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/.next/**"
+    - "!**/__pycache__/**"
+    - "!**/*.lock"
+    - "!**/yarn.lock"
+    - "!**/uv.lock"
+    - "!**/package-lock.json"
+    - "!packages/shared-ts/src/generated/**"
+    - "!packages/spec/openapi.json"
+    - "!thesis/eval/runs/**"
+    - "!thesis/eval/results*/**"
+    - "!**/*.cassette.yaml"
+    - "!**/*.snap"
+    - "!**/fixtures/**/*.json"
+
+  # ── Architecture-aware review instructions ────────────────────────
+  path_instructions:
+    # Backend — Domain layer (PURE: no I/O, no side effects)
+    - path: "apps/api/src/pathfinder/domain/**"
+      instructions: |
+        This is the PURE domain layer. It must have:
+        - NO I/O (no network calls, no database, no file system)
+        - NO side effects
+        - NO imports from services/, integrations/, persistence/, or transport/
+        - Only pure data models, validation, and transformations
+        Flag any violation immediately.
+
+    # Backend — AI tools (thin wrappers, call services only)
+    - path: "apps/api/src/pathfinder/ai/tools/**"
+      instructions: |
+        AI tools are thin wrappers. They must:
+        - Call services/ only — never integrations/ or domain/ directly
+        - Not contain business logic
+        - Not do raw HTTP calls or database queries
+        Flag any direct integration or domain import.
+
+    # Backend — Transport layer (HTTP handling only)
+    - path: "apps/api/src/pathfinder/transport/**"
+      instructions: |
+        Transport layer handles HTTP/SSE only. It must:
+        - Call services/ only — never integrations/ or domain/ directly
+        - Not contain business logic
+        - Use Pydantic models for request/response validation
+        Flag any direct integration or persistence import.
+
+    # Backend — Services (business logic, orchestrates domain + integrations)
+    - path: "apps/api/src/pathfinder/services/**"
+      instructions: |
+        Services contain business logic. They may call domain/ and integrations/.
+        They must NOT import from transport/ or ai/.
+        Ensure Pydantic models are used at all boundaries — no raw dicts, no isinstance chains.
+
+    # Backend — Integrations (external API clients)
+    - path: "apps/api/src/pathfinder/integrations/**"
+      instructions: |
+        Integration layer wraps external APIs (VEuPathDB WDK, Qdrant, embeddings).
+        Must use Pydantic models to parse responses — no raw dict access.
+        Field names must match the upstream API exactly.
+
+    # Backend — All Python code
+    - path: "apps/api/**/*.py"
+      instructions: |
+        Python 3.14 codebase. Key rules:
+        - `except ValueError, TypeError:` (no parens) is VALID Python 3.14 syntax (PEP 758). Do NOT flag it.
+        - No `# type: ignore` — fix the root cause.
+        - No `import X as Y` unless resolving a genuine third-party name conflict.
+        - No isinstance/getattr/dict.get chains — use Pydantic models and validators.
+        - No backwards compatibility aliases or re-exports.
+        - Pydantic models at every boundary: model_validate(raw), extra="ignore", field validators.
+
+    # Frontend — Features (isolated modules)
+    - path: "apps/web/src/features/**"
+      instructions: |
+        Features are isolated modules. They must NOT import from other features.
+        Allowed imports: own tree, @/lib/, @/state/, @pathfinder/shared, third-party.
+        Forbidden: @/app/, other @/features/* directories.
+        Flag any cross-feature import.
+
+    # Frontend — Lib (pure utilities)
+    - path: "apps/web/src/lib/**"
+      instructions: |
+        Lib is the pure utility layer. It must NOT import from:
+        - @/features/
+        - @/state/
+        - @/app/
+        Only shared utilities, types, API clients, and hooks that don't depend on app state.
+
+    # Frontend — All TypeScript
+    - path: "apps/web/**/*.{ts,tsx}"
+      instructions: |
+        TypeScript codebase rules:
+        - No `as any`, `// @ts-ignore`, `// @ts-expect-error`, or `eslint-disable`.
+        - No `import X as Y` unless resolving a genuine name conflict.
+        - Domain types come from @pathfinder/shared — no local redefinitions.
+        - Components never call fetch directly — use lib/api/.
+
+    # Tests
+    - path: "**/*test*/**"
+      instructions: |
+        Test quality rules:
+        - Tests verify correctness (actual values, counts, field names), not just existence.
+        - Only mock the LLM. Real DB, real APIs, real Redis.
+        - No flaky test workarounds — if a test is flaky, the app has a bug.
+
+  # ── Linting tools ─────────────────────────────────────────────────
+  tools:
+    ruff:
+      enabled: true
+    eslint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+    biome:
+      enabled: false
+    hadolint:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 120000
+
+  # ── Finishing touches ─────────────────────────────────────────────
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+
+chat:
+  auto_reply: true
+
+# ── Knowledge base ────────────────────────────────────────────────
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  learnings:
+    scope: "auto"
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CLAUDE.md"
+      - "**/CLAUDE.md"
+  pull_requests:
+    scope: "auto"
+  issues:
+    scope: "auto"
+
+  # VEuPathDB upstream repos for cross-repo context
+  linked_repositories:
+    - repository: "VEuPathDB/WDK"
+      instructions: |
+        WDK is the upstream platform PathFinder wraps. It is the highest authority
+        for domain models, REST API contracts, and the parameter system.
+        When PathFinder disagrees with WDK, PathFinder is wrong.
+    - repository: "VEuPathDB/web-monorepo"
+      instructions: |
+        Contains wdk-client TypeScript types that define the canonical frontend
+        data shapes (Step, Strategy, StepTree, SearchConfig, Parameter union).
+        PathFinder's shared types must align with these.

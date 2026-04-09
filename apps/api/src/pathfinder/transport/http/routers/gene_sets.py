@@ -9,7 +9,6 @@ from typing import Annotated, cast, get_args
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from pathfinder.integrations.veupathdb.wdk_models import WDKSortDirection
 from pathfinder.platform.errors import (
     InternalError,
     NotFoundError,
@@ -37,6 +36,7 @@ from pathfinder.services.gene_sets.wdk_helpers import (
     GeneSetWdkContext,
     SetOperation,
 )
+from pathfinder.services.wdk import WDKSortDirection
 from pathfinder.transport.http.deps import CurrentUser
 from pathfinder.transport.http.schemas.gene_sets import (
     CreateGeneSetRequest,

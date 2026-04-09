@@ -4,14 +4,11 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol, cast
 
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.normalize import ParameterNormalizer
-from pathfinder.domain.parameters.specs import (
-    adapt_param_specs_from_search,
-    find_missing_required_params,
-)
+from pathfinder.domain.parameters.specs import find_missing_required_params
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery_service import (
     DiscoveryService,
@@ -27,6 +24,7 @@ from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload
 from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 
 from .param_formatting import format_param_info_typed
 from .param_resolution import (
@@ -36,6 +34,16 @@ from .param_resolution import (
 )
 
 logger = get_logger(__name__)
+
+
+class _ValidationErrorEntry(BaseModel):
+    """Single error entry from WDK validation responses."""
+
+    model_config = ConfigDict(extra="ignore")
+    param: str | None = None
+    path: str | None = None
+    message: str | None = None
+    detail: str | None = None
 
 
 class ValidationErrors(CamelModel):
@@ -127,19 +135,14 @@ async def validate_search_params(
     except ValidationError as exc:
         by_key: dict[str, list[str]] = {}
         general: list[str] = []
-        for err_raw in (exc.errors or []) or []:
+        for err_raw in exc.errors or []:
             if not isinstance(err_raw, dict):
                 continue
-            param_raw = err_raw.get("param") or err_raw.get("path")
-            param = param_raw if isinstance(param_raw, str) else None
-            message_raw = err_raw.get("message") or err_raw.get("detail")
-            message = (
-                message_raw
-                if isinstance(message_raw, str)
-                else (exc.detail or exc.title)
-            )
-            if param:
-                by_key.setdefault(param, []).append(message)
+            entry = _ValidationErrorEntry.model_validate(err_raw)
+            param_name = entry.param or entry.path
+            message = entry.message or entry.detail or exc.detail or exc.title
+            if param_name:
+                by_key.setdefault(param_name, []).append(message)
             else:
                 general.append(str(message))
         if not general:

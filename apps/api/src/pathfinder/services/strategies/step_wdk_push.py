@@ -6,34 +6,35 @@ reconcile later.
 """
 
 from pathfinder.domain.strategy.ast import PlanStepNode, walk_step_tree
-from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator, parse_op
+from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
 from pathfinder.domain.strategy.session import StrategyGraph
+from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     PatchStepSpec,
     WDKSearchConfig,
-    WDKValidation,
     encode_wdk_params,
 )
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)
 
 
-async def _push_step_to_wdk(
+async def push_step_to_wdk(
     *,
-    graph: StrategyGraph,
+    sync_state: WDKSyncState,
     step: PlanStepNode,
     site_id: str,
+    record_type: str,
     search_name: str,
     parameters: JSONObject,
-    parsed_op: CombineOp | None,
-) -> tuple[int | None, WDKValidation | None, str | None]:
-    """Push a newly created step to WDK and store its ID on the graph.
+) -> tuple[int | None, StepValidation | None, str | None]:
+    """Push a newly created step to WDK and store its ID on sync_state.
 
     Best-effort: if the push fails, the step still exists in the graph and
     the sync service can reconcile later.
@@ -41,10 +42,10 @@ async def _push_step_to_wdk(
     :returns: (wdk_step_id, wdk_validation, push_error) -- all None on success,
         push_error is set on failure with the reason WDK rejected the step.
     """
+    parsed_op: CombineOp | None = step.operator
     wdk_step_id: int | None = None
-    wdk_validation: WDKValidation | None = None
+    wdk_validation: StepValidation | None = None
     push_error: str | None = None
-    record_type = graph.record_type or "transcript"
     str_params: dict[str, str] = encode_wdk_params(parameters)
     try:
         api = get_strategy_api(site_id)
@@ -53,11 +54,11 @@ async def _push_step_to_wdk(
 
         if is_binary:
             wdk_step_id = await _push_combine_step(
-                api, graph, step, record_type, parsed_op
+                api, sync_state, step, record_type, parsed_op
             )
         elif is_transform:
             wdk_step_id = await _push_transform_step(
-                api, graph, step, search_name, str_params, record_type
+                api, sync_state, step, search_name, str_params, record_type
             )
         else:
             wdk_step_id = await _push_leaf_step(
@@ -65,7 +66,7 @@ async def _push_step_to_wdk(
             )
 
         if wdk_step_id is not None:
-            graph.wdk_step_ids[step.id] = wdk_step_id
+            sync_state.wdk_step_ids[step.id] = wdk_step_id
             try:
                 wdk_step = await api.find_step(wdk_step_id)
                 wdk_validation = wdk_step.validation
@@ -105,7 +106,7 @@ async def _push_leaf_step(
 
 async def _push_combine_step(
     api: StrategyAPI,
-    graph: StrategyGraph,
+    sync_state: WDKSyncState,
     step: PlanStepNode,
     record_type: str,
     parsed_op: CombineOp | None,
@@ -115,10 +116,10 @@ async def _push_combine_step(
     Returns the WDK step ID or None if inputs are missing.
     """
     primary_wdk_id = (
-        graph.wdk_step_ids.get(step.primary_input.id) if step.primary_input else None
+        sync_state.wdk_step_ids.get(step.primary_input.id) if step.primary_input else None
     )
     secondary_wdk_id = (
-        graph.wdk_step_ids.get(step.secondary_input.id)
+        sync_state.wdk_step_ids.get(step.secondary_input.id)
         if step.secondary_input
         else None
     )
@@ -172,7 +173,7 @@ async def _push_combine_step(
 
 async def _push_transform_step(
     api: StrategyAPI,
-    graph: StrategyGraph,
+    sync_state: WDKSyncState,
     step: PlanStepNode,
     search_name: str,
     str_params: dict[str, str],
@@ -183,7 +184,7 @@ async def _push_transform_step(
     Returns the WDK step ID or None if input is missing.
     """
     input_wdk_id = (
-        graph.wdk_step_ids.get(step.primary_input.id) if step.primary_input else None
+        sync_state.wdk_step_ids.get(step.primary_input.id) if step.primary_input else None
     )
     if input_wdk_id is None:
         logger.warning(
@@ -206,21 +207,19 @@ async def _push_transform_step(
 
 async def _update_existing_step(
     api: StrategyAPI,
-    graph: StrategyGraph,
+    sync_state: WDKSyncState,
     step: PlanStepNode,
-    site_id: str,
+    record_type: str,
 ) -> None:
     """Update an existing WDK step's search-config (parameters + weight)."""
-    wdk_step_id = graph.wdk_step_ids[step.id]
+    wdk_step_id = sync_state.wdk_step_ids[step.id]
     kind = step.infer_kind()
 
     # Skip combine steps — their params are structural (empty strings)
     # and don't change.
     if kind == "combine":
         return
-
-    record_type = graph.record_type or "transcript"
-    str_params: dict[str, str] = encode_wdk_params(step.parameters)
+    str_params: dict[str, str] = dict(step.parameters)
 
     try:
         await api.update_step_search_config(
@@ -240,6 +239,7 @@ async def _update_existing_step(
 
 async def push_all_steps_to_wdk(
     graph: StrategyGraph,
+    sync_state: WDKSyncState,
     site_id: str,
     *,
     update_existing: bool = False,
@@ -259,33 +259,26 @@ async def push_all_steps_to_wdk(
     failed: list[str] = []
 
     for step in all_steps:
-        if step.id in graph.wdk_step_ids:
+        if step.id in sync_state.wdk_step_ids:
             if update_existing:
                 if step.infer_kind() == "combine":
                     # Combine operators are creation-time params — can't update
                     # in-place. Evict the WDK ID to force recreation below.
-                    del graph.wdk_step_ids[step.id]
+                    del sync_state.wdk_step_ids[step.id]
                 else:
                     api = get_strategy_api(site_id)
-                    await _update_existing_step(api, graph, step, site_id)
+                    await _update_existing_step(api, sync_state, step, graph.record_type or "transcript")
                     continue
             else:
                 continue
 
-        parsed_op: CombineOp | None = None
-        if step.operator is not None:
-            try:
-                parsed_op = parse_op(str(step.operator))
-            except ValueError:
-                parsed_op = None
-
-        wdk_step_id, _validation, _push_error = await _push_step_to_wdk(
-            graph=graph,
+        wdk_step_id, _validation, _push_error = await push_step_to_wdk(
+            sync_state=sync_state,
             step=step,
             site_id=site_id,
+            record_type=graph.record_type or "transcript",
             search_name=step.search_name,
             parameters=dict(step.parameters),
-            parsed_op=parsed_op,
         )
         if wdk_step_id is None:
             failed.append(step.id)

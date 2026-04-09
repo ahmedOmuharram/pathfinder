@@ -6,6 +6,7 @@ Error payloads, graph/step lookup, and validation utilities.
 from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.platform.errors import ErrorCode, ValidationError
 from pathfinder.platform.event_schemas import GraphSnapshotContent
@@ -36,7 +37,7 @@ class ContextPlanPayload(CamelModel):
 
     graph_id: str
     graph_name: str | None = None
-    plan: JSONObject
+    plan: StrategyPlanPayload
     record_type: str
     name: str | None = None
     description: str | None = None
@@ -52,7 +53,7 @@ class StepOkResponse(CamelModel):
     record_type: str | None = None
     name: str | None = None
     description: str | None = None
-    plan: JSONObject | None = None
+    plan: StrategyPlanPayload | None = None
     graph_snapshot: GraphSnapshotContent
 
 

@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEventCallback } from "usehooks-ts";
 import type { Message, ToolCall, Strategy, Citation, PlanningArtifact } from "@pathfinder/shared";
 import type { Dispatch, SetStateAction } from "react";
+import { useSessionStore } from "@/state/useSessionStore";
 import {
   fetchActiveOperations,
   subscribeToOperation,
@@ -81,6 +82,8 @@ export function useOperationRecovery({
   setOptimizationProgress,
   onWorkbenchGeneSet,
 }: UseOperationRecoveryArgs) {
+  const authRefreshed = useSessionStore((s) => s.authRefreshed);
+
   const handleEvent = useEventCallback(
     (sid: string, event: ReturnType<typeof parseChatSSEEvent>, session: StreamingSession, streamState: ChatEventContext["streamState"], toolCalls: ToolCall[], citationsBuffer: Citation[], planningArtifactsBuffer: PlanningArtifact[]) => {
       if (event == null) return;
@@ -136,7 +139,7 @@ export function useOperationRecovery({
       const ops = await fetchActiveOperations({ type: "chat", streamId: strategyId! });
       return ops[0] ?? null;
     },
-    enabled: strategyId != null && strategyId !== "" && !isStreaming,
+    enabled: strategyId != null && strategyId !== "" && !isStreaming && authRefreshed,
     staleTime: Infinity,
     gcTime: 0,
     retry: false,

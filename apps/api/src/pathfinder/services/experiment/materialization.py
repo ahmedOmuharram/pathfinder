@@ -62,7 +62,7 @@ async def _materialize_step_tree(
         )
 
     search_name = node.search_name
-    parameters = node.wdk_parameters
+    parameters = node.parameters
     display_name = node.display_name or search_name
 
     if primary_tree is not None and secondary_tree is not None:

@@ -15,6 +15,7 @@ Both approaches are read-only and do not create steps or strategies.
 """
 
 from .lookup import GeneSearchResult, lookup_genes_by_text
+from .organisms import list_organisms
 from .result import GeneResult
 from .wdk import GeneResolveResult, resolve_gene_ids
 
@@ -22,6 +23,7 @@ __all__ = [
     "GeneResolveResult",
     "GeneResult",
     "GeneSearchResult",
+    "list_organisms",
     "lookup_genes_by_text",
     "resolve_gene_ids",
 ]

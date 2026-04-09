@@ -6,9 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Response
 
 from pathfinder.domain.strategy.ast import walk_step_tree
-from pathfinder.integrations.veupathdb.wdk_models import (
-    WDKSearchResponse,
-    encode_wdk_params,
+from pathfinder.domain.strategy.plan_payload import (
+    PersistedStrategyGraph,
+    StrategyPlanPayload,
 )
 from pathfinder.persistence.repositories.stream import ProjectionUpdate
 from pathfinder.platform.errors import (
@@ -16,7 +16,6 @@ from pathfinder.platform.errors import (
     ErrorCode,
     NotFoundError,
     ValidationError,
-    WDKError,
 )
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.redis import get_redis
@@ -33,6 +32,7 @@ from pathfinder.services.strategies.plan_validation import validate_plan_or_rais
 from pathfinder.services.strategies.session_factory import build_strategy_session
 from pathfinder.services.strategies.step_wdk_push import push_all_steps_to_wdk
 from pathfinder.services.strategies.sync import sync_strategy_for_site
+from pathfinder.services.strategies.sync_state import ensure_sync_state
 from pathfinder.services.strategies.wdk_sync import (
     lazy_fetch_wdk_detail,
     sync_is_saved_to_wdk,
@@ -87,7 +87,6 @@ async def create_strategy(
     """Create a new strategy (CQRS only)."""
     plan_in = request.plan.model_dump(exclude_none=True)
     payload = validate_plan_or_raise(plan_in)
-    plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
 
     stream = await stream_repo.create(
         user_id=user_id,
@@ -97,7 +96,7 @@ async def create_strategy(
     await stream_repo.update_projection(
         stream.id,
         ProjectionUpdate(
-            plan=plan,
+            plan=payload,
             record_type=payload.record_type,
             step_count=len(walk_step_tree(payload.root)),
         ),
@@ -144,13 +143,11 @@ async def update_strategy(
     """Update a strategy (CQRS only)."""
     await get_owned_projection_or_404(stream_repo, strategyId, user_id)
 
-    payload = None
-    record_type = None
-    plan: JSONObject | None = None
+    payload: StrategyPlanPayload | None = None
+    record_type: str | None = None
     if request.plan:
         plan_in = request.plan.model_dump(exclude_none=True)
         payload = validate_plan_or_raise(plan_in)
-        plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
         record_type = payload.record_type
 
     fields_set: set[str] = getattr(request, "model_fields_set", set())
@@ -161,7 +158,7 @@ async def update_strategy(
         strategyId,
         ProjectionUpdate(
             name=request.name,
-            plan=plan,
+            plan=payload,
             record_type=record_type,
             wdk_strategy_id=request.wdk_strategy_id,
             wdk_strategy_id_set=wdk_strategy_id_set,
@@ -202,42 +199,27 @@ async def push_strategy(
     # Canonicalize parameters so user-edited values from the graph editor
     # are validated against WDK specs (vocabulary matching, leaf enforcement,
     # numeric range checking) before reaching WDK.
-    api = get_strategy_api(request.site_id)
-
-    async def _load_details(
-        record_type: str, name: str, params: object
-    ) -> WDKSearchResponse:
-        params_dict = dict(params) if isinstance(params, dict) else {}
-        context = encode_wdk_params(params_dict)
-        try:
-            return await api.client.get_search_details_with_params(
-                record_type, name, context=context, expand_params=True,
-            )
-        except WDKError:
-            return await api.client.get_search_details(
-                record_type, name, expand_params=True,
-            )
-
     payload = await canonicalize_plan_parameters(
-        plan=payload, site_id=request.site_id, load_search_details=_load_details,
+        plan=payload, site_id=request.site_id,
     )
 
-    plan = payload.model_dump(by_alias=True, exclude_none=True, mode="json")
-
-    # Preserve WDK state from existing projection so session_factory
-    # can restore wdk_step_ids and step_counts for the sync.
-    old_plan = projection.plan
-    if isinstance(old_plan, dict):
-        for key in ("wdkStepIds", "stepCounts", "stepValidations"):
-            if key in old_plan and key not in plan:
-                plan[key] = old_plan[key]
+    # Preserve WDK sync state from existing projection — old values fill
+    # in where the new payload has None; new values always take precedence.
+    sync_fields = {"wdk_step_ids", "step_counts", "step_validations"}
+    if projection.plan:
+        old = StrategyPlanPayload.model_validate(projection.plan)
+        preserved = old.model_dump(include=sync_fields, exclude_none=True)
+        current = payload.model_dump(include=sync_fields, exclude_none=True)
+        merged = {**preserved, **current}
+        if merged:
+            payload = payload.model_copy(update=merged)
 
     # Persist locally.
     await stream_repo.update_projection(
         strategyId,
         ProjectionUpdate(
             name=request.name,
-            plan=plan,
+            plan=payload,
             record_type=payload.record_type,
             step_count=len(walk_step_tree(payload.root)),
         ),
@@ -245,23 +227,23 @@ async def push_strategy(
 
     # Build a strategy session, push individual steps, then sync strategy.
     wdk_strategy_id: int | None = projection.wdk_strategy_id
-    strategy_graph: JSONObject = {
-        "id": str(strategyId),
-        "name": request.name,
-        "plan": plan,
-    }
-    if wdk_strategy_id is not None:
-        strategy_graph["wdkStrategyId"] = wdk_strategy_id
+    strategy_graph_persisted = PersistedStrategyGraph(
+        id=str(strategyId),
+        name=request.name,
+        plan=payload,
+        wdk_strategy_id=wdk_strategy_id,
+    )
     session = build_strategy_session(
-        site_id=request.site_id, strategy_graph=strategy_graph
+        site_id=request.site_id, strategy_graph=strategy_graph_persisted
     )
     graph = session.get_graph(None)
     if graph is not None:
+        sync_state = ensure_sync_state(session)
         # Push individual steps to WDK (leaves first, then combines).
-        # This is what the AI agent does via _push_step_to_wdk — the push
+        # This is what the AI agent does via push_step_to_wdk — the push
         # endpoint must do the same for manually-edited strategies.
         failed_steps = await push_all_steps_to_wdk(
-            graph, request.site_id, update_existing=True,
+            graph, sync_state, request.site_id, update_existing=True,
         )
         if failed_steps:
             logger.warning(
@@ -274,6 +256,7 @@ async def push_strategy(
         # StrategyCompilationError is NOT caught — it must fail loud.
         sync_result = await sync_strategy_for_site(
             graph=graph,
+            sync_state=sync_state,
             site_id=request.site_id,
             strategy_name=request.name,
         )
@@ -355,7 +338,7 @@ async def get_strategy_ast(
     """Return the raw plan AST from a strategy's projection."""
     projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
     plan = projection.plan
-    if not plan or not isinstance(plan, dict):
+    if not plan:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="Strategy has no plan AST",

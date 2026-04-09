@@ -11,10 +11,11 @@ from collections.abc import Mapping
 import pytest
 
 from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearch,
     WDKSearchResponse,
-    WDKValidation,
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKEnumParam,
@@ -27,7 +28,6 @@ from pathfinder.platform.types import JSONValue
 from pathfinder.services.strategies.plan_normalize import (
     canonicalize_plan_parameters,
 )
-from pathfinder.services.strategies.schemas import StrategyPlanPayload
 
 # -- Fixtures ----------------------------------------------------------------
 
@@ -61,7 +61,7 @@ def _make_search_response(
             parameters=params,
             param_names=[p.name for p in params],
         ),
-        validation=WDKValidation(),
+        validation=StepValidation(),
     )
 
 
@@ -117,8 +117,9 @@ async def test_canonicalize_expands_parent_to_leaves():
         load_search_details=load_details,
     )
 
-    # Parent "Plasmodium" must be expanded to leaf nodes
-    assert result.root.parameters["organism"] == ["Pf3D7", "PvP01"]
+    # Parent "Plasmodium" must be expanded to leaf nodes.
+    # SerializedParams coerces list → JSON string for WDK compatibility.
+    assert result.root.parameters["organism"] == '["Pf3D7", "PvP01"]'
 
 
 async def test_canonicalize_validates_unknown_param():
@@ -214,7 +215,7 @@ async def test_canonicalize_leaves_combine_nodes_untouched():
 
     # Children still canonicalized
     assert result.root.primary_input is not None
-    assert result.root.primary_input.parameters["organism"] == ["Pf3D7"]
+    assert result.root.primary_input.parameters["organism"] == '["Pf3D7"]'
     assert result.root.secondary_input is not None
     assert result.root.secondary_input.parameters["text_expression"] == "kinase"
 

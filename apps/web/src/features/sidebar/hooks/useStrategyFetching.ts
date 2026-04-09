@@ -27,11 +27,12 @@ export function useStrategyFetching({
 }: UseStrategyFetchingArgs): StrategyFetchingResult {
   const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
   const authStatusKnown = useSessionStore((s) => s.authStatusKnown);
+  const authRefreshed = useSessionStore((s) => s.authRefreshed);
   const queryClient = useQueryClient();
 
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const queryEnabled = authStatusKnown && veupathdbSignedIn && siteId !== "";
+  const queryEnabled = authStatusKnown && veupathdbSignedIn && authRefreshed && siteId !== "";
 
   const listOpts = strategiesListOptions(siteId);
   const dismissedOpts = dismissedStrategiesOptions(siteId);

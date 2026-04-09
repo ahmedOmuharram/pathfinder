@@ -64,10 +64,11 @@ def pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     the latest graph (step counts, WDK IDs, validation errors) without
     needing the full JSON in each tool result.
     """
-    graph = ctx.deps.strategy_session.get_graph(None)
+    session = ctx.deps.strategy_session
+    graph = session.get_graph(None)
     if not graph or not graph.steps:
         return None
-    return render_graph_state(graph)
+    return render_graph_state(graph, session.sync_state)
 
 
 def mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:

@@ -27,8 +27,15 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKRecordType,
     WDKSearch,
 )
+from pathfinder.platform.event_schemas import PipelineConfig, PipelinePhaseConfig
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.chat.streaming import stream_pipeline
+
+_MOCK_PHASE = PipelinePhaseConfig(model_id="mock/deterministic", reasoning_effort="low")
+_MOCK_PIPELINE = PipelineConfig(
+    discovery=_MOCK_PHASE, planning=_MOCK_PHASE,
+    execution=_MOCK_PHASE, verification=_MOCK_PHASE,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -227,10 +234,10 @@ def _setup_respx_router(router: respx.MockRouter) -> None:
 
 
 async def _collect_events(
-    deps: AgentDeps, message: str, model_id: str = "mock/deterministic"
+    deps: AgentDeps, message: str,
 ) -> list[JSONObject]:
     """Run stream_pipeline and collect all emitted events."""
-    return [event async for event in stream_pipeline(deps, message, model_id=model_id)]
+    return [event async for event in stream_pipeline(deps, message, pipeline=_MOCK_PIPELINE)]
 
 
 class TestE2EPipelineEventOrdering:

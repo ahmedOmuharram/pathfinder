@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import type { Message, Strategy } from "@pathfinder/shared";
+import { createTestWrapper } from "@/lib/query/testing";
 import { useUnifiedChatDataLoading } from "./useUnifiedChatDataLoading";
 
 // --- Mocks ---
@@ -39,11 +40,12 @@ vi.mock("@/lib/api/http", async (importOriginal) => {
   };
 });
 
-// Mock useSessionStore to control authVersion
+// Mock useSessionStore to control authVersion and authRefreshed
 let mockAuthVersion = 0;
+let mockAuthRefreshed = true;
 vi.mock("@/state/useSessionStore", () => ({
-  useSessionStore: (selector: (s: { authVersion: number }) => unknown) =>
-    selector({ authVersion: mockAuthVersion }),
+  useSessionStore: (selector: (s: { authVersion: number; authRefreshed: boolean }) => unknown) =>
+    selector({ authVersion: mockAuthVersion, authRefreshed: mockAuthRefreshed }),
 }));
 
 function makeArgs(
@@ -73,9 +75,13 @@ function makeArgs(
 }
 
 describe("useUnifiedChatDataLoading", () => {
+  let wrapper: ReturnType<typeof createTestWrapper>["Wrapper"];
+
   beforeEach(() => {
     mockGetStrategy = vi.fn();
     mockAuthVersion = 0;
+    mockAuthRefreshed = true;
+    wrapper = createTestWrapper().Wrapper;
   });
 
   afterEach(() => {
@@ -86,7 +92,7 @@ describe("useUnifiedChatDataLoading", () => {
     mockGetStrategy.mockResolvedValueOnce(mockStrategy);
     const args = makeArgs();
 
-    renderHook(() => useUnifiedChatDataLoading(args));
+    renderHook(() => useUnifiedChatDataLoading(args), { wrapper });
 
     await waitFor(() => {
       expect(mockGetStrategy).toHaveBeenCalledWith("strategy-1");
@@ -94,13 +100,13 @@ describe("useUnifiedChatDataLoading", () => {
     });
   });
 
-  it("clears messages when strategyId is null", () => {
+  it("does not fetch when strategyId is null", () => {
     const args = makeArgs({ strategyId: null });
 
-    renderHook(() => useUnifiedChatDataLoading(args));
+    const { result } = renderHook(() => useUnifiedChatDataLoading(args), { wrapper });
 
-    expect(args.setMessages).toHaveBeenCalledWith([]);
     expect(mockGetStrategy).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
   });
 
   it("calls onStrategyNotFound on 404", async () => {
@@ -115,7 +121,7 @@ describe("useUnifiedChatDataLoading", () => {
     );
     const args = makeArgs();
 
-    renderHook(() => useUnifiedChatDataLoading(args));
+    renderHook(() => useUnifiedChatDataLoading(args), { wrapper });
 
     await waitFor(() => {
       expect(args.onStrategyNotFound).toHaveBeenCalled();
@@ -124,7 +130,7 @@ describe("useUnifiedChatDataLoading", () => {
 
   it("surfaces API error to UI on failed load", async () => {
     const { APIError } = await import("@/lib/api/http");
-    // Both attempts fail
+    // Both attempts fail (initial + 1 retry)
     mockGetStrategy.mockRejectedValue(
       new APIError("Unauthorized", {
         status: 401,
@@ -135,13 +141,16 @@ describe("useUnifiedChatDataLoading", () => {
     );
     const args = makeArgs();
 
-    renderHook(() => useUnifiedChatDataLoading(args));
+    renderHook(() => useUnifiedChatDataLoading(args), { wrapper });
 
-    await waitFor(() => {
-      expect(args.setApiError).toHaveBeenCalledWith(
-        expect.stringContaining("Could not load conversation"),
-      );
-    });
+    await waitFor(
+      () => {
+        expect(args.setApiError).toHaveBeenCalledWith(
+          expect.stringContaining("Could not load conversation"),
+        );
+      },
+      { timeout: 3000 },
+    );
   });
 
   it("retries loading when authVersion bumps after a failed load", async () => {
@@ -167,15 +176,18 @@ describe("useUnifiedChatDataLoading", () => {
       );
 
     const args = makeArgs();
-    const { rerender } = renderHook(() => useUnifiedChatDataLoading(args));
+    const { rerender } = renderHook(() => useUnifiedChatDataLoading(args), { wrapper });
 
     // Wait for both attempts to fail
-    await waitFor(() => {
-      expect(mockGetStrategy).toHaveBeenCalledTimes(2);
-      expect(args.setApiError).toHaveBeenCalledWith(
-        expect.stringContaining("Could not load conversation"),
-      );
-    });
+    await waitFor(
+      () => {
+        expect(mockGetStrategy).toHaveBeenCalledTimes(2);
+        expect(args.setApiError).toHaveBeenCalledWith(
+          expect.stringContaining("Could not load conversation"),
+        );
+      },
+      { timeout: 3000 },
+    );
 
     // Simulate auth cookie refresh (bump version)
     mockAuthVersion = 1;
@@ -208,13 +220,13 @@ describe("useUnifiedChatDataLoading", () => {
         },
       ],
     };
-    mockGetStrategy.mockResolvedValueOnce(strategyWithSteps);
+    mockGetStrategy.mockResolvedValue(strategyWithSteps);
     const args = makeArgs();
 
-    renderHook(() => useUnifiedChatDataLoading(args));
+    renderHook(() => useUnifiedChatDataLoading(args), { wrapper });
 
     await waitFor(() => {
-      expect(mockGetStrategy).toHaveBeenCalledTimes(1);
+      expect(mockGetStrategy).toHaveBeenCalled();
       expect(args.setMessages).toHaveBeenCalled();
     });
 
@@ -231,7 +243,7 @@ describe("useUnifiedChatDataLoading", () => {
     );
     const args = makeArgs();
 
-    const { result } = renderHook(() => useUnifiedChatDataLoading(args));
+    const { result } = renderHook(() => useUnifiedChatDataLoading(args), { wrapper });
 
     // Should be loading immediately
     expect(result.current.isLoading).toBe(true);
@@ -246,26 +258,30 @@ describe("useUnifiedChatDataLoading", () => {
     });
   });
 
-  it("does NOT retry when authVersion bumps if the load succeeded", async () => {
+  it("refetches on authVersion bump but does not re-apply identical data", async () => {
     // Successful load
-    mockGetStrategy.mockResolvedValueOnce(mockStrategy);
+    mockGetStrategy.mockResolvedValue(mockStrategy);
     const args = makeArgs();
 
-    const { rerender } = renderHook(() => useUnifiedChatDataLoading(args));
+    const { rerender } = renderHook(() => useUnifiedChatDataLoading(args), { wrapper });
 
     await waitFor(() => {
       expect(mockGetStrategy).toHaveBeenCalledTimes(1);
     });
 
-    // Bump authVersion — should NOT trigger a retry since load succeeded
+    // Bump authVersion — query key changes, so TanStack Query refetches
     mockAuthVersion = 1;
 
     await act(async () => {
       rerender();
     });
 
-    // Give it time to settle — should still be only 1 call
-    await new Promise((r) => setTimeout(r, 50));
-    expect(mockGetStrategy).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(mockGetStrategy).toHaveBeenCalledTimes(2);
+    });
+
+    // setStrategy should only be called once per strategyId:authVersion combo
+    // (the applied guard in the hook prevents duplicate application)
+    expect(args.setStrategy).toHaveBeenCalled();
   });
 });

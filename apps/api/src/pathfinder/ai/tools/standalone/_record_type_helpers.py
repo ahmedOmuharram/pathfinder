@@ -8,12 +8,9 @@ service catalog.
 from pathfinder.ai.tools.standalone._validation_helpers import get_graph
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.session import StrategySession
-from pathfinder.integrations.veupathdb.discovery import SearchCatalog
-from pathfinder.integrations.veupathdb.discovery_service import (
-    get_discovery_service,
-)
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.wdk import SearchCatalog, get_discovery_service
 from pathfinder.services.wdk.record_types import resolve_record_type
 
 logger = get_logger(__name__)

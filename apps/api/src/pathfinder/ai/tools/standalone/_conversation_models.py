@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from pathfinder.domain.strategy.session import StrategyGraph
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 
 
 class RenameStrategyResult(CamelModel):
@@ -16,7 +16,7 @@ class RenameStrategyResult(CamelModel):
     name: str
     record_type: str
     description: str
-    plan: JSONObject | None = None
+    plan: StrategyPlanPayload | None = None
 
 
 class ClearStrategyResult(CamelModel):
@@ -26,6 +26,8 @@ class ClearStrategyResult(CamelModel):
     message: str
 
 
-def _has_strategy(graph: StrategyGraph) -> bool:
+def _has_strategy(graph: StrategyGraph, session: StrategySession) -> bool:
     """Check whether a graph has any strategy content."""
-    return bool(graph.steps or graph.wdk_strategy_id)
+    sync_state = session.sync_state
+    wdk_strategy_id = sync_state.wdk_strategy_id if sync_state else None
+    return bool(graph.steps or wdk_strategy_id)

@@ -27,8 +27,8 @@ export function useAuthRefresh(): void {
   useQuery({
     queryKey: ["auth", "refresh", selectedSite] as const,
     queryFn: async () => {
-      setAuthRefreshed(true);
       await refreshAuth(selectedSite);
+      setAuthRefreshed(true);
       bumpAuthVersion();
       invalidateUserScopedQueries(queryClient);
       return { refreshed: true };
@@ -36,5 +36,11 @@ export function useAuthRefresh(): void {
     enabled: veupathdbSignedIn && !authRefreshed,
     staleTime: Infinity,
     retry: false,
+    throwOnError: () => {
+      // Unblock auth-gated queries even if refresh fails (e.g. expired VEuPathDB session).
+      // They'll get 401s, but the UI won't be stuck waiting forever.
+      setAuthRefreshed(true);
+      return false;
+    },
   });
 }

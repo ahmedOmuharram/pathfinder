@@ -6,13 +6,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.platform.event_schemas import PipelineConfig
 from pathfinder.platform.types import (
     JSONObject,
     JSONValue,
 )
 from pathfinder.services.chat.types import ChatMention
-from pathfinder.services.strategies.schemas import StrategyPlanPayload
 from pathfinder.transport.http.schemas.optimization import (
     OptimizationProgressEventData,
 )

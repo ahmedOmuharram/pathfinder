@@ -22,7 +22,7 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     validation_error_payload,
 )
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
-from pathfinder.integrations.veupathdb.wdk_models import WdkParams
+from pathfinder.domain.strategy.types import SerializedParams
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_validation import ValidationCallbacks
@@ -32,6 +32,7 @@ from pathfinder.services.strategies.step_creation import (
     create_colocation_step,
     create_step,
 )
+from pathfinder.services.strategies.sync_state import ensure_sync_state
 
 
 class ColocationSpec(BaseModel):
@@ -93,7 +94,7 @@ def _make_callbacks(site_id: str) -> ValidationCallbacks:
 async def create_leaf_step(
     ctx: RunContext[AgentDeps],
     search_name: str,
-    parameters: WdkParams,
+    parameters: SerializedParams,
     display_name: str = "",
     record_type: str | None = None,
     *,
@@ -126,6 +127,7 @@ async def create_leaf_step(
         return graph_not_found(graph_id)
 
     callbacks = _make_callbacks(deps.site_id)
+    sync_state = ensure_sync_state(deps.strategy_session)
 
     spec = StepSpec(
         search_name=search_name,
@@ -137,6 +139,7 @@ async def create_leaf_step(
 
     result = await create_step(
         graph=graph,
+        sync_state=sync_state,
         site_id=session.site_id,
         spec=spec,
         callbacks=callbacks,
@@ -210,11 +213,13 @@ async def combine_steps(
         )
 
     callbacks = _make_callbacks(deps.site_id)
+    sync_state = ensure_sync_state(deps.strategy_session)
 
     if parsed_op == CombineOp.COLOCATE:
         span_params = (colocation_params or ColocationSpec()).model_dump()
         result = await create_colocation_step(
             graph=graph,
+            sync_state=sync_state,
             site_id=session.site_id,
             spec=ColocationStepSpec(
                 primary_step_id=step_a_id,
@@ -233,6 +238,7 @@ async def combine_steps(
         )
         result = await create_step(
             graph=graph,
+            sync_state=sync_state,
             site_id=session.site_id,
             spec=spec,
             callbacks=callbacks,
@@ -252,7 +258,7 @@ async def transform_step(
     ctx: RunContext[AgentDeps],
     input_step_id: str,
     transform_name: str,
-    parameters: WdkParams | None = None,
+    parameters: SerializedParams | None = None,
     display_name: str | None = None,
     *,
     graph_id: str | None = None,
@@ -295,6 +301,7 @@ async def transform_step(
         )
 
     callbacks = _make_callbacks(deps.site_id)
+    sync_state = ensure_sync_state(deps.strategy_session)
 
     spec = StepSpec(
         search_name=transform_name,
@@ -305,6 +312,7 @@ async def transform_step(
 
     result = await create_step(
         graph=graph,
+        sync_state=sync_state,
         site_id=session.site_id,
         spec=spec,
         callbacks=callbacks,

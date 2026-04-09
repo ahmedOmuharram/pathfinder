@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from pathfinder.integrations.veupathdb.strategy_api.api import StrategyAPI
-from pathfinder.integrations.veupathdb.temporary_results import TemporaryResultsAPI
-from pathfinder.integrations.veupathdb.wdk_models import WDKAnswer
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.wdk import StrategyAPI, TemporaryResultsAPI, WDKAnswer
 
 
 class EstimatedSizeResult(CamelModel):

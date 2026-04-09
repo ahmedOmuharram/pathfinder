@@ -6,6 +6,7 @@ into ``integrations.veupathdb`` directly.
 """
 
 from pathfinder.integrations.veupathdb.client import VEuPathDBClient
+from pathfinder.integrations.veupathdb.discovery import SearchCatalog
 from pathfinder.integrations.veupathdb.discovery_service import (
     DiscoveryService,
     get_discovery_service,
@@ -24,14 +25,31 @@ from pathfinder.integrations.veupathdb.strategy_api import (
     strip_internal_wdk_strategy_name,
 )
 from pathfinder.integrations.veupathdb.temporary_results import TemporaryResultsAPI
-from pathfinder.integrations.veupathdb.wdk_models import encode_wdk_params
+from pathfinder.integrations.veupathdb.wdk_models import (
+    WDKAnswer,
+    WDKModel,
+    WDKSearchConfig,
+    WDKSortDirection,
+    encode_wdk_params,
+)
+from pathfinder.integrations.veupathdb.wdk_parameters import (
+    WDKBaseParameter,
+    WDKParameter,
+)
 
 __all__ = [
     "DiscoveryService",
+    "SearchCatalog",
     "SiteInfo",
     "StrategyAPI",
     "TemporaryResultsAPI",
     "VEuPathDBClient",
+    "WDKAnswer",
+    "WDKBaseParameter",
+    "WDKModel",
+    "WDKParameter",
+    "WDKSearchConfig",
+    "WDKSortDirection",
     "encode_wdk_params",
     "get_discovery_service",
     "get_results_api",

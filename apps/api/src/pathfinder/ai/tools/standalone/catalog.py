@@ -11,7 +11,6 @@ from pydantic_ai import RunContext
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.query_validation import search_query_error
 from pathfinder.ai.tools.standalone._catalog_models import _UNIVERSAL_SEARCHES
-from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload
@@ -20,6 +19,7 @@ from pathfinder.services import catalog
 from pathfinder.services.catalog.public_strategy_search import (
     rank_public_strategies,
 )
+from pathfinder.services.wdk import get_strategy_api
 
 logger = get_logger(__name__)
 

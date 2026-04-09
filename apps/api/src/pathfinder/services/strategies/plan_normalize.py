@@ -8,17 +8,20 @@ import hashlib
 import json
 from collections.abc import Awaitable, Callable, Mapping
 
-from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
-from pathfinder.domain.parameters.specs import (
-    ParamSpecNormalized,
-    adapt_param_specs_from_search,
-)
-from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
-from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
-from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.types import JSONObject, JSONValue
+from pydantic import TypeAdapter
 
-from .schemas import StrategyPlanPayload
+from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
+from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.types import SerializedParams
+from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
+from pathfinder.platform.errors import ValidationError, WDKError
+from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
+from pathfinder.services.wdk import encode_wdk_params, get_strategy_api
+
+_params_adapter: TypeAdapter[SerializedParams] = TypeAdapter(SerializedParams)
 
 """Callback that loads WDK search details for a (record_type, search_name)
 pair, returning a fully validated ``WDKSearchResponse``."""
@@ -26,6 +29,32 @@ LoadSearchDetails = Callable[
     [str, str, Mapping[str, JSONValue]],
     Awaitable[WDKSearchResponse],
 ]
+
+
+async def make_search_detail_loader(site_id: str) -> LoadSearchDetails:
+    """Create a search detail loader for a site.
+
+    SSOT for loading WDK search details with parameter context.
+    Tries context-dependent details first, falls back to plain GET
+    when WDK rejects the context.
+    """
+    api = get_strategy_api(site_id)
+
+    async def _load(
+        record_type: str, name: str, params: Mapping[str, JSONValue],
+    ) -> WDKSearchResponse:
+        params_dict = dict(params) if isinstance(params, Mapping) else {}
+        context = encode_wdk_params(params_dict)
+        try:
+            return await api.client.get_search_details_with_params(
+                record_type, name, context=context, expand_params=True,
+            )
+        except WDKError:
+            return await api.client.get_search_details(
+                record_type, name, expand_params=True,
+            )
+
+    return _load
 
 
 def _strip_combine_bq_keys(params: JSONObject) -> None:
@@ -74,13 +103,16 @@ async def canonicalize_plan_parameters(
     *,
     plan: StrategyPlanPayload,
     site_id: str,
-    load_search_details: LoadSearchDetails,
+    load_search_details: LoadSearchDetails | None = None,
 ) -> StrategyPlanPayload:
     """Canonicalize all search/transform node parameters using WDK specs.
 
     ``load_search_details(record_type, name, params)`` must return a validated
-    ``WDKSearchResponse``.
+    ``WDKSearchResponse``.  When omitted a default loader is created via
+    :func:`make_search_detail_loader`.
     """
+    if load_search_details is None:
+        load_search_details = await make_search_detail_loader(site_id)
     record_type = plan.record_type
 
     # NOTE: search details can be context-dependent (dependent vocabularies).
@@ -89,28 +121,24 @@ async def canonicalize_plan_parameters(
 
     async def canonicalize_node(node: PlanStepNode) -> None:
         name = node.search_name
-        params = dict(node.parameters)
+        params: JSONObject = dict(node.parameters)
 
         is_combine = (
             (node.primary_input is not None and node.secondary_input is not None)
             or node.search_name == COMBINE_SEARCH_NAME
         )
 
-        # Combine nodes are structural (primary+secondary+operator) and do not require
-        # WDK parameter metadata. Some WDK deployments do not expose a corresponding
-        # `boolean_question_*` search for every record type, so attempting to load
-        # metadata here can incorrectly fail normalization.
         if is_combine:
-            # Defensive cleanup: if a caller encoded a combine using WDK boolean-question
-            # parameter conventions, strip those keys from persisted plans.
             _strip_combine_bq_keys(params)
-            node.parameters = params
+            node.parameters = _params_adapter.validate_python(params)
         else:
             spec_map = await _load_and_cache_spec(
                 specs_cache, load_search_details, record_type, name, site_id, params
             )
             canonicalizer = ParameterCanonicalizer(spec_map)
-            node.parameters = canonicalizer.canonicalize(params)
+            node.parameters = _params_adapter.validate_python(
+                canonicalizer.canonicalize(params)
+            )
 
         if node.primary_input is not None:
             await canonicalize_node(node.primary_input)

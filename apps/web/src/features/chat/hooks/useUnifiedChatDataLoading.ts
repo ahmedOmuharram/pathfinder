@@ -42,6 +42,7 @@ export function useUnifiedChatDataLoading({
   onStrategyNotFound,
 }: UseUnifiedChatDataLoadingParams): UseUnifiedChatDataLoadingReturn {
   const authVersion = useSessionStore((s) => s.authVersion);
+  const authRefreshed = useSessionStore((s) => s.authRefreshed);
   const { applyThinkingPayload } = thinking;
 
   const [applied, setApplied] = useState<string | null>(null);
@@ -76,7 +77,7 @@ export function useUnifiedChatDataLoading({
       const strategy = await getStrategy(strategyId!);
       return strategy;
     },
-    enabled: strategyId != null && strategyId !== "",
+    enabled: strategyId != null && strategyId !== "" && authRefreshed,
     staleTime: Infinity,
     gcTime: 0,
     retry: (failureCount, err) => {

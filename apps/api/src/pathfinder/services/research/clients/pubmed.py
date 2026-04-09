@@ -4,13 +4,18 @@ import asyncio
 import re
 
 import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
     _new_citation_id,
     _now_iso,
 )
-from pathfinder.domain.research.papers import ParsedPaper, PubMedRawArticle
+from pathfinder.domain.research.papers import (
+    ParsedPaper,
+    PubMedRawArticle,
+    _PubMedSummaryAuthor,
+)
 from pathfinder.platform.errors import ExternalServiceError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONValue
@@ -26,6 +31,40 @@ logger = get_logger(__name__)
 
 _MAX_RETRIES = 3
 _BACKOFF_BASE_S = 1.0
+
+
+# ── PubMed response envelope models ─────────────────────────────────
+
+
+class _ESearchResult(BaseModel):
+    """Inner ``esearchresult`` from PubMed esearch response."""
+
+    model_config = ConfigDict(extra="ignore")
+    idlist: list[str] = Field(default_factory=list)
+
+
+class _ESearchResponse(BaseModel):
+    """Top-level envelope for PubMed esearch response."""
+
+    model_config = ConfigDict(extra="ignore")
+    esearchresult: _ESearchResult = Field(default_factory=_ESearchResult)
+
+
+class _ESummaryResponse(BaseModel):
+    """Top-level envelope for PubMed esummary response."""
+
+    model_config = ConfigDict(extra="ignore")
+    result: dict[str, object] = Field(default_factory=dict)
+
+
+class _PubMedSummaryEntry(BaseModel):
+    """One article entry from the PubMed esummary ``result`` dict."""
+
+    model_config = ConfigDict(extra="ignore")
+    title: str = ""
+    pubdate: str = ""
+    fulljournalname: str | None = None
+    authors: list[_PubMedSummaryAuthor] = Field(default_factory=list)
 
 
 class PubmedClient(BaseClient):
@@ -89,7 +128,7 @@ class PubmedClient(BaseClient):
     async def _fetch_raw(
         self, query: str, *, limit: int, include_abstract: bool
     ) -> list[JSONValue]:
-        """esearch + esummary (+ optional efetch) -> list of per-PMID dicts."""
+        """esearch + esummary (+ optional efetch) -> list of flat per-PMID dicts."""
         try:
             async with httpx.AsyncClient(
                 timeout=self._timeout, headers={"User-Agent": API_USER_AGENT}
@@ -104,13 +143,8 @@ class PubmedClient(BaseClient):
                     },
                 )
                 esearch.raise_for_status()
-                search_payload = esearch.json()
-                idlist = (
-                    (search_payload.get("esearchresult") or {}).get("idlist") or []
-                    if isinstance(search_payload, dict)
-                    else []
-                )
-                pmids = [str(x) for x in idlist if str(x).strip()]
+                search_resp = _ESearchResponse.model_validate(esearch.json())
+                pmids = [s for s in search_resp.esearchresult.idlist if s.strip()]
                 if not pmids:
                     return []
 
@@ -119,10 +153,7 @@ class PubmedClient(BaseClient):
                     params={"db": "pubmed", "id": ",".join(pmids), "retmode": "json"},
                 )
                 esummary.raise_for_status()
-                sum_payload = esummary.json()
-                sum_result = (
-                    sum_payload.get("result") if isinstance(sum_payload, dict) else {}
-                )
+                sum_resp = _ESummaryResponse.model_validate(esummary.json())
 
                 abstracts_by_pmid: dict[str, str] = {}
                 if include_abstract:
@@ -150,14 +181,21 @@ class PubmedClient(BaseClient):
 
         items: list[JSONValue] = []
         for pmid in pmids:
-            meta = sum_result.get(pmid) if isinstance(sum_result, dict) else None
-            if not isinstance(meta, dict):
+            raw_entry = sum_resp.result.get(pmid)
+            if not isinstance(raw_entry, dict):
+                continue
+            try:
+                entry = _PubMedSummaryEntry.model_validate(raw_entry)
+            except (ValidationError, TypeError):
                 continue
             items.append(
                 {
-                    "_pmid": pmid,
-                    "_meta": meta,
-                    "_abstract": abstracts_by_pmid.get(pmid),
+                    "pmid": pmid,
+                    "title": entry.title,
+                    "pubdate": entry.pubdate,
+                    "journal": entry.fulljournalname,
+                    "authors": [a.name for a in entry.authors if a.name],
+                    "abstract": abstracts_by_pmid.get(pmid),
                 }
             )
         return items
@@ -167,10 +205,10 @@ class PubmedClient(BaseClient):
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
-        if not isinstance(raw, dict):
+        try:
+            article = PubMedRawArticle.model_validate(raw)
+        except (ValidationError, TypeError):
             return None
-
-        article = PubMedRawArticle.model_validate(raw)
         parsed = article.to_parsed_paper()
 
         abstract = (

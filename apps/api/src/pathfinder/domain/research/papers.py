@@ -14,7 +14,7 @@ from __future__ import annotations
 import contextlib
 import re
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -131,14 +131,13 @@ class OpenAlexRawWork(BaseModel):
     host_venue: _OAHostVenue | None = None
     abstract_inverted_index: dict[str, list[int]] | None = None
 
-    @model_validator(mode="before")
+    @field_validator("doi", mode="after")
     @classmethod
-    def _strip_doi_prefix(cls, data: dict[str, object]) -> dict[str, object]:
+    def _strip_doi_prefix(cls, v: str | None) -> str | None:
         """Strip https://doi.org/ prefix from DOI if present."""
-        doi_raw = data.get("doi")
-        if isinstance(doi_raw, str) and doi_raw.startswith("https://doi.org/"):
-            data["doi"] = doi_raw.removeprefix("https://doi.org/")
-        return data
+        if v is None:
+            return None
+        return v.removeprefix("https://doi.org/")
 
     def _reconstruct_abstract(self) -> str | None:
         """Reconstruct abstract text from OpenAlex inverted index."""
@@ -301,13 +300,20 @@ class _PubMedSummaryAuthor(BaseModel):
     model_config = ConfigDict(extra="ignore")
     name: str = ""
 
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_str(cls, data: object) -> object:
+        """Allow plain strings (e.g. from PubMed summary author lists)."""
+        if isinstance(data, str):
+            return {"name": data}
+        return data
+
 
 class PubMedRawArticle(BaseModel):
     """Raw article assembled from PubMed esummary + optional efetch abstract.
 
-    Fields come from the intermediate ``{_pmid, _meta, _abstract}`` dicts
-    built in ``PubmedClient._fetch_raw``.  The model validator flattens
-    the nested ``_meta`` dict into top-level fields.
+    Fields are populated directly by ``PubmedClient._fetch_raw`` which
+    builds flat dicts from the esummary/efetch responses.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -318,28 +324,6 @@ class PubMedRawArticle(BaseModel):
     authors: list[str] = Field(default_factory=list)
     journal: str | None = None
     abstract: str | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def _flatten_meta(cls, data: dict[str, object]) -> dict[str, object]:
-        """Flatten the ``{_pmid, _meta, _abstract}`` shape from _fetch_raw."""
-        meta = data.get("_meta")
-        if not isinstance(meta, dict):
-            return data
-        out: dict[str, object] = {
-            "pmid": data.get("_pmid", ""),
-            "title": meta.get("title", ""),
-            "pubdate": meta.get("pubdate", ""),
-            "journal": meta.get("fulljournalname"),
-            "abstract": data.get("_abstract"),
-        }
-        raw_authors = meta.get("authors")
-        if isinstance(raw_authors, list):
-            out["authors"] = [
-                a.get("name", "") if isinstance(a, dict) else str(a)
-                for a in raw_authors
-            ]
-        return out
 
     def to_parsed_paper(self) -> ParsedPaper:
         """Convert to the shared normalized ParsedPaper model."""
@@ -358,3 +342,24 @@ class PubMedRawArticle(BaseModel):
             journal_title=self.journal,
             snippet=self.journal,
         )
+
+
+# ── arXiv ─────────────────────────────────────────────────────────────
+
+
+class ArxivRawEntry(BaseModel):
+    """Raw arXiv entry wrapper from _fetch_raw (XML string in _xml key)."""
+
+    model_config = ConfigDict(extra="ignore")
+    xml: str = Field(alias="_xml")
+
+
+# ── Preprints (bioRxiv / medRxiv) ─────────────────────────────────────
+
+
+class PreprintRawResult(BaseModel):
+    """Raw preprint result from DuckDuckGo HTML scraping."""
+
+    model_config = ConfigDict(extra="ignore")
+    title: str = Field(alias="_title", default="")
+    url: str | None = Field(alias="_url", default=None)

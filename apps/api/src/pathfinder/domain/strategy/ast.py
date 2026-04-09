@@ -5,10 +5,7 @@ from uuid import uuid4
 from pydantic import Field, ValidationError, model_validator
 
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
-from pathfinder.integrations.veupathdb.wdk_models import (
-    WDKSerializedParams,
-    encode_wdk_params,
-)
+from pathfinder.domain.strategy.types import SerializedParams
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject, JSONValue
 
@@ -147,9 +144,9 @@ class PlanStepNode(CamelModel):
     - search: no inputs
 
     ``parameters`` accepts ``JSONObject`` (LLM's natural output).
-    ``WDKSerializedParams`` applies a ``PlainSerializer`` so that
-    ``model_dump(exclude_none=True)`` produces WDK-compatible
-    ``dict[str, str]`` (``Record<string, ParameterValue>``).
+    ``SerializedParams`` coerces each value to ``str`` via Pydantic
+    validation, producing WDK-compatible ``dict[str, str]``
+    (``Record<string, ParameterValue>``).
     """
 
     @model_validator(mode="before")
@@ -167,12 +164,7 @@ class PlanStepNode(CamelModel):
         return data
 
     search_name: str
-    parameters: WDKSerializedParams = Field(default_factory=dict)
-
-    @property
-    def wdk_parameters(self) -> dict[str, str]:
-        """Parameters encoded to WDK's ``Record<string, string>``."""
-        return encode_wdk_params(self.parameters)
+    parameters: SerializedParams = Field(default_factory=dict)
 
     primary_input: PlanStepNode | None = None
     secondary_input: PlanStepNode | None = None

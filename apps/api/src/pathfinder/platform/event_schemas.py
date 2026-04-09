@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject, ReasoningEffort
 
@@ -152,7 +153,7 @@ class GraphSnapshotContent(CamelModel):
     root_step_id: str | None = None
     steps: list[JSONObject] = Field(default_factory=list)
     edges: list[GraphEdge] = Field(default_factory=list)
-    plan: JSONObject | None = None
+    plan: StrategyPlanPayload | None = None
 
 
 class GraphSnapshotEventData(CamelModel):
@@ -175,7 +176,7 @@ class GraphPlanEventData(CamelModel):
     """Payload for ``graph_plan`` SSE events."""
 
     graph_id: str | None = None
-    plan: JSONObject | None = None
+    plan: StrategyPlanPayload | None = None
     name: str | None = None
     record_type: str | None = None
     description: str | None = None

@@ -1,10 +1,9 @@
 """Strategy plan validation helpers."""
 
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.domain.strategy.validate import validate_strategy
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.types import JSONObject
-
-from .schemas import StrategyPlanPayload
 
 
 def validate_plan_or_raise(plan: JSONObject) -> StrategyPlanPayload:

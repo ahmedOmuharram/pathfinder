@@ -3,11 +3,11 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from pathfinder.integrations.veupathdb.site_router import get_site_router
-from pathfinder.integrations.veupathdb.site_search_client import (
-    DocumentTypeFilter,
+from pathfinder.services.gene_lookup import (
+    list_organisms,
+    lookup_genes_by_text,
+    resolve_gene_ids,
 )
-from pathfinder.services.gene_lookup import lookup_genes_by_text, resolve_gene_ids
 
 router = APIRouter(prefix="/api/v1/sites", tags=["sites"])
 
@@ -65,16 +65,9 @@ class OrganismsResponse(BaseModel):
 
 
 @router.get("/{siteId}/organisms", response_model=OrganismsResponse)
-async def list_organisms(siteId: str) -> OrganismsResponse:
+async def get_organisms(siteId: str) -> OrganismsResponse:
     """Return all available organism names for a site via site-search."""
-    site_router = get_site_router()
-    client = site_router.get_site_search_client(siteId)
-    response = await client.search(
-        search_text="*",
-        document_type_filter=DocumentTypeFilter(document_type="gene"),
-        limit=1,
-    )
-    orgs = sorted(response.organism_counts.keys())
+    orgs = await list_organisms(siteId)
     return OrganismsResponse(organisms=orgs)
 
 

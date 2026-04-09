@@ -18,6 +18,7 @@ from pathfinder.domain.strategy.ast import (
     walk_step_tree,
 )
 from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.integrations.veupathdb.client import (
     VEuPathDBClient,
 )
@@ -33,16 +34,18 @@ from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_helpers import delete_temp_strategy
 from pathfinder.services.strategies.sync import build_step_tree_from_graph
 
-from .schemas import StrategyPlanPayload
-
 logger = get_logger(__name__)
 
 _STEP_COUNTS_CACHE: LRUCache[str, dict[str, int | None]] = LRUCache(maxsize=20)
 
 
-def plan_cache_key(site_id: str, plan: JSONObject) -> str:
-    payload = json.dumps(plan, sort_keys=True, separators=(",", ":"))
-    digest = hashlib.sha256(payload.encode()).hexdigest()
+def plan_cache_key(site_id: str, payload: StrategyPlanPayload) -> str:
+    serialized = json.dumps(
+        payload.model_dump(by_alias=True, exclude_none=True, mode="json"),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    digest = hashlib.sha256(serialized.encode()).hexdigest()
     return f"{site_id}:{digest}"
 
 
@@ -82,7 +85,6 @@ def is_leaf_only_plan(root: PlanStepNode) -> bool:
 
 
 async def compute_step_counts_for_plan(
-    plan: JSONObject,
     payload: StrategyPlanPayload,
     site_id: str,
 ) -> dict[str, int | None]:
@@ -97,7 +99,7 @@ async def compute_step_counts_for_plan(
 
     Results are cached by plan hash.
     """
-    cache_key = plan_cache_key(site_id, plan)
+    cache_key = plan_cache_key(site_id, payload)
     cached: dict[str, int | None] | None = _STEP_COUNTS_CACHE.get(cache_key)
     if cached is not None:
         return cached
@@ -131,7 +133,7 @@ async def _compute_leaf_counts_parallel(
             client,
             record_type,
             step.search_name,
-            step.wdk_parameters,
+            step.parameters,
         )
         for step in all_steps
     ]
@@ -181,7 +183,7 @@ async def _create_wdk_step(
 ) -> int | None:
     """Create a single WDK step and return its WDK ID, or None on failure."""
     kind = step.infer_kind()
-    params = step.wdk_parameters
+    params = step.parameters
     try:
         if kind == "search":
             result = await api.create_step(

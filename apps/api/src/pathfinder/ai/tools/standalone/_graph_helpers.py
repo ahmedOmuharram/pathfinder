@@ -12,7 +12,8 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.explain import explain_operation
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.integrations.veupathdb.wdk_models import WDKValidation
+from pathfinder.domain.strategy.types import SyncStateProtocol
+from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.platform.event_schemas import GraphEdge, GraphSnapshotContent
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.schemas import StepResponse
@@ -76,20 +77,22 @@ def derive_strategy_description(
 def build_step_response(
     graph: StrategyGraph | None,
     step: PlanStepNode,
+    sync_state: SyncStateProtocol | None = None,
 ) -> StepResponse:
-    """Build a StepResponse from a PlanStepNode + graph enrichment."""
+    """Build a StepResponse from a PlanStepNode + graph/sync enrichment."""
     wdk_step_id: int | None = None
-    validation: WDKValidation | None = None
+    validation: StepValidation | None = None
     estimated_size: int | None = None
     record_type: str | None = None
     wdk_push_error: str | None = None
 
     if graph:
         record_type = graph.record_type
-        wdk_step_id = graph.wdk_step_ids.get(step.id)
-        validation = graph.step_validations.get(step.id)
-        wdk_push_error = graph.wdk_push_errors.get(step.id)
-        count = graph.step_counts.get(step.id)
+    if sync_state:
+        wdk_step_id = sync_state.wdk_step_ids.get(step.id)
+        validation = sync_state.step_validations.get(step.id)
+        wdk_push_error = sync_state.wdk_push_errors.get(step.id)
+        count = sync_state.step_counts.get(step.id)
         if isinstance(count, int):
             estimated_size = count
 
@@ -118,9 +121,13 @@ def build_step_response(
     )
 
 
-def serialize_step(graph: StrategyGraph, step: PlanStepNode) -> StepResponse:
+def serialize_step(
+    graph: StrategyGraph,
+    step: PlanStepNode,
+    sync_state: SyncStateProtocol | None = None,
+) -> StepResponse:
     """Serialize a step for AI tool responses."""
-    return build_step_response(graph, step)
+    return build_step_response(graph, step, sync_state)
 
 
 # ---------------------------------------------------------------------------
@@ -140,11 +147,12 @@ def find_root_step_ids(graph: StrategyGraph) -> list[str]:
 def build_graph_snapshot(
     session: StrategySession, graph: StrategyGraph
 ) -> GraphSnapshotContent:
+    sync_state = session.sync_state
     ctx = build_context_plan(session, graph)
     roots = find_root_step_ids(graph)
 
     steps: list[JSONObject] = [
-        build_step_response(graph, step).model_dump(
+        build_step_response(graph, step, sync_state).model_dump(
             by_alias=True, exclude_none=True, mode="json"
         )
         for step in graph.steps.values()
@@ -197,12 +205,13 @@ def build_context_plan(
         description = derive_strategy_description(record_type, root_step)
     graph.name = name or graph.name
     graph.description = description
-    plan = graph.to_plan(root_id)
+    sync_state = session.sync_state
+    plan = graph.to_plan(root_id, sync_state=sync_state)
     if not plan:
         return None
-    # Ensure description is in the plan dict
+    # Ensure description is on the plan payload
     if description:
-        plan["description"] = description
+        plan.description = description
     return ContextPlanPayload(
         graph_id=graph.id,
         graph_name=graph.name,
@@ -226,9 +235,10 @@ def step_ok_response(
     This combines the three-step pattern used after successful step
     mutations: serialize the step, mark ok, wrap with graph context.
     """
+    sync_state = session.sync_state
     ctx = build_context_plan(session, graph)
     return StepOkResponse(
-        step=serialize_step(graph, step),
+        step=serialize_step(graph, step, sync_state),
         graph_id=ctx.graph_id if ctx else graph.id,
         graph_name=ctx.graph_name if ctx else graph.name,
         record_type=ctx.record_type if ctx else None,

@@ -2,16 +2,16 @@
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from shared_py.defaults import DEFAULT_STREAM_NAME
-from sqlalchemy import delete, select, update
+from sqlalchemy import CursorResult, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.persistence.models import Operation, Stream, StreamProjection
-from pathfinder.platform.types import JSONObject
 
 
 @dataclass
@@ -30,7 +30,7 @@ class ProjectionUpdate:
     wdk_strategy_id_set: bool = False
     is_saved: bool | None = None
     is_saved_set: bool = False
-    plan: JSONObject | None = None
+    plan: StrategyPlanPayload | None = None
     step_count: int | None = None
     estimated_size: int | None = None
     estimated_size_set: bool = False
@@ -44,7 +44,6 @@ class ProjectionUpdate:
 # Fields included when non-None.
 _SIMPLE_FIELDS: tuple[str, ...] = (
     "record_type",
-    "plan",
     "step_count",
     "gene_set_auto_imported",
     "model_id",
@@ -69,6 +68,10 @@ def _collect_projection_values(upd: ProjectionUpdate) -> dict[str, Any]:
         val = getattr(upd, attr)
         if val is not None:
             values[attr] = val
+
+    # plan is a StrategyPlanPayload — serialize to dict for the JSON column.
+    if upd.plan is not None:
+        values["plan"] = upd.plan.model_dump(by_alias=True, exclude_none=True, mode="json")
 
     for flag, attr in _FLAGGED_FIELDS:
         if getattr(upd, flag):
@@ -374,10 +377,13 @@ class StreamRepository:
         Returns the number of expired operations.
         """
         cutoff = datetime.now(UTC) - timedelta(seconds=max_age_seconds)
-        result = await self.session.execute(
-            update(Operation)
-            .where(Operation.status == "active", Operation.created_at < cutoff)
-            .values(status="failed", completed_at=datetime.now(UTC))
+        result = cast(
+            "CursorResult[object]",
+            await self.session.execute(
+                update(Operation)
+                .where(Operation.status == "active", Operation.created_at < cutoff)
+                .values(status="failed", completed_at=datetime.now(UTC))
+            ),
         )
         await self.session.flush()
-        return result.rowcount
+        return result.rowcount or 0

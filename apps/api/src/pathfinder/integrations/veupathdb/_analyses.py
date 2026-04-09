@@ -1,7 +1,8 @@
 """Analysis, step-filter, and report endpoint methods for VEuPathDBClient."""
 
-import pydantic
+from pydantic import TypeAdapter
 
+from pathfinder.integrations.veupathdb._helpers import _validate_list
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKAnalysisStatus,
     WDKAnalysisStatusResponse,
@@ -16,6 +17,11 @@ from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
+
+_ANALYSIS_TYPE_ADAPTER: TypeAdapter[WDKStepAnalysisType] = TypeAdapter(WDKStepAnalysisType)
+_ANALYSIS_CONFIG_ADAPTER: TypeAdapter[WDKStepAnalysisConfig] = TypeAdapter(
+    WDKStepAnalysisConfig
+)
 
 
 class AnalysisEndpoints:
@@ -86,19 +92,7 @@ class AnalysisEndpoints:
     ) -> list[WDKStepAnalysisType]:
         """List available analysis types for a step."""
         raw = await self.get(f"/users/{user_id}/steps/{step_id}/analysis-types")
-        if not isinstance(raw, list):
-            return []
-        result: list[WDKStepAnalysisType] = []
-        for item in raw:
-            if isinstance(item, dict):
-                try:
-                    result.append(WDKStepAnalysisType.model_validate(item))
-                except pydantic.ValidationError:
-                    logger.warning(
-                        "Skipping unparseable analysis type",
-                        error_keys=list(item.keys())[:5],
-                    )
-        return result
+        return _validate_list(raw, _ANALYSIS_TYPE_ADAPTER)
 
     async def get_analysis_type(
         self, user_id: str, step_id: int, analysis_type: str
@@ -124,19 +118,7 @@ class AnalysisEndpoints:
     ) -> list[WDKStepAnalysisConfig]:
         """List analyses that have been run on a step."""
         raw = await self.get(f"/users/{user_id}/steps/{step_id}/analyses")
-        if not isinstance(raw, list):
-            return []
-        result: list[WDKStepAnalysisConfig] = []
-        for item in raw:
-            if isinstance(item, dict):
-                try:
-                    result.append(WDKStepAnalysisConfig.model_validate(item))
-                except pydantic.ValidationError:
-                    logger.warning(
-                        "Skipping unparseable step analysis",
-                        error_keys=list(item.keys())[:5],
-                    )
-        return result
+        return _validate_list(raw, _ANALYSIS_CONFIG_ADAPTER)
 
     async def create_step_analysis(
         self, user_id: str, step_id: int, payload: JSONObject
@@ -151,20 +133,14 @@ class AnalysisEndpoints:
 
     async def run_analysis_instance(
         self, user_id: str, step_id: int, analysis_id: int
-    ) -> JSONObject:
+    ) -> None:
         """Kick off execution of a step analysis instance.
 
-        WDK step analyses are created first, then explicitly run.
-        ``POST /users/{userId}/steps/{stepId}/analyses/{analysisId}/result``
-        returns ``{"status": "RUNNING"|...}``.  The return value is
-        typically unused — callers poll status separately.
+        Return value is unused — callers poll status separately.
         """
-        raw = await self.post(
+        await self.post(
             f"/users/{user_id}/steps/{step_id}/analyses/{analysis_id}/result"
         )
-        if isinstance(raw, dict):
-            return raw
-        return {}
 
     async def get_analysis_status(
         self, user_id: str, step_id: int, analysis_id: int

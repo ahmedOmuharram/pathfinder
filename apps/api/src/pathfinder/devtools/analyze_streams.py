@@ -7,7 +7,7 @@ from redis.asyncio import Redis
 
 
 async def analyze() -> None:
-    redis = Redis(host="redis", port=6379, db=0)
+    redis = Redis(host="redis", port=6379, db=0, decode_responses=True)
 
     keys = await redis.keys("stream:*")
     recent: list[tuple[int, str, int]] = []
@@ -16,8 +16,8 @@ async def analyze() -> None:
         if length > 20:
             last = await redis.xrevrange(key, count=1)
             if last:
-                ts = int(last[0][0].decode().split("-")[0])
-                recent.append((ts, key.decode(), length))
+                ts = int(last[0][0].split("-")[0])
+                recent.append((ts, key, length))
     recent.sort(reverse=True)
 
     for _ts, key, length in recent[:2]:
@@ -28,27 +28,27 @@ async def analyze() -> None:
         entries = await redis.xrange(key)
         turn = 0
         for _entry_id, fields in entries:
-            event_type = fields.get(b"type", b"").decode()
+            event_type = fields.get("type", "")
 
             if event_type == "message_start":
                 turn += 1
                 print(f"\n--- Turn {turn} ---")
 
             if event_type == "user_message":
-                data = json.loads(fields[b"data"])
+                data = json.loads(fields["data"])
                 content = data.get("content", "")
                 safe = content[:60].replace("\n", " ")
                 print(f"  USER: {safe}...")
 
             if event_type == "tool_call_start":
-                data = json.loads(fields[b"data"])
+                data = json.loads(fields["data"])
                 name = data.get("name", "?")
                 args = data.get("arguments", {})
                 arg_keys = list(args.keys()) if isinstance(args, dict) else []
                 print(f"  CALL: {name}({', '.join(arg_keys)})")
 
             if event_type == "tool_call_end":
-                data = json.loads(fields[b"data"])
+                data = json.loads(fields["data"])
                 result_str = data.get("result", "")
                 result_len = len(result_str)
                 is_error = (
@@ -61,13 +61,13 @@ async def analyze() -> None:
                 print(f"    -> {status} ({result_len:,} chars)")
 
             if event_type == "assistant_message":
-                data = json.loads(fields[b"data"])
+                data = json.loads(fields["data"])
                 content = data.get("content", "")
                 safe = content[:80].replace("\n", " ")
                 print(f"  ASST: {safe}...")
 
             if event_type == "message_end":
-                data = json.loads(fields[b"data"])
+                data = json.loads(fields["data"])
                 prompt = data.get("promptTokens", 0)
                 tools = data.get("toolCallCount", 0)
                 llm_calls = data.get("llmCallCount", 0)

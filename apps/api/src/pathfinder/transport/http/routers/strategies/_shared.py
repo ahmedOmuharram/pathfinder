@@ -3,14 +3,14 @@
 from datetime import UTC, datetime
 
 from pathfinder.domain.strategy.ast import PlanStepNode, walk_step_tree
-from pathfinder.integrations.veupathdb.factory import get_site
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.persistence.models import StreamProjection
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.wdk import get_site
 from pathfinder.transport.http.schemas import (
     MessageResponse,
     StepResponse,
-    StrategyPlanPayload,
     StrategyResponse,
     ThinkingResponse,
 )
@@ -74,30 +74,30 @@ def step_response_from_plan(
     )
 
 
-def derive_steps_from_plan(plan: JSONObject) -> list[StepResponse]:
-    """Derive step responses from a plan dict. Returns [] if plan is empty/invalid.
+def derive_steps_from_plan(
+    payload: StrategyPlanPayload | None,
+) -> list[StepResponse]:
+    """Derive step responses from a typed plan payload. Returns [] if None.
 
-    If the plan contains ``step_counts`` (stored during WDK detail fetch),
+    If the payload contains ``step_counts`` (stored during WDK detail fetch),
     each step's ``estimated_size`` is populated from it, enabling zero-cost count
     display for WDK-linked strategies.
     """
-    if not plan or not isinstance(plan, dict) or "root" not in plan:
+    if payload is None:
         return []
-    try:
-        payload = StrategyPlanPayload.model_validate(plan)
-        return [
-            step_response_from_plan(payload, step)
-            for step in walk_step_tree(payload.root)
-        ]
-    except (ValueError, KeyError, TypeError) as exc:
-        logger.exception("derive_steps_from_plan failed", error=str(exc))
-        return []
+    return [
+        step_response_from_plan(payload, step)
+        for step in walk_step_tree(payload.root)
+    ]
 
 
-def extract_plan_description(plan: JSONObject) -> str | None:
-    """Extract description from a plan dict."""
-    desc_raw = plan.get("description")
-    return desc_raw if isinstance(desc_raw, str) else None
+def extract_plan_description(
+    payload: StrategyPlanPayload | None,
+) -> str | None:
+    """Extract description from a typed plan payload."""
+    if payload is None:
+        return None
+    return payload.description
 
 
 def parse_thinking(raw: JSONObject | None) -> ThinkingResponse | None:
@@ -115,17 +115,30 @@ def parse_thinking(raw: JSONObject | None) -> ThinkingResponse | None:
 
 
 def extract_root_step_id(
-    plan: JSONObject, fallback_root_step_id: str | None
+    payload: StrategyPlanPayload | None,
+    fallback_root_step_id: str | None,
 ) -> str | None:
-    """Extract ``plan["root"]["id"]`` with isinstance guards.
+    """Extract the root step ID from a typed plan payload.
 
-    Falls back to ``fallback_root_step_id`` when the plan doesn't contain one.
+    Falls back to ``fallback_root_step_id`` when the payload is None.
     """
-    root_raw = plan.get("root")
-    root = root_raw if isinstance(root_raw, dict) else {}
-    root_id_raw = root.get("id")
-    root_step_id = root_id_raw if isinstance(root_id_raw, str) else None
-    return root_step_id or fallback_root_step_id
+    if payload is not None:
+        return payload.root.id
+    return fallback_root_step_id
+
+
+def _parse_plan_payload(plan_raw: JSONObject) -> StrategyPlanPayload | None:
+    """Parse a raw JSON plan dict into a typed payload.
+
+    Returns ``None`` when the dict is empty or invalid.
+    """
+    if not plan_raw or "root" not in plan_raw:
+        return None
+    try:
+        return StrategyPlanPayload.model_validate(plan_raw)
+    except (ValueError, KeyError, TypeError) as exc:
+        logger.warning("Failed to parse plan payload", error=str(exc))
+        return None
 
 
 def build_projection_response(
@@ -138,8 +151,8 @@ def build_projection_response(
 
     Steps and rootStepId are derived from the plan at read time.
     """
-    plan: JSONObject = projection.plan if isinstance(projection.plan, dict) else {}
-    root_step_id = extract_root_step_id(plan, projection.root_step_id)
+    payload = _parse_plan_payload(projection.plan)
+    root_step_id = extract_root_step_id(payload, projection.root_step_id)
 
     msg_responses: list[MessageResponse] | None = None
     if messages:
@@ -166,10 +179,10 @@ def build_projection_response(
         id=projection.stream_id,
         name=projection.name,
         title=projection.name,
-        description=extract_plan_description(plan),
+        description=extract_plan_description(payload),
         siteId=projection.site_id,
         recordType=projection.record_type,
-        steps=derive_steps_from_plan(plan),
+        steps=derive_steps_from_plan(payload),
         rootStepId=root_step_id,
         wdkStrategyId=projection.wdk_strategy_id,
         wdkUrl=wdk_url,

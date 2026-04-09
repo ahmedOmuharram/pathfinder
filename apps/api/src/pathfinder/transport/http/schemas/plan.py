@@ -2,8 +2,8 @@
 
 from pydantic import BaseModel
 
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.platform.types import JSONArray
-from pathfinder.services.strategies.schemas import StrategyPlanPayload
 
 
 class PlanNormalizeRequest(BaseModel):

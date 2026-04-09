@@ -17,7 +17,7 @@ async def init_redis() -> Redis:
     settings = get_settings()
     redis = Redis.from_url(
         settings.redis_url,
-        decode_responses=False,
+        decode_responses=True,
         socket_timeout=30.0,
         socket_connect_timeout=10.0,
     )

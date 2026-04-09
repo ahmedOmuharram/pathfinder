@@ -10,6 +10,7 @@ from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
+from pathfinder.services.strategies.sync_state import WDKSyncState
 
 
 def _make_deps(site_id: str = "plasmodb") -> AgentDeps:
@@ -80,7 +81,8 @@ def test_slim_graph_result_replaces_verbose_json() -> None:
         parameters={"organism": "Plasmodium falciparum 3D7"},
     )
     graph.add_step(step)
-    graph.step_counts[step.id] = 1234
+    sync_state = WDKSyncState()
+    sync_state.step_counts[step.id] = 1234
 
     # Build a StepOkResponse-like JSON string
     result_json = json.dumps({
@@ -100,7 +102,7 @@ def test_slim_graph_result_replaces_verbose_json() -> None:
         "graphSnapshot": {"graphId": "g1", "steps": [], "edges": []},
     })
 
-    slim = _slim_graph_result(result_json, graph)
+    slim = _slim_graph_result(result_json, graph, sync_state)
 
     assert slim is not None
     assert step.id in slim
@@ -112,7 +114,7 @@ def test_slim_graph_result_replaces_verbose_json() -> None:
 def test_slim_graph_result_returns_none_for_invalid_json() -> None:
     graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
 
-    result = _slim_graph_result("not json", graph)
+    result = _slim_graph_result("not json", graph, None)
 
     assert result is None
 
@@ -126,6 +128,6 @@ def test_slim_graph_result_returns_none_for_error_response() -> None:
         "message": "Bad params",
     })
 
-    result = _slim_graph_result(result_json, graph)
+    result = _slim_graph_result(result_json, graph, None)
 
     assert result is None

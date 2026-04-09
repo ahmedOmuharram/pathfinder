@@ -14,6 +14,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.orchestration.observability import get_tracer
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.integrations.veupathdb.factory import get_site
 from pathfinder.persistence.models import StreamProjection
 from pathfinder.persistence.repositories import StreamRepository
@@ -64,9 +65,15 @@ async def run_stream_loop(
     every event from the stream iterator to Redis/PostgreSQL via ``emit()``.
     """
     # Extract description from plan metadata when available.
-    plan = projection.plan if isinstance(projection.plan, dict) else {}
-    meta = plan.get("metadata") if isinstance(plan, dict) else None
-    description = meta.get("description") if isinstance(meta, dict) else None
+    try:
+        plan_payload = StrategyPlanPayload.model_validate(projection.plan) if projection.plan else None
+    except (ValueError, TypeError):
+        plan_payload = None
+    description = (
+        plan_payload.metadata.get("description")
+        if plan_payload and plan_payload.metadata
+        else None
+    )
 
     # Compute WDK URL when we have a strategy ID and site.
     wdk_url: str | None = None

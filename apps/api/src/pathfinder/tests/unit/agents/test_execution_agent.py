@@ -40,6 +40,7 @@ from pathfinder.services.chat.streaming.step_execution import (
     allowed_tools_for_step,
     format_step_instruction,
 )
+from pathfinder.services.strategies.sync_state import WDKSyncState
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -389,10 +390,10 @@ class TestExecutionAgentConfiguration:
         assert execution_agent.name == "execution"
 
     def test_tool_count(self) -> None:
-        """Execution agent has 12 tools."""
+        """Execution agent has 13 tools."""
         toolset = execution_agent._user_toolsets[0]
         assert isinstance(toolset, FunctionToolset)
-        assert len(toolset.tools) == 12
+        assert len(toolset.tools) == 13
 
     def test_usage_limits(self) -> None:
         assert EXECUTION_USAGE_LIMITS.request_limit == 3
@@ -435,13 +436,15 @@ class TestExecutionAgentFunctionModel:
 
         # Create a graph with a step so get_strategy returns meaningful data
         graph = deps.strategy_session.create_graph("Test Strategy")
+        sync_state = WDKSyncState()
+        deps.strategy_session.sync_state = sync_state
         step = PlanStepNode(
             search_name="GenesByTaxon",
             display_name="Taxon genes",
             parameters={"organism": "Plasmodium falciparum 3D7"},
         )
         graph.add_step(step)
-        graph.step_counts[step.id] = 5432
+        sync_state.step_counts[step.id] = 5432
 
         call_count = 0
 
@@ -519,7 +522,7 @@ class TestExecutionAgentFunctionModel:
         )
 
         # Verify all 12 execution tools are visible to the model
-        assert len(captured_tool_names) == 12
+        assert len(captured_tool_names) == 13
         assert "create_leaf_step" in captured_tool_names
         assert "combine_steps" in captured_tool_names
         assert "transform_step" in captured_tool_names

@@ -1,11 +1,11 @@
 """Public HTTP schema exports."""
 
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.services.catalog.param_validation import (
     ValidationResponse,
 )
 from pathfinder.services.strategies.schemas import (
     StepResponse,
-    StrategyPlanPayload,
 )
 
 from .chat import (

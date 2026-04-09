@@ -9,6 +9,10 @@ from shared_py.defaults import DEFAULT_STREAM_NAME
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pathfinder.domain.strategy.plan_payload import (
+    PersistedStrategyGraph,
+    StrategyPlanPayload,
+)
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.persistence.models import Stream, StreamProjection
 from pathfinder.platform.errors import NotFoundError
@@ -18,6 +22,7 @@ from pathfinder.platform.redis import get_redis
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.session_factory import build_strategy_session
 from pathfinder.services.strategies.sync import sync_strategy_for_site
+from pathfinder.services.strategies.sync_state import ensure_sync_state
 
 logger = get_logger(__name__)
 
@@ -60,9 +65,16 @@ async def undo_turn(
     await _truncate_redis(redis, stream_id_str, entry_id)
     new_state = await _replay_projection(redis, stream_id_str, session)
 
+    # Parse plan once at the boundary — reused for WDK sync and response.
+    try:
+        reverted_plan = StrategyPlanPayload.model_validate(new_state.get("plan")) if new_state.get("plan") else None
+    except (ValueError, TypeError):
+        reverted_plan = None
+
     new_wdk_strategy_id = await _sync_wdk(
         site_id=site_id,
         old_wdk_strategy_id=old_wdk_strategy_id,
+        reverted_plan=reverted_plan,
         new_state=new_state,
         stream_id_str=stream_id_str,
     )
@@ -75,9 +87,8 @@ async def undo_turn(
     )
     await session.commit()
 
-    reverted_plan = new_state.get("plan")
     strategy_response: JSONObject | None = (
-        reverted_plan if isinstance(reverted_plan, dict) and reverted_plan else None
+        reverted_plan.model_dump(by_alias=True, exclude_none=True) if reverted_plan else None
     )
     raw_count = new_state.get("message_count", 0)
     msg_count = int(raw_count) if isinstance(raw_count, (int, float)) else 0
@@ -113,13 +124,10 @@ async def _truncate_redis(redis: Redis, stream_id_str: str, entry_id: str) -> No
         raise NotFoundError(detail="Entry ID not found in stream")
 
     first_id = entries[0][0]
-    first_id_str = first_id.decode() if isinstance(first_id, bytes) else str(first_id)
-    if first_id_str != entry_id:
+    if first_id != entry_id:
         raise NotFoundError(detail="Entry ID not found in stream")
 
-    ids = [
-        eid.decode() if isinstance(eid, bytes) else str(eid) for eid, _ in entries
-    ]
+    ids = [eid for eid, _ in entries]
     await redis.xdel(f"stream:{stream_id_str}", *ids)
     logger.info(
         "Undo: deleted Redis entries",
@@ -133,6 +141,7 @@ async def _sync_wdk(
     *,
     site_id: str,
     old_wdk_strategy_id: int | None,
+    reverted_plan: StrategyPlanPayload | None,
     new_state: JSONObject,
     stream_id_str: str,
 ) -> int | None:
@@ -142,8 +151,7 @@ async def _sync_wdk(
     if old_wdk_strategy_id is not None and site_id:
         await _delete_wdk_strategy(site_id, old_wdk_strategy_id)
 
-    reverted_plan = new_state.get("plan")
-    if site_id and isinstance(reverted_plan, dict) and reverted_plan.get("root"):
+    if site_id and reverted_plan is not None:
         new_wdk_strategy_id = await _push_reverted_strategy(
             site_id, stream_id_str, new_state, reverted_plan
         )
@@ -169,24 +177,25 @@ async def _push_reverted_strategy(
     site_id: str,
     stream_id_str: str,
     new_state: JSONObject,
-    reverted_plan: JSONObject,
+    reverted_plan: StrategyPlanPayload,
 ) -> int | None:
     """Push the reverted plan to WDK. Returns the new strategy ID or None."""
     try:
         name_raw = new_state.get("name", DEFAULT_STREAM_NAME)
-        name = str(name_raw) if isinstance(name_raw, str) else DEFAULT_STREAM_NAME
-        graph_payload: JSONObject = {
-            "id": stream_id_str,
-            "name": name,
-            "plan": reverted_plan,
-        }
+        name = str(name_raw) if name_raw and str(name_raw).strip() else DEFAULT_STREAM_NAME
+        graph_payload = PersistedStrategyGraph(
+            id=stream_id_str,
+            name=name,
+            plan=reverted_plan,
+        )
         strat_session = build_strategy_session(
             site_id=site_id, strategy_graph=graph_payload
         )
         graph = strat_session.get_graph(None)
         if graph and graph.steps:
+            sync_state = ensure_sync_state(strat_session)
             sync_result = await sync_strategy_for_site(
-                graph=graph, site_id=site_id, strategy_name=graph.name
+                graph=graph, sync_state=sync_state, site_id=site_id, strategy_name=graph.name
             )
             logger.info(
                 "Undo: pushed reverted strategy to WDK",
@@ -235,17 +244,12 @@ async def _replay_projection(
     message_count = 0
 
     for raw_entry_id, fields in entries:
-        entry_id_str = (
-            raw_entry_id.decode()
-            if isinstance(raw_entry_id, bytes)
-            else str(raw_entry_id)
-        )
-        event_type = fields.get(b"type", b"").decode()
+        event_type = fields.get("type", "")
         if event_type not in _PROJECTED_EVENT_TYPES:
             continue
 
         try:
-            data: JSONObject = json.loads(fields[b"data"])
+            data: JSONObject = json.loads(fields["data"])
         except (json.JSONDecodeError, KeyError):
             continue
 
@@ -257,13 +261,13 @@ async def _replay_projection(
                 .where(StreamProjection.stream_id == stream_id)
                 .values(
                     message_count=message_count,
-                    last_event_id=entry_id_str,
+                    last_event_id=raw_entry_id,
                     updated_at=datetime.now(UTC),
                 )
             )
             await session.flush()
         else:
-            await _project_event(session, stream_id, event_type, data, entry_id_str)
+            await _project_event(session, stream_id, event_type, data, raw_entry_id)
 
     await session.flush()
 

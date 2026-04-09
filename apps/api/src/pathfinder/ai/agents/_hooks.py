@@ -29,6 +29,7 @@ from pathfinder.ai.context.rendering import render_slim_step_result
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone._graph_helpers import build_graph_snapshot
 from pathfinder.domain.strategy.session import StrategyGraph
+from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.platform.errors import AppError, sanitize_error_for_client
 from pathfinder.platform.event_schemas import (
     GraphSnapshotEventData,
@@ -45,6 +46,7 @@ from pathfinder.services.strategies.build import RootResolutionError
 from pathfinder.services.strategies.schemas import StepResponse
 from pathfinder.services.strategies.step_wdk_push import push_all_steps_to_wdk
 from pathfinder.services.strategies.sync import SyncResult, sync_strategy_for_site
+from pathfinder.services.strategies.sync_state import ensure_sync_state
 
 logger = get_logger(__name__)
 
@@ -159,10 +161,12 @@ async def _auto_build(deps: AgentDeps, graph: StrategyGraph) -> JSONObject:
 
     Returns the ``autoBuild`` payload to merge into the tool result.
     """
-    await push_all_steps_to_wdk(graph, deps.site_id, update_existing=True)
+    sync_state = ensure_sync_state(deps.strategy_session)
+    await push_all_steps_to_wdk(graph, sync_state, deps.site_id, update_existing=True)
 
     sync_result = await sync_strategy_for_site(
         graph=graph,
+        sync_state=sync_state,
         site_id=deps.site_id,
         strategy_name=graph.name,
     )
@@ -258,7 +262,9 @@ def _emit_graph_snapshot(deps: AgentDeps, graph: StrategyGraph) -> None:
     )
 
 
-def _slim_graph_result(result_text: str, graph: StrategyGraph) -> str | None:
+def _slim_graph_result(
+    result_text: str, graph: StrategyGraph, sync_state: SyncStateProtocol | None
+) -> str | None:
     """Replace full StepOkResponse JSON with a one-liner.
 
     Returns the slim text, or ``None`` if slimming was not possible.
@@ -277,11 +283,12 @@ def _slim_graph_result(result_text: str, graph: StrategyGraph) -> str | None:
     if step.primary_input_step_id and step.secondary_input_step_id:
         input_ids = (step.primary_input_step_id, step.secondary_input_step_id)
 
+    estimated_size = sync_state.step_counts.get(step.id) if sync_state else None
     return render_slim_step_result(
         step_id=step.id,
         search_name=step.search_name or "",
         display_name=step.display_name,
-        estimated_size=graph.step_counts.get(step.id),
+        estimated_size=estimated_size,
         operator=step.operator,
         input_ids=input_ids,
     )
@@ -312,6 +319,7 @@ async def apply_discovery_hook(
 def _build_auto_build_error_payload(
     exc: AppError | OSError | RootResolutionError,
     graph: StrategyGraph,
+    sync_state: SyncStateProtocol | None,
 ) -> JSONObject:
     """Build the autoBuild error payload for a failed auto-build."""
     error_payload: JSONObject = {
@@ -319,13 +327,15 @@ def _build_auto_build_error_payload(
         "error": sanitize_error_for_client(exc),
     }
     unpushed: list[JSONObject] = []
+    wdk_step_ids = sync_state.wdk_step_ids if sync_state else {}
+    wdk_push_errors = sync_state.wdk_push_errors if sync_state else {}
     for sid, step in graph.steps.items():
-        if sid not in graph.wdk_step_ids:
+        if sid not in wdk_step_ids:
             entry: JSONObject = {
                 "stepId": sid,
                 "searchName": step.search_name,
             }
-            push_error = graph.wdk_push_errors.get(sid)
+            push_error = wdk_push_errors.get(sid)
             if push_error:
                 entry["pushError"] = push_error
             unpushed.append(entry)
@@ -347,7 +357,7 @@ async def _apply_single_root_build(
         build_data = await _auto_build(deps, graph)
         return _merge_auto_build(result_text, {"autoBuild": build_data})
     except (AppError, OSError, RootResolutionError) as exc:
-        error_payload = _build_auto_build_error_payload(exc, graph)
+        error_payload = _build_auto_build_error_payload(exc, graph, deps.strategy_session.sync_state)
         logger.warning("Auto-build failed", error=str(exc))
         return _merge_auto_build(result_text, {"autoBuild": error_payload})
 
@@ -388,7 +398,7 @@ async def apply_auto_build_hook(
         result_text = result_text + note
 
     # Slim the result — the model sees graph state via dynamic instructions.
-    slim = _slim_graph_result(result_text, graph)
+    slim = _slim_graph_result(result_text, graph, deps.strategy_session.sync_state)
     if slim is not None:
         return slim
 

@@ -2,10 +2,7 @@
 
 from typing import cast
 
-from pathfinder.domain.parameters.specs import (
-    ParamSpecNormalized,
-    adapt_param_specs_from_search,
-)
+from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
@@ -14,6 +11,7 @@ from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONArray, JSONObject, JSONValue
+from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_discovery import fetch_search_details
 from pathfinder.services.wdk.record_types import resolve_record_type
 

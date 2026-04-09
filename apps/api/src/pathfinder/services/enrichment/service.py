@@ -22,9 +22,10 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearchConfig,
     WDKStepTree,
 )
+from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, InternalError, ValidationError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_helpers import delete_temp_strategy
 from pathfinder.services.enrichment.params import (
     extract_default_params,
@@ -202,11 +203,11 @@ class EnrichmentService:
 
         # Fetch form metadata so we use correct parameter names and defaults.
         analysis_params: JSONObject = {}
-        form_meta_raw: JSONValue = None
+        wdk_params: list[WDKParameter] = []
         try:
             form_meta = await api.get_analysis_type(step_id, wdk_analysis_type)
-            form_meta_raw = form_meta.model_dump(by_alias=True)
-            analysis_params = extract_default_params(form_meta_raw)
+            wdk_params = form_meta.search_data.parameters or []
+            analysis_params = extract_default_params(wdk_params)
             logger.debug(
                 "Fetched analysis form defaults",
                 analysis_type=wdk_analysis_type,
@@ -224,7 +225,7 @@ class EnrichmentService:
         # requested ontology is actually available on this site.
         if analysis_type in GO_ONTOLOGY_MAP:
             requested_ontology = GO_ONTOLOGY_MAP[analysis_type]
-            available = extract_vocab_values(form_meta_raw, "goAssociationsOntologies")
+            available = extract_vocab_values(wdk_params, "goAssociationsOntologies")
 
             if available and requested_ontology not in available:
                 logger.info(

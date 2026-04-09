@@ -17,6 +17,7 @@ from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
+from pathfinder.services.strategies.sync_state import WDKSyncState
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -233,7 +234,8 @@ class TestSlimGraphResult:
             parameters={"organism": "Plasmodium falciparum 3D7"},
         )
         graph.add_step(step)
-        graph.step_counts[step.id] = 5678
+        sync_state = WDKSyncState()
+        sync_state.step_counts[step.id] = 5678
 
         result_json = _make_step_ok_json(
             step.id,
@@ -241,7 +243,7 @@ class TestSlimGraphResult:
             displayName="P. falciparum genes",
         )
 
-        slim = _slim_graph_result(result_json, graph)
+        slim = _slim_graph_result(result_json, graph, sync_state)
 
         assert slim is not None
         assert "ok:" in slim
@@ -268,7 +270,8 @@ class TestSlimGraphResult:
             operator=CombineOp.INTERSECT,
         )
         graph.add_step(combine_step)
-        graph.step_counts[combine_step.id] = 42
+        sync_state = WDKSyncState()
+        sync_state.step_counts[combine_step.id] = 42
 
         result_json = _make_step_ok_json(
             combine_step.id,
@@ -279,7 +282,7 @@ class TestSlimGraphResult:
             secondaryInputStepId=step_b.id,
         )
 
-        slim = _slim_graph_result(result_json, graph)
+        slim = _slim_graph_result(result_json, graph, sync_state)
 
         assert slim is not None
         assert "ok:" in slim
@@ -301,7 +304,8 @@ class TestSlimGraphResult:
             primary_input=base_step,
         )
         graph.add_step(transform)
-        graph.step_counts[transform.id] = 100
+        sync_state = WDKSyncState()
+        sync_state.step_counts[transform.id] = 100
 
         result_json = _make_step_ok_json(
             transform.id,
@@ -310,7 +314,7 @@ class TestSlimGraphResult:
             primaryInputStepId=base_step.id,
         )
 
-        slim = _slim_graph_result(result_json, graph)
+        slim = _slim_graph_result(result_json, graph, sync_state)
 
         assert slim is not None
         assert "ok:" in slim
@@ -329,32 +333,32 @@ class TestSlimGraphResult:
             "message": "Parameter 'organism' is required",
         })
 
-        result = _slim_graph_result(error_json, graph)
+        result = _slim_graph_result(error_json, graph, None)
         assert result is None
 
     def test_slim_returns_none_for_non_json(self) -> None:
         """Plain text (not JSON) returns None."""
         graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
 
-        result = _slim_graph_result("This is plain text, not JSON", graph)
+        result = _slim_graph_result("This is plain text, not JSON", graph, None)
         assert result is None
 
     def test_slim_returns_none_for_missing_step_field(self) -> None:
         """JSON without required 'step' field fails validation and returns None."""
         graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
 
-        result = _slim_graph_result(json.dumps({"ok": True}), graph)
+        result = _slim_graph_result(json.dumps({"ok": True}), graph, None)
         assert result is None
 
     def test_slim_step_without_count_omits_gene_count(self) -> None:
-        """When graph.step_counts has no entry for the step, the slim omits gene count."""
+        """When sync_state has no entry for the step, the slim omits gene count."""
         graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
         step = PlanStepNode(
             search_name="GenesByTaxon",
             display_name="Test Step",
         )
         graph.add_step(step)
-        # Deliberately do NOT set graph.step_counts[step.id]
+        # Deliberately do NOT set sync_state.step_counts[step.id]
 
         result_json = _make_step_ok_json(
             step.id,
@@ -362,7 +366,7 @@ class TestSlimGraphResult:
             displayName="Test Step",
         )
 
-        slim = _slim_graph_result(result_json, graph)
+        slim = _slim_graph_result(result_json, graph, None)
 
         assert slim is not None
         assert "genes" not in slim

@@ -1,6 +1,7 @@
 """Crossref API client."""
 
 import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -11,6 +12,20 @@ from pathfinder.domain.research.papers import CrossRefRawWork, ParsedPaper
 from pathfinder.platform.errors import ExternalServiceError
 from pathfinder.platform.types import JSONValue
 from pathfinder.services.research.clients._base import StandardClient
+
+
+class _CrossrefMessage(BaseModel):
+    """Inner ``message`` envelope in a Crossref API response."""
+
+    model_config = ConfigDict(extra="ignore")
+    items: list[JSONValue] = Field(default_factory=list)
+
+
+class _CrossrefResponse(BaseModel):
+    """Top-level envelope for the Crossref ``/works`` response."""
+
+    model_config = ConfigDict(extra="ignore")
+    message: _CrossrefMessage = Field(default_factory=_CrossrefMessage)
 
 
 class CrossrefClient(StandardClient):
@@ -32,20 +47,20 @@ class CrossrefClient(StandardClient):
         except httpx.HTTPError as exc:
             service = "CrossRef"
             raise ExternalServiceError(service, str(exc)) from exc
-        items = (
-            payload.get("message", {}).get("items", [])
-            if isinstance(payload, dict)
-            else []
-        )
+        try:
+            parsed = _CrossrefResponse.model_validate(payload)
+            items = parsed.message.items
+        except (ValidationError, TypeError):
+            items = []
         return list(items)
 
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
-        if not isinstance(raw, dict):
+        try:
+            parsed = CrossRefRawWork.model_validate(raw).to_parsed_paper()
+        except (ValidationError, TypeError):
             return None
-
-        parsed = CrossRefRawWork.model_validate(raw).to_parsed_paper()
 
         citation = Citation(
             id=_new_citation_id("crossref"),

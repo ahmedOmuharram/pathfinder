@@ -13,12 +13,12 @@ from uuid import UUID
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.eval import (
     build_gold_strategy,
     fetch_strategy_gene_ids,
 )
+from pathfinder.services.wdk import get_strategy_api
 from pathfinder.transport.http.deps import CurrentUser, StreamRepo
 
 router = APIRouter(prefix="/api/v1/eval", tags=["eval"])

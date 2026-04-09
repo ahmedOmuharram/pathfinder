@@ -1,9 +1,8 @@
-"""Tests for the streaming pipeline: event ordering, error recovery, phase
-control, and per-step toolset filtering.
+"""Tests for streaming pipeline utilities: event emission, usage merging,
+tool-call arg parsing, tag stripper edge cases, and TurnCounters.
 
-Exercises the queue-based producer/consumer pattern, the tag stripper in
-edge-case scenarios, the plan approval pause mechanism, and the
-``allowed_tools_for_step`` function that drives per-step execution.
+NOTE: allowed_tools_for_step and dependency ordering are tested in
+test_execution_agent.py — not duplicated here.
 """
 
 import asyncio
@@ -12,13 +11,6 @@ from typing import cast
 import pytest
 from pydantic_ai.usage import RunUsage
 
-from pathfinder.domain.strategy.plan import (
-    PlannedConnection,
-    PlannedStep,
-    StepStatus,
-    StepType,
-    StrategyPlan,
-)
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.chat.streaming.events import (
     emit_delta,
@@ -28,9 +20,6 @@ from pathfinder.services.chat.streaming.events import (
 from pathfinder.services.chat.streaming.node_streaming import (
     TurnCounters,
     merge_usage,
-)
-from pathfinder.services.chat.streaming.step_execution import (
-    allowed_tools_for_step,
 )
 from pathfinder.services.chat.streaming.tag_stripper import StreamingTagStripper
 
@@ -43,108 +32,6 @@ def _drain_queue(queue: asyncio.Queue[JSONObject]) -> list[JSONObject]:
     while not queue.empty():
         items.append(queue.get_nowait())
     return items
-
-
-def _make_leaf_step(
-    step_id: str = "s1",
-    search_name: str = "GenesByTaxon",
-) -> PlannedStep:
-    return PlannedStep(
-        id=step_id,
-        search_name=search_name,
-        display_name=f"Step {step_id}",
-        step_type=StepType.LEAF,
-        status=StepStatus.READY,
-    )
-
-
-def _make_combine_step(
-    step_id: str = "s2",
-    operator: str = "INTERSECT",
-) -> PlannedStep:
-    return PlannedStep(
-        id=step_id,
-        search_name="__combine__",
-        display_name=f"Combine {step_id}",
-        step_type=StepType.COMBINE,
-        status=StepStatus.READY,
-        operator=operator,
-    )
-
-
-def _make_transform_step(
-    step_id: str = "s3",
-    search_name: str = "GenesByOrthologPattern",
-) -> PlannedStep:
-    return PlannedStep(
-        id=step_id,
-        search_name=search_name,
-        display_name=f"Transform {step_id}",
-        step_type=StepType.TRANSFORM,
-        status=StepStatus.READY,
-    )
-
-
-# ── allowed_tools_for_step ───────────────────────────────────────────────
-
-
-def test_allowed_tools_for_leaf_step() -> None:
-    step = _make_leaf_step()
-    allowed = allowed_tools_for_step(step)
-
-    assert "create_leaf_step" in allowed
-    assert "get_strategy" in allowed
-    assert "update_step" in allowed
-    assert len(allowed) == 3
-
-
-def test_allowed_tools_for_combine_step() -> None:
-    step = _make_combine_step()
-    allowed = allowed_tools_for_step(step)
-
-    assert "combine_steps" in allowed
-    assert "get_strategy" in allowed
-    assert "update_step" in allowed
-    assert len(allowed) == 3
-
-
-def test_allowed_tools_for_transform_step() -> None:
-    step = _make_transform_step()
-    allowed = allowed_tools_for_step(step)
-
-    assert "transform_step" in allowed
-    assert "get_strategy" in allowed
-    assert "update_step" in allowed
-    assert len(allowed) == 3
-
-
-def test_allowed_tools_returns_empty_for_unknown_step_type() -> None:
-    """An unknown step_type should return an empty frozenset, signaling full toolset."""
-    step = _make_leaf_step()
-    # Force a non-standard step_type value for the test.
-    # PlannedStep.step_type is validated, so we construct via model_construct.
-    raw = step.model_dump()
-    raw["step_type"] = "unknown_type"
-    patched = PlannedStep.model_construct(**raw)
-
-    allowed = allowed_tools_for_step(patched)
-
-    assert allowed == frozenset()
-
-
-def test_allowed_tools_support_tools_are_always_present() -> None:
-    """get_strategy and update_step must appear for every known step type."""
-    for step_type in (StepType.LEAF, StepType.COMBINE, StepType.TRANSFORM):
-        step = PlannedStep(
-            id="x",
-            search_name="test",
-            display_name="test",
-            step_type=step_type,
-            status=StepStatus.READY,
-        )
-        allowed = allowed_tools_for_step(step)
-        assert "get_strategy" in allowed, f"get_strategy missing for {step_type}"
-        assert "update_step" in allowed, f"update_step missing for {step_type}"
 
 
 # ── emit_delta / emit_thoughts ──────────────────────────────────────────
@@ -286,54 +173,6 @@ def test_tag_stripper_special_characters_in_thought() -> None:
     assert len(thoughts) == 1
     assert '"PF3D7_0100100"' in thoughts[0]
     assert "& analyze" in thoughts[0]
-
-
-# ── Plan approval pause ───────────────────────────────────────────────────
-
-
-def test_plan_steps_in_dependency_order_leaf_first() -> None:
-    """Leaf steps (no incoming connections) should come before combine steps."""
-    leaf1 = _make_leaf_step("leaf1")
-    leaf2 = _make_leaf_step("leaf2", search_name="GenesByLocation")
-    combine = _make_combine_step("comb1")
-
-    plan = StrategyPlan(
-        title="Order test",
-        description="desc",
-        rationale="rat",
-        steps=[combine, leaf1, leaf2],  # deliberately out of order
-        connections=[
-            PlannedConnection(from_step="leaf1", to_step="comb1"),
-            PlannedConnection(from_step="leaf2", to_step="comb1"),
-        ],
-    )
-
-    ordered = plan.steps_in_dependency_order()
-
-    # Both leaves must appear before the combine.
-    leaf_ids = {ordered[0].id, ordered[1].id}
-    assert leaf_ids == {"leaf1", "leaf2"}
-    assert ordered[2].id == "comb1"
-
-
-def test_plan_cycle_detection() -> None:
-    """A cyclic connection graph should raise ValueError."""
-    step_a = _make_leaf_step("a")
-    step_b = _make_leaf_step("b")
-
-    plan = StrategyPlan(
-        title="Cycle test",
-        description="desc",
-        rationale="rat",
-        steps=[step_a, step_b],
-        connections=[
-            PlannedConnection(from_step="a", to_step="b"),
-            PlannedConnection(from_step="b", to_step="a"),
-        ],
-    )
-
-    with pytest.raises(ValueError, match="Cycle detected"):
-        plan.steps_in_dependency_order()
 
 
 # ── TurnCounters ─────────────────────────────────────────────────────────

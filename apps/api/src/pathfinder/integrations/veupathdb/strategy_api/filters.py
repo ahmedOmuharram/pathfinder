@@ -1,6 +1,6 @@
 """Step filter CRUD operations for the Strategy API.
 
-Provides :class:`FilterMixin` with methods to create, delete, and list
+Provides :class:`FilterMixin` with methods to create and list
 step filters via WDK's ``answerSpec.viewFilters`` mechanism.
 
 WDK does NOT have dedicated filter endpoints (``/filter``, ``/filter/{name}``).
@@ -34,7 +34,7 @@ class FilterMixin(StrategyAPIBase):
         *,
         disabled: bool = False,
         user_id: str | None = None,
-    ) -> JSONValue:
+    ) -> None:
         """Create or update a viewFilter on a step.
 
         Reads the current viewFilters, replaces or appends the named filter,
@@ -49,17 +49,4 @@ class FilterMixin(StrategyAPIBase):
             disabled=disabled,
         )
         updated.append(new_filter)
-        return await self.client.update_step_view_filters(uid, step_id, updated)
-
-    async def delete_step_filter(
-        self, step_id: int, filter_name: str, user_id: str | None = None
-    ) -> JSONValue:
-        """Remove a viewFilter from a step.
-
-        Reads the current viewFilters, removes the named filter, then PATCHes
-        the step with the updated array.
-        """
-        uid = await self._get_user_id(user_id)
-        current = await self.client.get_step_view_filters(uid, step_id)
-        updated: list[WDKFilterValue] = [f for f in current if f.name != filter_name]
-        return await self.client.update_step_view_filters(uid, step_id, updated)
+        await self.client.update_step_view_filters(uid, step_id, updated)

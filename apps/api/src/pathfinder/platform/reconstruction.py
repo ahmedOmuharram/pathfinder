@@ -25,10 +25,9 @@ from pathfinder.platform.types import JSONObject
 # ------------------------------------------------------------------
 
 
-def _entry_id_to_iso(entry_id: bytes | str) -> str:
+def _entry_id_to_iso(entry_id: str) -> str:
     """Convert a Redis stream entry ID (e.g. '1709234567890-0') to ISO 8601."""
-    raw = entry_id.decode() if isinstance(entry_id, bytes) else str(entry_id)
-    ms_str = raw.split("-")[0]
+    ms_str = entry_id.split("-", maxsplit=1)[0]
     try:
         ts = datetime.fromtimestamp(int(ms_str) / 1000, tz=UTC)
     except ValueError, OSError:
@@ -69,7 +68,7 @@ class _TurnAccumulator:
     def build_assistant_message(
         self,
         data: JSONObject,
-        entry_id: bytes | str,
+        entry_id: str,
     ) -> JSONObject:
         """Build a complete assistant message with accumulated metadata."""
         event = AssistantMessageEventData.model_validate(data)
@@ -103,7 +102,7 @@ class _TurnAccumulator:
 
 def _handle_user_message(
     data: JSONObject,
-    entry_id: bytes | str,
+    entry_id: str,
     turn: _TurnAccumulator,
     messages: list[JSONObject],
 ) -> None:
@@ -120,7 +119,7 @@ def _handle_user_message(
 
 def _handle_tool_call_start(
     data: JSONObject,
-    entry_id: bytes | str,
+    entry_id: str,
     turn: _TurnAccumulator,
     messages: list[JSONObject],
 ) -> None:
@@ -137,7 +136,7 @@ def _handle_tool_call_start(
 
 def _handle_tool_call_end(
     data: JSONObject,
-    entry_id: bytes | str,
+    entry_id: str,
     turn: _TurnAccumulator,
     messages: list[JSONObject],
 ) -> None:
@@ -156,7 +155,7 @@ def _handle_tool_call_end(
 # message — no field mapping needed.
 def _handle_citations(
     data: JSONObject,
-    entry_id: bytes | str,
+    entry_id: str,
     turn: _TurnAccumulator,
     messages: list[JSONObject],
 ) -> None:
@@ -167,7 +166,7 @@ def _handle_citations(
 
 def _handle_planning_artifact(
     data: JSONObject,
-    entry_id: bytes | str,
+    entry_id: str,
     turn: _TurnAccumulator,
     messages: list[JSONObject],
 ) -> None:
@@ -178,7 +177,7 @@ def _handle_planning_artifact(
 
 def _handle_reasoning(
     data: JSONObject,
-    entry_id: bytes | str,
+    entry_id: str,
     turn: _TurnAccumulator,
     messages: list[JSONObject],
 ) -> None:
@@ -189,7 +188,7 @@ def _handle_reasoning(
 
 def _handle_model_selected(
     data: JSONObject,
-    entry_id: bytes | str,
+    entry_id: str,
     turn: _TurnAccumulator,
     messages: list[JSONObject],
 ) -> None:
@@ -199,7 +198,7 @@ def _handle_model_selected(
 
 def _handle_assistant_message(
     data: JSONObject,
-    entry_id: bytes | str,
+    entry_id: str,
     turn: _TurnAccumulator,
     messages: list[JSONObject],
 ) -> None:
@@ -208,7 +207,7 @@ def _handle_assistant_message(
 
 # Type alias for stream event handler functions.
 type _StreamEventHandler = Callable[
-    [JSONObject, bytes | str, _TurnAccumulator, list[JSONObject]], None
+    [JSONObject, str, _TurnAccumulator, list[JSONObject]], None
 ]
 
 # Dispatch table for stream reconstruction event handlers.
@@ -261,7 +260,7 @@ def _handle_message_end(
 def _process_stream_event(
     event_type: str,
     data: JSONObject,
-    entry_id: bytes | str,
+    entry_id: str,
     turn: _TurnAccumulator,
     messages: list[JSONObject],
 ) -> None:

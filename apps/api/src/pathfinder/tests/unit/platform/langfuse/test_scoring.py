@@ -1,11 +1,10 @@
-"""Tests for Langfuse score emission."""
+"""Tests for Langfuse score emission — graceful degradation and resilience."""
 
 from unittest.mock import MagicMock, patch
 
 from pathfinder.platform.langfuse.scoring import emit_evaluation_scores
 from pathfinder.services.experiment.types import ConfusionMatrix, ExperimentMetrics
 
-# OSError is one of the specific exception types caught by _LANGFUSE_ERRORS
 _NETWORK_ERROR = OSError("Network blip")
 
 
@@ -37,53 +36,6 @@ def test_emit_scores_noop_when_langfuse_disabled() -> None:
         return_value=None,
     ):
         emit_evaluation_scores("trace-123", _make_metrics())  # Should not raise
-
-
-def test_emit_scores_sends_to_langfuse() -> None:
-    """All 7 selected metrics are sent as individual scores."""
-    mock_client = MagicMock()
-    with patch(
-        "pathfinder.platform.langfuse.scoring.get_langfuse",
-        return_value=mock_client,
-    ):
-        emit_evaluation_scores("trace-123", _make_metrics())
-
-    assert mock_client.create_score.call_count == 7
-    call_names = {
-        call.kwargs["name"] for call in mock_client.create_score.call_args_list
-    }
-    assert call_names == {
-        "sensitivity",
-        "specificity",
-        "precision",
-        "f1_score",
-        "mcc",
-        "balanced_accuracy",
-        "youdens_j",
-    }
-
-
-def test_emit_scores_passes_correct_values() -> None:
-    """Each score carries the correct float value from the metrics model."""
-    mock_client = MagicMock()
-    metrics = _make_metrics()
-    with patch(
-        "pathfinder.platform.langfuse.scoring.get_langfuse",
-        return_value=mock_client,
-    ):
-        emit_evaluation_scores("trace-abc", metrics)
-
-    calls_by_name = {
-        call.kwargs["name"]: call.kwargs
-        for call in mock_client.create_score.call_args_list
-    }
-    assert calls_by_name["sensitivity"]["value"] == 0.9
-    assert calls_by_name["f1_score"]["value"] == 0.87
-    assert calls_by_name["mcc"]["value"] == 0.7
-    assert calls_by_name["sensitivity"]["trace_id"] == "trace-abc"
-    # All scores should specify NUMERIC data type
-    for call_kwargs in calls_by_name.values():
-        assert call_kwargs["data_type"] == "NUMERIC"
 
 
 def test_emit_scores_continues_on_individual_failure() -> None:

@@ -1,6 +1,7 @@
 """OpenAlex API client."""
 
 import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -15,6 +16,13 @@ from pathfinder.services.research.clients._base import (
     StandardClient,
 )
 from pathfinder.services.research.utils import truncate_text
+
+
+class _OAResponse(BaseModel):
+    """Envelope for the OpenAlex ``/works`` search response."""
+
+    model_config = ConfigDict(extra="ignore")
+    results: list[JSONValue] = Field(default_factory=list)
 
 
 class OpenAlexClient(StandardClient):
@@ -35,16 +43,20 @@ class OpenAlexClient(StandardClient):
         except httpx.HTTPError as exc:
             service = "OpenAlex"
             raise ExternalServiceError(service, str(exc)) from exc
-        items = payload.get("results", []) if isinstance(payload, dict) else []
+        try:
+            parsed = _OAResponse.model_validate(payload)
+            items = parsed.results
+        except (ValidationError, TypeError):
+            items = []
         return list(items)
 
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
-        if not isinstance(raw, dict):
+        try:
+            parsed = OpenAlexRawWork.model_validate(raw).to_parsed_paper()
+        except (ValidationError, TypeError):
             return None
-
-        parsed = OpenAlexRawWork.model_validate(raw).to_parsed_paper()
         parsed.abstract = truncate_text(parsed.abstract, abstract_max_chars)
         parsed.snippet = parsed.abstract or parsed.journal_title
 

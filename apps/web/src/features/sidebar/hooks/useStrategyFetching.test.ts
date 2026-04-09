@@ -60,12 +60,13 @@ vi.mock("@/lib/api/strategies", () => ({
 // Mock store state
 let mockAuthStatusKnown = true;
 let mockVeupathdbSignedIn = true;
+let mockAuthRefreshed = true;
 let mockDraftStrategy: Strategy | null = null;
 
 vi.mock("@/state/useSessionStore", () => ({
   useSessionStore: (
-    selector: (s: { veupathdbSignedIn: boolean; authStatusKnown: boolean }) => unknown,
-  ) => selector({ veupathdbSignedIn: mockVeupathdbSignedIn, authStatusKnown: mockAuthStatusKnown }),
+    selector: (s: { veupathdbSignedIn: boolean; authStatusKnown: boolean; authRefreshed: boolean }) => unknown,
+  ) => selector({ veupathdbSignedIn: mockVeupathdbSignedIn, authStatusKnown: mockAuthStatusKnown, authRefreshed: mockAuthRefreshed }),
 }));
 
 vi.mock("@/state/strategy/store", () => ({
@@ -83,6 +84,7 @@ describe("useStrategyFetching", () => {
     mockListDismissedStrategies = vi.fn().mockResolvedValue([]);
     mockAuthStatusKnown = true;
     mockVeupathdbSignedIn = true;
+    mockAuthRefreshed = true;
     mockDraftStrategy = null;
   });
 

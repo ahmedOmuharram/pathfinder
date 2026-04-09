@@ -17,21 +17,24 @@ def _build_strategy_context(session: StrategySession) -> str:
     if not graph or not graph.steps:
         return ""
 
+    sync_state = session.sync_state
+
     lines: list[str] = ["\n\n## Current Strategy State"]
     lines.append(f"**Name:** {graph.name}")
     if graph.record_type:
         lines.append(f"**Record type:** {graph.record_type}")
 
-    built = graph.wdk_strategy_id is not None
-    lines.append(f"**Built on WDK:** {'Yes (ID: ' + str(graph.wdk_strategy_id) + ')' if built else 'No'}")
+    wdk_strategy_id = sync_state.wdk_strategy_id if sync_state else None
+    built = wdk_strategy_id is not None
+    lines.append(f"**Built on WDK:** {'Yes (ID: ' + str(wdk_strategy_id) + ')' if built else 'No'}")
     lines.append(f"**Steps ({len(graph.steps)}):**")
 
     for step in graph.steps.values():
         kind = step.infer_kind()
         label = step.display_name or step.search_name
-        count = graph.step_counts.get(step.id)
+        count = sync_state.step_counts.get(step.id) if sync_state else None
         count_str = f" — {count:,} results" if count is not None else ""
-        error = graph.wdk_push_errors.get(step.id)
+        error = sync_state.wdk_push_errors.get(step.id) if sync_state else None
         error_str = f" ⚠ {error}" if error else ""
 
         if kind == "combine":

@@ -5,10 +5,6 @@ from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Query
 
-from pathfinder.integrations.veupathdb.wdk_models import (
-    WDKSortDirection,
-    encode_wdk_params,
-)
 from pathfinder.platform.errors import (
     NotFoundError,
     ValidationError,
@@ -21,7 +17,11 @@ from pathfinder.services.experiment.refine import (
     combine_with_search,
 )
 from pathfinder.services.experiment.store import get_experiment_store
-from pathfinder.services.wdk import get_strategy_api
+from pathfinder.services.wdk import (
+    WDKSortDirection,
+    encode_wdk_params,
+    get_strategy_api,
+)
 from pathfinder.services.wdk.step_results import StepResultsService
 from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
 from pathfinder.transport.http.schemas.experiments import RefineRequest

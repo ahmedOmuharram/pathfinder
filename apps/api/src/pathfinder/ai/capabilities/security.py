@@ -14,6 +14,7 @@ event loop.
 from __future__ import annotations
 
 import asyncio
+import os
 import threading
 import unicodedata
 from collections.abc import Sequence
@@ -35,7 +36,13 @@ from pathfinder.platform.logging import get_logger
 logger = get_logger(__name__)
 
 # Default model directory — baked into the Docker image at build time.
-_DEFAULT_MODEL_DIR = Path("/app/models/piguard")
+# Override via PIGUARD_MODEL_DIR env var for local dev/test.
+_DOCKER_MODEL_DIR = "/app/models/piguard"
+
+
+def _resolve_model_dir() -> Path:
+    """Resolve PIGuard model directory, checking PIGUARD_MODEL_DIR env var."""
+    return Path(os.environ.get("PIGUARD_MODEL_DIR", _DOCKER_MODEL_DIR))
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +191,7 @@ class SecurityGuardrail(AbstractCapability[AgentDeps]):
     """
 
     injection_threshold: float = 0.92
-    model_dir: Path = _DEFAULT_MODEL_DIR
+    model_dir: Path = field(default_factory=_resolve_model_dir)
 
     _scanners: list[_Scanner] = field(
         default_factory=list, init=False, repr=False

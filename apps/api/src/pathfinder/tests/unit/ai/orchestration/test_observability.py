@@ -7,8 +7,6 @@ import pathfinder.ai.orchestration.observability as obs
 from pathfinder.ai.orchestration.observability import (
     _build_resource,
     _configure_log_export,
-    get_meter,
-    get_tracer,
     setup_observability,
     shutdown_observability,
 )
@@ -22,11 +20,6 @@ def test_setup_observability_noop_without_config() -> None:
         return_value=mock_settings,
     ):
         setup_observability(app=MagicMock(), db_engine=MagicMock())
-
-
-def test_get_tracer_returns_tracer() -> None:
-    tracer = get_tracer()
-    assert tracer is not None
 
 
 def test_configure_log_export_noop_without_signoz() -> None:
@@ -97,11 +90,6 @@ def test_shutdown_observability_flushes_meter_provider() -> None:
         mock_meter.shutdown.assert_called_once()
     finally:
         obs._otel.meter_provider = original
-
-
-def test_get_meter_returns_meter() -> None:
-    meter = get_meter()
-    assert meter is not None
 
 
 def test_resource_includes_enriched_attributes() -> None:

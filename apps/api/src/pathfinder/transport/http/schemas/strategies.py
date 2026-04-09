@@ -5,10 +5,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.schemas import (
     StepResponse,
-    StrategyPlanPayload,
 )
 
 from .chat import MessageResponse, ThinkingResponse

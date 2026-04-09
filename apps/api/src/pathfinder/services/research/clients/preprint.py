@@ -5,13 +5,14 @@ import re
 from typing import Literal
 
 import httpx
+from pydantic import ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
     _new_citation_id,
     _now_iso,
 )
-from pathfinder.domain.research.papers import ParsedPaper
+from pathfinder.domain.research.papers import ParsedPaper, PreprintRawResult
 from pathfinder.platform.errors import ExternalServiceError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONValue
@@ -31,6 +32,16 @@ logger = get_logger(__name__)
 
 _MAX_RETRIES = 3
 _BACKOFF_BASE_S = 2.0
+
+
+async def _safe_fetch_summary(
+    client: httpx.AsyncClient, url: str | None, max_chars: int
+) -> str | None:
+    """Fetch page summary, returning None on failure."""
+    try:
+        return await fetch_page_summary(client, url, max_chars=max_chars)
+    except (httpx.HTTPError, ValueError, TypeError, UnicodeDecodeError, OSError):
+        return None
 
 
 class PreprintClient(BaseClient):
@@ -91,17 +102,12 @@ class PreprintClient(BaseClient):
             ) as client:
                 summaries = await asyncio.gather(
                     *[
-                        fetch_page_summary(
-                            client, paper.url, max_chars=abstract_max_chars
-                        )
+                        _safe_fetch_summary(client, paper.url, abstract_max_chars)
                         for paper in results
-                    ],
-                    return_exceptions=True,
+                    ]
                 )
             for paper, s in zip(results, summaries, strict=True):
-                # isinstance(s, str) is legitimate: asyncio.gather(return_exceptions=True)
-                # mixes str results with Exception objects in the same list.
-                if isinstance(s, str) and s.strip():
+                if s and s.strip():
                     paper.abstract = s.strip()
                     paper.snippet = s.strip()
 
@@ -147,19 +153,18 @@ class PreprintClient(BaseClient):
     def _parse_item(
         self, raw: JSONValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
-        if not isinstance(raw, dict):
+        try:
+            result = PreprintRawResult.model_validate(raw)
+        except (ValidationError, TypeError):
             return None
-        title = str(raw.get("_title") or "")
-        url_str = raw.get("_url")
-        url_str = url_str if isinstance(url_str, str) else None
         source = self._current_source
 
-        parsed = ParsedPaper(title=title, url=url_str)
+        parsed = ParsedPaper(title=result.title, url=result.url)
         citation = Citation(
             id=_new_citation_id(source),
             source=source,
-            title=title or (url_str or f"{source} result"),
-            url=url_str,
+            title=result.title or (result.url or f"{source} result"),
+            url=result.url,
             accessed_at=_now_iso(),
         )
         return parsed, citation

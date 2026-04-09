@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp, parse_op
 from pathfinder.domain.strategy.session import StrategyGraph
-from pathfinder.integrations.veupathdb.wdk_models import WDKValidation
+from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
@@ -25,7 +25,8 @@ from pathfinder.services.strategies.kind_validation import (
 from pathfinder.services.strategies.search_resolution import (
     resolve_record_type_for_step,
 )
-from pathfinder.services.strategies.step_wdk_push import _push_step_to_wdk
+from pathfinder.services.strategies.step_wdk_push import push_step_to_wdk
+from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)
 
@@ -77,7 +78,7 @@ class StepCreationResult:
     step_id: str | None
     error: ToolErrorPayload | None
     wdk_step_id: int | None = None
-    wdk_validation: WDKValidation | None = None
+    wdk_validation: StepValidation | None = None
     wdk_push_error: str | None = None
     combine_step: PlanStepNode | None = None
     combine_step_id: str | None = None
@@ -213,6 +214,7 @@ def _add_step_to_graph(
 async def create_step(
     *,
     graph: StrategyGraph,
+    sync_state: WDKSyncState,
     site_id: str,
     spec: StepSpec,
     callbacks: ValidationCallbacks,
@@ -309,32 +311,32 @@ async def create_step(
         ))
 
     # Push leaf step to WDK immediately (best-effort).
-    wdk_step_id, wdk_validation, push_error = await _push_step_to_wdk(
-        graph=graph,
+    wdk_step_id, wdk_validation, push_error = await push_step_to_wdk(
+        sync_state=sync_state,
         step=step,
         site_id=site_id,
+        record_type=graph.record_type or "transcript",
         search_name=search_name,
         parameters=parameters,
-        parsed_op=parsed_op,
     )
 
     if push_error:
-        graph.wdk_push_errors[step.id] = push_error
+        sync_state.wdk_push_errors[step.id] = push_error
 
     # Push combine step to WDK if one was created.
     combine_wdk_step_id: int | None = None
     combine_wdk_push_error: str | None = None
     if combine_step is not None:
-        combine_wdk_step_id, _, combine_wdk_push_error = await _push_step_to_wdk(
-            graph=graph,
+        combine_wdk_step_id, _, combine_wdk_push_error = await push_step_to_wdk(
+            sync_state=sync_state,
             step=combine_step,
             site_id=site_id,
+            record_type=graph.record_type or "transcript",
             search_name=COMBINE_SEARCH_NAME,
             parameters={},
-            parsed_op=combine_step.operator,
         )
         if combine_wdk_push_error:
-            graph.wdk_push_errors[combine_step.id] = combine_wdk_push_error
+            sync_state.wdk_push_errors[combine_step.id] = combine_wdk_push_error
 
     return StepCreationResult(
         step=step,
@@ -353,6 +355,7 @@ async def create_step(
 async def resolve_inline_step(
     *,
     graph: StrategyGraph,
+    sync_state: WDKSyncState,
     site_id: str,
     spec: InlineSpec,
     callbacks: ValidationCallbacks,
@@ -372,6 +375,7 @@ async def resolve_inline_step(
     )
     return await create_step(
         graph=graph,
+        sync_state=sync_state,
         site_id=site_id,
         spec=step_spec,
         callbacks=callbacks,
@@ -391,6 +395,7 @@ class ColocationStepSpec:
 async def create_colocation_step(
     *,
     graph: StrategyGraph,
+    sync_state: WDKSyncState,
     site_id: str,
     spec: ColocationStepSpec,
     callbacks: ValidationCallbacks,
@@ -413,7 +418,7 @@ async def create_colocation_step(
         display_name=spec.display_name,
         colocation_params=colocation,
     )
-    result = await create_step(graph=graph, site_id=site_id, spec=step_spec, callbacks=callbacks)
+    result = await create_step(graph=graph, sync_state=sync_state, site_id=site_id, spec=step_spec, callbacks=callbacks)
     # Restore record type — GenesBySpanLogic lives under transcript,
     # not whatever the secondary input's record type is.
     graph.record_type = saved_record_type or "transcript"

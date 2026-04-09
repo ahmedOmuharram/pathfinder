@@ -44,9 +44,9 @@ async def _emit_to_redis(
     await redis.xadd(
         f"op:{operation_id}",
         {
-            "op": operation_id.encode(),
-            "type": event_type.encode(),
-            "data": json.dumps(event_data, default=str).encode(),
+            "op": operation_id,
+            "type": event_type,
+            "data": json.dumps(event_data, default=str),
         },
         maxlen=10_000,
         approximate=True,

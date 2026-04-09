@@ -8,27 +8,29 @@ Public API:
 - ``normalize_synced_parameters`` -- enrich plan nodes with normalized param values
 """
 
+from pydantic import TypeAdapter
+
 from pathfinder.domain.parameters.normalize import ParameterNormalizer
-from pathfinder.domain.parameters.specs import adapt_param_specs_from_search
 from pathfinder.domain.strategy.ast import (
     PlanStepNode,
     walk_step_tree,
 )
 from pathfinder.domain.strategy.ops import parse_op
+from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.types import SerializedParams
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearch,
     WDKStep,
     WDKStepTree,
     WDKStrategyDetails,
-    encode_wdk_params,
 )
 from pathfinder.platform.errors import AppError, DataParsingError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 
-from .schemas import StrategyPlanPayload
-
+_params_adapter: TypeAdapter[SerializedParams] = TypeAdapter(SerializedParams)
 logger = get_logger(__name__)
 
 
@@ -209,7 +211,7 @@ async def normalize_synced_parameters(
 
         cache_key = (record_type, search_name)
         if cache_key not in spec_cache:
-            encoded_context = encode_wdk_params(step.parameters or {})
+            encoded_context = dict(step.parameters or {})
             spec_cache[cache_key] = await _load_search_spec(
                 api, record_type, search_name, encoded_context
             )
@@ -220,7 +222,8 @@ async def normalize_synced_parameters(
             continue
         try:
             normalizer = ParameterNormalizer(specs)
-            normalized = normalizer.normalize(step.parameters or {})
+            params_obj: JSONObject = dict(step.parameters or {})
+            normalized = normalizer.normalize(params_obj)
         except AppError as exc:
             logger.warning(
                 "Failed to normalize synced parameters",
@@ -231,4 +234,4 @@ async def normalize_synced_parameters(
             )
             continue
 
-        step.parameters = normalized
+        step.parameters = _params_adapter.validate_python(normalized)

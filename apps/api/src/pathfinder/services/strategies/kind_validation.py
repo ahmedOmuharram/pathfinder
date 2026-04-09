@@ -7,10 +7,7 @@ binary combines, and the top-level search-name resolution + dispatch.
 
 from typing import cast
 
-from pathfinder.domain.parameters.specs import (
-    adapt_param_specs_from_search,
-    find_input_step_param,
-)
+from pathfinder.domain.parameters.specs import find_input_step_param
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
 from pathfinder.domain.strategy.organism import extract_output_organisms
@@ -19,6 +16,7 @@ from pathfinder.integrations.veupathdb.factory import get_wdk_client
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_validation import ValidationCallbacks
 from pathfinder.services.strategies.input_resolution import StepInputs
 from pathfinder.services.strategies.search_resolution import (

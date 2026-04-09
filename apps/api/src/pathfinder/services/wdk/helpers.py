@@ -5,10 +5,13 @@ endpoints to work with WDK record types, primary keys, and analysis
 parameters. Previously duplicated across multiple router modules.
 """
 
+from collections.abc import Sequence
+
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKAttributeField,
     WDKRecordInstance,
 )
+from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.types import JSONObject, JSONValue
 
 # ---------------------------------------------------------------------------
@@ -194,21 +197,21 @@ def extract_detail_attributes(
 
 
 def merge_analysis_params(
-    form_meta: JSONValue,
+    wdk_params: Sequence[WDKParameter],
     user_params: JSONObject,
 ) -> JSONObject:
     """Merge WDK form defaults with user-supplied parameters.
 
-    Always extracts defaults from the WDK form metadata and layers
+    Always extracts defaults from the typed WDK parameters and layers
     user-supplied parameters on top so that required fields are never
     missing (which would cause WDK 422 errors).
 
     After merging, vocabulary params (``single-pick-vocabulary``,
     ``multi-pick-vocabulary``) are re-encoded as JSON arrays using
-    the form metadata.  This ensures that user-supplied plain strings
+    the parameter type info.  This ensures that user-supplied plain strings
     don't bypass the encoding required by
     ``AbstractEnumParam.convertToTerms()``.
     """
-    defaults = extract_default_params(form_meta)
+    defaults = extract_default_params(wdk_params)
     merged: JSONObject = {**defaults, **user_params}
-    return encode_vocab_params(merged, form_meta)
+    return encode_vocab_params(merged, wdk_params)

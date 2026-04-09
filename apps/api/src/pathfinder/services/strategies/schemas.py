@@ -1,36 +1,14 @@
-"""Service-layer strategy DTOs shared across services, AI, and transport.
-
-These types depend on both domain models and integration types (WDKValidation),
-so they belong in the service layer — the only layer that can import from both
-domain and integrations.
-"""
+"""Service-layer strategy DTOs shared across services, AI, and transport."""
 
 from pathfinder.domain.strategy.ast import (
-    PlanStepNode,
     StepAnalysis,
     StepFilter,
     StepReport,
 )
 from pathfinder.domain.strategy.ops import ColocationParams
-from pathfinder.integrations.veupathdb.wdk_models import WDKValidation
+from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
-
-
-class StrategyPlanPayload(CamelModel):
-    """Wire format for strategy plans (API request/response).
-
-    Wire format for strategy plans shared between API request/response and persistence.
-    """
-
-    record_type: str
-    root: PlanStepNode
-    name: str | None = None
-    description: str | None = None
-    metadata: JSONObject | None = None
-    step_counts: dict[str, int] | None = None
-    wdk_step_ids: dict[str, int] | None = None
-    step_validations: dict[str, WDKValidation] | None = None
 
 
 class StepResponse(CamelModel):
@@ -51,7 +29,7 @@ class StepResponse(CamelModel):
     is_built: bool = False
     is_filtered: bool = False
     wdk_push_error: str | None = None
-    validation: WDKValidation | None = None
+    validation: StepValidation | None = None
     filters: list[StepFilter] | None = None
     analyses: list[StepAnalysis] | None = None
     reports: list[StepReport] | None = None

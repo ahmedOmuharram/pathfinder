@@ -11,49 +11,26 @@ them to the camelCase keys in WDK JSON.
 
 from __future__ import annotations
 
-import json
 from typing import Annotated, Literal
 
-from pydantic import BeforeValidator, ConfigDict, Discriminator, Field
+from pydantic import ConfigDict, Discriminator, Field, TypeAdapter
 from pydantic.alias_generators import to_camel
 
+from pathfinder.domain.strategy.types import ParamValue
+from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject, JSONValue
 
-
-def _to_wdk_str(v: object) -> str:
-    """Coerce any JSON value to WDK ParameterValue (string)."""
-    encoded = json.dumps(v, ensure_ascii=False)
-    if encoded[0] == '"':
-        return json.loads(encoded)
-    return encoded
-
-
-def _parse_json_str(v: str) -> dict[str, object] | str:
-    """Parse double-serialized JSON strings from small LLMs."""
-    try:
-        return json.loads(v)
-    except (TypeError, json.JSONDecodeError, ValueError):
-        return v
-
-
-WdkParamValue = Annotated[str, BeforeValidator(_to_wdk_str)]
-
-WdkParams = Annotated[dict[str, WdkParamValue], BeforeValidator(_parse_json_str)]
-
-WDKSerializedParams = Annotated[
-    dict[str, WdkParamValue],
-    BeforeValidator(lambda v: v if v is not None else {}),
-]
+_wdk_param_adapter: TypeAdapter[dict[str, ParamValue]] = TypeAdapter(dict[str, ParamValue])
 
 
 def encode_wdk_params(params: JSONObject | None) -> dict[str, str]:
-    """Encode a parameter dict to WDK's ``Record<string, string>``."""
-    return {
-        k: _to_wdk_str(val)
-        for k, val in (params or {}).items()
-        if val is not None
-    }
+    """Encode a parameter dict to WDK's ``Record<string, string>``.
+
+    Drops None values, coerces remaining values to strings via ``ParamValue``.
+    """
+    filtered = {k: v for k, v in (params or {}).items() if v is not None}
+    return _wdk_param_adapter.validate_python(filtered)
 
 
 class WDKModel(CamelModel):
@@ -98,19 +75,8 @@ class WDKSearchConfig(WDKModel):
     wdk_weight: int = 0
 
 
-class WDKValidationErrors(WDKModel):
-    """Validation error details."""
-
-    general: list[str] = Field(default_factory=list)
-    by_key: dict[str, list[str]] = Field(default_factory=dict)
-
-
-class WDKValidation(WDKModel):
-    """Step/search/strategy validation state."""
-
-    level: str = "NONE"
-    is_valid: bool = True
-    errors: WDKValidationErrors | None = None
+# StepValidation and StepValidationErrors are defined in
+# pathfinder.domain.strategy.validation — imported above.
 
 
 class WDKStepTree(WDKModel):
@@ -135,7 +101,7 @@ class WDKStep(WDKModel):
     search_name: str
     search_config: WDKSearchConfig
     record_class_name: str | None = None
-    validation: WDKValidation = Field(default_factory=WDKValidation)
+    validation: StepValidation = Field(default_factory=StepValidation)
     estimated_size: int | None = None
     strategy_id: int | None = None
     display_name: str = ""
@@ -178,7 +144,7 @@ class WDKStrategySummary(WDKModel):
     release_version: str = ""
     name_of_first_step: str = ""
     leaf_and_transform_step_count: int = 0
-    validation: WDKValidation | None = None
+    validation: StepValidation | None = None
 
 
 class WDKStrategyDetails(WDKStrategySummary):
@@ -186,7 +152,7 @@ class WDKStrategyDetails(WDKStrategySummary):
 
     step_tree: WDKStepTree
     steps: dict[str, WDKStep] = Field(default_factory=dict)
-    validation: WDKValidation | None = Field(default_factory=WDKValidation)
+    validation: StepValidation | None = Field(default_factory=StepValidation)
 
 
 class WDKIdentifier(WDKModel):
@@ -286,7 +252,7 @@ class WDKSearchResponse(WDKModel):
     """Envelope for single-search detail endpoint."""
 
     search_data: WDKSearch
-    validation: WDKValidation
+    validation: StepValidation
 
 
 class WDKRecordType(WDKModel):
@@ -369,7 +335,7 @@ class WDKStepAnalysisTypeResponse(WDKModel):
     """
 
     search_data: WDKStepAnalysisType
-    validation: WDKValidation
+    validation: StepValidation
 
 
 WDKAnalysisStatus = Literal[
@@ -399,7 +365,7 @@ class WDKStepAnalysisConfig(WDKModel):
     user_notes: str | None = None
     status: WDKAnalysisStatus = "CREATED"
     parameters: dict[str, str] = Field(default_factory=dict)
-    validation: WDKValidation | None = None
+    validation: StepValidation | None = None
 
 
 class WDKAnalysisStatusResponse(WDKModel):
