@@ -38,16 +38,28 @@ const noop = vi.fn();
 
 function renderItem(
   strategy: Strategy,
-  { isActiveStreaming = false }: { isActiveStreaming?: boolean } = {},
+  {
+    isActiveStreaming = false,
+    activePhase = null,
+    activePhaseStatus = null,
+    isActive = false,
+  }: {
+    isActiveStreaming?: boolean;
+    activePhase?: string | null;
+    activePhaseStatus?: string | null;
+    isActive?: boolean;
+  } = {},
 ) {
   return render(
     <ConversationListItem
       item={makeItem(strategy)}
-      isActive={false}
+      isActive={isActive}
       isRenaming={false}
       renameValue=""
       graphHasValidationIssue={false}
       isActiveStreaming={isActiveStreaming}
+      activePhase={activePhase}
+      activePhaseStatus={activePhaseStatus}
       onRenameValueChange={noop}
       onCommitRename={noop}
       onCancelRename={noop}
@@ -65,6 +77,32 @@ describe("ConversationListItem status badge", () => {
     const strategy = makeStrategy({ stepCount: 3 });
     renderItem(strategy, { isActiveStreaming: true });
     expect(screen.getByText("Building")).toBeTruthy();
+  });
+
+  it("shows the live phase as part of the active building status", () => {
+    const strategy = makeStrategy({ stepCount: 3 });
+    renderItem(strategy, {
+      isActive: true,
+      isActiveStreaming: true,
+      activePhase: "discovery",
+      activePhaseStatus: "started",
+    });
+    expect(screen.getByText("Building • Discovery")).toBeTruthy();
+  });
+
+  it("shows awaiting approval as part of the active draft status", () => {
+    const strategy = makeStrategy({
+      stepCount: 3,
+      wdkStrategyId: 42,
+      isSaved: false,
+    });
+    renderItem(strategy, {
+      isActive: true,
+      isActiveStreaming: true,
+      activePhase: "planning",
+      activePhaseStatus: "awaiting_approval",
+    });
+    expect(screen.getByText("Draft • Awaiting approval")).toBeTruthy();
   });
 
   it("shows 'Draft' when steps exist, no wdkStrategyId, and NOT streaming", () => {

@@ -51,8 +51,9 @@ function HomePageInner() {
   const siteIdParam = searchParams.get("siteId");
 
   const {
-    selectedSite,
+    selectedSite: storedSelectedSite,
     strategyId,
+    chatPreviewVersion,
     switchSite,
     veupathdbSignedIn,
     pendingAskNode,
@@ -61,12 +62,14 @@ function HomePageInner() {
     useShallow((s) => ({
       selectedSite: s.selectedSite,
       strategyId: s.strategyId,
+      chatPreviewVersion: s.chatPreviewVersion,
       switchSite: s.switchSite,
       veupathdbSignedIn: s.veupathdbSignedIn,
       pendingAskNode: s.pendingAskNode,
       setPendingAskNode: s.setPendingAskNode,
     })),
   );
+  const selectedSite = siteIdParam ?? storedSelectedSite;
   useAuthCheck();
   const { setupRequired, retry: retryConfig } = useSystemConfig();
   useSiteTheme(selectedSite);
@@ -77,14 +80,6 @@ function HomePageInner() {
   const { layoutRef, sidebarWidth, startDragging } = useSidebarResize();
   const modals = useModalState();
 
-  const [prevSiteIdParam, setPrevSiteIdParam] = useState(siteIdParam);
-  if (siteIdParam !== prevSiteIdParam) {
-    setPrevSiteIdParam(siteIdParam);
-    if (siteIdParam !== null && siteIdParam !== selectedSite) {
-      switchSite(siteIdParam);
-    }
-  }
-
   const handleSiteChange = (nextSite: string) => switchSite(nextSite);
 
   // --- Workbench gene set export ---
@@ -92,12 +87,23 @@ function HomePageInner() {
 
   const { displayStrategy, hasGraph } = useStableGraph(strategy);
   const activePlan = usePlanStore((s) => s.activePlan);
-  const [planPanel, setPlanPanel] = useState<"closed" | "collapsed" | "open">("closed");
-  const [prevPlanStatus, setPrevPlanStatus] = useState(activePlan?.status);
-  if (activePlan?.status !== prevPlanStatus) {
-    setPrevPlanStatus(activePlan?.status);
-    if (activePlan?.status === "presented") setPlanPanel("open");
-  }
+  const [planPanelState, setPlanPanelState] = useState<{
+    mode: "closed" | "collapsed" | "open";
+    dismissedPlanId: string | null;
+  }>({ mode: "closed", dismissedPlanId: null });
+  const activePlanId = activePlan?.id ?? null;
+  const shouldAutoOpenPlan =
+    activePlan?.status === "presented" &&
+    activePlanId != null &&
+    planPanelState.dismissedPlanId !== activePlanId &&
+    planPanelState.mode === "closed";
+  const planPanel = shouldAutoOpenPlan ? "open" : planPanelState.mode;
+  const closePlanPanel = () =>
+    setPlanPanelState({ mode: "closed", dismissedPlanId: activePlanId });
+  const collapsePlanPanel = () =>
+    setPlanPanelState((prev) => ({ ...prev, mode: "collapsed" }));
+  const openPlanPanel = () =>
+    setPlanPanelState((prev) => ({ ...prev, mode: "open" }));
 
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
 
@@ -141,7 +147,7 @@ function HomePageInner() {
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
           <div className="min-h-0 flex-1">
             <UnifiedChatPanel
-              key={strategyId ?? "none"}
+              key={`${selectedSite}:${chatPreviewVersion}`}
               siteId={selectedSite}
               pendingAskNode={pendingAskNode}
               onConsumeAskNode={() => setPendingAskNode(null)}
@@ -175,7 +181,7 @@ function HomePageInner() {
               <div className="flex h-full w-10 shrink-0 flex-col items-center border-l border-border bg-card pt-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setPlanPanel("open")}
+                  onClick={openPlanPanel}
                   className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
                   aria-label="Expand plan panel"
                   title="Expand plan"
@@ -186,8 +192,9 @@ function HomePageInner() {
             ) : (
               <div className="w-[380px] shrink-0">
                 <PlanPanel
-                  onClose={() => setPlanPanel("closed")}
-                  onCollapse={() => setPlanPanel("collapsed")}
+                  siteId={selectedSite}
+                  onClose={closePlanPanel}
+                  onCollapse={collapsePlanPanel}
                 />
               </div>
             )}

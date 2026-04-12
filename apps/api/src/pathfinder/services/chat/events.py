@@ -28,6 +28,7 @@ class EventType(StrEnum):
     PLANNING_ARTIFACT = "planning_artifact"
     CITATIONS = "citations"
     REASONING = "reasoning"
+    PROBLEM_FRAME = "problem_frame"
     WORKBENCH_GENE_SET = "workbench_gene_set"
 
 
@@ -72,6 +73,15 @@ def _extract_reasoning(
                 by_alias=True, exclude_none=True
             ),
         }
+    return None
+
+
+def _extract_problem_frame(
+    result: JSONObject, *, get_graph: GetGraphFn = None
+) -> JSONObject | None:
+    frame = result.get("problemFrame")
+    if isinstance(frame, dict) and frame:
+        return {"type": EventType.PROBLEM_FRAME, "data": {"problemFrame": frame}}
     return None
 
 
@@ -188,6 +198,7 @@ _EXTRACTORS: list[EventExtractor] = [
     _extract_citations,
     _extract_planning_artifact,
     _extract_reasoning,
+    _extract_problem_frame,
     _extract_conversation_title,
     _extract_step_update,
     _extract_graph_snapshot,

@@ -35,6 +35,13 @@ vi.mock("@/state/useSessionStore", () => ({
     selector(sessionState),
 }));
 
+vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
+  useGeneSetsQuery: () => ({
+    data: storeState["geneSets"],
+    isPending: false,
+  }),
+}));
+
 const mockRequestJson = vi.fn();
 vi.mock("@/lib/api/http", () => ({
   requestJson: (...args: unknown[]) => mockRequestJson(...args),

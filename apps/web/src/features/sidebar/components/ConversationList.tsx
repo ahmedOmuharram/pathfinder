@@ -21,6 +21,8 @@ interface ConversationListProps {
   renameValue: string;
   /** Whether a chat stream is currently in progress. */
   chatIsStreaming: boolean;
+  currentPhase: string | null;
+  phaseStatus: string | null;
   onRenameValueChange: (v: string) => void;
   onCommitRename: (item: ConversationItem) => void;
   onCancelRename: () => void;
@@ -39,6 +41,8 @@ export function ConversationList({
   renamingId,
   renameValue,
   chatIsStreaming,
+  currentPhase,
+  phaseStatus,
   onRenameValueChange,
   onCommitRename,
   onCancelRename,
@@ -71,6 +75,8 @@ export function ConversationList({
               renameValue={renameValue}
               graphHasValidationIssue={Boolean(si && graphValidationStatus[si.id])}
               isActiveStreaming={chatIsStreaming && activeId === item.id}
+              activePhase={currentPhase}
+              activePhaseStatus={phaseStatus}
               onRenameValueChange={onRenameValueChange}
               onCommitRename={onCommitRename}
               onCancelRename={onCancelRename}

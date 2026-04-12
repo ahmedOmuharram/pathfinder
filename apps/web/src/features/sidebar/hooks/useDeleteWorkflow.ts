@@ -46,6 +46,7 @@ export function useDeleteWorkflow({
 }: UseDeleteWorkflowArgs): DeleteWorkflow {
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
+  const bumpChatPreviewVersion = useSessionStore((s) => s.bumpChatPreviewVersion);
   const deleteFromWdk = useSettingsStore((s) => s.deleteFromWdk);
   const clearStrategy = useStrategyStore((s) => s.clear);
   const queryClient = useQueryClient();
@@ -83,6 +84,7 @@ export function useDeleteWorkflow({
 
         // If deleting active strategy, reset active state.
         if (strategyId === si.id) {
+          bumpChatPreviewVersion();
           clearStrategy();
           setStrategyId(null);
         }

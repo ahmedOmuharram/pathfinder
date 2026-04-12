@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+import { MISSING_API_URL_MESSAGE } from "@/lib/config/apiBase";
+
 import {
   forwardHeaders,
   getUpstreamBase,
@@ -97,9 +99,9 @@ describe("_proxy", () => {
       expect(getUpstreamBase()).toBe("http://backend:9000");
     });
 
-    it("falls back to localhost:8000 when env is unset", () => {
+    it("throws when NEXT_PUBLIC_API_URL is unset", () => {
       delete process.env["NEXT_PUBLIC_API_URL"];
-      expect(getUpstreamBase()).toBe("http://localhost:8000");
+      expect(() => getUpstreamBase()).toThrow(MISSING_API_URL_MESSAGE);
     });
   });
 

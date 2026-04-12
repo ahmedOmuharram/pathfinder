@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 import path from "path";
 
+import { getConfiguredServerApiBaseUrl } from "./src/lib/config/apiBase";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   reactCompiler: true,
@@ -19,7 +21,7 @@ const nextConfig: NextConfig = {
     },
   },
   async rewrites() {
-    const apiBase = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
+    const apiBase = getConfiguredServerApiBaseUrl();
     return [
       {
         source: "/health/:path*",

@@ -47,6 +47,7 @@ export function useConversationSidebarActions({
   // --- Store selectors ---
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
+  const bumpChatPreviewVersion = useSessionStore((s) => s.bumpChatPreviewVersion);
 
   const setStrategyMeta = useStrategyStore((s) => s.setStrategyMeta);
   const setStrategy = useStrategyStore((s) => s.setStrategy);
@@ -69,6 +70,7 @@ export function useConversationSidebarActions({
   const handleSelect = (item: ConversationItem) => {
       const si = item.strategyItem;
       if (!si) return;
+      bumpChatPreviewVersion();
       setStrategyId(si.id);
       clearStrategy();
       getStrategy(si.id)
@@ -94,6 +96,7 @@ export function useConversationSidebarActions({
     try {
       const res = await openStrategy({ siteId });
       clearStrategy();
+      bumpChatPreviewVersion();
       setStrategyId(res.strategyId);
       const now = new Date().toISOString();
       queryClient.setQueryData<Strategy[]>(listKey, (old) => [
@@ -153,4 +156,3 @@ export function useConversationSidebarActions({
     handleToggleSaved,
   };
 }
-

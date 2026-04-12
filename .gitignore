@@ -1,4 +1,4 @@
-# Test credentials (never commit)
+# Test credentials
 .env.test
 
 # Dependencies
@@ -39,6 +39,7 @@ env/
 .codex/
 .cursor/
 .claude/
+memory/
 .superpowers/
 .hypothesis/
 docs/superpowers/
@@ -50,6 +51,7 @@ CLAUDE.md
 
 # Environment
 .env
+.env.dev
 .env.local
 .env.*.local
 ollama_models.yaml

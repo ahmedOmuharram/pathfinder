@@ -1,5 +1,8 @@
 import type { ToolCall } from "@pathfinder/shared";
 import { ToolCallInspector } from "@/features/chat/components/message/ToolCallInspector";
+import { StrategyLifecycleBadge } from "@/features/chat/components/phase/StrategyLifecycleBadge";
+import { usePlanStore } from "@/state/usePlanStore";
+import { useCurrentStrategy } from "@/state/useStrategySelectors";
 import { Card } from "@/lib/components/ui/Card";
 
 /**
@@ -32,6 +35,9 @@ export function ThinkingPanel(props: {
     reasoning,
     title,
   } = props;
+  const { strategy } = useCurrentStrategy();
+  const currentPhase = usePlanStore((s) => s.currentPhase);
+  const phaseStatus = usePlanStore((s) => s.phaseStatus);
   const hasReasoning = Boolean(reasoning && reasoning.trim().length > 0);
   const hasAnyContent =
     hasReasoning ||
@@ -45,7 +51,19 @@ export function ThinkingPanel(props: {
   if (isStreaming && !hasAnyContent) {
     return (
       <div className="w-full animate-fade-in">
-        <PulsingDots />
+        <div className="space-y-2">
+          <PulsingDots />
+          <div className="px-1">
+            <StrategyLifecycleBadge
+              stepCount={strategy?.stepCount ?? strategy?.steps.length ?? 0}
+              wdkStrategyId={strategy?.wdkStrategyId ?? null}
+              isSaved={strategy?.isSaved ?? false}
+              isActiveStreaming={isStreaming}
+              currentPhase={currentPhase}
+              phaseStatus={phaseStatus}
+            />
+          </div>
+        </div>
       </div>
     );
   }
@@ -57,8 +75,18 @@ export function ThinkingPanel(props: {
           open
           className="w-full rounded-lg border border-border bg-card px-3 py-2"
         >
-          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {title || "Thinking"}
+          <summary className="flex cursor-pointer items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <span>{title || "Thinking"}</span>
+            {isStreaming && (
+              <StrategyLifecycleBadge
+                stepCount={strategy?.stepCount ?? strategy?.steps.length ?? 0}
+                wdkStrategyId={strategy?.wdkStrategyId ?? null}
+                isSaved={strategy?.isSaved ?? false}
+                isActiveStreaming={isStreaming}
+                currentPhase={currentPhase}
+                phaseStatus={phaseStatus}
+              />
+            )}
           </summary>
           <div className="mt-2 space-y-3 text-sm text-foreground">
             {hasReasoning && (

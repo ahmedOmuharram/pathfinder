@@ -38,6 +38,7 @@ from pathfinder.domain.strategy.plan import (
     PlanStatus,
     StepType,
     StrategyPlan,
+    UserQuestion,
 )
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
@@ -109,6 +110,51 @@ def _build_proposed_plan(plan: StrategyPlan) -> JSONObject | None:
     }
 
 
+def _normalize_question_text(value: str | None) -> str:
+    """Normalize question text for semantic deduplication."""
+    if value is None:
+        return ""
+    return " ".join(value.split()).casefold()
+
+
+def _question_key(question: UserQuestion | UserQuestionInput) -> tuple[str, str, str, str]:
+    """Build a stable semantic identity for a user question."""
+    return (
+        _normalize_question_text(question.question),
+        _normalize_question_text(question.context),
+        question.related_step or "",
+        question.related_param or "",
+    )
+
+
+def _merge_questions(
+    existing: list[UserQuestion],
+    incoming: list[UserQuestionInput],
+) -> list[UserQuestion]:
+    """Merge questions by semantic identity while preserving existing answers."""
+    merged = list(existing)
+    index_by_key = {_question_key(question): idx for idx, question in enumerate(merged)}
+
+    for candidate in incoming:
+        converted = _convert_question(candidate)
+        key = _question_key(candidate)
+        existing_index = index_by_key.get(key)
+        if existing_index is None:
+            merged.append(converted)
+            index_by_key[key] = len(merged) - 1
+            continue
+
+        current = merged[existing_index]
+        merged[existing_index] = converted.model_copy(
+            update={
+                "id": current.id,
+                "answer": current.answer,
+            },
+        )
+
+    return merged
+
+
 async def create_plan(
     ctx: RunContext[AgentDeps],
     title: str,
@@ -140,9 +186,7 @@ async def create_plan(
 
     domain_steps = [_convert_step(s) for s in steps]
     domain_connections = [_convert_connection(c) for c in connections]
-    domain_questions = (
-        [_convert_question(q) for q in questions] if questions else []
-    )
+    domain_questions = _merge_questions([], questions or [])
 
     plan = StrategyPlan(
         title=title,
@@ -197,6 +241,7 @@ def _mutate_plan(
     remove_steps: list[str] | None,
     add_connections: list[PlannedConnectionInput] | None,
     remove_connections: list[ConnectionRef] | None,
+    questions: list[UserQuestionInput] | None,
 ) -> ToolErrorPayload | None:
     """Apply all mutations to a plan in-place. Returns an error payload or None."""
     if title is not None:
@@ -230,6 +275,9 @@ def _mutate_plan(
     if add_connections:
         plan.connections.extend(_convert_connection(c) for c in add_connections)
 
+    if questions is not None:
+        plan.questions = _merge_questions(plan.questions, questions)
+
     return None
 
 
@@ -242,6 +290,7 @@ async def update_plan(
     remove_connections: list[ConnectionRef] | None = None,
     title: str | None = None,
     description: str | None = None,
+    questions: list[UserQuestionInput] | None = None,
 ) -> StrategyPlan | ToolErrorPayload:
     """Mutate the active plan in-place. Apply step patches, add/remove steps and connections.
 
@@ -256,6 +305,7 @@ async def update_plan(
         remove_connections: Connections to remove (by from_step + to_step).
         title: New plan title.
         description: New plan description.
+        questions: User-facing questions to merge into the plan before presentation.
     """
     plan = ctx.deps.agent_state.active_plan
     if plan is None:
@@ -270,6 +320,7 @@ async def update_plan(
         remove_steps=remove_steps,
         add_connections=add_connections,
         remove_connections=remove_connections,
+        questions=questions,
     )
     if mutation_err is not None:
         return mutation_err
@@ -286,16 +337,14 @@ async def update_plan(
 
 async def submit_plan(
     ctx: RunContext[AgentDeps],
-    questions: list[UserQuestionInput] | None = None,
 ) -> StrategyPlan | ToolErrorPayload:
     """Submit the current plan for user review.
 
     Validates that all leaf steps have parameters and topology is valid,
-    then presents the plan in the UI and pauses the tool loop. Use after
-    create_plan or update_plan. Pass questions for things you need user input on.
-
-    Args:
-        questions: Questions to ask the user alongside the plan.
+    then presents the plan in the UI. Use after create_plan or update_plan.
+    The pipeline pauses only when the planning phase later calls
+    ``finish_planning(decision="present_plan")``. Put user-facing questions
+    on the plan via create_plan or update_plan before calling submit_plan.
     """
     deps = ctx.deps
     plan = deps.agent_state.active_plan
@@ -309,9 +358,6 @@ async def submit_plan(
     topo_err = _validate_domain_topology(plan)
     if topo_err is not None:
         return topo_err
-
-    if questions:
-        plan.questions.extend(_convert_question(q) for q in questions)
 
     plan.status = PlanStatus.PRESENTED
     plan.updated_at = datetime.now(UTC)

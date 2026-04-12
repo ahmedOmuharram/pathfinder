@@ -11,6 +11,7 @@ The agent is built inline each turn (no pipeline/state machine needed).
 import asyncio
 from uuid import uuid4
 
+from pathfinder.platform.async_tasks import create_detached_task
 from pathfinder.platform.events import emit
 from pathfinder.platform.redis import get_redis
 from pathfinder.services.chat.types import ChatContext
@@ -90,8 +91,9 @@ async def start_workbench_chat_stream(
     )
 
     # Launch the background producer as an asyncio task.
-    task = asyncio.create_task(
-        workbench_chat_producer(ids=ids, message=message, config=cfg)
+    task = create_detached_task(
+        workbench_chat_producer(ids=ids, message=message, config=cfg),
+        name=f"workbench-chat-producer:{operation_id}",
     )
     _active_tasks[operation_id] = task
     task.add_done_callback(lambda _: _active_tasks.pop(operation_id, None))

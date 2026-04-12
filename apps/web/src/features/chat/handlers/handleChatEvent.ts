@@ -10,6 +10,7 @@ import {
   handleModelSelectedEvent,
   handleOptimizationProgressEvent,
   handlePlanningArtifactEvent,
+  handleProblemFrameEvent,
   handleReasoningEvent,
   handleTokenUsagePartialEvent,
   handleUserMessageEvent,
@@ -30,6 +31,7 @@ import { handleWorkbenchGeneSetEvent } from "./handleChatEvent.workbenchEvents";
 import {
   handleDecisionPresentedEvent,
   handlePhaseChangeEvent,
+  handlePlanApprovedEvent,
   handlePlanPresentedEvent,
   handlePlanUpdatedEvent,
   handlePlanningThoughtEvent,
@@ -68,6 +70,10 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     }
     case "planning_artifact": {
       handlePlanningArtifactEvent(ctx, event.data);
+      break;
+    }
+    case "problem_frame": {
+      handleProblemFrameEvent(ctx, event.data);
       break;
     }
     case "reasoning": {
@@ -136,6 +142,10 @@ export function handleChatEvent(ctx: ChatEventContext, event: ChatSSEEvent) {
     }
     case "plan_presented": {
       handlePlanPresentedEvent(ctx, event.data);
+      break;
+    }
+    case "plan_approved": {
+      handlePlanApprovedEvent(ctx, event.data);
       break;
     }
     case "plan_updated": {

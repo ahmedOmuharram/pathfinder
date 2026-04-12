@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/test";
 import { clearAllGeneSets } from "../fixtures/api-client";
+import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
@@ -27,11 +28,10 @@ test.describe("Chat → Workbench Flow", () => {
     await chatPage.expectIdle();
 
     // Trigger planning artifact
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
-    // UI: Apply strategy
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
     await chatPage.expectIdle();
 

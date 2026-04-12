@@ -66,7 +66,9 @@ export function GeneChip({ geneId, status, resolvedGene, onRemove }: GeneChipPro
     <>
       <span
         ref={chipRef}
-        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-tight ${statusClasses[status]}`}
+        data-gene-chip
+        data-status={status}
+        className={`animate-chip-in inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-tight ${statusClasses[status]}`}
       >
         {statusIcon[status]}
         <span className="truncate max-w-[120px]">{geneId}</span>

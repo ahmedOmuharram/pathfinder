@@ -68,6 +68,28 @@ export function StepParamFields({
   recordType,
   searchName,
 }: StepParamFieldsProps) {
+  return (
+    <FormProvider {...form}>
+      <StepParamFieldsContent
+        form={form}
+        paramSpecs={paramSpecs}
+        vocabOptions={vocabOptions}
+        siteId={siteId}
+        recordType={recordType}
+        searchName={searchName}
+      />
+    </FormProvider>
+  );
+}
+
+function StepParamFieldsContent({
+  form,
+  paramSpecs,
+  vocabOptions,
+  siteId,
+  recordType,
+  searchName,
+}: StepParamFieldsProps) {
   // Dependent param refresh — driven by form watch internally.
   const { dependentOptions, dependentLoading, dependentErrors } = useDependentParams({
     control: form.control,
@@ -113,50 +135,48 @@ export function StepParamFields({
   }
 
   return (
-    <FormProvider {...form}>
-      <div className="space-y-3">
-        {/* Composite widgets */}
-        {hasComposite && (
-          <PhyleticProfileParam
-            specs={compositeSpecs}
-            allSpecs={paramSpecs}
-          />
-        )}
+    <div className="space-y-3">
+      {/* Composite widgets */}
+      {hasComposite && (
+        <PhyleticProfileParam
+          specs={compositeSpecs}
+          allSpecs={paramSpecs}
+        />
+      )}
 
-        {/* Normal params */}
-        {normalSpecs.map((spec) => (
-          <ParamField
-            key={spec.name}
-            spec={spec}
-            vocabOptions={vocabOptions}
-            dependentOptions={dependentOptions}
-            dependentLoading={dependentLoading}
-            dependentErrors={dependentErrors}
-          />
-        ))}
+      {/* Normal params */}
+      {normalSpecs.map((spec) => (
+        <ParamField
+          key={spec.name}
+          spec={spec}
+          vocabOptions={vocabOptions}
+          dependentOptions={dependentOptions}
+          dependentLoading={dependentLoading}
+          dependentErrors={dependentErrors}
+        />
+      ))}
 
-        {/* Advanced params (collapsible) */}
-        {advancedSpecs.length > 0 && (
-          <AdvancedParamsGroup
-            count={advancedSpecs.length}
-            hasErrors={advancedSpecs.some(
-              (s) => s.name !== "" && form.formState.errors[s.name] != null,
-            )}
-          >
-            {advancedSpecs.map((spec) => (
-              <ParamField
-                key={spec.name}
-                spec={spec}
-                vocabOptions={vocabOptions}
-                dependentOptions={dependentOptions}
-                dependentLoading={dependentLoading}
-                dependentErrors={dependentErrors}
-              />
-            ))}
-          </AdvancedParamsGroup>
-        )}
-      </div>
-    </FormProvider>
+      {/* Advanced params (collapsible) */}
+      {advancedSpecs.length > 0 && (
+        <AdvancedParamsGroup
+          count={advancedSpecs.length}
+          hasErrors={advancedSpecs.some(
+            (s) => s.name !== "" && form.formState.errors[s.name] != null,
+          )}
+        >
+          {advancedSpecs.map((spec) => (
+            <ParamField
+              key={spec.name}
+              spec={spec}
+              vocabOptions={vocabOptions}
+              dependentOptions={dependentOptions}
+              dependentLoading={dependentLoading}
+              dependentErrors={dependentErrors}
+            />
+          ))}
+        </AdvancedParamsGroup>
+      )}
+    </div>
   );
 }
 

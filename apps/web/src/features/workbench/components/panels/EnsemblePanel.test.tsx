@@ -38,6 +38,22 @@ vi.mock("@/state/useWorkbenchStore", () => ({
     mockStore(selector),
 }));
 
+vi.mock("@/state/useSessionStore", () => ({
+  useSessionStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      selectedSite: "PlasmoDB",
+      authStatusKnown: true,
+      veupathdbSignedIn: true,
+    }),
+}));
+
+vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
+  useGeneSetsQuery: () => ({
+    data: storeState["geneSets"] as GeneSet[],
+    isPending: false,
+  }),
+}));
+
 // Mock the API call
 const mockRequestJson = vi.fn();
 vi.mock("@/lib/api/http", () => ({

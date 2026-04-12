@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { queryOptions } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { ControlSet, GeneSet } from "@pathfinder/shared";
@@ -6,6 +7,13 @@ import type { ControlSet, GeneSet } from "@pathfinder/shared";
 // ---------------------------------------------------------------------------
 // Mock workbench store
 // ---------------------------------------------------------------------------
+
+const mockSetPositiveControls = vi.fn((ids: string[]) => {
+  storeState["positiveControls"] = ids;
+});
+const mockSetNegativeControls = vi.fn((ids: string[]) => {
+  storeState["negativeControls"] = ids;
+});
 
 const storeState: Record<string, unknown> = {
   activeSetId: "set-1",
@@ -15,13 +23,29 @@ const storeState: Record<string, unknown> = {
   setLastExperiment: vi.fn(),
   positiveControls: [] as string[],
   negativeControls: [] as string[],
-  setPositiveControls: vi.fn(),
-  setNegativeControls: vi.fn(),
+  setPositiveControls: mockSetPositiveControls,
+  setNegativeControls: mockSetNegativeControls,
 };
 
 vi.mock("@/state/useWorkbenchStore", () => ({
   useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector(storeState),
+}));
+
+vi.mock("@/state/useSessionStore", () => ({
+  useSessionStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      selectedSite: "PlasmoDB",
+      authStatusKnown: true,
+      veupathdbSignedIn: true,
+    }),
+}));
+
+vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
+  useGeneSetsQuery: () => ({
+    data: storeState["geneSets"] as GeneSet[],
+    isPending: false,
+  }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -81,10 +105,16 @@ vi.mock("../CsvImportButton", () => ({
 // Mock controlSets API (listControlSets + createControlSet)
 // ---------------------------------------------------------------------------
 
-const mockListControlSets = vi.fn<() => Promise<ControlSet[]>>();
+const mockListControlSets = vi.fn<(siteId: string) => Promise<ControlSet[]>>();
 const mockCreateControlSet = vi.fn();
 vi.mock("../../api/controlSets", () => ({
-  listControlSets: (...args: unknown[]) => mockListControlSets(...(args as [])),
+  listControlSets: (siteId: string) => mockListControlSets(siteId),
+  controlSetsOptions: (siteId: string) =>
+    queryOptions({
+      queryKey: ["control-sets", "list", siteId] as const,
+      queryFn: () => mockListControlSets(siteId),
+      enabled: siteId !== "",
+    }),
   createControlSet: (...args: unknown[]) => mockCreateControlSet(...args),
 }));
 
@@ -150,6 +180,8 @@ describe("EvaluatePanel", () => {
     storeState["expandedPanels"] = new Set(["evaluate"]);
     storeState["positiveControls"] = [];
     storeState["negativeControls"] = [];
+    mockSetPositiveControls.mockClear();
+    mockSetNegativeControls.mockClear();
     mockListControlSets.mockResolvedValue([]);
   });
 
@@ -193,10 +225,9 @@ describe("EvaluatePanel", () => {
     });
     fireEvent.click(screen.getByText("Apicoplast kinases"));
 
-    // After clicking, GeneChipInput renders chips for the pre-filled gene IDs
     await waitFor(() => {
-      expect(screen.getByText("PF3D7_0100100")).toBeTruthy();
-      expect(screen.getByText("PF3D7_0200200")).toBeTruthy();
+      expect(mockSetPositiveControls).toHaveBeenCalledWith(cs.positiveIds);
+      expect(mockSetNegativeControls).toHaveBeenCalledWith(cs.negativeIds);
     });
   });
 

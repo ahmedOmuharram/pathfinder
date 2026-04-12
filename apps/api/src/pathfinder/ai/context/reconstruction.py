@@ -5,6 +5,7 @@ message history.  The orchestration pipeline does not pass reconstructed
 ChatMessage objects to agents — each phase starts with fresh history.
 """
 
+import json
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -15,7 +16,10 @@ from pathfinder.ai.context.rendering import (
     build_turn_summary,
     render_context_summary,
 )
+from pathfinder.ai.orchestration.phase_results import PhaseName, ProblemFrame
+from pathfinder.platform.event_schemas_pipeline import PhaseChangeEventData
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.parsing import parse_jsonish
 from pathfinder.platform.types import JSONObject, JSONValue
 from pathfinder.services.catalog.overview_formatting import SearchOverviewResult
 
@@ -57,6 +61,8 @@ class ReconstructedHistory:
 
     context_summary: str | None = None
     discovered_searches: dict[str, SearchOverview] = field(default_factory=dict)
+    problem_frame: ProblemFrame | None = None
+    resume_phase: PhaseName | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +70,7 @@ class ReconstructedHistory:
 # ---------------------------------------------------------------------------
 
 type _Turn = list[JSONObject]
+type _RedisStreamEntry = tuple[str, dict[str, str]]
 
 
 def _group_into_turns(messages: list[JSONObject]) -> list[_Turn]:
@@ -189,6 +196,58 @@ def _extract_discovered_searches(
     return discovered
 
 
+def _extract_latest_problem_frame(turns: list[_Turn]) -> ProblemFrame | None:
+    """Extract the latest problem frame saved by set_problem_frame."""
+    latest: ProblemFrame | None = None
+    for turn in turns:
+        for msg in turn:
+            for record in _extract_all_records(msg):
+                if record.name != "set_problem_frame" or record.is_error:
+                    continue
+                parsed = parse_jsonish(record.result)
+                if not isinstance(parsed, dict):
+                    continue
+                raw_frame = parsed.get("problemFrame")
+                if not isinstance(raw_frame, dict):
+                    continue
+                try:
+                    latest = ProblemFrame.model_validate(raw_frame)
+                except ValidationError:
+                    logger.warning(
+                        "Failed to parse set_problem_frame result",
+                        exc_info=True,
+                    )
+    return latest
+
+
+def extract_resume_phase_from_entries(
+    entries: list[_RedisStreamEntry],
+) -> PhaseName | None:
+    """Return the last paused phase if the conversation is awaiting input."""
+    latest_phase_change: PhaseChangeEventData | None = None
+    for _entry_id, fields in entries:
+        if fields.get("type", "") != "phase_change":
+            continue
+        try:
+            payload = json.loads(fields["data"])
+            latest_phase_change = PhaseChangeEventData.model_validate(payload)
+        except (json.JSONDecodeError, KeyError, ValidationError):
+            continue
+
+    if latest_phase_change is None:
+        return None
+    if latest_phase_change.status != "awaiting_input":
+        return None
+    if latest_phase_change.phase not in (
+        "scoping",
+        "discovery",
+        "planning",
+        "verification",
+    ):
+        return None
+    return latest_phase_change.phase
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -198,6 +257,7 @@ def reconstruct_history(
     messages: list[JSONObject],
     *,
     recent_turn_count: int = 3,
+    resume_phase: PhaseName | None = None,
 ) -> ReconstructedHistory:
     """Reconstruct context summary and discovered searches from Redis messages.
 
@@ -225,8 +285,11 @@ def reconstruct_history(
         context_summary = rendered
 
     discovered = _extract_discovered_searches(turns)
+    problem_frame = _extract_latest_problem_frame(turns)
 
     return ReconstructedHistory(
         context_summary=context_summary,
         discovered_searches=discovered,
+        problem_frame=problem_frame,
+        resume_phase=resume_phase,
     )

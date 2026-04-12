@@ -27,6 +27,7 @@ class PipelinePhaseConfig(CamelModel):
 class PipelineConfig(CamelModel):
     """Per-phase model configuration for the full pipeline."""
 
+    scoping: PipelinePhaseConfig
     discovery: PipelinePhaseConfig
     planning: PipelinePhaseConfig
     execution: PipelinePhaseConfig
@@ -54,6 +55,8 @@ class AssistantDeltaEventData(CamelModel):
     """Payload for ``assistant_delta`` SSE events (streaming tokens)."""
 
     message_id: str | None = None
+    message_group_id: str | None = None
+    phase: str | None = None
     delta: str | None = None
 
 
@@ -61,6 +64,8 @@ class AssistantMessageEventData(CamelModel):
     """Payload for ``assistant_message`` SSE events (complete message)."""
 
     message_id: str | None = None
+    message_group_id: str | None = None
+    phase: str | None = None
     content: str | None = None
 
 
@@ -232,3 +237,9 @@ class ReasoningEventData(CamelModel):
     """Payload for ``reasoning`` SSE events."""
 
     reasoning: str | None = None
+
+
+class ProblemFrameEventData(CamelModel):
+    """Payload for ``problem_frame`` SSE events."""
+
+    problem_frame: JSONObject = Field(alias="problemFrame")

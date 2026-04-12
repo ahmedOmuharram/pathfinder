@@ -14,11 +14,15 @@ from tenacity import (
     wait_exponential,
 )
 
+from pathfinder.integrations.veupathdb._observability import (
+    WdkRequestTelemetry,
+    log_wdk_retry,
+)
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.metrics import wdk_request_duration_s
+from pathfinder.platform.metrics import wdk_request_duration_s, wdk_requests
 from pathfinder.platform.types import JSONObject, JSONValue
 
 logger = get_logger(__name__)
@@ -162,6 +166,7 @@ class HTTPClient:
         ),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
+        before_sleep=log_wdk_retry,
     )
     async def _request_attempt(
         self,
@@ -172,21 +177,27 @@ class HTTPClient:
     ) -> JSONValue:
         """Single HTTP request attempt (tenacity handles retries)."""
         client = await self._get_client()
+        auth_token = (
+            veupathdb_auth_token_ctx.get()
+            or self.auth_token
+            or get_settings().veupathdb_auth_token
+        )
+        telemetry = WdkRequestTelemetry(
+            method=method,
+            path=path,
+            base_url=self.base_url,
+            has_auth=bool(auth_token),
+        )
 
         logger.debug(
             "VEuPathDB request",
             method=method,
             path=path,
             base_url=self.base_url,
+            endpoint_group=telemetry.metric_attrs(outcome="pending")["endpoint_group"],
         )
 
         try:
-            settings = get_settings()
-            auth_token = (
-                veupathdb_auth_token_ctx.get()
-                or self.auth_token
-                or settings.veupathdb_auth_token
-            )
             # WDK authenticates via an ``Authorization`` cookie (not a header).
             # Inject per-request into the built Request object to avoid
             # mutating the shared client cookie jar (which would race
@@ -252,15 +263,32 @@ class HTTPClient:
     ) -> JSONValue:
         """Make HTTP request with retry logic (converts RetryError to WDKError)."""
         start = time.monotonic()
+        auth_token = (
+            veupathdb_auth_token_ctx.get()
+            or self.auth_token
+            or get_settings().veupathdb_auth_token
+        )
+        telemetry = WdkRequestTelemetry(
+            method=method,
+            path=path,
+            base_url=self.base_url,
+            has_auth=bool(auth_token),
+        )
         try:
             result = await self._request_attempt(
                 method, path, params=params, json=json,
             )
         except RetryError as e:
-            wdk_request_duration_s.record(
-                time.monotonic() - start, {"method": method, "outcome": "error"},
-            )
             last = e.last_attempt.exception()
+            status_code = None
+            if isinstance(last, httpx.HTTPStatusError):
+                status_code = last.response.status_code
+            metric_attrs = telemetry.metric_attrs(
+                outcome="error",
+                status_code=status_code,
+            )
+            wdk_requests.add(1, metric_attrs)
+            wdk_request_duration_s.record(time.monotonic() - start, metric_attrs)
             status = 502
             if isinstance(last, httpx.HTTPStatusError):
                 status = last.response.status_code
@@ -269,14 +297,24 @@ class HTTPClient:
                 "VEuPathDB request failed after retries",
                 method=method,
                 path=path,
+                endpoint_group=metric_attrs["endpoint_group"],
+                site_host=metric_attrs["site_host"],
                 error=str(last),
             )
             msg = f"Request failed after retries: {last}"
             raise WDKError(msg, status=status) from last
-        else:
-            wdk_request_duration_s.record(
-                time.monotonic() - start, {"method": method, "outcome": "ok"},
+        except WDKError as error:
+            metric_attrs = telemetry.metric_attrs(
+                outcome="error",
+                status_code=error.status,
             )
+            wdk_requests.add(1, metric_attrs)
+            wdk_request_duration_s.record(time.monotonic() - start, metric_attrs)
+            raise
+        else:
+            metric_attrs = telemetry.metric_attrs(outcome="ok", status_code=200)
+            wdk_requests.add(1, metric_attrs)
+            wdk_request_duration_s.record(time.monotonic() - start, metric_attrs)
             return result
 
     async def get(self, path: str, params: JSONObject | None = None) -> JSONValue:

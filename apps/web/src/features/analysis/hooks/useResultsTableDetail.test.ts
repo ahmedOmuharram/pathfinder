@@ -17,13 +17,13 @@ import type { EntityRef } from "@/features/analysis/api/stepResults";
 
 describe("useResultsTableDetail", () => {
   const entityRef: EntityRef = { type: "experiment", id: "exp-1" };
-  const { Wrapper } = createTestWrapper();
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("starts with no expanded row", () => {
+    const { Wrapper } = createTestWrapper();
     const { result } = renderHook(() => useResultsTableDetail(entityRef), { wrapper: Wrapper });
     expect(result.current.expandedKey).toBeNull();
     expect(result.current.detail).toBeNull();
@@ -44,6 +44,7 @@ describe("useResultsTableDetail", () => {
     mockGetRecordDetail.mockResolvedValueOnce(detail);
 
     const recordId: WdkRecord["id"] = [{ name: "source_id", value: "G1" }];
+    const { Wrapper } = createTestWrapper();
     const { result } = renderHook(() => useResultsTableDetail(entityRef), { wrapper: Wrapper });
 
     await act(async () => {
@@ -72,6 +73,7 @@ describe("useResultsTableDetail", () => {
     mockGetRecordDetail.mockResolvedValueOnce(detail);
 
     const recordId: WdkRecord["id"] = [{ name: "source_id", value: "G1" }];
+    const { Wrapper } = createTestWrapper();
     const { result } = renderHook(() => useResultsTableDetail(entityRef), { wrapper: Wrapper });
 
     await act(async () => {
@@ -94,6 +96,7 @@ describe("useResultsTableDetail", () => {
     mockGetRecordDetail.mockRejectedValueOnce(new Error("server error"));
 
     const recordId: WdkRecord["id"] = [{ name: "source_id", value: "G1" }];
+    const { Wrapper } = createTestWrapper();
     const { result } = renderHook(() => useResultsTableDetail(entityRef), { wrapper: Wrapper });
 
     await act(async () => {

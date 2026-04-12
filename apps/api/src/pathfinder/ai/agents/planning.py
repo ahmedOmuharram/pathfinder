@@ -17,6 +17,7 @@ from pathfinder.ai.agents._instructions import (
     mentioned_context,
     pinned_context_summary,
     pinned_graph_state,
+    pinned_problem_frame,
 )
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
@@ -33,6 +34,10 @@ You are the Planning Agent for PathFinder. You receive discovery findings \
 about available WDK searches and parameters, and your job is to create a \
 precise execution plan.
 
+The scoping phase may provide a pinned "Current Problem Frame". Use it as \
+the authoritative problem statement, including assumptions and success \
+criteria, while creating the plan.
+
 ## Your Responsibilities
 
 1. **Analyze discovery findings**: Review the searches, parameters, and \
@@ -46,12 +51,18 @@ user's question.
 parameter values based on discovery findings. Use `resolve_gene_ids_to_records` \
 if the plan requires gene ID lookups.
 
-4. **Handle ambiguity**: When the discovery findings leave multiple valid \
-approaches, use `present_decision` to ask the user which path to take. \
-Do NOT guess — let the user decide.
+4. **Handle blocking ambiguity**: When a missing decision would materially \
+change the plan, ask the user instead of guessing. You may use \
+`present_decision` for optional trade-off notes, but blocking pauses must be \
+declared with `finish_planning(decision="ask_user", ...)`.
 
 5. **Submit for execution**: Once the plan is complete and reviewed, use \
 `submit_plan` to hand it off to the execution agent.
+
+6. **End the phase explicitly**: Call `finish_planning` exactly once as your \
+last tool call. Use `decision="present_plan"` only after `submit_plan` \
+succeeds. Use `decision="ask_user"` when you need user input before a plan can \
+be presented.
 
 ## Guidelines
 
@@ -63,6 +74,7 @@ must set A before B (the execution agent handles refresh).
 - Use `set_conversation_title` to give the conversation a descriptive name.
 - Use `get_strategy` to check the current graph state if editing an \
 existing strategy.
+- `present_decision` is non-blocking. Do not rely on it to stop the pipeline.
 - Do NOT execute strategy operations — that is the execution agent's job.
 - Do NOT explore the catalog — that was the discovery agent's job. Use \
 the findings you received.
@@ -93,6 +105,11 @@ def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
 @planning_agent.instructions
 def _pinned_context_summary(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_context_summary(ctx)
+
+
+@planning_agent.instructions
+def _pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_problem_frame(ctx)
 
 
 @planning_agent.instructions

@@ -11,7 +11,7 @@ import type {
 
 type ToolEventContext =
   & StreamBuffers
-  & Pick<StreamContext, "thinking">
+  & Pick<StreamContext, "thinking" | "streamState">
   & Pick<EventHelpers, "parseToolArguments" | "parseToolResult" | "applyGraphSnapshot">;
 
 export function handleToolCallStartEvent(
@@ -21,7 +21,10 @@ export function handleToolCallStartEvent(
   const { id, name, arguments: args } = data;
   const newToolCall: ToolCall = { id, name, arguments: ctx.parseToolArguments(args) };
   ctx.toolCallsBuffer.push(newToolCall);
-  ctx.thinking.updateActiveFromBuffer([...ctx.toolCallsBuffer]);
+  ctx.thinking.updateActiveFromBuffer(
+    [...ctx.toolCallsBuffer],
+    ctx.streamState.streamingAssistantMessageId,
+  );
 }
 
 export function handleToolCallEndEvent(ctx: ToolEventContext, data: ToolCallEndData) {
@@ -29,7 +32,10 @@ export function handleToolCallEndEvent(ctx: ToolEventContext, data: ToolCallEndD
   const tc = ctx.toolCallsBuffer.find((t) => t.id === id);
   if (tc) {
     tc.result = result ?? null;
-    ctx.thinking.updateActiveFromBuffer([...ctx.toolCallsBuffer]);
+    ctx.thinking.updateActiveFromBuffer(
+      [...ctx.toolCallsBuffer],
+      ctx.streamState.streamingAssistantMessageId,
+    );
   }
   const parsed = ctx.parseToolResult(result ?? null);
   const snapshot = parsed?.graphSnapshot;

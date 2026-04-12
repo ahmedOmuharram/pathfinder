@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
+import { queryOptions } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { ControlSet } from "@pathfinder/shared";
 
-const mockListControlSets = vi.fn<() => Promise<ControlSet[]>>();
+const mockListControlSets = vi.fn<(siteId: string) => Promise<ControlSet[]>>();
 vi.mock("../api/controlSets", () => ({
-  listControlSets: (...args: unknown[]) => mockListControlSets(...(args as [])),
+  listControlSets: (siteId: string) => mockListControlSets(siteId),
+  controlSetsOptions: (siteId: string) =>
+    queryOptions({
+      queryKey: ["control-sets", "list", siteId] as const,
+      queryFn: () => mockListControlSets(siteId),
+      enabled: siteId !== "",
+    }),
 }));
 
 import { ControlSetQuickPick } from "./ControlSetQuickPick";

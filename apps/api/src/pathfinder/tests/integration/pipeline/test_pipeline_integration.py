@@ -270,11 +270,15 @@ class TestPipelineStateMachineFullTraversal:
     """Drive the state machine through all phases and verify transitions."""
 
     def test_full_discovery_to_completed(self) -> None:
-        """Full traversal: discovery -> planning -> execution -> verification -> completed."""
+        """Full traversal: scoping -> discovery -> planning -> execution -> verification -> completed."""
         pipeline = create_pipeline()
 
-        assert pipeline.current_phase == "discovery"
+        assert pipeline.current_phase == "scoping"
         assert pipeline.is_done is False
+
+        # Scoping phase
+        pipeline.send("finish_scoping")
+        assert pipeline.current_phase == "discovery"
 
         # Discovery phase
         pipeline.send("analyze")
@@ -306,6 +310,7 @@ class TestPipelineStateMachineFullTraversal:
         assert pipeline.is_done is True
 
         # Verify retry counts
+        assert pipeline.retry_counts["scoping"] == 1
         assert pipeline.retry_counts["discovery"] == 1
         assert pipeline.retry_counts["planning"] == 1
         assert pipeline.retry_counts["execution"] == 1
@@ -315,6 +320,7 @@ class TestPipelineStateMachineFullTraversal:
         pipeline = create_pipeline()
 
         # Advance to execution
+        pipeline.send("finish_scoping")
         pipeline.send("finish_discovery")
         pipeline.send("submit_draft")
         pipeline.send("approve")
@@ -340,19 +346,21 @@ class TestPipelineStateMachineFullTraversal:
         pipeline.send("finish_verification")
         assert pipeline.current_phase == "completed"
         assert pipeline.is_done is True
-        # 7 = discovery + planning*2 + execution*2 + verification + completed
-        assert pipeline._transition_count == 7
+        # 8 = scoping + discovery + planning*2 + execution*2 + verification + completed
+        assert pipeline._transition_count == 8
 
     def test_abort_from_any_phase(self) -> None:
         """Abort transitions from each phase produce 'failed' state."""
         # Abort from discovery
         pipeline = create_pipeline()
+        pipeline.send("finish_scoping")
         pipeline.send("abort_discovery")
         assert pipeline.current_phase == "failed"
         assert pipeline.is_done is True
 
         # Abort from execution
         pipeline = create_pipeline()
+        pipeline.send("finish_scoping")
         pipeline.send("finish_discovery")
         pipeline.send("submit_draft")
         pipeline.send("approve")
@@ -362,6 +370,7 @@ class TestPipelineStateMachineFullTraversal:
     def test_retry_budget_exhausted_blocks_replan(self) -> None:
         """After exhausting retry budget, replan is blocked."""
         pipeline = create_pipeline()
+        pipeline.send("finish_scoping")
         pipeline.send("finish_discovery")
         pipeline.send("submit_draft")
         pipeline.send("approve")

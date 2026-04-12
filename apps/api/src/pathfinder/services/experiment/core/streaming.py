@@ -5,7 +5,6 @@ Events are persisted to Redis Streams. Operations are registered in PostgreSQL.
 
 import asyncio
 import copy
-import json
 from uuid import UUID, uuid4
 
 from pathfinder.persistence.repositories.stream import StreamRepository
@@ -14,6 +13,7 @@ from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.errors import sanitize_error_for_client
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.redis import get_redis
+from pathfinder.platform.redis_streams import StreamAppendRequest, append_stream_event
 from pathfinder.platform.tasks import spawn
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.helpers import ProgressCallback
@@ -41,15 +41,16 @@ async def _emit_to_redis(
 ) -> None:
     """Emit a single event to the experiment Redis stream."""
     redis = get_redis()
-    await redis.xadd(
-        f"op:{operation_id}",
-        {
-            "op": operation_id,
-            "type": event_type,
-            "data": json.dumps(event_data, default=str),
-        },
-        maxlen=10_000,
-        approximate=True,
+    await append_stream_event(
+        redis,
+        StreamAppendRequest(
+            stream_key=f"op:{operation_id}",
+            operation_id=operation_id,
+            event_type=event_type,
+            event_data=event_data,
+            maxlen=10_000,
+            approximate=True,
+        ),
     )
 
 

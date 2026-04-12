@@ -18,6 +18,7 @@ from pathfinder.ai.agents._instructions import (
     mentioned_context,
     pinned_context_summary,
     pinned_graph_state,
+    pinned_problem_frame,
 )
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
@@ -40,6 +41,10 @@ biological question.
 concrete data requirements (organism, gene properties, expression conditions, \
 genomic features, etc.).
 
+The scoping phase may provide a pinned "Current Problem Frame". Treat it as \
+the authoritative interpretation of the user's goal and preserve its \
+assumptions unless WDK evidence contradicts them.
+
 2. **Explore the catalog**: Use `get_record_types`, `search_for_searches`, \
 `browse_search_categories`, and `list_searches` to find relevant WDK searches.
 
@@ -55,6 +60,11 @@ pathway identifiers, organism-specific terminology).
 already in progress. Use `search_example_plans` to find similar solved \
 problems.
 
+6. **End the phase explicitly**: Call `finish_discovery` exactly once as your \
+last tool call. Use `decision="ask_user"` only when a WDK-specific ambiguity \
+would materially change the plan. Use `decision="continue_to_planning"` when \
+the planner has enough information to build a concrete plan.
+
 ## Guidelines
 
 - Be thorough: inspect ALL promising searches, not just the first match.
@@ -64,6 +74,8 @@ can express the user's constraints.
 - When multiple searches could work, note the trade-offs for the planner.
 - Do NOT create or modify strategies — that is the execution agent's job.
 - Do NOT create plans — that is the planning agent's job.
+- If you ask the user a blocking question, call `finish_discovery` with \
+`decision="ask_user"` and stop in that same turn.
 - Summarize your findings clearly so the planning agent can act on them.
 """
 
@@ -94,6 +106,11 @@ def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
 @discovery_agent.instructions
 def _pinned_context_summary(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_context_summary(ctx)
+
+
+@discovery_agent.instructions
+def _pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_problem_frame(ctx)
 
 
 @discovery_agent.instructions

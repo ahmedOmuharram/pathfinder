@@ -6,6 +6,7 @@ export const PipelinePhaseConfigSchema = z.object({
 });
 
 export const PipelineConfigSchema = z.object({
+  scoping: PipelinePhaseConfigSchema,
   discovery: PipelinePhaseConfigSchema,
   planning: PipelinePhaseConfigSchema,
   execution: PipelinePhaseConfigSchema,

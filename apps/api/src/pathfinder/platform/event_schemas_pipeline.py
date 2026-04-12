@@ -23,9 +23,32 @@ class PhaseChangeEventData(CamelModel):
     """
 
     phase: Literal[
-        "discovery", "planning", "execution", "verification", "completed"
+        "scoping",
+        "discovery",
+        "planning",
+        "execution",
+        "verification",
+        "completed",
     ]
-    status: Literal["started", "completed", "failed", "awaiting_approval"]
+    status: Literal["started", "completed", "failed", "awaiting_approval", "awaiting_input"]
+    message_id: str | None = None
+    message_group_id: str | None = None
+    emitted_at: str | None = Field(
+        default=None,
+        description="UTC timestamp when this phase event was emitted.",
+    )
+    phase_started_at: str | None = Field(
+        default=None,
+        description="UTC timestamp when the phase most recently started.",
+    )
+    phase_completed_at: str | None = Field(
+        default=None,
+        description="UTC timestamp when the phase reached its current terminal status.",
+    )
+    duration_ms: int | None = Field(
+        default=None,
+        description="Elapsed time in milliseconds since the phase started.",
+    )
     validation_error: str | None = Field(
         default=None,
         description="Validation gate error message if the phase failed validation.",
@@ -43,6 +66,13 @@ class PlanUpdatedEventData(CamelModel):
 
     plan_id: str
     updates: JSONObject
+
+
+class PlanApprovedEventData(CamelModel):
+    """Payload for ``plan_approved`` SSE events."""
+
+    plan_id: str
+    plan: JSONObject
 
 
 class DecisionPresentedEventData(CamelModel):

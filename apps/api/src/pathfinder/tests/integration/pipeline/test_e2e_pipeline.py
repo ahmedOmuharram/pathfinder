@@ -1,6 +1,6 @@
 """End-to-end streaming pipeline integration test.
 
-Chains all 4 phases (discovery -> planning -> execution -> verification)
+Chains all 5 phases (scoping -> discovery -> planning -> execution -> verification)
 using FunctionModel (``model_id="mock/deterministic"``) and verifies SSE
 event ordering, structured handoff flow, and graph state.
 
@@ -18,6 +18,7 @@ import respx
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.domain.strategy.plan import PlanStatus
+from pathfinder.domain.strategy.plan_actions import apply_plan_approval
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.integrations.veupathdb.discovery import SearchCatalog
 from pathfinder.integrations.veupathdb.discovery_service import (
@@ -29,11 +30,14 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.event_schemas import PipelineConfig, PipelinePhaseConfig
 from pathfinder.platform.types import JSONObject
-from pathfinder.services.chat.streaming import stream_pipeline
+from pathfinder.services.chat.streaming import (
+    stream_pipeline,
+    stream_pipeline_after_plan_approval,
+)
 
 _MOCK_PHASE = PipelinePhaseConfig(model_id="mock/deterministic", reasoning_effort="low")
 _MOCK_PIPELINE = PipelineConfig(
-    discovery=_MOCK_PHASE, planning=_MOCK_PHASE,
+    scoping=_MOCK_PHASE, discovery=_MOCK_PHASE, planning=_MOCK_PHASE,
     execution=_MOCK_PHASE, verification=_MOCK_PHASE,
 )
 
@@ -240,8 +244,35 @@ async def _collect_events(
     return [event async for event in stream_pipeline(deps, message, pipeline=_MOCK_PIPELINE)]
 
 
+def _approve_active_plan(deps: AgentDeps) -> None:
+    plan = deps.agent_state.active_plan
+    assert plan is not None, "No active plan to approve"
+    apply_plan_approval(plan, param_edits=[], answers=[])
+
+
+async def _collect_events_after_approval(deps: AgentDeps) -> list[JSONObject]:
+    """Resume execution/verification after manually approving the active plan."""
+    return [
+        event
+        async for event in stream_pipeline_after_plan_approval(
+            deps,
+            pipeline=_MOCK_PIPELINE,
+        )
+    ]
+
+
+async def _collect_events_with_manual_approval(
+    deps: AgentDeps,
+    message: str,
+) -> tuple[list[JSONObject], list[JSONObject]]:
+    initial_events = await _collect_events(deps, message)
+    _approve_active_plan(deps)
+    resumed_events = await _collect_events_after_approval(deps)
+    return initial_events, resumed_events
+
+
 class TestE2EPipelineEventOrdering:
-    """Verify SSE event ordering and completeness across all 4 phases."""
+    """Verify SSE event ordering and completeness across all 5 phases."""
 
     @pytest.mark.asyncio
     async def test_message_end_is_last_event(self) -> None:
@@ -301,8 +332,22 @@ class TestE2EPipelinePhaseExecution:
     """Verify that events from each phase appear in the stream."""
 
     @pytest.mark.asyncio
+    async def test_scoping_phase_declares_exit(self) -> None:
+        """Scoping phase must call finish_scoping before discovery begins."""
+        _prepopulate_catalog()
+        deps = _make_deps()
+        with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
+            _setup_respx_router(router)
+            events = await _collect_events(deps, "create step")
+
+        tool_names = _extract_tool_names(events)
+        assert "finish_scoping" in tool_names, (
+            f"Scoping phase did not call finish_scoping. Tool calls: {tool_names}"
+        )
+
+    @pytest.mark.asyncio
     async def test_discovery_phase_tool_calls(self) -> None:
-        """Discovery phase calls get_search_overview."""
+        """Discovery phase calls get_search_overview and finish_discovery."""
         _prepopulate_catalog()
         deps = _make_deps()
         with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
@@ -313,10 +358,13 @@ class TestE2EPipelinePhaseExecution:
         assert "get_search_overview" in tool_names, (
             f"Discovery phase did not call get_search_overview. Tool calls: {tool_names}"
         )
+        assert "finish_discovery" in tool_names, (
+            f"Discovery phase did not call finish_discovery. Tool calls: {tool_names}"
+        )
 
     @pytest.mark.asyncio
     async def test_planning_phase_tool_calls(self) -> None:
-        """Planning phase calls create_plan and submit_plan."""
+        """Planning phase calls create_plan, submit_plan, and finish_planning."""
         _prepopulate_catalog()
         deps = _make_deps()
         with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
@@ -330,32 +378,43 @@ class TestE2EPipelinePhaseExecution:
         assert "submit_plan" in tool_names, (
             f"Planning phase did not call submit_plan. Tool calls: {tool_names}"
         )
+        assert "finish_planning" in tool_names, (
+            f"Planning phase did not call finish_planning. Tool calls: {tool_names}"
+        )
 
     @pytest.mark.asyncio
     async def test_execution_phase_tool_calls(self) -> None:
-        """Execution phase calls create_leaf_step."""
+        """Execution phase calls create_leaf_step after approval resumes the pipeline."""
         _prepopulate_catalog()
         deps = _make_deps()
         with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
             _setup_respx_router(router)
-            events = await _collect_events(deps, "create step")
+            _initial_events, resumed_events = await _collect_events_with_manual_approval(
+                deps, "create step",
+            )
 
-        tool_names = _extract_tool_names(events)
+        tool_names = _extract_tool_names(resumed_events)
         assert "create_leaf_step" in tool_names, (
             f"Execution phase did not call create_leaf_step. Tool calls: {tool_names}"
         )
 
     @pytest.mark.asyncio
     async def test_verification_phase_emits_text(self) -> None:
-        """Verification phase produces text (assistant_delta or assistant_message)."""
+        """Verification phase produces text and declares completion after approval."""
         _prepopulate_catalog()
         deps = _make_deps()
         with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
             _setup_respx_router(router)
-            events = await _collect_events(deps, "create step")
+            _initial_events, resumed_events = await _collect_events_with_manual_approval(
+                deps, "create step",
+            )
 
+        tool_names = _extract_tool_names(resumed_events)
+        assert "finish_verification" in tool_names, (
+            f"Verification phase did not call finish_verification. Tool calls: {tool_names}"
+        )
         text_event_types = {"assistant_delta", "assistant_message"}
-        text_events = [e for e in events if e.get("type") in text_event_types]
+        text_events = [e for e in resumed_events if e.get("type") in text_event_types]
         assert len(text_events) > 0, "Verification phase produced no text events"
 
 
@@ -380,13 +439,50 @@ class TestE2EPipelineStructuredHandoff:
         assert overview.record_type == "transcript"
 
     @pytest.mark.asyncio
-    async def test_plan_reaches_terminal_status(self) -> None:
-        """After the pipeline, the active plan exists and has a terminal status."""
+    @pytest.mark.parametrize("prompt", ["create step", "create step artifact graph"])
+    async def test_initial_stream_pauses_with_presented_plan(
+        self, prompt: str,
+    ) -> None:
+        """Initial planning stream pauses for approval with a presented plan."""
         _prepopulate_catalog()
         deps = _make_deps()
         with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
             _setup_respx_router(router)
-            await _collect_events(deps, "create step")
+            events = await _collect_events(deps, prompt)
+
+        plan = deps.agent_state.active_plan
+        assert plan is not None, "No active plan after pipeline"
+        assert plan.status == PlanStatus.PRESENTED, (
+            f"Plan status is {plan.status}, expected PRESENTED"
+        )
+        assert any(
+            event.get("type") == "phase_change"
+            and isinstance(event.get("data"), dict)
+            and event["data"].get("phase") == "planning"
+            and event["data"].get("status") == "awaiting_approval"
+            for event in events
+        ), "Planning stream never emitted awaiting_approval"
+        awaiting_approval = next(
+            event["data"]
+            for event in events
+            if event.get("type") == "phase_change"
+            and isinstance(event.get("data"), dict)
+            and event["data"].get("phase") == "planning"
+            and event["data"].get("status") == "awaiting_approval"
+        )
+        assert isinstance(awaiting_approval.get("emittedAt"), str)
+        assert isinstance(awaiting_approval.get("phaseStartedAt"), str)
+        assert isinstance(awaiting_approval.get("phaseCompletedAt"), str)
+        assert isinstance(awaiting_approval.get("durationMs"), int)
+
+    @pytest.mark.asyncio
+    async def test_plan_reaches_terminal_status_after_manual_approval(self) -> None:
+        """After approval + resume, the active plan reaches a terminal status."""
+        _prepopulate_catalog()
+        deps = _make_deps()
+        with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
+            _setup_respx_router(router)
+            await _collect_events_with_manual_approval(deps, "create step")
 
         plan = deps.agent_state.active_plan
         assert plan is not None, "No active plan after pipeline"
@@ -396,13 +492,13 @@ class TestE2EPipelineStructuredHandoff:
         )
 
     @pytest.mark.asyncio
-    async def test_graph_has_steps(self) -> None:
-        """After execution, the strategy graph has at least 1 step."""
+    async def test_graph_has_steps_after_manual_approval(self) -> None:
+        """After approval + execution, the strategy graph has at least 1 step."""
         _prepopulate_catalog()
         deps = _make_deps()
         with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
             _setup_respx_router(router)
-            await _collect_events(deps, "create step")
+            await _collect_events_with_manual_approval(deps, "create step")
 
         graph = deps.strategy_session.graph
         assert graph is not None, "No graph in strategy session"
@@ -418,14 +514,18 @@ class TestE2EPipelineFullTraversal:
     async def test_full_pipeline_traversal(self) -> None:
         """Full pipeline produces correct events and leaves correct state.
 
-        Single test that exercises all 4 phases end-to-end, verifying event
-        ordering, phase tool calls, structured handoff, and graph state.
+        Single test that exercises the initial planning stream plus the resumed
+        post-approval execution stream, verifying event ordering, phase tool
+        calls, structured handoff, and graph state.
         """
         _prepopulate_catalog()
         deps = _make_deps()
         with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
             _setup_respx_router(router)
-            events = await _collect_events(deps, "create step")
+            initial_events, resumed_events = await _collect_events_with_manual_approval(
+                deps, "create step",
+            )
+        events = [*initial_events, *resumed_events]
 
         # -- Event ordering --
         event_types = [str(e.get("type")) for e in events]
@@ -438,10 +538,14 @@ class TestE2EPipelineFullTraversal:
 
         # -- Phase tool calls --
         tool_names = _extract_tool_names(events)
+        assert "finish_scoping" in tool_names, "Missing scoping finish call"
         assert "get_search_overview" in tool_names, "Missing discovery tool call"
+        assert "finish_discovery" in tool_names, "Missing discovery finish call"
         assert "create_plan" in tool_names, "Missing planning tool call"
         assert "submit_plan" in tool_names, "Missing planning submit call"
+        assert "finish_planning" in tool_names, "Missing planning finish call"
         assert "create_leaf_step" in tool_names, "Missing execution tool call"
+        assert "finish_verification" in tool_names, "Missing verification finish call"
 
         # -- Tool call pairing --
         start_ids = _extract_ids(events, "tool_call_start")

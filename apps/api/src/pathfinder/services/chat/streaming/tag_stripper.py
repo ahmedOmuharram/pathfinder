@@ -26,6 +26,24 @@ class StreamingTagStripper:
         self._buffer = ""
         self._inside_tag = False
 
+    def _consume_without_full_open_tag(self) -> str:
+        """Emit safe clean text when no full opening tag exists in the buffer."""
+        last_open_candidate = self._buffer.rfind("<")
+        if last_open_candidate == -1:
+            clean_text = self._buffer
+            self._buffer = ""
+            return clean_text
+
+        suffix = self._buffer[last_open_candidate:]
+        if _TAG_OPEN.startswith(suffix):
+            clean_text = self._buffer[:last_open_candidate]
+            self._buffer = suffix
+            return clean_text
+
+        clean_text = self._buffer
+        self._buffer = ""
+        return clean_text
+
     def feed(self, chunk: str) -> tuple[str, list[str]]:
         """Feed a text chunk, returning ``(clean_text, thoughts)``."""
         self._buffer += chunk
@@ -46,12 +64,9 @@ class StreamingTagStripper:
             else:
                 open_idx = self._buffer.find(_TAG_OPEN)
                 if open_idx == -1:
-                    # No tag opening — check if buffer might have partial tag
-                    # Keep last len(_TAG_OPEN)-1 chars as potential partial match
-                    safe_len = len(self._buffer) - (len(_TAG_OPEN) - 1)
-                    if safe_len > 0:
-                        clean_parts.append(self._buffer[:safe_len])
-                        self._buffer = self._buffer[safe_len:]
+                    clean_text = self._consume_without_full_open_tag()
+                    if clean_text:
+                        clean_parts.append(clean_text)
                     break
                 # Found opening tag
                 if open_idx > 0:

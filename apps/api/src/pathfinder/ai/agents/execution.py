@@ -60,6 +60,11 @@ via the pinned graph state), not from the plan's placeholder IDs.
 - Use `rename_strategy` to set the strategy name if the plan specifies one.
 - Do NOT explore the catalog or create plans — those phases are complete.
 - Do NOT run analysis or export results — that is the verification agent's job.
+- Do NOT ask the user follow-up questions such as "Would you like me to..." \
+or "What next?" while execution is already running.
+- If you emit text during execution, keep it brief and factual: report only \
+what completed, what failed, or which exact step is blocked. Do not narrate \
+hypothetical next actions.
 """
 
 # ---------------------------------------------------------------------------

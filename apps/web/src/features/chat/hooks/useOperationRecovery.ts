@@ -8,7 +8,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useEventCallback } from "usehooks-ts";
-import type { Message, ToolCall, Strategy, Citation, PlanningArtifact } from "@pathfinder/shared";
+import type {
+  Citation,
+  Message,
+  PlanningArtifact,
+  ProblemFrame,
+  Strategy,
+  ToolCall,
+} from "@pathfinder/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { useSessionStore } from "@/state/useSessionStore";
 import {
@@ -85,7 +92,7 @@ export function useOperationRecovery({
   const authRefreshed = useSessionStore((s) => s.authRefreshed);
 
   const handleEvent = useEventCallback(
-    (sid: string, event: ReturnType<typeof parseChatSSEEvent>, session: StreamingSession, streamState: ChatEventContext["streamState"], toolCalls: ToolCall[], citationsBuffer: Citation[], planningArtifactsBuffer: PlanningArtifact[]) => {
+    (sid: string, event: ReturnType<typeof parseChatSSEEvent>, session: StreamingSession, streamState: ChatEventContext["streamState"], toolCalls: ToolCall[], citationsBuffer: Citation[], planningArtifactsBuffer: PlanningArtifact[], problemFrameRef: { current: ProblemFrame | null }) => {
       if (event == null) return;
       handleChatEvent(
         {
@@ -94,6 +101,12 @@ export function useOperationRecovery({
           toolCallsBuffer: toolCalls,
           citationsBuffer,
           planningArtifactsBuffer,
+          get problemFrameBuffer() {
+            return problemFrameRef.current;
+          },
+          set problemFrameBuffer(value) {
+            problemFrameRef.current = value;
+          },
           thinking,
           setStrategyId,
           addStrategy,
@@ -158,19 +171,34 @@ export function useOperationRecovery({
       const streamState: ChatEventContext["streamState"] = {
         streamingAssistantIndex: null,
         streamingAssistantMessageId: null,
+        assistantMessageIndices: {},
         turnAssistantIndex: null,
+        lastAssistantMessageId: null,
+        messageGroupId: null,
+        currentPhase: null,
+        pipeline: null,
         reasoning: null,
         optimizationProgress: null,
       };
       const toolCalls: ToolCall[] = [];
       const citationsBuffer: Citation[] = [];
       const planningArtifactsBuffer: PlanningArtifact[] = [];
+      const problemFrameRef: { current: ProblemFrame | null } = { current: null };
 
       return new Promise<null>((resolve, reject) => {
         const sub = subscribeToOperation<RawSSEData>(opId, {
           onEvent: ({ type, data }) => {
             const event = parseChatSSEEvent({ type, data });
-            handleEvent(sid, event, session, streamState, toolCalls, citationsBuffer, planningArtifactsBuffer);
+            handleEvent(
+              sid,
+              event,
+              session,
+              streamState,
+              toolCalls,
+              citationsBuffer,
+              planningArtifactsBuffer,
+              problemFrameRef,
+            );
           },
           onComplete: () => {
             handleComplete(toolCalls);

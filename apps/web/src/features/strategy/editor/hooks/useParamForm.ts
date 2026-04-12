@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ParamSpec } from "@pathfinder/shared";
@@ -31,12 +32,27 @@ function extractDefaults(specs: ParamSpec[]): Record<string, string | string[]> 
 }
 
 export function useParamForm(specs: ParamSpec[]) {
-  const schema = buildParamSchema(specs);
-  const defaultValues = extractDefaults(specs);
+  const cacheRef = useRef<{
+    signature: string;
+    schema: ReturnType<typeof buildParamSchema>;
+    defaultValues: Record<string, string | string[]>;
+  } | null>(null);
+  const signature = JSON.stringify(specs);
+
+  if (cacheRef.current == null || cacheRef.current.signature !== signature) {
+    cacheRef.current = {
+      signature,
+      schema: buildParamSchema(specs),
+      defaultValues: extractDefaults(specs),
+    };
+  }
+
+  const { schema, defaultValues } = cacheRef.current;
 
   return useForm({
     resolver: zodResolver(schema),
     defaultValues,
+    values: defaultValues,
     mode: "onBlur",
   });
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
 
+import { MISSING_API_URL_MESSAGE } from "@/lib/config/apiBase";
+
 import { APIError, buildUrl, getAuthHeaders, requestJson, requestVoid } from "./http";
 
 function makeHeaders(init: Record<string, string>) {
@@ -61,6 +63,11 @@ describe("lib/api/http", () => {
     expect(url).toBe(
       "http://localhost:8000/api/v1/sites?siteId=plasmodb&recordType=gene&n=2&ok=true",
     );
+  });
+
+  it("buildUrl throws when NEXT_PUBLIC_API_URL is missing on the server", () => {
+    delete process.env["NEXT_PUBLIC_API_URL"];
+    expect(() => buildUrl("/api/v1/sites")).toThrow(MISSING_API_URL_MESSAGE);
   });
 
   it("getAuthHeaders includes optional accept/content-type", () => {

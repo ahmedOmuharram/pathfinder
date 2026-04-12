@@ -8,11 +8,10 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
+import { getConfiguredServerApiBaseUrl } from "@/lib/config/apiBase";
+
 export function getUpstreamBase(): string {
-  return (process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000").replace(
-    /\/+$/,
-    "",
-  );
+  return getConfiguredServerApiBaseUrl();
 }
 
 export function forwardHeaders(
@@ -183,11 +182,16 @@ export async function proxyJsonRequest(
       ...(options?.includeBody === true ? { body: await req.text() } : {}),
     });
     const body = await upstream.text();
+    const headers = new Headers({
+      "Content-Type": upstream.headers.get("content-type") ?? "application/json",
+    });
+    const setCookie = upstream.headers.get("set-cookie");
+    if (setCookie !== null) {
+      headers.set("set-cookie", setCookie);
+    }
     return new Response(body, {
       status: upstream.status,
-      headers: {
-        "Content-Type": upstream.headers.get("content-type") ?? "application/json",
-      },
+      headers,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

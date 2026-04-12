@@ -23,6 +23,11 @@ from .optimization import (
     OptimizationTrialData,
 )
 from .plan import PlanNormalizeRequest, PlanNormalizeResponse
+from .plan_actions import (
+    PlanActionOperationResponse,
+    PlanActionRequest,
+)
+from .product_actions import ProductActionRequest
 from .sites import (
     DependentParamsRequest,
     ParamSpecResponse,
@@ -64,9 +69,12 @@ __all__ = [
     "OptimizationTrialData",
     "ParamSpecResponse",
     "ParamSpecsRequest",
+    "PlanActionOperationResponse",
+    "PlanActionRequest",
     "PlanNormalizeRequest",
     "PlanNormalizeResponse",
     "PlanningArtifactResponse",
+    "ProductActionRequest",
     "PushStrategyRequest",
     "RecordDetailRequest",
     "RecordTypeResponse",

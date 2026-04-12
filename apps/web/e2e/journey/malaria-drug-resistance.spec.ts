@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 /**
  * Journey: Malaria Drug Resistance Research — PlasmoDB
@@ -55,13 +56,13 @@ test.describe("Malaria Drug Resistance Journey", () => {
     await chatPage.expectIdle();
 
     // Round 3 — trigger planning artifact (real GenesByTaxon search)
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
     // ── Phase 2: Strategy Creation ────────────────────────────────
 
     // Apply plan — backend stores real strategy with GenesByTaxon search
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
     await chatPage.expectIdle();
 

@@ -18,6 +18,7 @@ from pathfinder.platform.event_schemas import (
     ToolCallStartEventData,
     UserMessageEventData,
 )
+from pathfinder.platform.event_schemas_pipeline import PhaseChangeEventData
 from pathfinder.platform.types import JSONObject
 
 # ------------------------------------------------------------------
@@ -45,8 +46,10 @@ class _TurnAccumulator:
 
     __slots__ = (
         "citations",
-        "model_id",
+        "current_phase_model_id",
+        "phase_models",
         "planning_artifacts",
+        "problem_frame",
         "reasoning",
         "tool_calls",
     )
@@ -55,15 +58,41 @@ class _TurnAccumulator:
         self.tool_calls: list[JSONObject] = []
         self.citations: list[JSONObject] = []
         self.planning_artifacts: list[JSONObject] = []
+        self.problem_frame: JSONObject | None = None
         self.reasoning: str | None = None
-        self.model_id: str | None = None
+        self.phase_models: dict[str, str] = {}
+        self.current_phase_model_id: str | None = None
 
     def reset(self) -> None:
+        self.reset_message_state()
+        self.phase_models.clear()
+        self.current_phase_model_id = None
+
+    def reset_message_state(self) -> None:
         self.tool_calls.clear()
         self.citations.clear()
         self.planning_artifacts.clear()
+        self.problem_frame = None
         self.reasoning = None
-        self.model_id = None
+
+    def _attach_accumulated_metadata(self, msg: JSONObject, data: JSONObject) -> None:
+        """Attach buffered metadata and preserve direct event fields."""
+        buffered_fields: tuple[tuple[str, object], ...] = (
+            ("toolCalls", list(self.tool_calls) if self.tool_calls else None),
+            ("citations", list(self.citations) if self.citations else None),
+            (
+                "planningArtifacts",
+                list(self.planning_artifacts) if self.planning_artifacts else None,
+            ),
+            ("problemFrame", self.problem_frame),
+            ("reasoning", self.reasoning),
+        )
+        for key, value in buffered_fields:
+            if value:
+                msg[key] = value
+        for key in ("citations", "planningArtifacts", "problemFrame", "toolCalls", "reasoning"):
+            if key in data and key not in msg:
+                msg[key] = data[key]
 
     def build_assistant_message(
         self,
@@ -78,20 +107,13 @@ class _TurnAccumulator:
             "messageId": event.message_id,
             "timestamp": _entry_id_to_iso(entry_id),
         }
-        if self.model_id:
-            msg["modelId"] = self.model_id
-        if self.tool_calls:
-            msg["toolCalls"] = list(self.tool_calls)
-        if self.citations:
-            msg["citations"] = list(self.citations)
-        if self.planning_artifacts:
-            msg["planningArtifacts"] = list(self.planning_artifacts)
-        if self.reasoning:
-            msg["reasoning"] = self.reasoning
-        # Preserve any fields directly on the event data.
-        for key in ("citations", "planningArtifacts", "toolCalls", "reasoning"):
-            if key in data and key not in msg:
-                msg[key] = data[key]
+        if event.message_group_id:
+            msg["messageGroupId"] = event.message_group_id
+        if event.phase:
+            msg["phase"] = event.phase
+        if self.current_phase_model_id:
+            msg["modelId"] = self.current_phase_model_id
+        self._attach_accumulated_metadata(msg, data)
         return msg
 
 
@@ -186,6 +208,17 @@ def _handle_reasoning(
         turn.reasoning = event.reasoning
 
 
+def _handle_problem_frame(
+    data: JSONObject,
+    entry_id: str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    frame = data.get("problemFrame")
+    if isinstance(frame, dict):
+        turn.problem_frame = frame
+
+
 def _handle_model_selected(
     data: JSONObject,
     entry_id: str,
@@ -193,7 +226,28 @@ def _handle_model_selected(
     messages: list[JSONObject],
 ) -> None:
     event = ModelSelectedEventData.model_validate(data)
-    turn.model_id = event.pipeline.planning.model_id
+    turn.phase_models = {
+        "scoping": event.pipeline.scoping.model_id,
+        "discovery": event.pipeline.discovery.model_id,
+        "planning": event.pipeline.planning.model_id,
+        "execution": event.pipeline.execution.model_id,
+        "verification": event.pipeline.verification.model_id,
+    }
+    turn.current_phase_model_id = event.pipeline.planning.model_id
+
+
+def _handle_phase_change(
+    data: JSONObject,
+    entry_id: str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    event = PhaseChangeEventData.model_validate(data)
+    if event.status != "started":
+        return
+    model_id = turn.phase_models.get(event.phase)
+    if model_id:
+        turn.current_phase_model_id = model_id
 
 
 def _handle_assistant_message(
@@ -203,6 +257,7 @@ def _handle_assistant_message(
     messages: list[JSONObject],
 ) -> None:
     messages.append(turn.build_assistant_message(data, entry_id))
+    turn.reset_message_state()
 
 
 # Type alias for stream event handler functions.
@@ -218,7 +273,9 @@ _STREAM_EVENT_HANDLERS: dict[str, _StreamEventHandler] = {
     "citations": _handle_citations,
     "planning_artifact": _handle_planning_artifact,
     "reasoning": _handle_reasoning,
+    "problem_frame": _handle_problem_frame,
     "model_selected": _handle_model_selected,
+    "phase_change": _handle_phase_change,
     "assistant_message": _handle_assistant_message,
 }
 
@@ -281,5 +338,3 @@ def _process_stream_event(
     handler = _STREAM_EVENT_HANDLERS.get(event_type)
     if handler:
         handler(data, entry_id, turn, messages)
-
-

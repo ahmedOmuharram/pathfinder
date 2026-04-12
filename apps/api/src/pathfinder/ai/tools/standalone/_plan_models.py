@@ -176,8 +176,8 @@ def _convert_question(q: UserQuestionInput) -> UserQuestion:
         ]
     return UserQuestion(
         id=f"q_{uuid4().hex[:8]}",
-        question=q.question,
-        context=q.context,
+        question=q.question.strip(),
+        context=q.context.strip(),
         related_step=q.related_step,
         related_param=q.related_param,
         options=options,

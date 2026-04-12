@@ -8,9 +8,19 @@ from hypothesis.stateful import RuleBasedStateMachine, invariant, precondition, 
 
 from pathfinder.ai.orchestration.pipeline import AgentPipeline, create_pipeline
 
-VALID_PHASES = frozenset({"discovery", "planning", "execution", "verification", "completed", "failed"})
+VALID_PHASES = frozenset({
+    "scoping",
+    "discovery",
+    "planning",
+    "execution",
+    "verification",
+    "completed",
+    "failed",
+})
 
 ALL_EVENTS = (
+    "research",
+    "finish_scoping",
     "analyze",
     "finish_discovery",
     "submit_draft",
@@ -23,7 +33,9 @@ ALL_EVENTS = (
     "present",
     "finish_verification",
     "replan",
+    "retry_scoping",
     "retry_discovery",
+    "abort_scoping",
     "abort_discovery",
     "abort_planning",
     "abort_execution",
@@ -76,6 +88,25 @@ class PipelineStateMachine(RuleBasedStateMachine):
         assert self.pipeline._transition_count == frozen_count
 
     # ------------------------------------------------------------------
+    # Scoping phase rules (with preconditions)
+    # ------------------------------------------------------------------
+
+    @rule()
+    @precondition(lambda self: self.pipeline.current_phase == "scoping")
+    def research(self) -> None:
+        self.pipeline.send("research")
+
+    @rule()
+    @precondition(lambda self: self.pipeline.current_phase == "scoping")
+    def finish_scoping(self) -> None:
+        self.pipeline.send("finish_scoping")
+
+    @rule()
+    @precondition(lambda self: self.pipeline.current_phase == "scoping")
+    def abort_scoping(self) -> None:
+        self.pipeline.send("abort_scoping")
+
+    # ------------------------------------------------------------------
     # Discovery phase rules (with preconditions)
     # ------------------------------------------------------------------
 
@@ -93,6 +124,11 @@ class PipelineStateMachine(RuleBasedStateMachine):
     @precondition(lambda self: self.pipeline.current_phase == "discovery")
     def abort_discovery(self) -> None:
         self.pipeline.send("abort_discovery")
+
+    @rule()
+    @precondition(lambda self: self.pipeline.current_phase == "discovery")
+    def retry_scoping(self) -> None:
+        self.pipeline.send("retry_scoping")
 
     # ------------------------------------------------------------------
     # Planning phase rules (with preconditions)

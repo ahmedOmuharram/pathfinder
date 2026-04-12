@@ -9,8 +9,8 @@
 import type { RawSSEEvent } from "@/lib/sse";
 import type {
   RawSSEData, ChatSSEEvent, MessageStartData, CitationsData,
-  PlanningArtifactData, ToolCallStartData, ToolCallEndData,
-  StrategyUpdateData, GraphSnapshotData, GraphPlanData,
+  PlanningArtifactData, ProblemFrameData, ToolCallStartData, ToolCallEndData,
+  StrategyUpdateData, GraphSnapshotData, GraphPlanData, PlanApprovedData,
   WorkbenchGeneSetData, ErrorData,
 } from "./sse_events.types";
 import type {
@@ -25,8 +25,9 @@ import {
   OptimizationProgressDataSchema, ModelSelectedDataSchema, ErrorDataSchema,
   StrategyUpdateDataSchema, StrategyLinkDataSchema, StrategyMetaDataSchema,
   GraphPlanDataSchema, WorkbenchGeneSetDataSchema,
-  PlanningThoughtDataSchema, PlanPresentedDataSchema, PlanUpdatedDataSchema,
-  DecisionPresentedDataSchema, PhaseChangeDataSchema,
+  PlanningThoughtDataSchema, PlanPresentedDataSchema, PlanApprovedDataSchema,
+  PlanUpdatedDataSchema,
+  DecisionPresentedDataSchema, PhaseChangeDataSchema, ProblemFrameDataSchema,
 } from "./sse_events.schemas";
 import { isRecord } from "@/lib/utils/isRecord";
 import type { z } from "zod";
@@ -34,13 +35,13 @@ import type { z } from "zod";
 /* ── Re-exports: types ───────────────────────────────────────────────── */
 export type {
   RawSSEData, MessageStartData, CitationsData, PlanningArtifactData,
-  ToolCallStartData, ToolCallEndData, StrategyUpdateStepData,
+  ProblemFrameData, ToolCallStartData, ToolCallEndData, StrategyUpdateStepData,
   StrategyUpdateData, GraphSnapshotData, GraphPlanData, MessageEndData,
   ErrorData, WorkbenchGeneSetData, ChatSSEEvent,
   UserMessageData, AssistantDeltaData, AssistantMessageData,
   ModelSelectedData, TokenUsagePartialData, StrategyMetaData,
   StrategyLinkData, GraphClearedData, ReasoningData,
-  PlanningThoughtData, PlanPresentedData, PlanUpdatedData,
+  PlanningThoughtData, PlanPresentedData, PlanApprovedData, PlanUpdatedData,
   DecisionPresentedData, PhaseChangeData, OptimizationProgressData,
 } from "./sse_events.types";
 
@@ -50,8 +51,9 @@ export {
   OptimizationProgressDataSchema, ModelSelectedDataSchema, ErrorDataSchema,
   StrategyUpdateDataSchema, StrategyLinkDataSchema, StrategyMetaDataSchema,
   GraphPlanDataSchema, WorkbenchGeneSetDataSchema,
-  PlanningThoughtDataSchema, PlanPresentedDataSchema, PlanUpdatedDataSchema,
-  DecisionPresentedDataSchema, PhaseChangeDataSchema,
+  PlanningThoughtDataSchema, PlanPresentedDataSchema, PlanApprovedDataSchema,
+  PlanUpdatedDataSchema,
+  DecisionPresentedDataSchema, PhaseChangeDataSchema, ProblemFrameDataSchema,
 } from "./sse_events.schemas";
 
 /* ── Parsing helpers ───────────────────────────────────────────────── */
@@ -125,6 +127,11 @@ function narrowEventData(
     case "planning_artifact":
       return { type, data: data as PlanningArtifactData };
 
+    case "problem_frame": {
+      const d = zodNarrow<ProblemFrameData>(ProblemFrameDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
+    }
+
     case "reasoning":
       return { type, data: data as ReasoningData };
 
@@ -191,6 +198,10 @@ function narrowEventData(
     }
     case "plan_presented": {
       const d = zodNarrow<PlanPresentedData>(PlanPresentedDataSchema, type, data);
+      return d != null ? { type, data: d } : null;
+    }
+    case "plan_approved": {
+      const d = zodNarrow<PlanApprovedData>(PlanApprovedDataSchema, type, data);
       return d != null ? { type, data: d } : null;
     }
     case "plan_updated": {

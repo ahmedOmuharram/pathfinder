@@ -24,6 +24,43 @@ const OptimizationParameterSpecSchema = z.looseObject({
   choices: z.array(z.string()).nullable().optional(),
 });
 
+export const ClarificationQuestionSchema = z.looseObject({
+  question: z.string(),
+  context: z.string().optional(),
+  field: z.string().nullable().optional(),
+  priority: z.enum(["blocking", "optional"]).optional(),
+  options: z.array(z.string()).optional(),
+});
+
+export const ResearchNoteSchema = z.looseObject({
+  source: z.string(),
+  finding: z.string(),
+  url: z.string().nullable().optional(),
+  citationId: z.string().nullable().optional(),
+});
+
+export const ProblemFrameSchema = z.looseObject({
+  userGoal: z.string(),
+  interpretedGoal: z.string(),
+  organismScope: z.string().nullable().optional(),
+  recordType: z.string().nullable().optional(),
+  biologicalEntities: z.array(z.string()).optional(),
+  inclusionCriteria: z.array(z.string()).optional(),
+  exclusionCriteria: z.array(z.string()).optional(),
+  likelyDataSources: z.array(z.string()).optional(),
+  successCriteria: z.array(z.string()).optional(),
+  assumptions: z.array(z.string()).optional(),
+  blockingQuestions: z.array(ClarificationQuestionSchema).optional(),
+  optionalQuestions: z.array(ClarificationQuestionSchema).optional(),
+  researchNotes: z.array(ResearchNoteSchema).optional(),
+  readyForWdkDiscovery: z.boolean(),
+  confidence: z.number(),
+});
+
+export const ProblemFrameDataSchema = z.looseObject({
+  problemFrame: ProblemFrameSchema,
+});
+
 /* ── Exported Zod schemas ────────────────────────────────────────────── */
 
 export const ToolCallStartDataSchema = z.looseObject({
@@ -61,6 +98,7 @@ export const OptimizationProgressDataSchema = z.looseObject({
 
 export const ModelSelectedDataSchema = z.looseObject({
   pipeline: z.object({
+    scoping: z.object({ modelId: z.string(), reasoningEffort: z.string() }),
     discovery: z.object({ modelId: z.string(), reasoningEffort: z.string() }),
     planning: z.object({ modelId: z.string(), reasoningEffort: z.string() }),
     execution: z.object({ modelId: z.string(), reasoningEffort: z.string() }),
@@ -144,6 +182,11 @@ export const PlanPresentedDataSchema = z.looseObject({
   plan: z.record(z.string(), z.unknown()),
 });
 
+export const PlanApprovedDataSchema = z.looseObject({
+  planId: z.string(),
+  plan: z.record(z.string(), z.unknown()),
+});
+
 export const PlanUpdatedDataSchema = z.looseObject({
   planId: z.string(),
   updates: z.record(z.string(), z.unknown()),
@@ -158,7 +201,13 @@ export const DecisionPresentedDataSchema = z.looseObject({
 });
 
 export const PhaseChangeDataSchema = z.looseObject({
-  phase: z.enum(["discovery", "planning", "execution", "verification", "completed"]),
-  status: z.enum(["started", "completed", "failed", "awaiting_approval"]),
+  phase: z.enum(["scoping", "discovery", "planning", "execution", "verification", "completed"]),
+  status: z.enum(["started", "completed", "failed", "awaiting_approval", "awaiting_input"]),
+  messageId: z.string().nullish(),
+  messageGroupId: z.string().nullish(),
+  emittedAt: z.string().nullish(),
+  phaseStartedAt: z.string().nullish(),
+  phaseCompletedAt: z.string().nullish(),
+  durationMs: z.number().int().nullable().optional(),
   validationError: z.string().nullable().optional(),
 });

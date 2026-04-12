@@ -2,15 +2,25 @@
 
 import { useState } from "react";
 
-import type { InteractivePlan, PlanStatus, PlanInteractionMetadata } from "@/lib/types/plan";
+import { submitProductAction } from "@/lib/api/feedback";
+import type {
+  InteractivePlan,
+  PlanActionRequest,
+  PlanStatus,
+} from "@/lib/types/plan";
 import { usePlanStore } from "@/state/usePlanStore";
+import { useSessionStore } from "@/state/useSessionStore";
 import { PlanStepItem } from "@/features/chat/components/plan/PlanStepItem";
 import { PlanQuestionCard } from "@/features/chat/components/plan/PlanQuestionCard";
 import { PlanActions } from "@/features/chat/components/plan/PlanActions";
 
 interface StrategyPlanCardProps {
+  siteId: string;
   plan: InteractivePlan;
+  planTraceId: string | null;
+  planMessageGroupId: string | null;
   onSendMessage: (text: string, metadata?: Record<string, unknown>) => void;
+  onApprovePlan: (action: PlanActionRequest) => Promise<void>;
 }
 
 const statusBadgeColor: Record<PlanStatus, string> = {
@@ -22,11 +32,20 @@ const statusBadgeColor: Record<PlanStatus, string> = {
   failed: "bg-red-500/20 text-red-400",
 };
 
-export function StrategyPlanCard({ plan, onSendMessage }: StrategyPlanCardProps) {
-  const updatePlan = usePlanStore((s) => s.updatePlan);
-
+export function StrategyPlanCard({
+  siteId,
+  plan,
+  planTraceId,
+  planMessageGroupId,
+  onSendMessage,
+  onApprovePlan,
+}: StrategyPlanCardProps) {
+  const strategyId = useSessionStore((s) => s.strategyId);
   const [localAnswers, setLocalAnswers] = useState<Record<string, unknown>>({});
-  const [localParamEdits, setLocalParamEdits] = useState<Record<string, Record<string, unknown>>>({});
+  const [localParamEdits, setLocalParamEdits] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
 
   const unansweredQuestions = plan.questions.filter(
     (q) => q.answer === null && localAnswers[q.id] === undefined,
@@ -43,16 +62,58 @@ export function StrategyPlanCard({ plan, onSendMessage }: StrategyPlanCardProps)
       .filter((id): id is string => id != null),
   );
   // Questions without a relatedStep block ALL steps (conservative).
-  const hasUnrelatedUnanswered = unansweredQuestions.some((q) => q.relatedStep == null);
+  const hasUnrelatedUnanswered = unansweredQuestions.some(
+    (q) => q.relatedStep == null,
+  );
 
-  const isDisabled = plan.status === "executing" || plan.status === "complete" || plan.status === "failed";
+  const isDisabled =
+    plan.status === "executing" ||
+    plan.status === "complete" ||
+    plan.status === "failed";
 
+  const paramEdits = collectParamEdits(localParamEdits);
+  const answers = collectAnswers(localAnswers);
+
+  function buildPlanChatMetadata(
+    action: string,
+    extra: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      action,
+      source: "plan_panel",
+      planId: plan.id,
+      planTraceId,
+      planMessageGroupId,
+      unansweredQuestionCount: unansweredQuestions.length,
+      paramEditCount: paramEdits.length,
+      ...extra,
+    };
+  }
 
   function handleParamChange(stepId: string, paramName: string, value: unknown) {
-    setLocalParamEdits((prev) => ({
-      ...prev,
-      [stepId]: { ...prev[stepId], [paramName]: value },
-    }));
+    const originalValue = plan.steps.find((step) => step.id === stepId)?.parameters[
+      paramName
+    ]?.value;
+    const unchanged = storedValuesEqual(originalValue, value);
+
+    setLocalParamEdits((prev) => {
+      if (!unchanged) {
+        return {
+          ...prev,
+          [stepId]: { ...prev[stepId], [paramName]: value },
+        };
+      }
+      const stepEdits = prev[stepId];
+      if (stepEdits == null || !(paramName in stepEdits)) return prev;
+      const nextStepEdits = { ...stepEdits };
+      delete nextStepEdits[paramName];
+      if (Object.keys(nextStepEdits).length > 0) {
+        return { ...prev, [stepId]: nextStepEdits };
+      }
+      const nextEdits = { ...prev };
+      delete nextEdits[stepId];
+      return nextEdits;
+    });
   }
 
   function handleAnswer(questionId: string, answer: unknown) {
@@ -60,42 +121,123 @@ export function StrategyPlanCard({ plan, onSendMessage }: StrategyPlanCardProps)
   }
 
   function handleApprove() {
-    // Guard against double-click: update status first to disable the button.
-    if (plan.status === "approved" || plan.status === "executing" || plan.status === "complete" || plan.status === "failed") return;
-    updatePlan({ status: "approved" });
-
-    // Batch all edits, answers, and approval into a single message so the
-    // model receives one turn instead of N separate turns.
-    const paramEdits: Array<{ stepId: string; paramName: string; newValue: unknown }> = [];
-    for (const [stepId, params] of Object.entries(localParamEdits)) {
-      for (const [paramName, newValue] of Object.entries(params)) {
-        paramEdits.push({ stepId, paramName, newValue });
-      }
+    if (
+      isSubmittingApproval ||
+      plan.status === "approved" ||
+      plan.status === "executing" ||
+      plan.status === "complete" ||
+      plan.status === "failed"
+    ) {
+      return;
     }
 
-    const answers: Array<{ questionId: string; answer: unknown }> = [];
-    for (const [questionId, answer] of Object.entries(localAnswers)) {
-      answers.push({ questionId, answer });
-    }
-
-    const metadata: PlanInteractionMetadata = {
-      type: "plan_interaction",
+    const action: PlanActionRequest = {
       planId: plan.id,
       action: "approve",
-      data: { paramEdits, answers },
+      traceId: planTraceId,
+      messageGroupId: planMessageGroupId,
+      source: "plan_panel",
+      paramEdits,
+      answers,
     };
-
-    const text = `[Plan interaction: approve]`;
-    const payload: Record<string, unknown> = { planInteraction: metadata };
-    onSendMessage(text, payload);
+    setIsSubmittingApproval(true);
+    void onApprovePlan(action).finally(() => {
+      setIsSubmittingApproval(false);
+    });
   }
 
   function handleAskQuestion() {
-    onSendMessage("I have a question about this plan:");
+    if (strategyId != null && strategyId !== "") {
+      void submitProductAction({
+        action: "plan_ask_question",
+        streamId: strategyId,
+        strategyId,
+        planId: plan.id,
+        traceId: planTraceId,
+        messageGroupId: planMessageGroupId,
+        metadata: {
+          source: "plan_panel",
+          unansweredQuestionCount: unansweredQuestions.length,
+          paramEditCount: paramEdits.length,
+        },
+      }).catch(() => {});
+    }
+    onSendMessage(
+      "I have a question about this plan:",
+      buildPlanChatMetadata("plan_ask_question"),
+    );
   }
 
   function handleSuggestChanges() {
-    onSendMessage("I'd like to suggest some changes to this plan:");
+    if (strategyId != null && strategyId !== "") {
+      void submitProductAction({
+        action: "plan_suggest_changes",
+        streamId: strategyId,
+        strategyId,
+        planId: plan.id,
+        traceId: planTraceId,
+        messageGroupId: planMessageGroupId,
+        metadata: {
+          source: "plan_panel",
+          unansweredQuestionCount: unansweredQuestions.length,
+          paramEditCount: paramEdits.length,
+        },
+      }).catch(() => {});
+    }
+    onSendMessage(
+      "I'd like to suggest some changes to this plan:",
+      buildPlanChatMetadata("plan_suggest_changes"),
+    );
+  }
+
+  function handleReject() {
+    if (strategyId != null && strategyId !== "") {
+      void submitProductAction({
+        action: "plan_reject",
+        streamId: strategyId,
+        strategyId,
+        planId: plan.id,
+        traceId: planTraceId,
+        messageGroupId: planMessageGroupId,
+        metadata: {
+          source: "plan_panel",
+          planStatus: plan.status,
+          unansweredQuestionCount: unansweredQuestions.length,
+          paramEditCount: paramEdits.length,
+        },
+      }).catch(() => {});
+    }
+    onSendMessage(
+      "Please discard this plan and propose a different one for the same goal.",
+      buildPlanChatMetadata("plan_reject", { planStatus: plan.status }),
+    );
+  }
+
+  function handleRegenerate() {
+    if (strategyId != null && strategyId !== "") {
+      void submitProductAction({
+        action: "assistant_regenerate",
+        streamId: strategyId,
+        strategyId,
+        planId: plan.id,
+        traceId: planTraceId,
+        messageGroupId: planMessageGroupId,
+        metadata: {
+          source: "plan_panel",
+          scope: "plan",
+          planStatus: plan.status,
+          unansweredQuestionCount: unansweredQuestions.length,
+          paramEditCount: paramEdits.length,
+        },
+      }).catch(() => {});
+    }
+    onSendMessage(
+      "Please regenerate this plan from scratch. Use a different approach if helpful.",
+      buildPlanChatMetadata("assistant_regenerate", {
+        scope: "plan",
+        planStatus: plan.status,
+      }),
+    );
   }
 
   return (
@@ -148,6 +290,7 @@ export function StrategyPlanCard({ plan, onSendMessage }: StrategyPlanCardProps)
               return (
                 <PlanStepItem
                   key={step.id}
+                  siteId={siteId}
                   step={effectiveStep}
                   index={idx}
                   onParamChange={handleParamChange}
@@ -194,12 +337,51 @@ export function StrategyPlanCard({ plan, onSendMessage }: StrategyPlanCardProps)
         {/* Actions */}
         <PlanActions
           hasUnansweredQuestions={hasUnansweredQuestions}
-          planStatus={plan.status}
+          planStatus={isSubmittingApproval ? "approved" : plan.status}
           onApprove={handleApprove}
+          onReject={handleReject}
+          onRegenerate={handleRegenerate}
           onAskQuestion={handleAskQuestion}
           onSuggestChanges={handleSuggestChanges}
         />
       </div>
     </div>
   );
+}
+
+function storedValuesEqual(left: unknown, right: unknown): boolean {
+  return stableStringify(left) === stableStringify(right);
+}
+
+function collectParamEdits(
+  localParamEdits: Record<string, Record<string, unknown>>,
+): Array<{ stepId: string; paramName: string; newValue: unknown }> {
+  const collected: Array<{
+    stepId: string;
+    paramName: string;
+    newValue: unknown;
+  }> = [];
+  for (const [stepId, params] of Object.entries(localParamEdits)) {
+    for (const [paramName, newValue] of Object.entries(params)) {
+      collected.push({ stepId, paramName, newValue });
+    }
+  }
+  return collected;
+}
+
+function collectAnswers(
+  localAnswers: Record<string, unknown>,
+): Array<{ questionId: string; answer: unknown }> {
+  return Object.entries(localAnswers).map(([questionId, answer]) => ({
+    questionId,
+    answer,
+  }));
+}
+
+function stableStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }

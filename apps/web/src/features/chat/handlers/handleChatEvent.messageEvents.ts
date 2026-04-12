@@ -1,6 +1,8 @@
 import type {
   AssistantMessage,
   Message,
+  PlanningArtifact,
+  ProblemFrame,
   UserMessage,
   OptimizationProgressData,
   OptimizationTrial,
@@ -15,6 +17,7 @@ import type {
   AssistantMessageData,
   CitationsData,
   PlanningArtifactData,
+  ProblemFrameData,
   ReasoningData,
   ModelSelectedData,
   TokenUsagePartialData,
@@ -22,6 +25,8 @@ import type {
   ErrorData,
 } from "@/lib/sse_events";
 import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
+import type { StreamSessionState } from "./handleChatEvent.types";
+import { usePlanStore } from "@/state/usePlanStore";
 
 /**
  * Resolve the current streaming assistant message index with fallback.
@@ -45,6 +50,91 @@ function resolveAssistantIndex(
   return idx;
 }
 
+function rememberAssistantIndex(
+  streamState: StreamSessionState,
+  messageId: string | null,
+  index: number,
+): void {
+  if (messageId != null && messageId !== "") {
+    streamState.assistantMessageIndices[messageId] = index;
+    streamState.lastAssistantMessageId = messageId;
+  }
+  streamState.streamingAssistantIndex = index;
+  streamState.turnAssistantIndex = index;
+}
+
+function resolveAssistantIndexByMessageId(
+  streamState: StreamSessionState,
+  messages: readonly Message[],
+  messageId: string | null,
+): number | null {
+  if (messageId != null && messageId !== "") {
+    const remembered = streamState.assistantMessageIndices[messageId];
+    if (remembered != null) {
+      const msg = messages[remembered];
+      if (msg != null && msg.role === "assistant" && msg.messageId === messageId) {
+        return remembered;
+      }
+      delete streamState.assistantMessageIndices[messageId];
+    }
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i];
+      if (msg?.role !== "assistant") continue;
+      if (msg.messageId !== messageId) continue;
+      streamState.assistantMessageIndices[messageId] = i;
+      return i;
+    }
+
+    return null;
+  }
+
+  return resolveAssistantIndex(streamState.streamingAssistantIndex, messages);
+}
+
+function hasAssistantPayload(
+  content: string,
+  toolCalls?: ToolCall[],
+  citations?: CitationsData["citations"],
+  artifacts?: PlanningArtifact[],
+  problemFrame?: ProblemFrame | null,
+  reasoning?: string,
+  optimization?: OptimizationProgressData,
+): boolean {
+  return (
+    content.trim() !== "" ||
+    (toolCalls?.length ?? 0) > 0 ||
+    (citations?.length ?? 0) > 0 ||
+    (artifacts?.length ?? 0) > 0 ||
+    problemFrame != null ||
+    (reasoning?.trim().length ?? 0) > 0 ||
+    optimization != null
+  );
+}
+
+function buildAssistantIdentityFields(
+  streamState: StreamSessionState,
+  messageId: string | null,
+): Partial<AssistantMessage> {
+  const fields: Partial<AssistantMessage> = {};
+  if (messageId != null && messageId !== "") {
+    fields.messageId = messageId;
+  }
+  if (streamState.messageGroupId != null && streamState.messageGroupId !== "") {
+    fields.messageGroupId = streamState.messageGroupId;
+  }
+  if (
+    streamState.currentPhase === "discovery" ||
+    streamState.currentPhase === "scoping" ||
+    streamState.currentPhase === "planning" ||
+    streamState.currentPhase === "execution" ||
+    streamState.currentPhase === "verification"
+  ) {
+    fields.phase = streamState.currentPhase;
+  }
+  return fields;
+}
+
 /**
  * Handle `user_message` events from the Redis stream catch-up.
  *
@@ -57,6 +147,9 @@ function resolveAssistantIndex(
 export function handleUserMessageEvent(ctx: ChatEventContext, data: UserMessageData) {
   const content = typeof data.content === "string" ? data.content : "";
   if (!content) return;
+  usePlanStore.getState().clearThoughts();
+  usePlanStore.getState().clearPhaseTimings();
+  usePlanStore.getState().clearPhase();
 
   ctx.setMessages((prev) => {
     // De-duplicate: skip if the last user message has the same content
@@ -118,7 +211,16 @@ export function handleAssistantDeltaEvent(
   ctx: ChatEventContext,
   data: AssistantDeltaData,
 ) {
-  const messageId = data.messageId;
+  const messageId =
+    typeof data.messageId === "string" && data.messageId !== ""
+      ? data.messageId
+      : ctx.streamState.streamingAssistantMessageId;
+  if (typeof data.messageGroupId === "string" && data.messageGroupId !== "") {
+    ctx.streamState.messageGroupId = data.messageGroupId;
+  }
+  if (typeof data.phase === "string" && data.phase !== "") {
+    ctx.streamState.currentPhase = data.phase;
+  }
   const delta =
     typeof data.delta === "string"
       ? data.delta
@@ -126,19 +228,36 @@ export function handleAssistantDeltaEvent(
         ? (data.delta as string[]).join("")
         : "";
   if (delta === "") return;
+  ctx.streamState.streamingAssistantMessageId = messageId ?? null;
+  ctx.thinking.setActiveMessage(messageId ?? null);
+  const identityFields = buildAssistantIdentityFields(
+    ctx.streamState,
+    messageId ?? null,
+  );
 
-  if (
-    ctx.streamState.streamingAssistantIndex === null ||
-    (messageId != null &&
-      messageId !== "" &&
-      ctx.streamState.streamingAssistantMessageId !== messageId)
-  ) {
-    ctx.streamState.streamingAssistantIndex = -1;
-    ctx.streamState.streamingAssistantMessageId = messageId ?? null;
+  ctx.setMessages((prev) => {
+    const idx = resolveAssistantIndexByMessageId(
+      ctx.streamState,
+      prev,
+      messageId ?? null,
+    );
+    if (idx !== null) {
+      const existing = prev[idx];
+      if (existing == null || existing.role !== "assistant") return prev;
+      const next = [...prev];
+      next[idx] = {
+        ...existing,
+        content: (existing.content || "") + delta,
+        ...identityFields,
+      };
+      rememberAssistantIndex(ctx.streamState, messageId ?? null, idx);
+      return next;
+    }
 
     const assistantMessage: AssistantMessage = {
       role: "assistant",
       content: delta,
+      ...identityFields,
       ...(ctx.streamState.currentModelId != null
         ? { modelId: ctx.streamState.currentModelId }
         : {}),
@@ -147,29 +266,8 @@ export function handleAssistantDeltaEvent(
         : {}),
       timestamp: new Date().toISOString(),
     };
-    ctx.setMessages((prev) => {
-      const next = [...prev, assistantMessage];
-      const resolvedIdx = next.length - 1;
-      // Only resolve the sentinel; in batched delivery assistant_message may
-      // have already finalized and cleared this ref.
-      if (ctx.streamState.streamingAssistantIndex === -1) {
-        ctx.streamState.streamingAssistantIndex = resolvedIdx;
-      }
-      // Always track the turn-level owner so optimization_progress events
-      // can find the message even after streamingAssistantIndex is cleared.
-      ctx.streamState.turnAssistantIndex = resolvedIdx;
-      return next;
-    });
-    return;
-  }
-
-  ctx.setMessages((prev) => {
-    const idx = resolveAssistantIndex(ctx.streamState.streamingAssistantIndex, prev);
-    if (idx === null) return prev;
-    const existing = prev[idx];
-    if (existing == null || existing.role !== "assistant") return prev;
-    const next = [...prev];
-    next[idx] = { ...existing, content: (existing.content || "") + delta };
+    const next = [...prev, assistantMessage];
+    rememberAssistantIndex(ctx.streamState, messageId ?? null, next.length - 1);
     return next;
   });
 }
@@ -178,7 +276,16 @@ export function handleAssistantMessageEvent(
   ctx: ChatEventContext,
   data: AssistantMessageData,
 ) {
-  const messageId = data.messageId;
+  const messageId =
+    typeof data.messageId === "string" && data.messageId !== ""
+      ? data.messageId
+      : ctx.streamState.streamingAssistantMessageId;
+  if (typeof data.messageGroupId === "string" && data.messageGroupId !== "") {
+    ctx.streamState.messageGroupId = data.messageGroupId;
+  }
+  if (typeof data.phase === "string" && data.phase !== "") {
+    ctx.streamState.currentPhase = data.phase;
+  }
   const finalContent =
     typeof data.content === "string"
       ? data.content
@@ -194,90 +301,132 @@ export function handleAssistantMessageEvent(
     ctx.planningArtifactsBuffer.length > 0
       ? [...ctx.planningArtifactsBuffer]
       : undefined;
+  const finalProblemFrame = ctx.problemFrameBuffer ?? undefined;
   const finalReasoning = ctx.streamState.reasoning ?? undefined;
   const finalOptimization = ctx.streamState.optimizationProgress ?? undefined;
+  const shouldPersistMessage = hasAssistantPayload(
+    finalContent,
+    finalToolCalls,
+    finalCitations,
+    finalArtifacts,
+    finalProblemFrame,
+    finalReasoning,
+    finalOptimization,
+  );
+  const shouldClearActiveMessage =
+    ctx.streamState.streamingAssistantMessageId == null ||
+    messageId == null ||
+    ctx.streamState.streamingAssistantMessageId === messageId;
 
-  if (
-    ctx.streamState.streamingAssistantIndex !== null &&
-    (messageId == null ||
-      messageId === "" ||
-      ctx.streamState.streamingAssistantMessageId === messageId)
-  ) {
-    ctx.session.consumeUndoSnapshot();
+  const snapshot = ctx.session.consumeUndoSnapshot();
+  if (shouldPersistMessage) {
     ctx.setMessages((prev) => {
-      const idx = resolveAssistantIndex(ctx.streamState.streamingAssistantIndex, prev);
-      if (idx === null) return prev;
-      const existing = prev[idx];
-      if (existing == null || existing.role !== "assistant") return prev;
-      const mergedReasoning = finalReasoning ?? existing.reasoning;
-      const mergedOptimization = finalOptimization ?? existing.optimizationProgress;
-      const next = [...prev];
-      next[idx] = {
-        ...existing,
-        content: finalContent !== "" ? finalContent : existing.content,
-        ...(finalToolCalls != null
-          ? { toolCalls: finalToolCalls }
-          : existing.toolCalls != null
-            ? { toolCalls: existing.toolCalls }
+      const idx = resolveAssistantIndexByMessageId(
+        ctx.streamState,
+        prev,
+        messageId ?? null,
+      );
+      const baseFields = buildAssistantIdentityFields(
+        ctx.streamState,
+        messageId ?? null,
+      );
+
+      if (idx !== null) {
+        const existing = prev[idx];
+        if (existing == null || existing.role !== "assistant") return prev;
+        const mergedReasoning = finalReasoning ?? existing.reasoning;
+        const mergedOptimization = finalOptimization ?? existing.optimizationProgress;
+        const mergedProblemFrame = finalProblemFrame ?? existing.problemFrame;
+        const next = [...prev];
+        next[idx] = {
+          ...existing,
+          ...baseFields,
+          content: finalContent !== "" ? finalContent : existing.content,
+          ...(ctx.streamState.currentModelId != null
+            ? { modelId: ctx.streamState.currentModelId }
+            : existing.modelId != null
+              ? { modelId: existing.modelId }
+              : {}),
+          ...(finalToolCalls != null
+            ? { toolCalls: finalToolCalls }
+            : existing.toolCalls != null
+              ? { toolCalls: existing.toolCalls }
+              : {}),
+          ...(finalCitations != null
+            ? { citations: finalCitations }
+            : existing.citations != null
+              ? { citations: existing.citations }
+              : {}),
+          ...(finalArtifacts != null
+            ? { planningArtifacts: finalArtifacts }
+            : existing.planningArtifacts != null
+              ? { planningArtifacts: existing.planningArtifacts }
+              : {}),
+          ...(mergedProblemFrame != null
+            ? { problemFrame: mergedProblemFrame }
             : {}),
-        ...(finalCitations != null
-          ? { citations: finalCitations }
-          : existing.citations != null
-            ? { citations: existing.citations }
+          ...(mergedReasoning != null && mergedReasoning !== ""
+            ? { reasoning: mergedReasoning }
             : {}),
-        ...(finalArtifacts != null
-          ? { planningArtifacts: finalArtifacts }
-          : existing.planningArtifacts != null
-            ? { planningArtifacts: existing.planningArtifacts }
+          ...(mergedOptimization != null
+            ? { optimizationProgress: mergedOptimization }
             : {}),
-        ...(mergedReasoning != null && mergedReasoning !== ""
-          ? { reasoning: mergedReasoning }
+        };
+        rememberAssistantIndex(ctx.streamState, messageId ?? null, idx);
+        if (shouldClearActiveMessage) {
+          ctx.streamState.streamingAssistantIndex = null;
+          ctx.streamState.streamingAssistantMessageId = null;
+        }
+        return next;
+      }
+
+      const assistantMessage: AssistantMessage = {
+        role: "assistant",
+        content: finalContent,
+        ...baseFields,
+        ...(ctx.streamState.currentModelId != null
+          ? { modelId: ctx.streamState.currentModelId }
           : {}),
-        ...(mergedOptimization != null
-          ? { optimizationProgress: mergedOptimization }
+        ...(finalToolCalls != null ? { toolCalls: finalToolCalls } : {}),
+        ...(finalCitations != null ? { citations: finalCitations } : {}),
+        ...(finalArtifacts != null ? { planningArtifacts: finalArtifacts } : {}),
+        ...(finalProblemFrame != null ? { problemFrame: finalProblemFrame } : {}),
+        ...(finalReasoning != null && finalReasoning !== ""
+          ? { reasoning: finalReasoning }
           : {}),
+        ...(finalOptimization != null ? { optimizationProgress: finalOptimization } : {}),
+        timestamp: new Date().toISOString(),
       };
-      return next;
-    });
-  } else if (finalContent) {
-    const assistantMessage: AssistantMessage = {
-      role: "assistant",
-      content: finalContent,
-      ...(ctx.streamState.currentModelId != null
-        ? { modelId: ctx.streamState.currentModelId }
-        : {}),
-      ...(finalToolCalls != null ? { toolCalls: finalToolCalls } : {}),
-      ...(finalCitations != null ? { citations: finalCitations } : {}),
-      ...(finalArtifacts != null ? { planningArtifacts: finalArtifacts } : {}),
-      ...(finalReasoning != null && finalReasoning !== ""
-        ? { reasoning: finalReasoning }
-        : {}),
-      ...(finalOptimization != null ? { optimizationProgress: finalOptimization } : {}),
-      timestamp: new Date().toISOString(),
-    };
-    const snapshot = ctx.session.consumeUndoSnapshot();
-    ctx.setMessages((prev) => {
       const next = [...prev, assistantMessage];
-      ctx.streamState.turnAssistantIndex = next.length - 1;
+      const appendedIndex = next.length - 1;
+      rememberAssistantIndex(ctx.streamState, messageId ?? null, appendedIndex);
       if (snapshot) {
         ctx.setUndoSnapshots((prevSnapshots) => ({
           ...prevSnapshots,
-          [next.length - 1]: snapshot,
+          [appendedIndex]: snapshot,
         }));
+      }
+      if (shouldClearActiveMessage) {
+        ctx.streamState.streamingAssistantIndex = null;
+        ctx.streamState.streamingAssistantMessageId = null;
       }
       return next;
     });
-  } else {
-    ctx.session.consumeUndoSnapshot();
+  } else if (shouldClearActiveMessage) {
+    ctx.streamState.streamingAssistantIndex = null;
+    ctx.streamState.streamingAssistantMessageId = null;
   }
-  // Clear streaming refs after assistant_message finalize.  Late turn-level
-  // events (e.g. optimization_progress) use turnAssistantIndex instead.
-  ctx.streamState.streamingAssistantIndex = null;
-  ctx.streamState.streamingAssistantMessageId = null;
-  ctx.streamState.reasoning = null;
-  ctx.toolCallsBuffer.length = 0;
-  ctx.citationsBuffer.length = 0;
-  ctx.planningArtifactsBuffer.length = 0;
+
+  if (shouldClearActiveMessage) {
+    ctx.streamState.streamingAssistantIndex = null;
+    ctx.streamState.streamingAssistantMessageId = null;
+    ctx.streamState.reasoning = null;
+    ctx.toolCallsBuffer.length = 0;
+    ctx.citationsBuffer.length = 0;
+    ctx.planningArtifactsBuffer.length = 0;
+    ctx.problemFrameBuffer = null;
+    ctx.thinking.setActiveMessage(null);
+  }
 }
 
 export function handleCitationsEvent(ctx: ChatEventContext, data: CitationsData) {
@@ -299,10 +448,20 @@ export function handlePlanningArtifactEvent(
   ctx.planningArtifactsBuffer.push(artifact);
 }
 
+export function handleProblemFrameEvent(
+  ctx: ChatEventContext,
+  data: ProblemFrameData,
+) {
+  ctx.problemFrameBuffer = data.problemFrame;
+}
+
 export function handleReasoningEvent(ctx: ChatEventContext, data: ReasoningData) {
   const reasoning = data.reasoning;
   if (typeof reasoning !== "string") return;
-  ctx.thinking.updateReasoning(reasoning);
+  ctx.thinking.updateReasoning(
+    reasoning,
+    ctx.streamState.streamingAssistantMessageId,
+  );
   ctx.streamState.reasoning = reasoning;
 }
 
@@ -340,7 +499,19 @@ export function handleOptimizationProgressEvent(
   // Never fall back to a generic "last assistant" scan, which would leak
   // live progress into a previous conversation turn.
   ctx.setMessages((prev) => {
-    let idx: number | null = ctx.streamState.streamingAssistantIndex;
+    const activeMessageId = ctx.streamState.streamingAssistantMessageId ?? null;
+    let idx = resolveAssistantIndexByMessageId(
+      ctx.streamState,
+      prev,
+      activeMessageId,
+    );
+    if (idx == null) {
+      idx = resolveAssistantIndexByMessageId(
+        ctx.streamState,
+        prev,
+        ctx.streamState.lastAssistantMessageId ?? null,
+      );
+    }
     if (idx == null || idx < 0) {
       idx = ctx.streamState.turnAssistantIndex ?? null;
     }
@@ -357,11 +528,14 @@ export function handleModelSelectedEvent(
   ctx: ChatEventContext,
   data: ModelSelectedData,
 ) {
-  // Extract the planning model as the representative model ID.
+  if (data.pipeline != null) {
+    ctx.streamState.pipeline = data.pipeline;
+  }
+
+  // Extract the planning model as the default representative model ID.
   const modelId = data.pipeline?.planning?.modelId;
   if (typeof modelId === "string") {
     ctx.setSelectedModelId?.(modelId || null);
-    // Store for stamping on subsequent assistant messages in this turn.
     ctx.streamState.currentModelId = modelId || null;
   }
 }
@@ -430,11 +604,15 @@ export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndDat
   ctx.setMessages((prev) => {
     const updated = [...prev];
     // Update last user message (may already have partial usage from token_usage_partial).
-    if (usage != null) {
+    if (usage != null || traceId != null) {
       for (let i = updated.length - 1; i >= 0; i--) {
         const msg = prev[i];
         if (msg?.role !== "user") continue;
-        updated[i] = { ...msg, tokenUsage: usage };
+        updated[i] = {
+          ...msg,
+          ...(usage != null ? { tokenUsage: usage } : {}),
+          ...(traceId != null ? { traceId } : {}),
+        };
         break;
       }
     }
@@ -453,6 +631,20 @@ export function handleMessageEndEvent(ctx: ChatEventContext, data: MessageEndDat
     }
     return updated;
   });
+  if (traceId != null) {
+    const planStore = usePlanStore.getState();
+    if (
+      planStore.activePlan != null &&
+      planStore.activePlanMessageGroupId != null &&
+      planStore.activePlanMessageGroupId === ctx.streamState.messageGroupId
+    ) {
+      planStore.setPlanTraceContext({
+        traceId,
+        messageGroupId: planStore.activePlanMessageGroupId,
+      });
+    }
+  }
+  ctx.thinking.setActiveMessage(null);
 }
 
 export function handleErrorEvent(ctx: ChatEventContext, data: ErrorData) {
@@ -463,5 +655,6 @@ export function handleErrorEvent(ctx: ChatEventContext, data: ErrorData) {
     timestamp: new Date().toISOString(),
   };
   ctx.setMessages((prev) => [...prev, assistantMessage]);
+  ctx.thinking.setActiveMessage(null);
   ctx.onApiError?.(error);
 }

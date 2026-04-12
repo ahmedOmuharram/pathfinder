@@ -14,6 +14,7 @@ from pathfinder.ai.tools.standalone._plan_models import (
     PlannedConnectionInput,
     PlannedStepInput,
     StepPatch,
+    UserQuestionInput,
 )
 from pathfinder.ai.tools.standalone.plan import (
     create_plan,
@@ -212,6 +213,98 @@ async def test_submit_plan_validates_parameters() -> None:
     assert isinstance(submit_result, ToolErrorPayload)
     assert submit_result.code == "PARAMETER_ERROR"
     assert "organism" in submit_result.message
+
+
+@pytest.mark.asyncio
+async def test_create_plan_deduplicates_semantically_identical_questions() -> None:
+    """create_plan should collapse duplicate questions into a single entry."""
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+
+    result = await create_plan(
+        ctx,
+        title="Question Plan",
+        description="Tests duplicate questions",
+        rationale="Avoid duplicate prompts",
+        steps=[_leaf_step("step_a", "GenesByTaxon")],
+        connections=[],
+        questions=[
+            UserQuestionInput(
+                question="Which organism should we use?",
+                context="Pick the organism for the first step.",
+                related_step="step_a",
+                related_param="organism",
+            ),
+            UserQuestionInput(
+                question="  Which organism should we use?  ",
+                context="Pick the organism for the first step.",
+                related_step="step_a",
+                related_param="organism",
+            ),
+        ],
+    )
+
+    assert isinstance(result, PlanCreatedResponse)
+    plan = deps.agent_state.active_plan
+    assert plan is not None
+    assert len(plan.questions) == 1
+    assert plan.questions[0].question == "Which organism should we use?"
+
+
+@pytest.mark.asyncio
+async def test_update_plan_reuses_existing_question_and_preserves_answer() -> None:
+    """update_plan should merge duplicate questions instead of appending them."""
+    deps = _make_deps()
+    ctx = _make_ctx(deps)
+    _register_search(deps.agent_state, "GenesByTaxon")
+
+    create_result = await create_plan(
+        ctx,
+        title="Question Merge Plan",
+        description="Tests submit-time question dedupe",
+        rationale="Avoid repeated approvals",
+        steps=[_leaf_step("step_a", "GenesByTaxon")],
+        connections=[],
+        questions=[
+            UserQuestionInput(
+                question="Which organism should we use?",
+                context="Pick the organism for the first step.",
+                related_step="step_a",
+                related_param="organism",
+            ),
+        ],
+    )
+
+    assert isinstance(create_result, PlanCreatedResponse)
+    plan = deps.agent_state.active_plan
+    assert plan is not None
+    original_question_id = plan.questions[0].id
+    plan.questions[0].answer = "Plasmodium vivax"
+
+    update_result = await update_plan(
+        ctx,
+        questions=[
+            UserQuestionInput(
+                question="Which organism should we use?",
+                context="Pick the organism for the first step.",
+                related_step="step_a",
+                related_param="organism",
+                options=[
+                    {
+                        "label": "Plasmodium vivax",
+                        "description": "Use the vivax organism context.",
+                    },
+                ],
+            ),
+        ],
+    )
+
+    assert isinstance(update_result, StrategyPlan)
+    assert len(update_result.questions) == 1
+    assert update_result.questions[0].id == original_question_id
+    assert update_result.questions[0].answer == "Plasmodium vivax"
+    assert update_result.questions[0].options is not None
+    assert update_result.questions[0].options[0].label == "Plasmodium vivax"
 
 
 @pytest.mark.asyncio

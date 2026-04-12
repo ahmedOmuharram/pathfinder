@@ -11,6 +11,7 @@ interface PhaseCardProps {
 }
 
 const PHASE_LABELS: Record<PipelinePhase, string> = {
+  scoping: "Scoping",
   discovery: "Discovery",
   planning: "Planning",
   execution: "Execution",

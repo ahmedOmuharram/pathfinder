@@ -154,19 +154,21 @@ Settings are loaded from:
 Common env vars:
 
 - `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` if using those providers)
-- `API_SECRET_KEY` (32+ chars; optional in dev — a random key is auto-generated if unset)
-- `DATABASE_URL` (defaults to PostgreSQL on `localhost:5432` if unset)
-- `DEFAULT_MODEL_ID`, `DEFAULT_REASONING_EFFORT` (optional; defaults are `openai/gpt-4.1` and `medium`)
+- `API_SECRET_KEY` (32+ chars; required in every profile)
+- `DATABASE_URL` and `REDIS_URL` (required; no implicit localhost defaults)
+- `PATHFINDER_CHAT_PROVIDER=mock` is allowed only in development
+- `DEFAULT_PROVIDER` and `DEFAULT_TIER` choose the base model preset when using real providers
 ### Run locally (no Docker)
 
 Start local dependencies (recommended):
 
 ```bash
-docker compose up -d db redis
+docker compose --env-file .env.dev -f ../../docker-compose.yml -f ../../docker-compose.dev.yml up -d db redis
 ```
 
 ```bash
 cd apps/api
+cp .env.dev.example .env
 uv sync --extra dev
 uv run uvicorn pathfinder.main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -200,4 +202,3 @@ uv run mypy src
 - Uses SQLAlchemy async sessions (`src/pathfinder/persistence/session.py`).
 - Dev defaults to **PostgreSQL** (to match Docker/production).
 - Uses **Alembic** for schema migrations (see `alembic/versions/`). Initial schema is also bootstrapped via `create_all` for development convenience.
-

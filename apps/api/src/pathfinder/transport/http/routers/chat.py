@@ -37,6 +37,7 @@ async def chat(
     config = ChatTurnConfig(
         pipeline=body.pipeline,
         mentions=body.mentions or None,
+        metadata=body.metadata,
         disable_rag=body.disable_rag,
         temperature=body.temperature,
         seed=body.seed,

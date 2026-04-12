@@ -2,11 +2,11 @@ import { usePlanStore } from "@/state/usePlanStore";
 import type {
   DecisionPresentedData,
   PhaseChangeData,
+  PlanApprovedData,
   PlanPresentedData,
   PlanUpdatedData,
   PlanningThoughtData,
 } from "@/lib/sse_events";
-import type { PhaseStatus, PipelinePhase } from "@/state/usePlanStore";
 import { InteractivePlanSchema } from "@/lib/types/plan";
 import type { InteractivePlan } from "@/lib/types/plan";
 import type { ChatEventContext } from "./handleChatEvent.types";
@@ -19,7 +19,7 @@ export function handlePlanningThoughtEvent(
 }
 
 export function handlePlanPresentedEvent(
-  _ctx: ChatEventContext,
+  ctx: ChatEventContext,
   data: PlanPresentedData,
 ): void {
   const parsed = InteractivePlanSchema.safeParse(data.plan);
@@ -27,7 +27,29 @@ export function handlePlanPresentedEvent(
     console.error("[plan] Failed to parse plan:", parsed.error.message);
     return;
   }
-  usePlanStore.getState().setPlan(parsed.data);
+  const store = usePlanStore.getState();
+  store.setPlan(parsed.data);
+  store.setPlanTraceContext({
+    traceId: null,
+    messageGroupId: ctx.streamState.messageGroupId ?? null,
+  });
+}
+
+export function handlePlanApprovedEvent(
+  ctx: ChatEventContext,
+  data: PlanApprovedData,
+): void {
+  const parsed = InteractivePlanSchema.safeParse(data.plan);
+  if (!parsed.success) {
+    console.error("[plan] Failed to parse approved plan:", parsed.error.message);
+    return;
+  }
+  const store = usePlanStore.getState();
+  store.setPlan(parsed.data);
+  store.setPlanTraceContext({
+    traceId: null,
+    messageGroupId: ctx.streamState.messageGroupId ?? null,
+  });
 }
 
 export function handlePlanUpdatedEvent(
@@ -46,10 +68,48 @@ export function handleDecisionPresentedEvent(
 }
 
 export function handlePhaseChangeEvent(
-  _ctx: ChatEventContext,
+  ctx: ChatEventContext,
   data: PhaseChangeData,
 ): void {
+  if (
+    data.status === "started" &&
+    typeof data.messageId === "string" &&
+    data.messageId !== ""
+  ) {
+    ctx.streamState.streamingAssistantMessageId = data.messageId;
+    ctx.streamState.streamingAssistantIndex = null;
+    ctx.thinking.setActiveMessage(data.messageId);
+  }
+  if (data.status !== "started") {
+    ctx.thinking.setActiveMessage(null);
+  }
+  if (
+    data.status === "started" &&
+    typeof data.messageGroupId === "string" &&
+    data.messageGroupId !== ""
+  ) {
+    ctx.streamState.messageGroupId = data.messageGroupId;
+  }
+  if (typeof data.phase === "string") {
+    ctx.streamState.currentPhase = data.phase;
+    const pipeline = ctx.streamState.pipeline;
+    const phaseConfig =
+      data.phase === "scoping" ? pipeline?.scoping
+        : data.phase === "discovery" ? pipeline?.discovery
+          : data.phase === "planning" ? pipeline?.planning
+            : data.phase === "execution" ? pipeline?.execution
+              : data.phase === "verification" ? pipeline?.verification
+                : undefined;
+    if (phaseConfig?.modelId != null) {
+      ctx.streamState.currentModelId = phaseConfig.modelId;
+    }
+  }
   usePlanStore
     .getState()
-    .setPhase(data.phase as PipelinePhase, data.status as PhaseStatus);
+    .setPhase(data.phase, data.status, {
+      emittedAt: data.emittedAt ?? null,
+      phaseStartedAt: data.phaseStartedAt ?? null,
+      phaseCompletedAt: data.phaseCompletedAt ?? null,
+      durationMs: data.durationMs ?? null,
+    });
 }

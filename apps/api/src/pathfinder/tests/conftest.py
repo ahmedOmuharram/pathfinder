@@ -31,6 +31,15 @@ if "PIGUARD_MODEL_DIR" not in os.environ:
 
 # ---------------------------------------------------------------------------
 
+os.environ.setdefault("API_ENV", "development")
+os.environ.setdefault("API_SECRET_KEY", "test-secret-key-test-secret-key-test")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+os.environ.setdefault("PATHFINDER_CHAT_PROVIDER", "mock")
+os.environ.setdefault("OPENAI_API_KEY", "")
+os.environ.setdefault("ANTHROPIC_API_KEY", "")
+os.environ.setdefault("GEMINI_API_KEY", "")
+
 import httpx
 import pydantic_ai.models
 import pytest
@@ -344,13 +353,6 @@ async def redis_setup(_redis_conn: Redis) -> AsyncGenerator[None]:
 @pytest.fixture(scope="session", autouse=True)
 def _test_env_defaults() -> None:
     # Keep tests deterministic and avoid background ingestion/LLM calls.
-    os.environ.setdefault("API_SECRET_KEY", "test-secret-key-test-secret-key-test")
-
-    os.environ.setdefault("PATHFINDER_CHAT_PROVIDER", "mock")
-    os.environ.setdefault("OPENAI_API_KEY", "")
-    os.environ.setdefault("ANTHROPIC_API_KEY", "")
-    os.environ.setdefault("GEMINI_API_KEY", "")
-
     # Disable rate limiting so chat tests don't get 429s.
     limiter.enabled = False
 

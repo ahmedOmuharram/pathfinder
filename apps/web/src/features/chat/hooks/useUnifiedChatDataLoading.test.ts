@@ -4,8 +4,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import type { Message, Strategy } from "@pathfinder/shared";
+import type * as HttpModule from "@/lib/api/http";
 import { createTestWrapper } from "@/lib/query/testing";
 import { useUnifiedChatDataLoading } from "./useUnifiedChatDataLoading";
+import type { useThinkingState } from "./useThinkingState";
 
 // --- Mocks ---
 
@@ -34,7 +36,7 @@ vi.mock("@/lib/api/strategies", () => ({
 }));
 
 vi.mock("@/lib/api/http", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/http")>();
+  const actual = await importOriginal<typeof HttpModule>();
   return {
     ...actual,
   };
@@ -61,12 +63,22 @@ function makeArgs(
     setApiError: vi.fn(),
     setSelectedModelId: vi.fn(),
     thinking: {
+      activeMessageId: null,
+      activeToolCalls: [],
+      lastToolCalls: [],
+      reasoning: null,
+      getThinkingForMessage: vi.fn(() => ({
+        activeToolCalls: [],
+        lastToolCalls: [],
+        reasoning: null,
+      })),
+      setActiveMessage: vi.fn(),
       applyThinkingPayload: vi.fn(),
       reset: vi.fn(),
-      thinkingBudget: null,
-      currentThinking: null,
+      updateActiveFromBuffer: vi.fn(),
+      updateReasoning: vi.fn(),
       finalizeToolCalls: vi.fn(),
-    } as unknown as ReturnType<typeof import("./useThinkingState").useThinkingState>,
+    } as unknown as ReturnType<typeof useThinkingState>,
     setStrategy: vi.fn(),
     setStrategyMeta: vi.fn(),
     onStrategyNotFound: vi.fn(),

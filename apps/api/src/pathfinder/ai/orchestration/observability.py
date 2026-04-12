@@ -1,10 +1,15 @@
-"""Observability setup: dual OTEL export (SigNoz + Langfuse) + library instrumentation.
+"""Observability setup: OTEL tracing/metrics/logs + library instrumentation.
 
-Each instrumentation concern is a standalone function that no-ops gracefully
-when its prerequisite is missing.  ``setup_observability`` composes them.
+SigNoz receives traces via our ``BatchSpanProcessor``/``HttpSpanExporter``,
+metrics via ``PeriodicExportingMetricReader``, and logs via ``BatchLogRecordProcessor``.
+Langfuse ingestion is handled by the Langfuse SDK's own ``LangfuseSpanProcessor``,
+which ``get_langfuse()`` attaches to the TracerProvider we install here. The
+initialization order matters: we must set our TracerProvider *before* anything
+triggers ``get_langfuse()``, otherwise the Langfuse SDK installs its own
+TracerProvider first and ``trace.set_tracer_provider`` silently becomes a no-op
+(OTEL enforces set-once semantics).
 """
 
-import base64
 import logging
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as importlib_version
@@ -36,6 +41,7 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace import Span
 from pydantic_ai import Agent, InstrumentationSettings
 
 from pathfinder.platform.config import get_settings
@@ -44,6 +50,7 @@ from pathfinder.platform.context import (
     site_id_ctx,
     user_id_ctx,
 )
+from pathfinder.platform.langfuse.client import get_langfuse
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -66,53 +73,78 @@ def _get_version() -> str:
         return "0.0.0-dev"
 
 
+def get_observability_identity() -> dict[str, str]:
+    """Return stable service identity fields shared across traces and spans."""
+    settings = get_settings()
+    return {
+        "service.name": "pathfinder-api",
+        "service.version": _get_version(),
+        "deployment.environment.name": settings.api_env,
+    }
+
+
+def annotate_span_with_observability_identity(span: Span) -> None:
+    """Copy stable service identity fields onto a span for downstream tools."""
+    for key, value in get_observability_identity().items():
+        span.set_attribute(key, value)
+
+
 def _build_resource() -> Resource:
     """Build the OTEL Resource with enriched semantic convention attributes."""
-    settings = get_settings()
     return Resource.create(
         {
-            "service.name": "pathfinder-api",
-            "service.version": _get_version(),
-            "deployment.environment.name": settings.api_env,
+            **get_observability_identity(),
             "service.instance.id": str(uuid4()),
         }
     )
 
 
 def _configure_exporters() -> TracerProvider | None:
-    """Create a TracerProvider with exporters for configured backends.
+    """Create a TracerProvider with SigNoz trace export wired in.
 
-    Returns None when no backend is configured (complete no-op).
+    Returns None when neither SigNoz nor Langfuse is configured.  When only
+    Langfuse is configured, the provider is still created (without SigNoz
+    processors) so that Langfuse's own ``LangfuseSpanProcessor`` attaches to
+    our provider (with our service.name resource) instead of a default one.
     """
     settings = get_settings()
-    processors: list[BatchSpanProcessor] = []
-
-    if settings.signoz_otel_endpoint:
-        signoz_exporter = GrpcSpanExporter(
-            endpoint=settings.signoz_otel_endpoint,
-            insecure=True,
-        )
-        processors.append(BatchSpanProcessor(signoz_exporter))
-        logger.info("OTEL exporter: SigNoz", endpoint=settings.signoz_otel_endpoint)
-
-    if settings.langfuse_secret_key:
-        auth = base64.b64encode(
-            f"{settings.langfuse_public_key}:{settings.langfuse_secret_key}".encode()
-        ).decode()
-        langfuse_exporter = HttpSpanExporter(
-            endpoint=f"{settings.langfuse_host}/api/public/otel/v1/traces",
-            headers={"Authorization": f"Basic {auth}"},
-        )
-        processors.append(BatchSpanProcessor(langfuse_exporter))
-        logger.info("OTEL exporter: Langfuse", host=settings.langfuse_host)
-
-    if not processors:
+    has_signoz_trace = bool(
+        settings.signoz_trace_otel_http_endpoint or settings.signoz_otel_endpoint
+    )
+    has_langfuse = bool(settings.langfuse_secret_key)
+    if not has_signoz_trace and not has_langfuse:
         return None
 
-    _otel.provider = TracerProvider(resource=_build_resource())
-    for proc in processors:
-        _otel.provider.add_span_processor(proc)
-    return _otel.provider
+    provider = TracerProvider(resource=_build_resource())
+
+    if settings.signoz_trace_otel_http_endpoint:
+        provider.add_span_processor(
+            BatchSpanProcessor(
+                HttpSpanExporter(endpoint=settings.signoz_trace_otel_http_endpoint)
+            )
+        )
+        logger.info(
+            "OTEL exporter: SigNoz traces",
+            endpoint=settings.signoz_trace_otel_http_endpoint,
+            transport="http",
+        )
+    elif settings.signoz_otel_endpoint:
+        provider.add_span_processor(
+            BatchSpanProcessor(
+                GrpcSpanExporter(
+                    endpoint=settings.signoz_otel_endpoint,
+                    insecure=True,
+                )
+            )
+        )
+        logger.info(
+            "OTEL exporter: SigNoz traces",
+            endpoint=settings.signoz_otel_endpoint,
+            transport="grpc",
+        )
+
+    _otel.provider = provider
+    return provider
 
 
 def _configure_metrics_export(resource: Resource) -> None:
@@ -216,18 +248,26 @@ def setup_observability(
 ) -> None:
     """Configure OTEL exporters and library instrumentation.
 
-    No-ops entirely when neither SigNoz nor Langfuse is configured.
+    No-ops entirely when neither SigNoz nor Langfuse is configured.  Callers
+    must invoke this before any code path that could trigger Langfuse SDK
+    initialization — otherwise the SDK installs its own TracerProvider first
+    and OTEL's set-once ``set_tracer_provider`` silently refuses ours.
     """
     provider = _configure_exporters()
     if provider is None:
-        logger.info(
-            "Observability disabled (no SIGNOZ_OTEL_ENDPOINT or LANGFUSE_SECRET_KEY)"
-        )
+        logger.info("Observability disabled (no SIGNOZ or LANGFUSE configured)")
         return
 
     trace.set_tracer_provider(provider)
     _configure_metrics_export(provider.resource)
     _configure_log_export()
+
+    # Trigger Langfuse SDK init so its LangfuseSpanProcessor attaches to our
+    # provider.  This MUST happen after ``set_tracer_provider`` so Langfuse's
+    # internal ``_init_tracer_provider`` sees our provider (not a
+    # ``ProxyTracerProvider``) and reuses it instead of installing its own.
+    if get_settings().langfuse_secret_key:
+        get_langfuse()
 
     if app is not None:
         _instrument_fastapi(app)

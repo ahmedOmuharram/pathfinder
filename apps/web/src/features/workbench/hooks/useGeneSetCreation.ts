@@ -17,14 +17,40 @@ export function useGeneSetCreation({ onCreated }: UseGeneSetCreationOptions) {
   const invalidateGeneSets = useInvalidateGeneSets();
 
   const [error, setError] = useState<string | null>(null);
+  const [verificationState, setVerificationState] = useState<{
+    verified: boolean;
+    resolvedGenes: ResolvedGene[] | null;
+    unresolvedIds: string[];
+  }>({
+    verified: false,
+    resolvedGenes: null,
+    unresolvedIds: [],
+  });
 
   const verifyMutation = useMutation({
     mutationFn: (parsedIds: string[]) => resolveGeneIds(selectedSite, parsedIds),
+    onSuccess: (data) => {
+      setVerificationState({
+        verified: true,
+        resolvedGenes: data.resolved,
+        unresolvedIds: data.unresolved,
+      });
+    },
     onError: (err: Error) => {
       setError(err.message);
+      setVerificationState({
+        verified: false,
+        resolvedGenes: null,
+        unresolvedIds: [],
+      });
     },
     onMutate: () => {
       setError(null);
+      setVerificationState({
+        verified: false,
+        resolvedGenes: null,
+        unresolvedIds: [],
+      });
     },
   });
 
@@ -48,21 +74,32 @@ export function useGeneSetCreation({ onCreated }: UseGeneSetCreationOptions) {
     },
   });
 
-  const verified = verifyMutation.isSuccess;
-  const resolvedGenes: ResolvedGene[] | null = verifyMutation.data?.resolved ?? null;
-  const unresolvedIds: string[] = verifyMutation.data?.unresolved ?? [];
+  const { verified, resolvedGenes, unresolvedIds } = verificationState;
 
   const resetVerification = () => {
     verifyMutation.reset();
+    setVerificationState({
+      verified: false,
+      resolvedGenes: null,
+      unresolvedIds: [],
+    });
     setError(null);
   };
 
-  const handleVerify = (parsedIds: string[]) => {
+  const handleVerify = async (parsedIds: string[]) => {
     if (parsedIds.length === 0) return;
-    verifyMutation.mutate(parsedIds);
+    try {
+      await verifyMutation.mutateAsync(parsedIds);
+    } catch {
+      // Error state is already handled by the mutation callbacks.
+    }
   };
 
-  const handleSubmit = (name: string, parsedIds: string[], source: "paste" | "upload") => {
+  const handleSubmit = async (
+    name: string,
+    parsedIds: string[],
+    source: "paste" | "upload",
+  ) => {
     setError(null);
 
     const trimmedName = name.trim();
@@ -79,7 +116,15 @@ export function useGeneSetCreation({ onCreated }: UseGeneSetCreationOptions) {
       return;
     }
 
-    createMutation.mutate({ name: trimmedName, geneIds: idsToSubmit, source });
+    try {
+      await createMutation.mutateAsync({
+        name: trimmedName,
+        geneIds: idsToSubmit,
+        source,
+      });
+    } catch {
+      // Error state is already handled by the mutation callbacks.
+    }
   };
 
   return {

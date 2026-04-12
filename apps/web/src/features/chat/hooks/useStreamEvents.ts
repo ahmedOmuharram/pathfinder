@@ -10,6 +10,7 @@ import type {
   Citation,
   OptimizationProgressData,
   PlanningArtifact,
+  ProblemFrame,
   ToolCall,
 } from "@pathfinder/shared";
 import type { ChatSSEEvent } from "@/lib/sse_events";
@@ -84,11 +85,17 @@ export function useStreamEvents(deps: StreamEventDeps) {
       const toolCalls: ToolCall[] = [];
       const citationsBuffer: Citation[] = [];
       const planningArtifactsBuffer: PlanningArtifact[] = [];
+      let problemFrameBuffer: ProblemFrame | null = null;
 
       const streamState: StreamSessionState = {
         streamingAssistantIndex: null,
         streamingAssistantMessageId: null,
+        assistantMessageIndices: {},
         turnAssistantIndex: null,
+        lastAssistantMessageId: null,
+        messageGroupId: null,
+        currentPhase: null,
+        pipeline: null,
         reasoning: null,
         optimizationProgress: null,
       };
@@ -99,6 +106,12 @@ export function useStreamEvents(deps: StreamEventDeps) {
         toolCallsBuffer: toolCalls,
         citationsBuffer,
         planningArtifactsBuffer,
+        get problemFrameBuffer() {
+          return problemFrameBuffer;
+        },
+        set problemFrameBuffer(value) {
+          problemFrameBuffer = value;
+        },
         thinking,
         setStrategyId,
         addStrategy,

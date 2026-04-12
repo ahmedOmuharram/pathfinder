@@ -65,7 +65,7 @@ export const useSessionStore = createPersistedStore<SessionState>(
 
     setSelectedSite: (siteId) =>
       set((s) => {
-        if (s.selectedSite === siteId) return { selectedSite: siteId };
+        if (s.selectedSite === siteId) return s;
         return {
           selectedSite: siteId,
           strategyId: s.strategyBySite[siteId] ?? null,
@@ -94,6 +94,7 @@ export const useSessionStore = createPersistedStore<SessionState>(
     setStrategyId: (id) => {
       const site = get().selectedSite;
       set((s) => {
+        if (s.strategyId === id && s.strategyBySite[site] === id) return s;
         const next = { ...s.strategyBySite };
         if (id !== null) {
           next[site] = id;
@@ -105,16 +106,25 @@ export const useSessionStore = createPersistedStore<SessionState>(
     },
 
     setVeupathdbAuth: (signedIn, name = null) =>
-      set({ veupathdbSignedIn: signedIn, veupathdbName: name }),
-    setChatIsStreaming: (value) => set({ chatIsStreaming: value }),
+      set((s) =>
+        s.veupathdbSignedIn === signedIn && s.veupathdbName === name
+          ? s
+          : { veupathdbSignedIn: signedIn, veupathdbName: name },
+      ),
+    setChatIsStreaming: (value) =>
+      set((s) => (s.chatIsStreaming === value ? s : { chatIsStreaming: value })),
 
     bumpChatPreviewVersion: () =>
       set((s) => ({ chatPreviewVersion: s.chatPreviewVersion + 1 })),
     bumpAuthVersion: () => set((s) => ({ authVersion: s.authVersion + 1 })),
-    setPendingAskNode: (payload) => set({ pendingAskNode: payload }),
-    setComposerPrefill: (payload) => set({ composerPrefill: payload }),
-    setAuthRefreshed: (value) => set({ authRefreshed: value }),
-    setAuthStatusKnown: (value) => set({ authStatusKnown: value }),
+    setPendingAskNode: (payload) =>
+      set((s) => (s.pendingAskNode === payload ? s : { pendingAskNode: payload })),
+    setComposerPrefill: (payload) =>
+      set((s) => (s.composerPrefill === payload ? s : { composerPrefill: payload })),
+    setAuthRefreshed: (value) =>
+      set((s) => (s.authRefreshed === value ? s : { authRefreshed: value })),
+    setAuthStatusKnown: (value) =>
+      set((s) => (s.authStatusKnown === value ? s : { authStatusKnown: value })),
     forceSignOut: () =>
       set({
         veupathdbSignedIn: false,

@@ -42,6 +42,7 @@ describe("parseChatSSEEvent", () => {
 
   it("parses model_selected events", () => {
     const pipeline = {
+      scoping: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
       discovery: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
       planning: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
       execution: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
@@ -76,6 +77,27 @@ describe("parseChatSSEEvent", () => {
       expect(evt.data.plan).toEqual(plan);
       expect(evt.data.name).toBe("My plan");
       expect(evt.data.recordType).toBe("transcript");
+    }
+  });
+
+  it("parses problem_frame events", () => {
+    const evt = parseChatSSEEvent({
+      type: "problem_frame",
+      data: JSON.stringify({
+        problemFrame: {
+          userGoal: "Find transporters",
+          interpretedGoal: "Identify likely membrane transporters",
+          readyForWdkDiscovery: true,
+          confidence: 0.8,
+        },
+      }),
+    });
+    expect(evt).not.toBeNull();
+    expect(evt!.type).toBe("problem_frame");
+    if (evt!.type === "problem_frame") {
+      expect(evt.data.problemFrame.interpretedGoal).toBe(
+        "Identify likely membrane transporters",
+      );
     }
   });
 
@@ -541,6 +563,7 @@ describe("SSE event data Zod schemas", () => {
   describe("ModelSelectedDataSchema", () => {
     const validPipeline = {
       pipeline: {
+        scoping: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
         discovery: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
         planning: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
         execution: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
@@ -561,6 +584,7 @@ describe("SSE event data Zod schemas", () => {
     it("rejects pipeline missing a phase", () => {
       const result = ModelSelectedDataSchema.safeParse({
         pipeline: {
+          scoping: { modelId: "x", reasoningEffort: "medium" },
           discovery: { modelId: "x", reasoningEffort: "medium" },
           planning: { modelId: "x", reasoningEffort: "high" },
           execution: { modelId: "x", reasoningEffort: "medium" },

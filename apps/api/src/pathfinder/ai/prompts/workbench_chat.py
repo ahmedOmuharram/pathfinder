@@ -2,17 +2,15 @@
 
 import json
 from functools import lru_cache
-from pathlib import Path
 
 from pathfinder.ai.prompts.loader import load_system_prompt
+from pathfinder.platform.langfuse.prompts import load_prompt
 from pathfinder.platform.types import JSONObject
 
-_PROMPTS_DIR = Path(__file__).resolve().parent / "experiment"
 
-
-@lru_cache
+@lru_cache(maxsize=1)
 def _load_workbench_prompt() -> str:
-    return (_PROMPTS_DIR / "workbench.md").read_text()
+    return load_prompt("workbench")
 
 
 def build_workbench_system_prompt(

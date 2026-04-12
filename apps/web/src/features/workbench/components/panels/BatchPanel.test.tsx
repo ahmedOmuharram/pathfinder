@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { queryOptions } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { Experiment, ExperimentMetrics, GeneSet } from "@pathfinder/shared";
@@ -17,6 +18,22 @@ const storeState: Record<string, unknown> = {
 vi.mock("@/state/useWorkbenchStore", () => ({
   useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector(storeState),
+}));
+
+vi.mock("@/state/useSessionStore", () => ({
+  useSessionStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      selectedSite: "PlasmoDB",
+      authStatusKnown: true,
+      veupathdbSignedIn: true,
+    }),
+}));
+
+vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
+  useGeneSetsQuery: () => ({
+    data: storeState["geneSets"] as GeneSet[],
+    isPending: false,
+  }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -38,6 +55,12 @@ const mockListOrganisms = vi.fn<(...args: unknown[]) => Promise<string[]>>();
 
 vi.mock("@/lib/api/genes", () => ({
   listOrganisms: (...args: unknown[]) => mockListOrganisms(...args),
+  organismsOptions: (siteId: string) =>
+    queryOptions({
+      queryKey: ["organisms", siteId] as const,
+      queryFn: () => mockListOrganisms(siteId),
+      enabled: siteId !== "",
+    }),
   resolveGeneIds: vi.fn().mockResolvedValue({ resolved: [], unresolved: [] }),
   searchGenes: vi.fn().mockResolvedValue({ results: [], total: 0 }),
 }));

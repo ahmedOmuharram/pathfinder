@@ -12,7 +12,10 @@ from collections.abc import AsyncIterator
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.platform.event_schemas import PipelineConfig
 from pathfinder.platform.types import JSONObject
-from pathfinder.services.chat.streaming.producer import produce_events
+from pathfinder.services.chat.streaming.producer import (
+    produce_events,
+    produce_plan_approved_events,
+)
 
 
 async def stream_pipeline(
@@ -35,6 +38,32 @@ async def stream_pipeline(
 
     producer = asyncio.create_task(
         produce_events(deps, message, queue, pipeline)
+    )
+    try:
+        while True:
+            try:
+                event = await queue.get()
+            except asyncio.QueueShutDown:
+                break
+            yield event
+    finally:
+        deps.cancel_event.set()
+        producer.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await producer
+
+
+async def stream_pipeline_after_plan_approval(
+    deps: AgentDeps,
+    *,
+    pipeline: PipelineConfig,
+) -> AsyncIterator[JSONObject]:
+    """Stream execution/verification events after a structured approval."""
+    queue: asyncio.Queue[JSONObject] = asyncio.Queue()
+    deps.event_queue = queue
+
+    producer = asyncio.create_task(
+        produce_plan_approved_events(deps, queue, pipeline)
     )
     try:
         while True:

@@ -1,5 +1,6 @@
 """Operations endpoints: subscribe via Redis Streams, discover active operations."""
 
+import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterable
 from typing import Annotated
@@ -15,6 +16,11 @@ from pathfinder.platform.redis import get_redis
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.chat.orchestrator import cancel_chat_operation
 from pathfinder.transport.http.deps import CurrentUser, DBSession
+from pathfinder.transport.http.sse_observability import (
+    SseSubscriptionTelemetry,
+    finish_sse_subscription,
+    start_sse_subscription,
+)
 
 logger = get_logger(__name__)
 
@@ -118,6 +124,7 @@ async def _stream_events(
     session: DBSession,
     is_experiment: bool,
     start_cursor: str,
+    telemetry: SseSubscriptionTelemetry,
 ) -> AsyncGenerator[ServerSentEvent]:
     """SSE generator that reads from a Redis stream until a terminal event."""
     redis = get_redis()
@@ -127,8 +134,10 @@ async def _stream_events(
         entries = await redis.xread({stream_key: cursor}, count=1, block=15000)
 
         if not entries:
+            telemetry.record_keepalive()
             yield ServerSentEvent(comment="keepalive")
             if not await _is_op_still_active(session, operation_id):
+                telemetry.mark_disconnect("operation_inactive")
                 return
             continue
 
@@ -141,10 +150,11 @@ async def _stream_events(
                     if event_op and event_op != operation_id:
                         continue
 
-                yield _build_sse_event(entry_id, fields, operation_id)
-
                 event_type = fields.get("type", "progress")
+                telemetry.record_event(event_type)
+                yield _build_sse_event(entry_id, fields, operation_id)
                 if event_type in _END_EVENT_TYPES:
+                    telemetry.mark_terminal_event(event_type)
                     return
 
 
@@ -172,15 +182,33 @@ async def subscribe(
     """
     is_experiment = op.type in _EXPERIMENT_OP_TYPES
     stream_key = f"op:{operation_id}" if is_experiment else f"stream:{op.stream_id}"
-
-    async for event in _stream_events(
-        stream_key=stream_key,
+    telemetry = SseSubscriptionTelemetry(
         operation_id=operation_id,
-        session=session,
-        is_experiment=is_experiment,
-        start_cursor=last_event_id or "0-0",
-    ):
-        yield event
+        operation_type=op.type,
+        stream_key=stream_key,
+        resumed=last_event_id is not None,
+        last_event_id=last_event_id,
+    )
+    start_sse_subscription(telemetry)
+
+    try:
+        async for event in _stream_events(
+            stream_key=stream_key,
+            operation_id=operation_id,
+            session=session,
+            is_experiment=is_experiment,
+            start_cursor=last_event_id or "0-0",
+            telemetry=telemetry,
+        ):
+            yield event
+    except asyncio.CancelledError:
+        telemetry.mark_disconnect("client_cancelled")
+        raise
+    except Exception:
+        telemetry.mark_disconnect("stream_error")
+        raise
+    finally:
+        finish_sse_subscription(telemetry)
 
 
 @router.post("/{operation_id}/cancel", status_code=202)

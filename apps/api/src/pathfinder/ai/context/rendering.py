@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pathfinder.ai.context.extractors import extract_tool_summary
 from pathfinder.ai.context.models import ToolCallRecord, TurnSummary
 from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.plan import PlannedStep, StepType, StrategyPlan
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.platform.types import JSONObject
@@ -191,6 +192,78 @@ def render_approved_plan(plan: JSONObject) -> str:
     for i, step in enumerate(steps, 1):
         lines.append(f"{i}. {_render_plan_step_call(step)}")
 
+    return "\n".join(lines)
+
+
+def _render_interactive_plan_step_call(
+    step: PlannedStep,
+    step_by_id: dict[str, PlannedStep],
+    step_inputs: dict[str, dict[str, str]],
+) -> str:
+    """Render a planned step from the interactive plan model."""
+    if step.step_type == StepType.COMBINE:
+        inputs = step_inputs.get(step.id, {})
+        primary = step_by_id.get(inputs.get("primary", ""))
+        secondary = step_by_id.get(inputs.get("secondary", ""))
+        primary_name = primary.display_name if primary else "?"
+        secondary_name = secondary.display_name if secondary else "?"
+        return (
+            f'combine_steps("{primary_name}", "{secondary_name}", "{step.operator}")'
+            f'  display_name="{step.display_name}"'
+        )
+
+    params = {
+        name: parameter.value
+        for name, parameter in step.parameters.items()
+        if parameter.value is not None
+    }
+    param_dict_str = _format_params_dict(params)
+
+    if step.step_type == StepType.TRANSFORM:
+        inputs = step_inputs.get(step.id, {})
+        primary = step_by_id.get(inputs.get("primary", ""))
+        primary_name = primary.display_name if primary else "?"
+        call = (
+            f'transform_step(input_step_id=<id of "{primary_name}">, '
+            f'transform_name="{step.search_name}"'
+        )
+        if param_dict_str:
+            call += f", parameters={param_dict_str}"
+        return call + f', display_name="{step.display_name}")'
+
+    call = f'create_leaf_step(search_name="{step.search_name}"'
+    if param_dict_str:
+        call += f", parameters={param_dict_str}"
+    else:
+        call += ", parameters={<FILL FROM get_search_overview>}"
+    return call + f', display_name="{step.display_name}")'
+
+
+def render_interactive_approved_plan(plan: StrategyPlan) -> str:
+    """Render an approved interactive plan into execution instructions."""
+    if not plan.steps:
+        return ""
+
+    try:
+        steps = plan.steps_in_dependency_order()
+    except ValueError:
+        steps = list(plan.steps)
+
+    step_by_id = {step.id: step for step in plan.steps}
+    step_inputs: dict[str, dict[str, str]] = {}
+    for connection in plan.connections:
+        inputs = step_inputs.setdefault(connection.to_step, {})
+        inputs[connection.input_type] = connection.from_step
+
+    lines = [
+        "APPROVED PLAN — Execute these steps now. Do NOT re-discover or re-plan.",
+        "Copy the EXACT parameters shown below into each tool call.",
+        "",
+    ]
+    for index, step in enumerate(steps, 1):
+        lines.append(
+            f"{index}. {_render_interactive_plan_step_call(step, step_by_id, step_inputs)}"
+        )
     return "\n".join(lines)
 
 

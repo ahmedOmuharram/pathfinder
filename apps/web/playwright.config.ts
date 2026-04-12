@@ -7,9 +7,13 @@ const isCI = Boolean(process.env["CI"]);
  *
  * ## Running locally
  *
- * 1. Start Docker services with mock mode:
+ * 1. Start Docker services with the explicit development overlays:
  *
- *      docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+ *      docker compose --env-file .env.dev \
+ *        -f docker-compose.yml \
+ *        -f docker-compose.dev.yml \
+ *        -f docker-compose.e2e.yml \
+ *        up -d --build api web
  *
  * 2. Run the tests:
  *
@@ -51,6 +55,7 @@ export default defineConfig({
     {
       name: "feature",
       testDir: "./e2e/feature",
+      timeout: 120_000,
     },
     {
       name: "cross-feature",
@@ -72,8 +77,8 @@ export default defineConfig({
   ],
 
   // Both local and CI: the Docker web container on port 3000 serves the
-  // production build (no HMR).  The Docker API on port 8000 must be running
-  // with PATHFINDER_CHAT_PROVIDER=mock.
+  // production build (no HMR). The Docker API on port 8000 must be running
+  // with PATHFINDER_CHAT_PROVIDER=mock via the explicit development overlays.
   //
-  // Start services:  docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build api web
+  // Start services: docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.e2e.yml up -d --build api web
 });

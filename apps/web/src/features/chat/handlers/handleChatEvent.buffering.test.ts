@@ -54,6 +54,17 @@ describe("handleChatEvent — buffering & core events", () => {
         },
       },
     } as ChatSSEEvent);
+    handleChatEvent(ctx, {
+      type: "problem_frame",
+      data: {
+        problemFrame: {
+          userGoal: "find transporters",
+          interpretedGoal: "Identify likely membrane transporters",
+          readyForWdkDiscovery: true,
+          confidence: 0.8,
+        },
+      },
+    } as ChatSSEEvent);
 
     handleChatEvent(ctx, {
       type: "tool_call_start",
@@ -78,6 +89,9 @@ describe("handleChatEvent — buffering & core events", () => {
     expect(finalMsg.toolCalls?.[0]?.id).toBe("t1");
     expect(finalMsg.citations?.[0]?.id).toBe("c1");
     expect(finalMsg.planningArtifacts?.[0]?.id).toBe("a1");
+    expect(finalMsg.problemFrame?.interpretedGoal).toBe(
+      "Identify likely membrane transporters",
+    );
     expect(toolCallsBuffer).toHaveLength(0);
     expect(citationsBuffer).toHaveLength(0);
     expect(planningArtifactsBuffer).toHaveLength(0);
@@ -95,10 +109,18 @@ describe("handleChatEvent — buffering & core events", () => {
       toolCallsBuffer,
       citationsBuffer,
       planningArtifactsBuffer,
+      problemFrameBuffer: null,
       thinking: {
+        activeMessageId: null,
         activeToolCalls: [],
         lastToolCalls: [],
         reasoning: null,
+        getThinkingForMessage: vi.fn(() => ({
+          activeToolCalls: [],
+          lastToolCalls: [],
+          reasoning: null,
+        })),
+        setActiveMessage: vi.fn(),
         reset: vi.fn(),
         applyThinkingPayload: vi.fn(() => false),
         updateActiveFromBuffer: vi.fn(),
@@ -125,7 +147,12 @@ describe("handleChatEvent — buffering & core events", () => {
       streamState: {
         streamingAssistantIndex: null,
         streamingAssistantMessageId: null,
+        assistantMessageIndices: {},
         turnAssistantIndex: null,
+        lastAssistantMessageId: null,
+        messageGroupId: null,
+        currentPhase: null,
+        pipeline: null,
         reasoning: null,
         optimizationProgress: null,
       },
@@ -192,6 +219,88 @@ describe("handleChatEvent — buffering & core events", () => {
     expect(state.messages[0]?.content).toBe("hello");
   });
 
+  it("keeps phase-level assistant messages separate within one streamed turn", () => {
+    const { ctx, state } = makeCtx();
+
+    handleChatEvent(ctx, {
+      type: "phase_change",
+      data: {
+        phase: "execution",
+        status: "started",
+        messageId: "exec-msg",
+        messageGroupId: "turn-1",
+      },
+    } as ChatSSEEvent);
+    handleChatEvent(ctx, {
+      type: "assistant_delta",
+      data: {
+        messageId: "exec-msg",
+        messageGroupId: "turn-1",
+        phase: "execution",
+        delta: "Executing the approved plan.",
+      },
+    } as ChatSSEEvent);
+    handleChatEvent(ctx, {
+      type: "tool_call_start",
+      data: { id: "tool-1", name: "create_leaf_step", arguments: {} },
+    } as ChatSSEEvent);
+    handleChatEvent(ctx, {
+      type: "tool_call_end",
+      data: { id: "tool-1", result: "{\"ok\":true}" },
+    } as ChatSSEEvent);
+    handleChatEvent(ctx, {
+      type: "assistant_message",
+      data: {
+        messageId: "exec-msg",
+        messageGroupId: "turn-1",
+        phase: "execution",
+        content: "Executing the approved plan.",
+      },
+    } as ChatSSEEvent);
+
+    handleChatEvent(ctx, {
+      type: "phase_change",
+      data: {
+        phase: "verification",
+        status: "started",
+        messageId: "verify-msg",
+        messageGroupId: "turn-1",
+      },
+    } as ChatSSEEvent);
+    handleChatEvent(ctx, {
+      type: "assistant_delta",
+      data: {
+        messageId: "verify-msg",
+        messageGroupId: "turn-1",
+        phase: "verification",
+        delta: "Verification complete.",
+      },
+    } as ChatSSEEvent);
+    handleChatEvent(ctx, {
+      type: "assistant_message",
+      data: {
+        messageId: "verify-msg",
+        messageGroupId: "turn-1",
+        phase: "verification",
+        content: "Verification complete.",
+      },
+    } as ChatSSEEvent);
+
+    expect(state.messages).toHaveLength(2);
+    const executionMsg = state.messages[0];
+    const verificationMsg = state.messages[1];
+    assertAssistant(executionMsg!);
+    assertAssistant(verificationMsg!);
+    expect(executionMsg.messageId).toBe("exec-msg");
+    expect(executionMsg.messageGroupId).toBe("turn-1");
+    expect(executionMsg.phase).toBe("execution");
+    expect(executionMsg.toolCalls?.map((tc) => tc.id)).toEqual(["tool-1"]);
+    expect(verificationMsg.messageId).toBe("verify-msg");
+    expect(verificationMsg.messageGroupId).toBe("turn-1");
+    expect(verificationMsg.phase).toBe("verification");
+    expect(verificationMsg.toolCalls).toBeUndefined();
+  });
+
   it("tool_call_end with unknown id does not crash and still parses result", () => {
     const { ctx, thinking, applyGraphSnapshot } = makeCtx({
       parseToolResult: vi.fn(() => ({ graphSnapshot: { graphId: "g3", steps: [] } })),
@@ -241,7 +350,7 @@ describe("handleChatEvent — buffering & core events", () => {
       type: "reasoning",
       data: { reasoning: "r" },
     } as ChatSSEEvent);
-    expect(thinking.updateReasoning).toHaveBeenCalledWith("r");
+    expect(thinking.updateReasoning).toHaveBeenCalledWith("r", null);
 
     handleChatEvent(ctx, {
       type: "graph_snapshot",
@@ -262,6 +371,7 @@ describe("handleChatEvent — buffering & core events", () => {
       type: "model_selected",
       data: {
         pipeline: {
+          scoping: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
           discovery: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
           planning: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
           execution: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },

@@ -5,8 +5,8 @@ message AND checks which tools are
 available (via ``AgentInfo.function_tools``) to return phase-appropriate
 responses.
 
-The pipeline runs four phases per turn (discovery → planning → execution →
-verification).  Each phase has a distinct toolset, so the mock uses the
+The pipeline runs five phases per turn (scoping → discovery → planning →
+execution → verification).  Each phase has a distinct toolset, so the mock uses the
 required_tool field in each ``_Trigger`` to respond to exactly the right
 phase.
 
@@ -98,6 +98,38 @@ def _discover_taxon() -> ToolCallPart:
     )
 
 
+def _set_problem_frame() -> ToolCallPart:
+    """Call set_problem_frame for the scoping gate."""
+    return ToolCallPart(
+        tool_name="set_problem_frame",
+        args=json.dumps({
+            "userGoal": "Create a test strategy",
+            "interpretedGoal": "Build a simple WDK strategy for testing",
+            "organismScope": "Plasmodium falciparum 3D7",
+            "recordType": "transcript",
+            "biologicalEntities": ["genes"],
+            "inclusionCriteria": ["taxon membership"],
+            "successCriteria": ["strategy contains a valid WDK leaf step"],
+            "assumptions": ["mock mode uses a deterministic GenesByTaxon plan"],
+            "readyForWdkDiscovery": True,
+            "confidence": 0.9,
+        }),
+        tool_call_id="mock_problem_frame",
+    )
+
+
+def _finish_scoping() -> ToolCallPart:
+    """Call finish_scoping to continue into discovery."""
+    return ToolCallPart(
+        tool_name="finish_scoping",
+        args=json.dumps({
+            "decision": "continue_to_discovery",
+            "summary": "The request is scoped clearly enough to begin WDK discovery.",
+        }),
+        tool_call_id="mock_finish_scoping",
+    )
+
+
 def _leaf_taxon() -> ToolCallPart:
     return ToolCallPart(
         tool_name="create_leaf_step",
@@ -152,6 +184,42 @@ def _plan_submit() -> ToolCallPart:
     )
 
 
+def _finish_discovery() -> ToolCallPart:
+    """Call finish_discovery to continue into planning."""
+    return ToolCallPart(
+        tool_name="finish_discovery",
+        args=json.dumps({
+            "decision": "continue_to_planning",
+            "summary": "Discovery found a usable GenesByTaxon search and enough parameter detail to plan.",
+        }),
+        tool_call_id="mock_finish_discovery",
+    )
+
+
+def _finish_planning() -> ToolCallPart:
+    """Call finish_planning after submit_plan succeeds."""
+    return ToolCallPart(
+        tool_name="finish_planning",
+        args=json.dumps({
+            "decision": "present_plan",
+            "summary": "The plan has been submitted for review and is ready to execute once approved.",
+        }),
+        tool_call_id="mock_finish_planning",
+    )
+
+
+def _finish_verification() -> ToolCallPart:
+    """Call finish_verification to complete the turn."""
+    return ToolCallPart(
+        tool_name="finish_verification",
+        args=json.dumps({
+            "decision": "complete",
+            "summary": "Verification is complete.",
+        }),
+        tool_call_id="mock_finish_verification",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Sequence table — data-driven, no if/elif chains
 # ---------------------------------------------------------------------------
@@ -174,37 +242,53 @@ class _Trigger:
 
 # Triggers are checked in order; first match wins.
 _TRIGGERS: list[_Trigger] = [
+    # ── Scoping phase: frame the problem before WDK discovery ──────────
+    _Trigger(
+        keyword="artifact graph",
+        required_tool="set_problem_frame",
+        steps=[_set_problem_frame(), _finish_scoping(), f"{_MOCK_PREFIX}Problem framed."],
+    ),
+    _Trigger(
+        keyword="delegation",
+        required_tool="set_problem_frame",
+        steps=[_set_problem_frame(), _finish_scoping(), f"{_MOCK_PREFIX}Problem framed."],
+    ),
+    _Trigger(
+        keyword="create step",
+        required_tool="set_problem_frame",
+        steps=[_set_problem_frame(), _finish_scoping(), f"{_MOCK_PREFIX}Problem framed."],
+    ),
     # ── Discovery phase: discover searches needed by downstream phases ──
     _Trigger(
         keyword="artifact graph",
         required_tool="get_search_overview",
-        steps=[_discover_taxon(), f"{_MOCK_PREFIX}Search discovered."],
+        steps=[_discover_taxon(), _finish_discovery(), f"{_MOCK_PREFIX}Search discovered."],
     ),
     _Trigger(
         keyword="delegation",
         required_tool="get_search_overview",
-        steps=[_discover_taxon(), f"{_MOCK_PREFIX}Search discovered."],
+        steps=[_discover_taxon(), _finish_discovery(), f"{_MOCK_PREFIX}Search discovered."],
     ),
     _Trigger(
         keyword="create step",
         required_tool="get_search_overview",
-        steps=[_discover_taxon(), f"{_MOCK_PREFIX}Search discovered."],
+        steps=[_discover_taxon(), _finish_discovery(), f"{_MOCK_PREFIX}Search discovered."],
     ),
     # ── Planning phase: create + submit plan ────────────────────────────
     _Trigger(
         keyword="artifact graph",
         required_tool="create_plan",
-        steps=[_plan_create(), _plan_submit(), f"{_MOCK_PREFIX}Plan submitted."],
+        steps=[_plan_create(), _plan_submit(), _finish_planning(), f"{_MOCK_PREFIX}Plan submitted."],
     ),
     _Trigger(
         keyword="delegation",
         required_tool="create_plan",
-        steps=[_plan_create(), _plan_submit(), f"{_MOCK_PREFIX}Plan submitted."],
+        steps=[_plan_create(), _plan_submit(), _finish_planning(), f"{_MOCK_PREFIX}Plan submitted."],
     ),
     _Trigger(
         keyword="create step",
         required_tool="create_plan",
-        steps=[_plan_create(), _plan_submit(), f"{_MOCK_PREFIX}Plan submitted."],
+        steps=[_plan_create(), _plan_submit(), _finish_planning(), f"{_MOCK_PREFIX}Plan submitted."],
     ),
     # ── Execution phase: per-step tool calls ────────────────────────────
     # The execution orchestrator generates prompts starting with
@@ -219,6 +303,22 @@ _TRIGGERS: list[_Trigger] = [
         required_tool="combine_steps",
         steps=[_combine(), f"{_MOCK_PREFIX}Steps combined."],
     ),
+    # ── Verification phase: explicitly complete the turn ────────────────
+    _Trigger(
+        keyword="artifact graph",
+        required_tool="finish_verification",
+        steps=[_finish_verification(), f"{_MOCK_PREFIX}Verification complete."],
+    ),
+    _Trigger(
+        keyword="delegation",
+        required_tool="finish_verification",
+        steps=[_finish_verification(), f"{_MOCK_PREFIX}Verification complete."],
+    ),
+    _Trigger(
+        keyword="create step",
+        required_tool="finish_verification",
+        steps=[_finish_verification(), f"{_MOCK_PREFIX}Verification complete."],
+    ),
 ]
 
 
@@ -230,6 +330,13 @@ def _resolve(
     user_text = _extract_user_text(messages)
     tools = _available_tool_names(info)
     step = _count_tool_returns(messages)
+
+    # Resumed approval flows re-enter verification without a fresh user prompt.
+    # Keep the deterministic mock phase-complete in that case.
+    if not user_text and "finish_verification" in tools:
+        if step == 0:
+            return _finish_verification()
+        return f"{_MOCK_PREFIX}Verification complete."
 
     for trigger in _TRIGGERS:
         if trigger.keyword in user_text and trigger.required_tool in tools:

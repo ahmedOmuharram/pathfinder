@@ -37,6 +37,22 @@ vi.mock("@/state/useWorkbenchStore", () => ({
     selector(storeState),
 }));
 
+vi.mock("@/state/useSessionStore", () => ({
+  useSessionStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      selectedSite: "PlasmoDB",
+      authStatusKnown: true,
+      veupathdbSignedIn: true,
+    }),
+}));
+
+vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
+  useGeneSetsQuery: () => ({
+    data: storeState["geneSets"] as GeneSet[],
+    isPending: false,
+  }),
+}));
+
 // ---------------------------------------------------------------------------
 // Mock the enrichment API
 // ---------------------------------------------------------------------------

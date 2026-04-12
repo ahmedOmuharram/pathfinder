@@ -1,7 +1,7 @@
 """StateChart for the agent pipeline.
 
 Each user turn creates a fresh ``AgentPipeline`` that structures phase
-transitions (discovery -> planning -> execution -> verification -> completed).
+transitions (scoping -> discovery -> planning -> execution -> verification -> completed).
 Cross-turn state lives in ``AgentDeps``, not here.
 """
 
@@ -16,7 +16,7 @@ from pathfinder.platform.logging import get_logger
 logger = get_logger(__name__)
 
 # Phase names as they appear in state IDs (lowercase, matching class names).
-_PHASE_IDS = ("discovery", "planning", "execution", "verification")
+_PHASE_IDS = ("scoping", "discovery", "planning", "execution", "verification")
 
 
 class AgentPipeline(StateChart[None]):
@@ -36,6 +36,18 @@ class AgentPipeline(StateChart[None]):
     # ------------------------------------------------------------------
     allow_event_without_transition: bool = True
     catch_errors_as_events: bool = False
+
+    # ------------------------------------------------------------------
+    # Phase 0 — Scoping
+    # ------------------------------------------------------------------
+    class scoping(State.Compound):
+        framing = State(initial=True)
+        researching = State()
+        scoping_done = State(final=True)
+        h = HistoryState(type="deep")
+
+        research = framing.to(researching)
+        finish_scoping = researching.to(scoping_done) | framing.to(scoping_done)
 
     # ------------------------------------------------------------------
     # Phase 1 — Discovery
@@ -100,6 +112,7 @@ class AgentPipeline(StateChart[None]):
     # ------------------------------------------------------------------
     # Phase-to-phase transitions (auto-fired by done.state.*)
     # ------------------------------------------------------------------
+    done_state_scoping = scoping.to(discovery)
     done_state_discovery = discovery.to(planning)
     done_state_planning = planning.to(execution)
     done_state_execution = execution.to(verification)
@@ -109,9 +122,11 @@ class AgentPipeline(StateChart[None]):
     # Cross-phase recovery
     # ------------------------------------------------------------------
     replan = execution.to(planning, cond="should_replan")
+    retry_scoping = discovery.to(scoping, cond="needs_more_scoping")
     retry_discovery = planning.to(discovery, cond="needs_more_discovery")
 
     # Abort — transitions from each phase to failed.
+    abort_scoping = scoping.to(failed)
     abort_discovery = discovery.to(failed)
     abort_planning = planning.to(failed)
     abort_execution = execution.to(failed)
@@ -122,6 +137,7 @@ class AgentPipeline(StateChart[None]):
     # ------------------------------------------------------------------
     def __init__(self, **kwargs: Any) -> None:
         self.retry_counts: dict[str, int] = {
+            "scoping": 0,
             "discovery": 0,
             "planning": 0,
             "execution": 0,
@@ -162,6 +178,10 @@ class AgentPipeline(StateChart[None]):
         count = self.retry_counts.get("discovery", 0)
         return count < self.retry_budget
 
+    def needs_more_scoping(self) -> bool:
+        count = self.retry_counts.get("scoping", 0)
+        return count < self.retry_budget
+
     def has_retries_left(self, phase: str) -> bool:
         return self.retry_counts.get(phase, 0) < self.retry_budget
 
@@ -176,6 +196,12 @@ class PipelineTracker:
 
     def __init__(self, pipeline: AgentPipeline) -> None:
         self.pipeline = pipeline
+
+    def on_enter_scoping(self) -> None:
+        p = self.pipeline
+        p.retry_counts["scoping"] = p.retry_counts.get("scoping", 0) + 1
+        p._transition_count += 1
+        logger.info("Pipeline entering scoping (attempt %d)", p.retry_counts["scoping"])
 
     def on_enter_discovery(self) -> None:
         p = self.pipeline
@@ -213,7 +239,7 @@ def create_pipeline(
 ) -> AgentPipeline:
     """Factory that wires the ``PipelineTracker`` and optional extra listeners."""
     pipeline = AgentPipeline.__new__(AgentPipeline)
-    pipeline.retry_counts = {"discovery": 0, "planning": 0, "execution": 0}
+    pipeline.retry_counts = {"scoping": 0, "discovery": 0, "planning": 0, "execution": 0}
     pipeline.retry_budget = 3
     pipeline._transition_count = 0
     tracker = PipelineTracker(pipeline)

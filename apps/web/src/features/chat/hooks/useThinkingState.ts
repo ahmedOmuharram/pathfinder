@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ToolCall } from "@pathfinder/shared";
 
 type ThinkingPayload = {
@@ -8,15 +8,62 @@ type ThinkingPayload = {
   updatedAt?: string | null;
 };
 
+export type ThinkingSnapshot = {
+  activeToolCalls: ToolCall[];
+  lastToolCalls: ToolCall[];
+  reasoning: string | null;
+};
+
+const FALLBACK_THINKING_KEY = "__default__";
+
+const EMPTY_SNAPSHOT: ThinkingSnapshot = {
+  activeToolCalls: [],
+  lastToolCalls: [],
+  reasoning: null,
+};
+
+function resolveThinkingKey(messageId: string | null | undefined): string {
+  return messageId != null && messageId !== ""
+    ? messageId
+    : FALLBACK_THINKING_KEY;
+}
+
 export function useThinkingState() {
-  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]);
-  const [lastToolCalls, setLastToolCalls] = useState<ToolCall[]>([]);
-  const [reasoning, setReasoning] = useState<string | null>(null);
+  const [thinkingByMessageId, setThinkingByMessageId] = useState<
+    Record<string, ThinkingSnapshot>
+  >({});
+  const [activeMessageId, setActiveMessageIdState] = useState<string | null>(null);
+  const activeMessageIdRef = useRef<string | null>(null);
+
+  const getThinkingForMessage = (messageId?: string | null): ThinkingSnapshot => {
+    const key = resolveThinkingKey(messageId ?? activeMessageId);
+    return thinkingByMessageId[key] ?? EMPTY_SNAPSHOT;
+  };
+
+  const updateThinkingForMessage = (
+    messageId: string | null | undefined,
+    updater: (current: ThinkingSnapshot) => ThinkingSnapshot,
+  ) => {
+    const key = resolveThinkingKey(messageId);
+    setThinkingByMessageId((prev) => {
+      const current = prev[key] ?? EMPTY_SNAPSHOT;
+      return {
+        ...prev,
+        [key]: updater(current),
+      };
+    });
+  };
+
+  const setActiveMessage = (messageId: string | null) => {
+    const normalized = messageId != null && messageId !== "" ? messageId : null;
+    activeMessageIdRef.current = normalized;
+    setActiveMessageIdState(normalized);
+  };
 
   const reset = () => {
-    setActiveToolCalls([]);
-    setLastToolCalls([]);
-    setReasoning(null);
+    activeMessageIdRef.current = null;
+    setActiveMessageIdState(null);
+    setThinkingByMessageId({});
   };
 
   const applyThinkingPayload = (payload: ThinkingPayload | null): boolean => {
@@ -28,33 +75,56 @@ export function useThinkingState() {
     const isStale = updatedAt === 0 || Date.now() - updatedAt > 10 * 60 * 1000;
     if (isStale) return false;
     const toolCalls = payload.toolCalls ?? [];
-    setActiveToolCalls(toolCalls);
-    setLastToolCalls(payload.lastToolCalls ?? []);
-    setReasoning(typeof payload.reasoning === "string" ? payload.reasoning : null);
+    activeMessageIdRef.current = null;
+    setActiveMessageIdState(null);
+    setThinkingByMessageId({
+      [FALLBACK_THINKING_KEY]: {
+        activeToolCalls: toolCalls,
+        lastToolCalls: payload.lastToolCalls ?? [],
+        reasoning: typeof payload.reasoning === "string" ? payload.reasoning : null,
+      },
+    });
 
     const anyActiveTool = toolCalls.some(
-      (c) => c != null && (c.result === undefined || c.result === null),
+      (c) => c.result === undefined || c.result === null,
     );
     return anyActiveTool;
   };
 
-  const updateReasoning = (text: string | null) => {
-    setReasoning(text);
+  const updateReasoning = (text: string | null, messageId?: string | null) => {
+    updateThinkingForMessage(messageId ?? activeMessageIdRef.current, (current) => ({
+      ...current,
+      reasoning: text,
+    }));
   };
 
-  const updateActiveFromBuffer = (toolCalls: ToolCall[]) => {
-    setActiveToolCalls(toolCalls);
+  const updateActiveFromBuffer = (
+    toolCalls: ToolCall[],
+    messageId?: string | null,
+  ) => {
+    updateThinkingForMessage(messageId ?? activeMessageIdRef.current, (current) => ({
+      ...current,
+      activeToolCalls: toolCalls,
+    }));
   };
 
-  const finalizeToolCalls = (toolCalls: ToolCall[]) => {
-    setLastToolCalls(toolCalls);
-    setActiveToolCalls([]);
+  const finalizeToolCalls = (toolCalls: ToolCall[], messageId?: string | null) => {
+    updateThinkingForMessage(messageId ?? activeMessageIdRef.current, (current) => ({
+      ...current,
+      lastToolCalls: toolCalls,
+      activeToolCalls: [],
+    }));
   };
+
+  const activeThinking = getThinkingForMessage(activeMessageId);
 
   return {
-    activeToolCalls,
-    lastToolCalls,
-    reasoning,
+    activeMessageId,
+    activeToolCalls: activeThinking.activeToolCalls,
+    lastToolCalls: activeThinking.lastToolCalls,
+    reasoning: activeThinking.reasoning,
+    getThinkingForMessage,
+    setActiveMessage,
     reset,
     applyThinkingPayload,
     updateActiveFromBuffer,

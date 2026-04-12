@@ -1,4 +1,8 @@
 import { test, expect } from "../fixtures/test";
+import {
+  MOCK_DELEGATION_PROMPT,
+  MOCK_PLAN_PROMPT,
+} from "../fixtures/mock-prompts";
 
 test.describe("Strategy Graph", () => {
   test.describe.configure({ mode: "serial" });
@@ -11,14 +15,12 @@ test.describe("Strategy Graph", () => {
   test("planning artifact creates strategy with real search names stored in DB", async ({
     chatPage,
     graphPage,
-    page,
     apiClient,
   }) => {
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
-    // UI: Click apply
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
     await chatPage.expectIdle();
 
@@ -44,9 +46,11 @@ test.describe("Strategy Graph", () => {
     graphPage,
     apiClient,
   }) => {
-    await chatPage.send("delegation");
-    await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
+    await chatPage.send(MOCK_DELEGATION_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
+    await chatPage.expectIdle();
 
     // UI: Step pills from delegation
     const pillCount = await graphPage.stepPills.count();
@@ -65,10 +69,10 @@ test.describe("Strategy Graph", () => {
     page,
     apiClient,
   }) => {
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
 
     // Use the strategy ID captured during newChat()
@@ -96,8 +100,10 @@ test.describe("Strategy Graph", () => {
     chatPage,
     graphPage,
   }) => {
-    await chatPage.send("delegation");
-    // Graph must appear DURING streaming, before message_end
+    await chatPage.send(MOCK_DELEGATION_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
+    // Graph must appear during execution streaming, before message_end.
     await graphPage.expectCompactView();
     // Step pills must be visible
     const pillCount = await graphPage.stepPills.count();
@@ -110,10 +116,11 @@ test.describe("Strategy Graph", () => {
     page,
     apiClient,
   }) => {
-    await chatPage.send("delegation");
-    await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
-    await chatPage.expectIdle();
+    await chatPage.send(MOCK_DELEGATION_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
+    await chatPage.expectIdle();
 
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();

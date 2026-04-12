@@ -11,6 +11,7 @@
  * state management, so they are kept separate.
  */
 import { useState } from "react";
+import { ReactFlowProvider } from "@xyflow/react";
 import { type CombineOperator } from "@pathfinder/shared";
 import type { Strategy } from "@pathfinder/shared";
 import "@xyflow/react/dist/style.css";
@@ -43,6 +44,14 @@ interface StrategyGraphProps {
 }
 
 export function StrategyGraph(props: StrategyGraphProps) {
+  return (
+    <ReactFlowProvider>
+      <StrategyGraphInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function StrategyGraphInner(props: StrategyGraphProps) {
   const { strategy, siteId, onToast, variant = "full", onSwitchToChat } = props;
 
   const graphArgs: Parameters<typeof useStrategyGraph>[0] = {

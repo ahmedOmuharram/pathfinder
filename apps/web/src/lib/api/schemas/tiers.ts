@@ -2,6 +2,7 @@ import { z } from "zod";
 import { PipelinePhaseConfigSchema } from "./pipeline";
 
 const TierPresetSchema = z.object({
+  scoping: PipelinePhaseConfigSchema,
   discovery: PipelinePhaseConfigSchema,
   planning: PipelinePhaseConfigSchema,
   execution: PipelinePhaseConfigSchema,

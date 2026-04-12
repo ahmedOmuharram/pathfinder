@@ -15,6 +15,7 @@ import { AlertTriangle, Archive, Loader2, RefreshCw } from "lucide-react";
 import { Modal } from "@/lib/components/Modal";
 import { Input } from "@/lib/components/ui/Input";
 import { useSessionStore } from "@/state/useSessionStore";
+import { usePlanStore } from "@/state/usePlanStore";
 import { useConversationSidebarData } from "@/features/sidebar/hooks/useConversationSidebarData";
 import { useConversationSidebarActions } from "@/features/sidebar/hooks/useConversationSidebarActions";
 import { ConversationList } from "@/features/sidebar/components/ConversationList";
@@ -31,6 +32,8 @@ interface ConversationSidebarProps {
 
 export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProps) {
   const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
+  const currentPhase = usePlanStore((s) => s.currentPhase);
+  const phaseStatus = usePlanStore((s) => s.phaseStatus);
 
   const reportError = (message: string) => onToast?.({ type: "error", message });
 
@@ -103,6 +106,8 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         renamingId={actions.renamingId}
         renameValue={actions.renameValue}
         chatIsStreaming={chatIsStreaming}
+        currentPhase={currentPhase}
+        phaseStatus={phaseStatus}
         onRenameValueChange={actions.setRenameValue}
         onCommitRename={(target) => void actions.commitRename(target)}
         onCancelRename={actions.cancelRename}

@@ -73,9 +73,11 @@ RUN rm -rf apps/api/src/pathfinder/tests
 # Copy optional Ollama models config (glob avoids failure if missing)
 COPY ollama_models.yam[l] ./
 
-# Install the project package (deps already installed — just links the source).
+# Run from source inside the image. Avoid a second `uv sync` after copying app
+# code: installing the editable project needs the Hatchling build backend, and
+# build isolation may try to fetch it from PyPI during every code-layer rebuild.
+ENV PYTHONPATH=/app/apps/api/src:/app/packages/shared-py/src
 WORKDIR /app/apps/api
-RUN uv sync --frozen
 
 # Expose port
 EXPOSE 8000
@@ -86,4 +88,4 @@ HEALTHCHECK --interval=10s --timeout=10s --start-period=300s --retries=5 \
     CMD curl -f http://localhost:8000/health/ready || exit 1
 
 # Run the application
-CMD ["uv", "run", "uvicorn", "pathfinder.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD [".venv/bin/uvicorn", "pathfinder.main:app", "--host", "0.0.0.0", "--port", "8000"]

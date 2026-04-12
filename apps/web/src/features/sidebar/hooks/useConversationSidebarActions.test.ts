@@ -6,6 +6,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { createTestWrapper } from "@/lib/query/testing";
 import { strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import type { Strategy } from "@pathfinder/shared";
+import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 
 // ---------------------------------------------------------------------------
 // Mock fns — hoisted so vi.mock factories can reference them
@@ -18,6 +19,7 @@ const mockRestoreStrategy = vi.hoisted(() => vi.fn());
 const mockGetStrategy = vi.hoisted(() => vi.fn());
 
 const mockSetStrategyId = vi.hoisted(() => vi.fn());
+const mockBumpChatPreviewVersion = vi.hoisted(() => vi.fn());
 const mockSetStrategyMeta = vi.hoisted(() => vi.fn());
 const mockSetStrategy = vi.hoisted(() => vi.fn());
 const mockClearStrategy = vi.hoisted(() => vi.fn());
@@ -46,11 +48,13 @@ vi.mock("@/state/useSessionStore", () => ({
     selector: (s: {
       strategyId: string | null;
       setStrategyId: (id: string | null) => void;
+      bumpChatPreviewVersion: () => void;
     }) => T,
   ) =>
     selector({
       strategyId: mockStrategyId,
       setStrategyId: mockSetStrategyId,
+      bumpChatPreviewVersion: mockBumpChatPreviewVersion,
     }),
 }));
 
@@ -117,6 +121,17 @@ function makeStrategy(overrides: Partial<Strategy> & { id: string }): Strategy {
   };
 }
 
+function makeConversationItem(strategy: Strategy): ConversationItem {
+  return {
+    id: strategy.id,
+    kind: "strategy",
+    title: strategy.name,
+    updatedAt: strategy.updatedAt,
+    siteId: strategy.siteId,
+    strategyItem: strategy,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -170,6 +185,7 @@ describe("useConversationSidebarActions", () => {
 
     // setStrategyId was called with the new id.
     expect(mockSetStrategyId).toHaveBeenCalledWith("new-123");
+    expect(mockBumpChatPreviewVersion).toHaveBeenCalledTimes(1);
 
     // clearStrategy was called to reset graph state.
     expect(mockClearStrategy).toHaveBeenCalled();
@@ -220,6 +236,34 @@ describe("useConversationSidebarActions", () => {
 
     // API was called with the toggled value.
     expect(mockUpdateStrategy).toHaveBeenCalledWith("s1", { isSaved: true });
+  });
+
+  it("handleSelect bumps the chat preview before switching conversations", async () => {
+    const { Wrapper } = createTestWrapper();
+    const selected = makeStrategy({ id: "picked-1", name: "Picked strategy" });
+    mockGetStrategy.mockResolvedValueOnce(selected);
+
+    const { result } = renderHook(
+      () =>
+        useConversationSidebarActions({
+          siteId: SITE_ID,
+          reportError,
+          setNewConversationInFlight,
+        }),
+      { wrapper: Wrapper },
+    );
+
+    act(() => {
+      result.current.handleSelect(makeConversationItem(selected));
+    });
+
+    await waitFor(() => {
+      expect(mockGetStrategy).toHaveBeenCalledWith("picked-1");
+    });
+
+    expect(mockBumpChatPreviewVersion).toHaveBeenCalledTimes(1);
+    expect(mockSetStrategyId).toHaveBeenCalledWith("picked-1");
+    expect(mockClearStrategy).toHaveBeenCalled();
   });
 
   // =========================================================================

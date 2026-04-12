@@ -112,13 +112,13 @@ describe("ResultsTable", () => {
     const attrs1 = makeAttrs("gene_id", "organism", "product");
     const attrs2 = makeAttrs("molecular_weight", "go_terms", "ec_number");
 
-    mockGetAttributes
-      .mockResolvedValueOnce({ attributes: attrs1, recordType: "gene" })
-      .mockResolvedValueOnce({ attributes: attrs2, recordType: "gene" });
+    mockGetAttributes.mockImplementation(async (entityRef: EntityRef) => ({
+      attributes: entityRef.id === "exp-1" ? attrs1 : attrs2,
+      recordType: "gene",
+    }));
 
-    mockGetRecords
-      .mockResolvedValueOnce(makeRecordsResponse(3))
-      .mockResolvedValueOnce(makeRecordsResponse(2));
+    mockGetRecords.mockImplementation(async (entityRef: EntityRef) =>
+      entityRef.id === "exp-1" ? makeRecordsResponse(3) : makeRecordsResponse(2));
 
     const entity1: EntityRef = { type: "experiment", id: "exp-1" };
     const entity2: EntityRef = { type: "experiment", id: "exp-2" };
@@ -217,9 +217,8 @@ describe("ResultsTable", () => {
     const entity: EntityRef = { type: "experiment", id: "exp-1" };
     render(<ResultsTable entityRef={entity} />);
 
-    // The component does String(err) so the text will be "Error: Server error"
     await waitFor(() => {
-      expect(screen.getByText("Error: Server error")).toBeTruthy();
+      expect(screen.getByText("Server error")).toBeTruthy();
     });
   });
 });

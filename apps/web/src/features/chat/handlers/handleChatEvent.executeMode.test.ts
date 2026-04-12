@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { handleChatEvent } from "./handleChatEvent";
 import type { ChatEventContext } from "./handleChatEvent.types";
-import type { ChatSSEEvent } from "@/lib/sse_events";
 import type { AssistantMessage, Citation, Message, PlanningArtifact, ToolCall } from "@pathfinder/shared";
 import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
 import { EXECUTE_EPITOPE_SEARCH_EVENTS } from "./__fixtures__/realisticEvents";
@@ -97,10 +96,18 @@ describe("handleChatEvent — realistic execute mode", () => {
       toolCallsBuffer,
       citationsBuffer,
       planningArtifactsBuffer,
+      problemFrameBuffer: null,
       thinking: {
+        activeMessageId: null,
         activeToolCalls: [],
         lastToolCalls: [],
         reasoning: null,
+        getThinkingForMessage: vi.fn(() => ({
+          activeToolCalls: [],
+          lastToolCalls: [],
+          reasoning: null,
+        })),
+        setActiveMessage: vi.fn(),
         reset: vi.fn(),
         applyThinkingPayload: vi.fn(() => false),
         updateActiveFromBuffer: vi.fn(),
@@ -137,7 +144,12 @@ describe("handleChatEvent — realistic execute mode", () => {
       streamState: {
         streamingAssistantIndex: null,
         streamingAssistantMessageId: null,
+        assistantMessageIndices: {},
         turnAssistantIndex: null,
+        lastAssistantMessageId: null,
+        messageGroupId: null,
+        currentPhase: null,
+        pipeline: null,
         reasoning: null,
         optimizationProgress: null,
       },

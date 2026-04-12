@@ -31,7 +31,11 @@ export async function undoTurnAction(
 ): Promise<boolean> {
   if (userMessage.entryId == null || userMessage.entryId === "") return false;
 
-  const result = await undoTurn(strategyId, userMessage.entryId);
+  const result = await undoTurn(
+    strategyId,
+    userMessage.entryId,
+    userMessage.traceId ?? null,
+  );
 
   deps.setMessages((prev) => prev.slice(0, userMessageIndex));
 

@@ -182,6 +182,21 @@ def classify_request(
     return None
 
 
+def should_resume_paused_phase(message: str) -> bool:
+    """Return whether a follow-up should continue the paused phase.
+
+    We treat neutral acknowledgements and direct answers as continuations,
+    while explicit revisions or fresh strategy-building instructions should
+    re-enter normal classification and routing.
+    """
+    text = message.strip()
+    if not text:
+        return False
+    if _REVISION_PATTERNS.match(text):
+        return False
+    return not _CREATION_KEYWORDS.search(text)
+
+
 # ---------------------------------------------------------------------------
 # Tier 2: LLM-based classification for ambiguous requests
 # ---------------------------------------------------------------------------

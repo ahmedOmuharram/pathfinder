@@ -37,14 +37,22 @@ logger = get_logger(__name__)
 
 
 async def emit_delta(
-    queue: asyncio.Queue[JSONObject], message_id: str, text: str
+    queue: asyncio.Queue[JSONObject],
+    message_id: str,
+    text: str,
+    *,
+    message_group_id: str | None = None,
+    phase: str | None = None,
 ) -> None:
     """Emit an assistant_delta event."""
     await queue.put(
         {
             "type": "assistant_delta",
             "data": AssistantDeltaEventData(
-                message_id=message_id, delta=text
+                message_id=message_id,
+                message_group_id=message_group_id,
+                phase=phase,
+                delta=text,
             ).model_dump(by_alias=True),
         }
     )
@@ -80,14 +88,13 @@ async def emit_reasoning(
 
 
 async def emit_phase_event(
-    queue: asyncio.Queue[JSONObject], phase: str, status: str,
+    queue: asyncio.Queue[JSONObject],
+    event: PhaseChangeEventData,
 ) -> None:
-    """Emit a phase_change SSE event."""
+    """Emit a phase_change SSE event from a pre-built payload."""
     await queue.put({
         "type": "phase_change",
-        "data": PhaseChangeEventData(
-            phase=phase, status=status,
-        ).model_dump(by_alias=True),
+        "data": event.model_dump(by_alias=True),
     })
 
 

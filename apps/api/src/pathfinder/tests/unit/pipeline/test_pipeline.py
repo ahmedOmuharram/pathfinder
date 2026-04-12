@@ -14,13 +14,22 @@ def _make_pipeline() -> AgentPipeline:
     return create_pipeline()
 
 
+def _finish_scoping(pipeline: AgentPipeline) -> None:
+    pipeline.send("finish_scoping")
+
+
+def _advance_to_planning(pipeline: AgentPipeline) -> None:
+    pipeline.send("finish_scoping")
+    pipeline.send("finish_discovery")
+
+
 class TestInitialState:
-    def test_starts_in_discovery_searching(self) -> None:
+    def test_starts_in_scoping_framing(self) -> None:
         pipeline = _make_pipeline()
-        assert pipeline.current_phase == "discovery"
+        assert pipeline.current_phase == "scoping"
         state_ids = {s.id for s in pipeline.configuration}
-        assert "discovery" in state_ids
-        assert "searching" in state_ids
+        assert "scoping" in state_ids
+        assert "framing" in state_ids
 
     def test_not_done_initially(self) -> None:
         pipeline = _make_pipeline()
@@ -29,15 +38,37 @@ class TestInitialState:
     def test_retry_counts_initialized(self) -> None:
         pipeline = _make_pipeline()
         assert pipeline.retry_counts == {
-            "discovery": 1,
+            "scoping": 1,
+            "discovery": 0,
             "planning": 0,
             "execution": 0,
         }
 
 
+class TestScopingPhase:
+    def test_research_moves_to_researching(self) -> None:
+        pipeline = _make_pipeline()
+        pipeline.send("research")
+        state_ids = {s.id for s in pipeline.configuration}
+        assert "researching" in state_ids
+        assert pipeline.current_phase == "scoping"
+
+    def test_finish_scoping_from_framing(self) -> None:
+        pipeline = _make_pipeline()
+        pipeline.send("finish_scoping")
+        assert pipeline.current_phase == "discovery"
+
+    def test_finish_scoping_from_researching(self) -> None:
+        pipeline = _make_pipeline()
+        pipeline.send("research")
+        pipeline.send("finish_scoping")
+        assert pipeline.current_phase == "discovery"
+
+
 class TestDiscoveryPhase:
     def test_analyze_moves_to_analyzing(self) -> None:
         pipeline = _make_pipeline()
+        _finish_scoping(pipeline)
         pipeline.send("analyze")
         state_ids = {s.id for s in pipeline.configuration}
         assert "analyzing" in state_ids
@@ -45,11 +76,13 @@ class TestDiscoveryPhase:
 
     def test_finish_discovery_from_searching(self) -> None:
         pipeline = _make_pipeline()
+        _finish_scoping(pipeline)
         pipeline.send("finish_discovery")
         assert pipeline.current_phase == "planning"
 
     def test_finish_discovery_from_analyzing(self) -> None:
         pipeline = _make_pipeline()
+        _finish_scoping(pipeline)
         pipeline.send("analyze")
         pipeline.send("finish_discovery")
         assert pipeline.current_phase == "planning"
@@ -58,27 +91,27 @@ class TestDiscoveryPhase:
 class TestPlanningPhase:
     def test_drafting_is_initial_substate(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         state_ids = {s.id for s in pipeline.configuration}
         assert "drafting" in state_ids
 
     def test_submit_draft_to_awaiting_approval(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("submit_draft")
         state_ids = {s.id for s in pipeline.configuration}
         assert "awaiting_approval" in state_ids
 
     def test_approve_transitions_to_execution(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("submit_draft")
         pipeline.send("approve")
         assert pipeline.current_phase == "execution"
 
     def test_revision_cycle(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("submit_draft")
         pipeline.send("request_revision")
         state_ids = {s.id for s in pipeline.configuration}
@@ -96,6 +129,9 @@ class TestFullPipeline:
     def test_discovery_through_completed(self) -> None:
         pipeline = _make_pipeline()
 
+        pipeline.send("finish_scoping")
+        assert pipeline.current_phase == "discovery"
+
         pipeline.send("finish_discovery")
         assert pipeline.current_phase == "planning"
 
@@ -112,18 +148,19 @@ class TestFullPipeline:
 
     def test_transition_count_tracked(self) -> None:
         pipeline = _make_pipeline()
+        pipeline.send("finish_scoping")
         pipeline.send("finish_discovery")
         pipeline.send("submit_draft")
         pipeline.send("approve")
         pipeline.send("finish_execution")
         pipeline.send("finish_verification")
-        assert pipeline._transition_count == 5
+        assert pipeline._transition_count == 6
 
 
 class TestErrorRecovery:
     def test_replan_returns_to_planning(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("submit_draft")
         pipeline.send("approve")
         assert pipeline.current_phase == "execution"
@@ -135,7 +172,7 @@ class TestErrorRecovery:
 
     def test_replan_increments_planning_retry(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("submit_draft")
         pipeline.send("approve")
 
@@ -145,7 +182,7 @@ class TestErrorRecovery:
 
     def test_execution_retry_substates(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("submit_draft")
         pipeline.send("approve")
 
@@ -159,22 +196,29 @@ class TestErrorRecovery:
 
 
 class TestAbort:
+    def test_abort_from_scoping(self) -> None:
+        pipeline = _make_pipeline()
+        pipeline.send("abort_scoping")
+        assert pipeline.current_phase == "failed"
+        assert pipeline.is_done is True
+
     def test_abort_from_discovery(self) -> None:
         pipeline = _make_pipeline()
+        _finish_scoping(pipeline)
         pipeline.send("abort_discovery")
         assert pipeline.current_phase == "failed"
         assert pipeline.is_done is True
 
     def test_abort_from_planning(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("abort_planning")
         assert pipeline.current_phase == "failed"
         assert pipeline.is_done is True
 
     def test_abort_from_execution(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("submit_draft")
         pipeline.send("approve")
         pipeline.send("abort_execution")
@@ -183,7 +227,7 @@ class TestAbort:
 
     def test_abort_from_verification(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("submit_draft")
         pipeline.send("approve")
         pipeline.send("finish_execution")
@@ -195,7 +239,7 @@ class TestAbort:
 class TestRetryBudget:
     def test_replan_blocked_after_budget_exhausted(self) -> None:
         pipeline = _make_pipeline()
-        pipeline.send("finish_discovery")
+        _advance_to_planning(pipeline)
         pipeline.send("submit_draft")
         pipeline.send("approve")
 
@@ -229,8 +273,8 @@ class TestPipelineTracker:
     def test_tracker_wired_via_factory(self) -> None:
         pipeline = create_pipeline()
         # Factory creates tracker — verify by checking that
-        # entering discovery incremented the count
-        assert pipeline.retry_counts["discovery"] == 1
+        # entering scoping incremented the count
+        assert pipeline.retry_counts["scoping"] == 1
 
     def test_custom_listener_receives_callbacks(self) -> None:
         entered_phases: list[str] = []
@@ -243,6 +287,7 @@ class TestPipelineTracker:
                 entered_phases.append("completed")
 
         pipeline = create_pipeline(listeners=[TestListener()])
+        pipeline.send("finish_scoping")
         pipeline.send("finish_discovery")
         pipeline.send("submit_draft")
         pipeline.send("approve")
@@ -285,5 +330,6 @@ class TestPipelineTracker:
                 raise RuntimeError(msg)
 
         pipeline = create_pipeline(listeners=[BuggyListener()])
+        pipeline.send("finish_scoping")
         with pytest.raises(RuntimeError, match="listener bug"):
             pipeline.send("finish_discovery")

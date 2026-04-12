@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { getConfiguredServerApiBaseUrl } from "@/lib/config/apiBase";
+
 export class SchemaValidationError extends Error {
   url: string;
   issues: unknown[];
@@ -49,8 +51,7 @@ function getApiBaseUrl(): string {
     return window.location.origin;
   }
   // Server-side (SSR / route handlers): reach the API directly.
-  const base = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:8000";
-  return base.replace(/\/+$/, "");
+  return getConfiguredServerApiBaseUrl();
 }
 
 export function buildUrl(

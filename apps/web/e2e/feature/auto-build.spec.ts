@@ -1,4 +1,9 @@
 import { test, expect } from "../fixtures/test";
+import {
+  MOCK_DELEGATION_DRAFT_PROMPT,
+  MOCK_DELEGATION_PROMPT,
+  MOCK_PLAN_PROMPT,
+} from "../fixtures/mock-prompts";
 
 /**
  * Auto-build E2E tests.
@@ -22,9 +27,9 @@ test.describe("Auto-Build Pipeline", () => {
     chatPage,
     apiClient,
   }) => {
-    // "create step" keyword -> MockEngine returns create_step(GenesByTaxon)
-    // -> do_function_call fires -> auto-build pushes to WDK -> wdkStrategyId set
-    await chatPage.send("create step");
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -43,7 +48,9 @@ test.describe("Auto-Build Pipeline", () => {
     chatPage,
     apiClient,
   }) => {
-    await chatPage.send("create step");
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -66,7 +73,9 @@ test.describe("Auto-Build Pipeline", () => {
     chatPage,
     apiClient,
   }) => {
-    await chatPage.send("create step");
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -96,7 +105,9 @@ test.describe("Auto-Build Pipeline", () => {
     chatPage,
     apiClient,
   }) => {
-    await chatPage.send("create step");
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -122,7 +133,9 @@ test.describe("Auto-Build Pipeline", () => {
     chatPage,
     graphPage,
   }) => {
-    await chatPage.send("create step");
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectIdle();
 
     // Graph must be visible with at least one step pill
@@ -144,10 +157,9 @@ test.describe("Delegation Auto-Build Pipeline", () => {
     chatPage,
     apiClient,
   }) => {
-    // "delegation" keyword -> MockEngine returns delegate_strategy_subtasks
-    // -> real delegation orchestrator -> sub-kanis with MockEngine -> create_step
-    // -> do_function_call -> auto-build -> real WDK strategy
-    await chatPage.send("delegation");
+    await chatPage.send(MOCK_DELEGATION_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
     await chatPage.expectIdle();
 
@@ -169,7 +181,9 @@ test.describe("Delegation Auto-Build Pipeline", () => {
     chatPage,
     apiClient,
   }) => {
-    await chatPage.send("delegation");
+    await chatPage.send(MOCK_DELEGATION_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i, { timeout: 60_000 });
     await chatPage.expectIdle();
 
@@ -186,8 +200,10 @@ test.describe("Delegation Auto-Build Pipeline", () => {
   });
 
   test("delegation graph appears during streaming", async ({ chatPage, graphPage }) => {
-    await chatPage.send("delegation");
-    // Graph should appear DURING streaming (before message_end)
+    await chatPage.send(MOCK_DELEGATION_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
+    // Graph should appear during execution streaming (before message_end).
     await graphPage.expectCompactView();
     const pillCount = await graphPage.stepPills.count();
     expect(pillCount).toBeGreaterThan(0);
@@ -206,10 +222,7 @@ test.describe("Planning Artifact Pipeline", () => {
     chatPage,
     apiClient,
   }) => {
-    // "artifact graph" -> MockEngine returns save_planning_artifact tool call
-    // -> real tool execution -> planningArtifact in tool result
-    // -> tool_result_to_events extracts it -> planning_artifact SSE event
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
     // Verify the planning artifact data via API
@@ -224,14 +237,12 @@ test.describe("Planning Artifact Pipeline", () => {
   test("artifact graph apply creates real WDK strategy", async ({
     chatPage,
     graphPage,
-    page,
     apiClient,
   }) => {
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
-    // Click "Apply to Strategy" — this creates steps from the plan
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
     await chatPage.expectIdle();
 
@@ -269,8 +280,7 @@ test.describe("Mock Engine Response Correctness", () => {
   test("delegation draft produces planning artifact not delegation", async ({
     chatPage,
   }) => {
-    // "delegation draft" should trigger save_planning_artifact, not delegation
-    await chatPage.send("delegation draft");
+    await chatPage.send(MOCK_DELEGATION_DRAFT_PROMPT);
     await chatPage.expectPlanningArtifact();
     await chatPage.expectIdle();
   });
@@ -289,10 +299,9 @@ test.describe("Mock Engine Response Correctness", () => {
     chatPage,
     page,
   }) => {
-    // "create step" triggers real tool calls through the 4-phase pipeline:
-    // discovery (get_search_overview) → planning (create_plan, submit_plan)
-    // → execution (create_leaf_step) → verification
-    await chatPage.send("create step");
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectIdle();
 
     // The thinking panel should show tool calls from the pipeline
@@ -320,7 +329,9 @@ test.describe("Auto-Build Persistence", () => {
     page,
     apiClient,
   }) => {
-    await chatPage.send("create step");
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 
@@ -353,7 +364,9 @@ test.describe("Auto-Build Persistence", () => {
     page,
     apiClient,
   }) => {
-    await chatPage.send("create step");
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectIdle();
 
     // Check gene set exists before reload

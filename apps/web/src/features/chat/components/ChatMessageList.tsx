@@ -1,10 +1,12 @@
 import { useState } from "react";
 import type {
+  AssistantMessage,
   Message,
   ToolCall,
   PlanningArtifact,
   OptimizationProgressData,
   Strategy,
+  UserMessage,
 } from "@pathfinder/shared";
 import { decodeNodeSelection } from "@/features/chat/node_selection";
 import { ChatEmptyState } from "@/features/chat/components/ChatEmptyState";
@@ -39,12 +41,22 @@ interface ChatMessageListProps {
   isUndoing?: boolean;
   onSend: (content: string, metadata?: Record<string, unknown>) => void;
   onUndo?: (userMessageIndex: number) => void;
+  onRegenerate?: (
+    userMessage: UserMessage,
+    assistantMessage: AssistantMessage,
+  ) => void;
   isApplyingArtifact?: boolean;
   onApplyPlanningArtifact?: (artifact: PlanningArtifact) => void;
   thinking: {
+    activeMessageId: string | null;
     activeToolCalls: ToolCall[];
     lastToolCalls: ToolCall[];
     reasoning?: string | null;
+    getThinkingForMessage: (messageId?: string | null) => {
+      activeToolCalls: ToolCall[];
+      lastToolCalls: ToolCall[];
+      reasoning?: string | null;
+    };
   };
   optimizationProgress?: OptimizationProgressData | null;
   onCancelOptimization?: () => void;
@@ -70,6 +82,7 @@ export function ChatMessageList({
   isUndoing,
   onSend,
   onUndo,
+  onRegenerate,
   isApplyingArtifact = false,
   onApplyPlanningArtifact,
   thinking,
@@ -86,9 +99,11 @@ export function ChatMessageList({
   const catalog = catalogData?.models ?? [];
   const strategyId = useSessionStore((s) => s.strategyId);
   const activePlan = usePlanStore((s) => s.activePlan);
+  const activePlanTraceId = usePlanStore((s) => s.activePlanTraceId);
+  const activePlanMessageGroupId = usePlanStore((s) => s.activePlanMessageGroupId);
   const isPlanPinned = usePlanStore((s) => s.isPlanPinned);
+  const submitPlanAction = usePlanStore((s) => s.submitPlanAction);
 
-  // Find the last assistant message so we can attach live streaming parts to it.
   const lastAssistantIndex = (() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       if (messages[i]?.role === "assistant") return i;
@@ -96,14 +111,29 @@ export function ChatMessageList({
     return -1;
   })();
 
+  const activeAssistantIndex = (() => {
+    if (!isStreaming) return -1;
+    if (thinking.activeMessageId != null && thinking.activeMessageId !== "") {
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const message = messages[i];
+        if (message?.role !== "assistant") continue;
+        if (message.messageId === thinking.activeMessageId) return i;
+      }
+      return -1;
+    }
+    if (messages[messages.length - 1]?.role === "assistant") {
+      return lastAssistantIndex;
+    }
+    return -1;
+  })();
+
   // True when streaming has started but no assistant message for *this* turn
   // has been created yet (tools/reasoning are running before the model responds).
-  const currentTurnHasNoAssistant =
-    isStreaming &&
-    (lastAssistantIndex === -1 || messages[messages.length - 1]?.role !== "assistant");
+  const currentTurnHasNoAssistant = isStreaming && activeAssistantIndex === -1;
 
   // Floating indicator: only when streaming and no assistant message is at the tail yet.
   const showFloatingThinking = currentTurnHasNoAssistant;
+  const floatingThinking = thinking.getThinkingForMessage(thinking.activeMessageId);
 
   const userDisplayName = fullName ?? firstName ?? "User";
 
@@ -120,7 +150,14 @@ export function ChatMessageList({
           <PlanPinnedBar
             plan={activePlan}
             onApprove={() => {
-              usePlanStore.getState().updatePlan({ status: "approved" });
+              if (submitPlanAction == null) return;
+              void submitPlanAction({
+                action: "approve",
+                planId: activePlan.id,
+                traceId: activePlanTraceId,
+                messageGroupId: activePlanMessageGroupId,
+                source: "plan_pinned_bar",
+              });
             }}
             onViewPlan={() => {
               document
@@ -157,6 +194,13 @@ export function ChatMessageList({
             message.role === "user"
               ? decodeNodeSelection(message.content)
               : { selection: null, message: message.content };
+          const previousUserMessage = (() => {
+            for (let i = index - 1; i >= 0; i -= 1) {
+              const candidate = messages[i];
+              if (candidate?.role === "user") return candidate;
+            }
+            return null;
+          })();
           const nodeData = decoded.selection;
           const hasText = decoded.message.length > 0;
           const undoSnapshot = undoSnapshots[index];
@@ -168,7 +212,7 @@ export function ChatMessageList({
             isStreaming &&
             !currentTurnHasNoAssistant &&
             message.role === "assistant" &&
-            index === lastAssistantIndex;
+            index === activeAssistantIndex;
 
           if (message.role === "assistant") {
             const effectiveModelId =
@@ -177,6 +221,7 @@ export function ChatMessageList({
                 : null) ?? message.tokenUsage?.modelId;
             const assistantName =
               catalog.find((m) => m.id === effectiveModelId)?.name ?? "Assistant";
+            const liveThinking = thinking.getThinkingForMessage(message.messageId ?? null);
             return (
               <div
                 key={messageKey}
@@ -196,7 +241,7 @@ export function ChatMessageList({
                       message={message}
                       messageKey={messageKey}
                       isLive={isLive}
-                      thinking={thinking}
+                      thinking={liveThinking}
                       optimizationProgress={
                         isLive ? (optimizationProgress ?? null) : null
                       }
@@ -223,6 +268,13 @@ export function ChatMessageList({
                         <MessageFeedback
                           traceId={message.traceId ?? null}
                           streamId={strategyId ?? ""}
+                          regenerateDisabled={isStreaming}
+                          {...(previousUserMessage != null && onRegenerate != null
+                            ? {
+                                onRegenerate: () =>
+                                  onRegenerate(previousUserMessage, message),
+                              }
+                            : {})}
                         />
                       </div>
                     )}
@@ -274,9 +326,11 @@ export function ChatMessageList({
           <>
             <ThinkingPanel
               isStreaming={isStreaming}
-              activeToolCalls={thinking.activeToolCalls}
-              lastToolCalls={thinking.lastToolCalls}
-              {...(thinking.reasoning != null ? { reasoning: thinking.reasoning } : {})}
+              activeToolCalls={floatingThinking.activeToolCalls}
+              lastToolCalls={floatingThinking.lastToolCalls}
+              {...(floatingThinking.reasoning != null
+                ? { reasoning: floatingThinking.reasoning }
+                : {})}
               title="Thinking"
             />
             {optimizationProgress != null ? (
@@ -301,4 +355,3 @@ export function ChatMessageList({
     </div>
   );
 }
-

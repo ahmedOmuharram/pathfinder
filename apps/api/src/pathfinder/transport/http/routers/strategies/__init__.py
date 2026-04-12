@@ -6,10 +6,11 @@ Individual endpoints live in smaller modules.
 
 from fastapi import APIRouter
 
-from . import counts, crud, plan, wdk_import
+from . import counts, crud, plan, plan_actions, wdk_import
 
 router = APIRouter()
 router.include_router(crud.router)
 router.include_router(counts.router)
 router.include_router(plan.router)
+router.include_router(plan_actions.router)
 router.include_router(wdk_import.router)

@@ -1,5 +1,8 @@
 import { requestJson } from "@/lib/api/http";
-import { ChatOperationResponseSchema } from "@/lib/api/schemas/streaming";
+import {
+  ChatOperationResponseSchema,
+  PlanActionOperationResponseSchema,
+} from "@/lib/api/schemas/streaming";
 import {
   subscribeToOperation,
   type OperationSubscription,
@@ -7,6 +10,7 @@ import {
 import type { ChatSSEEvent, RawSSEData } from "@/lib/sse_events";
 import { parseChatSSEEvent } from "@/lib/sse_events";
 import type { ChatMention, PipelineConfig } from "@pathfinder/shared";
+import type { PlanActionRequest } from "@/lib/types/plan";
 
 interface StreamChatContext {
   strategyId?: string;
@@ -20,6 +24,12 @@ interface StreamChatResult {
   operationId: string;
   strategyId: string;
   entryId: string;
+  subscription: OperationSubscription;
+}
+
+interface StreamPlanActionResult {
+  operationId: string;
+  strategyId: string;
   subscription: OperationSubscription;
 }
 
@@ -70,6 +80,43 @@ export async function streamChat(
     operationId: resp.operationId,
     strategyId: resp.strategyId,
     entryId: resp.entryId,
+    subscription,
+  };
+}
+
+export async function streamPlanAction(
+  strategyId: string,
+  action: PlanActionRequest,
+  options: {
+    onMessage: (event: ChatSSEEvent) => void;
+    onError?: (error: Error) => void;
+    onComplete?: () => void;
+  },
+  signal?: AbortSignal,
+): Promise<StreamPlanActionResult> {
+  const resp = await requestJson(
+    PlanActionOperationResponseSchema,
+    `/api/v1/strategies/${strategyId}/plan-actions`,
+    {
+      method: "POST",
+      body: action,
+      ...(signal != null ? { signal } : {}),
+    },
+  );
+
+  const subscription = subscribeToOperation<RawSSEData>(resp.operationId, {
+    onEvent: ({ type, data }) => {
+      const event = parseChatSSEEvent({ type, data });
+      if (event) options.onMessage(event);
+    },
+    ...(options.onComplete != null ? { onComplete: options.onComplete } : {}),
+    ...(options.onError != null ? { onError: options.onError } : {}),
+    endEventTypes: new Set(["message_end"]),
+  });
+
+  return {
+    operationId: resp.operationId,
+    strategyId: resp.strategyId,
     subscription,
   };
 }

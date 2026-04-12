@@ -27,6 +27,7 @@ from pathfinder.platform.event_schemas import (
 from pathfinder.platform.event_schemas_pipeline import (
     DecisionPresentedEventData,
     PhaseChangeEventData,
+    PlanApprovedEventData,
     PlanningThoughtEventData,
     PlanPresentedEventData,
     PlanUpdatedEventData,
@@ -111,6 +112,7 @@ class SSESchemaIndex(BaseModel):
     # Pipeline phase events
     phase_change: PhaseChangeEventData | None = None
     plan_presented: PlanPresentedEventData | None = None
+    plan_approved: PlanApprovedEventData | None = None
     plan_updated: PlanUpdatedEventData | None = None
     decision_presented: DecisionPresentedEventData | None = None
     planning_thought: PlanningThoughtEventData | None = None

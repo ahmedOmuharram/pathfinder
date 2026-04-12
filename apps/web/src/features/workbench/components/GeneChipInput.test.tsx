@@ -6,9 +6,21 @@ import type { GeneSet } from "@pathfinder/shared";
 const storeState: Record<string, unknown> = {
   geneSets: [] as GeneSet[],
 };
-vi.mock("@/state/useWorkbenchStore", () => ({
-  useWorkbenchStore: (selector: (s: Record<string, unknown>) => unknown) =>
-    selector(storeState),
+
+vi.mock("@/state/useSessionStore", () => ({
+  useSessionStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      selectedSite: "PlasmoDB",
+      authStatusKnown: true,
+      veupathdbSignedIn: true,
+    }),
+}));
+
+vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
+  useGeneSetsQuery: () => ({
+    data: storeState["geneSets"] as GeneSet[],
+    isPending: false,
+  }),
 }));
 
 const mockSearchGenes = vi.fn();
@@ -141,7 +153,7 @@ describe("GeneChipInput", () => {
   });
 
   it("shows gene count", () => {
-    render(
+    const { container } = render(
       <GeneChipInput
         siteId="PlasmoDB"
         value={["PF3D7_0100100", "PF3D7_0200200", "PF3D7_0300300"]}
@@ -149,6 +161,6 @@ describe("GeneChipInput", () => {
         label="Controls"
       />,
     );
-    expect(screen.getByText("3 genes")).toBeTruthy();
+    expect(container.querySelectorAll("[data-gene-chip]")).toHaveLength(3);
   });
 });

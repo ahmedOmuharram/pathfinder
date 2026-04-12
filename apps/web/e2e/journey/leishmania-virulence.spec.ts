@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 /**
  * Journey: Leishmania Virulence Factor Discovery — TriTrypDB
@@ -57,10 +58,10 @@ test.describe("Leishmania Virulence Journey", () => {
     // ── Phase 2: Strategy Creation ───────────────────────────────
 
     // Planning artifact with GenesByTaxon for L. major Friedlin
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
     await chatPage.expectIdle();
 

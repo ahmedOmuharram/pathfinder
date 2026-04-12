@@ -4,6 +4,7 @@ import type { Strategy } from "@pathfinder/shared";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { formatSidebarTime } from "@/lib/formatTime";
 import { Input } from "@/lib/components/ui/Input";
+import { StrategyLifecycleBadge } from "@/features/chat/components/phase/StrategyLifecycleBadge";
 
 interface ConversationListItemProps {
   item: ConversationItem;
@@ -13,6 +14,8 @@ interface ConversationListItemProps {
   graphHasValidationIssue: boolean;
   /** True when this item is the active conversation AND a chat stream is in progress. */
   isActiveStreaming: boolean;
+  activePhase: string | null;
+  activePhaseStatus: string | null;
   onRenameValueChange: (value: string) => void;
   onCommitRename: (item: ConversationItem) => void;
   onCancelRename: () => void;
@@ -30,6 +33,8 @@ export function ConversationListItem({
   renameValue,
   graphHasValidationIssue,
   isActiveStreaming,
+  activePhase,
+  activePhaseStatus,
   onRenameValueChange,
   onCommitRename,
   onCancelRename,
@@ -86,22 +91,16 @@ export function ConversationListItem({
                 title="Validation issues"
               />
             )}
-            {si != null && (si.wdkStrategyId != null || (si.stepCount ?? 0) > 0) && (
-              <span
-                className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                  isActiveStreaming && si.wdkStrategyId == null
-                    ? "bg-warning/10 text-warning"
-                    : si.isSaved
-                      ? "bg-success/10 text-success"
-                      : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {isActiveStreaming && si.wdkStrategyId == null
-                  ? "Building"
-                  : si.isSaved
-                    ? "Saved"
-                    : "Draft"}
-              </span>
+            {si != null && (
+              <StrategyLifecycleBadge
+                className="ml-auto"
+                stepCount={si.stepCount ?? 0}
+                wdkStrategyId={si.wdkStrategyId ?? null}
+                isSaved={si.isSaved}
+                isActiveStreaming={isActiveStreaming}
+                currentPhase={isActive ? activePhase : null}
+                phaseStatus={isActive ? activePhaseStatus : null}
+              />
             )}
           </div>
           <div className="text-xs text-muted-foreground">

@@ -47,6 +47,20 @@ class PlanRepository:
             return None
         return StrategyPlan.model_validate(record.plan_json)
 
+    async def get_latest_plan(self, stream_id: UUID) -> StrategyPlan | None:
+        """Return the most recently updated plan for a stream, any status."""
+        stmt = (
+            select(StrategyPlanRecord)
+            .where(StrategyPlanRecord.stream_id == stream_id)
+            .order_by(StrategyPlanRecord.updated_at.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        record = result.scalar_one_or_none()
+        if record is None:
+            return None
+        return StrategyPlan.model_validate(record.plan_json)
+
     async def update_plan_status(
         self,
         plan_id: str,

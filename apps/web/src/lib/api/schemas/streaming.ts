@@ -9,3 +9,6 @@ export const OperationIdResponseSchema = z
 
 export const ChatOperationResponseSchema = z
   .object({ operationId: z.string(), strategyId: z.string(), entryId: z.string() });
+
+export const PlanActionOperationResponseSchema = z
+  .object({ operationId: z.string(), strategyId: z.string() });

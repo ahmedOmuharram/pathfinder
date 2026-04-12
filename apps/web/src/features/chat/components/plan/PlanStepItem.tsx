@@ -4,9 +4,10 @@ import { type ReactNode, useState } from "react";
 import { AlertTriangle, HelpCircle, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 import type { PlannedStep, StepStatus } from "@/lib/types/plan";
-import { PlanParameterField } from "@/features/chat/components/plan/PlanParameterField";
+import { PlanParameterEditor } from "@/features/chat/components/plan/PlanParameterEditor";
 
 interface PlanStepItemProps {
+  siteId: string;
   step: PlannedStep;
   index: number;
   onParamChange: (stepId: string, paramName: string, value: unknown) => void;
@@ -31,11 +32,15 @@ const statusIcon: Record<StepStatus, ReactNode> = {
   failed: <XCircle className="h-4 w-4 text-destructive" />,
 };
 
-export function PlanStepItem({ step, index, onParamChange, disabled }: PlanStepItemProps) {
+export function PlanStepItem({
+  siteId,
+  step,
+  index,
+  onParamChange,
+  disabled,
+}: PlanStepItemProps) {
   const needsAttention = step.status === "needs_discovery" || step.status === "needs_user_input";
   const [expanded, setExpanded] = useState(needsAttention);
-
-  const params = Object.values(step.parameters);
 
   return (
     <div className="rounded-md border border-border bg-card">
@@ -86,18 +91,12 @@ export function PlanStepItem({ step, index, onParamChange, disabled }: PlanStepI
           </div>
 
           {/* Parameters */}
-          {params.length > 0 && (
-            <div className="space-y-3">
-              {params.map((param) => (
-                <PlanParameterField
-                  key={param.name}
-                  param={param}
-                  onChange={(paramName, value) => onParamChange(step.id, paramName, value)}
-                  disabled={disabled}
-                />
-              ))}
-            </div>
-          )}
+          <PlanParameterEditor
+            siteId={siteId}
+            step={step}
+            onParamChange={(paramName, value) => onParamChange(step.id, paramName, value)}
+            disabled={disabled}
+          />
 
           {/* Actual count if available */}
           {step.actualCount !== null && (

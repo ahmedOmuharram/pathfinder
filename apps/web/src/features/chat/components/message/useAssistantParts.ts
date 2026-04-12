@@ -25,7 +25,12 @@ export function buildAssistantParts(
     }
   }
 
-  parts.push({ tag: "response", key: `${index}-response` });
+  const hasResponseContent = Boolean(message.content.trim());
+  const hasPlanningArtifacts = (message.planningArtifacts?.length ?? 0) > 0;
+  const hasProblemFrame = message.problemFrame != null;
+  if (hasResponseContent || hasPlanningArtifacts || hasProblemFrame) {
+    parts.push({ tag: "response", key: `${index}-response` });
+  }
 
   if (Array.isArray(message.citations) && message.citations.length > 0) {
     parts.push({ tag: "sources", key: `${index}-sources` });

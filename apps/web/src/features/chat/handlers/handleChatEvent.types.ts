@@ -1,10 +1,12 @@
 import type { Dispatch, SetStateAction } from "react";
 import type {
   Message,
+  PipelineConfig,
   ToolCall,
   Citation,
   PlanningArtifact,
   OptimizationProgressData,
+  ProblemFrame,
   Step,
   Strategy,
 } from "@pathfinder/shared";
@@ -21,7 +23,12 @@ type Thinking = ReturnType<typeof useThinkingState>;
 export type StreamSessionState = {
   streamingAssistantIndex: number | null;
   streamingAssistantMessageId: string | null;
+  assistantMessageIndices: Record<string, number>;
   turnAssistantIndex?: number | null;
+  lastAssistantMessageId?: string | null;
+  messageGroupId?: string | null;
+  currentPhase?: string | null;
+  pipeline?: PipelineConfig | null;
   reasoning: string | null;
   optimizationProgress: OptimizationProgressData | null;
   currentModelId?: string | null;
@@ -34,6 +41,7 @@ export interface StreamBuffers {
   toolCallsBuffer: ToolCall[];
   citationsBuffer: Citation[];
   planningArtifactsBuffer: PlanningArtifact[];
+  problemFrameBuffer: ProblemFrame | null;
 }
 
 /** Strategy store mutations — used by strategy events and message_start. */

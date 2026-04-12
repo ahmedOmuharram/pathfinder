@@ -5,6 +5,7 @@ for deltas, reasoning, tool calls, and tool results.
 """
 
 import asyncio
+import time
 
 # ── Counters ──────────────────────────────────────────────────────────────
 from dataclasses import dataclass, field
@@ -38,6 +39,13 @@ from pathfinder.services.chat.streaming.tag_stripper import (
     StreamingTagStripper,
 )
 
+_PHASE_EXIT_TOOL_RESULTS = {
+    "finish_scoping": ("scoping_result", "scoping"),
+    "finish_discovery": ("discovery_result", "discovery"),
+    "finish_planning": ("planning_result", "planning"),
+    "finish_verification": ("verification_result", "verification"),
+}
+
 
 @dataclass
 class TurnCounters:
@@ -50,6 +58,19 @@ class TurnCounters:
     tool_call_count: int = 0
     llm_call_count: int = 0
     accumulated_text_parts: list[str] = field(default_factory=list)
+    last_assistant_message: str | None = None
+    first_assistant_delta_at_monotonic: float | None = None
+    first_assistant_message_at_monotonic: float | None = None
+    first_tool_call_at_monotonic: float | None = None
+
+
+@dataclass(frozen=True)
+class StreamMessageContext:
+    """Stable message identity for one streaming phase."""
+
+    message_id: str
+    message_group_id: str | None
+    phase: str
 
 
 def merge_usage(counters: TurnCounters, usage: RunUsage) -> None:
@@ -67,8 +88,10 @@ async def handle_text_delta(
     event: PartDeltaEvent,
     stripper: StreamingTagStripper,
     queue: asyncio.Queue[JSONObject],
-    message_id: str,
+    message_ctx: StreamMessageContext,
     counters: TurnCounters,
+    *,
+    capture_in_final_message: bool = True,
 ) -> None:
     """Handle a TextPartDelta within a model request stream."""
     delta = event.delta
@@ -77,8 +100,46 @@ async def handle_text_delta(
     clean_text, thoughts = stripper.feed(delta.content_delta)
     await emit_thoughts(queue, thoughts)
     if clean_text:
-        counters.saw_assistant_message = True
-        await emit_delta(queue, message_id, clean_text)
+        if capture_in_final_message:
+            counters.saw_assistant_message = True
+        if counters.first_assistant_delta_at_monotonic is None:
+            counters.first_assistant_delta_at_monotonic = time.monotonic()
+        await emit_delta(
+            queue,
+            message_ctx.message_id,
+            clean_text,
+            message_group_id=message_ctx.message_group_id,
+            phase=message_ctx.phase,
+        )
+
+
+async def handle_text_part_start(
+    event: PartStartEvent,
+    stripper: StreamingTagStripper,
+    queue: asyncio.Queue[JSONObject],
+    message_ctx: StreamMessageContext,
+    counters: TurnCounters,
+    *,
+    capture_in_final_message: bool = True,
+) -> None:
+    """Handle a TextPart emitted as a PartStartEvent."""
+    part = event.part
+    if not isinstance(part, TextPart):
+        return
+    clean_text, thoughts = stripper.feed(part.content)
+    await emit_thoughts(queue, thoughts)
+    if clean_text:
+        if capture_in_final_message:
+            counters.saw_assistant_message = True
+        if counters.first_assistant_delta_at_monotonic is None:
+            counters.first_assistant_delta_at_monotonic = time.monotonic()
+        await emit_delta(
+            queue,
+            message_ctx.message_id,
+            clean_text,
+            message_group_id=message_ctx.message_group_id,
+            phase=message_ctx.phase,
+        )
 
 
 async def handle_thinking_delta(
@@ -96,6 +157,8 @@ async def handle_thinking_delta(
 async def accumulate_final_text(
     stream: AgentStream[AgentDeps, str],
     counters: TurnCounters,
+    *,
+    capture_in_final_message: bool = True,
 ) -> None:
     """Extract final clean text from the completed stream response."""
     response = stream.response
@@ -106,9 +169,50 @@ async def accumulate_final_text(
         return
     full_text = "\n\n".join(text_parts)
     clean_text = PLAN_THINKING_RE.sub("", full_text).strip()
-    if clean_text:
+    if clean_text and capture_in_final_message:
         counters.saw_assistant_message = True
         counters.accumulated_text_parts.append(clean_text)
+
+
+async def handle_stream_event(
+    event: PartDeltaEvent | PartStartEvent,
+    stripper: StreamingTagStripper,
+    queue: asyncio.Queue[JSONObject],
+    message_ctx: StreamMessageContext,
+    counters: TurnCounters,
+    *,
+    capture_in_final_message: bool = True,
+) -> None:
+    """Dispatch one model-stream event to the appropriate text/thinking handler."""
+    if isinstance(event, PartDeltaEvent):
+        if isinstance(event.delta, TextPartDelta):
+            await handle_text_delta(
+                event,
+                stripper,
+                queue,
+                message_ctx,
+                counters,
+                capture_in_final_message=capture_in_final_message,
+            )
+        elif isinstance(event.delta, ThinkingPartDelta):
+            await handle_thinking_delta(event, queue)
+        return
+
+    if not isinstance(event, PartStartEvent):
+        return
+    if isinstance(event.part, TextPart):
+        await handle_text_part_start(
+            event,
+            stripper,
+            queue,
+            message_ctx,
+            counters,
+            capture_in_final_message=capture_in_final_message,
+        )
+    elif isinstance(event.part, ToolCallPart):
+        # tool_call_start is emitted by stream_call_tools
+        # (via FunctionToolCallEvent) — skip here to avoid duplicates.
+        pass
 
 
 # ── High-level node streaming ────────────────────────────────────────────
@@ -118,8 +222,10 @@ async def stream_model_request(
     node: ModelRequestNode[AgentDeps, str],
     run: AgentRun[AgentDeps, str],
     queue: asyncio.Queue[JSONObject],
-    message_id: str,
+    message_ctx: StreamMessageContext,
     counters: TurnCounters,
+    *,
+    capture_in_final_message: bool = True,
 ) -> None:
     """Stream a ModelRequestNode, emitting deltas, reasoning, and tool_call_start events."""
     stripper = StreamingTagStripper()
@@ -127,26 +233,34 @@ async def stream_model_request(
     async with node.stream(run.ctx) as request_stream:
         stream: AgentStream[AgentDeps, str] = request_stream
         async for event in stream:
-            if isinstance(event, PartDeltaEvent):
-                if isinstance(event.delta, TextPartDelta):
-                    await handle_text_delta(event, stripper, queue, message_id, counters)
-                elif isinstance(event.delta, ThinkingPartDelta):
-                    await handle_thinking_delta(event, queue)
-            elif isinstance(event, PartStartEvent) and isinstance(
-                event.part, ToolCallPart
-            ):
-                    # tool_call_start is emitted by stream_call_tools
-                    # (via FunctionToolCallEvent) — skip here to avoid duplicates.
-                    pass
+            await handle_stream_event(
+                event,
+                stripper,
+                queue,
+                message_ctx,
+                counters,
+                capture_in_final_message=capture_in_final_message,
+            )
 
         # Flush remaining buffered text from the tag stripper.
         remaining = stripper.flush()
         if remaining:
-            counters.saw_assistant_message = True
-            await emit_delta(queue, message_id, remaining)
+            if capture_in_final_message:
+                counters.saw_assistant_message = True
+            await emit_delta(
+                queue,
+                message_ctx.message_id,
+                remaining,
+                message_group_id=message_ctx.message_group_id,
+                phase=message_ctx.phase,
+            )
 
         # Accumulate final text from the response.
-        await accumulate_final_text(stream, counters)
+        await accumulate_final_text(
+            stream,
+            counters,
+            capture_in_final_message=capture_in_final_message,
+        )
 
         # Emit partial token usage.
         usage = stream.usage()
@@ -168,13 +282,36 @@ async def stream_call_tools(
     queue: asyncio.Queue[JSONObject],
     deps: AgentDeps,
     counters: TurnCounters | None = None,
-) -> None:
+) -> bool:
     """Stream a CallToolsNode, emitting tool_call_start and tool_call_end events."""
+    phase_exit_requested = False
     async with node.stream(run.ctx) as handle_stream:
         async for event in handle_stream:
             if isinstance(event, FunctionToolCallEvent):
                 await queue.put(tool_call_start_event(event.part))
                 if counters is not None:
                     counters.tool_call_count += 1
+                    if counters.first_tool_call_at_monotonic is None:
+                        counters.first_tool_call_at_monotonic = time.monotonic()
             elif isinstance(event, FunctionToolResultEvent):
                 await handle_tool_result(event, queue, deps)
+                if _completed_phase_exit_tool(event, deps):
+                    phase_exit_requested = True
+    return phase_exit_requested
+
+
+def _completed_phase_exit_tool(
+    event: FunctionToolResultEvent,
+    deps: AgentDeps,
+) -> bool:
+    """Return True when a valid finish_* tool has committed a phase decision."""
+    tool_name = getattr(event.result, "tool_name", None)
+    if not isinstance(tool_name, str):
+        return False
+    result_attr = _PHASE_EXIT_TOOL_RESULTS.get(tool_name)
+    if result_attr is None:
+        return False
+    result_name, phase_name = result_attr
+    result = getattr(deps, result_name, None)
+    decision = getattr(result, "decision", None)
+    return decision is not None and decision.phase == phase_name

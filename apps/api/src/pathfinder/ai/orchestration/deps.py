@@ -14,9 +14,13 @@ from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.orchestration.phase_results import (
     DiscoveryResult,
     ExecutionResult,
+    PhaseName,
     PlanningResult,
+    ProblemFrame,
+    ScopingResult,
     VerificationResult,
 )
+from pathfinder.domain.strategy.plan_actions import PlanActionContext
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.research.literature_search import (
@@ -51,8 +55,12 @@ class AgentDeps:
 
     # --- Context ---
     context_summary: str | None = None
+    problem_frame: ProblemFrame | None = None
+    resume_phase: PhaseName | None = None
     approved_plan: str | None = None
     mentioned_context: str | None = None
+    plan_action: PlanActionContext | None = None
+    turn_metadata: JSONObject = field(default_factory=dict)
 
     # --- Experiment (workbench) ---
     experiment_id: str | None = None
@@ -64,6 +72,7 @@ class AgentDeps:
     cancel_event: asyncio.Event = field(default_factory=asyncio.Event)
 
     # --- Phase results (structured handoffs between phases) ---
+    scoping_result: ScopingResult | None = None
     discovery_result: DiscoveryResult | None = None
     planning_result: PlanningResult | None = None
     execution_result: ExecutionResult | None = None

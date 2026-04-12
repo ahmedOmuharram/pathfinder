@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 /**
  * Journey: Fungal Pathogenesis — FungiDB
@@ -65,10 +66,10 @@ test.describe("Fungal Pathogenesis Journey", () => {
 
     // ── Phase 2: Strategy Creation ───────────────────────────────
 
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
     await chatPage.expectIdle();
 

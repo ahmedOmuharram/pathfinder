@@ -8,7 +8,7 @@ import { modelCatalogOptions } from "@/lib/api/models";
 import { tierPresetsOptions } from "@/lib/api/tiers";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
 import { Button } from "@/lib/components/ui/Button";
-import { useEngineStore } from "@/state/useEngineStore";
+import { normalizePipelineConfig, useEngineStore } from "@/state/useEngineStore";
 import { CatalogPanel } from "./CatalogPanel";
 import { PipelinePanel } from "./PipelinePanel";
 
@@ -62,6 +62,7 @@ function EngineModalContent() {
     })),
   );
   const [selectedPhase, setSelectedPhase] = useState<PipelinePhase | null>(null);
+  const normalizedPhases = normalizePipelineConfig(phases);
 
   const handleProviderChange = (provider: ModelProvider) => {
     const providerTiers = tiers.presets[provider];
@@ -89,7 +90,7 @@ function EngineModalContent() {
     }
   };
 
-  const activeModelId = selectedPhase ? phases[selectedPhase].modelId : null;
+  const activeModelId = selectedPhase ? normalizedPhases[selectedPhase].modelId : null;
 
   return (
     <div className="flex flex-1 overflow-hidden">

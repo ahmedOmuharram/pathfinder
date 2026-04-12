@@ -53,6 +53,7 @@ export function UnifiedChatPanel({
     isAtBottom,
     scrollToBottom,
     handleUndo,
+    handleRegenerateTurn,
     handleApplyPlanningArtifact,
     isApplyingArtifact,
   } = useChatPanelState({
@@ -79,6 +80,9 @@ export function UnifiedChatPanel({
         }}
         onUndo={(userMessageIndex: number) => {
           void handleUndo(userMessageIndex);
+        }}
+        onRegenerate={(userMessage, assistantMessage) => {
+          void handleRegenerateTurn(userMessage, assistantMessage);
         }}
         isApplyingArtifact={isApplyingArtifact}
         onApplyPlanningArtifact={(artifact) => {

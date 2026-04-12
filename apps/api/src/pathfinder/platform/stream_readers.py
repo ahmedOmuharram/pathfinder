@@ -18,17 +18,21 @@ from pathfinder.platform.reconstruction import (
 )
 from pathfinder.platform.types import JSONObject
 
+type RedisStreamEntry = tuple[str, dict[str, str]]
 
-async def read_stream_messages(redis: Redis, stream_id: str) -> list[JSONObject]:
-    """Read all user + assistant messages from a Redis stream.
 
-    Aggregates metadata from surrounding events (tool_call_start/end,
-    citations, planning_artifact, reasoning) into each assistant_message
-    so the full conversation context survives refresh.
+async def read_stream_entries(
+    redis: Redis,
+    stream_id: str,
+) -> list[RedisStreamEntry]:
+    """Read raw Redis stream entries for a chat stream."""
+    return await redis.xrange(f"stream:{stream_id}")
 
-    Used by the GET /strategies/{id} endpoint to return chat history.
-    """
-    entries = await redis.xrange(f"stream:{stream_id}")
+
+def reconstruct_messages_from_entries(
+    entries: list[RedisStreamEntry],
+) -> list[JSONObject]:
+    """Reconstruct persisted chat messages from raw stream entries."""
     messages: list[JSONObject] = []
     turn = _TurnAccumulator()
 
@@ -42,6 +46,19 @@ async def read_stream_messages(redis: Redis, stream_id: str) -> list[JSONObject]
         _process_stream_event(event_type, data, entry_id, turn, messages)
 
     return messages
+
+
+async def read_stream_messages(redis: Redis, stream_id: str) -> list[JSONObject]:
+    """Read all user + assistant messages from a Redis stream.
+
+    Aggregates metadata from surrounding events (tool_call_start/end,
+    citations, planning_artifact, reasoning) into each assistant_message
+    so the full conversation context survives refresh.
+
+    Used by the GET /strategies/{id} endpoint to return chat history.
+    """
+    entries = await read_stream_entries(redis, stream_id)
+    return reconstruct_messages_from_entries(entries)
 
 
 def _collect_open_tool_calls(
@@ -79,7 +96,7 @@ async def read_stream_thinking(redis: Redis, stream_id: str) -> JSONObject | Non
     Thinking = tool_call_start events without matching tool_call_end,
     from the most recent active operation.
     """
-    entries = await redis.xrange(f"stream:{stream_id}")
+    entries = await read_stream_entries(redis, stream_id)
 
     # Find the last message_start (marks beginning of a turn)
     last_start_idx = -1

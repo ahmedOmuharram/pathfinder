@@ -1,7 +1,7 @@
 """Tier preset registry — maps (provider, tier) to per-phase model configs.
 
 Each cloud provider defines three tiers (quality, balanced, fast) that
-auto-populate the four pipeline phases with appropriate model + reasoning
+auto-populate the five pipeline phases with appropriate model + reasoning
 effort pairings.  The frontend fetches these via ``GET /api/v1/tiers``
 so it never hardcodes model assignments.
 """
@@ -29,10 +29,11 @@ class PhaseTierConfig(CamelModel):
 
 
 class TierPreset(CamelModel):
-    """Per-phase configuration for all four pipeline phases."""
+    """Per-phase configuration for all five pipeline phases."""
 
     model_config = ConfigDict(frozen=True)
 
+    scoping: PhaseTierConfig
     discovery: PhaseTierConfig
     planning: PhaseTierConfig
     execution: PhaseTierConfig
@@ -41,18 +42,21 @@ class TierPreset(CamelModel):
 
 _ANTHROPIC: dict[TierName, TierPreset] = {
     "quality": TierPreset(
+        scoping=PhaseTierConfig(model_id="anthropic/claude-sonnet-4-6", reasoning_effort="medium"),
         discovery=PhaseTierConfig(model_id="anthropic/claude-sonnet-4-6", reasoning_effort="medium"),
         planning=PhaseTierConfig(model_id="anthropic/claude-opus-4-6", reasoning_effort="high"),
         execution=PhaseTierConfig(model_id="anthropic/claude-sonnet-4-6", reasoning_effort="medium"),
         verification=PhaseTierConfig(model_id="anthropic/claude-opus-4-6", reasoning_effort="high"),
     ),
     "balanced": TierPreset(
+        scoping=PhaseTierConfig(model_id="anthropic/claude-sonnet-4-6", reasoning_effort="medium"),
         discovery=PhaseTierConfig(model_id="anthropic/claude-sonnet-4-6", reasoning_effort="medium"),
         planning=PhaseTierConfig(model_id="anthropic/claude-opus-4-6", reasoning_effort="high"),
         execution=PhaseTierConfig(model_id="anthropic/claude-sonnet-4-6", reasoning_effort="medium"),
         verification=PhaseTierConfig(model_id="anthropic/claude-sonnet-4-6", reasoning_effort="high"),
     ),
     "fast": TierPreset(
+        scoping=PhaseTierConfig(model_id="anthropic/claude-haiku-4-5", reasoning_effort="low"),
         discovery=PhaseTierConfig(model_id="anthropic/claude-haiku-4-5", reasoning_effort="low"),
         planning=PhaseTierConfig(model_id="anthropic/claude-sonnet-4-6", reasoning_effort="medium"),
         execution=PhaseTierConfig(model_id="anthropic/claude-haiku-4-5", reasoning_effort="low"),
@@ -62,18 +66,21 @@ _ANTHROPIC: dict[TierName, TierPreset] = {
 
 _OPENAI: dict[TierName, TierPreset] = {
     "quality": TierPreset(
+        scoping=PhaseTierConfig(model_id="openai/gpt-4.1", reasoning_effort="medium"),
         discovery=PhaseTierConfig(model_id="openai/gpt-4.1", reasoning_effort="medium"),
         planning=PhaseTierConfig(model_id="openai/gpt-5.4", reasoning_effort="high"),
         execution=PhaseTierConfig(model_id="openai/gpt-4.1", reasoning_effort="medium"),
         verification=PhaseTierConfig(model_id="openai/gpt-5.4", reasoning_effort="high"),
     ),
     "balanced": TierPreset(
+        scoping=PhaseTierConfig(model_id="openai/gpt-4.1", reasoning_effort="medium"),
         discovery=PhaseTierConfig(model_id="openai/gpt-4.1", reasoning_effort="medium"),
         planning=PhaseTierConfig(model_id="openai/gpt-5.4", reasoning_effort="high"),
         execution=PhaseTierConfig(model_id="openai/gpt-4.1", reasoning_effort="medium"),
         verification=PhaseTierConfig(model_id="openai/gpt-4.1", reasoning_effort="high"),
     ),
     "fast": TierPreset(
+        scoping=PhaseTierConfig(model_id="openai/gpt-4.1-mini", reasoning_effort="low"),
         discovery=PhaseTierConfig(model_id="openai/gpt-4.1-mini", reasoning_effort="low"),
         planning=PhaseTierConfig(model_id="openai/gpt-4.1", reasoning_effort="medium"),
         execution=PhaseTierConfig(model_id="openai/gpt-4.1-mini", reasoning_effort="low"),
@@ -83,18 +90,21 @@ _OPENAI: dict[TierName, TierPreset] = {
 
 _GOOGLE: dict[TierName, TierPreset] = {
     "quality": TierPreset(
+        scoping=PhaseTierConfig(model_id="google/gemini-2.5-pro", reasoning_effort="medium"),
         discovery=PhaseTierConfig(model_id="google/gemini-2.5-pro", reasoning_effort="medium"),
         planning=PhaseTierConfig(model_id="google/gemini-3.1-pro", reasoning_effort="high"),
         execution=PhaseTierConfig(model_id="google/gemini-2.5-pro", reasoning_effort="medium"),
         verification=PhaseTierConfig(model_id="google/gemini-3.1-pro", reasoning_effort="high"),
     ),
     "balanced": TierPreset(
+        scoping=PhaseTierConfig(model_id="google/gemini-2.5-pro", reasoning_effort="medium"),
         discovery=PhaseTierConfig(model_id="google/gemini-2.5-pro", reasoning_effort="medium"),
         planning=PhaseTierConfig(model_id="google/gemini-3.1-pro", reasoning_effort="high"),
         execution=PhaseTierConfig(model_id="google/gemini-2.5-pro", reasoning_effort="medium"),
         verification=PhaseTierConfig(model_id="google/gemini-2.5-pro", reasoning_effort="high"),
     ),
     "fast": TierPreset(
+        scoping=PhaseTierConfig(model_id="google/gemini-3-flash", reasoning_effort="low"),
         discovery=PhaseTierConfig(model_id="google/gemini-3-flash", reasoning_effort="low"),
         planning=PhaseTierConfig(model_id="google/gemini-2.5-pro", reasoning_effort="medium"),
         execution=PhaseTierConfig(model_id="google/gemini-3-flash", reasoning_effort="low"),

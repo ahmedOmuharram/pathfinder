@@ -1,12 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   ChatMention,
+  Strategy,
   UserMessage,
   ToolCall,
-  Strategy,
 } from "@pathfinder/shared";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
-import { streamChat } from "@/features/chat/stream";
+import { streamChat, streamPlanAction } from "@/features/chat/stream";
+import type { PlanActionRequest } from "@/lib/types/plan";
 
 import { useEngineStore } from "@/state/useEngineStore";
 import { encodeNodeSelection } from "@/features/chat/node_selection";
@@ -212,8 +213,49 @@ export function useChatStreaming({
     await executeStream(prompt, { strategyId: targetStrategyId });
   };
 
+  const handlePlanAction = async (action: PlanActionRequest) => {
+    if (strategyId == null || strategyId === "") return;
+
+    lifecycle.beginStream();
+    const session = createSession();
+    sessionRef.current = session;
+
+    const callbacks = buildStreamCallbacks(
+      session,
+      strategyId,
+      (toolCalls: ToolCall[]) => {
+        lifecycle.finalizeStream(toolCalls);
+        void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
+        void queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.strategies });
+        onStreamComplete?.();
+      },
+      (error: Error, toolCalls: ToolCall[]) => {
+        lifecycle.handleStreamError(error, toolCalls, onStreamError);
+        void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
+        void queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.strategies });
+      },
+    );
+
+    try {
+      const result = await streamPlanAction(
+        strategyId,
+        action,
+        {
+          onMessage: callbacks.onMessage,
+          onComplete: callbacks.onComplete,
+          onError: callbacks.onError,
+        },
+      );
+      lifecycle.trackOperation(result.subscription, result.operationId);
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      lifecycle.handleStreamError(error, callbacks.toolCalls, onStreamError);
+    }
+  };
+
   return {
     handleSendMessage,
+    handlePlanAction,
     handleAutoExecute,
     stopStreaming: lifecycle.stopStreaming,
     isStreaming: lifecycle.isStreaming,

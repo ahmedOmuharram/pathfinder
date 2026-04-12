@@ -1,5 +1,6 @@
 import { test, expect } from "../fixtures/test";
 import { clearAllGeneSets } from "../fixtures/api-client";
+import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
@@ -56,11 +57,11 @@ test.describe("Full Researcher Lifecycle", () => {
     await chatPage.expectIdle();
 
     // Chat round 3 — trigger planning artifact
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
-    // Apply strategy — real GenesByTaxon search stored
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    // Approve the presented plan so execution builds the strategy.
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
 
     // Verify strategy exists via API — use captured ID for isolation

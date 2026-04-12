@@ -13,12 +13,13 @@ import { undoTurn, getStrategy } from "@/lib/api/strategies";
 const mockUndoTurn = vi.mocked(undoTurn);
 const mockGetStrategy = vi.mocked(getStrategy);
 
-function makeUserMessage(content: string, entryId?: string): UserMessage {
+function makeUserMessage(content: string, entryId?: string, traceId?: string): UserMessage {
   return {
     role: "user",
     content,
     timestamp: "2026-01-01T00:00:00Z",
     ...(entryId != null ? { entryId } : {}),
+    ...(traceId != null ? { traceId } : {}),
   };
 }
 
@@ -88,11 +89,11 @@ describe("undoTurnAction", () => {
     mockGetStrategy.mockResolvedValue(fullStrategy);
 
     const deps = makeDeps();
-    const msg = makeUserMessage("undo me", "entry-123");
+    const msg = makeUserMessage("undo me", "entry-123", "trace-123");
     const result = await undoTurnAction("strat-1", msg, 2, deps);
 
     expect(result).toBe(true);
-    expect(mockUndoTurn).toHaveBeenCalledWith("strat-1", "entry-123");
+    expect(mockUndoTurn).toHaveBeenCalledWith("strat-1", "entry-123", "trace-123");
 
     // setMessages called with truncation updater
     expect(deps.setMessages).toHaveBeenCalled();

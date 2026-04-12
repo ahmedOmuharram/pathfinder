@@ -22,13 +22,16 @@ export function useAuthCheck(): void {
   const { enabled: _enabled, ...opts } = authStatusOptions(selectedSite);
   const { data } = useSuspenseQuery(opts);
 
-  const [prevData, setPrevData] = useState(data);
-  if (data !== prevData) {
-    setPrevData(data);
+  const authKey = `${data.signedIn ? "1" : "0"}:${data.name ?? ""}`;
+  const [prevAuthKey, setPrevAuthKey] = useState(authKey);
+  const [prevSignedIn, setPrevSignedIn] = useState(data.signedIn);
+  if (authKey !== prevAuthKey) {
+    setPrevAuthKey(authKey);
+    setPrevSignedIn(data.signedIn);
     setVeupathdbAuth(data.signedIn, data.name ?? null);
     setAuthStatusKnown(true);
 
-    if (prevData.signedIn !== data.signedIn) {
+    if (prevSignedIn !== data.signedIn) {
       queueMicrotask(() => {
         invalidateUserScopedQueries(queryClient);
         bumpAuthVersion();

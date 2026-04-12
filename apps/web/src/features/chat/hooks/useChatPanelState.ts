@@ -10,11 +10,15 @@
 import { useRef, useState } from "react";
 import { useEventCallback } from "usehooks-ts";
 import type {
+  AssistantMessage,
   ChatMention,
   Message,
   PlanningArtifact,
   Strategy,
+  UserMessage,
 } from "@pathfinder/shared";
+import { submitProductAction } from "@/lib/api/feedback";
+import type { PlanActionRequest } from "@/lib/types/plan";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
 import { getStrategy } from "@/lib/api/strategies";
 import { undoTurnAction } from "@/features/chat/hooks/undoTurnAction";
@@ -107,6 +111,7 @@ export function useChatPanelState({
   // --- Streaming ---
   const {
     handleSendMessage: handleSendRaw,
+    handlePlanAction,
     stopStreaming,
     isStreaming,
     setIsStreaming,
@@ -155,9 +160,12 @@ export function useChatPanelState({
     void onSend(text, undefined, metadata);
   });
   useState(() => usePlanStore.getState().registerSendMessage(stableSend));
+  const stablePlanAction = useEventCallback((action: PlanActionRequest) => handlePlanAction(action));
+  useState(() => usePlanStore.getState().registerPlanAction(stablePlanAction));
 
   // --- Data loading ---
   const handleStrategyNotFound = () => {
+    clearMessages();
     setStrategyIdGlobal(null);
   };
 
@@ -258,6 +266,40 @@ export function useChatPanelState({
     }
   };
 
+  const handleRegenerateTurn = async (
+    userMessage: UserMessage,
+    assistantMessage: AssistantMessage,
+  ) => {
+    if (strategyId == null || isStreaming) return;
+    try {
+      await submitProductAction({
+        action: "assistant_regenerate",
+        streamId: strategyId,
+        strategyId,
+        traceId: assistantMessage.traceId ?? userMessage.traceId ?? null,
+        messageGroupId: assistantMessage.messageGroupId ?? null,
+        metadata: {
+          source: "message_footer",
+          assistantMessageId: assistantMessage.messageId ?? null,
+        },
+      });
+    } catch {
+      // Regeneration should still work even if analytics submission fails.
+    }
+    setApiError(null);
+    await handleSendRaw(
+      userMessage.content,
+      userMessage.mentions,
+      {
+        action: "assistant_regenerate",
+        source: "message_footer",
+        assistantMessageId: assistantMessage.messageId ?? null,
+        regenerateOfTraceId: assistantMessage.traceId ?? userMessage.traceId ?? null,
+        regenerateOfMessageId: assistantMessage.messageId ?? null,
+      },
+    );
+  };
+
   return {
     displayName,
     firstName,
@@ -279,6 +321,7 @@ export function useChatPanelState({
     isAtBottom,
     scrollToBottom,
     handleUndo,
+    handleRegenerateTurn,
     handleApplyPlanningArtifact,
     isApplyingArtifact,
   };

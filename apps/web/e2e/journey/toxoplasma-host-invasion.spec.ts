@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 /**
  * Journey: Toxoplasma Host Cell Invasion — ToxoDB
@@ -59,12 +60,12 @@ test.describe("Toxoplasma Host Invasion Journey", () => {
     await chatPage.expectIdle();
 
     // Round 3 — trigger planning artifact (GenesByTaxon for T. gondii ME49)
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
     // ── Phase 2: Strategy Creation ───────────────────────────────
 
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
     await chatPage.expectIdle();
 

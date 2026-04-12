@@ -1,0 +1,92 @@
+# Explicit local-development overlay.
+#
+# Usage:
+#   docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+services:
+  api:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      API_ENV: ${API_ENV:-development}
+      API_SECRET_KEY: ${API_SECRET_KEY:-pathfinder-dev-secret-key-change-me-1234567890}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@db:5432/pathfinder}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      PATHFINDER_CHAT_PROVIDER: ${PATHFINDER_CHAT_PROVIDER:-mock}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./apps/api/src
+          target: /app/apps/api/src
+        - action: rebuild
+          path: ./apps/api/pyproject.toml
+        - action: rebuild
+          path: ./apps/api/uv.lock
+
+  web:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:8000}
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:8000}
+    develop:
+      watch:
+        - action: rebuild
+          path: ./apps/web/src
+        - action: rebuild
+          path: ./apps/web/package.json
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-pathfinder}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --appendfsync everysec
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Type codegen: fetches OpenAPI spec from API -> generates TypeScript types.
+  codegen:
+    profiles: ["dev"]
+    image: node:22-slim
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: >
+      sh -c "apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1 &&
+             cd /app && corepack enable && yarn install > /dev/null 2>&1 &&
+             cd /app && sh scripts/sync-api-types.sh"
+    restart: "no"
+
+volumes:
+  postgres_data:
+  redis_data:

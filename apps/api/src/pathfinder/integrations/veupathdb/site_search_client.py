@@ -17,6 +17,7 @@ Reference:
 """
 
 import asyncio
+import time
 from dataclasses import dataclass
 
 import httpx
@@ -29,8 +30,16 @@ from tenacity import (
     wait_exponential,
 )
 
+from pathfinder.integrations.veupathdb._observability import (
+    SiteSearchRequestTelemetry,
+    log_site_search_retry,
+)
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.metrics import (
+    site_search_request_duration_s,
+    site_search_requests,
+)
 from pathfinder.platform.pydantic_base import CamelModel
 
 logger = get_logger(__name__)
@@ -210,8 +219,14 @@ class SiteSearchClient:
         Wraps all errors (including RetryError after exhausted retries) into
         AppError so callers only need ``except AppError``.
         """
+        telemetry = SiteSearchRequestTelemetry(
+            method="POST",
+            path="/site-search",
+            base_url=self._base_url,
+        )
+        start = time.monotonic()
         try:
-            return await self._search_with_retry(
+            result = await self._search_with_retry(
                 search_text,
                 document_type_filter=document_type_filter,
                 organisms=organisms,
@@ -220,15 +235,28 @@ class SiteSearchClient:
                 offset=offset,
             )
         except RetryError as exc:
+            attrs = telemetry.metric_attrs(outcome="error")
+            site_search_requests.add(1, attrs)
+            site_search_request_duration_s.record(time.monotonic() - start, attrs)
             raise AppError(
                 ErrorCode.WDK_ERROR,
                 f"Site-search request failed after retries: {exc}",
             ) from exc
+        except AppError:
+            attrs = telemetry.metric_attrs(outcome="error")
+            site_search_requests.add(1, attrs)
+            site_search_request_duration_s.record(time.monotonic() - start, attrs)
+            raise
+        attrs = telemetry.metric_attrs(outcome="ok", status_code=200)
+        site_search_requests.add(1, attrs)
+        site_search_request_duration_s.record(time.monotonic() - start, attrs)
+        return result
 
     @retry(
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
+        before_sleep=log_site_search_retry,
     )
     async def _search_with_retry(
         self,

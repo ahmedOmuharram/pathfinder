@@ -119,12 +119,16 @@ class MessageResponse(BaseModel):
 
     role: Literal["user", "assistant"]
     content: str
+    message_id: str | None = Field(default=None, alias="messageId")
+    message_group_id: str | None = Field(default=None, alias="messageGroupId")
+    phase: str | None = None
     model_id: str | None = Field(default=None, alias="modelId")
     tool_calls: list[ToolCallResponse] | None = Field(default=None, alias="toolCalls")
     citations: list[CitationResponse] | None = None
     planning_artifacts: list[PlanningArtifactResponse] | None = Field(
         default=None, alias="planningArtifacts"
     )
+    problem_frame: JSONObject | None = Field(default=None, alias="problemFrame")
     reasoning: str | None = Field(default=None)
     optimization_progress: OptimizationProgressEventData | None = Field(
         default=None, alias="optimizationProgress"

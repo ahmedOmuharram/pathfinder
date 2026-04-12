@@ -190,11 +190,18 @@ const UndoTurnResponseSchema = z.object({
 export async function undoTurn(
   streamId: string,
   entryId: string,
+  traceId?: string | null,
 ): Promise<UndoTurnResponse> {
   return await requestJson(
     UndoTurnResponseSchema,
     `/api/v1/chat/${streamId}/undo`,
-    { method: "POST", body: { entryId } },
+    {
+      method: "POST",
+      body: {
+        entryId,
+        ...(traceId != null && traceId !== "" ? { traceId } : {}),
+      },
+    },
   );
 }
 

@@ -13,6 +13,7 @@ import type { ConversationItem } from "@/features/sidebar/components/conversatio
 
 const mockDeleteStrategy = vi.hoisted(() => vi.fn());
 const mockRestoreStrategy = vi.hoisted(() => vi.fn());
+const mockBumpChatPreviewVersion = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/strategies", () => ({
   deleteStrategy: mockDeleteStrategy,
@@ -43,8 +44,17 @@ let mockDeleteFromWdk = false;
 
 vi.mock("@/state/useSessionStore", () => ({
   useSessionStore: (
-    selector: (s: { strategyId: string | null; setStrategyId: (id: string | null) => void }) => unknown,
-  ) => selector({ strategyId: mockStrategyId, setStrategyId: mockSetStrategyId }),
+    selector: (s: {
+      strategyId: string | null;
+      setStrategyId: (id: string | null) => void;
+      bumpChatPreviewVersion: () => void;
+    }) => unknown,
+  ) =>
+    selector({
+      strategyId: mockStrategyId,
+      setStrategyId: mockSetStrategyId,
+      bumpChatPreviewVersion: mockBumpChatPreviewVersion,
+    }),
 }));
 
 vi.mock("@/state/useSettingsStore", () => ({
@@ -110,6 +120,7 @@ describe("useDeleteWorkflow", () => {
     mockDeleteStrategy.mockReset();
     mockRestoreStrategy.mockReset();
     mockSetStrategyId.mockClear();
+    mockBumpChatPreviewVersion.mockClear();
     mockClearStrategy.mockClear();
   });
 
@@ -226,5 +237,31 @@ describe("useDeleteWorkflow", () => {
       expect(active![0]!.id).toBe("s1");
       expect(active![0]!.name).toBe("Restored strategy");
     });
+  });
+
+  it("bumps the chat preview when deleting the active strategy", async () => {
+    const active = makeStrategy({ id: "active-1", name: "Active strategy" });
+    mockStrategyId = "active-1";
+    mockDeleteStrategy.mockResolvedValue(undefined);
+
+    const { queryClient, Wrapper } = createTestWrapper();
+    queryClient.setQueryData(LIST_KEY, [active]);
+
+    const { result } = renderHook(
+      () => useDeleteWorkflow({ siteId: SITE_ID, reportError: vi.fn() }),
+      { wrapper: Wrapper },
+    );
+
+    act(() => {
+      result.current.setDeleteTarget(makeConversationItem(active));
+    });
+
+    await act(async () => {
+      await result.current.confirmDelete();
+    });
+
+    expect(mockBumpChatPreviewVersion).toHaveBeenCalledTimes(1);
+    expect(mockClearStrategy).toHaveBeenCalledTimes(1);
+    expect(mockSetStrategyId).toHaveBeenCalledWith(null);
   });
 });

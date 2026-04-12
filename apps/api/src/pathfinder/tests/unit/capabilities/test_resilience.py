@@ -14,7 +14,6 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
-from pydantic_ai import AgentRunResult
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition

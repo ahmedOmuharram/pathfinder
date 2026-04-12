@@ -1,8 +1,8 @@
 """Application configuration using pydantic-settings."""
 
-import secrets
 import tomllib
 from functools import lru_cache
+from ipaddress import IPv4Address
 from pathlib import Path
 from typing import Literal, get_origin
 
@@ -17,6 +17,8 @@ from pathfinder.platform.types import ModelProvider, TierName
 
 _API_DIR = Path(__file__).resolve().parents[3]  # apps/api/
 _REPO_ROOT = _API_DIR.parents[1]  # repo root
+_MIN_API_SECRET_LENGTH = 32
+_PLACEHOLDER_SECRET_MARKERS = ("dev-only", "change-me", "xxxx", "placeholder", "example")
 
 
 class TomlConfigSettingsSource(PydanticBaseSettingsSource):
@@ -68,35 +70,27 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=str(_REPO_ROOT / ".env"),
+        env_file=(str(_REPO_ROOT / ".env"), str(_API_DIR / ".env")),
         env_file_encoding="utf-8",
         case_sensitive=False,
+        env_ignore_empty=True,
         extra="ignore",
+        populate_by_name=True,
     )
 
     # API
-    api_host: str = "0.0.0.0"  # noqa: S104
+    api_host: str = Field(default_factory=lambda: str(IPv4Address(0)))
     api_port: int = 8000
-    api_env: Literal["development", "staging", "production"] = "development"
+    api_env: Literal["development", "staging", "production"] = "production"
     api_debug: bool = False
-    api_secret_key: str = Field(
-        default_factory=lambda: secrets.token_urlsafe(32),
-        min_length=32,
-        repr=False,
-    )
+    api_secret_key: str = Field(default="", repr=False)
     api_docs_enabled: bool = True
 
     # Database
-    #
-    # PathFinder uses SQL persistence for users, strategies, and control sets.
-    # We default to PostgreSQL even for local development so behavior matches Docker/production.
-    database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder",
-        repr=False,
-    )
+    database_url: str = Field(default="", repr=False)
 
     # Redis (event store + live SSE delivery)
-    redis_url: str = Field(default="redis://localhost:6379/0", repr=False)
+    redis_url: str = Field(default="", repr=False)
 
     # OpenAI
     openai_api_key: str = Field(default="", repr=False)
@@ -123,7 +117,7 @@ class Settings(BaseSettings):
     gemini_hyperparams: dict[str, object] = Field(default_factory=dict)
 
     # Ollama (local models via OpenAI-compatible API)
-    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_base_url: str = ""
 
     # Unified model defaults — provider + tier resolve to per-phase models.
     default_provider: ModelProvider = "anthropic"
@@ -144,7 +138,10 @@ class Settings(BaseSettings):
     veupathdb_oauth_client_id: str | None = None
 
     # Chat provider (set to "mock" for deterministic offline E2E testing)
-    chat_provider: str = Field(default="default", alias="PATHFINDER_CHAT_PROVIDER")
+    chat_provider: str = Field(
+        default="default",
+        validation_alias="PATHFINDER_CHAT_PROVIDER",
+    )
 
     # Logging
     log_level: str = "INFO"
@@ -155,11 +152,19 @@ class Settings(BaseSettings):
         default=None,
         description="SigNoz OTel Collector gRPC endpoint (e.g. http://signoz-otel-collector:4317). Unset = disabled.",
     )
+    signoz_trace_otel_http_endpoint: str | None = Field(
+        default=None,
+        description=(
+            "Optional SigNoz OTLP/HTTP traces endpoint "
+            "(e.g. http://signoz-otel-collector:4318/v1/traces). "
+            "When set, traces use HTTP while metrics/logs continue using SIGNOZ_OTEL_ENDPOINT."
+        ),
+    )
 
     # Observability — Langfuse (LLM engineering platform)
     langfuse_secret_key: str = Field(default="", repr=False)
     langfuse_public_key: str = Field(default="", repr=False)
-    langfuse_host: str = "http://localhost:3100"
+    langfuse_host: str = ""
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
@@ -175,16 +180,68 @@ class Settings(BaseSettings):
         """Check if running in production mode."""
         return self.api_env == "production"
 
+    @computed_field
+    def has_llm_configuration(self) -> bool:
+        """Check whether at least one non-mock model backend is configured."""
+        return bool(
+            self.openai_api_key.strip()
+            or self.anthropic_api_key.strip()
+            or self.gemini_api_key.strip()
+            or self.ollama_base_url.strip()
+        )
+
     def model_post_init(self, __context: object) -> None:
         """Validate settings after initialization."""
-        if self.api_env != "development":
-            placeholders = ("dev-only", "change-me", "xxxx")
-            if any(p in self.api_secret_key.lower() for p in placeholders):
-                msg = (
-                    "API_SECRET_KEY must be set to a real secret in production and staging. "
-                    "Placeholder keys are not allowed."
-                )
-                raise ValueError(msg)
+        missing: list[str] = []
+        if not self.api_secret_key.strip():
+            missing.append("API_SECRET_KEY")
+        if not self.database_url.strip():
+            missing.append("DATABASE_URL")
+        if not self.redis_url.strip():
+            missing.append("REDIS_URL")
+        if missing:
+            joined = ", ".join(missing)
+            msg = f"Missing required settings: {joined}."
+            raise ValueError(msg)
+
+        if len(self.api_secret_key) < _MIN_API_SECRET_LENGTH:
+            msg = (
+                f"API_SECRET_KEY must be at least {_MIN_API_SECRET_LENGTH} characters."
+            )
+            raise ValueError(msg)
+
+        chat_provider = self.chat_provider.strip().lower()
+        if chat_provider == "mock" and self.api_env != "development":
+            msg = "PATHFINDER_CHAT_PROVIDER=mock is only allowed when API_ENV=development."
+            raise ValueError(msg)
+        if chat_provider != "mock" and not self.has_llm_configuration:
+            msg = (
+                "PathFinder requires a configured model backend. Set at least one of "
+                "OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or OLLAMA_BASE_URL, "
+                "or switch to PATHFINDER_CHAT_PROVIDER=mock in development."
+            )
+            raise ValueError(msg)
+
+        if self.api_env != "development" and any(
+            marker in self.api_secret_key.lower()
+            for marker in _PLACEHOLDER_SECRET_MARKERS
+        ):
+            msg = (
+                "API_SECRET_KEY must be set to a real secret in production and staging. "
+                "Placeholder keys are not allowed."
+            )
+            raise ValueError(msg)
+
+        langfuse_values = {
+            "LANGFUSE_HOST": self.langfuse_host.strip(),
+            "LANGFUSE_PUBLIC_KEY": self.langfuse_public_key.strip(),
+            "LANGFUSE_SECRET_KEY": self.langfuse_secret_key.strip(),
+        }
+        configured_langfuse = [name for name, value in langfuse_values.items() if value]
+        if 0 < len(configured_langfuse) < len(langfuse_values):
+            joined = ", ".join(langfuse_values)
+            msg = f"{joined} must be set together when Langfuse is enabled."
+            raise ValueError(msg)
 
     @classmethod
     def settings_customise_sources(

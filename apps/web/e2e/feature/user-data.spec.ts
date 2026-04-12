@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 /**
  * Feature: User data purge — verified against real PostgreSQL + Redis.
@@ -216,7 +217,9 @@ test.describe("User Data Purge", () => {
     // Seed: create a strategy with auto-build (real WDK strategy + gene set)
     await chatPage.goto();
     await chatPage.newChat();
-    await chatPage.send("create step");
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
     await chatPage.expectAssistantMessage(/\[mock\]/i);
     await chatPage.expectIdle();
 

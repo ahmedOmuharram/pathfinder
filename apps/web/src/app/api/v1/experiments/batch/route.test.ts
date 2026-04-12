@@ -30,7 +30,10 @@ describe("POST /api/v1/experiments/batch", () => {
     await POST(req);
 
     expect(proxyMock).toHaveBeenCalledOnce();
-    const [, path, opts] = proxyMock.mock.calls[0];
+    const firstCall = proxyMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    if (firstCall == null) throw new Error("Expected proxyJsonRequest to be called");
+    const [, path, opts] = firstCall;
     expect(path).toBe("/api/v1/experiments/batch");
     expect(opts).toEqual({ includeBody: true });
   });

@@ -3,6 +3,7 @@ import type {
   Citation,
   Message,
   PlanningArtifact,
+  ProblemFrame,
   Strategy,
   ToolCall,
 } from "@pathfinder/shared";
@@ -77,12 +78,20 @@ export function makeCtx(overrides?: Partial<ChatEventContext>) {
   const toolCallsBuffer: ToolCall[] = [];
   const citationsBuffer: Citation[] = [];
   const planningArtifactsBuffer: PlanningArtifact[] = [];
+  let problemFrameBuffer: ProblemFrame | null = null;
   const state = makeStateSetters();
   const applyGraphSnapshot = vi.fn();
   const thinking: ChatEventContext["thinking"] = {
+    activeMessageId: null,
     activeToolCalls: [],
     lastToolCalls: [],
     reasoning: null,
+    getThinkingForMessage: vi.fn(() => ({
+      activeToolCalls: [],
+      lastToolCalls: [],
+      reasoning: null,
+    })),
+    setActiveMessage: vi.fn(),
     reset: vi.fn(),
     applyThinkingPayload: vi.fn(() => false),
     updateActiveFromBuffer: vi.fn(),
@@ -96,6 +105,12 @@ export function makeCtx(overrides?: Partial<ChatEventContext>) {
     toolCallsBuffer,
     citationsBuffer,
     planningArtifactsBuffer,
+    get problemFrameBuffer() {
+      return problemFrameBuffer;
+    },
+    set problemFrameBuffer(value) {
+      problemFrameBuffer = value;
+    },
     thinking,
     setStrategyId: vi.fn(),
     addStrategy: vi.fn(),
@@ -117,7 +132,12 @@ export function makeCtx(overrides?: Partial<ChatEventContext>) {
     streamState: {
       streamingAssistantIndex: null,
       streamingAssistantMessageId: null,
+      assistantMessageIndices: {},
       turnAssistantIndex: null,
+      lastAssistantMessageId: null,
+      messageGroupId: null,
+      currentPhase: null,
+      pipeline: null,
       reasoning: null,
       optimizationProgress: null,
     },

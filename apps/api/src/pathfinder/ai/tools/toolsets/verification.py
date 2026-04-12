@@ -10,6 +10,7 @@ from pathfinder.ai.tools.standalone.experiment import (
 )
 from pathfinder.ai.tools.standalone.export import export_gene_set
 from pathfinder.ai.tools.standalone.optimization import optimize_search_parameters
+from pathfinder.ai.tools.standalone.phase_decision import finish_verification
 from pathfinder.ai.tools.standalone.results import (
     get_download_url,
     get_sample_records,
@@ -54,6 +55,7 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             get_ensemble_analysis,
             get_result_gene_lists,
             get_strategy,
+            finish_verification,
             think,
         ],
     )

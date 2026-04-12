@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import type { GeneSet } from "@pathfinder/shared";
 
 // ---------------------------------------------------------------------------
@@ -101,9 +101,11 @@ describe("useGeneSetCreation", () => {
       "PF3D7_0100100",
       "INVALID_ID",
     ]);
-    expect(result.current.verified).toBe(true);
-    expect(result.current.resolvedGenes).toEqual([resolved]);
-    expect(result.current.unresolvedIds).toEqual(["INVALID_ID"]);
+    await waitFor(() => {
+      expect(result.current.verified).toBe(true);
+      expect(result.current.resolvedGenes).toEqual([resolved]);
+      expect(result.current.unresolvedIds).toEqual(["INVALID_ID"]);
+    });
   });
 
   it("handleVerify does nothing for empty input", async () => {
@@ -130,8 +132,10 @@ describe("useGeneSetCreation", () => {
       await result.current.handleVerify(["PF3D7_0100100"]);
     });
 
-    expect(result.current.error).toBe("Network error");
-    expect(result.current.verified).toBe(false);
+    await waitFor(() => {
+      expect(result.current.error).toBe("Network error");
+      expect(result.current.verified).toBe(false);
+    });
   });
 
   it("handleSubmit calls createGeneSet and invalidates query cache", async () => {
@@ -171,6 +175,10 @@ describe("useGeneSetCreation", () => {
     // First verify
     await act(async () => {
       await result.current.handleVerify(["PF3D7_0100100", "BAD"]);
+    });
+
+    await waitFor(() => {
+      expect(result.current.verified).toBe(true);
     });
 
     // Then submit -- should use only resolved gene IDs
@@ -222,8 +230,10 @@ describe("useGeneSetCreation", () => {
       await result.current.handleSubmit("My Set", ["G1"], "paste");
     });
 
-    expect(result.current.error).toBe("Server error");
-    expect(mockOnCreated).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.error).toBe("Server error");
+      expect(mockOnCreated).not.toHaveBeenCalled();
+    });
   });
 
   it("resetVerification clears verification state", async () => {
@@ -241,18 +251,22 @@ describe("useGeneSetCreation", () => {
       await result.current.handleVerify(["PF3D7_0100100", "BAD"]);
     });
 
-    expect(result.current.verified).toBe(true);
-    expect(result.current.resolvedGenes).not.toBeNull();
-    expect(result.current.unresolvedIds.length).toBe(1);
+    await waitFor(() => {
+      expect(result.current.verified).toBe(true);
+      expect(result.current.resolvedGenes).not.toBeNull();
+      expect(result.current.unresolvedIds.length).toBe(1);
+    });
 
     // Reset
     act(() => {
       result.current.resetVerification();
     });
 
-    expect(result.current.verified).toBe(false);
-    expect(result.current.resolvedGenes).toBeNull();
-    expect(result.current.unresolvedIds).toEqual([]);
-    expect(result.current.error).toBeNull();
+    await waitFor(() => {
+      expect(result.current.verified).toBe(false);
+      expect(result.current.resolvedGenes).toBeNull();
+      expect(result.current.unresolvedIds).toEqual([]);
+      expect(result.current.error).toBeNull();
+    });
   });
 });

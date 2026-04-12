@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 
 from pathfinder.persistence.models import Stream
 from pathfinder.persistence.repositories import StreamRepository
+from pathfinder.platform.async_tasks import create_detached_task
 from pathfinder.platform.context import operation_id_ctx, stream_id_ctx
 from pathfinder.platform.errors import InternalError
 from pathfinder.platform.event_schemas import PipelineConfig, UserMessageEventData
@@ -143,18 +144,69 @@ async def start_chat_stream(
     operation_id_ctx.set(operation_id)
 
     # Launch the background producer as an asyncio task.
-    task = asyncio.create_task(
+    task = create_detached_task(
         chat_producer(
             operation_id=operation_id,
             turn=turn,
             config=cfg,
             resolve_pipeline_fn=_resolve_pipeline_holder["v"],
-        )
+        ),
+        name=f"chat-producer:{operation_id}",
     )
     _active_tasks[operation_id] = task
     task.add_done_callback(lambda _: _active_tasks.pop(operation_id, None))
 
     return operation_id, stream_id_str, entry_id
+
+
+async def start_plan_action_stream(
+    *,
+    site_id: str,
+    strategy_id: UUID,
+    context: ChatContext,
+    config: ChatTurnConfig,
+) -> tuple[str, str]:
+    """Start a non-chat plan-action operation for an existing strategy."""
+    await context.user_repo.get_or_create(context.user_id)
+
+    stream = await context.stream_repo.get_by_id(strategy_id)
+    if stream is None:
+        raise InternalError(detail="Strategy stream not found for plan action.")
+
+    operation_id = f"op_{uuid4().hex[:12]}"
+    await context.stream_repo.register_operation(operation_id, stream.id, "plan_action")
+    await context.stream_repo.session.commit()
+
+    if "v" not in _resolve_pipeline_holder:
+        msg = (
+            "Chat orchestrator not configured. "
+            "Call services.chat.orchestrator.configure() at startup."
+        )
+        raise InternalError(detail=msg)
+
+    turn = TurnIdentity(
+        stream_id_str=str(stream.id),
+        site_id=site_id,
+        user_id=context.user_id,
+        model_message="",
+    )
+
+    stream_id_ctx.set(str(stream.id))
+    operation_id_ctx.set(operation_id)
+
+    task = create_detached_task(
+        chat_producer(
+            operation_id=operation_id,
+            turn=turn,
+            config=config,
+            resolve_pipeline_fn=_resolve_pipeline_holder["v"],
+        ),
+        name=f"plan-action-producer:{operation_id}",
+    )
+    _active_tasks[operation_id] = task
+    task.add_done_callback(lambda _: _active_tasks.pop(operation_id, None))
+
+    return operation_id, str(stream.id)
 
 
 async def cancel_chat_operation(operation_id: str) -> bool:

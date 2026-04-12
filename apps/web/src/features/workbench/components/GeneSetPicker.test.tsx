@@ -3,21 +3,30 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import type { GeneSet } from "@pathfinder/shared";
 
-// ---------------------------------------------------------------------------
-// Mock workbench store — vi.fn so we can reconfigure per test
-// ---------------------------------------------------------------------------
+const geneSetsState: { geneSets: GeneSet[] } = {
+  geneSets: [],
+};
 
-const mockUseWorkbenchStore = vi.fn();
-vi.mock("@/state/useWorkbenchStore", () => ({
-  useWorkbenchStore: (...args: unknown[]) => mockUseWorkbenchStore(...args),
+vi.mock("@/state/useSessionStore", () => ({
+  useSessionStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      selectedSite: "PlasmoDB",
+      authStatusKnown: true,
+      veupathdbSignedIn: true,
+    }),
+}));
+
+vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
+  useGeneSetsQuery: () => ({
+    data: geneSetsState.geneSets,
+    isPending: false,
+  }),
 }));
 
 import { GeneSetPicker } from "./GeneSetPicker";
 
 function setStoreGeneSets(geneSets: GeneSet[]) {
-  mockUseWorkbenchStore.mockImplementation(
-    (selector: (s: { geneSets: GeneSet[] }) => unknown) => selector({ geneSets }),
-  );
+  geneSetsState.geneSets = geneSets;
 }
 
 describe("GeneSetPicker", () => {

@@ -1,0 +1,482 @@
+{
+  "collapsable_rows_migrated": true,
+  "description": "Live delivery health for SSE subscriptions and user-visible streaming behavior.",
+  "name": "pathfinder-streaming-delivery",
+  "title": "PathFinder Streaming Delivery",
+  "version": "v4",
+  "uploaded_grafana": false,
+  "tags": [
+    "pathfinder",
+    "sse",
+    "streaming",
+    "delivery"
+  ],
+  "layout": [
+    {
+      "h": 8,
+      "i": "widget-1",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "h": 8,
+      "i": "widget-2",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 12,
+      "y": 0
+    },
+    {
+      "h": 8,
+      "i": "widget-3",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 0,
+      "y": 8
+    },
+    {
+      "h": 8,
+      "i": "widget-4",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 12,
+      "y": 8
+    },
+    {
+      "h": 8,
+      "i": "widget-5",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 0,
+      "y": 16
+    },
+    {
+      "h": 8,
+      "i": "widget-6",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 12,
+      "y": 16
+    },
+    {
+      "h": 8,
+      "i": "widget-7",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 0,
+      "y": 24
+    },
+    {
+      "h": 8,
+      "i": "widget-8",
+      "moved": false,
+      "static": false,
+      "w": 12,
+      "x": 12,
+      "y": 24
+    }
+  ],
+  "variables": {},
+  "widgets": [
+    {
+      "id": "widget-1",
+      "title": "Active SSE Subscriptions",
+      "description": "Current number of active SSE subscriptions.",
+      "panelTypes": "graph",
+      "yAxisUnit": "",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "expression": "A",
+              "dataSource": "metrics",
+              "aggregateAttribute": {
+                "dataType": "float64",
+                "id": "pathfinder.sse.active_subscriptions--float64--Sum--true",
+                "isColumn": true,
+                "isJSON": false,
+                "key": "pathfinder.sse.active_subscriptions",
+                "type": "Sum"
+              },
+              "aggregateOperator": "avg",
+              "spaceAggregation": "avg",
+              "timeAggregation": "latest",
+              "reduceTo": "avg",
+              "legend": "Active SSE Subscriptions",
+              "stepInterval": 60,
+              "disabled": false,
+              "filters": {
+                "items": [],
+                "op": "AND"
+              },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "limit": null,
+              "orderBy": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "widget-2",
+      "title": "Subscription Duration p95",
+      "description": "p95 lifetime of SSE subscriptions.",
+      "panelTypes": "graph",
+      "yAxisUnit": "s",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "expression": "A",
+              "dataSource": "metrics",
+              "aggregateAttribute": {
+                "dataType": "float64",
+                "id": "pathfinder.sse.subscription_duration.bucket--float64--Histogram--true",
+                "isColumn": true,
+                "isJSON": false,
+                "key": "pathfinder.sse.subscription_duration.bucket",
+                "type": "Histogram"
+              },
+              "aggregateOperator": "count",
+              "spaceAggregation": "p95",
+              "timeAggregation": "",
+              "reduceTo": "avg",
+              "legend": "Subscription Duration p95",
+              "stepInterval": 60,
+              "disabled": false,
+              "filters": {
+                "items": [],
+                "op": "AND"
+              },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "limit": null,
+              "orderBy": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "widget-3",
+      "title": "Disconnect Rate by Reason",
+      "description": "Rate of SSE subscription disconnects split by disconnect reason.",
+      "panelTypes": "graph",
+      "yAxisUnit": "",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "expression": "A",
+              "dataSource": "metrics",
+              "aggregateAttribute": {
+                "dataType": "float64",
+                "id": "pathfinder.sse.disconnects--float64--Sum--true",
+                "isColumn": true,
+                "isJSON": false,
+                "key": "pathfinder.sse.disconnects",
+                "type": "Sum"
+              },
+              "aggregateOperator": "rate",
+              "spaceAggregation": "sum",
+              "timeAggregation": "rate",
+              "reduceTo": "avg",
+              "legend": "{{reason}}",
+              "stepInterval": 60,
+              "disabled": false,
+              "filters": {
+                "items": [],
+                "op": "AND"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "reason--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "reason",
+                  "type": "tag"
+                }
+              ],
+              "having": [],
+              "limit": null,
+              "orderBy": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "widget-4",
+      "title": "Disconnect Rate by Surface",
+      "description": "Rate of SSE subscription disconnects split by user-facing workflow surface.",
+      "panelTypes": "graph",
+      "yAxisUnit": "",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "expression": "A",
+              "dataSource": "metrics",
+              "aggregateAttribute": {
+                "dataType": "float64",
+                "id": "pathfinder.sse.disconnects--float64--Sum--true",
+                "isColumn": true,
+                "isJSON": false,
+                "key": "pathfinder.sse.disconnects",
+                "type": "Sum"
+              },
+              "aggregateOperator": "rate",
+              "spaceAggregation": "sum",
+              "timeAggregation": "rate",
+              "reduceTo": "avg",
+              "legend": "{{surface}}",
+              "stepInterval": 60,
+              "disabled": false,
+              "filters": {
+                "items": [],
+                "op": "AND"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "surface--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "surface",
+                  "type": "tag"
+                }
+              ],
+              "having": [],
+              "limit": null,
+              "orderBy": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "widget-5",
+      "title": "Event Send Rate by Type",
+      "description": "Rate of SSE events sent to clients split by event type.",
+      "panelTypes": "graph",
+      "yAxisUnit": "",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "expression": "A",
+              "dataSource": "metrics",
+              "aggregateAttribute": {
+                "dataType": "float64",
+                "id": "pathfinder.sse.events_sent--float64--Sum--true",
+                "isColumn": true,
+                "isJSON": false,
+                "key": "pathfinder.sse.events_sent",
+                "type": "Sum"
+              },
+              "aggregateOperator": "rate",
+              "spaceAggregation": "sum",
+              "timeAggregation": "rate",
+              "reduceTo": "avg",
+              "legend": "{{event_type}}",
+              "stepInterval": 60,
+              "disabled": false,
+              "filters": {
+                "items": [],
+                "op": "AND"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "event_type--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "event_type",
+                  "type": "tag"
+                }
+              ],
+              "having": [],
+              "limit": null,
+              "orderBy": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "widget-6",
+      "title": "Keepalive Rate",
+      "description": "Rate of SSE keepalive comments sent while streams wait for data.",
+      "panelTypes": "graph",
+      "yAxisUnit": "",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "expression": "A",
+              "dataSource": "metrics",
+              "aggregateAttribute": {
+                "dataType": "float64",
+                "id": "pathfinder.sse.keepalives_sent--float64--Sum--true",
+                "isColumn": true,
+                "isJSON": false,
+                "key": "pathfinder.sse.keepalives_sent",
+                "type": "Sum"
+              },
+              "aggregateOperator": "rate",
+              "spaceAggregation": "sum",
+              "timeAggregation": "rate",
+              "reduceTo": "avg",
+              "legend": "Keepalive Rate",
+              "stepInterval": 60,
+              "disabled": false,
+              "filters": {
+                "items": [],
+                "op": "AND"
+              },
+              "functions": [],
+              "groupBy": [],
+              "having": [],
+              "limit": null,
+              "orderBy": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "widget-7",
+      "title": "Subscription Open Rate by Operation Type",
+      "description": "Rate of new SSE subscriptions split by operation type.",
+      "panelTypes": "graph",
+      "yAxisUnit": "",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "expression": "A",
+              "dataSource": "metrics",
+              "aggregateAttribute": {
+                "dataType": "float64",
+                "id": "pathfinder.sse.subscriptions--float64--Sum--true",
+                "isColumn": true,
+                "isJSON": false,
+                "key": "pathfinder.sse.subscriptions",
+                "type": "Sum"
+              },
+              "aggregateOperator": "rate",
+              "spaceAggregation": "sum",
+              "timeAggregation": "rate",
+              "reduceTo": "avg",
+              "legend": "{{operation_type}}",
+              "stepInterval": 60,
+              "disabled": false,
+              "filters": {
+                "items": [],
+                "op": "AND"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "operation_type--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "operation_type",
+                  "type": "tag"
+                }
+              ],
+              "having": [],
+              "limit": null,
+              "orderBy": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "widget-8",
+      "title": "Subscription Open Rate by Stream Kind",
+      "description": "Rate of new SSE subscriptions split by stream kind.",
+      "panelTypes": "graph",
+      "yAxisUnit": "",
+      "query": {
+        "queryType": "builder",
+        "builder": {
+          "queryData": [
+            {
+              "queryName": "A",
+              "expression": "A",
+              "dataSource": "metrics",
+              "aggregateAttribute": {
+                "dataType": "float64",
+                "id": "pathfinder.sse.subscriptions--float64--Sum--true",
+                "isColumn": true,
+                "isJSON": false,
+                "key": "pathfinder.sse.subscriptions",
+                "type": "Sum"
+              },
+              "aggregateOperator": "rate",
+              "spaceAggregation": "sum",
+              "timeAggregation": "rate",
+              "reduceTo": "avg",
+              "legend": "{{stream_kind}}",
+              "stepInterval": 60,
+              "disabled": false,
+              "filters": {
+                "items": [],
+                "op": "AND"
+              },
+              "functions": [],
+              "groupBy": [
+                {
+                  "dataType": "string",
+                  "id": "stream_kind--string--tag--false",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "key": "stream_kind",
+                  "type": "tag"
+                }
+              ],
+              "having": [],
+              "limit": null,
+              "orderBy": []
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "panel_map": {},
+  "source": "pathfinder-observability-pack"
+}

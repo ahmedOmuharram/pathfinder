@@ -148,12 +148,13 @@ The web app uses Next rewrites to proxy to the backend (see `next.config.js`), s
 
 Required env:
 
-- `NEXT_PUBLIC_API_URL` (see `.env.example`)
+- `NEXT_PUBLIC_API_URL` (required; see `.env.example` or `.env.dev.example`)
 
 ### Run locally
 
 ```bash
 cd apps/web
+cp .env.dev.example .env
 yarn install
 yarn dev
 ```
@@ -184,3 +185,13 @@ PathFinder uses a 3-tier Playwright E2E test architecture:
 **Page Objects** (`e2e/pages/`) encapsulate selectors and interactions. **Fixtures** handle auth, API setup, and test data seeding.
 
 All tests use real VEuPathDB APIs. Only the LLM is mocked via `PATHFINDER_CHAT_PROVIDER=mock`.
+
+Start the local E2E stack with the explicit development overlays:
+
+```bash
+docker compose --env-file .env.dev \
+  -f ../../docker-compose.yml \
+  -f ../../docker-compose.dev.yml \
+  -f ../../docker-compose.e2e.yml \
+  up -d --build api web
+```

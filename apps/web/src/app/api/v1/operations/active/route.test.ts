@@ -26,7 +26,12 @@ describe("GET /api/v1/operations/active", () => {
     await GET(req);
 
     expect(proxyMock).toHaveBeenCalledOnce();
-    const [, path] = proxyMock.mock.calls[0];
+    const call = proxyMock.mock.calls[0];
+    expect(call).toBeDefined();
+    if (!call) {
+      throw new Error("Expected proxyJsonRequest to be called");
+    }
+    const [, path] = call;
     expect(path).toBe("/api/v1/operations/active");
   });
 
@@ -34,7 +39,12 @@ describe("GET /api/v1/operations/active", () => {
     const req = makeReq("/api/v1/operations/active?siteId=plasmodb");
     await GET(req);
 
-    const [, path] = proxyMock.mock.calls[0];
+    const call = proxyMock.mock.calls[0];
+    expect(call).toBeDefined();
+    if (!call) {
+      throw new Error("Expected proxyJsonRequest to be called");
+    }
+    const [, path] = call;
     expect(path).toBe("/api/v1/operations/active?siteId=plasmodb");
   });
 });

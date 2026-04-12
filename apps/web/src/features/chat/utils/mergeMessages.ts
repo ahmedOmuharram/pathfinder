@@ -27,6 +27,7 @@ export function mergeMessages(current: Message[], incoming: Message[]) {
     const toolCalls = msg.toolCalls ?? cur.toolCalls;
     const citations = msg.citations ?? cur.citations;
     const planningArtifacts = msg.planningArtifacts ?? cur.planningArtifacts;
+    const problemFrame = msg.problemFrame ?? cur.problemFrame;
     const reasoning = msg.reasoning ?? cur.reasoning;
     const optimizationProgress = msg.optimizationProgress ?? cur.optimizationProgress;
     const merged: AssistantMessage = {
@@ -34,6 +35,7 @@ export function mergeMessages(current: Message[], incoming: Message[]) {
       ...(toolCalls != null ? { toolCalls } : {}),
       ...(citations != null ? { citations } : {}),
       ...(planningArtifacts != null ? { planningArtifacts } : {}),
+      ...(problemFrame != null ? { problemFrame } : {}),
       ...(reasoning != null ? { reasoning } : {}),
       ...(optimizationProgress != null ? { optimizationProgress } : {}),
     };

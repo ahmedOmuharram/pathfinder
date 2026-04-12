@@ -46,12 +46,23 @@ export type UpdateStrategyRequest = components["schemas"]["UpdateStrategyRequest
 // SSE event data types (generated SSOT)
 export type MessageStartData = components["schemas"]["MessageStartEventData"];
 export type UserMessageData = components["schemas"]["UserMessageEventData"];
-export type AssistantDeltaData = components["schemas"]["AssistantDeltaEventData"];
-export type AssistantMessageData = components["schemas"]["AssistantMessageEventData"];
+export type AssistantDeltaData = components["schemas"]["AssistantDeltaEventData"] & {
+  messageGroupId?: string | null;
+  phase?: string | null;
+};
+export type AssistantMessageData = components["schemas"]["AssistantMessageEventData"] & {
+  messageGroupId?: string | null;
+  phase?: string | null;
+};
 export type TokenUsagePartialData = components["schemas"]["TokenUsagePartialEventData"];
 export type SSEToolCallStartData = components["schemas"]["ToolCallStartEventData"];
 export type SSEToolCallEndData = components["schemas"]["ToolCallEndEventData"];
-export type ModelSelectedData = components["schemas"]["ModelSelectedEventData"];
+export type ModelSelectedData = Omit<
+  components["schemas"]["ModelSelectedEventData"],
+  "pipeline"
+> & {
+  pipeline: PipelineConfig;
+};
 export type SSEErrorData = components["schemas"]["ErrorEventData"];
 export type StrategyMetaData = components["schemas"]["StrategyMetaEventData"];
 export type StrategyLinkData = components["schemas"]["StrategyLinkEventData"];
@@ -69,7 +80,19 @@ export type CitationsData = components["schemas"]["CitationsEventData"];
 export type PlanningArtifactData = components["schemas"]["PlanningArtifactEventData"];
 
 // Pipeline phase event types
-export type PhaseChangeData = components["schemas"]["PhaseChangeEventData"];
+export type PhaseChangeData = Omit<
+  components["schemas"]["PhaseChangeEventData"],
+  "phase" | "status"
+> & {
+  phase: PipelinePhase | "completed";
+  status: PhaseStatus;
+  messageId?: string | null;
+  messageGroupId?: string | null;
+  emittedAt?: string | null;
+  phaseStartedAt?: string | null;
+  phaseCompletedAt?: string | null;
+  durationMs?: number | null;
+};
 export type PlanPresentedData = components["schemas"]["PlanPresentedEventData"];
 export type PlanUpdatedData = components["schemas"]["PlanUpdatedEventData"];
 export type DecisionPresentedData = components["schemas"]["DecisionPresentedEventData"];
@@ -373,6 +396,7 @@ export interface PipelinePhaseConfig {
 }
 
 export interface PipelineConfig {
+  scoping: PipelinePhaseConfig;
   discovery: PipelinePhaseConfig;
   planning: PipelinePhaseConfig;
   execution: PipelinePhaseConfig;
@@ -381,7 +405,52 @@ export interface PipelineConfig {
 
 export type TierName = "quality" | "balanced" | "fast" | "custom";
 
-export type PipelinePhase = "discovery" | "planning" | "execution" | "verification";
+export type PipelinePhase =
+  | "scoping"
+  | "discovery"
+  | "planning"
+  | "execution"
+  | "verification";
+
+export type PhaseStatus =
+  | "started"
+  | "completed"
+  | "failed"
+  | "awaiting_approval"
+  | "awaiting_input";
+
+export interface ClarificationQuestion {
+  question: string;
+  context?: string;
+  field?: string | null;
+  priority?: "blocking" | "optional";
+  options?: string[];
+}
+
+export interface ResearchNote {
+  source: string;
+  finding: string;
+  url?: string | null;
+  citationId?: string | null;
+}
+
+export interface ProblemFrame {
+  userGoal: string;
+  interpretedGoal: string;
+  organismScope?: string | null;
+  recordType?: string | null;
+  biologicalEntities?: string[];
+  inclusionCriteria?: string[];
+  exclusionCriteria?: string[];
+  likelyDataSources?: string[];
+  successCriteria?: string[];
+  assumptions?: string[];
+  blockingQuestions?: ClarificationQuestion[];
+  optionalQuestions?: ClarificationQuestion[];
+  researchNotes?: ResearchNote[];
+  readyForWdkDiscovery: boolean;
+  confidence: number;
+}
 
 // ── Message discriminated union ──────────────────────────────────────
 // role is the discriminant. Fields that only apply to one role live on
@@ -392,6 +461,8 @@ interface BaseMessage {
   content: string;
   timestamp: string;
   tokenUsage?: components["schemas"]["TokenUsageResponse"] | null;
+  /** Langfuse trace ID for turn-level feedback and product analytics. */
+  traceId?: string | null;
 }
 
 /** User turn — carries frontend-only fields (mentions, undo entry). */
@@ -406,14 +477,16 @@ export interface UserMessage extends BaseMessage {
 /** Assistant turn — carries all model-produced metadata. */
 export interface AssistantMessage extends BaseMessage {
   role: "assistant";
+  messageId?: string | null;
+  messageGroupId?: string | null;
+  phase?: PipelinePhase | null;
   modelId?: string | null;
   toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
   citations?: components["schemas"]["CitationResponse"][] | null;
   planningArtifacts?: components["schemas"]["PlanningArtifactResponse"][] | null;
+  problemFrame?: ProblemFrame | null;
   reasoning?: string | null;
   optimizationProgress?: components["schemas"]["OptimizationProgressEventData"] | null;
-  /** Langfuse trace ID for feedback scoring. Populated from message_end event. */
-  traceId?: string | null;
 }
 
 export type Message = UserMessage | AssistantMessage;

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import React from "react";
+import { queryOptions } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
-import type { Experiment, ControlSet } from "@pathfinder/shared";
+import type { Experiment, ControlSet, GeneSet } from "@pathfinder/shared";
 
 // ---------------------------------------------------------------------------
 // Mock the workbench store
@@ -33,6 +34,22 @@ vi.mock("@/state/useWorkbenchStore", () => ({
     selector(storeState),
 }));
 
+vi.mock("@/state/useSessionStore", () => ({
+  useSessionStore: (selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      selectedSite: "PlasmoDB",
+      authStatusKnown: true,
+      veupathdbSignedIn: true,
+    }),
+}));
+
+vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
+  useGeneSetsQuery: () => ({
+    data: storeState["geneSets"] as GeneSet[],
+    isPending: false,
+  }),
+}));
+
 // ---------------------------------------------------------------------------
 // Mock gene API used by GeneChipInput
 // ---------------------------------------------------------------------------
@@ -48,11 +65,17 @@ vi.mock("@/lib/api/genes", () => ({
 // Mock the control sets + benchmark streaming APIs
 // ---------------------------------------------------------------------------
 
-const mockListControlSets = vi.fn<() => Promise<ControlSet[]>>();
+const mockListControlSets = vi.fn<(siteId: string) => Promise<ControlSet[]>>();
 const mockCreateBenchmarkStream = vi.fn();
 
 vi.mock("../../api", () => ({
-  listControlSets: (...args: unknown[]) => mockListControlSets(...(args as [])),
+  listControlSets: (siteId: string) => mockListControlSets(siteId),
+  controlSetsOptions: (siteId: string) =>
+    queryOptions({
+      queryKey: ["control-sets", "list", siteId] as const,
+      queryFn: () => mockListControlSets(siteId),
+      enabled: siteId !== "",
+    }),
   createBenchmarkStream: (...args: unknown[]) =>
     mockCreateBenchmarkStream(...(args as [])),
 }));

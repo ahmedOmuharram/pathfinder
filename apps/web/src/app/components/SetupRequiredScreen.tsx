@@ -18,8 +18,8 @@ export function SetupRequiredScreen({ onRetry }: SetupRequiredScreenProps) {
         <div>
           <h1 className="text-lg font-semibold">Setup Required</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            PathFinder requires an LLM API key to function. No provider is currently
-            configured.
+            PathFinder could not find a configured model backend for this runtime
+            profile.
           </p>
         </div>
 
@@ -35,7 +35,7 @@ export function SetupRequiredScreen({ onRetry }: SetupRequiredScreenProps) {
             <li>OLLAMA_BASE_URL (local models)</li>
           </ul>
           <p className="mt-2">
-            Or set{" "}
+            Or, in development only, set{" "}
             <code className="rounded bg-muted px-1 py-0.5">
               PATHFINDER_CHAT_PROVIDER=mock
             </code>{" "}

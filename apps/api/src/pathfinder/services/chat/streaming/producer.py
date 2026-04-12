@@ -1,51 +1,33 @@
-"""Pipeline producer — StateChart-driven phase orchestration.
-
-The StateChart governs phase transitions with guards, retry budgets,
-and abort capability.  The classifier determines the entry point.
-"""
+"""Pipeline producer — StateChart-driven phase orchestration."""
 
 import asyncio
 import time
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from opentelemetry import trace
-from pydantic_ai.exceptions import UsageLimitExceeded
-from pydantic_ai.messages import ModelMessage
-
-from pathfinder.ai.models.pricing import estimate_cost
 from pathfinder.ai.orchestration.classifier import (
     Intent,
     classify_request,
     classify_request_llm,
+    should_resume_paused_phase,
 )
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.orchestration.observability import get_tracer
-from pathfinder.ai.orchestration.pipeline import AgentPipeline, create_pipeline
+from pathfinder.ai.orchestration.pipeline import create_pipeline
 from pathfinder.domain.strategy.plan import PlanStatus
-from pathfinder.platform.errors import AppError, sanitize_error_for_client
-from pathfinder.platform.event_schemas import (
-    AssistantMessageEventData,
-    ErrorEventData,
-    MessageEndEventData,
-    PipelineConfig,
-)
+from pathfinder.platform.event_schemas import PipelineConfig
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.metrics import (
-    phase_duration_s,
-    pipeline_errors,
-    pipeline_runs,
-    token_usage,
-)
 from pathfinder.platform.types import JSONObject
-from pathfinder.services.chat.streaming.events import emit_phase_event
-from pathfinder.services.chat.streaming.node_streaming import TurnCounters
-from pathfinder.services.chat.streaming.phase_runner import (
-    PHASE_LIMITS,
-    PhaseConfig,
-    is_mock_model,
-    run_phase,
+from pathfinder.services.chat.streaming.turn_execution import (
+    TurnExecutionConfig,
+    configure_state_machine_for_intent,
+    configure_state_machine_for_plan_approval,
+    execute_pipeline_turn,
 )
-from pathfinder.services.chat.streaming.step_execution import run_execution_phase
+from pathfinder.services.chat.streaming.turn_lifecycle import _current_trace_id
+from pathfinder.services.chat.streaming.turn_trace_context import (
+    _annotate_current_turn_span,
+)
 
 logger = get_logger(__name__)
 
@@ -76,159 +58,6 @@ async def classify_intent(
     )
     return intent
 
-
-async def check_plan_approval(
-    deps: AgentDeps, queue: asyncio.Queue[JSONObject], pipeline: PipelineConfig,
-) -> bool:
-    """Check if the plan needs user approval. Returns True to pause the pipeline."""
-    active_plan = deps.agent_state.active_plan
-    if active_plan is None or active_plan.status != PlanStatus.PRESENTED:
-        return False
-    if is_mock_model(pipeline.planning.model_id):
-        active_plan.status = PlanStatus.APPROVED
-        logger.info("Mock mode — auto-approving plan")
-        return False
-    await emit_phase_event(queue, "planning", "awaiting_approval")
-    logger.info("Plan awaiting approval — pausing pipeline")
-    return True
-
-
-async def run_sm_phase(
-    sm: AgentPipeline,
-    config: PhaseConfig,
-    discovery_messages: list[ModelMessage] | None,
-    pipeline: PipelineConfig,
-) -> tuple[list[ModelMessage] | None, bool]:
-    """Execute one StateChart phase and advance the machine.
-
-    Returns ``(discovery_messages, should_break)``.
-    """
-    phase = config.phase
-    if phase == "execution":
-        await run_execution_phase(config)
-        plan = config.deps.agent_state.active_plan
-        if plan is not None and plan.status == PlanStatus.FAILED and sm.should_replan():
-            logger.info(
-                "Execution failed, replanning",
-                attempt=sm.retry_counts.get("execution", 0),
-                budget=sm.retry_budget,
-            )
-            sm.send("replan")
-        else:
-            sm.send("finish_execution")
-    elif phase == "discovery":
-        discovery_messages = await run_phase(config)
-        sm.send("finish_discovery")
-    elif phase == "planning":
-        await run_phase(config)
-        if await check_plan_approval(config.deps, config.queue, pipeline):
-            return discovery_messages, True
-        sm.send("submit_draft")
-        sm.send("approve")
-    elif phase == "verification":
-        await run_phase(config)
-        sm.send("finish_verification")
-    return discovery_messages, False
-
-
-def _set_phase_span_attributes(
-    span: trace.Span,
-    phase: str,
-    intent: Intent,
-    model_id: str,
-    deps: AgentDeps,
-) -> None:
-    """Set app + GenAI semantic convention attributes on a phase span."""
-    span.set_attribute("app.phase", phase)
-    span.set_attribute("app.intent", intent.value)
-    span.set_attribute("gen_ai.agent.name", phase)
-    span.set_attribute("gen_ai.operation.name", "invoke_agent")
-    span.set_attribute("gen_ai.request.model", model_id)
-    graph = deps.strategy_session.get_graph(None)
-    if graph is not None:
-        span.set_attribute("gen_ai.conversation.id", graph.id)
-
-
-def _record_turn_metrics(
-    intent: Intent,
-    outcome: str,
-    model_id: str,
-    counters: TurnCounters,
-) -> None:
-    """Record pipeline-level OTEL metrics for a completed turn."""
-    attrs = {"intent": intent.value, "outcome": outcome, "model": model_id}
-    pipeline_runs.add(1, attrs)
-    token_usage.add(counters.input_tokens, {"model": model_id, "type": "input"})
-    token_usage.add(counters.output_tokens, {"model": model_id, "type": "output"})
-    token_usage.add(counters.cache_read_tokens, {"model": model_id, "type": "cached"})
-
-
-def _current_trace_id() -> str | None:
-    """Extract the current OTEL trace ID as a hex string, if recording."""
-    span = trace.get_current_span()
-    if not span.is_recording():
-        return None
-    return format(span.get_span_context().trace_id, "032x")
-
-
-async def _finalize_stream(
-    queue: asyncio.Queue[JSONObject],
-    intent: Intent,
-    outcome: str,
-    model_id: str,
-    counters: TurnCounters,
-    trace_id: str | None,
-) -> None:
-    """Emit message_end event, record metrics, and shut down the queue."""
-    _record_turn_metrics(intent, outcome, model_id, counters)
-    estimated_cost = estimate_cost(
-        model_id,
-        prompt_tokens=counters.input_tokens,
-        completion_tokens=counters.output_tokens,
-        cached_tokens=counters.cache_read_tokens,
-    )
-    await queue.put(
-        {
-            "type": "message_end",
-            "data": MessageEndEventData(
-                trace_id=trace_id,
-                prompt_tokens=counters.input_tokens,
-                completion_tokens=counters.output_tokens,
-                total_tokens=counters.input_tokens + counters.output_tokens,
-                cached_tokens=counters.cache_read_tokens,
-                tool_call_count=counters.tool_call_count,
-                registered_tool_count=0,
-                llm_call_count=counters.llm_call_count,
-                estimated_cost_usd=estimated_cost,
-                model_id=model_id,
-            ).model_dump(by_alias=True),
-        }
-    )
-    queue.shutdown()
-
-
-async def _handle_pipeline_error(queue: asyncio.Queue[JSONObject], error: BaseException) -> None:
-    """Classify and emit a pipeline-level error event."""
-    error_type = type(error).__name__
-    pipeline_errors.add(1, {"error_type": error_type})
-    if type(error) is UsageLimitExceeded:
-        logger.warning("Agent exceeded token/request budget")
-        await _emit_error(queue, "I used too many resources processing your request. Try a simpler or more specific question.")
-    else:
-        logger.error("Stream error", error=str(error), errorType=error_type)
-        await _emit_error(queue, sanitize_error_for_client(error))
-
-
-async def _emit_error(queue: asyncio.Queue[JSONObject], message: str) -> None:
-    """Push an error event onto the SSE queue."""
-    await queue.put(
-        {
-            "type": "error",
-            "data": ErrorEventData(error=message).model_dump(by_alias=True),
-        }
-    )
-
-
 async def produce_events(
     deps: AgentDeps,
     message: str,
@@ -240,92 +69,91 @@ async def produce_events(
     The StateChart governs phase transitions with guards, retry budgets,
     and abort capability. The classifier determines entry point.
     """
-    message_id = str(uuid4())
-    counters = TurnCounters()
+    message_group_id = str(uuid4())
     sm = create_pipeline()
-
+    run_kind = "chat"
+    turn_started_at = datetime.now(UTC)
+    turn_started_monotonic = time.monotonic()
     current_trace = _current_trace_id()
     tracer = get_tracer()
-
     intent = await classify_intent(deps, message, pipeline)
-
-    # Fast-forward the StateChart for non-full-pipeline intents.
-    if intent == Intent.EDIT_STRATEGY:
-        # Skip discovery and planning — go straight to execution.
-        sm.send("finish_discovery")
-        sm.send("submit_draft")
-        sm.send("approve")
-    elif intent == Intent.EXTEND_STRATEGY:
-        # Skip discovery — searches are already known from existing strategy.
-        sm.send("finish_discovery")
-
-    # Use the planning model as the representative for metrics/cost.
-    representative_model = pipeline.planning.model_id
-
-    outcome = "completed"
-    try:
-        discovery_messages: list[ModelMessage] | None = None
-
-        while not sm.is_done:
-            phase = sm.current_phase
-            logger.info("Pipeline entering phase", phase=phase)
-            await emit_phase_event(queue, phase, "started")
-
-            with tracer.start_as_current_span(f"pipeline.{phase}") as phase_span:
-                phase_cfg = getattr(pipeline, phase)
-
-                _set_phase_span_attributes(phase_span, phase, intent, phase_cfg.model_id, deps)
-
-                # Discovery and verification get the user's original message.
-                # Planning and execution get empty prompts (they work from
-                # message_history and dynamic instructions respectively).
-                phase_prompt = message if phase in ("discovery", "verification") else ""
-
-                config = PhaseConfig(
-                    phase=phase,
-                    prompt=phase_prompt,
-                    deps=deps,
-                    queue=queue,
-                    message_id=message_id,
-                    counters=counters,
-                    model_id=phase_cfg.model_id,
-                    reasoning_effort=phase_cfg.reasoning_effort,
-                    message_history=discovery_messages if phase == "planning" else None,
-                    usage_limits=PHASE_LIMITS.get(phase),
-                )
-
-                phase_start = time.monotonic()
-                discovery_messages, should_break = await run_sm_phase(
-                    sm, config, discovery_messages, pipeline,
-                )
-                phase_duration_s.record(
-                    time.monotonic() - phase_start,
-                    {"phase": phase, "intent": intent.value},
-                )
-
-            if should_break:
-                break
-
-            # QUESTION intent: stop after discovery.
-            if intent == Intent.QUESTION and phase == "discovery":
-                await emit_phase_event(queue, phase, "completed")
-                break
-
-            await emit_phase_event(queue, phase, "completed")
-
-        # Emit the final assistant_message event.
-        full_text = "\n\n".join(counters.accumulated_text_parts)
-        content = full_text or ("" if counters.saw_assistant_message else "I processed your request.")
-        await queue.put(
-            {
-                "type": "assistant_message",
-                "data": AssistantMessageEventData(message_id=message_id, content=content).model_dump(by_alias=True),
-            }
+    resume_phase = (
+        deps.resume_phase
+        if deps.resume_phase is not None
+        and should_resume_paused_phase(message)
+        else None
+    )
+    _annotate_current_turn_span(
+        deps,
+        intent=intent,
+        run_kind=run_kind,
+        message_group_id=message_group_id,
+        trace_name=f"chat.{intent.value}",
+    )
+    if resume_phase is not None:
+        logger.info(
+            "Resuming paused pipeline phase for follow-up turn",
+            resume_phase=resume_phase,
+            classified_intent=intent,
         )
-    except (UsageLimitExceeded, AppError, OSError, RuntimeError, ValueError, TypeError) as e:
-        outcome = "error"
-        await _handle_pipeline_error(queue, e)
-    finally:
-        await _finalize_stream(
-            queue, intent, outcome, representative_model, counters, current_trace,
-        )
+    configure_state_machine_for_intent(sm, intent, resume_phase=resume_phase)
+    await execute_pipeline_turn(
+        TurnExecutionConfig(
+            deps=deps,
+            queue=queue,
+            pipeline=pipeline,
+            tracer=tracer,
+            intent=intent,
+            run_kind=run_kind,
+            message_group_id=message_group_id,
+            source_message=message,
+            history_phases=("discovery", "planning"),
+            representative_model=pipeline.planning.model_id,
+            current_trace=current_trace,
+            turn_started_at=turn_started_at,
+            turn_started_monotonic=turn_started_monotonic,
+        ),
+        sm,
+    )
+
+
+async def produce_plan_approved_events(
+    deps: AgentDeps,
+    queue: asyncio.Queue[JSONObject],
+    pipeline: PipelineConfig,
+) -> None:
+    """Resume the pipeline from execution after a structured plan approval."""
+    message_group_id = str(uuid4())
+    sm = create_pipeline()
+    run_kind = "plan_approval"
+    turn_started_at = datetime.now(UTC)
+    turn_started_monotonic = time.monotonic()
+    current_trace = _current_trace_id()
+    tracer = get_tracer()
+    intent = Intent.EDIT_STRATEGY
+    _annotate_current_turn_span(
+        deps,
+        intent=intent,
+        run_kind=run_kind,
+        message_group_id=message_group_id,
+        trace_name="plan_action.approve",
+    )
+    configure_state_machine_for_plan_approval(sm)
+    await execute_pipeline_turn(
+        TurnExecutionConfig(
+            deps=deps,
+            queue=queue,
+            pipeline=pipeline,
+            tracer=tracer,
+            intent=intent,
+            run_kind=run_kind,
+            message_group_id=message_group_id,
+            source_message="",
+            history_phases=("planning",),
+            representative_model=pipeline.execution.model_id,
+            current_trace=current_trace,
+            turn_started_at=turn_started_at,
+            turn_started_monotonic=turn_started_monotonic,
+        ),
+        sm,
+    )

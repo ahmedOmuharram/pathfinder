@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pathfinder.ai.orchestration.observability as obs
 from pathfinder.ai.orchestration.observability import (
     _build_resource,
+    _configure_exporters,
     _configure_log_export,
     setup_observability,
     shutdown_observability,
@@ -14,7 +15,11 @@ from pathfinder.ai.orchestration.observability import (
 
 def test_setup_observability_noop_without_config() -> None:
     """No-ops when neither SigNoz nor Langfuse is configured."""
-    mock_settings = MagicMock(signoz_otel_endpoint=None, langfuse_secret_key="")
+    mock_settings = MagicMock(
+        signoz_otel_endpoint=None,
+        signoz_trace_otel_http_endpoint=None,
+        langfuse_secret_key="",
+    )
     with patch(
         "pathfinder.ai.orchestration.observability.get_settings",
         return_value=mock_settings,
@@ -105,3 +110,79 @@ def test_resource_includes_enriched_attributes() -> None:
     assert "service.version" in attrs
     assert attrs["deployment.environment.name"] == "production"
     assert "service.instance.id" in attrs
+
+
+def test_configure_exporters_adds_langfuse_http_exporter_headers() -> None:
+    """Langfuse OTEL export uses Basic auth and ingestion version header."""
+    mock_settings = MagicMock(
+        signoz_otel_endpoint=None,
+        signoz_trace_otel_http_endpoint=None,
+        langfuse_host="http://langfuse:3000",
+        langfuse_public_key="pk-lf-test",
+        langfuse_secret_key="sk-lf-test",
+        api_env="development",
+    )
+    mock_exporter = MagicMock()
+    mock_processor = MagicMock()
+
+    with (
+        patch(
+            "pathfinder.ai.orchestration.observability.get_settings",
+            return_value=mock_settings,
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability.HttpSpanExporter",
+            return_value=mock_exporter,
+        ) as exporter_cls,
+        patch(
+            "pathfinder.ai.orchestration.observability.BatchSpanProcessor",
+            return_value=mock_processor,
+        ),
+    ):
+        provider = _configure_exporters()
+
+    assert provider is not None
+    exporter_cls.assert_called_once()
+    assert (
+        exporter_cls.call_args.kwargs["endpoint"]
+        == "http://langfuse:3000/api/public/otel/v1/traces"
+    )
+    assert exporter_cls.call_args.kwargs["headers"][
+        "x-langfuse-ingestion-version"
+    ] == "4"
+    assert "Authorization" in exporter_cls.call_args.kwargs["headers"]
+
+
+def test_configure_exporters_prefers_signoz_http_for_traces_when_configured() -> None:
+    """SigNoz traces can use a dedicated OTLP/HTTP endpoint."""
+    mock_settings = MagicMock(
+        signoz_otel_endpoint="http://localhost:4317",
+        signoz_trace_otel_http_endpoint="http://localhost:4318/v1/traces",
+        langfuse_host="",
+        langfuse_public_key="",
+        langfuse_secret_key="",
+        api_env="development",
+    )
+    mock_exporter = MagicMock()
+    mock_processor = MagicMock()
+
+    with (
+        patch(
+            "pathfinder.ai.orchestration.observability.get_settings",
+            return_value=mock_settings,
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability.HttpSpanExporter",
+            return_value=mock_exporter,
+        ) as http_exporter_cls,
+        patch(
+            "pathfinder.ai.orchestration.observability.BatchSpanProcessor",
+            return_value=mock_processor,
+        ),
+    ):
+        provider = _configure_exporters()
+
+    assert provider is not None
+    http_exporter_cls.assert_called_once_with(
+        endpoint="http://localhost:4318/v1/traces"
+    )

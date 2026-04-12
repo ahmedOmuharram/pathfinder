@@ -1,11 +1,12 @@
 import type { ModelCatalogEntry, ModelProvider, PipelinePhase, TierName } from "@pathfinder/shared";
 import { useShallow } from "zustand/react/shallow";
-import { useEngineStore } from "@/state/useEngineStore";
+import { normalizePipelineConfig, useEngineStore } from "@/state/useEngineStore";
 import { PhaseCard } from "./PhaseCard";
 import { ChevronDown } from "lucide-react";
 
-const PHASES: PipelinePhase[] = ["discovery", "planning", "execution", "verification"];
+const PHASES: PipelinePhase[] = ["scoping", "discovery", "planning", "execution", "verification"];
 const PHASE_TRANSITIONS: Record<string, string> = {
+  "scoping→discovery": "Problem frame",
   "discovery→planning": "Findings",
   "planning→execution": "Plan",
   "execution→verification": "Strategy",
@@ -46,6 +47,7 @@ export function PipelinePanel({
     })),
   );
   const isOllama = provider === "ollama";
+  const normalizedPhases = normalizePipelineConfig(phases);
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">
@@ -92,7 +94,7 @@ export function PipelinePanel({
           <div key={phase}>
             <PhaseCard
               phase={phase}
-              config={phases[phase]}
+              config={normalizedPhases[phase]}
               models={models}
               isSelected={selectedPhase === phase}
               onSelect={() => onSelectPhase(phase)}

@@ -1,4 +1,8 @@
 import { test, expect } from "../fixtures/test";
+import {
+  MOCK_DELEGATION_PROMPT,
+  MOCK_PLAN_PROMPT,
+} from "../fixtures/mock-prompts";
 
 test.describe("AI Workbench Integration", () => {
   test.describe.configure({ mode: "serial" });
@@ -13,8 +17,10 @@ test.describe("AI Workbench Integration", () => {
     graphPage,
     apiClient,
   }) => {
-    await chatPage.send("delegation");
-    await chatPage.expectAssistantMessage(/\[mock\].*delegation/i);
+    await chatPage.send(MOCK_DELEGATION_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.approvePlan();
+    await chatPage.expectIdle();
 
     // UI: Compact view with step pills
     await graphPage.expectCompactView();
@@ -37,12 +43,12 @@ test.describe("AI Workbench Integration", () => {
     page,
     apiClient,
   }) => {
-    await chatPage.send("artifact graph");
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
 
-    // UI: Click apply to create strategy
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
     await graphPage.expectCompactView();
+    await chatPage.expectIdle();
 
     // UI: Edit button visible
     await expect(page.getByRole("button", { name: /edit/i })).toBeVisible();

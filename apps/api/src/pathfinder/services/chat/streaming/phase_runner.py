@@ -18,6 +18,7 @@ from pathfinder.ai.agents.execution import (
     execution_agent,
 )
 from pathfinder.ai.agents.planning import PLANNING_USAGE_LIMITS, planning_agent
+from pathfinder.ai.agents.scoping import SCOPING_USAGE_LIMITS, scoping_agent
 from pathfinder.ai.agents.verification import (
     VERIFICATION_USAGE_LIMITS,
     verification_agent,
@@ -27,6 +28,7 @@ from pathfinder.ai.models.settings import build_model_settings
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.platform.types import JSONObject, ReasoningEffort
 from pathfinder.services.chat.streaming.node_streaming import (
+    StreamMessageContext,
     TurnCounters,
     merge_usage,
     stream_call_tools,
@@ -36,6 +38,7 @@ from pathfinder.services.chat.streaming.node_streaming import (
 # ── Phase agent registry ──────────────────────────────────────────────────
 
 PHASE_AGENTS: dict[str, Agent[AgentDeps, str]] = {
+    "scoping": scoping_agent,
     "discovery": discovery_agent,
     "planning": planning_agent,
     "execution": execution_agent,
@@ -43,6 +46,7 @@ PHASE_AGENTS: dict[str, Agent[AgentDeps, str]] = {
 }
 
 PHASE_LIMITS: dict[str, UsageLimits] = {
+    "scoping": SCOPING_USAGE_LIMITS,
     "discovery": DISCOVERY_USAGE_LIMITS,
     "planning": PLANNING_USAGE_LIMITS,
     "execution": EXECUTION_USAGE_LIMITS,
@@ -63,6 +67,7 @@ class PhaseConfig:
     queue: asyncio.Queue[JSONObject]
     message_id: str
     counters: TurnCounters
+    message_group_id: str | None = None
     model_id: str = ""
     reasoning_effort: ReasoningEffort = "medium"
     message_history: list[ModelMessage] | None = None
@@ -142,14 +147,38 @@ async def _run_phase_inner(
         usage_limits=config.usage_limits,
         metadata=config.run_metadata,
     ) as run:
+        phase_exit_requested = False
         async for node in run:
             if Agent.is_model_request_node(node):
                 await stream_model_request(
-                    node, run, config.queue, config.message_id, config.counters
+                    node,
+                    run,
+                    config.queue,
+                    StreamMessageContext(
+                        message_id=config.message_id,
+                        message_group_id=config.message_group_id,
+                        phase=config.phase,
+                    ),
+                    config.counters,
                 )
             elif Agent.is_call_tools_node(node):
-                await stream_call_tools(node, run, config.queue, config.deps, config.counters)
+                phase_exit_requested = await stream_call_tools(
+                    node,
+                    run,
+                    config.queue,
+                    config.deps,
+                    config.counters,
+                )
+                if phase_exit_requested:
+                    break
 
         merge_usage(config.counters, run.usage())
+        if phase_exit_requested:
+            # We intentionally stop before pydantic-ai asks the model to
+            # consume the finish_* tool result. That keeps phase exits
+            # immediate, but it means run.new_messages() would contain
+            # unresolved tool-call history that cannot be replayed into the
+            # next phase as message_history.
+            return []
 
         return run.new_messages()

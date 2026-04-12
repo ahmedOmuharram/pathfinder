@@ -1,5 +1,6 @@
 """Langfuse SDK integration — prompt management, scoring, feedback, datasets."""
 
+from pathfinder.platform.langfuse.actions import record_product_action
 from pathfinder.platform.langfuse.client import get_langfuse, shutdown_langfuse
 from pathfinder.platform.langfuse.datasets import (
     DatasetItemInput,
@@ -14,6 +15,7 @@ __all__ = [
     "emit_evaluation_scores",
     "get_langfuse",
     "record_feedback",
+    "record_product_action",
     "run_evaluation_experiment",
     "seed_dataset",
     "shutdown_langfuse",

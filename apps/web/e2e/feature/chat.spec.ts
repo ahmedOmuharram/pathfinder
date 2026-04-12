@@ -1,4 +1,8 @@
 import { test, expect } from "../fixtures/test";
+import {
+  MOCK_DELEGATION_DRAFT_PROMPT,
+  MOCK_PLAN_PROMPT,
+} from "../fixtures/mock-prompts";
 
 /**
  * Feature: Chat — real event pipeline through Redis + PostgreSQL.
@@ -18,7 +22,7 @@ test.describe("Chat", () => {
     chatPage,
     apiClient,
   }) => {
-    await chatPage.send("find chloroquine resistance genes");
+    await chatPage.send("hello persistence");
     await chatPage.expectAssistantMessage(/\[mock\]/);
     await chatPage.expectIdle();
 
@@ -38,19 +42,17 @@ test.describe("Chat", () => {
 
   test("artifact graph stores strategy plan with real WDK search names", async ({
     chatPage,
-    page,
     apiClient,
   }) => {
-    await chatPage.send("artifact graph");
-    await chatPage.expectAssistantMessage(/\[mock\]/);
+    await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
     await chatPage.expectIdle();
 
-    // Apply the plan
-    await page.getByRole("button", { name: /apply to strategy/i }).click();
+    await chatPage.approvePlan();
+    await chatPage.expectIdle();
 
     // Wait for strategy update
-    await page.waitForTimeout(2_000);
+    await chatPage.assistantMessages.last().waitFor({ state: "visible", timeout: 15_000 });
 
     // Fetch full strategy — verify steps were created from the plan
     const strategyId = chatPage.lastStrategyId;
@@ -61,8 +63,59 @@ test.describe("Chat", () => {
     expect(full.steps.length).toBeGreaterThan(0);
   });
 
+  test("planning flow presents a preview plan and waits for approval before execution", async ({
+    chatPage,
+    graphPage,
+    page,
+  }) => {
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.expectPlanPanel();
+    await chatPage.expectIdle();
+
+    await expect(page.getByText("presented", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(chatPage.phaseTimingBlock).toBeVisible({ timeout: 15_000 });
+    await chatPage.expectPhaseTiming("scoping", "Completed");
+    await chatPage.expectPhaseTiming("discovery", "Completed");
+    await chatPage.expectPhaseTiming("planning", "Awaiting approval");
+    await graphPage.expectCompactView();
+    const previewPillCount = await graphPage.stepPills.count();
+    expect(previewPillCount).toBeGreaterThan(0);
+  });
+
+  test("approving a presented plan executes via structured route without chat pollution", async ({
+    chatPage,
+    apiClient,
+    graphPage,
+  }) => {
+    await chatPage.send(MOCK_PLAN_PROMPT);
+    await chatPage.expectPlanningArtifact();
+    await chatPage.expectPlanPanel();
+
+    await chatPage.approvePlan();
+    await chatPage.expectIdle();
+    await graphPage.expectCompactView();
+
+    const strategyId = chatPage.lastStrategyId;
+    expect(strategyId).toBeTruthy();
+    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    expect(fullResp.ok()).toBeTruthy();
+    const full = await fullResp.json();
+
+    expect(full.steps.length).toBeGreaterThan(0);
+    expect(
+      full.messages.some(
+        (message: { role: string; content: string }) =>
+          message.role === "user" &&
+          message.content.includes("[Plan interaction:"),
+      ),
+    ).toBe(false);
+  });
+
   test("delegation draft stores event data", async ({ chatPage, apiClient }) => {
-    await chatPage.send("delegation draft");
+    await chatPage.send(MOCK_DELEGATION_DRAFT_PROMPT);
     await chatPage.expectAssistantMessage(/\[mock\]/);
     await chatPage.expectIdle();
 

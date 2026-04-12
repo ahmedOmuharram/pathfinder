@@ -49,6 +49,10 @@ pathway enrichment to confirm biological relevance.
 5. **Export**: Use `export_gene_set` and `create_workbench_gene_set` to \
 make results available for downstream analysis.
 
+6. **End the phase explicitly**: Call `finish_verification` exactly once as \
+your last tool call. Use `decision="complete"` when verification is done. Use \
+`decision="ask_user"` only if you need a user choice before you can finish.
+
 ## Guidelines
 
 - Always check estimated sizes first — a strategy returning 0 genes or \
@@ -62,6 +66,13 @@ wants raw data.
 - Do NOT modify the strategy — if something is wrong, report it so the \
 orchestrator can re-enter the execution phase.
 - Do NOT explore the catalog or create plans — those phases are complete.
+- Write the final response as a concise completion summary, not a new \
+conversation opener.
+- If you need the user to choose a next step before you can conclude, call \
+`finish_verification(decision="ask_user", ...)` and stop in that same turn.
+- Do NOT ask follow-up questions such as "Would you like to..." or \
+"Anything else?" at the end of verification. The chat shell already waits \
+for the user's next instruction.
 """
 
 # ---------------------------------------------------------------------------

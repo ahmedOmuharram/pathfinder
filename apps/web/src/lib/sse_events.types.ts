@@ -1,6 +1,7 @@
 import type {
   Citation,
   PlanningArtifact,
+  ProblemFrame,
   SSEErrorData,
   Strategy,
   StrategyPlan,
@@ -40,6 +41,7 @@ export type MessageStartData = {
 };
 export type CitationsData = { citations?: Citation[] };
 export type PlanningArtifactData = { planningArtifact?: PlanningArtifact };
+export type ProblemFrameData = { problemFrame: ProblemFrame };
 export type ToolCallStartData = { id: string; name: string; arguments: Record<string, unknown> };
 export type ToolCallEndData = { id: string; result?: string | null };
 
@@ -75,6 +77,10 @@ export type GraphPlanData = {
   name?: string;
   recordType?: string;
   description?: string;
+};
+export type PlanApprovedData = {
+  planId: string;
+  plan: Record<string, unknown>;
 };
 /**
  * message_end payload -- contents are unused but preserved for debugging.
@@ -119,6 +125,7 @@ export type ChatSSEEvent =
   | { type: "assistant_message"; data: AssistantMessageData }
   | { type: "citations"; data: CitationsData }
   | { type: "planning_artifact"; data: PlanningArtifactData }
+  | { type: "problem_frame"; data: ProblemFrameData }
   | { type: "reasoning"; data: ReasoningData }
   | { type: "tool_call_start"; data: ToolCallStartData }
   | { type: "tool_call_end"; data: ToolCallEndData }
@@ -136,6 +143,7 @@ export type ChatSSEEvent =
   | { type: "workbench_gene_set"; data: WorkbenchGeneSetData }
   | { type: "planning_thought"; data: PlanningThoughtData }
   | { type: "plan_presented"; data: PlanPresentedData }
+  | { type: "plan_approved"; data: PlanApprovedData }
   | { type: "plan_updated"; data: PlanUpdatedData }
   | { type: "decision_presented"; data: DecisionPresentedData }
   | { type: "phase_change"; data: PhaseChangeData }

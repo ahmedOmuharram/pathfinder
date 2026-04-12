@@ -88,6 +88,27 @@ export type PlannedStep = z.infer<typeof PlannedStepSchema>;
 export type PlannedConnection = z.infer<typeof PlannedConnectionSchema>;
 export type InteractivePlan = z.infer<typeof InteractivePlanSchema>;
 
+export interface PlanParameterEdit {
+  stepId: string;
+  paramName: string;
+  newValue: unknown;
+}
+
+export interface PlanQuestionAnswer {
+  questionId: string;
+  answer: unknown;
+}
+
+export interface PlanActionRequest {
+  action: "approve" | "reject" | "suggest_changes";
+  planId: string;
+  traceId?: string | null;
+  messageGroupId?: string | null;
+  source?: string | null;
+  paramEdits?: PlanParameterEdit[];
+  answers?: PlanQuestionAnswer[];
+}
+
 export interface PlanInteractionMetadata {
   type: "plan_interaction";
   planId: string;

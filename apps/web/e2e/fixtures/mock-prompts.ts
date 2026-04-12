@@ -1,0 +1,8 @@
+/**
+ * Deterministic prompts for the mock model that still classify as real
+ * strategy-building requests in the current pipeline.
+ */
+
+export const MOCK_PLAN_PROMPT = "create step";
+export const MOCK_DELEGATION_PROMPT = "create delegation";
+export const MOCK_DELEGATION_DRAFT_PROMPT = "create delegation draft";

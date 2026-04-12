@@ -17,6 +17,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.usage import UsageLimits
 
+import pathfinder.services.chat.streaming.step_execution as step_execution_module
 from pathfinder.ai.agents.execution import (
     EXECUTION_RECOVERY_LIMITS,
     EXECUTION_USAGE_LIMITS,
@@ -25,6 +26,7 @@ from pathfinder.ai.agents.execution import (
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
     PlannedConnection,
@@ -36,9 +38,13 @@ from pathfinder.domain.strategy.plan import (
     StrategyPlan,
 )
 from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.services.chat.streaming.node_streaming import TurnCounters
+from pathfinder.services.chat.streaming.phase_runner import PhaseConfig
 from pathfinder.services.chat.streaming.step_execution import (
     allowed_tools_for_step,
     format_step_instruction,
+    resolve_input_step_ids,
+    run_execution_phase,
 )
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
@@ -232,7 +238,7 @@ class TestFormatStepInstruction:
         assert "GenesByTaxon" in instruction
         assert "organism" in instruction
         assert "Plasmodium falciparum 3D7" in instruction
-        assert "Create a leaf step" in instruction
+        assert "create_leaf_step(" in instruction
 
     def test_combine_instruction_includes_operator(self) -> None:
         step = _make_combine_step(operator="INTERSECT")
@@ -240,8 +246,14 @@ class TestFormatStepInstruction:
         assert "step_c" in instruction
         assert "Combined" in instruction
         assert "INTERSECT" in instruction
-        assert "Combine the input steps" in instruction
-        assert "combine_steps" in instruction
+        assert "Create exactly one combine step" in instruction
+
+    def test_combine_instruction_uses_named_graph_step_ids(self) -> None:
+        step = _make_combine_step(operator="INTERSECT")
+        instruction = format_step_instruction(step, ["step_real_a", "step_real_b"])
+        assert "step_a_id='step_real_a'" in instruction
+        assert "step_b_id='step_real_b'" in instruction
+        assert "placeholder IDs" in instruction
 
     def test_transform_instruction_includes_search_name_and_parameters(self) -> None:
         step = _make_transform_step()
@@ -251,7 +263,13 @@ class TestFormatStepInstruction:
         assert "GenesByOrthologPattern" in instruction
         assert "phyletic_pattern" in instruction
         assert "pfal+" in instruction
-        assert "Apply transform" in instruction
+        assert "Create exactly one transform step" in instruction
+
+    def test_transform_instruction_includes_input_step_id(self) -> None:
+        step = _make_transform_step()
+        instruction = format_step_instruction(step, ["step_real_input"])
+        assert "input_step_id='step_real_input'" in instruction
+        assert "transform_step(" in instruction
 
     def test_leaf_instruction_includes_record_type(self) -> None:
         step = _make_leaf_step()
@@ -396,21 +414,21 @@ class TestExecutionAgentConfiguration:
         assert len(toolset.tools) == 13
 
     def test_usage_limits(self) -> None:
-        assert EXECUTION_USAGE_LIMITS.request_limit == 3
-        assert EXECUTION_USAGE_LIMITS.total_tokens_limit == 30_000
+        assert EXECUTION_USAGE_LIMITS.request_limit == 50
+        assert EXECUTION_USAGE_LIMITS.total_tokens_limit == 500_000
 
-    def test_recovery_limits_higher_than_standard(self) -> None:
+    def test_recovery_limits_match_standard_limits(self) -> None:
         recovery_req = EXECUTION_RECOVERY_LIMITS.request_limit
         standard_req = EXECUTION_USAGE_LIMITS.request_limit
         assert recovery_req is not None
         assert standard_req is not None
-        assert recovery_req > standard_req
+        assert recovery_req == standard_req
 
         recovery_tok = EXECUTION_RECOVERY_LIMITS.total_tokens_limit
         standard_tok = EXECUTION_USAGE_LIMITS.total_tokens_limit
         assert recovery_tok is not None
         assert standard_tok is not None
-        assert recovery_tok > standard_tok
+        assert recovery_tok == standard_tok
 
     def test_defers_model_check(self) -> None:
         assert isinstance(execution_agent._model, str)
@@ -530,3 +548,177 @@ class TestExecutionAgentFunctionModel:
         assert "update_step" in captured_tool_names
         assert "delete_step" in captured_tool_names
         assert "rename_strategy" in captured_tool_names
+
+
+def _make_execution_config(deps: AgentDeps) -> PhaseConfig:
+    return PhaseConfig(
+        phase="execution",
+        prompt="",
+        deps=deps,
+        queue=asyncio.Queue(),
+        message_id="msg-test",
+        counters=TurnCounters(),
+        model_id="mock/default",
+    )
+
+
+class TestExecutionMapping:
+    @pytest.mark.asyncio
+    async def test_run_execution_phase_maps_real_graph_ids_for_downstream_steps(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        deps = _make_deps()
+        graph = deps.strategy_session.create_graph("Execution Mapping")
+        sync_state = WDKSyncState()
+        deps.strategy_session.sync_state = sync_state
+        plan = _make_multi_step_plan()
+        deps.agent_state.active_plan = plan
+
+        seen_inputs: list[tuple[str, list[str] | None]] = []
+
+        async def fake_run_step_with_agent(
+            step: PlannedStep,
+            config: PhaseConfig,
+            allowed_tools: frozenset[str],
+            usage_limits: UsageLimits,
+            input_step_ids: list[str] | None = None,
+        ) -> bool:
+            del config, allowed_tools, usage_limits
+            seen_inputs.append((step.id, input_step_ids))
+
+            if step.id == "step_a":
+                node = PlanStepNode(
+                    search_name=step.search_name,
+                    display_name=step.display_name,
+                    parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+                )
+                graph.add_step(node)
+                sync_state.wdk_step_ids[node.id] = 101
+                sync_state.step_counts[node.id] = 11
+                return True
+
+            if step.id == "step_b":
+                node = PlanStepNode(
+                    search_name=step.search_name,
+                    display_name=step.display_name,
+                    parameters={"GoTerm": "GO:0005515"},
+                )
+                graph.add_step(node)
+                sync_state.wdk_step_ids[node.id] = 202
+                sync_state.step_counts[node.id] = 7
+                return True
+
+            assert input_step_ids is not None
+            primary = graph.steps[input_step_ids[0]]
+            secondary = graph.steps[input_step_ids[1]]
+            node = PlanStepNode(
+                primary_input=primary,
+                secondary_input=secondary,
+                operator=CombineOp.INTERSECT,
+                display_name=step.display_name,
+            )
+            graph.add_step(node)
+            sync_state.wdk_step_ids[node.id] = 303
+            sync_state.step_counts[node.id] = 5
+            return True
+
+        monkeypatch.setattr(
+            step_execution_module,
+            "run_step_with_agent",
+            fake_run_step_with_agent,
+        )
+
+        await run_execution_phase(_make_execution_config(deps))
+
+        step_by_id = {step.id: step for step in plan.steps}
+        assert plan.status == PlanStatus.COMPLETE
+        assert step_by_id["step_a"].graph_step_id is not None
+        assert step_by_id["step_b"].graph_step_id is not None
+        assert step_by_id["step_c"].graph_step_id is not None
+        assert step_by_id["step_a"].wdk_step_id == 101
+        assert step_by_id["step_b"].wdk_step_id == 202
+        assert step_by_id["step_c"].wdk_step_id == 303
+        assert seen_inputs == [
+            ("step_a", None),
+            ("step_b", None),
+            (
+                "step_c",
+                [
+                    step_by_id["step_a"].graph_step_id,
+                    step_by_id["step_b"].graph_step_id,
+                ],
+            ),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_run_execution_phase_fails_fast_on_duplicate_created_steps(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        deps = _make_deps()
+        graph = deps.strategy_session.create_graph("Duplicate Mapping")
+        deps.strategy_session.sync_state = WDKSyncState()
+        plan = _make_multi_step_plan()
+        deps.agent_state.active_plan = plan
+
+        call_order: list[str] = []
+
+        async def fake_run_step_with_agent(
+            step: PlannedStep,
+            config: PhaseConfig,
+            allowed_tools: frozenset[str],
+            usage_limits: UsageLimits,
+            input_step_ids: list[str] | None = None,
+        ) -> bool:
+            del config, allowed_tools, usage_limits, input_step_ids
+            call_order.append(step.id)
+            graph.add_step(
+                PlanStepNode(
+                    search_name=step.search_name,
+                    display_name=f"{step.display_name} A",
+                    parameters={"organism": "A"},
+                )
+            )
+            graph.add_step(
+                PlanStepNode(
+                    search_name=step.search_name,
+                    display_name=f"{step.display_name} B",
+                    parameters={"organism": "B"},
+                )
+            )
+            return True
+
+        monkeypatch.setattr(
+            step_execution_module,
+            "run_step_with_agent",
+            fake_run_step_with_agent,
+        )
+
+        await run_execution_phase(_make_execution_config(deps))
+
+        assert call_order == ["step_a"]
+        assert plan.status == PlanStatus.FAILED
+        assert plan.steps[0].status == StepStatus.FAILED
+        assert plan.steps[0].failure_reason is not None
+        assert "multiple graph steps" in plan.steps[0].failure_reason
+        assert plan.steps[1].status == StepStatus.READY
+        assert plan.steps[2].status == StepStatus.READY
+
+    def test_resolve_input_step_ids_requires_current_roots(self) -> None:
+        plan = _make_multi_step_plan()
+        plan.steps[0].graph_step_id = "step_real_a"
+        plan.steps[1].graph_step_id = "step_real_b"
+        incoming = {"step_c": plan.connections}
+
+        with pytest.raises(
+            RuntimeError,
+            match="no longer a root",
+        ):
+            resolve_input_step_ids(
+                plan,
+                plan.steps[2],
+                active_graph_step_ids={"step_real_a", "step_real_b"},
+                active_root_ids={"step_real_b"},
+                incoming_connections=incoming,
+            )

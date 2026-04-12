@@ -163,8 +163,8 @@ def _wire_ai_dependencies() -> None:
     def _build_mock_pipeline() -> PipelineConfig:
         mock_phase = PipelinePhaseConfig(model_id="mock/deterministic", reasoning_effort="medium")
         return PipelineConfig(
-            discovery=mock_phase, planning=mock_phase,
-            execution=mock_phase, verification=mock_phase,
+            scoping=mock_phase, discovery=mock_phase,
+            planning=mock_phase, execution=mock_phase, verification=mock_phase,
         )
 
     is_mock = settings.chat_provider.strip().lower() == "mock"
@@ -178,7 +178,10 @@ def _wire_ai_dependencies() -> None:
         if pipeline_override is not None:
             return pipeline_override
         if persisted_pipeline is not None:
-            return PipelineConfig.model_validate(persisted_pipeline)
+            candidate = dict(persisted_pipeline)
+            if "scoping" not in candidate and "discovery" in candidate:
+                candidate["scoping"] = candidate["discovery"]
+            return PipelineConfig.model_validate(candidate)
         preset = get_tier_preset(settings.default_provider, settings.default_tier)
         if preset is None:
             fallback = PipelinePhaseConfig(
@@ -186,10 +189,11 @@ def _wire_ai_dependencies() -> None:
                 reasoning_effort="medium",
             )
             return PipelineConfig(
-                discovery=fallback, planning=fallback,
-                execution=fallback, verification=fallback,
+                scoping=fallback, discovery=fallback,
+                planning=fallback, execution=fallback, verification=fallback,
             )
         return PipelineConfig(
+            scoping=PipelinePhaseConfig(model_id=preset.scoping.model_id, reasoning_effort=preset.scoping.reasoning_effort),
             discovery=PipelinePhaseConfig(model_id=preset.discovery.model_id, reasoning_effort=preset.discovery.reasoning_effort),
             planning=PipelinePhaseConfig(model_id=preset.planning.model_id, reasoning_effort=preset.planning.reasoning_effort),
             execution=PipelinePhaseConfig(model_id=preset.execution.model_id, reasoning_effort=preset.execution.reasoning_effort),

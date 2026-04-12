@@ -6,6 +6,10 @@ export class ChatPage {
   readonly sendButton: Locator;
   readonly stopButton: Locator;
   readonly newChatButton: Locator;
+  readonly refreshConversationsButton: Locator;
+  readonly planPanelHeading: Locator;
+  readonly approvePlanButton: Locator;
+  readonly phaseTimingBlock: Locator;
 
   constructor(private page: Page) {
     this.composer = page.getByTestId("message-composer");
@@ -13,6 +17,10 @@ export class ChatPage {
     this.sendButton = page.getByTestId("send-button");
     this.stopButton = page.getByTestId("stop-button");
     this.newChatButton = page.getByRole("button", { name: "New Chat" });
+    this.refreshConversationsButton = page.getByTestId("conversations-refresh-button");
+    this.planPanelHeading = page.getByRole("heading", { name: "Strategy Plan" });
+    this.approvePlanButton = page.getByRole("button", { name: "Approve & Execute" });
+    this.phaseTimingBlock = page.getByTestId("plan-phase-timing");
   }
 
   async goto() {
@@ -25,25 +33,46 @@ export class ChatPage {
 
   /** Start a fresh conversation so the test is isolated from prior state. */
   async newChat() {
-    // Wait for the POST that creates the new strategy to complete.
-    // Set up the response listener BEFORE clicking (per Playwright docs).
-    const strategyCreated = this.page.waitForResponse(
-      (resp) =>
-        resp.url().includes("/strategies/open") &&
-        resp.request().method() === "POST" &&
-        resp.ok(),
+    const baseUrl = new URL(this.page.url()).origin;
+    const selectedSite = await this.page
+      .getByTestId("site-select")
+      .inputValue()
+      .catch(() => "veupathdb");
+
+    const strategyCreated = await this.page.context().request.post(
+      `${baseUrl}/api/v1/strategies/open`,
+      {
+        data: { siteId: selectedSite !== "" ? selectedSite : "veupathdb" },
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      },
     );
-    await this.newChatButton.click();
-    const resp = await strategyCreated;
-    // Capture the strategy ID from the response for test isolation.
-    try {
-      const body = await resp.json();
-      this.lastStrategyId = body?.strategyId ?? body?.id ?? null;
-    } catch {
-      this.lastStrategyId = null;
+
+    if (!strategyCreated.ok()) {
+      const failureBody = await strategyCreated.text().catch(() => "");
+      throw new Error(
+        `openStrategy failed: ${strategyCreated.status()} ${failureBody}`.trim(),
+      );
     }
-    // Now the new conversation exists — wait for the UI to settle.
-    await expect(this.sendButton).toBeVisible({ timeout: 10_000 });
+
+    const body = (await strategyCreated.json()) as {
+      strategyId?: string;
+      id?: string;
+    };
+    const strategyId = body.strategyId ?? body.id ?? null;
+    if (strategyId == null || strategyId === "") {
+      throw new Error("openStrategy returned no strategyId");
+    }
+    this.lastStrategyId = strategyId;
+
+    await this.refreshConversationsButton.click();
+    const conversationItem = this.page.locator(
+      `[data-conversation-id="${strategyId}"]`,
+    ).first();
+    await expect(conversationItem).toBeVisible({ timeout: 10_000 });
+    await conversationItem.click();
+
+    await expect(this.composer).toBeVisible({ timeout: 10_000 });
+    await expect(this.userMessages).toHaveCount(0, { timeout: 10_000 });
     await expect(this.assistantMessages).toHaveCount(0, { timeout: 10_000 });
   }
 
@@ -59,6 +88,10 @@ export class ChatPage {
 
   async stopStreaming() {
     await this.stopButton.click();
+  }
+
+  async approvePlan() {
+    await this.approvePlanButton.click();
   }
 
   /** Get all assistant message bubbles. */
@@ -78,8 +111,8 @@ export class ChatPage {
 
   // ── Assertions ──────────────────────────────────────────────────
 
-  async expectIdle() {
-    await expect(this.sendButton).toBeVisible({ timeout: 15_000 });
+  async expectIdle(timeout = 60_000) {
+    await expect(this.sendButton).toBeVisible({ timeout });
     await expect(this.stopButton).not.toBeVisible();
   }
 
@@ -121,10 +154,28 @@ export class ChatPage {
   }
 
   async expectPlanningArtifact() {
-    // Planning artifacts show "Apply to strategy" buttons.
-    await expect(
-      this.page.getByRole("button", { name: /apply to strategy/i }),
-    ).toBeVisible({ timeout: 30_000 });
+    await this.expectPlanPanel();
+    await expect(this.page.getByText("presented", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+  }
+
+  async expectPlanPanel() {
+    await expect(this.planPanelHeading).toBeVisible({ timeout: 60_000 });
+    await expect(this.approvePlanButton).toBeVisible({ timeout: 60_000 });
+  }
+
+  async expectPhaseTiming(
+    phase: "scoping" | "discovery" | "planning" | "execution" | "verification",
+    status?: string | RegExp,
+  ) {
+    const row = this.page.getByTestId(`plan-phase-timing-${phase}`);
+    await expect(row).toBeVisible({ timeout: 60_000 });
+    if (status !== undefined) {
+      await expect(this.page.getByTestId(`plan-phase-status-${phase}`)).toHaveText(status, {
+        timeout: 60_000,
+      });
+    }
   }
 
   async expectCompactStrategyView() {

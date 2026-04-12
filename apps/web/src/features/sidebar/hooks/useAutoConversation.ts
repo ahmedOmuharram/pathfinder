@@ -24,6 +24,7 @@ export function useAutoConversation({
 }: UseAutoConversationArgs): AutoConversationResult {
   const strategyId = useSessionStore((s) => s.strategyId);
   const setStrategyId = useSessionStore((s) => s.setStrategyId);
+  const bumpChatPreviewVersion = useSessionStore((s) => s.bumpChatPreviewVersion);
   const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
   const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
   const queryClient = useQueryClient();
@@ -44,6 +45,7 @@ export function useAutoConversation({
     queryKey: ["auto-pick-conversation", action.type === "pick" ? action.strategyId : null] as const,
     queryFn: () => {
       if (action.type === "pick") {
+        bumpChatPreviewVersion();
         setStrategyId(action.strategyId);
       }
       return { picked: true };
@@ -79,6 +81,7 @@ export function useAutoConversation({
       );
       const currentId = useSessionStore.getState().strategyId;
       if (currentId == null || currentId === "") {
+        bumpChatPreviewVersion();
         setStrategyId(res.strategyId);
       }
       void queryClient.invalidateQueries({ queryKey: listKey });
