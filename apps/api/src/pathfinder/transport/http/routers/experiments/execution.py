@@ -1,36 +1,38 @@
-"""Experiment execution endpoints: create, batch, benchmark."""
+"""Experiment execution endpoints: create, batch, benchmark, seed."""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
-from fastapi.sse import EventSourceResponse
+from starlette.responses import StreamingResponse
 
 from pathfinder.platform.errors import sanitize_error_for_client
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.security import limiter
-from pathfinder.platform.types import JSONObject
-from pathfinder.services.experiment.core.streaming import (
-    start_batch_experiment,
-    start_benchmark,
-    start_experiment,
-)
 from pathfinder.services.experiment.seed import run_seed
+from pathfinder.services.experiment.seed.types import SeedComplete, SeedEvent
+from pathfinder.services.experiment.streaming import (
+    BatchEvent,
+    BenchmarkEvent,
+    ExperimentEvent,
+    stream_batch_experiment,
+    stream_benchmark,
+    stream_experiment,
+)
 from pathfinder.services.experiment.types import (
     BatchExperimentConfig,
     BatchOrganismTarget,
 )
 from pathfinder.transport.http.deps import (
+    ChatRepo,
     ControlSetRepo,
     CurrentUser,
-    StreamRepo,
 )
 from pathfinder.transport.http.schemas.experiments import (
     CreateBatchExperimentRequest,
     CreateBenchmarkRequest,
     CreateExperimentRequest,
 )
-from pathfinder.transport.http.sse import sse_stream
+from pathfinder.transport.http.sse_utils import typed_event_stream_response
 
 from ._config import config_from_request
 
@@ -40,18 +42,10 @@ logger = get_logger(__name__)
 
 @router.post(
     "/",
-    status_code=202,
     responses={
-        202: {
-            "description": "Experiment launched as background task",
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "object",
-                        "properties": {"operationId": {"type": "string"}},
-                    }
-                }
-            },
+        200: {
+            "description": "SSE stream of experiment progress + completion",
+            "content": {"text/event-stream": {"schema": {"type": "string"}}},
         }
     },
 )
@@ -60,27 +54,23 @@ async def create_experiment(
     request: Request,
     body: CreateExperimentRequest,
     user_id: CurrentUser,
-) -> JSONResponse:
-    """Create and run an experiment as a background task."""
+) -> StreamingResponse:
+    """Create and run an experiment, streaming typed progress events directly."""
     config = config_from_request(body)
-    operation_id = await start_experiment(config, user_id=str(user_id))
-    return JSONResponse({"operationId": operation_id}, status_code=202)
+
+    async def _producer() -> AsyncIterator[ExperimentEvent]:
+        async for event in stream_experiment(config, user_id=str(user_id)):
+            yield event
+
+    return typed_event_stream_response(_producer(), event_name=lambda e: e.type)
 
 
 @router.post(
     "/batch",
-    status_code=202,
     responses={
-        202: {
-            "description": "Batch experiment launched as background task",
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "object",
-                        "properties": {"operationId": {"type": "string"}},
-                    }
-                }
-            },
+        200: {
+            "description": "SSE stream of batch experiment progress + completion",
+            "content": {"text/event-stream": {"schema": {"type": "string"}}},
         }
     },
 )
@@ -89,8 +79,8 @@ async def create_batch_experiment(
     request: Request,
     body: CreateBatchExperimentRequest,
     user_id: CurrentUser,
-) -> JSONResponse:
-    """Run the same search across multiple organisms as a background task."""
+) -> StreamingResponse:
+    """Run the same search across multiple organisms, streaming progress directly."""
     base_config = config_from_request(body.base)
     batch_config = BatchExperimentConfig(
         base_config=base_config,
@@ -104,24 +94,20 @@ async def create_batch_experiment(
             for t in body.target_organisms
         ],
     )
-    operation_id = await start_batch_experiment(batch_config, user_id=str(user_id))
-    return JSONResponse({"operationId": operation_id}, status_code=202)
+
+    async def _producer() -> AsyncIterator[BatchEvent]:
+        async for event in stream_batch_experiment(batch_config, user_id=str(user_id)):
+            yield event
+
+    return typed_event_stream_response(_producer(), event_name=lambda e: e.type)
 
 
 @router.post(
     "/benchmark",
-    status_code=202,
     responses={
-        202: {
-            "description": "Benchmark suite launched as background task",
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "type": "object",
-                        "properties": {"operationId": {"type": "string"}},
-                    }
-                }
-            },
+        200: {
+            "description": "SSE stream of benchmark suite progress + completion",
+            "content": {"text/event-stream": {"schema": {"type": "string"}}},
         }
     },
 )
@@ -130,8 +116,8 @@ async def create_benchmark(
     request: Request,
     body: CreateBenchmarkRequest,
     user_id: CurrentUser,
-) -> JSONResponse:
-    """Run the same strategy against multiple control sets as a background task."""
+) -> StreamingResponse:
+    """Run the same strategy against multiple control sets, streaming progress directly."""
     base_config = config_from_request(body.base)
     control_sets = [
         (
@@ -153,15 +139,17 @@ async def create_benchmark(
             True,
         )
 
-    operation_id = await start_benchmark(
-        base_config, control_sets, user_id=str(user_id)
-    )
-    return JSONResponse({"operationId": operation_id}, status_code=202)
+    async def _producer() -> AsyncIterator[BenchmarkEvent]:
+        async for event in stream_benchmark(
+            base_config, control_sets, user_id=str(user_id),
+        ):
+            yield event
+
+    return typed_event_stream_response(_producer(), event_name=lambda e: e.type)
 
 
 @router.post(
     "/seed",
-    response_class=EventSourceResponse,
     responses={
         200: {
             "description": "SSE stream of seed strategy/control-set progress",
@@ -171,31 +159,32 @@ async def create_benchmark(
 )
 async def seed_strategies(
     user_id: CurrentUser,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     control_set_repo: ControlSetRepo,
     site_id: str | None = None,
-) -> EventSourceResponse:
+) -> StreamingResponse:
     """Seed demo strategies and control sets across VEuPathDB sites.
 
     If *site_id* is provided, only seeds for that database are created.
     """
 
-    async def _producer(send: Callable[[JSONObject], Awaitable[None]]) -> None:
+    async def _producer() -> AsyncIterator[SeedEvent]:
         try:
             async for event in run_seed(
                 user_id=user_id,
-                stream_repo=stream_repo,
+                chat_repo=chat_repo,
                 control_set_repo=control_set_repo,
                 site_id=site_id,
             ):
-                await send(event)
+                yield event
         except Exception as exc:
-            logger.error("Seed failed", error=str(exc), exc_info=True)
-            await send(
-                {
-                    "type": "seed_complete",
-                    "data": {"error": sanitize_error_for_client(exc), "message": "Seed failed"},
-                }
+            logger.exception("Seed failed", error=str(exc))
+            yield SeedComplete(
+                message="Seed failed",
+                error=sanitize_error_for_client(exc),
             )
 
-    return EventSourceResponse(sse_stream(_producer, {"seed_complete"}))
+    return typed_event_stream_response(
+        _producer(),
+        event_name=lambda e: e.type,
+    )

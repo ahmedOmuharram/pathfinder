@@ -4,7 +4,6 @@ import type { Strategy } from "@pathfinder/shared";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { formatSidebarTime } from "@/lib/formatTime";
 import { Input } from "@/lib/components/ui/Input";
-import { StrategyLifecycleBadge } from "@/features/chat/components/phase/StrategyLifecycleBadge";
 
 interface ConversationListItemProps {
   item: ConversationItem;
@@ -92,15 +91,10 @@ export function ConversationListItem({
               />
             )}
             {si != null && (
-              <StrategyLifecycleBadge
-                className="ml-auto"
-                stepCount={si.stepCount ?? 0}
-                wdkStrategyId={si.wdkStrategyId ?? null}
-                isSaved={si.isSaved}
-                isActiveStreaming={isActiveStreaming}
-                currentPhase={isActive ? activePhase : null}
-                phaseStatus={isActive ? activePhaseStatus : null}
-              />
+              <span className="ml-auto text-xs text-muted-foreground">
+                {si.stepCount ?? 0} step{(si.stepCount ?? 0) === 1 ? "" : "s"}
+                {isActiveStreaming ? " · streaming" : ""}
+              </span>
             )}
           </div>
           <div className="text-xs text-muted-foreground">

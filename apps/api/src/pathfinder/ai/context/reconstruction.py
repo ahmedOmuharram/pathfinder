@@ -5,7 +5,6 @@ message history.  The orchestration pipeline does not pass reconstructed
 ChatMessage objects to agents — each phase starts with fresh history.
 """
 
-import json
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -17,7 +16,6 @@ from pathfinder.ai.context.rendering import (
     render_context_summary,
 )
 from pathfinder.ai.orchestration.phase_results import PhaseName, ProblemFrame
-from pathfinder.platform.event_schemas_pipeline import PhaseChangeEventData
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.parsing import parse_jsonish
 from pathfinder.platform.types import JSONObject, JSONValue
@@ -218,34 +216,6 @@ def _extract_latest_problem_frame(turns: list[_Turn]) -> ProblemFrame | None:
                         exc_info=True,
                     )
     return latest
-
-
-def extract_resume_phase_from_entries(
-    entries: list[_RedisStreamEntry],
-) -> PhaseName | None:
-    """Return the last paused phase if the conversation is awaiting input."""
-    latest_phase_change: PhaseChangeEventData | None = None
-    for _entry_id, fields in entries:
-        if fields.get("type", "") != "phase_change":
-            continue
-        try:
-            payload = json.loads(fields["data"])
-            latest_phase_change = PhaseChangeEventData.model_validate(payload)
-        except (json.JSONDecodeError, KeyError, ValidationError):
-            continue
-
-    if latest_phase_change is None:
-        return None
-    if latest_phase_change.status != "awaiting_input":
-        return None
-    if latest_phase_change.phase not in (
-        "scoping",
-        "discovery",
-        "planning",
-        "verification",
-    ):
-        return None
-    return latest_phase_change.phase
 
 
 # ---------------------------------------------------------------------------

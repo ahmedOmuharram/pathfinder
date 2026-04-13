@@ -20,6 +20,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_graph_state,
     pinned_problem_frame,
 )
+from pathfinder.ai.agents._phase_decisions import DiscoveryDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -61,10 +62,26 @@ pathway identifiers, organism-specific terminology).
 already in progress. Use `search_example_plans` to find similar solved \
 problems.
 
-6. **End the phase explicitly**: Call `finish_discovery` exactly once as your \
-last tool call. Use `decision="ask_user"` only when a WDK-specific ambiguity \
-would materially change the plan. Use `decision="continue_to_planning"` when \
-the planner has enough information to build a concrete plan.
+## Final Output
+
+When you have gathered enough catalog context, produce a `DiscoveryDecision` \
+as your final output. Do NOT call any `finish_*` tool; those tools no \
+longer exist.
+
+Choose `next_action` based on what you found:
+  - `advance_to_planning`: you have concrete candidate searches and the \
+planner has enough information to build a plan.
+  - `advance_to_execution`: the discovery already pins a single unambiguous \
+leaf search that can be executed without further planning.
+  - `need_more_input`: a WDK-specific ambiguity would materially change the \
+plan and only the user can resolve it.
+
+Populate every field:
+  - `discovered_searches`: concrete WDK search names relevant to the \
+question (non-empty for `advance_to_*` actions).
+  - `problem_frame_refined`: updated problem frame if catalog evidence \
+reshaped the scoping-phase frame, otherwise `null`.
+  - `reason`: one-to-two sentence justification for `next_action`.
 
 ## Guidelines
 
@@ -75,8 +92,9 @@ can express the user's constraints.
 - When multiple searches could work, note the trade-offs for the planner.
 - Do NOT create or modify strategies — that is the execution agent's job.
 - Do NOT create plans — that is the planning agent's job.
-- If you ask the user a blocking question, call `finish_discovery` with \
-`decision="ask_user"` and stop in that same turn.
+- If you need the user to answer a blocking question, return a \
+DiscoveryDecision with `next_action="need_more_input"` and stop in that \
+same turn.
 - Summarize your findings clearly so the planning agent can act on them.
 """
 
@@ -86,8 +104,9 @@ can express the user's constraints.
 
 _discovery_hooks: Hooks[AgentDeps] = Hooks(after_tool_execute=apply_discovery_hook)
 
-discovery_agent: Agent[AgentDeps, str] = Agent(
-    "anthropic:claude-sonnet-4-5",
+discovery_agent: Agent[AgentDeps, DiscoveryDecision] = Agent(
+    "openai:gpt-4.1-mini",
+    output_type=DiscoveryDecision,
     deps_type=AgentDeps,
     instructions=_DISCOVERY_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -175,6 +194,6 @@ def _rediscovery_context(ctx: RunContext[AgentDeps]) -> str | None:
 # ---------------------------------------------------------------------------
 
 DISCOVERY_USAGE_LIMITS = UsageLimits(
-    request_limit=50,
+    request_limit=200,
     total_tokens_limit=500_000,
 )

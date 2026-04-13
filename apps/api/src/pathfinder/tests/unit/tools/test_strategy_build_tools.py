@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -111,11 +112,13 @@ async def test_create_leaf_step_after_discovery(
         display_name="Genes by Taxon",
     )
 
-    assert isinstance(result, StepOkResponse)
-    assert result.ok is True
-    assert result.step.search_name == "GenesByTaxon"
-    assert result.step.display_name == "Genes by Taxon"
-    assert result.graph_id == graph.id
+    assert isinstance(result, ToolReturn)
+    payload = result.return_value
+    assert isinstance(payload, StepOkResponse)
+    assert payload.ok is True
+    assert payload.step.search_name == "GenesByTaxon"
+    assert payload.step.display_name == "Genes by Taxon"
+    assert payload.graph_id == graph.id
 
 
 @pytest.mark.asyncio
@@ -158,9 +161,11 @@ async def test_combine_steps_creates_union(
         operator="UNION",
     )
 
-    assert isinstance(result, StepOkResponse)
-    assert result.ok is True
-    assert result.step.id == combined.id
+    assert isinstance(result, ToolReturn)
+    payload = result.return_value
+    assert isinstance(payload, StepOkResponse)
+    assert payload.ok is True
+    assert payload.step.id == combined.id
 
 
 @pytest.mark.asyncio

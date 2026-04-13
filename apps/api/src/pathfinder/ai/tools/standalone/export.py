@@ -4,10 +4,14 @@ Provides:
 - ``export_gene_set`` -- export a gene set as a downloadable file
 """
 
+from __future__ import annotations
+
 from typing import Literal
 from uuid import UUID
 
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
+from pydantic_ai.ui.vercel_ai.response_types import FileChunk
 
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone._export_models import (
@@ -43,7 +47,7 @@ async def export_gene_set(
     ctx: RunContext[AgentDeps],
     gene_set_id: str,
     output_format: str = "csv",
-) -> ExportResultResponse | ToolErrorPayload:
+) -> ToolReturn[ExportResultResponse] | ToolErrorPayload:
     """Export a gene set as a downloadable CSV or TXT file.
 
     Returns a download URL that the user can click to download the file.
@@ -77,10 +81,16 @@ async def export_gene_set(
     svc = get_export_service()
     fmt: Literal["csv", "txt"] = "txt" if output_format == "txt" else "csv"
     result = await svc.export_gene_set(gs, fmt)
-    return ExportResultResponse(
-        download_url=result.url,
-        filename=result.filename,
-        format=output_format,
-        item_count=len(gs.gene_ids),
-        expires_in_seconds=result.expires_in_seconds,
+    media_type = "text/csv" if output_format == "csv" else "text/plain"
+    return ToolReturn(
+        return_value=ExportResultResponse(
+            download_url=result.url,
+            filename=result.filename,
+            format=output_format,
+            item_count=len(gs.gene_ids),
+            expires_in_seconds=result.expires_in_seconds,
+        ),
+        metadata=[
+            FileChunk(url=result.url, media_type=media_type),
+        ],
     )

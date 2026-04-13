@@ -9,11 +9,40 @@ from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.platform.errors import ErrorCode, ValidationError
-from pathfinder.platform.event_schemas import GraphSnapshotContent
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject, JSONValue
 from pathfinder.services.strategies.schemas import StepResponse
+
+
+class GraphEdge(CamelModel):
+    """Edge in a strategy-graph snapshot.
+
+    Moved here from the deleted ``platform.event_schemas`` module — the snapshot
+    is now an internal tool-result payload (``StepOkResponse.graph_snapshot``),
+    not a wire event. Uses the WDK-style ``source_id`` / ``target_id`` + ``kind``
+    (``primary``/``secondary``) rather than the newer operator-labeled
+    ``shared_py.stream_parts.graph.GraphEdge``, because the consumer here is the
+    LLM tool-return, not the UI graph renderer.
+    """
+
+    source_id: str
+    target_id: str
+    kind: str  # "primary" | "secondary"
+
+
+class GraphSnapshotContent(CamelModel):
+    """Snapshot of a strategy graph, embedded in step-mutation tool results."""
+
+    graph_id: str | None = None
+    graph_name: str | None = None
+    record_type: str | None = None
+    name: str | None = None
+    description: str | None = None
+    root_step_id: str | None = None
+    steps: list[JSONObject] = Field(default_factory=list)
+    edges: list[GraphEdge] = Field(default_factory=list)
+    plan: StrategyPlanPayload | None = None
 
 # ---------------------------------------------------------------------------
 # Private parsing model (replace isinstance/dict.get chains per CLAUDE.md)

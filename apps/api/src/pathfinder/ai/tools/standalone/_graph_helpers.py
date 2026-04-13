@@ -6,6 +6,8 @@ responses and context payloads for AI tool results.
 
 from pathfinder.ai.tools.standalone._validation_helpers import (
     ContextPlanPayload,
+    GraphEdge,
+    GraphSnapshotContent,
     StepOkResponse,
     is_placeholder_name,
 )
@@ -14,7 +16,6 @@ from pathfinder.domain.strategy.explain import explain_operation
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.domain.strategy.validation import StepValidation
-from pathfinder.platform.event_schemas import GraphEdge, GraphSnapshotContent
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.schemas import StepResponse
 

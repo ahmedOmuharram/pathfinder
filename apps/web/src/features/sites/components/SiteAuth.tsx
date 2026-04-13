@@ -7,13 +7,12 @@ import { useSessionStore } from "@/state/useSessionStore";
 import { Modal } from "@/lib/components/Modal";
 import { SignInForm } from "@/features/sites/components/SignInForm";
 import type { HeaderTextVariant } from "@/features/sites/siteBanners";
+import { useHasHydrated } from "@/lib/hooks/useHasHydrated";
 import { cn } from "@/lib/utils/cn";
 
 interface SiteAuthProps {
   siteId: string;
-  /** When "inline", show sign-in form directly. When "button", show "Sign in ->" that opens a modal. */
   authDisplay?: "button" | "inline";
-  /** When in header with banner, use "light" for white text + shadow. */
   headerTextVariant?: HeaderTextVariant;
 }
 
@@ -29,13 +28,9 @@ export function SiteAuth({
   const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
   const { data: authStatus } = useQuery(authStatusOptions(siteId));
 
-  const [prevAuthStatus, setPrevAuthStatus] = useState(authStatus);
-  if (authStatus != null && authStatus !== prevAuthStatus) {
-    setPrevAuthStatus(authStatus);
-    setVeupathdbAuth(authStatus.signedIn, authStatus.name ?? null);
-  }
-
-  const displaySignedIn = veupathdbSignedIn === true || authStatus?.signedIn === true;
+  const hasHydrated = useHasHydrated();
+  const signedIn = veupathdbSignedIn === true || authStatus?.signedIn === true;
+  const displaySignedIn = hasHydrated && signedIn;
   const displayName = veupathdbName ?? authStatus?.name ?? "";
 
   const lightClass =

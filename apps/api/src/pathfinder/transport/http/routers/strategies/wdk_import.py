@@ -20,8 +20,8 @@ from pathfinder.services.strategies.auto_import import (
     background_auto_import_gene_sets,
 )
 from pathfinder.services.strategies.wdk_sync import (
-    sync_to_projection,
-    upsert_summary_projection,
+    sync_to_chat,
+    upsert_summary_chat,
 )
 from pathfinder.services.wdk import (
     get_site,
@@ -29,8 +29,8 @@ from pathfinder.services.wdk import (
     is_internal_wdk_strategy_name,
 )
 from pathfinder.transport.http.deps import (
+    ChatRepo,
     CurrentUser,
-    StreamRepo,
 )
 from pathfinder.transport.http.schemas import (
     OpenStrategyRequest,
@@ -38,7 +38,7 @@ from pathfinder.transport.http.schemas import (
     StrategyResponse,
 )
 
-from ._shared import build_projection_summary
+from ._shared import build_chat_summary
 
 router = APIRouter(prefix="/api/v1/strategies", tags=["strategies"])
 logger = get_logger(__name__)
@@ -47,10 +47,10 @@ logger = get_logger(__name__)
 @router.post("/open", response_model=OpenStrategyResponse)
 async def open_strategy(
     request: OpenStrategyRequest,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
 ) -> OpenStrategyResponse:
-    """Open a strategy by local or WDK strategy."""
+    """Open a strategy by local id or WDK strategy id."""
     if not request.strategy_id and not request.wdk_strategy_id:
         if not request.site_id:
             raise ValidationError(
@@ -63,26 +63,24 @@ async def open_strategy(
                     }
                 ],
             )
-        # New conversation: create Stream + StreamProjection.
-        stream = await stream_repo.create(
+        chat = await chat_repo.create(
             user_id=user_id,
             site_id=request.site_id,
             name=DEFAULT_STREAM_NAME,
         )
-        return OpenStrategyResponse(strategyId=stream.id)
+        return OpenStrategyResponse(strategyId=chat.id)
 
     if request.strategy_id:
-        # Verify the stream exists and belongs to user.
-        projection = await stream_repo.get_projection(request.strategy_id)
-        if not projection or not projection.stream:
+        chat = await chat_repo.get_by_id(request.strategy_id)
+        if not chat:
             raise NotFoundError(
                 code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
             )
-        if projection.stream.user_id != user_id:
+        if chat.user_id != user_id:
             raise NotFoundError(
                 code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
             )
-        return OpenStrategyResponse(strategyId=projection.stream_id)
+        return OpenStrategyResponse(strategyId=chat.id)
 
     if not request.site_id:
         raise ValidationError(
@@ -108,11 +106,11 @@ async def open_strategy(
         )
     try:
         api = get_strategy_api(request.site_id)
-        projection = await sync_to_projection(
+        chat = await sync_to_chat(
             wdk_id=request.wdk_strategy_id,
             site_id=request.site_id,
             api=api,
-            stream_repo=stream_repo,
+            chat_repo=chat_repo,
             user_id=user_id,
         )
     except WDKError as e:
@@ -123,17 +121,17 @@ async def open_strategy(
         msg = f"Failed to load WDK strategy: {e}"
         raise WDKError(msg) from e
 
-    return OpenStrategyResponse(strategyId=projection.stream_id)
+    return OpenStrategyResponse(strategyId=chat.id)
 
 
 @router.post("/sync-wdk", response_model=list[StrategyResponse])
 async def sync_all_wdk_strategies(
     site_id: Annotated[str, Query(alias="siteId")],
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
     background_tasks: BackgroundTasks,
 ) -> list[StrategyResponse]:
-    """Batch-sync all WDK strategies into the CQRS layer and return the full list."""
+    """Batch-sync all WDK strategies into the chats table and return the full list."""
     site = get_site(site_id)
     try:
         api = get_strategy_api(site.id)
@@ -149,10 +147,10 @@ async def sync_all_wdk_strategies(
             continue
         synced_wdk_ids.add(item.strategy_id)
         try:
-            async with stream_repo.session.begin_nested():
-                await upsert_summary_projection(
+            async with chat_repo.session.begin_nested():
+                await upsert_summary_chat(
                     item,
-                    stream_repo=stream_repo,
+                    chat_repo=chat_repo,
                     user_id=user_id,
                     site_id=site.id,
                 )
@@ -164,35 +162,34 @@ async def sync_all_wdk_strategies(
                 error=str(e),
             )
 
-    # Prune orphaned streams whose WDK counterparts no longer exist.
     if wdk_items:
         try:
-            async with stream_repo.session.begin_nested():
-                pruned = await stream_repo.prune_wdk_orphans(
+            async with chat_repo.session.begin_nested():
+                pruned = await chat_repo.prune_wdk_orphans(
                     user_id, site.id, synced_wdk_ids
                 )
                 if pruned:
                     logger.info(
-                        "Pruned orphaned streams",
+                        "Pruned orphaned chats",
                         site_id=site.id,
                         pruned_count=pruned,
                     )
         except (AppError, OSError, RuntimeError) as e:
             logger.warning(
-                "Failed to prune orphaned streams",
+                "Failed to prune orphaned chats",
                 site_id=site.id,
                 error=str(e),
             )
 
-    projections = await stream_repo.list_projections(user_id, site_id)
+    chats = await chat_repo.list_chats(user_id, site_id)
 
     # Commit the session so all locks are released before the background task
     # opens its own session — prevents deadlock between the prune DELETE and
     # the auto-import's concurrent SELECT/UPDATE on the same tables.
-    await stream_repo.session.commit()
+    await chat_repo.session.commit()
 
     background_tasks.add_task(
         background_auto_import_gene_sets, site_id=site.id, user_id=user_id
     )
 
-    return [build_projection_summary(p, site_id=site_id) for p in projections]
+    return [build_chat_summary(c, site_id=site_id) for c in chats]

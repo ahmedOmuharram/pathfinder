@@ -8,7 +8,6 @@ import { useSessionStore } from "@/state/useSessionStore";
 
 interface UseStrategyFetchingArgs {
   siteId: string;
-  reportError: (message: string) => void;
 }
 
 export interface StrategyFetchingResult {
@@ -23,7 +22,6 @@ export interface StrategyFetchingResult {
 
 export function useStrategyFetching({
   siteId,
-  reportError,
 }: UseStrategyFetchingArgs): StrategyFetchingResult {
   const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
   const authStatusKnown = useSessionStore((s) => s.authStatusKnown);
@@ -37,25 +35,8 @@ export function useStrategyFetching({
   const listOpts = strategiesListOptions(siteId);
   const dismissedOpts = dismissedStrategiesOptions(siteId);
 
-  const strategiesQuery = useQuery({
-    ...listOpts,
-    enabled: queryEnabled,
-    throwOnError: (error) => {
-      console.warn("[ConversationSidebar] Failed to sync strategies:", error);
-      reportError(error instanceof Error ? error.message : String(error));
-      return false;
-    },
-  });
-
-  const dismissedQuery = useQuery({
-    ...dismissedOpts,
-    enabled: queryEnabled,
-    throwOnError: (error) => {
-      console.warn("[ConversationSidebar] Failed to fetch dismissed:", error);
-      reportError(error instanceof Error ? error.message : String(error));
-      return false;
-    },
-  });
+  const strategiesQuery = useQuery({ ...listOpts, enabled: queryEnabled });
+  const dismissedQuery = useQuery({ ...dismissedOpts, enabled: queryEnabled });
 
   const strategies: Strategy[] = strategiesQuery.data ?? [];
   const dismissedStrategies: Strategy[] = dismissedQuery.data ?? [];

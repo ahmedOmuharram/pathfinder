@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { UnifiedChatPanel } from "@/features/chat/components/UnifiedChatPanel";
+import { ChatPanel } from "@/features/chat/ChatPanel";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
 import { useShallow } from "zustand/react/shallow";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -18,6 +17,7 @@ import { LoadingScreen } from "@/app/components/LoadingScreen";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
 import { AppShellError } from "@/app/components/AppShellError";
 import { useToasts } from "@/app/hooks/useToasts";
+import { setQueryErrorHandler } from "@/lib/query/client";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
 import { useModalState } from "@/app/hooks/useModalState";
 import { useGeneSetExport } from "@/app/hooks/useGeneSetExport";
@@ -30,9 +30,6 @@ import { useSystemConfig } from "@/app/hooks/useSystemConfig";
 import { SetupRequiredScreen } from "@/app/components/SetupRequiredScreen";
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 import { useStableGraph } from "@/app/hooks/useStableGraph";
-import { PlanPanel } from "@/features/chat/components/plan/PlanPanel";
-import { usePlanStore } from "@/state/usePlanStore";
-import { ClipboardList } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -53,20 +50,14 @@ function HomePageInner() {
   const {
     selectedSite: storedSelectedSite,
     strategyId,
-    chatPreviewVersion,
     switchSite,
     veupathdbSignedIn,
-    pendingAskNode,
-    setPendingAskNode,
   } = useSessionStore(
     useShallow((s) => ({
       selectedSite: s.selectedSite,
       strategyId: s.strategyId,
-      chatPreviewVersion: s.chatPreviewVersion,
       switchSite: s.switchSite,
       veupathdbSignedIn: s.veupathdbSignedIn,
-      pendingAskNode: s.pendingAskNode,
-      setPendingAskNode: s.setPendingAskNode,
     })),
   );
   const selectedSite = siteIdParam ?? storedSelectedSite;
@@ -77,6 +68,10 @@ function HomePageInner() {
   const strategy = useStrategyStore((s) => s.strategy);
 
   const { toasts, addToast, removeToast, durationMs } = useToasts();
+  setQueryErrorHandler((notice) =>
+    addToast({ type: "error", message: notice.message }),
+  );
+
   const { layoutRef, sidebarWidth, startDragging } = useSidebarResize();
   const modals = useModalState();
 
@@ -86,24 +81,6 @@ function HomePageInner() {
   const { exportingGeneSet, handleExportAsGeneSet } = useGeneSetExport();
 
   const { displayStrategy, hasGraph } = useStableGraph(strategy);
-  const activePlan = usePlanStore((s) => s.activePlan);
-  const [planPanelState, setPlanPanelState] = useState<{
-    mode: "closed" | "collapsed" | "open";
-    dismissedPlanId: string | null;
-  }>({ mode: "closed", dismissedPlanId: null });
-  const activePlanId = activePlan?.id ?? null;
-  const shouldAutoOpenPlan =
-    activePlan?.status === "presented" &&
-    activePlanId != null &&
-    planPanelState.dismissedPlanId !== activePlanId &&
-    planPanelState.mode === "closed";
-  const planPanel = shouldAutoOpenPlan ? "open" : planPanelState.mode;
-  const closePlanPanel = () =>
-    setPlanPanelState({ mode: "closed", dismissedPlanId: activePlanId });
-  const collapsePlanPanel = () =>
-    setPlanPanelState((prev) => ({ ...prev, mode: "collapsed" }));
-  const openPlanPanel = () =>
-    setPlanPanelState((prev) => ({ ...prev, mode: "open" }));
 
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
 
@@ -146,13 +123,7 @@ function HomePageInner() {
 
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
           <div className="min-h-0 flex-1">
-            <UnifiedChatPanel
-              key={`${selectedSite}:${chatPreviewVersion}`}
-              siteId={selectedSite}
-              pendingAskNode={pendingAskNode}
-              onConsumeAskNode={() => setPendingAskNode(null)}
-              onOpenEngine={modals.openEngine}
-            />
+            <ChatPanel chatId={strategyId ?? ""} mode="strategy" />
           </div>
 
           {hasGraph && displayStrategy && (
@@ -173,33 +144,7 @@ function HomePageInner() {
           />
         </div>
 
-        {/* Right panel: Strategy Plan */}
-        {planPanel !== "closed" && activePlan != null && (
-          <>
-            <div className="w-px bg-border" />
-            {planPanel === "collapsed" ? (
-              <div className="flex h-full w-10 shrink-0 flex-col items-center border-l border-border bg-card pt-2 gap-2">
-                <button
-                  type="button"
-                  onClick={openPlanPanel}
-                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-                  aria-label="Expand plan panel"
-                  title="Expand plan"
-                >
-                  <ClipboardList className="h-5 w-5" />
-                </button>
-              </div>
-            ) : (
-              <div className="w-[380px] shrink-0">
-                <PlanPanel
-                  siteId={selectedSite}
-                  onClose={closePlanPanel}
-                  onCollapse={collapsePlanPanel}
-                />
-              </div>
-            )}
-          </>
-        )}
+        {/* Plan artifacts now render inline in the chat via DataPlanArtifactPart → StrategyPlanCard. */}
       </div>
 
       <SettingsPage

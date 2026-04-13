@@ -24,11 +24,11 @@ interface EngineState {
 }
 
 export const DEFAULT_PHASES: PipelineConfig = {
-  scoping: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
-  discovery: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
-  planning: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
-  execution: { modelId: "anthropic/claude-sonnet-4-6", reasoningEffort: "medium" },
-  verification: { modelId: "anthropic/claude-opus-4-6", reasoningEffort: "high" },
+  scoping: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
+  discovery: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
+  planning: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
+  execution: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
+  verification: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
 };
 
 export function normalizePipelineConfig(phases?: Partial<PipelineConfig> | null): PipelineConfig {
@@ -44,8 +44,8 @@ export function normalizePipelineConfig(phases?: Partial<PipelineConfig> | null)
 export const useEngineStore = createPersistedStore<EngineState>(
   "EngineStore",
   (set, get) => ({
-    provider: "anthropic",
-    tier: "balanced" as TierName,
+    provider: "openai",
+    tier: "fast" as TierName,
     phases: DEFAULT_PHASES,
 
     setProvider: (provider) => set({ provider }),

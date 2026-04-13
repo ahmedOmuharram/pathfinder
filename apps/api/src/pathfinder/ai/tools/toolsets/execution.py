@@ -1,5 +1,6 @@
 """Execution-phase toolset — 12 tools for building and editing strategies."""
 
+from pydantic_ai.tools import Tool
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -27,20 +28,28 @@ from pathfinder.ai.tools.standalone.think import think
 
 
 def build_toolset() -> FunctionToolset[AgentDeps]:
-    """Build the execution-phase toolset."""
+    """Build the execution-phase toolset.
+
+    Destructive graph-mutations (``delete_step`` and ``clear_strategy``)
+    carry ``requires_approval=True`` so the v6 adapter emits a
+    ``ToolApprovalRequestChunk`` instead of executing immediately. The
+    client then prompts the user for approval before the destructive
+    operation proceeds. See design Decision 8 + chat-overhaul
+    section "Tool approvals".
+    """
     return FunctionToolset(
         tools=[
             create_leaf_step,
             combine_steps,
             transform_step,
             update_step,
-            delete_step,
+            Tool(delete_step, requires_approval=True),
             undo_last_change,
             add_step_filter,
             add_step_analysis,
             add_step_report,
             rename_strategy,
-            clear_strategy,
+            Tool(clear_strategy, requires_approval=True),
             get_strategy,
             think,
         ],

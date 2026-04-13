@@ -1,55 +1,20 @@
-"""Chat endpoint — starts a background chat operation."""
+from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from starlette.responses import Response
 
-from pathfinder.platform.security import limiter
-from pathfinder.services.chat.orchestrator import start_chat_stream
-from pathfinder.services.chat.types import ChatContext, ChatTurnConfig
-from pathfinder.transport.http.deps import (
-    CurrentUser,
-    StreamRepo,
-    UserRepo,
-)
-from pathfinder.transport.http.schemas import ChatRequest
+from pathfinder.services.chat import pipeline_dispatcher
+from pathfinder.transport.http.deps import CurrentUser, DBSession
 
-router = APIRouter(prefix="/api/v1", tags=["chat"])
+router = APIRouter(tags=["chat"])
 
 
-@router.post("/chat", status_code=202)
-@limiter.limit("30/minute")
+@router.post("/api/v1/chat")
 async def chat(
     request: Request,
-    body: ChatRequest,
-    user_repo: UserRepo,
-    stream_repo: StreamRepo,
+    session: DBSession,
     user_id: CurrentUser,
-) -> JSONResponse:
-    """Start a chat operation and return its operation ID.
-
-    The client subscribes to GET /operations/{operationId}/subscribe for SSE events.
-    """
-    context = ChatContext(
-        user_id=user_id,
-        user_repo=user_repo,
-        stream_repo=stream_repo,
-    )
-    config = ChatTurnConfig(
-        pipeline=body.pipeline,
-        mentions=body.mentions or None,
-        metadata=body.metadata,
-        disable_rag=body.disable_rag,
-        temperature=body.temperature,
-        seed=body.seed,
-    )
-    operation_id, strategy_id, entry_id = await start_chat_stream(
-        message=body.message,
-        site_id=body.site_id,
-        strategy_id=body.strategy_id,
-        context=context,
-        config=config,
-    )
-    return JSONResponse(
-        {"operationId": operation_id, "strategyId": strategy_id, "entryId": entry_id},
-        status_code=202,
+) -> Response:
+    return await pipeline_dispatcher.dispatch(
+        request, session=session, user_id=user_id,
     )

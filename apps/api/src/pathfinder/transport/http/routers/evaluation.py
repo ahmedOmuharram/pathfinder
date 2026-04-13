@@ -19,7 +19,7 @@ from pathfinder.services.eval import (
     fetch_strategy_gene_ids,
 )
 from pathfinder.services.wdk import get_strategy_api
-from pathfinder.transport.http.deps import CurrentUser, StreamRepo
+from pathfinder.transport.http.deps import ChatRepo, CurrentUser
 
 router = APIRouter(prefix="/api/v1/eval", tags=["eval"])
 logger = get_logger(__name__)
@@ -83,16 +83,16 @@ class FetchGeneIdsRequest(BaseModel):
 @router.post("/strategy-gene-ids")
 async def get_strategy_gene_ids(
     request: FetchGeneIdsRequest,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
 ) -> dict[str, Any]:
     """Fetch all gene IDs from a PathFinder strategy's WDK root step."""
-    projection = await stream_repo.get_projection(UUID(request.strategy_id))
-    if not projection or not projection.wdk_strategy_id:
+    chat = await chat_repo.get_by_id(UUID(request.strategy_id))
+    if not chat or not chat.wdk_strategy_id:
         return {"geneIds": [], "error": "No WDK strategy linked"}
 
     api = get_strategy_api(request.site_id)
-    gene_ids = await fetch_strategy_gene_ids(api=api, projection=projection)
+    gene_ids = await fetch_strategy_gene_ids(api=api, chat=chat)
 
     if not gene_ids:
         return {"geneIds": [], "error": "No gene IDs found"}

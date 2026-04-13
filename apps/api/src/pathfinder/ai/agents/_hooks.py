@@ -20,21 +20,21 @@ import contextlib
 import json
 from typing import Any, cast
 
-from pydantic import ConfigDict, Field, ValidationError
-from pydantic_ai.messages import ToolCallPart
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic_ai.messages import ToolCallPart, ToolReturn
 from pydantic_ai.tools import RunContext, ToolDefinition
+from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.context.rendering import render_slim_step_result
 from pathfinder.ai.orchestration.deps import AgentDeps
-from pathfinder.ai.tools.standalone._graph_helpers import build_graph_snapshot
+from pathfinder.ai.tools.standalone._stream_parts import (
+    graph_snapshot_chunk,
+    strategy_link_chunk,
+)
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.platform.errors import AppError, sanitize_error_for_client
-from pathfinder.platform.event_schemas import (
-    GraphSnapshotEventData,
-    StrategyLinkEventData,
-)
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONArray, JSONObject
@@ -130,18 +130,6 @@ def _merge_auto_build(original_text: str, extra: JSONObject) -> str:
     return json.dumps(parsed)
 
 
-def _build_graph_snapshot_for_event(
-    deps: AgentDeps,
-    graph: StrategyGraph,
-) -> GraphSnapshotEventData:
-    """Build a ``GraphSnapshotEventData`` from the graph.
-
-    Uses the standalone ``build_graph_snapshot`` helper (no mixin chain).
-    """
-    content = build_graph_snapshot(deps.strategy_session, graph)
-    return GraphSnapshotEventData(graph_snapshot=content)
-
-
 # ---------------------------------------------------------------------------
 # Discovery tracking
 # ---------------------------------------------------------------------------
@@ -176,10 +164,15 @@ def _track_search_discovery(deps: AgentDeps, result_text: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def _auto_build(deps: AgentDeps, graph: StrategyGraph) -> JSONObject:
-    """Push to WDK, sync strategy, create gene set, emit events.
+async def _auto_build(
+    deps: AgentDeps, graph: StrategyGraph
+) -> tuple[JSONObject, list[DataChunk]]:
+    """Push to WDK, sync strategy, create gene set, build data-part chunks.
 
-    Returns the ``autoBuild`` payload to merge into the tool result.
+    Returns a pair of ``(build_data, chunks)`` where ``build_data`` is the
+    ``autoBuild`` payload to merge into the tool result and ``chunks`` are
+    the ``DataChunk`` entries to append to ``ToolReturn.metadata`` for the
+    SSE stream.
     """
     sync_state = ensure_sync_state(deps.strategy_session)
     await push_all_steps_to_wdk(graph, sync_state, deps.site_id, update_existing=True)
@@ -201,10 +194,23 @@ async def _auto_build(deps: AgentDeps, graph: StrategyGraph) -> JSONObject:
     }
 
     await _maybe_create_gene_set(deps, sync_result, build_data, graph)
-    _emit_strategy_link(deps, sync_result, graph)
-    _emit_graph_snapshot(deps, graph)
 
-    return build_data
+    # Build data-part chunks replacing the old strategy_link + graph_snapshot
+    # SSE events. The wdk_strategy_id is an int returned by WDK, not a
+    # PathFinder graph id; we keep the stream-part strategyId consistent with
+    # graph.id (used by the UI graph store keyed by graph id).
+    chunks: list[DataChunk] = []
+    if sync_result.wdk_url is not None:
+        chunks.append(
+            strategy_link_chunk(
+                strategy_id=graph.id,
+                url=sync_result.wdk_url,
+                title=graph.name,
+            )
+        )
+    chunks.append(graph_snapshot_chunk(deps.strategy_session, graph))
+
+    return build_data, chunks
 
 
 async def _maybe_create_gene_set(
@@ -251,35 +257,6 @@ async def _maybe_create_gene_set(
         }
     except (AppError, OSError) as gs_exc:
         logger.warning("Gene set creation failed", error=str(gs_exc))
-
-
-def _emit_strategy_link(
-    deps: AgentDeps, sync_result: SyncResult, graph: StrategyGraph
-) -> None:
-    """Emit strategy_link so frontend updates immediately."""
-    deps.emit_event(
-        {
-            "type": "strategy_link",
-            "data": StrategyLinkEventData(
-                graph_id=graph.id,
-                wdk_strategy_id=sync_result.wdk_strategy_id,
-                wdk_url=sync_result.wdk_url,
-                name=graph.name,
-                is_saved=False,
-            ).model_dump(by_alias=True, exclude_none=True),
-        }
-    )
-
-
-def _emit_graph_snapshot(deps: AgentDeps, graph: StrategyGraph) -> None:
-    """Emit graph_snapshot with updated WDK step IDs and counts."""
-    snapshot_data = _build_graph_snapshot_for_event(deps, graph)
-    deps.emit_event(
-        {
-            "type": "graph_snapshot",
-            "data": snapshot_data.model_dump(by_alias=True, exclude_none=True),
-        }
-    )
 
 
 def _slim_graph_result(
@@ -371,15 +348,57 @@ def _build_auto_build_error_payload(
 
 async def _apply_single_root_build(
     deps: AgentDeps, graph: StrategyGraph, result_text: str
-) -> str:
-    """Run auto-build for a single-root graph and merge the result."""
+) -> tuple[str, list[DataChunk]]:
+    """Run auto-build for a single-root graph and merge the result.
+
+    Returns ``(updated_result_text, chunks)`` where ``chunks`` are new
+    ``DataChunk`` entries to append to ``ToolReturn.metadata``.
+    """
     try:
-        build_data = await _auto_build(deps, graph)
-        return _merge_auto_build(result_text, {"autoBuild": build_data})
+        build_data, chunks = await _auto_build(deps, graph)
+        return _merge_auto_build(result_text, {"autoBuild": build_data}), chunks
     except (AppError, OSError, RootResolutionError) as exc:
         error_payload = _build_auto_build_error_payload(exc, graph, deps.strategy_session.sync_state)
         logger.warning("Auto-build failed", error=str(exc))
-        return _merge_auto_build(result_text, {"autoBuild": error_payload})
+        return _merge_auto_build(result_text, {"autoBuild": error_payload}), []
+
+
+def _serialize_tool_return_value(raw_value: Any) -> str:
+    """Stringify a tool's return_value to JSON-ish text for result slimming.
+
+    Mirrors ``serialize_tool_content`` in
+    :mod:`pathfinder.services.chat.streaming.events` — kept local to avoid
+    pulling a services-layer import into the AI agents layer. Pydantic
+    ``BaseModel`` instances dump via ``model_dump(by_alias=True, mode="json")``.
+    """
+    if isinstance(raw_value, str):
+        return raw_value
+    if isinstance(raw_value, BaseModel):
+        return json.dumps(raw_value.model_dump(by_alias=True, mode="json"))
+    if isinstance(raw_value, (dict, list)):
+        try:
+            return json.dumps(raw_value)
+        except (TypeError, ValueError):
+            return str(raw_value)
+    return str(raw_value)
+
+
+def _extract_text_and_metadata(result: Any) -> tuple[str, list[DataChunk]]:
+    """Split an incoming tool result into (text, existing metadata chunks).
+
+    Tools that return ``ToolReturn`` contribute a typed ``return_value`` and
+    a list of already-built ``metadata`` chunks. Older tools that return a
+    plain string or dict contribute just the serialized text and no chunks.
+    """
+    if isinstance(result, ToolReturn):
+        text = _serialize_tool_return_value(result.return_value)
+        existing_metadata = result.metadata
+        chunks: list[DataChunk] = []
+        if isinstance(existing_metadata, list):
+            chunks = [c for c in existing_metadata if isinstance(c, DataChunk)]
+        return text, chunks
+    text = result if isinstance(result, str) else str(result)
+    return text, []
 
 
 async def apply_auto_build_hook(
@@ -391,7 +410,12 @@ async def apply_auto_build_hook(
     args: dict[str, Any],
     result: Any,
 ) -> Any:
-    """Apply auto-build and result-slimming for graph-mutating tools."""
+    """Apply auto-build and result-slimming for graph-mutating tools.
+
+    Preserves any existing ``ToolReturn.metadata`` chunks emitted by the
+    tool and appends auto-build chunks (``data-strategy-link`` and a
+    refreshed ``data-graph-snapshot``).
+    """
     if call.tool_name not in _GRAPH_MUTATING_TOOLS:
         return result
 
@@ -400,13 +424,16 @@ async def apply_auto_build_hook(
     if not graph:
         return result
 
-    result_text = result if isinstance(result, str) else str(result)
+    result_text, existing_chunks = _extract_text_and_metadata(result)
 
     if _is_error_result(result_text):
         return result_text
 
+    auto_build_chunks: list[DataChunk] = []
     if len(graph.roots) == 1:
-        result_text = await _apply_single_root_build(deps, graph, result_text)
+        result_text, auto_build_chunks = await _apply_single_root_build(
+            deps, graph, result_text
+        )
     elif len(graph.roots) > 1:
         root_names = [
             graph.steps[r].display_name or graph.steps[r].search_name
@@ -422,10 +449,17 @@ async def apply_auto_build_hook(
 
     # Slim the result — the model sees graph state via dynamic instructions.
     slim = _slim_graph_result(result_text, graph, deps.strategy_session.sync_state)
-    if slim is not None:
-        return slim
+    final_text = slim if slim is not None else result_text
 
-    return result_text
+    # Merge pre-existing chunks with auto-build chunks. Replace the
+    # tool's own `data-graph-snapshot` with the post-build refreshed one
+    # (the pre-build snapshot lacked wdkStrategyId / updated counts).
+    chunks = [
+        c for c in existing_chunks if c.type != "data-graph-snapshot"
+    ]
+    chunks.extend(auto_build_chunks)
+
+    return ToolReturn(return_value=final_text, metadata=chunks)
 
 
 __all__ = [

@@ -4,15 +4,13 @@ from datetime import UTC, datetime
 
 from pathfinder.domain.strategy.ast import PlanStepNode, walk_step_tree
 from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
-from pathfinder.persistence.models import StreamProjection
+from pathfinder.persistence.models import Chat
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.wdk import get_site
 from pathfinder.transport.http.schemas import (
-    MessageResponse,
     StepResponse,
     StrategyResponse,
-    ThinkingResponse,
 )
 
 logger = get_logger(__name__)
@@ -100,28 +98,11 @@ def extract_plan_description(
     return payload.description
 
 
-def parse_thinking(raw: JSONObject | None) -> ThinkingResponse | None:
-    """Parse a strategy's ``thinking`` JSON object into a response model.
-
-    Returns ``None`` on empty input or validation errors.
-    """
-    if not isinstance(raw, dict) or not raw:
-        return None
-    try:
-        return ThinkingResponse.model_validate(raw)
-    except (ValueError, TypeError, KeyError) as exc:
-        logger.debug("Failed to parse thinking response", error=str(exc))
-        return None
-
-
 def extract_root_step_id(
     payload: StrategyPlanPayload | None,
-    fallback_root_step_id: str | None,
+    fallback_root_step_id: str | None = None,
 ) -> str | None:
-    """Extract the root step ID from a typed plan payload.
-
-    Falls back to ``fallback_root_step_id`` when the payload is None.
-    """
+    """Extract the root step ID from a typed plan payload."""
     if payload is not None:
         return payload.root.id
     return fallback_root_step_id
@@ -141,93 +122,63 @@ def _parse_plan_payload(plan_raw: JSONObject) -> StrategyPlanPayload | None:
         return None
 
 
-def build_projection_response(
-    projection: StreamProjection,
-    *,
-    messages: list[JSONObject] | None = None,
-    thinking: JSONObject | None = None,
-) -> StrategyResponse:
-    """Build a ``StrategyResponse`` from a StreamProjection + Redis data.
+def build_chat_response(chat: Chat) -> StrategyResponse:
+    """Build a ``StrategyResponse`` from a ``Chat`` (detail view).
 
     Steps and rootStepId are derived from the plan at read time.
     """
-    payload = _parse_plan_payload(projection.plan)
-    root_step_id = extract_root_step_id(payload, projection.root_step_id)
+    payload = _parse_plan_payload(chat.plan)
+    root_step_id = extract_root_step_id(payload)
 
-    msg_responses: list[MessageResponse] | None = None
-    if messages:
-        validated: list[MessageResponse] = []
-        for i, m in enumerate(messages):
-            if not isinstance(m, dict):
-                continue
-            try:
-                validated.append(MessageResponse.model_validate(m))
-            except (ValueError, TypeError, KeyError) as exc:
-                logger.warning(
-                    "Skipping malformed message during projection build",
-                    index=i,
-                    role=m.get("role"),
-                    error=str(exc),
-                )
-        msg_responses = validated or None
-
-    thinking_response = parse_thinking(thinking)
-
-    wdk_url = _compute_wdk_url(projection.site_id, projection.wdk_strategy_id)
+    wdk_url = _compute_wdk_url(chat.site_id, chat.wdk_strategy_id)
 
     return StrategyResponse(
-        id=projection.stream_id,
-        name=projection.name,
-        title=projection.name,
+        id=chat.id,
+        name=chat.name,
+        title=chat.name,
         description=extract_plan_description(payload),
-        siteId=projection.site_id,
-        recordType=projection.record_type,
+        siteId=chat.site_id,
+        recordType=chat.record_type,
         steps=derive_steps_from_plan(payload),
         rootStepId=root_step_id,
-        wdkStrategyId=projection.wdk_strategy_id,
+        wdkStrategyId=chat.wdk_strategy_id,
         wdkUrl=wdk_url,
-        geneSetId=projection.gene_set_id,
-        isSaved=projection.is_saved,
-        messages=msg_responses,
-        thinking=thinking_response,
-        pipeline=projection.pipeline,
-        conversationState=projection.conversation_state or None,
-        createdAt=projection.stream.created_at
-        if projection.stream
-        else datetime.now(UTC),
-        updatedAt=projection.updated_at or datetime.now(UTC),
-        dismissedAt=projection.dismissed_at,
+        geneSetId=chat.gene_set_id,
+        isSaved=chat.is_saved,
+        pipeline=chat.pipeline,
+        conversationState=chat.conversation_state or None,
+        createdAt=chat.created_at or datetime.now(UTC),
+        updatedAt=chat.updated_at or datetime.now(UTC),
+        dismissedAt=chat.dismissed_at,
     )
 
 
-def build_projection_summary(
-    projection: StreamProjection,
+def build_chat_summary(
+    chat: Chat,
     *,
     site_id: str = "",
 ) -> StrategyResponse:
-    """Build a ``StrategyResponse`` (list view) from a StreamProjection.
+    """Build a ``StrategyResponse`` (list view) from a ``Chat``.
 
-    Returns a StrategyResponse with ``steps=[]`` and summary fields populated.
+    Returns a summary with ``steps=[]`` and the denormalized fields populated.
     """
-    effective_site_id = site_id or projection.site_id
-    wdk_url = _compute_wdk_url(effective_site_id, projection.wdk_strategy_id)
+    effective_site_id = site_id or chat.site_id
+    wdk_url = _compute_wdk_url(effective_site_id, chat.wdk_strategy_id)
 
     return StrategyResponse(
-        id=projection.stream_id,
-        name=projection.name,
-        title=projection.name,
+        id=chat.id,
+        name=chat.name,
+        title=chat.name,
         siteId=effective_site_id,
-        recordType=projection.record_type,
-        wdkStrategyId=projection.wdk_strategy_id,
+        recordType=chat.record_type,
+        wdkStrategyId=chat.wdk_strategy_id,
         wdkUrl=wdk_url,
-        geneSetId=projection.gene_set_id,
-        isSaved=projection.is_saved,
-        stepCount=projection.step_count,
-        estimatedSize=projection.estimated_size,
-        conversationState=projection.conversation_state or None,
-        createdAt=projection.stream.created_at
-        if projection.stream
-        else datetime.now(UTC),
-        updatedAt=projection.updated_at or datetime.now(UTC),
-        dismissedAt=projection.dismissed_at,
+        geneSetId=chat.gene_set_id,
+        isSaved=chat.is_saved,
+        stepCount=chat.step_count,
+        estimatedSize=chat.estimated_size,
+        conversationState=chat.conversation_state or None,
+        createdAt=chat.created_at or datetime.now(UTC),
+        updatedAt=chat.updated_at or datetime.now(UTC),
+        dismissedAt=chat.dismissed_at,
     )

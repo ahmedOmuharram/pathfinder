@@ -1,4 +1,9 @@
+# Grab uv binary from the official image — avoids `pip install uv` bootstrap.
+FROM ghcr.io/astral-sh/uv:latest AS uv
+
 FROM python:3.14-slim
+
+COPY --from=uv /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
@@ -7,9 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
-
-# Install uv
-RUN pip install uv
 
 # ── Cached layer: dependencies + models (busted only by pyproject.toml/uv.lock) ──
 
@@ -29,12 +31,24 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Pre-download the fastembed ONNX model into the image so startup
 # doesn't depend on network availability or rate limits.
-# Lives in the same cached layer group as deps — code changes don't bust this.
-RUN .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='nomic-ai/nomic-embed-text-v1.5')"
+#
+# Cache mount on /tmp/fastembed-cache preserves the network download across
+# rebuilds (even when deps change and this layer is busted). We then copy the
+# files into /app/models/fastembed so they persist in the final image.
+# Runtime reads FASTEMBED_CACHE_DIR to find the baked-in model.
+ENV FASTEMBED_CACHE_DIR=/app/models/fastembed
+RUN --mount=type=cache,target=/tmp/fastembed-cache \
+    .venv/bin/python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='nomic-ai/nomic-embed-text-v1.5', cache_dir='/tmp/fastembed-cache')" \
+    && mkdir -p "$FASTEMBED_CACHE_DIR" \
+    && cp -r /tmp/fastembed-cache/. "$FASTEMBED_CACHE_DIR/"
 
 # Download PIGuard ONNX model + tokenizer for prompt-injection detection.
-# Replaces the heavyweight llm-guard stack (torch + CUDA + transformers).
-RUN .venv/bin/python <<'PYEOF'
+# Cache mount on HF_HOME preserves the HuggingFace download across rebuilds;
+# hf_hub_download copies files from the HF cache into /app/models/piguard,
+# which is baked into the image layer.
+ENV HF_HOME=/root/.cache/huggingface
+RUN --mount=type=cache,target=/root/.cache/huggingface \
+    .venv/bin/python <<'PYEOF'
 from huggingface_hub import hf_hub_download
 import os
 model_dir = '/app/models/piguard'
@@ -83,9 +97,12 @@ WORKDIR /app/apps/api
 # Expose port
 EXPOSE 8000
 
-# Health check — use /health/ready (checks DB) so Docker waits for full readiness.
-# start-period covers warm-up: model loading + catalog preload for all 14 sites.
-HEALTHCHECK --interval=10s --timeout=10s --start-period=300s --retries=5 \
+# Health check — /health/ready is faithful: returns 503 until every
+# subsystem (DB, Redis, embedding model, PIGuard, every site catalog) is
+# actually ready. start-period is the genuine bootstrap window: lifespan
+# awaits migrations + model loads + 15 site catalogs (~140s worst case),
+# and we don't want Docker marking unhealthy during that legitimate boot.
+HEALTHCHECK --interval=10s --timeout=10s --start-period=180s --retries=5 \
     CMD curl -f http://localhost:8000/health/ready || exit 1
 
 # Run the application

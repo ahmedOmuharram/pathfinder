@@ -22,6 +22,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_context_summary,
     pinned_graph_state,
 )
+from pathfinder.ai.agents._phase_decisions import ExecutionDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -49,6 +50,24 @@ whether to retry or escalate.
 operations. The auto-build hook handles WDK push, sync, and gene set \
 creation automatically — you do not need to trigger these manually.
 
+## Final Output
+
+When the plan has been fully applied, produce an `ExecutionDecision` as \
+your final output. Do NOT call any `finish_*` tool; those tools no longer \
+exist.
+
+Choose `next_action` based on what happened:
+  - `advance_to_verification`: all planned steps were applied successfully.
+  - `retry`: one or more steps failed but retrying with adjusted parameters \
+is likely to succeed.
+  - `abort`: the plan is fundamentally broken and verification cannot \
+proceed (the orchestrator will typically redirect to replanning).
+
+Populate every field:
+  - `executed_steps`: WDK step identifiers for every step successfully \
+applied during this run (visible via `get_strategy`).
+  - `reason`: one-to-two sentence justification for `next_action`.
+
 ## Guidelines
 
 - One operation at a time. Create a leaf step, verify it succeeded, then \
@@ -73,8 +92,9 @@ hypothetical next actions.
 
 _execution_hooks: Hooks[AgentDeps] = Hooks(after_tool_execute=apply_auto_build_hook)
 
-execution_agent: Agent[AgentDeps, str] = Agent(
-    "anthropic:claude-sonnet-4-5",
+execution_agent: Agent[AgentDeps, ExecutionDecision] = Agent(
+    "openai:gpt-4.1-mini",
+    output_type=ExecutionDecision,
     deps_type=AgentDeps,
     instructions=_EXECUTION_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -116,11 +136,11 @@ def _mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:
 # ---------------------------------------------------------------------------
 
 EXECUTION_USAGE_LIMITS = UsageLimits(
-    request_limit=50,
+    request_limit=200,
     total_tokens_limit=500_000,
 )
 
 EXECUTION_RECOVERY_LIMITS = UsageLimits(
-    request_limit=50,
+    request_limit=200,
     total_tokens_limit=500_000,
 )

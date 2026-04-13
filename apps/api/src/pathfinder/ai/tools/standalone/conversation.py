@@ -5,13 +5,20 @@ Provides:
 - ``clear_strategy`` -- clear the current strategy and start fresh
 """
 
+from __future__ import annotations
+
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone._conversation_models import (
     ClearStrategyResult,
     RenameStrategyResult,
     _has_strategy,
+)
+from pathfinder.ai.tools.standalone._stream_parts import (
+    graph_cleared_chunk,
+    strategy_meta_chunk,
 )
 from pathfinder.platform.errors import ErrorCode
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
@@ -23,7 +30,7 @@ async def rename_strategy(
     new_name: str,
     description: str,
     graph_id: str | None = None,
-) -> RenameStrategyResult | ToolErrorPayload:
+) -> ToolReturn[RenameStrategyResult] | ToolErrorPayload:
     """Rename the current strategy.
 
     Args:
@@ -43,14 +50,17 @@ async def rename_strategy(
     graph.description = description
     graph.save_history(f"Renamed from '{old_name}' to '{new_name}'")
 
-    return RenameStrategyResult(
-        graph_id=graph.id,
-        old_name=old_name,
-        new_name=new_name,
-        name=new_name,
-        record_type=graph.record_type or "",
-        description=graph.description,
-        plan=graph.to_plan(sync_state=session.sync_state),
+    return ToolReturn(
+        return_value=RenameStrategyResult(
+            graph_id=graph.id,
+            old_name=old_name,
+            new_name=new_name,
+            name=new_name,
+            record_type=graph.record_type or "",
+            description=graph.description,
+            plan=graph.to_plan(sync_state=session.sync_state),
+        ),
+        metadata=[strategy_meta_chunk(graph)],
     )
 
 
@@ -58,7 +68,7 @@ async def clear_strategy(
     ctx: RunContext[AgentDeps],
     graph_id: str | None = None,
     confirm: bool = False,
-) -> ClearStrategyResult | ToolErrorPayload:
+) -> ToolReturn[ClearStrategyResult] | ToolErrorPayload:
     """Clear the current strategy and start fresh.
 
     This removes all steps and the current strategy. Requires explicit confirmation.
@@ -86,7 +96,10 @@ async def clear_strategy(
     # Reset WDK sync state.
     session.sync_state = WDKSyncState()
 
-    return ClearStrategyResult(
-        graph_id=graph.id,
-        message="Strategy cleared. Ready to start fresh.",
+    return ToolReturn(
+        return_value=ClearStrategyResult(
+            graph_id=graph.id,
+            message="Strategy cleared. Ready to start fresh.",
+        ),
+        metadata=[graph_cleared_chunk(reason="user cleared the strategy")],
     )

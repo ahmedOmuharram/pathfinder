@@ -179,7 +179,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SearchValidationResponse'
+                $ref: '#/components/schemas/ValidationResponse'
         '422':
           description: Validation Error
           content:
@@ -235,13 +235,62 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/sites/{siteId}/searches/{recordType}/{searchName}/refreshed-dependent-params:
+    post:
+      tags:
+      - sites
+      summary: Refresh Dependent Params
+      description: Refresh dependent parameter vocabularies after a param value changes.
+      operationId: refresh_dependent_params_api_v1_sites__siteId__searches__recordType___searchName__refreshed_dependent_params_post
+      parameters:
+      - name: siteId
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      - name: recordType
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Recordtype
+      - name: searchName
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Searchname
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DependentParamsRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ParamSpecResponse'
+                title: Response Refresh Dependent Params Api V1 Sites  Siteid  Searches  Recordtype   Searchname  Refreshed
+                  Dependent Params Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/sites/{siteId}/organisms:
     get:
       tags:
       - sites
-      summary: List Organisms
+      summary: Get Organisms
       description: Return all available organism names for a site via site-search.
-      operationId: list_organisms_api_v1_sites__siteId__organisms_get
+      operationId: get_organisms_api_v1_sites__siteId__organisms_get
       parameters:
       - name: siteId
         in: path
@@ -370,50 +419,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ModelListResponse'
-  /api/v1/tools:
+  /api/v1/tiers:
     get:
       tags:
-      - tools
-      summary: List Tools
-      description: Return the list of AI tools registered on the agent.
-      operationId: list_tools_api_v1_tools_get
+      - tiers
+      summary: List Tiers
+      description: Return tier presets grouped by provider.
+      operationId: list_tiers_api_v1_tiers_get
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ToolListResponse'
+                $ref: '#/components/schemas/TierListResponse'
   /api/v1/chat:
     post:
       tags:
       - chat
       summary: Chat
-      description: 'Start a chat operation and return its operation ID.
-
-
-        The client subscribes to GET /operations/{operationId}/subscribe for SSE events.'
+      description: Dispatch a chat turn; returns the raw SSE stream.
       operationId: chat_api_v1_chat_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatRequest'
-        required: true
       responses:
-        '202':
+        '200':
           description: Successful Response
           content:
             application/json:
               schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      security:
-      - APIKeyCookie: []
   /api/v1/strategies:
     get:
       tags:
@@ -612,6 +644,42 @@ paths:
       responses:
         '204':
           description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/strategies/{strategyId}/push:
+    post:
+      tags:
+      - strategies
+      summary: Push Strategy
+      description: 'Push a strategy to WDK: normalize plan, persist locally, sync to WDK.'
+      operationId: push_strategy_api_v1_strategies__strategyId__push_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushStrategyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategyResponse'
         '422':
           description: Validation Error
           content:
@@ -953,6 +1021,8 @@ paths:
         '200':
           description: SSE stream of seed strategy/control-set progress
           content:
+            application/json:
+              schema: {}
             text/event-stream:
               schema:
                 type: string
@@ -1529,78 +1599,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/{experiment_id}/chat:
-    post:
-      tags:
-      - experiments
-      summary: Workbench Chat
-      description: 'Start a conversational AI chat for an experiment.
-
-
-        Returns operation ID for SSE subscription via
-
-        GET /operations/{operationId}/subscribe.'
-      operationId: workbench_chat_api_v1_experiments__experiment_id__chat_post
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: experiment_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Experiment Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkbenchChatRequest'
-      responses:
-        '202':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkbenchChatResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/experiments/{experiment_id}/chat/messages:
-    get:
-      tags:
-      - experiments
-      summary: Get Workbench Chat Messages
-      description: Get conversation history for an experiment's chat.
-      operationId: get_workbench_chat_messages_api_v1_experiments__experiment_id__chat_messages_get
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: experiment_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Experiment Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/JSONObject'
-                title: Response Get Workbench Chat Messages Api V1 Experiments  Experiment Id  Chat Messages Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/control-sets:
     get:
       tags:
@@ -1836,7 +1834,7 @@ paths:
       description: 'Return current VEuPathDB auth status.
 
 
-        In mock mode (``PATHFINDER_CHAT_PROVIDER=mock``), a valid
+        In test-mode mock runs (``PATHFINDER_CHAT_PROVIDER=mock``), a valid
 
         ``pathfinder-auth`` cookie is sufficient — the dev-login endpoint
 
@@ -1857,131 +1855,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthStatusResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/operations/{operation_id}/subscribe:
-    get:
-      tags:
-      - operations
-      summary: Subscribe
-      description: 'SSE stream backed by Redis Streams.
-
-
-        Catchup: replays events from `lastEventId` (or from the beginning).
-
-        Live: uses XREAD BLOCK for new events until a terminal event is seen.'
-      operationId: subscribe_api_v1_operations__operation_id__subscribe_get
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: operation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Operation Id
-      - name: lastEventId
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Resume from this Redis entry ID (for reconnection).
-          title: Lasteventid
-        description: Resume from this Redis entry ID (for reconnection).
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/operations/{operation_id}/cancel:
-    post:
-      tags:
-      - operations
-      summary: Cancel
-      description: 'Cancel a running operation.
-
-
-        For chat operations this cancels the background asyncio task running
-
-        the LLM agent. The producer''s CancelledError handler emits a
-
-        ``message_end`` event so any connected subscribers close cleanly.'
-      operationId: cancel_api_v1_operations__operation_id__cancel_post
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: operation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Operation Id
-      responses:
-        '202':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JSONObject'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/operations/active:
-    get:
-      tags:
-      - operations
-      summary: List Active
-      description: List active operations, optionally filtered by stream and/or type.
-      operationId: list_active_api_v1_operations_active_get
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: streamId
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Filter by stream/strategy ID.
-          title: Streamid
-        description: Filter by stream/strategy ID.
-      - name: type
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          description: Filter by operation type (chat, experiment).
-          title: Type
-        description: Filter by operation type (chat, experiment).
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/JSONObject'
-                title: Response List Active Api V1 Operations Active Get
         '422':
           description: Validation Error
           content:
@@ -2482,20 +2355,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/internal/sse-schemas:
-    get:
+  /api/v1/feedback:
+    post:
       tags:
-      - internal
-      summary: Sse Schemas
-      description: SSE event data schemas -- for OpenAPI generation only.
-      operationId: sse_schemas_api_v1_internal_sse_schemas_get
+      - feedback
+      summary: Submit Feedback
+      description: Record user feedback on an assistant response.
+      operationId: submit_feedback_api_v1_feedback_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+        required: true
       responses:
-        '200':
+        '204':
           description: Successful Response
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SSESchemaIndex'
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/feedback/actions:
+    post:
+      tags:
+      - feedback
+      summary: Submit Product Action
+      description: Record a non-score product action in Langfuse.
+      operationId: submit_product_action_api_v1_feedback_actions_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductActionRequest'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/internal/experiment-schemas:
     get:
       tags:
@@ -2510,6 +2413,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExperimentSchemaIndex'
+  /api/v1/internal/stream-parts/schemas:
+    get:
+      tags:
+      - internal
+      summary: Stream Parts Schemas
+      description: Stream-part payload schemas — for OpenAPI generation only.
+      operationId: stream_parts_schemas_api_v1_internal_stream_parts_schemas_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StreamPartsSchemaIndex'
   /api/v1/user/data:
     delete:
       tags:
@@ -2626,36 +2543,6 @@ paths:
       - APIKeyCookie: []
 components:
   schemas:
-    AssistantDeltaEventData:
-      properties:
-        messageId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Messageid
-        delta:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Delta
-      type: object
-      title: AssistantDeltaEventData
-      description: Payload for ``assistant_delta`` SSE events (streaming tokens).
-    AssistantMessageEventData:
-      properties:
-        messageId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Messageid
-        content:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Content
-      type: object
-      title: AssistantMessageEventData
-      description: Payload for ``assistant_message`` SSE events (complete message).
     AuthStatusResponse:
       properties:
         signedIn:
@@ -2786,6 +2673,15 @@ components:
           additionalProperties: true
           type: object
           title: Steptree
+        datasetGeneIds:
+          anyOf:
+          - additionalProperties:
+              items:
+                type: string
+              type: array
+            type: object
+          - type: 'null'
+          title: Datasetgeneids
       type: object
       required:
       - goldId
@@ -2804,9 +2700,9 @@ components:
         rootStepId:
           type: integer
           title: Rootstepid
-        resultCount:
+        estimatedSize:
           type: integer
-          title: Resultcount
+          title: Estimatedsize
         geneIds:
           items:
             type: string
@@ -2817,191 +2713,10 @@ components:
       - goldId
       - wdkStrategyId
       - rootStepId
-      - resultCount
+      - estimatedSize
       - geneIds
       title: BuildGoldResponse
-    ChatMention:
-      properties:
-        type:
-          type: string
-          enum:
-          - strategy
-          - experiment
-          title: Type
-        id:
-          type: string
-          title: Id
-        displayName:
-          type: string
-          title: Displayname
-      type: object
-      required:
-      - type
-      - id
-      - displayName
-      title: ChatMention
-      description: A reference to a strategy or experiment included via @-mention.
-    ChatRequest:
-      properties:
-        strategyId:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
-          title: Strategyid
-        siteId:
-          type: string
-          title: Siteid
-        message:
-          type: string
-          maxLength: 200000
-          minLength: 1
-          title: Message
-        provider:
-          anyOf:
-          - type: string
-            enum:
-            - openai
-            - anthropic
-            - google
-            - ollama
-            - mock
-          - type: 'null'
-          title: Provider
-        model:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Model
-        reasoningEffort:
-          anyOf:
-          - type: string
-            enum:
-            - none
-            - low
-            - medium
-            - high
-          - type: 'null'
-          title: Reasoningeffort
-        disableRag:
-          type: boolean
-          title: Disablerag
-          default: false
-        temperature:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Temperature
-        seed:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Seed
-        contextSize:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Contextsize
-        responseTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Responsetokens
-        reasoningBudget:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Reasoningbudget
-        disabledTools:
-          items:
-            type: string
-          type: array
-          title: Disabledtools
-        mentions:
-          items:
-            $ref: '#/components/schemas/ChatMention'
-          type: array
-          title: Mentions
-      type: object
-      required:
-      - siteId
-      - message
-      title: ChatRequest
-      description: Request to send a chat message.
-    CitationResponse:
-      properties:
-        id:
-          type: string
-          title: Id
-        source:
-          type: string
-          title: Source
-        tag:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Tag
-        title:
-          type: string
-          title: Title
-        url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Url
-        authors:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
-          title: Authors
-        year:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Year
-        doi:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Doi
-        pmid:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Pmid
-        snippet:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Snippet
-        accessedAt:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Accessedat
-      type: object
-      required:
-      - id
-      - source
-      - title
-      title: CitationResponse
-      description: Citation from research tools.
-    CitationsEventData:
-      properties:
-        citations:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/CitationResponse'
-            type: array
-          - type: 'null'
-          title: Citations
-      type: object
-      title: CitationsEventData
-      description: Payload for ``citations`` SSE events.
     ColocationParams:
-      description: Full WDK GenesBySpanLogic parameters for COLOCATE operator.
       properties:
         operation:
           type: string
@@ -3033,45 +2748,45 @@ components:
           - upstream
           - downstream
           - custom
-          title: Region A
-          default: exact
+          title: Regiona
+          default: custom
         beginA:
           type: string
           enum:
           - start
           - stop
-          title: Begin A
+          title: Begina
           default: start
         beginDirectionA:
           type: string
           enum:
-          - '+'
+          - +
           - '-'
-          title: Begin Direction A
-          default: '+'
+          title: Begindirectiona
+          default: '-'
         beginOffsetA:
           type: integer
-          minimum: 0
-          title: Begin Offset A
-          default: 0
+          minimum: 0.0
+          title: Beginoffseta
+          default: 1000
         endA:
           type: string
           enum:
           - start
           - stop
-          title: End A
+          title: Enda
           default: stop
         endDirectionA:
           type: string
           enum:
-          - '+'
+          - +
           - '-'
-          title: End Direction A
-          default: '+'
+          title: Enddirectiona
+          default: +
         endOffsetA:
           type: integer
-          minimum: 0
-          title: End Offset A
+          minimum: 0.0
+          title: Endoffseta
           default: 0
         regionB:
           type: string
@@ -3080,48 +2795,71 @@ components:
           - upstream
           - downstream
           - custom
-          title: Region B
+          title: Regionb
           default: exact
         beginB:
           type: string
           enum:
           - start
           - stop
-          title: Begin B
+          title: Beginb
           default: start
         beginDirectionB:
           type: string
           enum:
-          - '+'
+          - +
           - '-'
-          title: Begin Direction B
-          default: '+'
+          title: Begindirectionb
+          default: +
         beginOffsetB:
           type: integer
-          minimum: 0
-          title: Begin Offset B
+          minimum: 0.0
+          title: Beginoffsetb
           default: 0
         endB:
           type: string
           enum:
           - start
           - stop
-          title: End B
+          title: Endb
           default: stop
         endDirectionB:
           type: string
           enum:
-          - '+'
+          - +
           - '-'
-          title: End Direction B
-          default: '+'
+          title: Enddirectionb
+          default: +
         endOffsetB:
           type: integer
-          minimum: 0
-          title: End Offset B
+          minimum: 0.0
+          title: Endoffsetb
           default: 0
       type: object
       title: ColocationParams
+      description: 'Full WDK GenesBySpanLogic parameters for COLOCATE operator.
+
+
+        Human-readable field values for the AI model; ``to_wdk_params()``
+
+        translates to WDK internal vocabulary values before submission.
+
+
+        WDK source of truth:
+
+        ``GET /record-types/transcript/searches/GenesBySpanLogic?expandParams=true``'
+    CombineOp:
+      type: string
+      enum:
+      - INTERSECT
+      - MINUS
+      - RMINUS
+      - LONLY
+      - RONLY
+      - COLOCATE
+      - UNION
+      title: CombineOp
+      description: Set operations for combining two step results.
     ConfidenceIntervalResponse:
       properties:
         lower:
@@ -3263,6 +3001,16 @@ components:
       - negativeCount
       title: ControlSetSummaryResponse
       description: Control set summary for listing.
+    ConversationTitle:
+      properties:
+        title:
+          type: string
+          title: Title
+      type: object
+      required:
+      - title
+      title: ConversationTitle
+      description: A proposed short title for the conversation.
     CreateBatchExperimentRequest:
       properties:
         base:
@@ -3619,7 +3367,7 @@ components:
           type: string
           title: Siteid
         plan:
-          $ref: '#/components/schemas/StrategyPlan-Input'
+          $ref: '#/components/schemas/StrategyPlanPayload-Input'
       type: object
       required:
       - name
@@ -3721,6 +3469,41 @@ components:
       - oddsRatio
       title: CustomEnrichmentResult
       description: Return shape of :func:`run_custom_enrichment`.
+    DecisionPresented:
+      properties:
+        decisionType:
+          type: string
+          title: Decisiontype
+        options:
+          items:
+            additionalProperties:
+              $ref: '#/components/schemas/JsonValue'
+            type: object
+          type: array
+          title: Options
+        rationale:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rationale
+      type: object
+      required:
+      - decisionType
+      - options
+      title: DecisionPresented
+      description: A branching decision for the user to resolve.
+    DependentParamsRequest:
+      properties:
+        parameterName:
+          type: string
+          title: Parametername
+        contextValues:
+          $ref: '#/components/schemas/JSONObject'
+      type: object
+      required:
+      - parameterName
+      title: DependentParamsRequest
+      description: Dependent parameter values request.
     EnrichmentCompareRequest:
       properties:
         experimentIds:
@@ -3927,25 +3710,6 @@ components:
       - geneSetIds
       title: EnsembleScoringRequest
       description: Compute ensemble frequency scores across multiple gene sets.
-    ErrorEventData:
-      properties:
-        error:
-          type: string
-          title: Error
-      type: object
-      required:
-      - error
-      title: ErrorEventData
-      description: Payload for ``error`` SSE events.
-    ExecutorBuildRequestEventData:
-      properties:
-        executorBuildRequest:
-          anyOf:
-          - $ref: '#/components/schemas/JSONObject'
-          - type: 'null'
-      type: object
-      title: ExecutorBuildRequestEventData
-      description: Payload for ``executor_build_request`` SSE events.
     ExperimentConfigResponse:
       properties:
         siteId:
@@ -4480,13 +4244,17 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ControlSetSummaryResponse'
           - type: 'null'
-        citation:
+        optimization_progress:
           anyOf:
-          - $ref: '#/components/schemas/CitationResponse'
+          - $ref: '#/components/schemas/OptimizationProgressEventData'
           - type: 'null'
-        planning_artifact:
+        optimization_trial:
           anyOf:
-          - $ref: '#/components/schemas/PlanningArtifactResponse'
+          - $ref: '#/components/schemas/OptimizationTrialData'
+          - type: 'null'
+        optimization_parameter_spec:
+          anyOf:
+          - $ref: '#/components/schemas/OptimizationParameterSpecData'
           - type: 'null'
       type: object
       title: ExperimentSchemaIndex
@@ -4581,6 +4349,29 @@ components:
       - createdAt
       title: ExperimentSummaryResponse
       description: Lightweight experiment summary for list views.
+    FeedbackRequest:
+      properties:
+        traceId:
+          type: string
+          title: Traceid
+        streamId:
+          type: string
+          title: Streamid
+        value:
+          type: integer
+          title: Value
+        comment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Comment
+      type: object
+      required:
+      - traceId
+      - streamId
+      - value
+      title: FeedbackRequest
+      description: User feedback on an assistant message.
     FetchGeneIdsRequest:
       properties:
         strategyId:
@@ -4834,6 +4625,28 @@ components:
       - geneId
       title: GeneSearchResultResponse
       description: A single gene result from site-search.
+    GeneSet:
+      properties:
+        geneSetId:
+          type: string
+          title: Genesetid
+        name:
+          type: string
+          title: Name
+        geneCount:
+          type: integer
+          minimum: 0.0
+          title: Genecount
+        siteId:
+          type: string
+          title: Siteid
+      type: object
+      required:
+      - geneSetId
+      - name
+      - geneCount
+      - siteId
+      title: GeneSet
     GeneSetEnrichRequest:
       properties:
         enrichmentTypes:
@@ -4939,84 +4752,109 @@ components:
       - createdAt
       title: GeneSetResponse
       description: Gene set response DTO.
-    GeneSetSummary:
+    GraphCleared:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      type: object
+      title: GraphCleared
+      description: Sentinel indicating the strategy graph was cleared.
+    GraphEdge:
+      properties:
+        source:
+          type: string
+          title: Source
+        target:
+          type: string
+          title: Target
+        operator:
+          anyOf:
+          - type: string
+            enum:
+            - INTERSECT
+            - UNION
+            - MINUS
+            - RMINUS
+            - LONLY
+            - RONLY
+            - COLOCATE
+          - type: 'null'
+          title: Operator
+      type: object
+      required:
+      - source
+      - target
+      title: GraphEdge
+    GraphNode:
       properties:
         id:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Id
-        name:
+        searchName:
+          type: string
+          title: Searchname
+        estimatedSize:
+          type: integer
+          minimum: 0.0
+          title: Estimatedsize
+      type: object
+      required:
+      - id
+      - searchName
+      - estimatedSize
+      title: GraphNode
+    GraphPlan:
+      properties:
+        nodes:
+          items:
+            $ref: '#/components/schemas/GraphNode'
+          type: array
+          title: Nodes
+        edges:
+          items:
+            $ref: '#/components/schemas/GraphEdge'
+          type: array
+          title: Edges
+        rationale:
           anyOf:
           - type: string
           - type: 'null'
-          title: Name
+          title: Rationale
+      type: object
+      required:
+      - nodes
+      - edges
+      title: GraphPlan
+      description: A planned (not-yet-applied) strategy graph.
+    GraphSnapshot:
+      properties:
+        strategyId:
+          type: string
+          title: Strategyid
         geneCount:
-          anyOf:
-          - type: integer
-          - type: 'null'
+          type: integer
+          minimum: 0.0
           title: Genecount
-        source:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Source
-        siteId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Siteid
+        nodes:
+          items:
+            $ref: '#/components/schemas/GraphNode'
+          type: array
+          title: Nodes
+        edges:
+          items:
+            $ref: '#/components/schemas/GraphEdge'
+          type: array
+          title: Edges
       type: object
-      title: GeneSetSummary
-      description: Summary of a gene set — nested model, not a top-level event.
-    GraphClearedEventData:
-      properties:
-        graphId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Graphid
-      type: object
-      title: GraphClearedEventData
-      description: Payload for ``graph_cleared`` SSE events.
-    GraphPlanEventData:
-      properties:
-        graphId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Graphid
-        plan:
-          anyOf:
-          - $ref: '#/components/schemas/JSONObject'
-          - type: 'null'
-        name:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Name
-        recordType:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Recordtype
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-      type: object
-      title: GraphPlanEventData
-      description: Payload for ``graph_plan`` SSE events.
-    GraphSnapshotEventData:
-      properties:
-        graphSnapshot:
-          anyOf:
-          - $ref: '#/components/schemas/JSONObject'
-          - type: 'null'
-      type: object
-      title: GraphSnapshotEventData
-      description: Payload for ``graph_snapshot`` SSE events.
+      required:
+      - strategyId
+      - geneCount
+      - nodes
+      - edges
+      title: GraphSnapshot
     HTTPValidationError:
       properties:
         detail:
@@ -5068,147 +4906,6 @@ components:
       - email
       - password
       title: LoginPayload
-    MessageEndEventData:
-      properties:
-        modelId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Modelid
-        promptTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Prompttokens
-        completionTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Completiontokens
-        totalTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Totaltokens
-        cachedTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Cachedtokens
-        toolCallCount:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Toolcallcount
-        registeredToolCount:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Registeredtoolcount
-        llmCallCount:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Llmcallcount
-        subKaniPromptTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Subkaniprompttokens
-        subKaniCompletionTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Subkanicompletiontokens
-        subKaniCallCount:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Subkanicallcount
-        estimatedCostUsd:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Estimatedcostusd
-      type: object
-      title: MessageEndEventData
-      description: Payload for ``message_end`` SSE events — mirrors TokenUsageResponse.
-    MessageResponse:
-      properties:
-        role:
-          type: string
-          title: Role
-        content:
-          type: string
-          title: Content
-        modelId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Modelid
-        toolCalls:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/ToolCallResponse'
-            type: array
-          - type: 'null'
-          title: Toolcalls
-        subKaniActivity:
-          anyOf:
-          - $ref: '#/components/schemas/SubKaniActivityResponse'
-          - type: 'null'
-        citations:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/CitationResponse'
-            type: array
-          - type: 'null'
-          title: Citations
-        planningArtifacts:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/PlanningArtifactResponse'
-            type: array
-          - type: 'null'
-          title: Planningartifacts
-        reasoning:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Reasoning
-        optimizationProgress:
-          anyOf:
-          - $ref: '#/components/schemas/OptimizationProgressEventData'
-          - type: 'null'
-        tokenUsage:
-          anyOf:
-          - $ref: '#/components/schemas/TokenUsageResponse'
-          - type: 'null'
-        timestamp:
-          type: string
-          format: date-time
-          title: Timestamp
-      type: object
-      required:
-      - role
-      - content
-      - timestamp
-      title: MessageResponse
-      description: Chat message.
-    MessageStartEventData:
-      properties:
-        strategyId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Strategyid
-        strategy:
-          anyOf:
-          - $ref: '#/components/schemas/JSONObject'
-          - type: 'null'
-      type: object
-      title: MessageStartEventData
-      description: Payload for ``message_start`` SSE events.
     ModelCatalogEntryResponse:
       properties:
         id:
@@ -5237,10 +4934,6 @@ components:
           type: boolean
           title: Supportsreasoning
           default: false
-        enabled:
-          type: boolean
-          title: Enabled
-          default: true
         contextSize:
           type: integer
           title: Contextsize
@@ -5261,6 +4954,10 @@ components:
           type: number
           title: Outputprice
           default: 0.0
+        enabled:
+          type: boolean
+          title: Enabled
+          default: true
       type: object
       required:
       - id
@@ -5268,7 +4965,7 @@ components:
       - provider
       - model
       title: ModelCatalogEntryResponse
-      description: A single model in the catalog — for API responses.
+      description: API response model — adds ``enabled`` status per provider configuration.
     ModelListResponse:
       properties:
         models:
@@ -5276,34 +4973,29 @@ components:
             $ref: '#/components/schemas/ModelCatalogEntryResponse'
           type: array
           title: Models
-        default:
-          type: string
-          title: Default
-        defaultReasoningEffort:
+        defaultProvider:
           type: string
           enum:
-          - none
-          - low
-          - medium
-          - high
-          title: Defaultreasoningeffort
+          - openai
+          - anthropic
+          - google
+          - ollama
+          - mock
+          title: Defaultprovider
+        defaultTier:
+          type: string
+          enum:
+          - quality
+          - balanced
+          - fast
+          title: Defaulttier
       type: object
       required:
       - models
-      - default
-      - defaultReasoningEffort
+      - defaultProvider
+      - defaultTier
       title: ModelListResponse
       description: Response for the /models endpoint.
-    ModelSelectedEventData:
-      properties:
-        modelId:
-          type: string
-          title: Modelid
-      type: object
-      required:
-      - modelId
-      title: ModelSelectedEventData
-      description: Payload for ``model_selected`` SSE events.
     NegativeSetVariantResponse:
       properties:
         label:
@@ -5623,6 +5315,33 @@ components:
       - status
       title: OptimizationResultResponse
       description: Complete optimization result.
+    OptimizationSnapshot:
+      properties:
+        trialIndex:
+          type: integer
+          minimum: 0.0
+          title: Trialindex
+        totalTrials:
+          type: integer
+          minimum: 1.0
+          title: Totaltrials
+        bestScore:
+          type: number
+          title: Bestscore
+        currentScore:
+          type: number
+          title: Currentscore
+        isPareto:
+          type: boolean
+          title: Ispareto
+      type: object
+      required:
+      - trialIndex
+      - totalTrials
+      - bestScore
+      - currentScore
+      - isPareto
+      title: OptimizationSnapshot
     OptimizationSpecRequest:
       properties:
         name:
@@ -5727,11 +5446,11 @@ components:
           - type: number
           - type: 'null'
           title: Falsepositiverate
-        resultCount:
+        estimatedSize:
           anyOf:
           - type: integer
           - type: 'null'
-          title: Resultcount
+          title: Estimatedsize
         positiveHits:
           anyOf:
           - type: integer
@@ -6095,177 +5814,84 @@ components:
       - sharedGenes
       title: PerExperimentSummary
       description: Shape of one per-experiment summary entry.
-    PlanMetadata:
+    PhaseChange:
       properties:
-        name:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Name
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        siteId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Siteid
-        createdAt:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Createdat
-      type: object
-      title: PlanMetadata
-    PlanNode-Input:
-      properties:
-        id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Id
-        displayName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Displayname
-        filters:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepFilterSpec'
-            type: array
-          - type: 'null'
-          title: Filters
-        analyses:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepAnalysisSpec-Input'
-            type: array
-          - type: 'null'
-          title: Analyses
-        reports:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepReportSpec-Input'
-            type: array
-          - type: 'null'
-          title: Reports
-        searchName:
+        phase:
           type: string
-          title: Searchname
-        parameters:
-          $ref: '#/components/schemas/JSONObject'
-        primaryInput:
+          enum:
+          - scoping
+          - discovery
+          - planning
+          - execution
+          - verification
+          - completed
+          title: Phase
+        status:
+          type: string
+          enum:
+          - started
+          - completed
+          - failed
+          - awaiting_approval
+          - awaiting_input
+          title: Status
+        durationMs:
           anyOf:
-          - $ref: '#/components/schemas/PlanNode-Input'
+          - type: integer
+            minimum: 0.0
           - type: 'null'
-        secondaryInput:
-          anyOf:
-          - $ref: '#/components/schemas/PlanNode-Input'
-          - type: 'null'
-        operator:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Operator
-        colocationParams:
-          anyOf:
-          - $ref: '#/components/schemas/ColocationParams'
-          - type: 'null'
-      additionalProperties: true
+          title: Durationms
       type: object
       required:
-      - searchName
-      title: PlanNode
-      description: 'Untyped recursive plan node (WDK-aligned).
-
-
-        Kind is inferred from structure:
-
-        - combine: primaryInput + secondaryInput
-
-        - transform: primaryInput only
-
-        - search: no inputs'
-    PlanNode-Output:
+      - phase
+      - status
+      title: PhaseChange
+    PhaseTierConfig:
       properties:
-        id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Id
-        displayName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Displayname
-        filters:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepFilterSpec'
-            type: array
-          - type: 'null'
-          title: Filters
-        analyses:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepAnalysisSpec-Output'
-            type: array
-          - type: 'null'
-          title: Analyses
-        reports:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/StepReportSpec-Output'
-            type: array
-          - type: 'null'
-          title: Reports
-        searchName:
+        modelId:
           type: string
-          title: Searchname
-        parameters:
-          $ref: '#/components/schemas/JSONObject'
-        primaryInput:
-          anyOf:
-          - $ref: '#/components/schemas/PlanNode-Output'
-          - type: 'null'
-        secondaryInput:
-          anyOf:
-          - $ref: '#/components/schemas/PlanNode-Output'
-          - type: 'null'
-        operator:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Operator
-        colocationParams:
-          anyOf:
-          - $ref: '#/components/schemas/ColocationParams'
-          - type: 'null'
-      additionalProperties: true
+          title: Modelid
+        reasoningEffort:
+          type: string
+          enum:
+          - none
+          - low
+          - medium
+          - high
+          title: Reasoningeffort
       type: object
       required:
-      - searchName
-      title: PlanNode
-      description: 'Untyped recursive plan node (WDK-aligned).
-
-
-        Kind is inferred from structure:
-
-        - combine: primaryInput + secondaryInput
-
-        - transform: primaryInput only
-
-        - search: no inputs'
+      - modelId
+      - reasoningEffort
+      title: PhaseTierConfig
+      description: Model + reasoning effort for a single pipeline phase.
+    PlanArtifact:
+      properties:
+        planId:
+          type: string
+          title: Planid
+        steps:
+          items:
+            $ref: '#/components/schemas/PlannedStep'
+          type: array
+          title: Steps
+        rationale:
+          type: string
+          title: Rationale
+      type: object
+      required:
+      - planId
+      - steps
+      - rationale
+      title: PlanArtifact
+      description: A proposed plan (not yet applied).
     PlanNormalizeRequest:
       properties:
         siteId:
           type: string
           title: Siteid
         plan:
-          $ref: '#/components/schemas/StrategyPlan-Input'
+          $ref: '#/components/schemas/StrategyPlanPayload-Input'
       type: object
       required:
       - siteId
@@ -6274,7 +5900,7 @@ components:
     PlanNormalizeResponse:
       properties:
         plan:
-          $ref: '#/components/schemas/StrategyPlan-Output'
+          $ref: '#/components/schemas/StrategyPlanPayload-Output'
         warnings:
           anyOf:
           - $ref: '#/components/schemas/JSONArray'
@@ -6283,51 +5909,208 @@ components:
       required:
       - plan
       title: PlanNormalizeResponse
-    PlanningArtifactEventData:
+    PlanStepNode-Input:
       properties:
-        planningArtifact:
+        searchName:
+          type: string
+          title: Searchname
+        parameters:
+          additionalProperties:
+            type: string
+          type: object
+          title: Parameters
+        primaryInput:
           anyOf:
-          - $ref: '#/components/schemas/PlanningArtifactResponse'
+          - $ref: '#/components/schemas/PlanStepNode-Input'
           - type: 'null'
-      type: object
-      title: PlanningArtifactEventData
-      description: Payload for ``planning_artifact`` SSE events.
-    PlanningArtifactResponse:
-      properties:
+        secondaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/PlanStepNode-Input'
+          - type: 'null'
+        operator:
+          anyOf:
+          - $ref: '#/components/schemas/CombineOp'
+          - type: 'null'
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/ColocationParams'
+          - type: 'null'
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        filters:
+          items:
+            $ref: '#/components/schemas/StepFilter'
+          type: array
+          title: Filters
+        analyses:
+          items:
+            $ref: '#/components/schemas/StepAnalysis-Input'
+          type: array
+          title: Analyses
+        reports:
+          items:
+            $ref: '#/components/schemas/StepReport-Input'
+          type: array
+          title: Reports
+        wdkWeight:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Wdkweight
         id:
           type: string
           title: Id
-        title:
-          type: string
-          title: Title
-        summaryMarkdown:
-          type: string
-          title: Summarymarkdown
-        assumptions:
-          items:
-            type: string
-          type: array
-          title: Assumptions
-        parameters:
-          additionalProperties:
-            $ref: '#/components/schemas/JSONValue'
-          type: object
-          title: Parameters
-        proposedStrategyPlan:
-          anyOf:
-          - $ref: '#/components/schemas/JSONObject'
-          - type: 'null'
-        createdAt:
-          type: string
-          title: Createdat
       type: object
       required:
-      - id
-      - title
-      - summaryMarkdown
-      - createdAt
-      title: PlanningArtifactResponse
-      description: Strategy planning artifact.
+      - searchName
+      title: PlanStepNode
+      description: 'Recursive strategy node.
+
+
+        Kind is inferred from structure:
+
+        - combine: primary_input and secondary_input
+
+        - transform: primary_input only
+
+        - search: no inputs
+
+
+        ``parameters`` accepts ``JSONObject`` (LLM''s natural output).
+
+        ``SerializedParams`` coerces each value to ``str`` via Pydantic
+
+        validation, producing WDK-compatible ``dict[str, str]``
+
+        (``Record<string, ParameterValue>``).'
+    PlanStepNode-Output:
+      properties:
+        searchName:
+          type: string
+          title: Searchname
+        parameters:
+          additionalProperties:
+            type: string
+          type: object
+          title: Parameters
+        primaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/PlanStepNode-Output'
+          - type: 'null'
+        secondaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/PlanStepNode-Output'
+          - type: 'null'
+        operator:
+          anyOf:
+          - $ref: '#/components/schemas/CombineOp'
+          - type: 'null'
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/ColocationParams'
+          - type: 'null'
+        displayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Displayname
+        filters:
+          items:
+            $ref: '#/components/schemas/StepFilter'
+          type: array
+          title: Filters
+        analyses:
+          items:
+            $ref: '#/components/schemas/StepAnalysis-Output'
+          type: array
+          title: Analyses
+        reports:
+          items:
+            $ref: '#/components/schemas/StepReport-Output'
+          type: array
+          title: Reports
+        wdkWeight:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Wdkweight
+        id:
+          type: string
+          title: Id
+      type: object
+      required:
+      - searchName
+      title: PlanStepNode
+      description: 'Recursive strategy node.
+
+
+        Kind is inferred from structure:
+
+        - combine: primary_input and secondary_input
+
+        - transform: primary_input only
+
+        - search: no inputs
+
+
+        ``parameters`` accepts ``JSONObject`` (LLM''s natural output).
+
+        ``SerializedParams`` coerces each value to ``str`` via Pydantic
+
+        validation, producing WDK-compatible ``dict[str, str]``
+
+        (``Record<string, ParameterValue>``).'
+    PlanUpdate:
+      properties:
+        planId:
+          type: string
+          title: Planid
+        status:
+          type: string
+          enum:
+          - proposed
+          - revised
+          - applied
+          - rejected
+          title: Status
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      type: object
+      required:
+      - planId
+      - status
+      title: PlanUpdate
+      description: Update to an existing plan.
+    PlannedStep:
+      properties:
+        order:
+          type: integer
+          minimum: 0.0
+          title: Order
+        searchName:
+          type: string
+          title: Searchname
+        rationale:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rationale
+        parameters:
+          additionalProperties:
+            $ref: '#/components/schemas/JsonValue'
+          type: object
+          title: Parameters
+      type: object
+      required:
+      - order
+      - searchName
+      title: PlannedStep
     PrimaryKeyPart:
       properties:
         name:
@@ -6342,6 +6125,75 @@ components:
       - value
       title: PrimaryKeyPart
       description: A single part of a composite WDK primary key.
+    ProblemFrame:
+      properties:
+        intentSummary:
+          type: string
+          title: Intentsummary
+        entities:
+          items:
+            type: string
+          type: array
+          title: Entities
+        siteId:
+          type: string
+          title: Siteid
+      type: object
+      required:
+      - intentSummary
+      - entities
+      - siteId
+      title: ProblemFrame
+    ProductActionRequest:
+      properties:
+        action:
+          type: string
+          enum:
+          - plan_approve
+          - plan_reject
+          - plan_suggest_changes
+          - plan_ask_question
+          - undo_turn
+          - assistant_regenerate
+          title: Action
+        streamId:
+          type: string
+          title: Streamid
+        traceId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Traceid
+        strategyId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Strategyid
+        planId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Planid
+        entryId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Entryid
+        messageGroupId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Messagegroupid
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/JSONObject'
+          - type: 'null'
+      type: object
+      required:
+      - action
+      - streamId
+      title: ProductActionRequest
+      description: A user interaction to be recorded as a product signal.
     ProviderStatus:
       properties:
         openai:
@@ -6364,6 +6216,31 @@ components:
       - ollama
       title: ProviderStatus
       description: Per-provider API-key availability.
+    PushStrategyRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        siteId:
+          type: string
+          title: Siteid
+        plan:
+          $ref: '#/components/schemas/StrategyPlanPayload-Input'
+        description:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Description
+      type: object
+      required:
+      - name
+      - siteId
+      - plan
+      title: PushStrategyRequest
+      description: Request to push a strategy to WDK (persist + sync).
     RankMetricsResponse:
       properties:
         precisionAtK:
@@ -6408,16 +6285,6 @@ components:
       type: object
       title: RankMetricsResponse
       description: Rank-based evaluation metrics computed over an ordered result list.
-    ReasoningEventData:
-      properties:
-        reasoning:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Reasoning
-      type: object
-      title: ReasoningEventData
-      description: Payload for ``reasoning`` SSE events.
     RecordDetailRequest:
       properties:
         primaryKey:
@@ -6557,9 +6424,9 @@ components:
         f1:
           type: number
           title: F1
-        resultCount:
+        estimatedSize:
           type: integer
-          title: Resultcount
+          title: Estimatedsize
         overlapCount:
           type: integer
           title: Overlapcount
@@ -6570,7 +6437,7 @@ components:
       - recall
       - precision
       - f1
-      - resultCount
+      - estimatedSize
       - overlapCount
       title: ReverseSearchResultItem
       description: A single ranked gene set in reverse search results.
@@ -6603,127 +6470,6 @@ components:
       - enrichmentTypes
       title: RunEnrichmentRequest
       description: Request to run enrichment on an existing experiment.
-    SSESchemaIndex:
-      properties:
-        message_start:
-          anyOf:
-          - $ref: '#/components/schemas/MessageStartEventData'
-          - type: 'null'
-        user_message:
-          anyOf:
-          - $ref: '#/components/schemas/UserMessageEventData'
-          - type: 'null'
-        assistant_delta:
-          anyOf:
-          - $ref: '#/components/schemas/AssistantDeltaEventData'
-          - type: 'null'
-        assistant_message:
-          anyOf:
-          - $ref: '#/components/schemas/AssistantMessageEventData'
-          - type: 'null'
-        tool_call_start:
-          anyOf:
-          - $ref: '#/components/schemas/ToolCallStartEventData'
-          - type: 'null'
-        tool_call_end:
-          anyOf:
-          - $ref: '#/components/schemas/ToolCallEndEventData'
-          - type: 'null'
-        subkani_task_start:
-          anyOf:
-          - $ref: '#/components/schemas/SubKaniTaskStartEventData'
-          - type: 'null'
-        subkani_tool_call_start:
-          anyOf:
-          - $ref: '#/components/schemas/SubKaniToolCallStartEventData'
-          - type: 'null'
-        subkani_tool_call_end:
-          anyOf:
-          - $ref: '#/components/schemas/SubKaniToolCallEndEventData'
-          - type: 'null'
-        subkani_task_end:
-          anyOf:
-          - $ref: '#/components/schemas/SubKaniTaskEndEventData'
-          - type: 'null'
-        token_usage_partial:
-          anyOf:
-          - $ref: '#/components/schemas/TokenUsagePartialEventData'
-          - type: 'null'
-        model_selected:
-          anyOf:
-          - $ref: '#/components/schemas/ModelSelectedEventData'
-          - type: 'null'
-        optimization_progress:
-          anyOf:
-          - $ref: '#/components/schemas/OptimizationProgressEventData'
-          - type: 'null'
-        optimization_trial:
-          anyOf:
-          - $ref: '#/components/schemas/OptimizationTrialData'
-          - type: 'null'
-        optimization_parameter_spec:
-          anyOf:
-          - $ref: '#/components/schemas/OptimizationParameterSpecData'
-          - type: 'null'
-        error:
-          anyOf:
-          - $ref: '#/components/schemas/ErrorEventData'
-          - type: 'null'
-        graph_snapshot:
-          anyOf:
-          - $ref: '#/components/schemas/GraphSnapshotEventData'
-          - type: 'null'
-        strategy_meta:
-          anyOf:
-          - $ref: '#/components/schemas/StrategyMetaEventData'
-          - type: 'null'
-        graph_plan:
-          anyOf:
-          - $ref: '#/components/schemas/GraphPlanEventData'
-          - type: 'null'
-        strategy_update:
-          anyOf:
-          - $ref: '#/components/schemas/StrategyUpdateEventData'
-          - type: 'null'
-        strategy_link:
-          anyOf:
-          - $ref: '#/components/schemas/StrategyLinkEventData'
-          - type: 'null'
-        graph_cleared:
-          anyOf:
-          - $ref: '#/components/schemas/GraphClearedEventData'
-          - type: 'null'
-        executor_build_request:
-          anyOf:
-          - $ref: '#/components/schemas/ExecutorBuildRequestEventData'
-          - type: 'null'
-        gene_set_summary:
-          anyOf:
-          - $ref: '#/components/schemas/GeneSetSummary'
-          - type: 'null'
-        workbench_gene_set:
-          anyOf:
-          - $ref: '#/components/schemas/WorkbenchGeneSetEventData'
-          - type: 'null'
-        citations:
-          anyOf:
-          - $ref: '#/components/schemas/CitationsEventData'
-          - type: 'null'
-        planning_artifact:
-          anyOf:
-          - $ref: '#/components/schemas/PlanningArtifactEventData'
-          - type: 'null'
-        reasoning:
-          anyOf:
-          - $ref: '#/components/schemas/ReasoningEventData'
-          - type: 'null'
-        message_end:
-          anyOf:
-          - $ref: '#/components/schemas/MessageEndEventData'
-          - type: 'null'
-      type: object
-      title: SSESchemaIndex
-      description: Index of all SSE event data schemas. Never called -- exists for OpenAPI generation.
     SearchResponse:
       properties:
         name:
@@ -6747,35 +6493,6 @@ components:
       - recordType
       title: SearchResponse
       description: Search information.
-    SearchValidationErrors:
-      properties:
-        general:
-          items:
-            type: string
-          type: array
-          title: General
-        byKey:
-          additionalProperties:
-            items:
-              type: string
-            type: array
-          type: object
-          title: Bykey
-      type: object
-      title: SearchValidationErrors
-    SearchValidationPayload:
-      properties:
-        isValid:
-          type: boolean
-          title: Isvalid
-        normalizedContextValues:
-          $ref: '#/components/schemas/JSONObject'
-        errors:
-          $ref: '#/components/schemas/SearchValidationErrors'
-      type: object
-      required:
-      - isValid
-      title: SearchValidationPayload
     SearchValidationRequest:
       properties:
         contextValues:
@@ -6783,15 +6500,6 @@ components:
       type: object
       title: SearchValidationRequest
       description: Search parameter validation request.
-    SearchValidationResponse:
-      properties:
-        validation:
-          $ref: '#/components/schemas/SearchValidationPayload'
-      type: object
-      required:
-      - validation
-      title: SearchValidationResponse
-      description: Stable validation response for UI consumption.
     SetOperationRequest:
       properties:
         setAId:
@@ -6850,6 +6558,46 @@ components:
       - isPortal
       title: SiteResponse
       description: VEuPathDB site information.
+    StepAnalysis-Input:
+      properties:
+        analysisType:
+          type: string
+          title: Analysistype
+        parameters:
+          $ref: '#/components/schemas/JSONObject'
+        customName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Customname
+      type: object
+      required:
+      - analysisType
+      title: StepAnalysis
+      description: 'Analysis configuration for a step.
+
+
+        WDK fields: analysisType (str), parameters (JSONObject), customName (str|null).'
+    StepAnalysis-Output:
+      properties:
+        analysisType:
+          type: string
+          title: Analysistype
+        parameters:
+          $ref: '#/components/schemas/JSONObject'
+        customName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Customname
+      type: object
+      required:
+      - analysisType
+      title: StepAnalysis
+      description: 'Analysis configuration for a step.
+
+
+        WDK fields: analysisType (str), parameters (JSONObject), customName (str|null).'
     StepAnalysisProgressDataResponse:
       properties:
         phase:
@@ -6885,23 +6633,6 @@ components:
       - phase
       title: StepAnalysisProgressDataResponse
       description: Progress data for step analysis.
-    StepAnalysisResponse:
-      properties:
-        analysisType:
-          type: string
-          title: Analysistype
-        parameters:
-          $ref: '#/components/schemas/JSONObject'
-        customName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Customname
-      type: object
-      required:
-      - analysisType
-      title: StepAnalysisResponse
-      description: Analysis configuration attached to a step.
     StepAnalysisResultResponse:
       properties:
         stepEvaluations:
@@ -6927,38 +6658,6 @@ components:
       type: object
       title: StepAnalysisResultResponse
       description: Container for all deterministic step analysis results.
-    StepAnalysisSpec-Input:
-      properties:
-        analysisType:
-          type: string
-          title: Analysistype
-        parameters:
-          $ref: '#/components/schemas/JSONObject'
-        customName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Customname
-      type: object
-      required:
-      - analysisType
-      title: StepAnalysisSpec
-    StepAnalysisSpec-Output:
-      properties:
-        analysisType:
-          type: string
-          title: Analysistype
-        parameters:
-          $ref: '#/components/schemas/JSONObject'
-        customName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Customname
-      type: object
-      required:
-      - analysisType
-      title: StepAnalysisSpec
     StepContributionResponse:
       properties:
         stepId:
@@ -7020,7 +6719,7 @@ components:
           type: string
           title: Siteid
         plan:
-          $ref: '#/components/schemas/StrategyPlan-Input'
+          $ref: '#/components/schemas/StrategyPlanPayload-Input'
       type: object
       required:
       - siteId
@@ -7052,9 +6751,9 @@ components:
         displayName:
           type: string
           title: Displayname
-        resultCount:
+        estimatedSize:
           type: integer
-          title: Resultcount
+          title: Estimatedsize
         positiveHits:
           type: integer
           title: Positivehits
@@ -7100,7 +6799,7 @@ components:
       - stepId
       - searchName
       - displayName
-      - resultCount
+      - estimatedSize
       - positiveHits
       - positiveTotal
       - negativeHits
@@ -7109,7 +6808,7 @@ components:
       - falsePositiveRate
       title: StepEvaluationResponse
       description: Per-leaf-step evaluation against controls.
-    StepFilterResponse:
+    StepFilter:
       properties:
         name:
           type: string
@@ -7123,26 +6822,12 @@ components:
       type: object
       required:
       - name
-      - value
-      title: StepFilterResponse
-      description: Filter attached to a step.
-    StepFilterSpec:
-      properties:
-        name:
-          type: string
-          title: Name
-        value:
-          $ref: '#/components/schemas/JSONValue'
-        disabled:
-          type: boolean
-          title: Disabled
-          default: false
-      type: object
-      required:
-      - name
-      - value
-      title: StepFilterSpec
-    StepReportResponse:
+      title: StepFilter
+      description: 'Filter applied to a step''s result.
+
+
+        WDK FilterValueArray element: { name: string, value: any, disabled?: boolean }.'
+    StepReport-Input:
       properties:
         reportName:
           type: string
@@ -7151,9 +6836,12 @@ components:
         config:
           $ref: '#/components/schemas/JSONObject'
       type: object
-      title: StepReportResponse
-      description: Report configuration attached to a step.
-    StepReportSpec-Input:
+      title: StepReport
+      description: 'Report request attached to a step.
+
+
+        WDK fields: reportName (str, default "standard"), config (JSONObject).'
+    StepReport-Output:
       properties:
         reportName:
           type: string
@@ -7162,17 +6850,11 @@ components:
         config:
           $ref: '#/components/schemas/JSONObject'
       type: object
-      title: StepReportSpec
-    StepReportSpec-Output:
-      properties:
-        reportName:
-          type: string
-          title: Reportname
-          default: standard
-        config:
-          $ref: '#/components/schemas/JSONObject'
-      type: object
-      title: StepReportSpec
+      title: StepReport
+      description: 'Report request attached to a step.
+
+
+        WDK fields: reportName (str, default "standard"), config (JSONObject).'
     StepResponse:
       properties:
         id:
@@ -7184,7 +6866,9 @@ components:
           - type: 'null'
           title: Kind
         displayName:
-          type: string
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Displayname
         searchName:
           anyOf:
@@ -7219,95 +6903,178 @@ components:
           - type: string
           - type: 'null'
           title: Secondaryinputstepid
-        resultCount:
+        estimatedSize:
           anyOf:
           - type: integer
           - type: 'null'
-          title: Resultcount
+          title: Estimatedsize
         wdkStepId:
           anyOf:
           - type: integer
           - type: 'null'
           title: Wdkstepid
+        isBuilt:
+          type: boolean
+          title: Isbuilt
+          default: false
+        isFiltered:
+          type: boolean
+          title: Isfiltered
+          default: false
+        wdkPushError:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Wdkpusherror
+        validation:
+          anyOf:
+          - $ref: '#/components/schemas/StepValidation'
+          - type: 'null'
         filters:
           anyOf:
           - items:
-              $ref: '#/components/schemas/StepFilterResponse'
+              $ref: '#/components/schemas/StepFilter'
             type: array
           - type: 'null'
           title: Filters
         analyses:
           anyOf:
           - items:
-              $ref: '#/components/schemas/StepAnalysisResponse'
+              $ref: '#/components/schemas/StepAnalysis-Output'
             type: array
           - type: 'null'
           title: Analyses
         reports:
           anyOf:
           - items:
-              $ref: '#/components/schemas/StepReportResponse'
+              $ref: '#/components/schemas/StepReport-Output'
             type: array
           - type: 'null'
           title: Reports
-        validationError:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Validationerror
       type: object
       required:
       - id
-      - displayName
       title: StepResponse
-      description: Strategy step.
-    StrategyLinkEventData:
+      description: Strategy step — WDK-aligned fields.
+    StepValidation:
       properties:
-        graphId:
+        level:
+          type: string
+          title: Level
+          default: NONE
+        isValid:
+          type: boolean
+          title: Isvalid
+          default: true
+        errors:
+          anyOf:
+          - $ref: '#/components/schemas/StepValidationErrors'
+          - type: 'null'
+      type: object
+      title: StepValidation
+      description: Step/search/strategy validation state.
+    StepValidationErrors:
+      properties:
+        general:
+          items:
+            type: string
+          type: array
+          title: General
+        byKey:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          type: object
+          title: Bykey
+      type: object
+      title: StepValidationErrors
+      description: Validation error details for a step.
+    StrategyLink:
+      properties:
+        strategyId:
+          type: string
+          title: Strategyid
+        url:
+          type: string
+          pattern: ^https?://
+          title: Url
+        title:
           anyOf:
           - type: string
           - type: 'null'
-          title: Graphid
-        wdkStrategyId:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Wdkstrategyid
-        wdkUrl:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Wdkurl
+          title: Title
+      type: object
+      required:
+      - strategyId
+      - url
+      title: StrategyLink
+      description: A link to the strategy in the public WDK UI.
+    StrategyMeta:
+      properties:
+        strategyId:
+          type: string
+          title: Strategyid
         name:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Name
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
         isSaved:
-          anyOf:
-          - type: boolean
-          - type: 'null'
+          type: boolean
           title: Issaved
+        estimatedSize:
+          type: integer
+          minimum: 0.0
+          title: Estimatedsize
+        recordClassName:
+          type: string
+          title: Recordclassname
       type: object
-      title: StrategyLinkEventData
-      description: Payload for ``strategy_link`` SSE events.
-    StrategyMetaEventData:
+      required:
+      - strategyId
+      - name
+      - isSaved
+      - estimatedSize
+      - recordClassName
+      title: StrategyMeta
+      description: Top-level strategy metadata (one per strategy creation/load).
+    StrategyPatch:
       properties:
-        graphId:
+        strategyId:
+          type: string
+          title: Strategyid
+        operation:
+          type: string
+          enum:
+          - add_step
+          - remove_step
+          - update_step
+          - replace_step_tree
+          title: Operation
+        step:
           anyOf:
-          - type: string
+          - additionalProperties: true
+            type: object
           - type: 'null'
-          title: Graphid
-        graphName:
+          title: Step
+        stepTree:
           anyOf:
-          - type: string
+          - additionalProperties: true
+            type: object
           - type: 'null'
-          title: Graphname
+          title: Steptree
+      type: object
+      required:
+      - strategyId
+      - operation
+      title: StrategyPatch
+      description: A partial update to a strategy, emitted by strategy-mutating tools.
+    StrategyPlanPayload-Input:
+      properties:
+        recordType:
+          type: string
+          title: Recordtype
+        root:
+          $ref: '#/components/schemas/PlanStepNode-Input'
         name:
           anyOf:
           - type: string
@@ -7318,48 +7085,95 @@ components:
           - type: string
           - type: 'null'
           title: Description
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/JSONObject'
+          - type: 'null'
+        stepCounts:
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Stepcounts
+        wdkStepIds:
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Wdkstepids
+        stepValidations:
+          anyOf:
+          - additionalProperties:
+              $ref: '#/components/schemas/StepValidation'
+            type: object
+          - type: 'null'
+          title: Stepvalidations
+      type: object
+      required:
+      - recordType
+      - root
+      title: StrategyPlanPayload
+      description: 'Canonical typed plan: the serialized graph state.
+
+
+        Used for API request/response, Redis persistence, and SSE events.
+
+        NOT the AI planning artifact (see domain/strategy/plan.py:StrategyPlan).'
+    StrategyPlanPayload-Output:
+      properties:
         recordType:
+          type: string
+          title: Recordtype
+        root:
+          $ref: '#/components/schemas/PlanStepNode-Output'
+        name:
           anyOf:
           - type: string
           - type: 'null'
-          title: Recordtype
-      type: object
-      title: StrategyMetaEventData
-      description: Payload for ``strategy_meta`` SSE events.
-    StrategyPlan-Input:
-      properties:
-        recordType:
-          type: string
-          title: Recordtype
-        root:
-          $ref: '#/components/schemas/PlanNode-Input'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
         metadata:
           anyOf:
-          - $ref: '#/components/schemas/PlanMetadata'
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-      additionalProperties: true
+        stepCounts:
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Stepcounts
+        wdkStepIds:
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Wdkstepids
+        stepValidations:
+          anyOf:
+          - additionalProperties:
+              $ref: '#/components/schemas/StepValidation'
+            type: object
+          - type: 'null'
+          title: Stepvalidations
       type: object
       required:
       - recordType
       - root
-      title: StrategyPlan
-    StrategyPlan-Output:
-      properties:
-        recordType:
-          type: string
-          title: Recordtype
-        root:
-          $ref: '#/components/schemas/PlanNode-Output'
-        metadata:
-          anyOf:
-          - $ref: '#/components/schemas/PlanMetadata'
-          - type: 'null'
-      additionalProperties: true
-      type: object
-      required:
-      - recordType
-      - root
-      title: StrategyPlan
+      title: StrategyPlanPayload
+      description: 'Canonical typed plan: the serialized graph state.
+
+
+        Used for API request/response, Redis persistence, and SSE events.
+
+        NOT the AI planning artifact (see domain/strategy/plan.py:StrategyPlan).'
     StrategyResponse:
       properties:
         id:
@@ -7406,22 +7220,18 @@ components:
           type: boolean
           title: Issaved
           default: false
-        messages:
+        pipeline:
           anyOf:
-          - items:
-              $ref: '#/components/schemas/MessageResponse'
-            type: array
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Messages
-        thinking:
+        conversationState:
           anyOf:
-          - $ref: '#/components/schemas/ThinkingResponse'
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-        modelId:
+        activePlan:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-          title: Modelid
         createdAt:
           type: string
           format: date-time
@@ -7435,11 +7245,11 @@ components:
           - type: integer
           - type: 'null'
           title: Stepcount
-        resultCount:
+        estimatedSize:
           anyOf:
           - type: integer
           - type: 'null'
-          title: Resultcount
+          title: Estimatedsize
         wdkUrl:
           anyOf:
           - type: string
@@ -7468,186 +7278,78 @@ components:
       description: 'Unified strategy response — used for both list and detail views.
 
 
-        List views: ``steps`` is ``[]``, ``stepCount``/``resultCount`` are populated.
+        List views: ``steps`` is ``[]``, ``stepCount``/``estimatedSize`` are populated.
 
         Detail views: ``steps`` is populated, summary fields may also be set.'
-    StrategyUpdateEventData:
+    StreamPartsSchemaIndex:
       properties:
-        graphId:
+        graph_snapshot:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/GraphSnapshot'
           - type: 'null'
-          title: Graphid
-        step:
+        graph_plan:
           anyOf:
-          - $ref: '#/components/schemas/JSONObject'
+          - $ref: '#/components/schemas/GraphPlan'
+          - type: 'null'
+        graph_cleared:
+          anyOf:
+          - $ref: '#/components/schemas/GraphCleared'
+          - type: 'null'
+        strategy_patch:
+          anyOf:
+          - $ref: '#/components/schemas/StrategyPatch'
+          - type: 'null'
+        strategy_meta:
+          anyOf:
+          - $ref: '#/components/schemas/StrategyMeta'
+          - type: 'null'
+        strategy_link:
+          anyOf:
+          - $ref: '#/components/schemas/StrategyLink'
+          - type: 'null'
+        plan_artifact:
+          anyOf:
+          - $ref: '#/components/schemas/PlanArtifact'
+          - type: 'null'
+        plan_update:
+          anyOf:
+          - $ref: '#/components/schemas/PlanUpdate'
+          - type: 'null'
+        decision_presented:
+          anyOf:
+          - $ref: '#/components/schemas/DecisionPresented'
+          - type: 'null'
+        problem_frame:
+          anyOf:
+          - $ref: '#/components/schemas/ProblemFrame'
+          - type: 'null'
+        gene_set:
+          anyOf:
+          - $ref: '#/components/schemas/GeneSet'
+          - type: 'null'
+        optimization_snapshot:
+          anyOf:
+          - $ref: '#/components/schemas/OptimizationSnapshot'
+          - type: 'null'
+        phase_change:
+          anyOf:
+          - $ref: '#/components/schemas/PhaseChange'
+          - type: 'null'
+        conversation_title:
+          anyOf:
+          - $ref: '#/components/schemas/ConversationTitle'
           - type: 'null'
       type: object
-      title: StrategyUpdateEventData
-      description: Payload for ``strategy_update`` SSE events.
-    SubKaniActivityResponse:
-      properties:
-        calls:
-          additionalProperties:
-            items:
-              $ref: '#/components/schemas/ToolCallResponse'
-            type: array
-          type: object
-          title: Calls
-        status:
-          additionalProperties:
-            type: string
-          type: object
-          title: Status
-        models:
-          anyOf:
-          - additionalProperties:
-              type: string
-            type: object
-          - type: 'null'
-          title: Models
-        tokenUsage:
-          anyOf:
-          - additionalProperties:
-              $ref: '#/components/schemas/SubKaniTokenUsageResponse'
-            type: object
-          - type: 'null'
-          title: Tokenusage
-      type: object
-      required:
-      - calls
-      - status
-      title: SubKaniActivityResponse
-      description: Sub-kani tool call activity.
-    SubKaniTaskEndEventData:
-      properties:
-        task:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Task
-        status:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Status
-        modelId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Modelid
-        promptTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Prompttokens
-        completionTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Completiontokens
-        llmCallCount:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Llmcallcount
-        estimatedCostUsd:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Estimatedcostusd
-      type: object
-      title: SubKaniTaskEndEventData
-      description: Payload for ``subkani_task_end`` SSE events.
-    SubKaniTaskStartEventData:
-      properties:
-        task:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Task
-        modelId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Modelid
-      type: object
-      title: SubKaniTaskStartEventData
-      description: Payload for ``subkani_task_start`` SSE events.
-    SubKaniTokenUsageResponse:
-      properties:
-        promptTokens:
-          type: integer
-          title: Prompttokens
-        completionTokens:
-          type: integer
-          title: Completiontokens
-        llmCallCount:
-          type: integer
-          title: Llmcallcount
-          default: 0
-        estimatedCostUsd:
-          type: number
-          title: Estimatedcostusd
-          default: 0.0
-      type: object
-      required:
-      - promptTokens
-      - completionTokens
-      title: SubKaniTokenUsageResponse
-      description: Token usage for a single sub-kani agent.
-    SubKaniToolCallEndEventData:
-      properties:
-        task:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Task
-        id:
-          type: string
-          title: Id
-        result:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Result
-      type: object
-      required:
-      - id
-      title: SubKaniToolCallEndEventData
-      description: Payload for ``subkani_tool_call_end`` SSE events.
-    SubKaniToolCallStartEventData:
-      properties:
-        task:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Task
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        arguments:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Arguments
-      type: object
-      required:
-      - id
-      - name
-      title: SubKaniToolCallStartEventData
-      description: Payload for ``subkani_tool_call_start`` SSE events.
+      title: StreamPartsSchemaIndex
+      description: Index of stream-part payload schemas. Never called — exists for OpenAPI generation.
     SystemConfigResponse:
       properties:
         chatProvider:
           type: string
-          title: Chat Provider
+          title: Chatprovider
         llmConfigured:
           type: boolean
-          title: Llm Configured
+          title: Llmconfigured
         providers:
           $ref: '#/components/schemas/ProviderStatus'
       type: object
@@ -7657,52 +7359,6 @@ components:
       - providers
       title: SystemConfigResponse
       description: System configuration status (unauthenticated).
-    ThinkingResponse:
-      properties:
-        toolCalls:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/ToolCallResponse'
-            type: array
-          - type: 'null'
-          title: Toolcalls
-        lastToolCalls:
-          anyOf:
-          - items:
-              $ref: '#/components/schemas/ToolCallResponse'
-            type: array
-          - type: 'null'
-          title: Lasttoolcalls
-        subKaniCalls:
-          anyOf:
-          - additionalProperties:
-              items:
-                $ref: '#/components/schemas/ToolCallResponse'
-              type: array
-            type: object
-          - type: 'null'
-          title: Subkanicalls
-        subKaniStatus:
-          anyOf:
-          - additionalProperties:
-              type: string
-            type: object
-          - type: 'null'
-          title: Subkanistatus
-        reasoning:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Reasoning
-        updatedAt:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
-          title: Updatedat
-      type: object
-      title: ThinkingResponse
-      description: In-progress tool call state.
     ThresholdKnobRequest:
       properties:
         stepId:
@@ -7797,142 +7453,53 @@ components:
       - parameterName
       title: ThresholdSweepRequest
       description: Request to sweep a parameter across a range (numeric) or set of values (categorical).
-    TokenUsagePartialEventData:
+    TierListResponse:
       properties:
-        promptTokens:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Prompttokens
-        registeredToolCount:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Registeredtoolcount
-      type: object
-      title: TokenUsagePartialEventData
-      description: Payload for ``token_usage_partial`` SSE events.
-    TokenUsageResponse:
-      properties:
-        promptTokens:
-          type: integer
-          title: Prompttokens
-        completionTokens:
-          type: integer
-          title: Completiontokens
-        totalTokens:
-          type: integer
-          title: Totaltokens
-        cachedTokens:
-          type: integer
-          title: Cachedtokens
-          default: 0
-        toolCallCount:
-          type: integer
-          title: Toolcallcount
-        registeredToolCount:
-          type: integer
-          title: Registeredtoolcount
-        llmCallCount:
-          type: integer
-          title: Llmcallcount
-          default: 0
-        subKaniPromptTokens:
-          type: integer
-          title: Subkaniprompttokens
-          default: 0
-        subKaniCompletionTokens:
-          type: integer
-          title: Subkanicompletiontokens
-          default: 0
-        subKaniCallCount:
-          type: integer
-          title: Subkanicallcount
-          default: 0
-        estimatedCostUsd:
-          type: number
-          title: Estimatedcostusd
-          default: 0.0
-        modelId:
-          type: string
-          title: Modelid
-          default: ''
+        presets:
+          additionalProperties:
+            additionalProperties:
+              $ref: '#/components/schemas/TierPreset'
+            propertyNames:
+              enum:
+              - quality
+              - balanced
+              - fast
+            type: object
+          propertyNames:
+            enum:
+            - openai
+            - anthropic
+            - google
+            - ollama
+            - mock
+          type: object
+          title: Presets
       type: object
       required:
-      - promptTokens
-      - completionTokens
-      - totalTokens
-      - toolCallCount
-      - registeredToolCount
-      title: TokenUsageResponse
-      description: Token usage statistics for a message turn.
-    ToolCallEndEventData:
+      - presets
+      title: TierListResponse
+      description: Response for GET /api/v1/tiers.
+    TierPreset:
       properties:
-        id:
-          type: string
-          title: Id
-        result:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Result
+        scoping:
+          $ref: '#/components/schemas/PhaseTierConfig'
+        discovery:
+          $ref: '#/components/schemas/PhaseTierConfig'
+        planning:
+          $ref: '#/components/schemas/PhaseTierConfig'
+        execution:
+          $ref: '#/components/schemas/PhaseTierConfig'
+        verification:
+          $ref: '#/components/schemas/PhaseTierConfig'
       type: object
       required:
-      - id
-      title: ToolCallEndEventData
-      description: Payload for ``tool_call_end`` SSE events.
-    ToolCallResponse:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        arguments:
-          $ref: '#/components/schemas/JSONObject'
-        result:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Result
-      type: object
-      required:
-      - id
-      - name
-      - arguments
-      title: ToolCallResponse
-      description: Tool call information.
-    ToolCallStartEventData:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        arguments:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Arguments
-      type: object
-      required:
-      - id
-      - name
-      title: ToolCallStartEventData
-      description: Payload for ``tool_call_start`` SSE events.
-    ToolListResponse:
-      properties:
-        tools:
-          items:
-            $ref: '#/components/schemas/_ToolItem'
-          type: array
-          title: Tools
-      type: object
-      required:
-      - tools
-      title: ToolListResponse
+      - scoping
+      - discovery
+      - planning
+      - execution
+      - verification
+      title: TierPreset
+      description: Per-phase configuration for all five pipeline phases.
     TreeOptimizationResultResponse:
       properties:
         bestTrial:
@@ -8010,11 +7577,11 @@ components:
           - type: number
           - type: 'null'
           title: Falsepositiverate
-        resultCount:
+        estimatedSize:
           anyOf:
           - type: integer
           - type: 'null'
-          title: Resultcount
+          title: Estimatedsize
         parameters:
           anyOf:
           - additionalProperties:
@@ -8040,7 +7607,7 @@ components:
           title: Name
         plan:
           anyOf:
-          - $ref: '#/components/schemas/StrategyPlan-Input'
+          - $ref: '#/components/schemas/StrategyPlanPayload-Input'
           - type: 'null'
         wdkStrategyId:
           anyOf:
@@ -8055,21 +7622,6 @@ components:
       type: object
       title: UpdateStrategyRequest
       description: Request to update a strategy.
-    UserMessageEventData:
-      properties:
-        messageId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Messageid
-        content:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Content
-      type: object
-      title: UserMessageEventData
-      description: Payload for ``user_message`` SSE events.
     ValidationError:
       properties:
         loc:
@@ -8096,82 +7648,46 @@ components:
       - msg
       - type
       title: ValidationError
-    WorkbenchChatRequest:
+    ValidationErrors:
       properties:
-        message:
-          type: string
-          maxLength: 200000
-          minLength: 1
-          title: Message
-        siteId:
-          type: string
-          title: Siteid
-        provider:
-          anyOf:
-          - type: string
-            enum:
-            - openai
-            - anthropic
-            - google
-            - ollama
-            - mock
-          - type: 'null'
-          title: Provider
-        model:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Model
-        reasoningEffort:
-          anyOf:
-          - type: string
-            enum:
-            - none
-            - low
-            - medium
-            - high
-          - type: 'null'
-          title: Reasoningeffort
+        general:
+          items:
+            type: string
+          type: array
+          title: General
+        byKey:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          type: object
+          title: Bykey
+      type: object
+      title: ValidationErrors
+      description: Structured validation errors by category.
+    ValidationResponse:
+      properties:
+        validation:
+          $ref: '#/components/schemas/ValidationResult'
       type: object
       required:
-      - message
-      - siteId
-      title: WorkbenchChatRequest
-    WorkbenchChatResponse:
+      - validation
+      title: ValidationResponse
+      description: Top-level validation response wrapper.
+    ValidationResult:
       properties:
-        operationId:
-          type: string
-          title: Operationid
-        streamId:
-          type: string
-          title: Streamid
+        isValid:
+          type: boolean
+          title: Isvalid
+        normalizedContextValues:
+          $ref: '#/components/schemas/JSONObject'
+        errors:
+          $ref: '#/components/schemas/ValidationErrors'
       type: object
       required:
-      - operationId
-      - streamId
-      title: WorkbenchChatResponse
-    WorkbenchGeneSetEventData:
-      properties:
-        geneSet:
-          anyOf:
-          - $ref: '#/components/schemas/GeneSetSummary'
-          - type: 'null'
-      type: object
-      title: WorkbenchGeneSetEventData
-      description: Payload for ``workbench_gene_set`` SSE events.
-    _ToolItem:
-      properties:
-        name:
-          type: string
-          title: Name
-        description:
-          type: string
-          title: Description
-      type: object
-      required:
-      - name
-      - description
-      title: _ToolItem
+      - isValid
+      title: ValidationResult
+      description: Single validation result with normalized values.
   securitySchemes:
     APIKeyCookie:
       type: apiKey

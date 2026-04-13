@@ -1,11 +1,11 @@
-"""Planning-phase toolset — 8 tools for creating and managing execution plans."""
+"""Planning-phase toolset for creating and managing execution plans."""
 
+from pydantic_ai.tools import Tool
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone.artifact import set_conversation_title
 from pathfinder.ai.tools.standalone.gene import resolve_gene_ids_to_records
-from pathfinder.ai.tools.standalone.phase_decision import finish_planning
 from pathfinder.ai.tools.standalone.plan import (
     create_plan,
     get_plan,
@@ -18,15 +18,24 @@ from pathfinder.ai.tools.standalone.think import think
 
 
 def build_toolset() -> FunctionToolset[AgentDeps]:
-    """Build the planning-phase toolset."""
+    """Build the planning-phase toolset.
+
+    Phase exit is handled by ``output_type=PlanningDecision`` on the planning
+    agent — no ``finish_*`` tool is exposed.
+
+    ``submit_plan`` carries ``requires_approval=True`` per design Decision 9:
+    plan approval goes through the v6 tool-approval flow. When the planning
+    agent calls ``submit_plan``, the adapter emits a
+    ``ToolApprovalRequestChunk`` and the client renders an approval dialog
+    for the user. The approval response resumes or denies the tool call.
+    """
     return FunctionToolset(
         tools=[
             create_plan,
             get_plan,
             update_plan,
-            submit_plan,
+            Tool(submit_plan, requires_approval=True),
             present_decision,
-            finish_planning,
             resolve_gene_ids_to_records,
             set_conversation_title,
             get_strategy,

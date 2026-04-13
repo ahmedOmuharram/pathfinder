@@ -2,7 +2,14 @@
  * Shared types for the strategy store slices.
  */
 
-import type { StrategyPlan, Step, Strategy } from "@pathfinder/shared";
+import type {
+  GraphSnapshot,
+  StrategyMeta,
+  StrategyPatch,
+  StrategyPlan,
+  Step,
+  Strategy,
+} from "@pathfinder/shared";
 
 // ---------------------------------------------------------------------------
 // Per-slice state + action interfaces
@@ -52,7 +59,19 @@ export interface ListSlice {
 export interface MetaSlice {
   graphValidationStatus: Record<string, boolean>;
 
+  /** Latest stream-derived snapshot from a `data-graph-snapshot` part. */
+  latestGraphSnapshot: GraphSnapshot | null;
+  /** Latest stream-derived strategy metadata from a `data-strategy-meta` part. */
+  latestStrategyMeta: StrategyMeta | null;
+  /** Latest stream-derived patch from a `data-strategy-patch` part. */
+  lastStrategyPatch: StrategyPatch | null;
+
   setGraphValidationStatus: (id: string, hasErrors: boolean) => void;
+
+  // Stream-derived setters (from data-* parts)
+  applyGraphSnapshot: (snapshot: GraphSnapshot) => void;
+  setLatestStrategyMeta: (meta: StrategyMeta) => void;
+  applyPatch: (patch: StrategyPatch) => void;
 }
 
 // ---------------------------------------------------------------------------

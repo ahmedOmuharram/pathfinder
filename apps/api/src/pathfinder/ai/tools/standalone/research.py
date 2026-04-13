@@ -1,6 +1,9 @@
 """Standalone research tools (web + literature search) for pydantic-ai migration."""
 
+from __future__ import annotations
+
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone._research_models import (
@@ -8,6 +11,9 @@ from pathfinder.ai.tools.standalone._research_models import (
     _DEFAULT_OUTPUT_OPTIONS,
     LiteratureSearchFilters,
     LiteratureSearchOutputOptions,
+)
+from pathfinder.ai.tools.standalone._stream_parts import (
+    source_url_chunks_from_citations,
 )
 from pathfinder.domain.research import (
     LiteratureFilters,
@@ -24,7 +30,7 @@ async def web_search(
     limit: int = 5,
     include_summary: bool = True,
     summary_max_chars: int = 600,
-) -> WebSearchResponse:
+) -> ToolReturn[WebSearchResponse]:
     """Search the web and return results with citations.
 
     Args:
@@ -39,11 +45,15 @@ async def web_search(
     if service is None:
         msg = "web_search_service is not configured"
         raise RuntimeError(msg)
-    return await service.search(
+    response = await service.search(
         query,
         limit=limit,
         include_summary=include_summary,
         summary_max_chars=summary_max_chars,
+    )
+    return ToolReturn(
+        return_value=response,
+        metadata=source_url_chunks_from_citations(list(response.citations)),
     )
 
 
@@ -54,7 +64,7 @@ async def literature_search(
     sort: LiteratureSort = "relevance",
     output_options: LiteratureSearchOutputOptions = _DEFAULT_OUTPUT_OPTIONS,
     filters: LiteratureSearchFilters = _DEFAULT_FILTERS,
-) -> LiteratureSearchResponse:
+) -> ToolReturn[LiteratureSearchResponse]:
     """Search scientific literature across all sources and return results with citations.
 
     Args:
@@ -69,7 +79,7 @@ async def literature_search(
     if service is None:
         msg = "literature_search_service is not configured"
         raise RuntimeError(msg)
-    return await service.search(
+    response = await service.search(
         query,
         source="all",
         limit=limit,
@@ -89,4 +99,8 @@ async def literature_search(
             pmid_equals=filters.pmid_equals,
             require_doi=filters.require_doi,
         ),
+    )
+    return ToolReturn(
+        return_value=response,
+        metadata=source_url_chunks_from_citations(list(response.citations)),
     )

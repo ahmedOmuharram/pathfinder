@@ -1,0 +1,207 @@
+/**
+ * Tests for the shared typed-event SSE helper.
+ *
+ * Mocks `fetch` with a `ReadableStream` that emits canned SSE frames and
+ * asserts the async generator yields the decoded JSON payloads in order.
+ */
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { streamTypedEvents } from "./typedEventStream";
+
+function streamFromChunks(chunks: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+      controller.close();
+    },
+  });
+}
+
+function stubFetchWithStream(
+  body: ReadableStream<Uint8Array> | null,
+  ok = true,
+  status = 200,
+): ReturnType<typeof vi.fn> {
+  const fetchSpy = vi.fn(
+    async () =>
+      ({
+        ok,
+        status,
+        statusText: ok ? "OK" : "Internal Server Error",
+        body,
+        headers: new Headers({ "content-type": "text/event-stream" }),
+      }) as unknown as Response,
+  );
+  vi.stubGlobal("fetch", fetchSpy);
+  return fetchSpy;
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("streamTypedEvents", () => {
+  it("parses SSE frames into typed events", async () => {
+    stubFetchWithStream(
+      streamFromChunks([
+        'event: sweep_point\ndata: {"x":1,"y":2}\n\n',
+        'event: sweep_point\ndata: {"x":3,"y":4}\n\n',
+        "data: [DONE]\n\n",
+      ]),
+    );
+
+    const events: unknown[] = [];
+    for await (const e of streamTypedEvents<{ x: number; y: number }>(
+      "/api/v1/experiments/1/threshold-sweep",
+    )) {
+      events.push(e);
+    }
+
+    expect(events).toEqual([
+      { x: 1, y: 2 },
+      { x: 3, y: 4 },
+    ]);
+  });
+
+  it("returns immediately on [DONE] even when more data follows", async () => {
+    stubFetchWithStream(
+      streamFromChunks([
+        'event: foo\ndata: {"v":1}\n\n',
+        "data: [DONE]\n\n",
+        'event: foo\ndata: {"v":2}\n\n',
+      ]),
+    );
+
+    const events: unknown[] = [];
+    for await (const e of streamTypedEvents<{ v: number }>("/x")) {
+      events.push(e);
+    }
+
+    expect(events).toEqual([{ v: 1 }]);
+  });
+
+  it("handles frames split across chunk boundaries", async () => {
+    stubFetchWithStream(
+      streamFromChunks(["event: foo\ndata: {\"a", '":"hello"}\n\n', "data: [DONE]\n\n"]),
+    );
+
+    const events: unknown[] = [];
+    for await (const e of streamTypedEvents<{ a: string }>("/x")) {
+      events.push(e);
+    }
+
+    expect(events).toEqual([{ a: "hello" }]);
+  });
+
+  it("skips frames with malformed JSON payloads", async () => {
+    stubFetchWithStream(
+      streamFromChunks([
+        "event: foo\ndata: not-json\n\n",
+        'event: foo\ndata: {"ok":true}\n\n',
+        "data: [DONE]\n\n",
+      ]),
+    );
+
+    const events: unknown[] = [];
+    for await (const e of streamTypedEvents<{ ok: boolean }>("/x")) {
+      events.push(e);
+    }
+
+    expect(events).toEqual([{ ok: true }]);
+  });
+
+  it("skips keep-alive / comment frames that carry no data line", async () => {
+    stubFetchWithStream(
+      streamFromChunks([
+        ": keepalive\n\n",
+        'event: foo\ndata: {"v":1}\n\n',
+        "data: [DONE]\n\n",
+      ]),
+    );
+
+    const events: unknown[] = [];
+    for await (const e of streamTypedEvents<{ v: number }>("/x")) {
+      events.push(e);
+    }
+
+    expect(events).toEqual([{ v: 1 }]);
+  });
+
+  it("throws when the response is not ok", async () => {
+    stubFetchWithStream(null, false, 500);
+
+    await expect(async () => {
+      for await (const _ of streamTypedEvents("/x")) {
+        // unreachable
+      }
+    }).rejects.toThrow(/stream failed: 500/);
+  });
+
+  it("throws when the response body is null", async () => {
+    stubFetchWithStream(null, true, 200);
+
+    await expect(async () => {
+      for await (const _ of streamTypedEvents("/x")) {
+        // unreachable
+      }
+    }).rejects.toThrow(/no response body/);
+  });
+
+  it("posts with a JSON body and content-type header when method=POST and body is given", async () => {
+    const fetchSpy = stubFetchWithStream(streamFromChunks(["data: [DONE]\n\n"]));
+
+    const events: unknown[] = [];
+    for await (const e of streamTypedEvents<{ ok: boolean }>("/x", {
+      method: "POST",
+      body: { p: 1 },
+    })) {
+      events.push(e);
+    }
+
+    expect(events).toEqual([]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const call = fetchSpy.mock.calls[0] ?? [];
+    const init = call[1] as RequestInit;
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe('{"p":1}');
+    const headers = init.headers as Record<string, string>;
+    expect(headers["accept"]).toBe("text/event-stream");
+    expect(headers["content-type"]).toBe("application/json");
+  });
+
+  it("defaults to GET without a body or content-type header", async () => {
+    const fetchSpy = stubFetchWithStream(streamFromChunks(["data: [DONE]\n\n"]));
+
+    const events: unknown[] = [];
+    for await (const e of streamTypedEvents<{ ok: boolean }>("/x")) {
+      events.push(e);
+    }
+    expect(events).toEqual([]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const call = fetchSpy.mock.calls[0] ?? [];
+    const init = call[1] as RequestInit;
+    expect(init.method).toBe("GET");
+    expect(init.body).toBeUndefined();
+    const headers = init.headers as Record<string, string>;
+    expect(headers["accept"]).toBe("text/event-stream");
+    expect(headers["content-type"]).toBeUndefined();
+  });
+
+  it("handles multiple events in a single chunk", async () => {
+    stubFetchWithStream(
+      streamFromChunks([
+        'event: foo\ndata: {"v":1}\n\nevent: foo\ndata: {"v":2}\n\nevent: foo\ndata: {"v":3}\n\ndata: [DONE]\n\n',
+      ]),
+    );
+
+    const events: unknown[] = [];
+    for await (const e of streamTypedEvents<{ v: number }>("/x")) {
+      events.push(e);
+    }
+
+    expect(events).toEqual([{ v: 1 }, { v: 2 }, { v: 3 }]);
+  });
+});

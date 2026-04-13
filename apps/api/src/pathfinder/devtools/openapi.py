@@ -4,6 +4,7 @@ This is intentionally NOT run by the API at runtime. It writes repo files.
 """
 
 import argparse
+import json
 from pathlib import Path
 
 import yaml
@@ -51,6 +52,16 @@ def generate_openapi_yaml(*, out_path: Path | None = None) -> Path:
     return path
 
 
+def generate_openapi_json(*, out_path: Path | None = None) -> Path:
+    root = _repo_root()
+    path = out_path or (root / "packages" / "spec" / "openapi.json")
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    spec = _spec_with_stable_overrides()
+    path.write_text(json.dumps(spec, indent=2), encoding="utf-8")
+    return path
+
+
 def check_openapi_yaml(*, openapi_path: Path | None = None) -> bool:
     root = _repo_root()
     path = openapi_path or (root / "packages" / "spec" / "openapi.yaml")
@@ -59,7 +70,7 @@ def check_openapi_yaml(*, openapi_path: Path | None = None) -> bool:
         raise FileNotFoundError(msg)
 
     actual = _spec_with_stable_overrides()
-    expected_text = yaml.safe_dump(
+    expected_text: str = yaml.safe_dump(
         actual,
         sort_keys=False,
         allow_unicode=True,
@@ -73,7 +84,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser(
-        "generate", help="Write packages/spec/openapi.yaml from the FastAPI app"
+        "generate",
+        help="Write packages/spec/openapi.yaml and openapi.json from the FastAPI app",
     )
     sub.add_parser(
         "check", help="Exit non-zero if packages/spec/openapi.yaml is out of date"
@@ -82,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "generate":
         generate_openapi_yaml()
+        generate_openapi_json()
         return 0
 
     ok = check_openapi_yaml()

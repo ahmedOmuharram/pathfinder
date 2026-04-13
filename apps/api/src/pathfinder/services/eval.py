@@ -131,15 +131,15 @@ async def build_gold_strategy(
 async def fetch_strategy_gene_ids(
     *,
     api: Any,
-    projection: Any,
+    chat: Any,
 ) -> list[str]:
-    """Fetch all gene IDs from a strategy's WDK root step.
+    """Fetch all gene IDs from a chat's linked WDK strategy.
 
     :param api: StrategyAPI instance for the site.
-    :param projection: StreamProjection with ``wdk_strategy_id``.
+    :param chat: ``Chat`` with ``wdk_strategy_id``.
     :returns: List of gene ID strings.
     """
-    strategy = await api.get_strategy(projection.wdk_strategy_id)
+    strategy = await api.get_strategy(chat.wdk_strategy_id)
     return await fetch_all_gene_ids(api, strategy.root_step_id)
 
 

@@ -19,6 +19,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_graph_state,
     pinned_problem_frame,
 )
+from pathfinder.ai.agents._phase_decisions import PlanningDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -51,18 +52,29 @@ user's question.
 parameter values based on discovery findings. Use `resolve_gene_ids_to_records` \
 if the plan requires gene ID lookups.
 
-4. **Handle blocking ambiguity**: When a missing decision would materially \
-change the plan, ask the user instead of guessing. You may use \
-`present_decision` for optional trade-off notes, but blocking pauses must be \
-declared with `finish_planning(decision="ask_user", ...)`.
+4. **Submit for execution**: Once the plan is complete and reviewed, use \
+`submit_plan` to hand it off to the execution agent. The submit_plan tool \
+returns the canonical plan id — use that value as the `plan_id` field of \
+your final PlanningDecision.
 
-5. **Submit for execution**: Once the plan is complete and reviewed, use \
-`submit_plan` to hand it off to the execution agent.
+## Final Output
 
-6. **End the phase explicitly**: Call `finish_planning` exactly once as your \
-last tool call. Use `decision="present_plan"` only after `submit_plan` \
-succeeds. Use `decision="ask_user"` when you need user input before a plan can \
-be presented.
+When the plan is ready, produce a `PlanningDecision` as your final output. \
+Do NOT call any `finish_*` tool; those tools no longer exist.
+
+Choose `next_action` based on what you did:
+  - `advance_to_execution`: a plan has been submitted successfully; include \
+its id in `plan_id`.
+  - `request_revision`: the user needs to decide something before the plan \
+can be submitted; reuse the draft plan id you last used, or "" if none was \
+drafted.
+  - `abort`: the task is not feasible with the available discovery findings; \
+`plan_id` should be "" and `reason` should explain why.
+
+Populate every field:
+  - `plan_id`: canonical plan id returned by `submit_plan`, or "" for \
+abort / request_revision with no draft.
+  - `reason`: one-to-two sentence justification for `next_action`.
 
 ## Guidelines
 
@@ -84,8 +96,9 @@ the findings you received.
 # Agent
 # ---------------------------------------------------------------------------
 
-planning_agent: Agent[AgentDeps, str] = Agent(
-    "anthropic:claude-sonnet-4-5",
+planning_agent: Agent[AgentDeps, PlanningDecision] = Agent(
+    "openai:gpt-4.1-mini",
+    output_type=PlanningDecision,
     deps_type=AgentDeps,
     instructions=_PLANNING_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -157,6 +170,6 @@ def _replan_context(ctx: RunContext[AgentDeps]) -> str | None:
 # ---------------------------------------------------------------------------
 
 PLANNING_USAGE_LIMITS = UsageLimits(
-    request_limit=50,
+    request_limit=200,
     total_tokens_limit=500_000,
 )

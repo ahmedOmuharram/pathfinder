@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { StrategyPlan, Strategy, PlanningArtifact } from "@pathfinder/shared";
+import type { StrategyPlan, Strategy, PlanArtifact } from "@pathfinder/shared";
 import { z } from "zod";
 import { APIError, requestJson, requestVoid } from "./http";
 import {
@@ -98,7 +98,7 @@ export async function updateStrategy(
   strategyId: string,
   args: {
     name?: string;
-    plan?: StrategyPlan | NonNullable<PlanningArtifact["proposedStrategyPlan"]>;
+    plan?: StrategyPlan | PlanArtifact;
     wdkStrategyId?: number | null;
     isSaved?: boolean;
   },

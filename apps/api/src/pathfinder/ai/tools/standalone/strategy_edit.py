@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from typing import cast
 
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone._graph_helpers import (
@@ -17,6 +18,11 @@ from pathfinder.ai.tools.standalone._graph_helpers import (
 from pathfinder.ai.tools.standalone._record_type_helpers import (
     find_record_type_for_search,
     find_record_type_hint,
+)
+from pathfinder.ai.tools.standalone._stream_parts import (
+    graph_snapshot_chunk,
+    strategy_patch_chunk,
+    strategy_remove_chunk,
 )
 from pathfinder.ai.tools.standalone._validation_helpers import (
     StepOkResponse,
@@ -216,7 +222,7 @@ async def update_step(
     operator: str | None = None,
     display_name: str | None = None,
     graph_id: str | None = None,
-) -> StepOkResponse | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
     """Update an existing strategy step's search, parameters, operator, or display name.
 
     Parameter changes are synced to WDK immediately via PUT search-config.
@@ -246,10 +252,18 @@ async def update_step(
 
     deps.tool_repetition_guard.record_modifying_call("update_step")
 
-    return (
-        apply_error
-        if apply_error is not None
-        else step_ok_response(session, graph, step)
+    if apply_error is not None:
+        return apply_error
+    return ToolReturn(
+        return_value=step_ok_response(session, graph, step),
+        metadata=[
+            graph_snapshot_chunk(session, graph),
+            strategy_patch_chunk(
+                graph, step,
+                operation="update_step",
+                sync_state=sync_state,
+            ),
+        ],
     )
 
 
@@ -257,7 +271,7 @@ async def delete_step(
     ctx: RunContext[AgentDeps],
     step_id: str,
     graph_id: str | None = None,
-) -> ToolErrorPayload | JSONObject:
+) -> ToolErrorPayload | ToolReturn[JSONObject]:
     """Delete a step and re-wire connections so the graph stays valid.
 
     Cannot delete the last step -- use clear_strategy instead.
@@ -298,13 +312,19 @@ async def delete_step(
         "deleted": cast("JSONArray", result.deleted_ids),
         "graphId": graph.id,
     }
-    return with_full_graph(session, graph, response)
+    # One data-strategy-update per removed step; one graph-snapshot for the new state.
+    metadata = [graph_snapshot_chunk(session, graph)]
+    metadata.extend(strategy_remove_chunk(graph, sid) for sid in result.deleted_ids)
+    return ToolReturn(
+        return_value=with_full_graph(session, graph, response),
+        metadata=metadata,
+    )
 
 
 async def undo_last_change(
     ctx: RunContext[AgentDeps],
     graph_id: str | None = None,
-) -> ToolErrorPayload | JSONObject:
+) -> ToolErrorPayload | ToolReturn[JSONObject]:
     """Undo the last change to the strategy.
 
     Only one level of undo. Reverts the last structural change
@@ -320,19 +340,25 @@ async def undo_last_change(
     if not graph:
         return graph_not_found(graph_id)
     if graph.undo():
-        return with_full_graph(
+        return ToolReturn(
+            return_value=with_full_graph(
+                session,
+                graph,
+                {
+                    "ok": True,
+                    "graphId": graph.id,
+                    "message": "Undone to previous state",
+                },
+            ),
+            metadata=[graph_snapshot_chunk(session, graph)],
+        )
+    return ToolReturn(
+        return_value=with_full_graph(
             session,
             graph,
-            {
-                "ok": True,
-                "graphId": graph.id,
-                "message": "Undone to previous state",
-            },
-        )
-    return with_full_graph(
-        session,
-        graph,
-        tool_error(ErrorCode.VALIDATION_ERROR, "Nothing to undo", graphId=graph.id).model_dump(
-            by_alias=True, exclude_none=True, mode="json"
+            tool_error(
+                ErrorCode.VALIDATION_ERROR, "Nothing to undo", graphId=graph.id
+            ).model_dump(by_alias=True, exclude_none=True, mode="json"),
         ),
+        metadata=[graph_snapshot_chunk(session, graph)],
     )

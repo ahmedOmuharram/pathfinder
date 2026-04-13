@@ -4,9 +4,11 @@ Uses real AgentToolState and AgentDeps — only RunContext is a mock wrapper.
 """
 
 from collections.abc import Iterable
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -35,6 +37,18 @@ from pathfinder.domain.strategy.plan import (
 )
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.tool_errors import ToolErrorPayload
+
+
+def _unwrap(result: Any) -> Any:
+    """Unwrap ToolReturn for assertions.
+
+    Tool results are now ``ToolReturn`` for success paths; error paths still
+    return bare ``ToolErrorPayload`` instances. Tests that assert the
+    ``return_value`` type should go through this helper.
+    """
+    if isinstance(result, ToolReturn):
+        return result.return_value
+    return result
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,9 +200,10 @@ async def test_create_plan_stores_plan_in_agent_state() -> None:
         connections=connections,
     )
 
-    assert isinstance(result, PlanCreatedResponse)
-    assert result.title == "Test Plan"
-    assert result.step_count == 3
+    payload = _unwrap(result)
+    assert isinstance(payload, PlanCreatedResponse)
+    assert payload.title == "Test Plan"
+    assert payload.step_count == 3
 
     plan = deps.agent_state.active_plan
     assert plan is not None
@@ -248,7 +263,7 @@ async def test_submit_plan_validates_parameters() -> None:
         steps=[step_a],
         connections=[],
     )
-    assert isinstance(create_result, PlanCreatedResponse)
+    assert isinstance(_unwrap(create_result), PlanCreatedResponse)
 
     # Manually mark a required parameter as NEEDS_DISCOVERY to trigger validation
     plan = deps.agent_state.active_plan
@@ -304,7 +319,7 @@ async def test_create_plan_deduplicates_semantically_identical_questions() -> No
         ],
     )
 
-    assert isinstance(result, PlanCreatedResponse)
+    assert isinstance(_unwrap(result), PlanCreatedResponse)
     plan = deps.agent_state.active_plan
     assert plan is not None
     assert len(plan.questions) == 1
@@ -335,7 +350,7 @@ async def test_update_plan_reuses_existing_question_and_preserves_answer() -> No
         ],
     )
 
-    assert isinstance(create_result, PlanCreatedResponse)
+    assert isinstance(_unwrap(create_result), PlanCreatedResponse)
     plan = deps.agent_state.active_plan
     assert plan is not None
     original_question_id = plan.questions[0].id
@@ -359,12 +374,13 @@ async def test_update_plan_reuses_existing_question_and_preserves_answer() -> No
         ],
     )
 
-    assert isinstance(update_result, StrategyPlan)
-    assert len(update_result.questions) == 1
-    assert update_result.questions[0].id == original_question_id
-    assert update_result.questions[0].answer == "Plasmodium vivax"
-    assert update_result.questions[0].options is not None
-    assert update_result.questions[0].options[0].label == "Plasmodium vivax"
+    update_plan_payload = _unwrap(update_result)
+    assert isinstance(update_plan_payload, StrategyPlan)
+    assert len(update_plan_payload.questions) == 1
+    assert update_plan_payload.questions[0].id == original_question_id
+    assert update_plan_payload.questions[0].answer == "Plasmodium vivax"
+    assert update_plan_payload.questions[0].options is not None
+    assert update_plan_payload.questions[0].options[0].label == "Plasmodium vivax"
 
 
 @pytest.mark.asyncio
@@ -395,11 +411,12 @@ async def test_update_plan_applies_step_patches() -> None:
 
     result = await update_plan(ctx, step_updates=[patch])
 
-    assert isinstance(result, StrategyPlan)
-    assert result.version == 2
+    payload = _unwrap(result)
+    assert isinstance(payload, StrategyPlan)
+    assert payload.version == 2
 
     # Verify the parameter was actually changed
-    patched_step = result.steps[0]
+    patched_step = payload.steps[0]
     assert patched_step.id == "step_a"
     assert patched_step.parameters["organism"].value == '["Plasmodium vivax"]'
     assert patched_step.parameters["organism"].status == ParamStatus.SET
@@ -420,13 +437,14 @@ async def test_get_plan_returns_active_plan() -> None:
         steps=[step_a],
         connections=[],
     )
-    assert isinstance(create_result, PlanCreatedResponse)
+    create_payload = _unwrap(create_result)
+    assert isinstance(create_payload, PlanCreatedResponse)
 
     get_result = await get_plan(ctx)
 
     assert isinstance(get_result, StrategyPlan)
     assert get_result.title == "My Plan"
-    assert get_result.id == create_result.plan_id
+    assert get_result.id == create_payload.plan_id
     assert len(get_result.steps) == 1
     assert get_result.steps[0].search_name == "GenesByTaxon"
 

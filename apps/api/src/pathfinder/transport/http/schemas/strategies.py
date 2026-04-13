@@ -11,8 +11,6 @@ from pathfinder.services.strategies.schemas import (
     StepResponse,
 )
 
-from .chat import MessageResponse, ThinkingResponse
-
 
 class StepCountsRequest(BaseModel):
     """Request to compute step counts from a plan."""
@@ -64,8 +62,6 @@ class StrategyResponse(BaseModel):
     root_step_id: str | None = Field(default=None, alias="rootStepId")
     wdk_strategy_id: int | None = Field(default=None, alias="wdkStrategyId")
     is_saved: bool = Field(default=False, alias="isSaved")
-    messages: list[MessageResponse] | None = None
-    thinking: ThinkingResponse | None = None
     pipeline: JSONObject | None = None
     conversation_state: JSONObject | None = Field(default=None, alias="conversationState")
     active_plan: JSONObject | None = Field(default=None, alias="activePlan")

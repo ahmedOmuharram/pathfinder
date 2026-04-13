@@ -1,5 +1,6 @@
 """Health check endpoints."""
 
+from collections.abc import Awaitable
 from datetime import UTC, datetime
 
 from fastapi import APIRouter
@@ -10,8 +11,10 @@ from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.health import check_database
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.readiness import get_readiness
+from pathfinder.platform.redis import get_redis
 from pathfinder.transport.http.schemas import HealthResponse, SystemConfigResponse
-from pathfinder.transport.http.schemas.health import ProviderStatus
+from pathfinder.transport.http.schemas.health import ProviderStatus, ReadinessResponse
 
 router = APIRouter(tags=["health"])
 logger = get_logger(__name__)
@@ -53,35 +56,43 @@ async def system_config() -> SystemConfigResponse:
     )
 
 
-@router.get("/health/ready", response_model=HealthResponse)
-async def readiness_check() -> HealthResponse | JSONResponse:
-    """Readiness check - is the service ready to accept requests?
+@router.get("/health/ready", response_model=ReadinessResponse)
+async def readiness_check() -> ReadinessResponse | JSONResponse:
+    """Readiness check — is every subsystem actually ready?
 
-    Checks database connectivity.
-    Returns 503 if any dependency is unreachable.
+    Returns 503 until lifespan startup has marked *all* subsystems ready
+    (database, redis, embedding model, PIGuard, every site catalog).
+    Also re-verifies DB and Redis with live pings so stale state
+    doesn't mask a broken dependency.
     """
-    failures: list[str] = []
+    state = get_readiness()
 
     try:
         async with async_session_factory() as session:
             await check_database(session)
     except Exception as e:
-        logger.exception("Readiness check: database unreachable", error=str(e))
-        failures.append("database")
+        logger.exception("Readiness check: database unreachable")
+        state.mark_failed("database", str(e))
 
-    if failures:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "version": __version__,
-                "timestamp": datetime.now(UTC).isoformat(),
-                "failed_checks": failures,
-            },
-        )
+    try:
+        ping_result = get_redis().ping()
+        if isinstance(ping_result, Awaitable):
+            await ping_result
+    except Exception as e:
+        logger.exception("Readiness check: redis unreachable")
+        state.mark_failed("redis", str(e))
 
-    return HealthResponse(
-        status="healthy",
+    ready = state.all_ready
+    response = ReadinessResponse(
+        status="healthy" if ready else "unhealthy",
         version=__version__,
         timestamp=datetime.now(UTC),
+        readiness=state,
+        not_ready=state.not_ready,
     )
+    if not ready:
+        return JSONResponse(
+            status_code=503,
+            content=response.model_dump(mode="json"),
+        )
+    return response

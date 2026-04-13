@@ -4,12 +4,8 @@
 
 import { queryOptions } from "@tanstack/react-query";
 import type { ExperimentSummary } from "@pathfinder/shared";
-import {
-  APIError,
-  buildUrl,
-  getAuthHeaders,
-  requestJson,
-} from "@/lib/api/http";
+import { buildUrl, requestJson } from "@/lib/api/http";
+import { streamTypedEvents } from "@/lib/sse/typedEventStream";
 import { ExperimentSummaryListSchema } from "./schemas/experiment";
 
 /** List experiments, optionally filtered by site. */
@@ -33,8 +29,20 @@ export function experimentsListOptions(siteId: string) {
 }
 
 /**
- * Seed demo strategies via SSE. Calls `onMessage` for each progress event
- * and resolves when the stream ends.
+ * Shape of each decoded event from the `/api/v1/experiments/seed` SSE stream.
+ *
+ * The backend emits typed Pydantic models (``SeedProgress`` / ``SeedStrategyComplete``
+ * / ``SeedItemError`` / ``SeedComplete``) — every variant includes a ``message``
+ * field, which is all this UI surface needs.
+ */
+interface SeedStreamEvent {
+  type: string;
+  message: string;
+}
+
+/**
+ * Seed demo strategies via SSE.  Calls `onMessage` for each progress event
+ * and resolves when the stream emits `[DONE]`.
  */
 export async function seedExperiments(
   onMessage: (message: string) => void,
@@ -42,46 +50,10 @@ export async function seedExperiments(
 ): Promise<void> {
   const params = siteId != null && siteId !== "" ? `?site_id=${siteId}` : "";
   const url = buildUrl(`/api/v1/experiments/seed${params}`);
-  const headers = getAuthHeaders({ accept: "text/event-stream" });
 
-  const response = await fetch(url, {
+  for await (const event of streamTypedEvents<SeedStreamEvent>(url, {
     method: "POST",
-    headers,
-    credentials: "include",
-  });
-
-  if (!response.ok || response.body == null) {
-    throw new APIError(`Seed failed: HTTP ${response.status}`, {
-      status: response.status,
-      statusText: response.statusText,
-      url,
-      data: null,
-    });
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-
-    for (const line of lines) {
-      if (!line.startsWith("data:")) continue;
-      try {
-        const parsed: unknown = JSON.parse(line.slice(5).trim());
-        if (typeof parsed === "object" && parsed != null && "message" in parsed) {
-          const msg = (parsed as { message: unknown }).message;
-          if (typeof msg === "string") onMessage(msg);
-        }
-      } catch {
-        /* skip malformed SSE frames */
-      }
-    }
+  })) {
+    onMessage(event.message);
   }
 }

@@ -5,18 +5,15 @@ import { useSessionStore } from "@/state/useSessionStore";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { EmptyState } from "@/lib/components/ui/EmptyState";
 import { Layers } from "lucide-react";
-import { WorkbenchChat } from "./WorkbenchChat";
+import { ChatPanel } from "@/features/chat/ChatPanel";
 import { SOURCE_CONFIG } from "./geneSetSourceConfig";
 import {
   EnrichmentPanel,
   DistributionsPanel,
-  EvaluatePanel,
   CustomEnrichmentPanel,
   SweepPanel,
   ResultsTablePanel,
   StepContributionPanel,
-  BatchPanel,
-  BenchmarkPanel,
   EnsemblePanel,
   ConfidencePanel,
   ReverseSearchPanel,
@@ -72,13 +69,10 @@ const PANELS = [
   ResultsTablePanel,
   EnrichmentPanel,
   DistributionsPanel,
-  EvaluatePanel,
   StepContributionPanel,
   ConfidencePanel,
   EnsemblePanel,
   ReverseSearchPanel,
-  BatchPanel,
-  BenchmarkPanel,
   CustomEnrichmentPanel,
   SweepPanel,
 ];
@@ -90,7 +84,6 @@ const PANELS = [
 export function WorkbenchMain() {
   const activeSetId = useWorkbenchStore((s) => s.activeSetId);
   const lastExperiment = useWorkbenchStore((s) => s.lastExperiment);
-  const selectedSite = useSessionStore((s) => s.selectedSite);
 
   if (activeSetId == null) {
     return (
@@ -107,10 +100,7 @@ export function WorkbenchMain() {
       {/* Key on activeSetId so all panels remount (reset local state) on gene set switch */}
       <div key={activeSetId} className="mx-auto w-full max-w-5xl space-y-3 p-6">
         <ActiveSetHeader />
-        <WorkbenchChat
-          experimentId={lastExperiment?.id ?? null}
-          siteId={selectedSite}
-        />
+        <ChatPanel chatId={lastExperiment?.id ?? ""} mode="experiment" />
         {PANELS.map((Panel, i) => (
           <div
             key={i}

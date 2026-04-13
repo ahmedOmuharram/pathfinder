@@ -1,12 +1,13 @@
 """SQLAlchemy ORM models."""
 
 from datetime import datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -15,6 +16,8 @@ from sqlalchemy import (
     Text,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import CHAR, TypeDecorator, TypeEngine
@@ -27,7 +30,7 @@ class GUID(TypeDecorator[UUID]):
 
     Uses CHAR(36) and stores UUIDs as strings.
     Returns proper ``UUID`` objects on read so that Python-side comparisons
-    (e.g. ``stream.user_id == some_uuid``) work correctly.
+    (e.g. ``chat.user_id == some_uuid``) work correctly.
     """
 
     impl = CHAR
@@ -76,8 +79,7 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    # Relationships
-    streams: Mapped[list[Stream]] = relationship(
+    chats: Mapped[list[Chat]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -141,89 +143,6 @@ class ExperimentRow(Base):
     )
 
 
-class Stream(Base):
-    """A conversation stream — the identity of a chat conversation.
-
-    All mutable state is derived from events in Redis. This table only
-    holds identity and ownership.
-    """
-
-    __tablename__ = "streams"
-
-    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(
-        GUID(), ForeignKey("users.id", ondelete="CASCADE")
-    )
-    site_id: Mapped[str] = mapped_column(String(50))
-    experiment_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-
-    user: Mapped[User] = relationship(back_populates="streams")
-
-    __table_args__ = (
-        Index("ix_streams_user_site", "user_id", "site_id"),
-        Index("ix_streams_experiment", "user_id", "experiment_id"),
-    )
-
-
-class StreamProjection(Base):
-    """Materialized projection of a conversation stream.
-
-    Derived from events — rebuildable by replaying the Redis stream.
-    This is a CACHE for fast reads, not a source of truth.
-    """
-
-    __tablename__ = "stream_projections"
-
-    stream_id: Mapped[UUID] = mapped_column(
-        GUID(), ForeignKey("streams.id", ondelete="CASCADE"), primary_key=True
-    )
-    name: Mapped[str] = mapped_column(String(255), default="")
-    record_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    wdk_strategy_id: Mapped[int | None] = mapped_column(nullable=True)
-    is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
-    pipeline: Mapped[JSONObject | None] = mapped_column(JSON, nullable=True)
-    message_count: Mapped[int] = mapped_column(Integer, default=0)
-    step_count: Mapped[int] = mapped_column(Integer, default=0)
-    plan: Mapped[JSONObject] = mapped_column(JSON, default=dict)
-    steps: Mapped[JSONArray] = mapped_column(JSON, default=list)
-    root_step_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    estimated_size: Mapped[int | None] = mapped_column(nullable=True)
-    last_event_id: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    dismissed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-    site_id: Mapped[str] = mapped_column(String(50), default="")
-
-    # Gene set auto-import association
-    gene_set_id: Mapped[str | None] = mapped_column(
-        String(50),
-        ForeignKey("gene_sets.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    gene_set_auto_imported: Mapped[bool] = mapped_column(Boolean, default=False)
-
-    # Conversation FSM state — written by projection handler on phase/plan events.
-    conversation_state: Mapped[JSONObject] = mapped_column(JSON, default=dict)
-
-    stream: Mapped[Stream] = relationship()
-
-    __table_args__ = (
-        Index(
-            "ix_proj_wdk",
-            "wdk_strategy_id",
-            unique=True,
-            postgresql_where="wdk_strategy_id IS NOT NULL",
-        ),
-    )
-
-
 class GeneSetRow(Base):
     """Persisted gene set for workbench analysis."""
 
@@ -256,43 +175,96 @@ class GeneSetRow(Base):
     )
 
 
-class Operation(Base):
-    """Tracks active and completed operations for client discovery."""
+class Chat(Base):
+    """A chat conversation — identity + sidebar/strategy metadata.
 
-    __tablename__ = "operations"
+    Replaces the legacy ``streams`` + ``stream_projections`` pair (dropped by
+    migration ``i4j5k6l7m8n9``). One row per conversation; metadata lives
+    directly on this table for fast sidebar listing and WDK sync.
+    ``Message`` rows carry the parts-based history (see below).
+    """
 
-    operation_id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    stream_id: Mapped[UUID] = mapped_column(
-        GUID(), ForeignKey("streams.id", ondelete="CASCADE")
+    __tablename__ = "chats"
+    __table_args__ = (
+        Index("ix_chats_user_site", "user_id", "site_id"),
+        Index(
+            "ix_chats_wdk_strategy_id",
+            "wdk_strategy_id",
+            unique=True,
+            postgresql_where="wdk_strategy_id IS NOT NULL",
+        ),
     )
-    type: Mapped[str] = mapped_column(String(50))
-    status: Mapped[str] = mapped_column(String(20), default="active")
+
+    id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        GUID(), ForeignKey("users.id", ondelete="CASCADE")
+    )
+    site_id: Mapped[str] = mapped_column(String(50), default="")
+    name: Mapped[str] = mapped_column(String(255), default="")
+    record_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    wdk_strategy_id: Mapped[int | None] = mapped_column(nullable=True)
+    is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
+    pipeline: Mapped[JSONObject | None] = mapped_column(JSON, nullable=True)
+    step_count: Mapped[int] = mapped_column(Integer, default=0)
+    plan: Mapped[JSONObject] = mapped_column(JSON, default=dict)
+    estimated_size: Mapped[int | None] = mapped_column(nullable=True)
+    gene_set_id: Mapped[str | None] = mapped_column(
+        String(50), ForeignKey("gene_sets.id", ondelete="SET NULL"), nullable=True
+    )
+    gene_set_auto_imported: Mapped[bool] = mapped_column(Boolean, default=False)
+    conversation_state: Mapped[JSONObject] = mapped_column(JSON, default=dict)
+    dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-    stream: Mapped[Stream] = relationship()
-
-    __table_args__ = (Index("ix_ops_stream_status", "stream_id", "status"),)
-
-
-class StrategyPlanRecord(Base):
-    """Persisted strategy plan attached to a conversation stream."""
-
-    __tablename__ = "strategy_plans"
-
-    id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    stream_id: Mapped[UUID] = mapped_column(
-        GUID(), ForeignKey("streams.id", ondelete="CASCADE"), index=True,
-    )
-    status: Mapped[str] = mapped_column(String(20), default="draft")
-    plan_json: Mapped[JSONObject] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(),
-    )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(),
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped[User] = relationship(back_populates="chats")
+
+
+class Message(Base):
+    """A single turn's parts-based message row.
+
+    One row per AI-SDK v6 ``UIMessage`` — stores all parts (text, tool calls,
+    reasoning, data chunks, etc.) as a JSONB array. ``metadata`` carries
+    phase/model/usage/trace-id fields outside the parts list.
+    """
+
+    __tablename__ = "messages"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('user', 'assistant', 'system')",
+            name="ck_messages_role",
+        ),
+        Index("messages_chat_id_created_at_idx", "chat_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    chat_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("chats.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role: Mapped[str] = mapped_column(String, nullable=False)
+    parts: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    # Python attribute name uses a trailing underscore because ``metadata`` is
+    # reserved on SQLAlchemy's ``DeclarativeBase``. The underlying column name
+    # is still ``metadata``.
+    metadata_: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default="{}",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )

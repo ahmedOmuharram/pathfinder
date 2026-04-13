@@ -39,7 +39,7 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
 
   const [showDismissed, setShowDismissed] = useState(false);
 
-  const data = useConversationSidebarData({ siteId, reportError });
+  const data = useConversationSidebarData({ siteId });
   const actions = useConversationSidebarActions({
     siteId,
     reportError,

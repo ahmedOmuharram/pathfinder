@@ -9,6 +9,11 @@ import { createPersistedStore } from "./middleware";
 import { useStrategyStore } from "./strategy/store";
 import { useWorkbenchStore } from "./useWorkbenchStore";
 import type { NodeSelection } from "@/lib/types/nodeSelection";
+import type {
+  GeneSetPart,
+  OptimizationSnapshot,
+  ProblemFramePart,
+} from "@pathfinder/shared";
 
 interface SessionState {
   selectedSite: string;
@@ -28,6 +33,12 @@ interface SessionState {
   authStatusKnown: boolean;
   authVersion: number;
 
+  // Stream-derived session state (from chat data-* parts)
+  problemFrame: ProblemFramePart | null;
+  lastGeneSet: GeneSetPart | null;
+  optimizationProgress: OptimizationSnapshot | null;
+  conversationTitle: string | null;
+
   setSelectedSite: (siteId: string) => void;
   /** Switch site with full cleanup — clears strategy data and resets workbench. */
   switchSite: (siteId: string) => void;
@@ -43,6 +54,12 @@ interface SessionState {
   setAuthRefreshed: (value: boolean) => void;
   setAuthStatusKnown: (value: boolean) => void;
   forceSignOut: () => void;
+
+  // Stream-derived session setters (from chat data-* parts)
+  setProblemFrame: (frame: ProblemFramePart) => void;
+  recordGeneSet: (set: GeneSetPart) => void;
+  setOptimizationProgress: (snapshot: OptimizationSnapshot) => void;
+  setConversationTitle: (title: string) => void;
 }
 
 export const useSessionStore = createPersistedStore<SessionState>(
@@ -62,6 +79,11 @@ export const useSessionStore = createPersistedStore<SessionState>(
     authRefreshed: false,
     authStatusKnown: false,
     authVersion: 0,
+
+    problemFrame: null,
+    lastGeneSet: null,
+    optimizationProgress: null,
+    conversationTitle: null,
 
     setSelectedSite: (siteId) =>
       set((s) => {
@@ -131,6 +153,11 @@ export const useSessionStore = createPersistedStore<SessionState>(
         veupathdbName: null,
         authRefreshed: false,
       }),
+
+    setProblemFrame: (frame) => set({ problemFrame: frame }),
+    recordGeneSet: (geneSet) => set({ lastGeneSet: geneSet }),
+    setOptimizationProgress: (snapshot) => set({ optimizationProgress: snapshot }),
+    setConversationTitle: (title) => set({ conversationTitle: title }),
   }),
   {
     name: "pathfinder-session",

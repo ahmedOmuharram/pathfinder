@@ -2,7 +2,8 @@
  * Shared analysis API types and functions -- used by both workbench and analysis features.
  */
 
-import { requestJson } from "@/lib/api/http";
+import { buildUrl, requestJson } from "@/lib/api/http";
+import { streamTypedEvents } from "@/lib/sse/typedEventStream";
 import { CustomEnrichmentResultSchema } from "./schemas/analysis";
 
 // ---------------------------------------------------------------------------
@@ -74,6 +75,22 @@ export interface CategoricalSweepRequest {
 
 export type SweepRequest = NumericSweepRequest | CategoricalSweepRequest;
 
+interface SweepPointEvent {
+  type: "sweep_point";
+  point: ThresholdSweepPoint;
+  completedCount: number;
+  totalCount: number;
+}
+
+interface SweepCompleteEvent {
+  type: "sweep_complete";
+  parameter: string;
+  sweepType: "numeric" | "categorical";
+  points: ThresholdSweepPoint[];
+}
+
+type SweepEvent = SweepPointEvent | SweepCompleteEvent;
+
 interface ThresholdSweepProgress {
   point: ThresholdSweepPoint;
   completedCount: number;
@@ -92,25 +109,28 @@ export async function streamThresholdSweep(
   callbacks: ThresholdSweepCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  const { streamSSEParsed } = await import("@/lib/sse");
-
-  await streamSSEParsed<ThresholdSweepProgress | ThresholdSweepResult>(
-    `/api/v1/experiments/${experimentId}/threshold-sweep`,
-    {
+  const url = buildUrl(`/api/v1/experiments/${experimentId}/threshold-sweep`);
+  try {
+    for await (const event of streamTypedEvents<SweepEvent>(url, {
       method: "POST",
       body: request,
-      ...(signal != null ? { signal } : {}),
-    },
-    {
-      onFrame: ({ event, data }) => {
-        if (event === "sweep_point") {
-          callbacks.onPoint(data as ThresholdSweepProgress);
-        } else if (event === "sweep_complete") {
-          callbacks.onComplete(data as ThresholdSweepResult);
-        }
-      },
-      onError: callbacks.onError,
-      readTimeoutMs: 5 * 60 * 1000,
-    },
-  );
+      ...(signal !== undefined ? { signal } : {}),
+    })) {
+      if (event.type === "sweep_point") {
+        callbacks.onPoint({
+          point: event.point,
+          completedCount: event.completedCount,
+          totalCount: event.totalCount,
+        });
+      } else {
+        callbacks.onComplete({
+          parameter: event.parameter,
+          sweepType: event.sweepType,
+          points: event.points,
+        });
+      }
+    }
+  } catch (err) {
+    callbacks.onError(err instanceof Error ? err : new Error(String(err)));
+  }
 }

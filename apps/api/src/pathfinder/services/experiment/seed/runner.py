@@ -19,7 +19,6 @@ from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.persistence.repositories.control_set import ControlSetCreate
 from pathfinder.platform.errors import sanitize_error_for_client
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.materialization import (
     _materialize_step_tree,
 )
@@ -27,7 +26,14 @@ from pathfinder.services.experiment.seed.seeds import (
     get_all_seeds,
     get_seeds_for_site,
 )
-from pathfinder.services.strategies.wdk_sync import sync_to_projection
+from pathfinder.services.experiment.seed.types import (
+    SeedComplete,
+    SeedEvent,
+    SeedItemError,
+    SeedProgress,
+    SeedStrategyComplete,
+)
+from pathfinder.services.strategies.wdk_sync import sync_to_chat
 
 logger = get_logger(__name__)
 
@@ -44,8 +50,8 @@ class _SeedRunContext:
 
     total: int
     semaphore: asyncio.Semaphore
-    queue: asyncio.Queue[JSONObject | None]
-    stream_repo: Any
+    queue: asyncio.Queue[SeedEvent | None]
+    chat_repo: Any
     control_set_repo: Any
     user_id: UUID
 
@@ -59,16 +65,13 @@ async def _process_single_seed(
     idx = i + 1
     async with ctx.semaphore:
         await ctx.queue.put(
-            {
-                "type": "seed_progress",
-                "data": {
-                    "phase": "running",
-                    "current": idx,
-                    "total": ctx.total,
-                    "name": seed.name,
-                    "message": f"[{idx}/{ctx.total}] Creating strategy: {seed.name}",
-                },
-            }
+            SeedProgress(
+                phase="running",
+                current=idx,
+                total=ctx.total,
+                name=seed.name,
+                message=f"[{idx}/{ctx.total}] Creating strategy: {seed.name}",
+            )
         )
 
         t0 = time.monotonic()
@@ -88,27 +91,24 @@ async def _process_single_seed(
             )
             wdk_strategy_id = created.id
 
-            await sync_to_projection(
+            await sync_to_chat(
                 wdk_id=wdk_strategy_id,
                 site_id=seed.site_id,
                 api=api,
-                stream_repo=ctx.stream_repo,
+                chat_repo=ctx.chat_repo,
                 user_id=ctx.user_id,
             )
 
             elapsed_strategy = time.monotonic() - t0
             await ctx.queue.put(
-                {
-                    "type": "seed_strategy_complete",
-                    "data": {
-                        "current": idx,
-                        "total": ctx.total,
-                        "name": seed.name,
-                        "wdkStrategyId": wdk_strategy_id,
-                        "elapsed": round(elapsed_strategy, 1),
-                        "message": f"[{idx}/{ctx.total}] Strategy created: {seed.name}",
-                    },
-                }
+                SeedStrategyComplete(
+                    current=idx,
+                    total=ctx.total,
+                    name=seed.name,
+                    wdkStrategyId=wdk_strategy_id,
+                    elapsed=round(elapsed_strategy, 1),
+                    message=f"[{idx}/{ctx.total}] Strategy created: {seed.name}",
+                )
             )
 
             cs = seed.control_set
@@ -131,17 +131,14 @@ async def _process_single_seed(
             elapsed = time.monotonic() - t0
             logger.exception("Seed failed", name=seed.name, error=str(exc))
             await ctx.queue.put(
-                {
-                    "type": "seed_item_error",
-                    "data": {
-                        "current": idx,
-                        "total": ctx.total,
-                        "name": seed.name,
-                        "error": sanitize_error_for_client(exc),
-                        "elapsed": round(elapsed, 1),
-                        "message": f"[{idx}/{ctx.total}] Failed: {seed.name}",
-                    },
-                }
+                SeedItemError(
+                    current=idx,
+                    total=ctx.total,
+                    name=seed.name,
+                    error=sanitize_error_for_client(exc),
+                    elapsed=round(elapsed, 1),
+                    message=f"[{idx}/{ctx.total}] Failed: {seed.name}",
+                )
             )
             return (False, False)
         else:
@@ -151,36 +148,35 @@ async def _process_single_seed(
 async def run_seed(
     *,
     user_id: UUID,
-    stream_repo: Any,
+    chat_repo: Any,
     control_set_repo: Any,
     site_id: str | None = None,
-) -> AsyncIterator[JSONObject]:
-    """Create seed strategies and control sets, yielding SSE progress events.
+) -> AsyncIterator[SeedEvent]:
+    """Create seed strategies and control sets, yielding typed progress events.
 
     Seeds run concurrently (up to ``_MAX_CONCURRENT_SEEDS`` at a time).
     Progress events are streamed back via an ``asyncio.Queue``.
 
     If *site_id* is provided, only seeds for that database are created.
     Otherwise all available seeds are used.
-
     """
     seeds = get_seeds_for_site(site_id) if site_id else get_all_seeds()
     total = len(seeds)
-    yield {
-        "type": "seed_progress",
-        "data": {
-            "phase": "starting",
-            "message": f"Seeding {total} strategies and control sets (up to {_MAX_CONCURRENT_SEEDS} concurrent)...",
-        },
-    }
+    yield SeedProgress(
+        phase="starting",
+        message=(
+            f"Seeding {total} strategies and control sets "
+            f"(up to {_MAX_CONCURRENT_SEEDS} concurrent)..."
+        ),
+    )
 
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT_SEEDS)
-    queue: asyncio.Queue[JSONObject | None] = asyncio.Queue()
+    queue: asyncio.Queue[SeedEvent | None] = asyncio.Queue()
     run_ctx = _SeedRunContext(
         total=total,
         semaphore=semaphore,
         queue=queue,
-        stream_repo=stream_repo,
+        chat_repo=chat_repo,
         control_set_repo=control_set_repo,
         user_id=user_id,
     )
@@ -213,16 +209,13 @@ async def run_seed(
     strategies_ok = sum(1 for s, _ in results if s)
     control_sets_ok = sum(1 for _, c in results if c)
 
-    yield {
-        "type": "seed_complete",
-        "data": {
-            "total": total,
-            "strategiesCreated": strategies_ok,
-            "controlSetsCreated": control_sets_ok,
-            "failed": total - strategies_ok,
-            "message": (
-                f"Seeding complete: {strategies_ok}/{total} strategies, "
-                f"{control_sets_ok}/{total} control sets"
-            ),
-        },
-    }
+    yield SeedComplete(
+        total=total,
+        strategiesCreated=strategies_ok,
+        controlSetsCreated=control_sets_ok,
+        failed=total - strategies_ok,
+        message=(
+            f"Seeding complete: {strategies_ok}/{total} strategies, "
+            f"{control_sets_ok}/{total} control sets"
+        ),
+    )

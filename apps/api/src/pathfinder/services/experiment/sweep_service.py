@@ -7,15 +7,16 @@ which handles single re-evaluation only.
 
 import asyncio
 from collections.abc import AsyncIterator
+from typing import Literal
 
-from fastapi.sse import ServerSentEvent
+from pydantic import Field
 
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.tree import walk_plan_tree
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
+from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat
 from pathfinder.services.control_helpers import (
     cleanup_internal_control_test_strategies,
 )
@@ -35,6 +36,57 @@ from pathfinder.services.experiment.types import (
 )
 
 logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Typed SSE events
+# ---------------------------------------------------------------------------
+
+
+class SweepMetrics(CamelModel):
+    """Subset of :class:`ExperimentMetrics` emitted per sweep point.
+
+    Uses :data:`RoundedFloat` so the frontend receives 4 dp numbers matching
+    its ``ThresholdSweepPoint`` type.
+    """
+
+    sensitivity: RoundedFloat
+    specificity: RoundedFloat
+    precision: RoundedFloat
+    f1_score: RoundedFloat
+    mcc: RoundedFloat
+    balanced_accuracy: RoundedFloat
+    total_results: int
+    false_positive_rate: RoundedFloat
+
+
+class SweepPoint(CamelModel):
+    """A single completed sweep point — the value + metrics (or error)."""
+
+    value: float | str
+    metrics: SweepMetrics | None = None
+    error: str | None = None
+
+
+class SweepPointEvent(CamelModel):
+    """Emitted each time a sweep point finishes."""
+
+    type: Literal["sweep_point"] = "sweep_point"
+    point: SweepPoint
+    completed_count: int = Field(alias="completedCount")
+    total_count: int = Field(alias="totalCount")
+
+
+class SweepCompleteEvent(CamelModel):
+    """Terminal event with every point sorted by value (numeric) or input order (categorical)."""
+
+    type: Literal["sweep_complete"] = "sweep_complete"
+    parameter: str
+    sweep_type: Literal["numeric", "categorical"] = Field(alias="sweepType")
+    points: list[SweepPoint]
+
+
+SweepEvent = SweepPointEvent | SweepCompleteEvent
+"""Discriminated union of all threshold-sweep event types."""
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -123,18 +175,18 @@ def _tree_has_parameter(tree: PlanStepNode, param_name: str) -> bool:
     return found
 
 
-def format_metrics_dict(m: ExperimentMetrics) -> JSONObject:
-    """Format an :class:`ExperimentMetrics` into a JSON-friendly dict."""
-    return {
-        "sensitivity": round(m.sensitivity, 4),
-        "specificity": round(m.specificity, 4),
-        "precision": round(m.precision, 4),
-        "f1Score": round(m.f1_score, 4),
-        "mcc": round(m.mcc, 4),
-        "balancedAccuracy": round(m.balanced_accuracy, 4),
-        "totalResults": m.total_results,
-        "falsePositiveRate": round(m.false_positive_rate, 4),
-    }
+def _metrics_to_sweep(m: ExperimentMetrics) -> SweepMetrics:
+    """Project an :class:`ExperimentMetrics` onto the 8-field :class:`SweepMetrics`."""
+    return SweepMetrics(
+        sensitivity=m.sensitivity,
+        specificity=m.specificity,
+        precision=m.precision,
+        f1_score=m.f1_score,
+        mcc=m.mcc,
+        balanced_accuracy=m.balanced_accuracy,
+        total_results=m.total_results,
+        false_positive_rate=m.false_positive_rate,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +200,7 @@ async def run_sweep_point(
     param_name: str,
     value: str,
     is_categorical: bool,
-) -> JSONObject:
+) -> SweepPoint:
     """Run a single sweep point: modify the parameter and evaluate.
 
     For tree-mode experiments, clones the step tree and injects the swept
@@ -156,7 +208,7 @@ async def run_sweep_point(
     :func:`run_controls_against_tree`.  For single-step experiments, modifies
     the flat parameter dict and calls :func:`run_positive_negative_controls`.
 
-    :returns: Dict with ``value``, ``metrics`` (or ``None``), and optionally ``error``.
+    :returns: :class:`SweepPoint` with ``value``, ``metrics`` (or ``None``), and optionally ``error``.
     """
     try:
         response_value: float | str = float(value) if not is_categorical else value
@@ -185,7 +237,7 @@ async def run_sweep_point(
                 timeout=SWEEP_POINT_TIMEOUT_S,
             )
         m = metrics_from_control_result(result)
-        return {"value": response_value, "metrics": format_metrics_dict(m)}
+        return SweepPoint(value=response_value, metrics=_metrics_to_sweep(m))
     except (
         AppError,
         OSError,
@@ -198,7 +250,7 @@ async def run_sweep_point(
             value=value,
             error=str(exc),
         )
-        return {"value": response_value, "metrics": None, "error": str(exc)}
+        return SweepPoint(value=response_value, error=str(exc))
 
 
 async def _run_sweep_point_tree(
@@ -256,13 +308,13 @@ async def generate_sweep_events(
     *,
     exp: Experiment,
     param_name: str,
-    sweep_type: str,
+    sweep_type: Literal["numeric", "categorical"],
     sweep_values: list[str],
-) -> AsyncIterator[ServerSentEvent]:
-    """Run the full sweep and yield ``ServerSentEvent`` objects.
+) -> AsyncIterator[SweepEvent]:
+    """Run the full sweep and yield typed :class:`SweepEvent` values.
 
-    Yields ``sweep_point`` events as each point completes, then a final
-    ``sweep_complete`` event with all sorted results.
+    Yields :class:`SweepPointEvent` as each point completes, then a final
+    :class:`SweepCompleteEvent` with all sorted results.
     """
     is_categorical = sweep_type == "categorical"
     total_points = len(sweep_values)
@@ -271,9 +323,9 @@ async def generate_sweep_events(
 
     semaphore = asyncio.Semaphore(SWEEP_CONCURRENCY)
     completed_count = 0
-    all_points: list[JSONObject] = []
+    all_points: list[SweepPoint] = []
 
-    async def _bounded_point(val: str) -> JSONObject:
+    async def _bounded_point(val: str) -> SweepPoint:
         async with semaphore:
             return await run_sweep_point(
                 exp=exp,
@@ -290,13 +342,10 @@ async def generate_sweep_events(
                 point = await coro
                 completed_count += 1
                 all_points.append(point)
-                yield ServerSentEvent(
-                    data={
-                        "point": point,
-                        "completedCount": completed_count,
-                        "totalCount": total_points,
-                    },
-                    event="sweep_point",
+                yield SweepPointEvent(
+                    point=point,
+                    completedCount=completed_count,
+                    totalCount=total_points,
                 )
 
     except TimeoutError:
@@ -312,23 +361,19 @@ async def generate_sweep_events(
     # Sort: numeric by value, categorical by original order.
     if is_categorical:
         order = {v: i for i, v in enumerate(sweep_values)}
-        all_points.sort(key=lambda p: order.get(str(p.get("value", "")), 0))
+        all_points.sort(key=lambda p: order.get(str(p.value), 0))
     else:
 
-        def _numeric_value(p: JSONObject) -> float:
-            v = p.get("value", 0)
+        def _numeric_value(p: SweepPoint) -> float:
             try:
-                return float(str(v))
+                return float(str(p.value))
             except ValueError, TypeError:
                 return 0.0
 
         all_points.sort(key=_numeric_value)
 
-    yield ServerSentEvent(
-        data={
-            "parameter": param_name,
-            "sweepType": sweep_type,
-            "points": all_points,
-        },
-        event="sweep_complete",
+    yield SweepCompleteEvent(
+        parameter=param_name,
+        sweepType=sweep_type,
+        points=all_points,
     )

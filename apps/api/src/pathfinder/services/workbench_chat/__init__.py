@@ -1,1 +1,0 @@
-"""Workbench chat service package."""

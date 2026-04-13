@@ -31,16 +31,33 @@ services:
 
   web:
     build:
+      target: dev
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:8000}
+        NEXT_PUBLIC_TELEMETRY_ENABLED: ${NEXT_PUBLIC_TELEMETRY_ENABLED:-true}
+        NEXT_PUBLIC_DEPLOYMENT_ENV: ${NEXT_PUBLIC_DEPLOYMENT_ENV:-development}
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:8000}
+      NEXT_PUBLIC_TELEMETRY_ENABLED: ${NEXT_PUBLIC_TELEMETRY_ENABLED:-true}
+      NEXT_PUBLIC_DEPLOYMENT_ENV: ${NEXT_PUBLIC_DEPLOYMENT_ENV:-development}
+      SIGNOZ_OTEL_COLLECTOR_HTTP: ${SIGNOZ_OTEL_COLLECTOR_HTTP:-http://signoz-otel-collector:4318}
     develop:
       watch:
-        - action: rebuild
+        - action: sync
           path: ./apps/web/src
+          target: /app/apps/web/src
+        - action: sync
+          path: ./apps/web/public
+          target: /app/apps/web/public
+        - action: sync
+          path: ./packages/shared-ts/src
+          target: /app/packages/shared-ts/src
+        - action: rebuild
+          path: ./apps/web/next.config.ts
         - action: rebuild
           path: ./apps/web/package.json
+        - action: rebuild
+          path: ./apps/web/tsconfig.json
 
   db:
     image: postgres:16-alpine

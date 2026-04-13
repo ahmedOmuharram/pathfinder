@@ -2,13 +2,34 @@
 
 Provides:
 - ``optimize_search_parameters`` -- optimise search parameters against control gene lists
+
+Progressive emission approach (plan Step 4c.10): **Approach C** — accumulate
+all progress snapshots into `ToolReturn.metadata` and emit them in one batch
+when the tool returns. Rationale:
+
+- pydantic-ai 1.80's ``VercelAIAdapter`` exposes no in-tool ``emit()`` on
+  the event stream (Approach A unavailable — see `VercelAIEventStream`
+  public surface has no `emit`, `publish`, or direct chunk injection).
+- Splitting into ``start_optimize`` + ``optimize_trial`` sub-tools (Approach B)
+  would trigger one round-trip through the LLM per trial, which is both
+  expensive and breaks cancellation semantics — the optimizer holds state
+  (Bayesian suggester, best score, Pareto set) that would need to be
+  serialized/deserialized per trial.
+- Accepting Approach C: progress arrives as a single burst of data-parts
+  when the tool completes. The UI progress panel still renders all
+  snapshots in order. Known limitation: mid-run progress is not visible
+  until the optimizer finishes; the user sees "pending" until then.
 """
+
+from __future__ import annotations
 
 import json
 from typing import cast
 
 from pydantic import ValidationError
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
+from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
 import pathfinder.services.parameter_optimization.core
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -42,7 +63,7 @@ async def optimize_search_parameters(
     target: OptimizationTarget,
     controls: OptimizationControls,
     settings: OptimizationSettings = _DEFAULT_SETTINGS,
-) -> str:
+) -> ToolReturn[str] | str:
     """Optimise search parameters against positive/negative control gene lists.
 
     Runs multiple trials, varying the parameters in ``parameter_space`` while
@@ -90,8 +111,12 @@ async def optimize_search_parameters(
 
     cancel_event = deps.cancel_event
 
+    # Approach C: accumulate progress events into a list; flush into
+    # ToolReturn.metadata at the end of the tool call.
+    progress_events: list[JSONObject] = []
+
     async def progress_callback(event: JSONObject) -> None:
-        deps.emit_event(event)
+        progress_events.append(event)
 
     result = await pathfinder.services.parameter_optimization.core.optimize_search_parameters(
         opt_inp,
@@ -102,4 +127,16 @@ async def optimize_search_parameters(
 
     result_json = result.model_dump(by_alias=True, mode="json")
     await _attach_export(result_json, opt_inp.search_name)
-    return json.dumps(result_json)
+
+    # Emit one data-optimization-snapshot DataChunk per progress event.
+    metadata: list[DataChunk] = []
+    for ev in progress_events:
+        data = ev.get("data") if isinstance(ev, dict) else None
+        if isinstance(data, dict):
+            metadata.append(
+                DataChunk(type="data-optimization-snapshot", data=data),
+            )
+    return ToolReturn(
+        return_value=json.dumps(result_json),
+        metadata=metadata,
+    )

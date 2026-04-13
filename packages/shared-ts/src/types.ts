@@ -5,13 +5,13 @@
  * RMINUS, LONLY, RONLY, COLOCATE, UNION.
  */
 
+import type { UIMessage } from "ai";
 import type { components } from "./openapi.generated";
 
 // ── Generated API types (SSOT — do not hand-edit these shapes) ─────────────
 // Re-exported from openapi.generated.ts with aliases matching existing names.
 // Types where the generated shape is structurally compatible with existing usage.
 
-export type TokenUsage = components["schemas"]["TokenUsageResponse"];
 export type ModelCatalogEntry = components["schemas"]["ModelCatalogEntryResponse"];
 export type GeneSearchResult = components["schemas"]["GeneSearchResultResponse"];
 export type GeneSearchResponse = components["schemas"]["GeneSearchResponse"];
@@ -22,8 +22,6 @@ export type RecordType = components["schemas"]["RecordTypeResponse"];
 export type StepCountsResponse = components["schemas"]["StepCountsResponse"];
 export type OpenStrategyRequest = components["schemas"]["OpenStrategyRequest"];
 export type OpenStrategyResponse = components["schemas"]["OpenStrategyResponse"];
-export type ChatMention = components["schemas"]["ChatMention"];
-export type ChatRequest = components["schemas"]["ChatRequest"];
 export type ParamSpec = components["schemas"]["ParamSpecResponse"];
 // Search validation types — defined locally (not in OpenAPI spec since
 // validation is a WDK proxy endpoint, not a PathFinder model).
@@ -43,62 +41,7 @@ export interface SearchValidationResponse {
 export type CreateStrategyRequest = components["schemas"]["CreateStrategyRequest"];
 export type UpdateStrategyRequest = components["schemas"]["UpdateStrategyRequest"];
 
-// SSE event data types (generated SSOT)
-export type MessageStartData = components["schemas"]["MessageStartEventData"];
-export type UserMessageData = components["schemas"]["UserMessageEventData"];
-export type AssistantDeltaData = components["schemas"]["AssistantDeltaEventData"] & {
-  messageGroupId?: string | null;
-  phase?: string | null;
-};
-export type AssistantMessageData = components["schemas"]["AssistantMessageEventData"] & {
-  messageGroupId?: string | null;
-  phase?: string | null;
-};
-export type TokenUsagePartialData = components["schemas"]["TokenUsagePartialEventData"];
-export type SSEToolCallStartData = components["schemas"]["ToolCallStartEventData"];
-export type SSEToolCallEndData = components["schemas"]["ToolCallEndEventData"];
-export type ModelSelectedData = Omit<
-  components["schemas"]["ModelSelectedEventData"],
-  "pipeline"
-> & {
-  pipeline: PipelineConfig;
-};
-export type SSEErrorData = components["schemas"]["ErrorEventData"];
-export type StrategyMetaData = components["schemas"]["StrategyMetaEventData"];
-export type StrategyLinkData = components["schemas"]["StrategyLinkEventData"];
-export type GraphClearedData = components["schemas"]["GraphClearedEventData"];
-export type ReasoningData = components["schemas"]["ReasoningEventData"];
-export type MessageEndData = components["schemas"]["MessageEndEventData"];
-
-// SSE event data types that use JSONObject/JSONValue — re-exported but
-// downstream consumers use `as` casts or runtime checks for type safety.
-export type GraphSnapshotData = components["schemas"]["GraphSnapshotEventData"];
-export type GraphPlanData = components["schemas"]["GraphPlanEventData"];
-export type StrategyUpdateData = components["schemas"]["StrategyUpdateEventData"];
-export type WorkbenchGeneSetData = components["schemas"]["WorkbenchGeneSetEventData"];
-export type CitationsData = components["schemas"]["CitationsEventData"];
-export type PlanningArtifactData = components["schemas"]["PlanningArtifactEventData"];
-
-// Pipeline phase event types
-export type PhaseChangeData = Omit<
-  components["schemas"]["PhaseChangeEventData"],
-  "phase" | "status"
-> & {
-  phase: PipelinePhase | "completed";
-  status: PhaseStatus;
-  messageId?: string | null;
-  messageGroupId?: string | null;
-  emittedAt?: string | null;
-  phaseStartedAt?: string | null;
-  phaseCompletedAt?: string | null;
-  durationMs?: number | null;
-};
-export type PlanPresentedData = components["schemas"]["PlanPresentedEventData"];
-export type PlanUpdatedData = components["schemas"]["PlanUpdatedEventData"];
-export type DecisionPresentedData = components["schemas"]["DecisionPresentedEventData"];
-export type PlanningThoughtData = components["schemas"]["PlanningThoughtEventData"];
-
-// Optimization SSE event types
+// Optimization event types (used by experiment/optimization streaming)
 export type OptimizationProgressData = components["schemas"]["OptimizationProgressEventData"];
 export type OptimizationTrialData = components["schemas"]["OptimizationTrialData"];
 export type OptimizationParameterSpecData = components["schemas"]["OptimizationParameterSpecData"];
@@ -132,8 +75,6 @@ export type ThresholdKnob = components["schemas"]["ThresholdKnobResponse"];
 export type OperatorKnob = components["schemas"]["OperatorKnobResponse"];
 
 // Newly typed models (were JSONObject before)
-export type Citation = components["schemas"]["CitationResponse"];
-export type PlanningArtifact = components["schemas"]["PlanningArtifactResponse"];
 export type ColocationParams = components["schemas"]["ColocationParams"];
 export type ControlSetSummary = components["schemas"]["ControlSetSummaryResponse"];
 export type OptimizationResult = components["schemas"]["OptimizationResultResponse"];
@@ -142,8 +83,6 @@ export type StepAnalysisProgressData = components["schemas"]["StepAnalysisProgre
 export type ExperimentProgressData = components["schemas"]["ExperimentProgressDataResponse"];
 
 // REST response types — formerly hand-written, now generated SSOT
-export type ToolCall = components["schemas"]["ToolCallResponse"];
-export type Thinking = components["schemas"]["ThinkingResponse"];
 export type Step = components["schemas"]["StepResponse"];
 export type GeneSet = components["schemas"]["GeneSetResponse"];
 export type GeneConfidenceScore =
@@ -457,46 +396,6 @@ export interface ProblemFrame {
   confidence: number;
 }
 
-// ── Message discriminated union ──────────────────────────────────────
-// role is the discriminant. Fields that only apply to one role live on
-// that variant — the type system enforces this instead of runtime checks.
-
-/** Fields shared by every message regardless of role. */
-interface BaseMessage {
-  content: string;
-  timestamp: string;
-  tokenUsage?: components["schemas"]["TokenUsageResponse"] | null;
-  /** Langfuse trace ID for turn-level feedback and product analytics. */
-  traceId?: string | null;
-}
-
-/** User turn — carries frontend-only fields (mentions, undo entry). */
-export interface UserMessage extends BaseMessage {
-  role: "user";
-  /** Redis stream entry ID — used for undo. */
-  entryId?: string;
-  mentions?: ChatMention[];
-  reasoningEffort?: ReasoningEffort;
-}
-
-/** Assistant turn — carries all model-produced metadata. */
-export interface AssistantMessage extends BaseMessage {
-  role: "assistant";
-  messageId?: string | null;
-  messageGroupId?: string | null;
-  phase?: PipelinePhase | null;
-  modelId?: string | null;
-  toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
-  citations?: components["schemas"]["CitationResponse"][] | null;
-  planningArtifacts?: components["schemas"]["PlanningArtifactResponse"][] | null;
-  problemFrame?: ProblemFrame | null;
-  reasoning?: string | null;
-  optimizationProgress?: components["schemas"]["OptimizationProgressEventData"] | null;
-}
-
-export type Message = UserMessage | AssistantMessage;
-
-
 export type StepKind = "search" | "transform" | "combine";
 
 // Parameter Optimisation
@@ -568,3 +467,90 @@ export type StepContributionVerdict = "essential" | "helpful" | "neutral" | "har
 
 // Classification for control test results
 export type Classification = "TP" | "FP" | "FN" | "TN";
+
+// ── Chat stream-part payloads (AI SDK v6 DataChunk data types) ─────────────
+// Typed shapes for every `data-<name>` part emitted during a chat turn.
+// One-to-one with the Pydantic models in `shared_py.stream_parts`.
+//
+// NOTE: `GeneSet` and `ProblemFrame` are already taken by existing types
+// above (the workbench REST resource and the hand-written frontend shape,
+// respectively), so the stream-part variants use the `Part` suffix to
+// avoid collisions. The `PathfinderDataParts` map below references the
+// generated OpenAPI schemas directly so the wire contract is preserved.
+
+export type GraphSnapshot = components["schemas"]["GraphSnapshot"];
+export type GraphPlan = components["schemas"]["GraphPlan"];
+export type GraphCleared = components["schemas"]["GraphCleared"];
+export type StrategyPatch = components["schemas"]["StrategyPatch"];
+export type StrategyMeta = components["schemas"]["StrategyMeta"];
+export type StrategyLink = components["schemas"]["StrategyLink"];
+export type PlanArtifact = components["schemas"]["PlanArtifact"];
+export type PlanUpdate = components["schemas"]["PlanUpdate"];
+export type DecisionPresented = components["schemas"]["DecisionPresented"];
+export type ProblemFramePart = components["schemas"]["ProblemFrame"];
+export type GeneSetPart = components["schemas"]["GeneSet"];
+export type OptimizationSnapshot = components["schemas"]["OptimizationSnapshot"];
+export type PhaseChange = components["schemas"]["PhaseChange"];
+export type ConversationTitle = components["schemas"]["ConversationTitle"];
+
+/**
+ * Per-data-part UIMessagePart types using AI SDK's custom data-part convention.
+ * The protocol convention is: `data-<name>` where <name> matches the
+ * kebab-case of the `type` string emitted by the backend's
+ * `DataChunk(type="data-<name>")`.
+ */
+export type PathfinderDataParts = {
+  "graph-snapshot": GraphSnapshot;
+  "graph-plan": GraphPlan;
+  "graph-cleared": GraphCleared;
+  "strategy-patch": StrategyPatch;
+  "strategy-meta": StrategyMeta;
+  "strategy-link": StrategyLink;
+  "plan-artifact": PlanArtifact;
+  "plan-update": PlanUpdate;
+  "decision-presented": DecisionPresented;
+  "problem-frame": ProblemFramePart;
+  "gene-set": GeneSetPart;
+  "optimization-snapshot": OptimizationSnapshot;
+  "phase-change": PhaseChange;
+  "conversation-title": ConversationTitle;
+};
+
+/**
+ * Metadata attached to a PathfinderUIMessage (populated incrementally via
+ * MessageMetadataChunks during streaming).
+ *
+ * All fields are optional because metadata chunks arrive at different points
+ * in a streaming turn — the first chunk may carry only `traceId` before
+ * `model` and `phase` land. User and system messages legitimately have most
+ * of these absent.
+ *
+ * For **completed assistant messages**, use `CompletedAssistantMetadata` and
+ * the `assertCompletedAssistantMetadata` type guard: once the stream ends,
+ * missing `phase` / `model` / `traceId` / `createdAt` is a bug we want to
+ * surface loudly rather than silently paper over.
+ */
+export interface PathfinderMessageMetadata {
+  phase?: "scoping" | "discovery" | "planning" | "execution" | "verification" | "completed";
+  model?: string;
+  tokensUsed?: number;
+  tokensBudget?: number;
+  conversationTitle?: string;
+  traceId?: string;
+  /** ISO 8601 timestamp of when the message was created server-side. */
+  createdAt?: string;
+}
+
+/** A fully-hydrated assistant message's metadata — all required fields are present. */
+export interface CompletedAssistantMetadata {
+  phase: "scoping" | "discovery" | "planning" | "execution" | "verification" | "completed";
+  model: string;
+  traceId: string;
+  createdAt: string;
+  tokensUsed?: number;
+  tokensBudget?: number;
+  conversationTitle?: string;
+}
+
+/** The typed UIMessage alias used throughout the chat feature. */
+export type PathfinderUIMessage = UIMessage<PathfinderMessageMetadata, PathfinderDataParts>;

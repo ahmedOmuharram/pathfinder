@@ -15,6 +15,9 @@ from uuid import uuid4
 
 import httpx
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
+from pydantic_ai.ui.vercel_ai.response_types import DataChunk
+from shared_py.stream_parts.plan import PlannedStep as StreamPlannedStep
 
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone._plan_models import (
@@ -34,6 +37,10 @@ from pathfinder.ai.tools.standalone._plan_models import (
     _validate_domain_parameters,
     _validate_domain_topology,
     _validate_plan_topology,
+)
+from pathfinder.ai.tools.standalone._stream_parts import (
+    decision_presented_chunk,
+    plan_artifact_chunk,
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.search import SearchContext
@@ -202,6 +209,21 @@ def _merge_questions(
     return merged
 
 
+def _planned_steps_for_stream(plan: StrategyPlan) -> list[StreamPlannedStep]:
+    """Derive stream-part PlannedStep list from a domain plan, in order."""
+    return [
+        StreamPlannedStep(
+            order=i,
+            search_name=step.search_name,
+            rationale=step.rationale or None,
+            parameters={
+                name: param.value for name, param in step.parameters.items()
+            },
+        )
+        for i, step in enumerate(plan.steps)
+    ]
+
+
 async def create_plan(
     ctx: RunContext[AgentDeps],
     title: str,
@@ -211,7 +233,7 @@ async def create_plan(
     connections: list[PlannedConnectionInput],
     questions: list[UserQuestionInput] | None = None,
     uncertainties: list[str] | None = None,
-) -> PlanCreatedResponse | ToolErrorPayload:
+) -> ToolReturn[PlanCreatedResponse] | ToolErrorPayload:
     """Create a new strategy plan and set it as the active plan.
 
     Returns an acknowledgment — NOT the full plan. The user cannot see the
@@ -273,11 +295,20 @@ async def create_plan(
         "createdAt": datetime.now(UTC).isoformat(),
     }
 
-    return PlanCreatedResponse(
-        plan_id=plan.id,
-        title=plan.title,
-        step_count=len(plan.steps),
-        planning_artifact=artifact,
+    return ToolReturn(
+        return_value=PlanCreatedResponse(
+            plan_id=plan.id,
+            title=plan.title,
+            step_count=len(plan.steps),
+            planning_artifact=artifact,
+        ),
+        metadata=[
+            plan_artifact_chunk(
+                plan_id=plan.id,
+                steps=_planned_steps_for_stream(plan),
+                rationale=plan.rationale or "",
+            ),
+        ],
     )
 
 
@@ -365,7 +396,7 @@ async def update_plan(
     title: str | None = None,
     description: str | None = None,
     questions: list[UserQuestionInput] | None = None,
-) -> StrategyPlan | ToolErrorPayload:
+) -> ToolReturn[StrategyPlan] | ToolErrorPayload:
     """Mutate the active plan in-place. Apply step patches, add/remove steps and connections.
 
     The plan stays in the tool loop — chain multiple update_plan calls, then
@@ -435,19 +466,30 @@ async def update_plan(
     plan.version += 1
     plan.updated_at = datetime.now(UTC)
 
-    return plan
+    return ToolReturn(
+        return_value=plan,
+        metadata=[
+            plan_artifact_chunk(
+                plan_id=plan.id,
+                steps=_planned_steps_for_stream(plan),
+                rationale=plan.rationale or "",
+            ),
+        ],
+    )
 
 
 async def submit_plan(
     ctx: RunContext[AgentDeps],
-) -> StrategyPlan | ToolErrorPayload:
+) -> ToolReturn[StrategyPlan] | ToolErrorPayload:
     """Submit the current plan for user review.
 
     Validates that all leaf steps have parameters and topology is valid,
     then presents the plan in the UI. Use after create_plan or update_plan.
-    The pipeline pauses only when the planning phase later calls
-    ``finish_planning(decision="present_plan")``. Put user-facing questions
-    on the plan via create_plan or update_plan before calling submit_plan.
+    The pipeline pauses via the v6 tool-approval flow (see Decision 9):
+    this tool carries ``requires_approval=True`` when registered, so the
+    adapter emits a ``ToolApprovalRequestChunk`` instead of completing
+    immediately. Put user-facing questions on the plan via create_plan or
+    update_plan before calling submit_plan.
     """
     deps = ctx.deps
     plan = deps.agent_state.active_plan
@@ -465,19 +507,22 @@ async def submit_plan(
     plan.status = PlanStatus.PRESENTED
     plan.updated_at = datetime.now(UTC)
 
-    plan_dict = plan.model_dump(by_alias=True, mode="json")
-    deps.emit_event({
-        "type": "plan_presented",
-        "data": {"plan": plan_dict},
-    })
+    metadata: list[DataChunk] = [
+        plan_artifact_chunk(
+            plan_id=plan.id,
+            steps=_planned_steps_for_stream(plan),
+            rationale=plan.rationale or "",
+        ),
+    ]
+    # Optionally attach the proposed graph as a data-graph-plan chunk if the
+    # domain model produced one (plans with zero steps yield None).
     proposed = _build_proposed_plan(plan)
     if proposed is not None:
-        deps.emit_event({
-            "type": "graph_plan",
-            "data": {"plan": proposed},
-        })
+        metadata.append(
+            DataChunk(type="data-graph-plan", data=proposed),
+        )
 
-    return plan
+    return ToolReturn(return_value=plan, metadata=metadata)
 
 
 async def present_decision(
@@ -486,7 +531,7 @@ async def present_decision(
     options: list[DecisionOptionInput],
     context: str,
     recommendation: str | None = None,
-) -> DecisionResponse:
+) -> ToolReturn[DecisionResponse]:
     """Present a decision with options for the user to choose from.
 
     Unlike submit_plan, this does NOT pause the tool loop. The decision
@@ -519,9 +564,23 @@ async def present_decision(
         recommendation=recommendation,
     )
 
-    ctx.deps.emit_event({
-        "type": "decision_presented",
-        "data": response.model_dump(by_alias=True, mode="json"),
-    })
-
-    return response
+    options_payload: list[dict[str, object]] = [
+        {
+            "label": opt.label,
+            "description": opt.description,
+            "pros": list(opt.pros),
+            "cons": list(opt.cons),
+            "recommended": opt.recommended,
+        }
+        for opt in response.options
+    ]
+    return ToolReturn(
+        return_value=response,
+        metadata=[
+            decision_presented_chunk(
+                decision_type=decision_id,
+                options=options_payload,
+                rationale=response.context or recommendation,
+            ),
+        ],
+    )

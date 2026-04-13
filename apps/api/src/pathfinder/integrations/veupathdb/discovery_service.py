@@ -5,7 +5,7 @@ import threading
 
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery import SearchCatalog
-from pathfinder.integrations.veupathdb.site_router import SiteInfo, get_site_router
+from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKRecordType,
     WDKSearch,
@@ -13,7 +13,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.tasks import spawn
+from pathfinder.platform.readiness import get_readiness
 
 logger = get_logger(__name__)
 
@@ -66,35 +66,30 @@ class DiscoveryService:
         )
 
     async def preload_all(self) -> None:
-        """Preload catalogs for all sites.
+        """Preload catalogs for every site, sequentially.
 
-        Component sites are loaded in parallel (blocking). The portal
-        is deferred to a background task since its 2400+ search catalog
-        takes ~90s to fetch and would block startup.
+        All sites (component + portal) are awaited before returning, so
+        ``/health/ready`` only reports healthy once every catalog is
+        actually usable. The readiness state is updated per site so the
+        endpoint can report *which* catalogs are still loading.
         """
         router = get_site_router()
         sites = router.list_sites()
-
-        component: list[SiteInfo] = []
-        portal: list[SiteInfo] = []
+        # Components first (fast), then portals (slow) — surface quick wins early.
+        sites = sorted(sites, key=lambda s: (s.is_portal, s.id))
+        readiness = get_readiness()
         for s in sites:
-            (portal if s.is_portal else component).append(s)
+            readiness.register_catalog(s.id)
 
-        async def load_site(site_id: str) -> None:
+        for s in sites:
             try:
-                logger.info("[warm-up] Preloading %s", site_id)
-                await self.get_catalog(site_id)
-                logger.info("[warm-up] Preloaded %s", site_id)
+                logger.info("[warm-up] Preloading %s", s.id)
+                await self.get_catalog(s.id)
+                logger.info("[warm-up] Preloaded %s", s.id)
+                readiness.mark_catalog_ready(s.id)
             except (AppError, OSError, RuntimeError) as e:
-                logger.warning("[warm-up] Failed %s: %s", site_id, e)
-
-        # Component sites: load sequentially to avoid OOM during embedding.
-        for s in component:
-            await load_site(s.id)
-
-        # Portal: slow, run in background so the API is ready immediately.
-        for s in portal:
-            spawn(load_site(s.id), name=f"preload-{s.id}")
+                logger.warning("[warm-up] Failed %s: %s", s.id, e)
+                readiness.mark_catalog_failed(s.id, str(e))
 
 
 # ---------------------------------------------------------------------------

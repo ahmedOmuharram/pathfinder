@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "@/styles/globals.css";
+import "streamdown/styles.css";
+import { TelemetryErrorBoundary } from "@/lib/telemetry/ErrorBoundary";
 import { Providers } from "./components/Providers";
 
 const inter = Inter({
@@ -34,9 +36,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="h-full overflow-hidden bg-background text-foreground font-sans antialiased">
-        <Providers>
-          <main className="h-full">{children}</main>
-        </Providers>
+        <TelemetryErrorBoundary>
+          <Providers>
+            <main className="h-full">{children}</main>
+          </Providers>
+        </TelemetryErrorBoundary>
       </body>
     </html>
   );

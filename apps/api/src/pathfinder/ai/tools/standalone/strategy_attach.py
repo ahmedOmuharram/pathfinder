@@ -4,17 +4,47 @@ Each function takes ``RunContext[AgentDeps]`` and mirrors the original
 :class:`StrategyAttachmentOps` methods exactly.
 """
 
+from __future__ import annotations
+
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone._graph_helpers import step_ok_response
+from pathfinder.ai.tools.standalone._stream_parts import (
+    graph_snapshot_chunk,
+    strategy_patch_chunk,
+)
 from pathfinder.ai.tools.standalone._validation_helpers import (
     StepOkResponse,
     get_graph_and_step,
 )
-from pathfinder.domain.strategy.ast import StepAnalysis, StepFilter, StepReport
+from pathfinder.domain.strategy.ast import (
+    PlanStepNode,
+    StepAnalysis,
+    StepFilter,
+    StepReport,
+)
+from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.platform.tool_errors import ToolErrorPayload
 from pathfinder.platform.types import JSONObject, JSONValue
+
+
+def _step_updated_return(
+    session: StrategySession, graph: StrategyGraph, step: PlanStepNode
+) -> ToolReturn[StepOkResponse]:
+    """Wrap an attachment-mutation success into a ToolReturn with chunks."""
+    return ToolReturn(
+        return_value=step_ok_response(session, graph, step),
+        metadata=[
+            graph_snapshot_chunk(session, graph),
+            strategy_patch_chunk(
+                graph, step,
+                operation="update_step",
+                sync_state=session.sync_state,
+            ),
+        ],
+    )
 
 
 async def add_step_filter(
@@ -25,7 +55,7 @@ async def add_step_filter(
     *,
     disabled: bool = False,
     graph_id: str | None = None,
-) -> StepOkResponse | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
     """Attach or update a WDK filter on a step.
 
     Filters narrow a step's result set without changing its search.
@@ -50,7 +80,7 @@ async def add_step_filter(
     existing.append(StepFilter(name=filter_name, value=value, disabled=disabled))
     step.filters = existing
 
-    return step_ok_response(session, graph, step)
+    return _step_updated_return(session, graph, step)
 
 
 async def add_step_analysis(
@@ -60,7 +90,7 @@ async def add_step_analysis(
     parameters: JSONObject | None = None,
     custom_name: str | None = None,
     graph_id: str | None = None,
-) -> StepOkResponse | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
     """Attach an analysis configuration to a step.
 
     Analyses run server-side computations on a step's result set
@@ -90,7 +120,7 @@ async def add_step_analysis(
         )
     )
 
-    return step_ok_response(session, graph, step)
+    return _step_updated_return(session, graph, step)
 
 
 async def add_step_report(
@@ -99,7 +129,7 @@ async def add_step_report(
     report_name: str = "standard",
     config: JSONObject | None = None,
     graph_id: str | None = None,
-) -> StepOkResponse | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
     """Attach a report configuration to a step.
 
     Reports control how step results are formatted for download or
@@ -121,4 +151,4 @@ async def add_step_report(
 
     step.reports.append(StepReport(report_name=report_name, config=config or {}))
 
-    return step_ok_response(session, graph, step)
+    return _step_updated_return(session, graph, step)

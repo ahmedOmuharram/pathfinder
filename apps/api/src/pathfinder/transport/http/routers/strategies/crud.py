@@ -1,4 +1,9 @@
-"""Strategy CRUD endpoints — CQRS only (streams + stream_projections)."""
+"""Strategy CRUD endpoints.
+
+Backed by the ``chats`` table (one row per conversation with strategy
+metadata: name, wdk_strategy_id, plan, step_count, etc.). See
+``persistence/models.py`` and ``persistence/repositories/chat.py``.
+"""
 
 from typing import Annotated
 from uuid import UUID
@@ -10,8 +15,7 @@ from pathfinder.domain.strategy.plan_payload import (
     PersistedStrategyGraph,
     StrategyPlanPayload,
 )
-from pathfinder.persistence.repositories import PlanRepository
-from pathfinder.persistence.repositories.stream import ProjectionUpdate
+from pathfinder.persistence.repositories import ChatUpdate
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
@@ -19,13 +23,7 @@ from pathfinder.platform.errors import (
     ValidationError,
 )
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.redis import get_redis
-from pathfinder.platform.stream_readers import (
-    read_stream_messages,
-    read_stream_thinking,
-)
 from pathfinder.platform.types import JSONObject
-from pathfinder.services.chat.orchestrator import cancel_chat_operation
 from pathfinder.services.strategies.plan_normalize import (
     canonicalize_plan_parameters,
 )
@@ -39,8 +37,8 @@ from pathfinder.services.strategies.wdk_sync import (
     sync_is_saved_to_wdk,
 )
 from pathfinder.services.wdk import get_strategy_api
-from pathfinder.transport.http.deps import CurrentUser, StreamRepo
-from pathfinder.transport.http.routers._authz import get_owned_projection_or_404
+from pathfinder.transport.http.deps import ChatRepo, CurrentUser
+from pathfinder.transport.http.routers._authz import get_owned_chat_or_404
 from pathfinder.transport.http.schemas import (
     CreateStrategyRequest,
     PushStrategyRequest,
@@ -49,8 +47,8 @@ from pathfinder.transport.http.schemas import (
 )
 
 from ._shared import (
-    build_projection_response,
-    build_projection_summary,
+    build_chat_response,
+    build_chat_summary,
 )
 
 router = APIRouter(prefix="/api/v1/strategies", tags=["strategies"])
@@ -59,100 +57,87 @@ logger = get_logger(__name__)
 
 @router.get("", response_model=list[StrategyResponse])
 async def list_strategies(
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
     site_id: Annotated[str | None, Query(alias="siteId")] = None,
 ) -> list[StrategyResponse]:
-    """List user's conversation streams (projections)."""
-    projections = await stream_repo.list_projections(user_id, site_id)
-    return [build_projection_summary(p, site_id=site_id or "") for p in projections]
+    """List the user's chats (active, non-dismissed)."""
+    chats = await chat_repo.list_chats(user_id, site_id)
+    return [build_chat_summary(c, site_id=site_id or "") for c in chats]
 
 
 @router.get("/dismissed", response_model=list[StrategyResponse])
 async def list_dismissed_strategies(
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
     site_id: Annotated[str | None, Query(alias="siteId")] = None,
 ) -> list[StrategyResponse]:
-    """List user's dismissed (soft-deleted) strategies."""
-    projections = await stream_repo.list_dismissed_projections(user_id, site_id)
-    return [build_projection_summary(p, site_id=site_id or "") for p in projections]
+    """List the user's dismissed (soft-deleted) chats."""
+    chats = await chat_repo.list_dismissed_chats(user_id, site_id)
+    return [build_chat_summary(c, site_id=site_id or "") for c in chats]
 
 
 @router.post("", response_model=StrategyResponse, status_code=201)
 async def create_strategy(
     request: CreateStrategyRequest,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
 ) -> StrategyResponse:
-    """Create a new strategy (CQRS only)."""
+    """Create a new strategy (chat with plan metadata)."""
     plan_in = request.plan.model_dump(exclude_none=True)
     payload = validate_plan_or_raise(plan_in)
 
-    stream = await stream_repo.create(
+    chat = await chat_repo.create(
         user_id=user_id,
         site_id=request.site_id,
         name=request.name,
     )
-    await stream_repo.update_projection(
-        stream.id,
-        ProjectionUpdate(
+    await chat_repo.update_chat(
+        chat.id,
+        ChatUpdate(
             plan=payload,
             record_type=payload.record_type,
             step_count=len(walk_step_tree(payload.root)),
         ),
     )
 
-    projection = await stream_repo.get_projection(stream.id)
-    if not projection:
+    refreshed = await chat_repo.get_by_id(chat.id)
+    if not refreshed:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
         )
-    return build_projection_response(projection)
+    return build_chat_response(refreshed)
 
 
 @router.get("/{strategyId:uuid}", response_model=StrategyResponse)
 async def get_strategy(
     strategyId: UUID,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
 ) -> StrategyResponse:
-    """Get a strategy/stream by ID from the CQRS projection + Redis."""
-    projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
+    """Get a strategy (chat) by ID."""
+    chat = await get_owned_chat_or_404(chat_repo, strategyId, user_id)
 
-    # Lazy detail fetch: if this is a WDK-linked strategy with no plan data,
-    # fetch the full detail from WDK now (summary-only projections are created
+    # Lazy detail fetch: if this is a WDK-linked chat with no plan data,
+    # fetch the full detail from WDK now (summary-only chats are created
     # during sync-wdk to avoid the N+1 problem).
-    projection = await lazy_fetch_wdk_detail(
-        projection=projection,
-        stream_repo=stream_repo,
-    )
+    chat = await lazy_fetch_wdk_detail(chat=chat, chat_repo=chat_repo)
 
-    redis = get_redis()
-    messages = await read_stream_messages(redis, str(strategyId))
-    thinking = await read_stream_thinking(redis, str(strategyId))
-
-    # Load the interactive plan for frontend restoration.
-    plan_repo = PlanRepository(stream_repo.session)
-    active_plan = await plan_repo.get_latest_plan(strategyId)
-    active_plan_json: JSONObject | None = None
-    if active_plan is not None:
-        active_plan_json = active_plan.model_dump(by_alias=True, mode="json")
-
-    response = build_projection_response(projection, messages=messages, thinking=thinking)
-    response.active_plan = active_plan_json
-    return response
+    # Interactive plan artifacts now stream through the chat pipeline as
+    # ``data-plan-artifact`` parts and are held in ``usePlanStore`` on the
+    # client, so there is no server-side plan restoration path.
+    return build_chat_response(chat)
 
 
 @router.patch("/{strategyId:uuid}", response_model=StrategyResponse)
 async def update_strategy(
     strategyId: UUID,
     request: UpdateStrategyRequest,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
 ) -> StrategyResponse:
-    """Update a strategy (CQRS only)."""
-    await get_owned_projection_or_404(stream_repo, strategyId, user_id)
+    """Update strategy metadata (name, plan, wdk link, saved flag)."""
+    await get_owned_chat_or_404(chat_repo, strategyId, user_id)
 
     payload: StrategyPlanPayload | None = None
     record_type: str | None = None
@@ -165,9 +150,9 @@ async def update_strategy(
     wdk_strategy_id_set = "wdk_strategy_id" in fields_set
     is_saved_set = "is_saved" in fields_set
 
-    await stream_repo.update_projection(
+    await chat_repo.update_chat(
         strategyId,
-        ProjectionUpdate(
+        ChatUpdate(
             name=request.name,
             plan=payload,
             record_type=record_type,
@@ -179,56 +164,49 @@ async def update_strategy(
         ),
     )
 
-    # Re-fetch updated projection.
-    updated = await stream_repo.get_projection(strategyId)
+    updated = await chat_repo.get_by_id(strategyId)
     if not updated:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
         )
 
-    # If isSaved was toggled and WDK strategy exists, sync the flag to WDK.
     if is_saved_set and updated.wdk_strategy_id:
-        await sync_is_saved_to_wdk(projection=updated)
+        await sync_is_saved_to_wdk(chat=updated)
 
-    return build_projection_response(updated)
+    return build_chat_response(updated)
 
 
 @router.post("/{strategyId:uuid}/push", response_model=StrategyResponse)
 async def push_strategy(
     strategyId: UUID,
     request: PushStrategyRequest,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
 ) -> StrategyResponse:
     """Push a strategy to WDK: normalize plan, persist locally, sync to WDK."""
-    projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
+    chat = await get_owned_chat_or_404(chat_repo, strategyId, user_id)
 
-    # Validate, canonicalize, then serialize the plan.
     plan_in = request.plan.model_dump(exclude_none=True)
     payload = validate_plan_or_raise(plan_in)
 
-    # Canonicalize parameters so user-edited values from the graph editor
-    # are validated against WDK specs (vocabulary matching, leaf enforcement,
-    # numeric range checking) before reaching WDK.
     payload = await canonicalize_plan_parameters(
         plan=payload, site_id=request.site_id,
     )
 
-    # Preserve WDK sync state from existing projection — old values fill
+    # Preserve WDK sync state from existing chat — old values fill
     # in where the new payload has None; new values always take precedence.
     sync_fields = {"wdk_step_ids", "step_counts", "step_validations"}
-    if projection.plan:
-        old = StrategyPlanPayload.model_validate(projection.plan)
+    if chat.plan:
+        old = StrategyPlanPayload.model_validate(chat.plan)
         preserved = old.model_dump(include=sync_fields, exclude_none=True)
         current = payload.model_dump(include=sync_fields, exclude_none=True)
         merged = {**preserved, **current}
         if merged:
             payload = payload.model_copy(update=merged)
 
-    # Persist locally.
-    await stream_repo.update_projection(
+    await chat_repo.update_chat(
         strategyId,
-        ProjectionUpdate(
+        ChatUpdate(
             name=request.name,
             plan=payload,
             record_type=payload.record_type,
@@ -236,8 +214,7 @@ async def push_strategy(
         ),
     )
 
-    # Build a strategy session, push individual steps, then sync strategy.
-    wdk_strategy_id: int | None = projection.wdk_strategy_id
+    wdk_strategy_id: int | None = chat.wdk_strategy_id
     strategy_graph_persisted = PersistedStrategyGraph(
         id=str(strategyId),
         name=request.name,
@@ -250,9 +227,6 @@ async def push_strategy(
     graph = session.get_graph(None)
     if graph is not None:
         sync_state = ensure_sync_state(session)
-        # Push individual steps to WDK (leaves first, then combines).
-        # This is what the AI agent does via push_step_to_wdk — the push
-        # endpoint must do the same for manually-edited strategies.
         failed_steps = await push_all_steps_to_wdk(
             graph, sync_state, request.site_id, update_existing=True,
         )
@@ -263,8 +237,6 @@ async def push_strategy(
                 failed_steps=failed_steps,
             )
 
-        # Sync the strategy (create/update WDK strategy with step tree).
-        # StrategyCompilationError is NOT caught — it must fail loud.
         sync_result = await sync_strategy_for_site(
             graph=graph,
             sync_state=sync_state,
@@ -273,69 +245,55 @@ async def push_strategy(
         )
         wdk_strategy_id = sync_result.wdk_strategy_id
 
-        # Persist WDK info back to projection.
-        await stream_repo.update_projection(
+        await chat_repo.update_chat(
             strategyId,
-            ProjectionUpdate(
+            ChatUpdate(
                 wdk_strategy_id=wdk_strategy_id,
                 wdk_strategy_id_set=True,
             ),
         )
 
-    # Return updated projection.
-    updated = await stream_repo.get_projection(strategyId)
+    updated = await chat_repo.get_by_id(strategyId)
     if not updated:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
         )
-    return build_projection_response(updated)
+    return build_chat_response(updated)
 
 
 @router.delete("/{strategyId:uuid}", status_code=204, response_class=Response)
 async def delete_strategy(
     strategyId: UUID,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
     *,
     delete_from_wdk: Annotated[bool, Query(alias="deleteFromWdk")] = False,
 ) -> Response:
-    """Delete a strategy: cancel ops, clean Redis stream, delete CQRS records.
+    """Delete a strategy.
 
     For WDK-linked strategies with ``deleteFromWdk=false`` (default), the
-    strategy is soft-deleted (dismissed) instead of hard-deleted. This prevents
-    WDK sync from re-importing it. Use the restore endpoint to un-dismiss.
-
+    chat is soft-deleted (dismissed) to prevent WDK sync from re-importing it.
     Pass ``deleteFromWdk=true`` to hard-delete from both PathFinder and WDK.
     Non-WDK strategies are always hard-deleted.
     """
-    projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
+    chat = await get_owned_chat_or_404(chat_repo, strategyId, user_id)
 
-    active_ops = await stream_repo.get_active_operations(strategyId)
-    for op in active_ops:
-        await cancel_chat_operation(op.operation_id)
-
-    # Clean up Redis stream.
-    redis = get_redis()
-    await redis.delete(f"stream:{strategyId}")
-
-    is_wdk_linked = projection.wdk_strategy_id is not None
+    is_wdk_linked = chat.wdk_strategy_id is not None
 
     if is_wdk_linked and not delete_from_wdk:
-        # Soft-delete: dismiss the projection (hidden from list, skipped by sync).
-        await stream_repo.dismiss(strategyId)
+        await chat_repo.dismiss(strategyId)
     else:
-        # Hard-delete: remove from WDK if requested, then delete CQRS records.
-        if delete_from_wdk and projection.wdk_strategy_id and projection.stream:
+        if delete_from_wdk and chat.wdk_strategy_id and chat.site_id:
             try:
-                api = get_strategy_api(projection.stream.site_id)
-                await api.delete_strategy(projection.wdk_strategy_id)
+                api = get_strategy_api(chat.site_id)
+                await api.delete_strategy(chat.wdk_strategy_id)
             except (AppError, OSError, RuntimeError) as e:
                 logger.warning(
                     "WDK strategy delete failed",
-                    wdk_strategy_id=projection.wdk_strategy_id,
+                    wdk_strategy_id=chat.wdk_strategy_id,
                     error=str(e),
                 )
-        await stream_repo.delete(strategyId)
+        await chat_repo.delete(strategyId)
 
     return Response(status_code=204)
 
@@ -343,33 +301,31 @@ async def delete_strategy(
 @router.get("/{strategyId:uuid}/ast")
 async def get_strategy_ast(
     strategyId: UUID,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
 ) -> JSONObject:
-    """Return the raw plan AST from a strategy's projection."""
-    projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
-    plan = projection.plan
-    if not plan:
+    """Return the raw plan AST from a strategy chat."""
+    chat = await get_owned_chat_or_404(chat_repo, strategyId, user_id)
+    if not chat.plan:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="Strategy has no plan AST",
         )
-    return plan
+    return chat.plan
 
 
 @router.post("/{strategyId:uuid}/restore", response_model=StrategyResponse)
 async def restore_strategy(
     strategyId: UUID,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     user_id: CurrentUser,
 ) -> StrategyResponse:
     """Restore a dismissed (soft-deleted) strategy.
 
-    Clears dismissed_at, resets plan to empty (triggers lazy WDK re-fetch),
-    and wipes message history. The strategy reappears as if freshly imported.
+    Clears dismissed_at and resets plan to empty (triggers lazy WDK re-fetch).
     """
-    projection = await get_owned_projection_or_404(stream_repo, strategyId, user_id)
-    if projection.dismissed_at is None:
+    chat = await get_owned_chat_or_404(chat_repo, strategyId, user_id)
+    if chat.dismissed_at is None:
         raise ValidationError(
             detail="Strategy is not dismissed",
             errors=[
@@ -380,15 +336,11 @@ async def restore_strategy(
                 }
             ],
         )
-    await stream_repo.restore(strategyId)
+    await chat_repo.restore(strategyId)
 
-    # Wipe Redis messages (clean slate).
-    redis = get_redis()
-    await redis.delete(f"stream:{strategyId}")
-
-    updated = await stream_repo.get_projection(strategyId)
+    updated = await chat_repo.get_by_id(strategyId)
     if not updated:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
         )
-    return build_projection_summary(updated)
+    return build_chat_summary(updated)

@@ -1,5 +1,5 @@
 /**
- * Meta slice — graph validation status and other cross-cutting metadata.
+ * Meta slice — graph validation status, stream-derived snapshot/patch state.
  */
 
 import type { StateCreator } from "zustand";
@@ -10,6 +10,9 @@ export const createMetaSlice: StateCreator<StrategyState, DevtoolsMutators, [], 
   set,
 ) => ({
   graphValidationStatus: {},
+  latestGraphSnapshot: null,
+  latestStrategyMeta: null,
+  lastStrategyPatch: null,
 
   setGraphValidationStatus: (id, hasErrors) =>
     set((state) => ({
@@ -18,4 +21,8 @@ export const createMetaSlice: StateCreator<StrategyState, DevtoolsMutators, [], 
         [id]: hasErrors,
       },
     })),
+
+  applyGraphSnapshot: (snapshot) => set({ latestGraphSnapshot: snapshot }),
+  setLatestStrategyMeta: (meta) => set({ latestStrategyMeta: meta }),
+  applyPatch: (patch) => set({ lastStrategyPatch: patch }),
 });

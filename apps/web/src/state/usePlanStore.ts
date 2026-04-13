@@ -8,8 +8,11 @@ import { useSessionStore } from "./useSessionStore";
 import type { InteractivePlan } from "@/lib/types/plan";
 import type { PlanActionRequest } from "@/lib/types/plan";
 import type {
+  GraphPlan,
   PhaseStatus as SharedPhaseStatus,
   PipelinePhase as SharedPipelinePhase,
+  PlanArtifact,
+  PlanUpdate,
 } from "@pathfinder/shared";
 
 type SendMessageFn = (text: string, metadata?: Record<string, unknown>) => void;
@@ -40,6 +43,11 @@ interface PlanState {
   phaseStatus: PhaseStatus | null;
   phaseTimings: Partial<Record<TimedPipelinePhase, PhaseTiming>>;
 
+  // Stream-derived plan state (from data-* parts)
+  activePlanArtifact: PlanArtifact | null;
+  planPreview: GraphPlan | null;
+  lastPlanUpdate: PlanUpdate | null;
+
   setPlan: (plan: InteractivePlan) => void;
   setPlanTraceContext: (context: {
     traceId?: string | null;
@@ -59,6 +67,16 @@ interface PlanState {
   ) => void;
   clearPhase: () => void;
   clearPhaseTimings: () => void;
+
+  // Stream-derived plan setters (from data-* parts)
+  setActivePlanArtifact: (artifact: PlanArtifact) => void;
+  setPlanPreview: (preview: GraphPlan) => void;
+  applyPlanUpdate: (update: PlanUpdate) => void;
+  recordPhaseChange: (
+    phase: PipelinePhase,
+    status: PhaseStatus,
+    durationMs: number | null,
+  ) => void;
 }
 
 export const usePlanStore = createStore<PlanState>("PlanStore", (set) => ({
@@ -72,6 +90,10 @@ export const usePlanStore = createStore<PlanState>("PlanStore", (set) => ({
   currentPhase: null,
   phaseStatus: null,
   phaseTimings: {},
+
+  activePlanArtifact: null,
+  planPreview: null,
+  lastPlanUpdate: null,
 
   setPlan: (plan) => set({ activePlan: plan }),
   setPlanTraceContext: (context) =>
@@ -96,6 +118,9 @@ export const usePlanStore = createStore<PlanState>("PlanStore", (set) => ({
       currentPhase: null,
       phaseStatus: null,
       phaseTimings: {},
+      activePlanArtifact: null,
+      planPreview: null,
+      lastPlanUpdate: null,
     }),
   setPinned: (pinned) => set({ isPlanPinned: pinned }),
   addThought: (thought) =>
@@ -126,6 +151,29 @@ export const usePlanStore = createStore<PlanState>("PlanStore", (set) => ({
     }),
   clearPhase: () => set({ currentPhase: null, phaseStatus: null }),
   clearPhaseTimings: () => set({ phaseTimings: {} }),
+
+  setActivePlanArtifact: (artifact) => set({ activePlanArtifact: artifact }),
+  setPlanPreview: (preview) => set({ planPreview: preview }),
+  applyPlanUpdate: (update) => set({ lastPlanUpdate: update }),
+  recordPhaseChange: (phase, status, durationMs) =>
+    set((state) => {
+      const nextTimings = { ...state.phaseTimings };
+      if (phase !== "completed") {
+        nextTimings[phase] = {
+          phase,
+          status,
+          emittedAt: nextTimings[phase]?.emittedAt ?? null,
+          phaseStartedAt: nextTimings[phase]?.phaseStartedAt ?? null,
+          phaseCompletedAt: nextTimings[phase]?.phaseCompletedAt ?? null,
+          durationMs: durationMs ?? nextTimings[phase]?.durationMs ?? null,
+        };
+      }
+      return {
+        currentPhase: phase,
+        phaseStatus: status,
+        phaseTimings: nextTimings,
+      };
+    }),
 }));
 
 useSessionStore.subscribe(

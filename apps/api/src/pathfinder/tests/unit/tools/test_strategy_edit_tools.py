@@ -7,6 +7,7 @@ Only RunContext is a mock wrapper around real AgentDeps.
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -143,8 +144,10 @@ async def test_delete_step_removes_leaf_from_combined() -> None:
 
     result = await delete_step(ctx, step_id="step_b")
 
-    assert isinstance(result, dict)
-    deleted = result.get("deleted")
+    assert isinstance(result, ToolReturn)
+    payload = result.return_value
+    assert isinstance(payload, dict)
+    deleted = payload.get("deleted")
     assert isinstance(deleted, list)
     # step_b and the combine node should be deleted
     assert "step_b" in deleted
@@ -217,9 +220,11 @@ async def test_undo_with_no_history_returns_error() -> None:
 
     result = await undo_last_change(ctx)
 
-    assert isinstance(result, dict)
+    assert isinstance(result, ToolReturn)
+    payload = result.return_value
+    assert isinstance(payload, dict)
     # The undo function wraps the error in with_full_graph
-    assert result.get("ok") is False or result.get("code") == "VALIDATION_ERROR"
+    assert payload.get("ok") is False or payload.get("code") == "VALIDATION_ERROR"
 
 
 @pytest.mark.asyncio
@@ -248,8 +253,10 @@ async def test_undo_restores_previous_state() -> None:
 
     result = await undo_last_change(ctx)
 
-    assert isinstance(result, dict)
+    assert isinstance(result, ToolReturn)
+    payload = result.return_value
+    assert isinstance(payload, dict)
     # After undo, the graph should be restored to the "still initial" snapshot
     # which had only step_a
-    assert result.get("ok") is True
-    assert result.get("message") == "Undone to previous state"
+    assert payload.get("ok") is True
+    assert payload.get("message") == "Undone to previous state"

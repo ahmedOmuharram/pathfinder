@@ -1,13 +1,13 @@
+export { listControlSets, controlSetsOptions } from "./controlSets";
 export {
   createExperimentStream,
   createBatchExperimentStream,
   createBenchmarkStream,
 } from "./streaming";
-
 export type {
-  ExperimentSSEHandler,
-  BenchmarkControlSetInput,
+  ExperimentStreamEvent,
+  BatchStreamEvent,
+  BenchmarkStreamEvent,
   BatchOrganismTarget,
+  BenchmarkControlSetInput,
 } from "./streaming";
-
-export { listControlSets, controlSetsOptions } from "./controlSets";

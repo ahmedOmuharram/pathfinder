@@ -1,5 +1,6 @@
-"""Verification-phase toolset — 18 tools for testing, analyzing, and exporting results."""
+"""Verification-phase toolset for testing, analyzing, and exporting results."""
 
+from pydantic_ai.tools import Tool
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -10,7 +11,6 @@ from pathfinder.ai.tools.standalone.experiment import (
 )
 from pathfinder.ai.tools.standalone.export import export_gene_set
 from pathfinder.ai.tools.standalone.optimization import optimize_search_parameters
-from pathfinder.ai.tools.standalone.phase_decision import finish_verification
 from pathfinder.ai.tools.standalone.results import (
     get_download_url,
     get_sample_records,
@@ -34,7 +34,16 @@ from pathfinder.ai.tools.standalone.workbench_read import (
 
 
 def build_toolset() -> FunctionToolset[AgentDeps]:
-    """Build the verification-phase toolset."""
+    """Build the verification-phase toolset.
+
+    Phase exit is handled by ``output_type=VerificationDecision`` on the
+    verification agent — no ``finish_*`` tool is exposed.
+
+    ``optimize_search_parameters`` carries ``requires_approval=True`` because
+    it runs up to ``settings.budget`` trials (default 30), each calling WDK.
+    The v6 adapter emits a ``ToolApprovalRequestChunk`` so the user can
+    confirm the expense before the optimizer starts.
+    """
     return FunctionToolset(
         tools=[
             get_estimated_size,
@@ -42,7 +51,7 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             get_download_url,
             run_control_tests_on_step,
             run_control_tests_on_search,
-            optimize_search_parameters,
+            Tool(optimize_search_parameters, requires_approval=True),
             create_workbench_gene_set,
             run_gene_set_enrichment,
             list_workbench_gene_sets,
@@ -55,7 +64,6 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             get_ensemble_analysis,
             get_result_gene_lists,
             get_strategy,
-            finish_verification,
             think,
         ],
     )

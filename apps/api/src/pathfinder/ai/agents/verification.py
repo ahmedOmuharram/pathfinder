@@ -18,6 +18,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_context_summary,
     pinned_graph_state,
 )
+from pathfinder.ai.agents._phase_decisions import VerificationDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -49,9 +50,22 @@ pathway enrichment to confirm biological relevance.
 5. **Export**: Use `export_gene_set` and `create_workbench_gene_set` to \
 make results available for downstream analysis.
 
-6. **End the phase explicitly**: Call `finish_verification` exactly once as \
-your last tool call. Use `decision="complete"` when verification is done. Use \
-`decision="ask_user"` only if you need a user choice before you can finish.
+## Final Output
+
+When verification is complete, produce a `VerificationDecision` as your \
+final output. Do NOT call any `finish_*` tool; those tools no longer exist.
+
+Choose `next_action` based on what you observed:
+  - `complete`: verification passed; the turn is done.
+  - `retry_execution`: verification uncovered an execution-level bug (wrong \
+parameters, wrong search) that execution should fix.
+  - `abort`: the strategy is broken in a way that execution cannot fix and \
+the user must intervene.
+
+Populate every field:
+  - `verification_notes`: short narrative summary of what was checked, what \
+passed, and anything suspicious. This is the user-facing completion summary.
+  - `reason`: one-to-two sentence justification for `next_action`.
 
 ## Guidelines
 
@@ -63,13 +77,11 @@ record types) that counts alone miss.
 the user should review manually.
 - Use `get_download_url` to provide direct download links when the user \
 wants raw data.
-- Do NOT modify the strategy — if something is wrong, report it so the \
-orchestrator can re-enter the execution phase.
+- Do NOT modify the strategy — if something is wrong, return \
+`next_action="retry_execution"` so the orchestrator can re-enter execution.
 - Do NOT explore the catalog or create plans — those phases are complete.
-- Write the final response as a concise completion summary, not a new \
+- Write `verification_notes` as a concise completion summary, not a new \
 conversation opener.
-- If you need the user to choose a next step before you can conclude, call \
-`finish_verification(decision="ask_user", ...)` and stop in that same turn.
 - Do NOT ask follow-up questions such as "Would you like to..." or \
 "Anything else?" at the end of verification. The chat shell already waits \
 for the user's next instruction.
@@ -79,8 +91,9 @@ for the user's next instruction.
 # Agent
 # ---------------------------------------------------------------------------
 
-verification_agent: Agent[AgentDeps, str] = Agent(
-    "anthropic:claude-sonnet-4-5",
+verification_agent: Agent[AgentDeps, VerificationDecision] = Agent(
+    "openai:gpt-4.1-mini",
+    output_type=VerificationDecision,
     deps_type=AgentDeps,
     instructions=_VERIFICATION_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -117,6 +130,6 @@ def _mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:
 # ---------------------------------------------------------------------------
 
 VERIFICATION_USAGE_LIMITS = UsageLimits(
-    request_limit=50,
+    request_limit=200,
     total_tokens_limit=500_000,
 )

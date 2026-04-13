@@ -30,7 +30,10 @@ if "PIGUARD_MODEL_DIR" not in os.environ:
 
 os.environ.setdefault("API_ENV", "test")
 os.environ.setdefault("API_SECRET_KEY", "test-secret-key-test-secret-key-test")
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test")
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test",
+)
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("PATHFINDER_CHAT_PROVIDER", "mock")
 os.environ.setdefault("OPENAI_API_KEY", "")
@@ -56,8 +59,6 @@ from testcontainers.redis import RedisContainer
 
 import pathfinder.persistence.session as session_module
 import pathfinder.platform.redis as redis_module
-import pathfinder.services.chat.orchestrator as _orch
-import pathfinder.services.workbench_chat.orchestrator
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.main import create_app
 from pathfinder.persistence.models import Base, User
@@ -222,26 +223,12 @@ def patch_app_db_engine(
 @pytest.fixture
 async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
     yield
-    # Drain lingering background chat tasks so their DB sessions
-    # commit/close before TRUNCATE.  Without this, TRUNCATE deadlocks
-    # against the background task's uncommitted writes.
-    all_tasks = list(
-        pathfinder.services.chat.orchestrator._active_tasks.values()
-    ) + list(
-        pathfinder.services.workbench_chat.orchestrator._active_tasks.values()
-    )
-    if all_tasks:
-        _, pending = await asyncio.wait(all_tasks, timeout=5.0)
-        for t in pending:
-            t.cancel()
-        if pending:
-            await asyncio.gather(*pending, return_exceptions=True)
-
+    # New chat dispatcher is single-request (no background tasks to drain).
     # Truncate after each test so request-level commits don't leak state.
     async with db_engine.begin() as conn:
         await conn.exec_driver_sql(
             "TRUNCATE TABLE "
-            "operations, stream_projections, streams, "
+            "messages, chats, "
             "experiments, gene_sets, control_sets, users "
             "RESTART IDENTITY CASCADE"
         )
@@ -348,10 +335,6 @@ def _test_env_defaults() -> None:
 def app() -> FastAPI:
     # Ensure settings reads current env, not cached values from prior imports.
     get_settings.cache_clear()
-
-    # Reset orchestrator globals so _wire_ai_dependencies() starts clean.
-    _orch._resolve_pipeline_holder.clear()
-
     return create_app()
 
 
@@ -446,10 +429,6 @@ async def _eager_spawn(monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[None]:
     # spawn is imported by name in multiple modules — patch all binding sites
     monkeypatch.setattr("pathfinder.platform.tasks.spawn", _tracked_spawn)
     monkeypatch.setattr("pathfinder.platform.store.spawn", _tracked_spawn)
-    monkeypatch.setattr(
-        "pathfinder.services.experiment.core.streaming.spawn",
-        _tracked_spawn,
-    )
 
     yield
 

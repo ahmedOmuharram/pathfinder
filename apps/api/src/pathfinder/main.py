@@ -2,7 +2,6 @@
 
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from importlib import import_module
 from typing import cast
 from uuid import uuid4
 
@@ -13,6 +12,7 @@ from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
 
 from pathfinder import __version__
+from pathfinder.ai.capabilities.piguard import warm_up_piguard
 from pathfinder.ai.orchestration.observability import (
     setup_observability,
     shutdown_observability,
@@ -21,9 +21,7 @@ from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
 from pathfinder.integrations.veupathdb.factory import close_all_clients
-from pathfinder.persistence.repositories.stream import StreamRepository
 from pathfinder.persistence.session import (
-    async_session_factory,
     close_db,
     get_engine,
     init_db,
@@ -39,15 +37,15 @@ from pathfinder.platform.errors import (
     app_error_handler,
     http_exception_handler,
 )
-from pathfinder.platform.event_schemas import PipelineConfig
 from pathfinder.platform.logging import get_logger, setup_logging
+from pathfinder.platform.readiness import get_readiness, reset_readiness
 from pathfinder.platform.redis import close_redis, init_redis
 from pathfinder.platform.security import csrf_middleware, limiter
 from pathfinder.services.catalog.semantic_index import warm_up_model
-from pathfinder.services.chat import orchestrator
-from pathfinder.services.chat.pipeline_resolution import resolve_pipeline_config
 from pathfinder.transport.http.routers import (
+    _stream_parts_schemas,
     chat,
+    chats,
     control_sets,
     dev,
     evaluation,
@@ -58,11 +56,9 @@ from pathfinder.transport.http.routers import (
     health,
     internal,
     models,
-    operations,
     sites,
     strategies,
     tiers,
-    undo,
     user_data,
     veupathdb_auth,
 )
@@ -70,74 +66,76 @@ from pathfinder.transport.http.routers import (
 logger = get_logger(__name__)
 
 
+async def _warm_up_subsystems() -> None:
+    """Load models and preload catalogs, marking readiness per subsystem.
+
+    Runs after DB+Redis init. Each step is best-effort: a failure flips
+    the subsystem's readiness flag and keeps ``/health/ready`` returning
+    503 with the per-subsystem detail.
+    """
+    readiness = get_readiness()
+    try:
+        logger.info("[warm-up] Loading embedding model")
+        warm_up_model()
+        readiness.mark_ready("embedding_model")
+    except (AppError, OSError, RuntimeError, ValueError) as e:
+        logger.exception("[warm-up] Embedding model failed")
+        readiness.mark_failed("embedding_model", str(e))
+
+    try:
+        logger.info("[warm-up] Loading PIGuard ONNX model")
+        warm_up_piguard()
+        readiness.mark_ready("piguard")
+    except (AppError, OSError, RuntimeError) as e:
+        logger.exception("[warm-up] PIGuard failed")
+        readiness.mark_failed("piguard", str(e))
+
+    try:
+        logger.info("[warm-up] Preloading discovery catalogs (all sites)")
+        await get_discovery_service().preload_all()
+    except (AppError, OSError, RuntimeError):
+        logger.exception("[warm-up] Discovery preload raised")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Application lifespan handler."""
     settings = get_settings()
-
-    # Startup
     setup_logging()
-    logger.info(
-        "Starting Pathfinder API",
-        version=__version__,
-        env=settings.api_env,
-    )
+    logger.info("Starting Pathfinder API", version=__version__, env=settings.api_env)
 
-    # Initialize database
-    # For local Docker and first-run developer setups, we create tables automatically.
-    # (Alembic migrations are not supported.)
-    await init_db()
-    await init_redis()
+    readiness = get_readiness()
 
-    # Initialize observability (OTEL + instrumentation) after DB/Redis are ready.
+    try:
+        await init_db()
+        readiness.mark_ready("database")
+    except (AppError, OSError, RuntimeError) as e:
+        readiness.mark_failed("database", str(e))
+        raise
+
+    try:
+        await init_redis()
+        readiness.mark_ready("redis")
+    except (AppError, OSError, RuntimeError) as e:
+        readiness.mark_failed("redis", str(e))
+        raise
+
+    # Observability + Langfuse prompt seed after DB/Redis are ready.
     setup_observability(app=app, db_engine=get_engine())
-
-    # Seed prompts to Langfuse on first run (no-op if already exist or disabled).
     from pathfinder.platform.langfuse.prompts import seed_prompts  # noqa: PLC0415
 
     seed_prompts()
 
-    # Mark any operations left "active" from a previous process as failed.
-    # This handles the Docker-rebuild / crash case where the producer task
-    # died without marking the operation complete.
-    async with async_session_factory() as session:
-        repo = StreamRepository(session)
-        orphaned = await repo.list_active_operations()
-        for op in orphaned:
-            await repo.fail_operation(op.operation_id)
-            logger.info(
-                "Marked orphaned operation as failed", operation_id=op.operation_id
-            )
-        if orphaned:
-            await session.commit()
-
-    # Warm up: model + catalogs must be ready before serving requests.
-    try:
-        logger.info("[warm-up] Loading embedding model")
-        warm_up_model()
-        logger.info("[warm-up] Embedding model ready")
-    except (AppError, OSError, RuntimeError, ValueError):
-        logger.warning("Embedding model warm-up failed (non-fatal)", exc_info=True)
-
-    try:
-        logger.info("[warm-up] Starting discovery preload")
-        discovery = get_discovery_service()
-        logger.info("[warm-up] Discovery service created, preloading")
-        await discovery.preload_all()
-        logger.info("[warm-up] Discovery catalogs warmed up")
-    except (AppError, OSError, RuntimeError):
-        logger.warning("Discovery warm-up failed (non-fatal)", exc_info=True)
+    await _warm_up_subsystems()
 
     yield
 
-    # Shutdown
     logger.info("Shutting down Pathfinder API")
+    reset_readiness()
     await close_all_clients()
     await close_redis()
     await close_db()
-    # Flush and shutdown OTEL TracerProvider before Langfuse SDK.
     shutdown_observability()
-    # Flush and shutdown the Langfuse SDK client.
     from pathfinder.platform.langfuse.client import (  # noqa: PLC0415
         shutdown_langfuse,
     )
@@ -145,41 +143,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     shutdown_langfuse()
 
 
-def _wire_ai_dependencies() -> None:
-    """Wire AI-layer implementations into service-layer modules.
-
-    This is the composition root: the only place that links the AI
-    layer's concrete implementations to the service layer's injected
-    slots.  Keeps services free of direct ``pathfinder.ai`` imports.
-
-    Imports are deferred here because the AI layer has deep dependency
-    chains that must not execute at module-import time.
-    """
-    settings = get_settings()
-    tiers_module = import_module("pathfinder.ai.models.tiers")
-    get_tier_preset = tiers_module.get_tier_preset
-
-    is_mock = settings.chat_provider.strip().lower() == "mock"
-
-    def _resolve_pipeline(
-        pipeline_override: PipelineConfig | None = None,
-        persisted_pipeline: dict[str, object] | None = None,
-    ) -> PipelineConfig:
-        return resolve_pipeline_config(
-            chat_provider="mock" if is_mock else settings.chat_provider,
-            default_provider=settings.default_provider,
-            default_tier=settings.default_tier,
-            get_tier_preset=get_tier_preset,
-            pipeline_override=pipeline_override,
-            persisted_pipeline=persisted_pipeline,
-        )
-
-    orchestrator.configure(resolve_pipeline_fn=_resolve_pipeline)
-
-
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
-    _wire_ai_dependencies()
     settings = get_settings()
 
     app = FastAPI(
@@ -272,16 +237,16 @@ def create_app() -> FastAPI:
     app.include_router(models.router)
     app.include_router(tiers.router)
     app.include_router(chat.router)
-    app.include_router(undo.router)
+    app.include_router(chats.router)
     app.include_router(strategies.router)
     app.include_router(experiments.router)
     app.include_router(control_sets.router)
     app.include_router(veupathdb_auth.router)
-    app.include_router(operations.router)
     app.include_router(gene_sets.router)
     app.include_router(exports.router)
     app.include_router(feedback.router)
     app.include_router(internal.router)
+    app.include_router(_stream_parts_schemas.router)
     app.include_router(user_data.router)
     app.include_router(evaluation.router)
 

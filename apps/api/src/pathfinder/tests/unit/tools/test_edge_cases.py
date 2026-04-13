@@ -10,6 +10,7 @@ from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -111,9 +112,11 @@ async def test_create_leaf_step_with_empty_parameters(
         display_name="Genes by Taxon",
     )
 
-    assert isinstance(result, StepOkResponse)
-    assert result.ok is True
-    assert result.step.search_name == "GenesByTaxon"
+    assert isinstance(result, ToolReturn)
+    payload = result.return_value
+    assert isinstance(payload, StepOkResponse)
+    assert payload.ok is True
+    assert payload.step.search_name == "GenesByTaxon"
 
 
 # ── test_combine_steps_with_same_step_twice ───────────────────────────────
@@ -163,8 +166,10 @@ async def test_combine_steps_with_same_step_twice(
     )
 
     # The tool accepted both IDs being the same.
-    assert isinstance(result, StepOkResponse)
-    assert result.ok is True
+    assert isinstance(result, ToolReturn)
+    payload = result.return_value
+    assert isinstance(payload, StepOkResponse)
+    assert payload.ok is True
 
 
 # ── test_get_search_overview_registers_in_agent_state ─────────────────────

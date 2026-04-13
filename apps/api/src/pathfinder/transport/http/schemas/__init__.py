@@ -8,14 +8,6 @@ from pathfinder.services.strategies.schemas import (
     StepResponse,
 )
 
-from .chat import (
-    ChatRequest,
-    CitationResponse,
-    MessageResponse,
-    PlanningArtifactResponse,
-    ThinkingResponse,
-    ToolCallResponse,
-)
 from .health import HealthResponse, SystemConfigResponse
 from .optimization import (
     OptimizationParameterSpecData,
@@ -23,10 +15,6 @@ from .optimization import (
     OptimizationTrialData,
 )
 from .plan import PlanNormalizeRequest, PlanNormalizeResponse
-from .plan_actions import (
-    PlanActionOperationResponse,
-    PlanActionRequest,
-)
 from .product_actions import ProductActionRequest
 from .sites import (
     DependentParamsRequest,
@@ -56,12 +44,9 @@ from .veupathdb_auth import AuthStatusResponse, AuthSuccessResponse
 __all__ = [
     "AuthStatusResponse",
     "AuthSuccessResponse",
-    "ChatRequest",
-    "CitationResponse",
     "CreateStrategyRequest",
     "DependentParamsRequest",
     "HealthResponse",
-    "MessageResponse",
     "OpenStrategyRequest",
     "OpenStrategyResponse",
     "OptimizationParameterSpecData",
@@ -69,11 +54,8 @@ __all__ = [
     "OptimizationTrialData",
     "ParamSpecResponse",
     "ParamSpecsRequest",
-    "PlanActionOperationResponse",
-    "PlanActionRequest",
     "PlanNormalizeRequest",
     "PlanNormalizeResponse",
-    "PlanningArtifactResponse",
     "ProductActionRequest",
     "PushStrategyRequest",
     "RecordDetailRequest",
@@ -88,8 +70,6 @@ __all__ = [
     "StrategyPlanPayload",
     "StrategyResponse",
     "SystemConfigResponse",
-    "ThinkingResponse",
-    "ToolCallResponse",
     "UpdateStrategyRequest",
     "ValidationResponse",
 ]

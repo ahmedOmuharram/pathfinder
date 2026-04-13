@@ -8,6 +8,7 @@ from typing import cast
 
 from pydantic import BaseModel
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone._graph_helpers import step_ok_response
@@ -15,13 +16,19 @@ from pathfinder.ai.tools.standalone._record_type_helpers import (
     find_record_type_for_search,
     find_record_type_hint,
 )
+from pathfinder.ai.tools.standalone._stream_parts import (
+    graph_snapshot_chunk,
+    strategy_patch_chunk,
+)
 from pathfinder.ai.tools.standalone._validation_helpers import (
     StepOkResponse,
     get_graph,
     graph_not_found,
     validation_error_payload,
 )
+from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
+from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SerializedParams
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
@@ -33,6 +40,23 @@ from pathfinder.services.strategies.step_creation import (
     create_step,
 )
 from pathfinder.services.strategies.sync_state import ensure_sync_state
+
+
+def _step_added_return(
+    session: StrategySession, graph: StrategyGraph, step: PlanStepNode
+) -> ToolReturn[StepOkResponse]:
+    """Wrap a step-added response in ``ToolReturn`` with snapshot + patch chunks."""
+    return ToolReturn(
+        return_value=step_ok_response(session, graph, step),
+        metadata=[
+            graph_snapshot_chunk(session, graph),
+            strategy_patch_chunk(
+                graph, step,
+                operation="add_step",
+                sync_state=session.sync_state,
+            ),
+        ],
+    )
 
 
 class ColocationSpec(BaseModel):
@@ -99,7 +123,7 @@ async def create_leaf_step(
     record_type: str | None = None,
     *,
     graph_id: str | None = None,
-) -> StepOkResponse | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
     """Create a new search step (leaf node) in the strategy graph.
 
     The search MUST have been discovered via ``get_search_overview`` first.
@@ -154,7 +178,7 @@ async def create_leaf_step(
             else graph_not_found(graph_id)
         )
 
-    return step_ok_response(session, graph, result.step)
+    return _step_added_return(session, graph, result.step)
 
 
 async def combine_steps(
@@ -166,7 +190,7 @@ async def combine_steps(
     colocation_params: ColocationSpec | None = None,
     *,
     graph_id: str | None = None,
-) -> StepOkResponse | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
     """Combine two existing steps using a set operator.
 
     For boolean operators (INTERSECT, UNION, MINUS, RMINUS), creates a
@@ -255,7 +279,7 @@ async def combine_steps(
             else graph_not_found(graph_id)
         )
 
-    return step_ok_response(session, graph, result.step)
+    return _step_added_return(session, graph, result.step)
 
 
 async def transform_step(
@@ -266,7 +290,7 @@ async def transform_step(
     display_name: str | None = None,
     *,
     graph_id: str | None = None,
-) -> StepOkResponse | ToolErrorPayload:
+) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
     """Create a transform step that takes an existing step as input.
 
     When custom parameters are provided, the transform search must have
@@ -331,4 +355,4 @@ async def transform_step(
             else graph_not_found(graph_id)
         )
 
-    return step_ok_response(session, graph, result.step)
+    return _step_added_return(session, graph, result.step)

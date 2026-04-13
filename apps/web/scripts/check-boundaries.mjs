@@ -144,8 +144,10 @@ function isAllowedFeatureImport(specifier, selfFeature) {
 }
 
 const CROSS_FEATURE_EXCEPTIONS = new Map([
-  // workbench may import from analysis (ResultsTable exception)
-  ["workbench", new Set(["analysis"])],
+  // workbench may import from analysis (ResultsTable exception) and
+  // chat (ChatPanel is the single chat surface — used in both strategy and
+  // experiment modes)
+  ["workbench", new Set(["analysis", "chat"])],
   // chat may import from settings (ToolPicker), engine (PipelinePill),
   // and strategy (PlanParameterEditor, WdkQuestionInput use StepParamFields)
   ["chat", new Set(["settings", "engine", "strategy"])],

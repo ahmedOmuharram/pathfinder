@@ -306,34 +306,9 @@ export type paths = {
         put?: never;
         /**
          * Chat
-         * @description Start a chat operation and return its operation ID.
-         *
-         *     The client subscribes to GET /operations/{operationId}/subscribe for SSE events.
+         * @description Dispatch a chat turn; returns the raw SSE stream.
          */
         post: operations["chat_api_v1_chat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/chat/{stream_id}/undo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Undo
-         * @description Undo a chat turn and all subsequent turns.
-         *
-         *     Truncates the conversation from the given Redis entry ID onward,
-         *     rebuilds the strategy projection, and syncs WDK.
-         */
-        post: operations["undo_api_v1_chat__stream_id__undo_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -519,26 +494,6 @@ export type paths = {
          *     (and avoid re-implementing CSV/JSON parsing and WDK quirks).
          */
         post: operations["normalize_plan_api_v1_strategies_plan_normalize_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/strategies/{strategy_id}/plan-actions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Submit Plan Action
-         * @description Handle a structured plan action without creating a chat turn.
-         */
-        post: operations["submit_plan_action_api_v1_strategies__strategy_id__plan_actions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -961,49 +916,6 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/experiments/{experiment_id}/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Workbench Chat
-         * @description Start a conversational AI chat for an experiment.
-         *
-         *     Returns operation ID for SSE subscription via
-         *     GET /operations/{operationId}/subscribe.
-         */
-        post: operations["workbench_chat_api_v1_experiments__experiment_id__chat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/experiments/{experiment_id}/chat/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Workbench Chat Messages
-         * @description Get conversation history for an experiment's chat.
-         */
-        get: operations["get_workbench_chat_messages_api_v1_experiments__experiment_id__chat_messages_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/control-sets": {
         parameters: {
             query?: never;
@@ -1126,79 +1038,11 @@ export type paths = {
          * Auth Status
          * @description Return current VEuPathDB auth status.
          *
-         *     In mock mode (``PATHFINDER_CHAT_PROVIDER=mock``), a valid
+         *     In test-mode mock runs (``PATHFINDER_CHAT_PROVIDER=mock``), a valid
          *     ``pathfinder-auth`` cookie is sufficient — the dev-login endpoint
          *     doesn't create a VEuPathDB session, so we skip the real WDK call.
          */
         get: operations["auth_status_api_v1_veupathdb_auth_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/operations/{operation_id}/subscribe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Subscribe
-         * @description SSE stream backed by Redis Streams.
-         *
-         *     Auth and operation lookup are handled by the ``VerifiedOp`` dependency,
-         *     so this handler is a clean async generator that FastAPI encodes into
-         *     SSE wire format automatically.
-         */
-        get: operations["subscribe_api_v1_operations__operation_id__subscribe_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/operations/{operation_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Cancel
-         * @description Cancel a running operation.
-         *
-         *     For chat operations this cancels the background asyncio task running
-         *     the LLM agent. The producer's CancelledError handler emits a
-         *     ``message_end`` event so any connected subscribers close cleanly.
-         */
-        post: operations["cancel_api_v1_operations__operation_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/operations/active": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Active
-         * @description List active operations, optionally filtered by stream and/or type.
-         */
-        get: operations["list_active_api_v1_operations_active_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1497,26 +1341,6 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/internal/sse-schemas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Sse Schemas
-         * @description SSE event data schemas -- for OpenAPI generation only.
-         */
-        get: operations["sse_schemas_api_v1_internal_sse_schemas_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/internal/experiment-schemas": {
         parameters: {
             query?: never;
@@ -1529,6 +1353,26 @@ export type paths = {
          * @description Experiment response schemas -- for OpenAPI generation only.
          */
         get: operations["experiment_schemas_api_v1_internal_experiment_schemas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/internal/stream-parts/schemas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Parts Schemas
+         * @description Stream-part payload schemas — for OpenAPI generation only.
+         */
+        get: operations["stream_parts_schemas_api_v1_internal_stream_parts_schemas_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1614,34 +1458,6 @@ export type webhooks = Record<string, never>;
 
 export type components = {
     schemas: {
-        /**
-         * AssistantDeltaEventData
-         * @description Payload for ``assistant_delta`` SSE events (streaming tokens).
-         */
-        AssistantDeltaEventData: {
-            /** Messageid */
-            messageId?: string | null;
-            /** Messagegroupid */
-            messageGroupId?: string | null;
-            /** Phase */
-            phase?: string | null;
-            /** Delta */
-            delta?: string | null;
-        };
-        /**
-         * AssistantMessageEventData
-         * @description Payload for ``assistant_message`` SSE events (complete message).
-         */
-        AssistantMessageEventData: {
-            /** Messageid */
-            messageId?: string | null;
-            /** Messagegroupid */
-            messageGroupId?: string | null;
-            /** Phase */
-            phase?: string | null;
-            /** Content */
-            content?: string | null;
-        };
         /**
          * AuthStatusResponse
          * @description Current auth status response.
@@ -1754,85 +1570,6 @@ export type components = {
             estimatedSize: number;
             /** Geneids */
             geneIds: string[];
-        };
-        /**
-         * ChatMention
-         * @description A reference to a strategy or experiment included via @-mention.
-         */
-        ChatMention: {
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "strategy" | "experiment";
-            /** Id */
-            id: string;
-            /** Displayname */
-            displayName: string;
-        };
-        /**
-         * ChatRequest
-         * @description Request to send a chat message.
-         */
-        ChatRequest: {
-            /** Strategyid */
-            strategyId?: string | null;
-            /** Siteid */
-            siteId: string;
-            /** Message */
-            message: string;
-            pipeline: components["schemas"]["PipelineConfig"];
-            /**
-             * Disablerag
-             * @default false
-             */
-            disableRag: boolean;
-            /** Temperature */
-            temperature?: number | null;
-            /** Seed */
-            seed?: number | null;
-            /** Mentions */
-            mentions?: components["schemas"]["ChatMention"][];
-            /** Metadata */
-            metadata?: {
-                [key: string]: components["schemas"]["JSONValue"];
-            };
-        };
-        /**
-         * CitationResponse
-         * @description Citation from research tools.
-         */
-        CitationResponse: {
-            /** Id */
-            id: string;
-            /** Source */
-            source: string;
-            /** Tag */
-            tag?: string | null;
-            /** Title */
-            title: string;
-            /** Url */
-            url?: string | null;
-            /** Authors */
-            authors?: string[] | null;
-            /** Year */
-            year?: number | null;
-            /** Doi */
-            doi?: string | null;
-            /** Pmid */
-            pmid?: string | null;
-            /** Snippet */
-            snippet?: string | null;
-            /** Accessedat */
-            accessedAt?: string | null;
-        };
-        /**
-         * CitationsEventData
-         * @description Payload for ``citations`` SSE events.
-         */
-        CitationsEventData: {
-            /** Citations */
-            citations?: components["schemas"]["CitationResponse"][] | null;
         };
         /**
          * ColocationParams
@@ -2039,6 +1776,14 @@ export type components = {
             positiveCount: number;
             /** Negativecount */
             negativeCount: number;
+        };
+        /**
+         * ConversationTitle
+         * @description A proposed short title for the conversation.
+         */
+        ConversationTitle: {
+            /** Title */
+            title: string;
         };
         /**
          * CreateBatchExperimentRequest
@@ -2300,20 +2045,18 @@ export type components = {
             oddsRatio: number;
         };
         /**
-         * DecisionPresentedEventData
-         * @description Payload for ``decision_presented`` SSE events.
+         * DecisionPresented
+         * @description A branching decision for the user to resolve.
          */
-        DecisionPresentedEventData: {
-            /** Decisionid */
-            decisionId: string;
-            /** Question */
-            question: string;
+        DecisionPresented: {
+            /** Decisiontype */
+            decisionType: string;
             /** Options */
-            options: components["schemas"]["JSONObject"][];
-            /** Context */
-            context: string;
-            /** Recommendation */
-            recommendation?: string | null;
+            options: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /** Rationale */
+            rationale?: string | null;
         };
         /**
          * DependentParamsRequest
@@ -2446,14 +2189,6 @@ export type components = {
             geneSetIds: string[];
             /** Positivecontrols */
             positiveControls?: string[] | null;
-        };
-        /**
-         * ErrorEventData
-         * @description Payload for ``error`` SSE events.
-         */
-        ErrorEventData: {
-            /** Error */
-            error: string;
         };
         /**
          * ExperimentConfigResponse
@@ -2732,8 +2467,9 @@ export type components = {
             experiment_progress_data?: components["schemas"]["ExperimentProgressDataResponse"] | null;
             optimization_result?: components["schemas"]["OptimizationResultResponse"] | null;
             control_set_summary?: components["schemas"]["ControlSetSummaryResponse"] | null;
-            citation?: components["schemas"]["CitationResponse"] | null;
-            planning_artifact?: components["schemas"]["PlanningArtifactResponse"] | null;
+            optimization_progress?: components["schemas"]["OptimizationProgressEventData"] | null;
+            optimization_trial?: components["schemas"]["OptimizationTrialData"] | null;
+            optimization_parameter_spec?: components["schemas"]["OptimizationParameterSpecData"] | null;
         };
         /**
          * ExperimentSummaryResponse
@@ -2968,6 +2704,17 @@ export type components = {
              */
             matchedFields: string[];
         };
+        /** GeneSet */
+        GeneSet: {
+            /** Genesetid */
+            geneSetId: string;
+            /** Name */
+            name: string;
+            /** Genecount */
+            geneCount: number;
+            /** Siteid */
+            siteId: string;
+        };
         /**
          * GeneSetEnrichRequest
          * @description Run enrichment on a gene set.
@@ -3021,85 +2768,53 @@ export type components = {
             stepCount: number;
         };
         /**
-         * GeneSetSummary
-         * @description Summary of a gene set — nested model, not a top-level event.
+         * GraphCleared
+         * @description Sentinel indicating the strategy graph was cleared.
          */
-        GeneSetSummary: {
-            /** Id */
-            id?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Genecount */
-            geneCount?: number | null;
-            /** Source */
-            source?: string | null;
-            /** Siteid */
-            siteId?: string | null;
+        GraphCleared: {
+            /** Reason */
+            reason?: string | null;
         };
-        /**
-         * GraphClearedEventData
-         * @description Payload for ``graph_cleared`` SSE events.
-         */
-        GraphClearedEventData: {
-            /** Graphid */
-            graphId?: string | null;
-        };
-        /**
-         * GraphEdge
-         * @description A single edge in a graph snapshot.
-         */
+        /** GraphEdge */
         GraphEdge: {
-            /** Sourceid */
-            sourceId: string;
-            /** Targetid */
-            targetId: string;
-            /** Kind */
-            kind: string;
+            /** Source */
+            source: string;
+            /** Target */
+            target: string;
+            /** Operator */
+            operator?: ("INTERSECT" | "UNION" | "MINUS" | "RMINUS" | "LONLY" | "RONLY" | "COLOCATE") | null;
+        };
+        /** GraphNode */
+        GraphNode: {
+            /** Id */
+            id: string;
+            /** Searchname */
+            searchName: string;
+            /** Estimatedsize */
+            estimatedSize: number;
         };
         /**
-         * GraphPlanEventData
-         * @description Payload for ``graph_plan`` SSE events.
+         * GraphPlan
+         * @description A planned (not-yet-applied) strategy graph.
          */
-        GraphPlanEventData: {
-            /** Graphid */
-            graphId?: string | null;
-            plan?: components["schemas"]["StrategyPlanPayload-Output"] | null;
-            /** Name */
-            name?: string | null;
-            /** Recordtype */
-            recordType?: string | null;
-            /** Description */
-            description?: string | null;
-        };
-        /**
-         * GraphSnapshotContent
-         * @description Content of a graph_snapshot event payload.
-         */
-        GraphSnapshotContent: {
-            /** Graphid */
-            graphId?: string | null;
-            /** Graphname */
-            graphName?: string | null;
-            /** Recordtype */
-            recordType?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Rootstepid */
-            rootStepId?: string | null;
-            /** Steps */
-            steps?: components["schemas"]["JSONObject"][];
+        GraphPlan: {
+            /** Nodes */
+            nodes: components["schemas"]["GraphNode"][];
             /** Edges */
-            edges?: components["schemas"]["GraphEdge"][];
-            plan?: components["schemas"]["StrategyPlanPayload-Output"] | null;
+            edges: components["schemas"]["GraphEdge"][];
+            /** Rationale */
+            rationale?: string | null;
         };
-        /**
-         * GraphSnapshotEventData
-         * @description Payload for ``graph_snapshot`` SSE events.
-         */
-        GraphSnapshotEventData: {
-            graphSnapshot?: components["schemas"]["GraphSnapshotContent"] | null;
+        /** GraphSnapshot */
+        GraphSnapshot: {
+            /** Strategyid */
+            strategyId: string;
+            /** Genecount */
+            geneCount: number;
+            /** Nodes */
+            nodes: components["schemas"]["GraphNode"][];
+            /** Edges */
+            edges: components["schemas"]["GraphEdge"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -3133,82 +2848,6 @@ export type components = {
             email: string;
             /** Password */
             password: string;
-        };
-        /**
-         * MessageEndEventData
-         * @description Payload for ``message_end`` SSE events — mirrors TokenUsageResponse.
-         */
-        MessageEndEventData: {
-            /** Traceid */
-            traceId?: string | null;
-            /** Modelid */
-            modelId?: string | null;
-            /** Prompttokens */
-            promptTokens?: number | null;
-            /** Completiontokens */
-            completionTokens?: number | null;
-            /** Totaltokens */
-            totalTokens?: number | null;
-            /** Cachedtokens */
-            cachedTokens?: number | null;
-            /** Toolcallcount */
-            toolCallCount?: number | null;
-            /** Registeredtoolcount */
-            registeredToolCount?: number | null;
-            /** Llmcallcount */
-            llmCallCount?: number | null;
-            /** Estimatedcostusd */
-            estimatedCostUsd?: number | null;
-            /** Phasecosts */
-            phaseCosts?: {
-                [key: string]: components["schemas"]["PhaseCostEntry"];
-            } | null;
-        };
-        /**
-         * MessageResponse
-         * @description Chat message.
-         */
-        MessageResponse: {
-            /**
-             * Role
-             * @enum {string}
-             */
-            role: "user" | "assistant";
-            /** Content */
-            content: string;
-            /** Messageid */
-            messageId?: string | null;
-            /** Messagegroupid */
-            messageGroupId?: string | null;
-            /** Phase */
-            phase?: string | null;
-            /** Modelid */
-            modelId?: string | null;
-            /** Toolcalls */
-            toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
-            /** Citations */
-            citations?: components["schemas"]["CitationResponse"][] | null;
-            /** Planningartifacts */
-            planningArtifacts?: components["schemas"]["PlanningArtifactResponse"][] | null;
-            problemFrame?: components["schemas"]["JSONObject"] | null;
-            /** Reasoning */
-            reasoning?: string | null;
-            optimizationProgress?: components["schemas"]["OptimizationProgressEventData"] | null;
-            tokenUsage?: components["schemas"]["TokenUsageResponse"] | null;
-            /**
-             * Timestamp
-             * Format: date-time
-             */
-            timestamp: string;
-        };
-        /**
-         * MessageStartEventData
-         * @description Payload for ``message_start`` SSE events.
-         */
-        MessageStartEventData: {
-            /** Strategyid */
-            strategyId?: string | null;
-            strategy?: components["schemas"]["JSONObject"] | null;
         };
         /**
          * ModelCatalogEntryResponse
@@ -3284,13 +2923,6 @@ export type components = {
              * @enum {string}
              */
             defaultTier: "quality" | "balanced" | "fast";
-        };
-        /**
-         * ModelSelectedEventData
-         * @description Payload for ``model_selected`` SSE events.
-         */
-        ModelSelectedEventData: {
-            pipeline: components["schemas"]["PipelineConfig"];
         };
         /**
          * NegativeSetVariantResponse
@@ -3484,6 +3116,19 @@ export type components = {
              * @default 0
              */
             totalTrials: number;
+        };
+        /** OptimizationSnapshot */
+        OptimizationSnapshot: {
+            /** Trialindex */
+            trialIndex: number;
+            /** Totaltrials */
+            totalTrials: number;
+            /** Bestscore */
+            bestScore: number;
+            /** Currentscore */
+            currentScore: number;
+            /** Ispareto */
+            isPareto: boolean;
         };
         /**
          * OptimizationSpecRequest
@@ -3757,14 +3402,8 @@ export type components = {
             /** Sharedgenes */
             sharedGenes: number;
         };
-        /**
-         * PhaseChangeEventData
-         * @description Payload for ``phase_change`` SSE events.
-         *
-         *     Emitted by the state machine listener when the pipeline enters or
-         *     exits a phase.
-         */
-        PhaseChangeEventData: {
+        /** PhaseChange */
+        PhaseChange: {
             /**
              * Phase
              * @enum {string}
@@ -3775,53 +3414,8 @@ export type components = {
              * @enum {string}
              */
             status: "started" | "completed" | "failed" | "awaiting_approval" | "awaiting_input";
-            /** Messageid */
-            messageId?: string | null;
-            /** Messagegroupid */
-            messageGroupId?: string | null;
-            /**
-             * Emittedat
-             * @description UTC timestamp when this phase event was emitted.
-             */
-            emittedAt?: string | null;
-            /**
-             * Phasestartedat
-             * @description UTC timestamp when the phase most recently started.
-             */
-            phaseStartedAt?: string | null;
-            /**
-             * Phasecompletedat
-             * @description UTC timestamp when the phase reached its current terminal status.
-             */
-            phaseCompletedAt?: string | null;
-            /**
-             * Durationms
-             * @description Elapsed time in milliseconds since the phase started.
-             */
+            /** Durationms */
             durationMs?: number | null;
-            /**
-             * Validationerror
-             * @description Validation gate error message if the phase failed validation.
-             */
-            validationError?: string | null;
-        };
-        /**
-         * PhaseCostEntry
-         * @description Cost breakdown for a single pipeline phase.
-         */
-        PhaseCostEntry: {
-            /** Modelid */
-            modelId: string;
-            /**
-             * Tokens
-             * @default 0
-             */
-            tokens: number;
-            /**
-             * Costusd
-             * @default 0
-             */
-            costUsd: number;
         };
         /**
          * PhaseTierConfig
@@ -3837,60 +3431,16 @@ export type components = {
             reasoningEffort: "none" | "low" | "medium" | "high";
         };
         /**
-         * PipelineConfig
-         * @description Per-phase model configuration for the full pipeline.
+         * PlanArtifact
+         * @description A proposed plan (not yet applied).
          */
-        PipelineConfig: {
-            scoping: components["schemas"]["PipelinePhaseConfig"];
-            discovery: components["schemas"]["PipelinePhaseConfig"];
-            planning: components["schemas"]["PipelinePhaseConfig"];
-            execution: components["schemas"]["PipelinePhaseConfig"];
-            verification: components["schemas"]["PipelinePhaseConfig"];
-        };
-        /**
-         * PipelinePhaseConfig
-         * @description Model + reasoning effort for a single pipeline phase.
-         */
-        PipelinePhaseConfig: {
-            /** Modelid */
-            modelId: string;
-            /**
-             * Reasoningeffort
-             * @enum {string}
-             */
-            reasoningEffort: "none" | "low" | "medium" | "high";
-        };
-        /**
-         * PlanActionRequest
-         * @description Structured control-plane action for an interactive plan.
-         */
-        PlanActionRequest: {
-            /**
-             * Action
-             * @enum {string}
-             */
-            action: "approve" | "reject" | "suggest_changes";
+        PlanArtifact: {
             /** Planid */
             planId: string;
-            /** Traceid */
-            traceId?: string | null;
-            /** Messagegroupid */
-            messageGroupId?: string | null;
-            /** Source */
-            source?: string | null;
-            /** Paramedits */
-            paramEdits?: components["schemas"]["PlanParameterEdit"][];
-            /** Answers */
-            answers?: components["schemas"]["PlanQuestionAnswer"][];
-        };
-        /**
-         * PlanApprovedEventData
-         * @description Payload for ``plan_approved`` SSE events.
-         */
-        PlanApprovedEventData: {
-            /** Planid */
-            planId: string;
-            plan: components["schemas"]["JSONObject"];
+            /** Steps */
+            steps: components["schemas"]["PlannedStep"][];
+            /** Rationale */
+            rationale: string;
         };
         /** PlanNormalizeRequest */
         PlanNormalizeRequest: {
@@ -3902,33 +3452,6 @@ export type components = {
         PlanNormalizeResponse: {
             plan: components["schemas"]["StrategyPlanPayload-Output"];
             warnings?: components["schemas"]["JSONArray"] | null;
-        };
-        /**
-         * PlanParameterEdit
-         * @description A structured parameter edit collected from the plan UI.
-         */
-        PlanParameterEdit: {
-            /** Stepid */
-            stepId: string;
-            /** Paramname */
-            paramName: string;
-            newValue: components["schemas"]["JSONValue"];
-        };
-        /**
-         * PlanPresentedEventData
-         * @description Payload for ``plan_presented`` SSE events.
-         */
-        PlanPresentedEventData: {
-            plan: components["schemas"]["JSONObject"];
-        };
-        /**
-         * PlanQuestionAnswer
-         * @description A structured answer collected from the plan UI.
-         */
-        PlanQuestionAnswer: {
-            /** Questionid */
-            questionId: string;
-            answer: components["schemas"]["JSONValue"];
         };
         /**
          * PlanStepNode
@@ -4007,52 +3530,32 @@ export type components = {
             id?: string;
         };
         /**
-         * PlanUpdatedEventData
-         * @description Payload for ``plan_updated`` SSE events.
+         * PlanUpdate
+         * @description Update to an existing plan.
          */
-        PlanUpdatedEventData: {
+        PlanUpdate: {
             /** Planid */
             planId: string;
-            updates: components["schemas"]["JSONObject"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "proposed" | "revised" | "applied" | "rejected";
+            /** Reason */
+            reason?: string | null;
         };
-        /**
-         * PlanningArtifactEventData
-         * @description Payload for ``planning_artifact`` SSE events.
-         */
-        PlanningArtifactEventData: {
-            planningArtifact?: components["schemas"]["PlanningArtifactResponse"] | null;
-        };
-        /**
-         * PlanningArtifactResponse
-         * @description Strategy planning artifact.
-         */
-        PlanningArtifactResponse: {
-            /** Id */
-            id: string;
-            /** Title */
-            title: string;
-            /** Summarymarkdown */
-            summaryMarkdown: string;
-            /** Assumptions */
-            assumptions?: string[];
+        /** PlannedStep */
+        PlannedStep: {
+            /** Order */
+            order: number;
+            /** Searchname */
+            searchName: string;
+            /** Rationale */
+            rationale?: string | null;
             /** Parameters */
             parameters?: {
-                [key: string]: components["schemas"]["JSONValue"];
+                [key: string]: components["schemas"]["JsonValue"];
             };
-            proposedStrategyPlan?: components["schemas"]["StrategyPlanPayload-Output"] | null;
-            /** Createdat */
-            createdAt: string;
-        };
-        /**
-         * PlanningThoughtEventData
-         * @description Payload for ``planning_thought`` SSE events.
-         *
-         *     Emitted when the model uses ``<plan-thinking>`` tags in its response.
-         *     The frontend renders these in a collapsible "Strategy Thinking" section.
-         */
-        PlanningThoughtEventData: {
-            /** Thought */
-            thought: string;
         };
         /**
          * PrimaryKeyPart
@@ -4063,6 +3566,15 @@ export type components = {
             name: string;
             /** Value */
             value: string;
+        };
+        /** ProblemFrame */
+        ProblemFrame: {
+            /** Intentsummary */
+            intentSummary: string;
+            /** Entities */
+            entities: string[];
+            /** Siteid */
+            siteId: string;
         };
         /**
          * ProductActionRequest
@@ -4147,14 +3659,6 @@ export type components = {
              * @default 0
              */
             totalResults: number;
-        };
-        /**
-         * ReasoningEventData
-         * @description Payload for ``reasoning`` SSE events.
-         */
-        ReasoningEventData: {
-            /** Reasoning */
-            reasoning?: string | null;
         };
         /**
          * RecordDetailRequest
@@ -4293,42 +3797,6 @@ export type components = {
         RunEnrichmentRequest: {
             /** Enrichmenttypes */
             enrichmentTypes: ("go_function" | "go_component" | "go_process" | "pathway" | "word")[];
-        };
-        /**
-         * SSESchemaIndex
-         * @description Index of all SSE event data schemas. Never called -- exists for OpenAPI generation.
-         */
-        SSESchemaIndex: {
-            message_start?: components["schemas"]["MessageStartEventData"] | null;
-            user_message?: components["schemas"]["UserMessageEventData"] | null;
-            assistant_delta?: components["schemas"]["AssistantDeltaEventData"] | null;
-            assistant_message?: components["schemas"]["AssistantMessageEventData"] | null;
-            tool_call_start?: components["schemas"]["ToolCallStartEventData"] | null;
-            tool_call_end?: components["schemas"]["ToolCallEndEventData"] | null;
-            token_usage_partial?: components["schemas"]["TokenUsagePartialEventData"] | null;
-            model_selected?: components["schemas"]["ModelSelectedEventData"] | null;
-            optimization_progress?: components["schemas"]["OptimizationProgressEventData"] | null;
-            optimization_trial?: components["schemas"]["OptimizationTrialData"] | null;
-            optimization_parameter_spec?: components["schemas"]["OptimizationParameterSpecData"] | null;
-            error?: components["schemas"]["ErrorEventData"] | null;
-            graph_snapshot?: components["schemas"]["GraphSnapshotEventData"] | null;
-            strategy_meta?: components["schemas"]["StrategyMetaEventData"] | null;
-            graph_plan?: components["schemas"]["GraphPlanEventData"] | null;
-            strategy_update?: components["schemas"]["StrategyUpdateEventData"] | null;
-            strategy_link?: components["schemas"]["StrategyLinkEventData"] | null;
-            graph_cleared?: components["schemas"]["GraphClearedEventData"] | null;
-            gene_set_summary?: components["schemas"]["GeneSetSummary"] | null;
-            workbench_gene_set?: components["schemas"]["WorkbenchGeneSetEventData"] | null;
-            citations?: components["schemas"]["CitationsEventData"] | null;
-            planning_artifact?: components["schemas"]["PlanningArtifactEventData"] | null;
-            reasoning?: components["schemas"]["ReasoningEventData"] | null;
-            message_end?: components["schemas"]["MessageEndEventData"] | null;
-            phase_change?: components["schemas"]["PhaseChangeEventData"] | null;
-            plan_presented?: components["schemas"]["PlanPresentedEventData"] | null;
-            plan_approved?: components["schemas"]["PlanApprovedEventData"] | null;
-            plan_updated?: components["schemas"]["PlanUpdatedEventData"] | null;
-            decision_presented?: components["schemas"]["DecisionPresentedEventData"] | null;
-            planning_thought?: components["schemas"]["PlanningThoughtEventData"] | null;
         };
         /**
          * SearchResponse
@@ -4666,38 +4134,53 @@ export type components = {
             };
         };
         /**
-         * StrategyLinkEventData
-         * @description Payload for ``strategy_link`` SSE events.
+         * StrategyLink
+         * @description A link to the strategy in the public WDK UI.
          */
-        StrategyLinkEventData: {
-            /** Graphid */
-            graphId?: string | null;
-            /** Wdkstrategyid */
-            wdkStrategyId?: number | null;
-            /** Wdkurl */
-            wdkUrl?: string | null;
-            /** Name */
-            name?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Issaved */
-            isSaved?: boolean | null;
+        StrategyLink: {
+            /** Strategyid */
+            strategyId: string;
+            /** Url */
+            url: string;
+            /** Title */
+            title?: string | null;
         };
         /**
-         * StrategyMetaEventData
-         * @description Payload for ``strategy_meta`` SSE events.
+         * StrategyMeta
+         * @description Top-level strategy metadata (one per strategy creation/load).
          */
-        StrategyMetaEventData: {
-            /** Graphid */
-            graphId?: string | null;
-            /** Graphname */
-            graphName?: string | null;
+        StrategyMeta: {
+            /** Strategyid */
+            strategyId: string;
             /** Name */
-            name?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Recordtype */
-            recordType?: string | null;
+            name: string;
+            /** Issaved */
+            isSaved: boolean;
+            /** Estimatedsize */
+            estimatedSize: number;
+            /** Recordclassname */
+            recordClassName: string;
+        };
+        /**
+         * StrategyPatch
+         * @description A partial update to a strategy, emitted by strategy-mutating tools.
+         */
+        StrategyPatch: {
+            /** Strategyid */
+            strategyId: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "add_step" | "remove_step" | "update_step" | "replace_step_tree";
+            /** Step */
+            step?: {
+                [key: string]: unknown;
+            } | null;
+            /** Steptree */
+            stepTree?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * StrategyPlanPayload
@@ -4791,9 +4274,6 @@ export type components = {
              * @default false
              */
             isSaved: boolean;
-            /** Messages */
-            messages?: components["schemas"]["MessageResponse"][] | null;
-            thinking?: components["schemas"]["ThinkingResponse"] | null;
             pipeline?: components["schemas"]["JSONObject"] | null;
             conversationState?: components["schemas"]["JSONObject"] | null;
             activePlan?: components["schemas"]["JSONObject"] | null;
@@ -4819,13 +4299,24 @@ export type components = {
             dismissedAt?: string | null;
         };
         /**
-         * StrategyUpdateEventData
-         * @description Payload for ``strategy_update`` SSE events.
+         * StreamPartsSchemaIndex
+         * @description Index of stream-part payload schemas. Never called — exists for OpenAPI generation.
          */
-        StrategyUpdateEventData: {
-            /** Graphid */
-            graphId?: string | null;
-            step?: components["schemas"]["JSONObject"] | null;
+        StreamPartsSchemaIndex: {
+            graph_snapshot?: components["schemas"]["GraphSnapshot"] | null;
+            graph_plan?: components["schemas"]["GraphPlan"] | null;
+            graph_cleared?: components["schemas"]["GraphCleared"] | null;
+            strategy_patch?: components["schemas"]["StrategyPatch"] | null;
+            strategy_meta?: components["schemas"]["StrategyMeta"] | null;
+            strategy_link?: components["schemas"]["StrategyLink"] | null;
+            plan_artifact?: components["schemas"]["PlanArtifact"] | null;
+            plan_update?: components["schemas"]["PlanUpdate"] | null;
+            decision_presented?: components["schemas"]["DecisionPresented"] | null;
+            problem_frame?: components["schemas"]["ProblemFrame"] | null;
+            gene_set?: components["schemas"]["GeneSet"] | null;
+            optimization_snapshot?: components["schemas"]["OptimizationSnapshot"] | null;
+            phase_change?: components["schemas"]["PhaseChange"] | null;
+            conversation_title?: components["schemas"]["ConversationTitle"] | null;
         };
         /**
          * SystemConfigResponse
@@ -4837,20 +4328,6 @@ export type components = {
             /** Llmconfigured */
             llmConfigured: boolean;
             providers: components["schemas"]["ProviderStatus"];
-        };
-        /**
-         * ThinkingResponse
-         * @description In-progress tool call state.
-         */
-        ThinkingResponse: {
-            /** Toolcalls */
-            toolCalls?: components["schemas"]["ToolCallResponse"][] | null;
-            /** Lasttoolcalls */
-            lastToolCalls?: components["schemas"]["ToolCallResponse"][] | null;
-            /** Reasoning */
-            reasoning?: string | null;
-            /** Updatedat */
-            updatedAt?: string | null;
         };
         /**
          * ThresholdKnobRequest
@@ -4939,86 +4416,6 @@ export type components = {
             verification: components["schemas"]["PhaseTierConfig"];
         };
         /**
-         * TokenUsagePartialEventData
-         * @description Payload for ``token_usage_partial`` SSE events.
-         */
-        TokenUsagePartialEventData: {
-            /** Prompttokens */
-            promptTokens?: number | null;
-            /** Registeredtoolcount */
-            registeredToolCount?: number | null;
-        };
-        /**
-         * TokenUsageResponse
-         * @description Token usage statistics for a message turn.
-         */
-        TokenUsageResponse: {
-            /** Prompttokens */
-            promptTokens: number;
-            /** Completiontokens */
-            completionTokens: number;
-            /** Totaltokens */
-            totalTokens: number;
-            /**
-             * Cachedtokens
-             * @default 0
-             */
-            cachedTokens: number;
-            /** Toolcallcount */
-            toolCallCount: number;
-            /** Registeredtoolcount */
-            registeredToolCount: number;
-            /**
-             * Llmcallcount
-             * @default 0
-             */
-            llmCallCount: number;
-            /**
-             * Estimatedcostusd
-             * @default 0
-             */
-            estimatedCostUsd: number;
-            /**
-             * Modelid
-             * @default
-             */
-            modelId: string;
-        };
-        /**
-         * ToolCallEndEventData
-         * @description Payload for ``tool_call_end`` SSE events.
-         */
-        ToolCallEndEventData: {
-            /** Id */
-            id: string;
-            /** Result */
-            result?: string | null;
-        };
-        /**
-         * ToolCallResponse
-         * @description Tool call information.
-         */
-        ToolCallResponse: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            arguments: components["schemas"]["JSONObject"];
-            /** Result */
-            result?: string | null;
-        };
-        /**
-         * ToolCallStartEventData
-         * @description Payload for ``tool_call_start`` SSE events.
-         */
-        ToolCallStartEventData: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            arguments?: components["schemas"]["JSONObject"];
-        };
-        /**
          * TreeOptimizationResultResponse
          * @description Result of multi-step tree-knob optimization.
          */
@@ -5085,27 +4482,6 @@ export type components = {
             } | null;
         };
         /**
-         * UndoRequest
-         * @description Request body for the undo endpoint.
-         */
-        UndoRequest: {
-            /** Entryid */
-            entryId: string;
-            /** Traceid */
-            traceId?: string | null;
-        };
-        /**
-         * UndoResponse
-         * @description Response body for the undo endpoint.
-         */
-        UndoResponse: {
-            /** Messagecount */
-            messageCount: number;
-            strategy?: components["schemas"]["JSONObject"] | null;
-            /** Wdkstrategyid */
-            wdkStrategyId?: number | null;
-        };
-        /**
          * UpdateStrategyRequest
          * @description Request to update a strategy.
          */
@@ -5117,16 +4493,6 @@ export type components = {
             wdkStrategyId?: number | null;
             /** Issaved */
             isSaved?: boolean | null;
-        };
-        /**
-         * UserMessageEventData
-         * @description Payload for ``user_message`` SSE events.
-         */
-        UserMessageEventData: {
-            /** Messageid */
-            messageId?: string | null;
-            /** Content */
-            content?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -5169,33 +4535,6 @@ export type components = {
             isValid: boolean;
             normalizedContextValues?: components["schemas"]["JSONObject"];
             errors?: components["schemas"]["ValidationErrors"];
-        };
-        /** WorkbenchChatRequest */
-        WorkbenchChatRequest: {
-            /** Message */
-            message: string;
-            /** Siteid */
-            siteId: string;
-            /** Provider */
-            provider?: ("openai" | "anthropic" | "google" | "ollama" | "mock") | null;
-            /** Model */
-            model?: string | null;
-            /** Reasoningeffort */
-            reasoningEffort?: ("none" | "low" | "medium" | "high") | null;
-        };
-        /** WorkbenchChatResponse */
-        WorkbenchChatResponse: {
-            /** Operationid */
-            operationId: string;
-            /** Streamid */
-            streamId: string;
-        };
-        /**
-         * WorkbenchGeneSetEventData
-         * @description Payload for ``workbench_gene_set`` SSE events.
-         */
-        WorkbenchGeneSetEventData: {
-            geneSet?: components["schemas"]["GeneSetSummary"] | null;
         };
     };
     responses: never;
@@ -5612,46 +4951,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    undo_api_v1_chat__stream_id__undo_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                stream_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UndoRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -5659,16 +4959,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UndoResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": unknown;
                 };
             };
         };
@@ -6028,41 +5319,6 @@ export interface operations {
             };
         };
     };
-    submit_plan_action_api_v1_strategies__strategy_id__plan_actions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                strategy_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PlanActionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     open_strategy_api_v1_strategies_open_post: {
         parameters: {
             query?: never;
@@ -6280,6 +5536,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": unknown;
                     "text/event-stream": string;
                 };
             };
@@ -6829,72 +6086,6 @@ export interface operations {
             };
         };
     };
-    workbench_chat_api_v1_experiments__experiment_id__chat_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                experiment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkbenchChatRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkbenchChatResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_workbench_chat_messages_api_v1_experiments__experiment_id__chat_messages_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                experiment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JSONObject"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_control_sets_api_v1_control_sets_get: {
         parameters: {
             query?: {
@@ -7136,105 +6327,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    subscribe_api_v1_operations__operation_id__subscribe_get: {
-        parameters: {
-            query?: {
-                /** @description Resume from this Redis entry ID (for reconnection). */
-                lastEventId?: string | null;
-            };
-            header?: never;
-            path: {
-                operation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_api_v1_operations__operation_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                operation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JSONObject"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_active_api_v1_operations_active_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by stream/strategy ID. */
-                streamId?: string | null;
-                /** @description Filter by operation type (chat, experiment). */
-                type?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["JSONObject"][];
                 };
             };
             /** @description Validation Error */
@@ -7773,26 +6865,6 @@ export interface operations {
             };
         };
     };
-    sse_schemas_api_v1_internal_sse_schemas_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SSESchemaIndex"];
-                };
-            };
-        };
-    };
     experiment_schemas_api_v1_internal_experiment_schemas_get: {
         parameters: {
             query?: never;
@@ -7809,6 +6881,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExperimentSchemaIndex"];
+                };
+            };
+        };
+    };
+    stream_parts_schemas_api_v1_internal_stream_parts_schemas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StreamPartsSchemaIndex"];
                 };
             };
         };

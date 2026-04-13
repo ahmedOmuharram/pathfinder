@@ -11,7 +11,7 @@ from fastapi import APIRouter, Query
 from pathfinder.platform.redis import get_redis
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.user_data import purge_user_data
-from pathfinder.transport.http.deps import CurrentUser, StreamRepo
+from pathfinder.transport.http.deps import ChatRepo, CurrentUser
 
 router = APIRouter(prefix="/api/v1/user", tags=["user"])
 
@@ -19,16 +19,16 @@ router = APIRouter(prefix="/api/v1/user", tags=["user"])
 @router.delete("/data")
 async def purge_user_data_endpoint(
     user_id: CurrentUser,
-    stream_repo: StreamRepo,
+    chat_repo: ChatRepo,
     site_id: str | None = Query(None, alias="siteId"),
     *,
     delete_wdk: Annotated[bool, Query(alias="deleteWdk")] = False,
 ) -> JSONObject:
     """Purge user data from all local stores.
 
-    When ``deleteWdk=false`` (default): non-WDK streams are hard-deleted,
-    WDK-linked projections are **dismissed** so WDK sync won't re-import
-    them. The strategies remain on VEuPathDB but PathFinder ignores them.
+    When ``deleteWdk=false`` (default): non-WDK chats are hard-deleted,
+    WDK-linked chats are **dismissed** so WDK sync won't re-import them.
+    The strategies remain on VEuPathDB but PathFinder ignores them.
 
     When ``deleteWdk=true``: everything is hard-deleted locally AND all
     WDK strategies are deleted from VEuPathDB.
@@ -38,7 +38,7 @@ async def purge_user_data_endpoint(
     Pass ``?siteId=X`` to limit to one site, or omit for everything.
     """
     result = await purge_user_data(
-        session=stream_repo.session,
+        session=chat_repo.session,
         redis=get_redis(),
         user_id=user_id,
         site_id=site_id,

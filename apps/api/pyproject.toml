@@ -12,7 +12,7 @@ dependencies = [
     "asyncpg>=0.31.0",
     "alembic>=1.18.0",
     "httpx>=0.28.1",
-    "pydantic-ai>=1.77.0",
+    "pydantic-ai>=1.80.0",
     "python-statemachine>=3.0",
     "langfuse>=4.0.0",
     "opentelemetry-sdk>=1.39.0",
@@ -138,7 +138,7 @@ max-branches = 10
     "FBT",      # boolean args in test helpers are fine
     "S311",     # deterministic seeds for shuffling is fine
 ]
-"src/pathfinder/ai/capabilities/security.py" = [
+"src/pathfinder/ai/capabilities/piguard.py" = [
     "S106",  # pad_token="[PAD]" is tokenizer config, not a password
 ]
 "src/pathfinder/ai/orchestration/pipeline.py" = [

@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { createTestWrapper } from "@/lib/query/testing";
+import type * as StrategiesApi from "@/lib/api/strategies";
 import { strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
 import type { Strategy } from "@pathfinder/shared";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
@@ -19,7 +20,6 @@ const mockRestoreStrategy = vi.hoisted(() => vi.fn());
 const mockGetStrategy = vi.hoisted(() => vi.fn());
 
 const mockSetStrategyId = vi.hoisted(() => vi.fn());
-const mockBumpChatPreviewVersion = vi.hoisted(() => vi.fn());
 const mockSetStrategyMeta = vi.hoisted(() => vi.fn());
 const mockSetStrategy = vi.hoisted(() => vi.fn());
 const mockClearStrategy = vi.hoisted(() => vi.fn());
@@ -30,7 +30,7 @@ const mockSetDeleteFromWdk = vi.hoisted(() => vi.fn());
 // ---------------------------------------------------------------------------
 
 vi.mock("@/lib/api/strategies", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/strategies")>();
+  const actual = await importOriginal<typeof StrategiesApi>();
   return {
     ...actual,
     openStrategy: (...args: unknown[]) => mockOpenStrategy(...args),
@@ -48,13 +48,11 @@ vi.mock("@/state/useSessionStore", () => ({
     selector: (s: {
       strategyId: string | null;
       setStrategyId: (id: string | null) => void;
-      bumpChatPreviewVersion: () => void;
     }) => T,
   ) =>
     selector({
       strategyId: mockStrategyId,
       setStrategyId: mockSetStrategyId,
-      bumpChatPreviewVersion: mockBumpChatPreviewVersion,
     }),
 }));
 
@@ -185,7 +183,6 @@ describe("useConversationSidebarActions", () => {
 
     // setStrategyId was called with the new id.
     expect(mockSetStrategyId).toHaveBeenCalledWith("new-123");
-    expect(mockBumpChatPreviewVersion).toHaveBeenCalledTimes(1);
 
     // clearStrategy was called to reset graph state.
     expect(mockClearStrategy).toHaveBeenCalled();
@@ -238,7 +235,7 @@ describe("useConversationSidebarActions", () => {
     expect(mockUpdateStrategy).toHaveBeenCalledWith("s1", { isSaved: true });
   });
 
-  it("handleSelect bumps the chat preview before switching conversations", async () => {
+  it("handleSelect switches strategy id and clears graph state when a conversation is picked", async () => {
     const { Wrapper } = createTestWrapper();
     const selected = makeStrategy({ id: "picked-1", name: "Picked strategy" });
     mockGetStrategy.mockResolvedValueOnce(selected);
@@ -261,7 +258,6 @@ describe("useConversationSidebarActions", () => {
       expect(mockGetStrategy).toHaveBeenCalledWith("picked-1");
     });
 
-    expect(mockBumpChatPreviewVersion).toHaveBeenCalledTimes(1);
     expect(mockSetStrategyId).toHaveBeenCalledWith("picked-1");
     expect(mockClearStrategy).toHaveBeenCalled();
   });

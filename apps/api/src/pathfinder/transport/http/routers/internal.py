@@ -3,39 +3,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from pathfinder.platform.event_schemas import (
-    AssistantDeltaEventData,
-    AssistantMessageEventData,
-    ErrorEventData,
-    GeneSetSummary,
-    GraphClearedEventData,
-    GraphPlanEventData,
-    GraphSnapshotEventData,
-    MessageEndEventData,
-    MessageStartEventData,
-    ModelSelectedEventData,
-    ReasoningEventData,
-    StrategyLinkEventData,
-    StrategyMetaEventData,
-    StrategyUpdateEventData,
-    TokenUsagePartialEventData,
-    ToolCallEndEventData,
-    ToolCallStartEventData,
-    UserMessageEventData,
-    WorkbenchGeneSetEventData,
-)
-from pathfinder.platform.event_schemas_pipeline import (
-    DecisionPresentedEventData,
-    PhaseChangeEventData,
-    PlanApprovedEventData,
-    PlanningThoughtEventData,
-    PlanPresentedEventData,
-    PlanUpdatedEventData,
-)
-from pathfinder.transport.http.schemas.chat import (
-    CitationResponse,
-    PlanningArtifactResponse,
-)
 from pathfinder.transport.http.schemas.experiment_responses import (
     BootstrapResultResponse,
     ConfidenceIntervalResponse,
@@ -74,54 +41,8 @@ from pathfinder.transport.http.schemas.optimization import (
     OptimizationProgressEventData,
     OptimizationTrialData,
 )
-from pathfinder.transport.http.schemas.sse import (
-    CitationsEventData,
-    PlanningArtifactEventData,
-)
 
 router = APIRouter(prefix="/api/v1/internal", tags=["internal"])
-
-
-class SSESchemaIndex(BaseModel):
-    """Index of all SSE event data schemas. Never called -- exists for OpenAPI generation."""
-
-    message_start: MessageStartEventData | None = None
-    user_message: UserMessageEventData | None = None
-    assistant_delta: AssistantDeltaEventData | None = None
-    assistant_message: AssistantMessageEventData | None = None
-    tool_call_start: ToolCallStartEventData | None = None
-    tool_call_end: ToolCallEndEventData | None = None
-    token_usage_partial: TokenUsagePartialEventData | None = None
-    model_selected: ModelSelectedEventData | None = None
-    optimization_progress: OptimizationProgressEventData | None = None
-    optimization_trial: OptimizationTrialData | None = None
-    optimization_parameter_spec: OptimizationParameterSpecData | None = None
-    error: ErrorEventData | None = None
-    graph_snapshot: GraphSnapshotEventData | None = None
-    strategy_meta: StrategyMetaEventData | None = None
-    graph_plan: GraphPlanEventData | None = None
-    strategy_update: StrategyUpdateEventData | None = None
-    strategy_link: StrategyLinkEventData | None = None
-    graph_cleared: GraphClearedEventData | None = None
-    gene_set_summary: GeneSetSummary | None = None
-    workbench_gene_set: WorkbenchGeneSetEventData | None = None
-    citations: CitationsEventData | None = None
-    planning_artifact: PlanningArtifactEventData | None = None
-    reasoning: ReasoningEventData | None = None
-    message_end: MessageEndEventData | None = None
-    # Pipeline phase events
-    phase_change: PhaseChangeEventData | None = None
-    plan_presented: PlanPresentedEventData | None = None
-    plan_approved: PlanApprovedEventData | None = None
-    plan_updated: PlanUpdatedEventData | None = None
-    decision_presented: DecisionPresentedEventData | None = None
-    planning_thought: PlanningThoughtEventData | None = None
-
-
-@router.get("/sse-schemas", response_model=SSESchemaIndex, include_in_schema=True)
-async def sse_schemas() -> SSESchemaIndex:
-    """SSE event data schemas -- for OpenAPI generation only."""
-    return SSESchemaIndex()
 
 
 class ExperimentSchemaIndex(BaseModel):
@@ -158,8 +79,9 @@ class ExperimentSchemaIndex(BaseModel):
     experiment_progress_data: ExperimentProgressDataResponse | None = None
     optimization_result: OptimizationResultResponse | None = None
     control_set_summary: ControlSetSummaryResponse | None = None
-    citation: CitationResponse | None = None
-    planning_artifact: PlanningArtifactResponse | None = None
+    optimization_progress: OptimizationProgressEventData | None = None
+    optimization_trial: OptimizationTrialData | None = None
+    optimization_parameter_spec: OptimizationParameterSpecData | None = None
 
 
 @router.get(

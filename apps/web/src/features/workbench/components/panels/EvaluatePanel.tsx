@@ -1,40 +1,45 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useUnmount } from "usehooks-ts";
-import { useShallow } from "zustand/react/shallow";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Target, Play, Loader2 } from "lucide-react";
-import type { Experiment, EnrichmentAnalysisType } from "@pathfinder/shared";
-import { Button } from "@/lib/components/ui/Button";
-import type { OperationSubscription } from "@/lib/operationSubscribe";
+import { useShallow } from "zustand/react/shallow";
+import { useUnmount } from "usehooks-ts";
+import { Loader2, Play, Target } from "lucide-react";
+
+import type { Experiment, ExperimentConfig, EnrichmentAnalysisType } from "@pathfinder/shared";
 import {
-  MetricsOverview,
   ConfusionMatrixSection,
   CrossValidationSection,
-  GeneListsSection,
   EnrichmentSection,
-  RobustnessSection,
+  GeneListsSection,
+  MetricsOverview,
   RankMetricsSection,
+  RobustnessSection,
 } from "@/features/analysis";
-import {
-  createExperimentStream,
-  type ExperimentSSEHandler,
-} from "@/features/workbench/api";
-import { CONTROLS_SEARCH_NAME, CONTROLS_PARAM_NAME } from "../../constants";
-import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
-import { GeneChipInput } from "../GeneChipInput";
-import { SaveControlSetForm } from "../SaveControlSetForm";
-import { ControlSetQuickPick } from "../ControlSetQuickPick";
-import { useWorkbenchStore } from "@/state/useWorkbenchStore";
-import { useSessionStore } from "@/state/useSessionStore";
+import { createExperimentStream } from "@/features/workbench/api";
+import { Button } from "@/lib/components/ui/Button";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { queryKeyPrefixes } from "@/lib/query/keys";
+import { useSessionStore } from "@/state/useSessionStore";
+import {
+  useWorkbenchStore,
+  type PanelId,
+} from "@/state/useWorkbenchStore";
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+import { CONTROLS_PARAM_NAME, CONTROLS_SEARCH_NAME } from "../../constants";
+import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
+import { ControlSetQuickPick } from "../ControlSetQuickPick";
+import { GeneChipInput } from "../GeneChipInput";
+import { SaveControlSetForm } from "../SaveControlSetForm";
 
+const PANEL_ID: PanelId = "evaluate";
+
+/**
+ * Run a full experiment evaluating the active gene set against positive and
+ * negative controls. Streams typed progress via `createExperimentStream` and
+ * renders the rich analysis viz (metrics, confusion matrix, CV, enrichment,
+ * robustness) on completion.
+ */
 export function EvaluatePanel() {
   const queryClient = useQueryClient();
   const selectedSite = useSessionStore((s) => s.selectedSite);
@@ -60,239 +65,246 @@ export function EvaluatePanel() {
 
   const [enableCV, setEnableCV] = useState(false);
   const [kFolds, setKFolds] = useState(5);
-  const [enableStepAnalysis, setEnableStepAnalysis] = useState(false);
   const [enrichmentTypes, setEnrichmentTypes] = useState<EnrichmentAnalysisType[]>([]);
   const [loading, setLoading] = useState(false);
+  const [progressText, setProgressText] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [experiment, setExperiment] = useState<Experiment | null>(null);
-  const subscriptionRef = useRef<OperationSubscription | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  useUnmount(() => subscriptionRef.current?.unsubscribe());
+  useUnmount(() => abortRef.current?.abort());
 
   const hasSearchContext = Boolean(
     activeSet != null &&
-    (activeSet.geneIds.length > 0 ||
-      (activeSet.searchName != null &&
-        activeSet.searchName !== "" &&
-        activeSet.parameters != null)),
+      (activeSet.geneIds.length > 0 ||
+        (activeSet.searchName !== null &&
+          activeSet.searchName !== "" &&
+          activeSet.parameters !== null)),
   );
 
   const handleRun = async () => {
     if (!activeSet) return;
-    const hasGeneIds = activeSet.geneIds.length > 0;
-    const hasSearch =
-      activeSet.searchName != null &&
-      activeSet.searchName !== "" &&
-      activeSet.parameters != null;
-    if (!hasGeneIds && !hasSearch) return;
     if (positiveControls.length === 0) {
       setError("At least one positive control gene ID is required.");
       return;
     }
-
     setLoading(true);
     setError(null);
     setExperiment(null);
+    setProgressText("");
 
-    const handlers: ExperimentSSEHandler = {
-      onComplete: (data) => {
-        setExperiment(data);
-        setLastExperiment(data, activeSetId ?? null);
-        setLoading(false);
-        void queryClient.invalidateQueries({ queryKey: queryKeyPrefixes.experiments });
-      },
-      onError: (errMsg) => {
-        setError(errMsg);
-        setLoading(false);
-      },
-    };
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const config = {
+      siteId: activeSet.siteId,
+      recordType: activeSet.recordType ?? "gene",
+      searchName: activeSet.searchName ?? "",
+      parameters: activeSet.parameters ?? {},
+      positiveControls,
+      negativeControls,
+      controlsSearchName: CONTROLS_SEARCH_NAME,
+      controlsParamName: CONTROLS_PARAM_NAME,
+      enableCrossValidation: enableCV,
+      kFolds: enableCV ? kFolds : 0,
+      enrichmentTypes,
+      name: `${activeSet.name} (evaluation)`,
+    } as ExperimentConfig;
 
     try {
-      const evalConfig: Parameters<typeof createExperimentStream>[0] = {
-        siteId: activeSet.siteId,
-        recordType: activeSet.recordType ?? "gene",
-        searchName: activeSet.searchName ?? "",
-        parameters: activeSet.parameters ?? {},
-        positiveControls,
-        negativeControls,
-        controlsSearchName: CONTROLS_SEARCH_NAME,
-        controlsParamName: CONTROLS_PARAM_NAME,
-        controlsValueFormat: "newline",
-        enableCrossValidation: enableCV,
-        kFolds,
-        enableStepAnalysis,
-        enrichmentTypes,
-        name: `Workbench eval: ${activeSet.name}`,
-      };
-      if (activeSet.geneIds.length > 0) evalConfig.targetGeneIds = activeSet.geneIds;
-      const subscription = await createExperimentStream(evalConfig, handlers);
-      subscriptionRef.current = subscription;
+      for await (const event of createExperimentStream(config, {
+        signal: controller.signal,
+      })) {
+        if (event.type === "experiment_progress") {
+          const raw = event.data as Record<string, unknown>;
+          const phase = typeof raw["phase"] === "string" ? raw["phase"] : undefined;
+          if (phase !== undefined) setProgressText(phase);
+        } else if (event.type === "experiment_complete") {
+          setExperiment(event.experiment);
+          setLastExperiment(event.experiment, activeSetId ?? null);
+          void queryClient.invalidateQueries({
+            queryKey: queryKeyPrefixes.experiments,
+          });
+        } else if (event.type === "experiment_error") {
+          setError(event.error);
+        } else {
+          // experiment_end — terminal; loop exits after drain.
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
+        setError(err instanceof Error ? err.message : "Experiment failed");
+      }
+    } finally {
       setLoading(false);
+      abortRef.current = null;
     }
   };
 
+  if (!activeSet) return null;
+
+  const metrics = experiment?.metrics ?? null;
+  const rankMetrics = experiment?.rankMetrics ?? null;
+  const robustness = experiment?.robustness ?? null;
+  const confusionMatrix = experiment?.metrics?.confusionMatrix ?? null;
+  const crossValidation = experiment?.crossValidation ?? null;
+  const enrichmentResults = experiment?.enrichmentResults ?? [];
+
   return (
     <AnalysisPanelContainer
-      panelId="evaluate"
-      title="Evaluate Strategy"
-      subtitle="Test strategy performance against known gene sets"
-      icon={<Target className="h-4 w-4" />}
-      disabled={!hasSearchContext}
-      disabledReason="Requires a strategy-backed gene set with search parameters"
+      panelId={PANEL_ID}
+      title="Evaluate"
+      subtitle="Run a full experiment against positive/negative controls"
+      icon={<Target className="h-5 w-5" />}
     >
       <div className="space-y-4">
-        {/* Quick pick from saved controls */}
-        {activeSet?.siteId != null && activeSet.siteId !== "" && (
-          <ControlSetQuickPick
-            siteId={activeSet.siteId}
-            onSelect={(posIds, negIds) => {
-              setPositiveControls(posIds);
-              setNegativeControls(negIds);
-            }}
-          />
-        )}
-
-        {/* Controls form */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <GeneChipInput
-            siteId={activeSet?.siteId ?? ""}
-            value={positiveControls}
-            onChange={setPositiveControls}
-            label="Positive Controls"
-            tint="positive"
-            required
-          />
-          <GeneChipInput
-            siteId={activeSet?.siteId ?? ""}
-            value={negativeControls}
-            onChange={setNegativeControls}
-            label="Negative Controls"
-            tint="negative"
-          />
-        </div>
-
-        {/* Save controls as reusable set */}
-        <SaveControlSetForm
-          siteId={activeSet?.siteId ?? ""}
-          positiveIds={positiveControls}
-          negativeIds={negativeControls}
+        <ControlSetQuickPick
+          siteId={activeSet.siteId}
+          onSelect={(pos, neg) => {
+            setPositiveControls(pos);
+            setNegativeControls(neg);
+          }}
         />
 
-        {/* Analysis options */}
-        <div className="space-y-3">
-          <p className="text-xs font-medium text-muted-foreground">Analysis Options</p>
-          <label className="flex items-center gap-2 text-xs">
+        <GeneChipInput
+          siteId={activeSet.siteId}
+          value={positiveControls}
+          onChange={setPositiveControls}
+          label="Positive controls"
+          required
+          tint="positive"
+        />
+
+        <GeneChipInput
+          siteId={activeSet.siteId}
+          value={negativeControls}
+          onChange={setNegativeControls}
+          label="Negative controls (optional)"
+          tint="negative"
+        />
+
+        <SaveControlSetForm
+          siteId={activeSet.siteId}
+          positiveIds={positiveControls}
+          negativeIds={negativeControls}
+          {...(activeSet.recordType != null
+            ? { recordType: activeSet.recordType }
+            : {})}
+        />
+
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={enableCV}
               onChange={(e) => setEnableCV(e.target.checked)}
-              className="rounded border-input"
             />
-            Cross-validation ({kFolds}-fold)
+            Cross-validation
           </label>
           {enableCV && (
-            <div className="flex items-center gap-2 pl-5">
-              <span className="text-[10px] text-muted-foreground">2</span>
+            <label className="flex items-center gap-2">
+              k folds:
               <input
-                type="range"
+                type="number"
                 min={2}
                 max={10}
                 value={kFolds}
                 onChange={(e) => setKFolds(Number(e.target.value))}
-                className="h-1.5 w-24 accent-primary"
+                className="w-16 rounded border border-input bg-background px-2 py-1"
               />
-              <span className="text-[10px] text-muted-foreground">10</span>
-            </div>
+            </label>
           )}
-          <label className="flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={enableStepAnalysis}
-              onChange={(e) => setEnableStepAnalysis(e.target.checked)}
-              className="rounded border-input"
-            />
-            Step contribution analysis
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {(["go_process", "go_function", "go_component", "pathway"] as const).map(
-              (t) => {
-                const label = {
-                  go_process: "GO:BP",
-                  go_function: "GO:MF",
-                  go_component: "GO:CC",
-                  pathway: "Pathway",
-                }[t];
-                const active = enrichmentTypes.includes(t);
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium border transition-colors ${
-                      active
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "border-input text-muted-foreground hover:border-foreground/30"
-                    }`}
-                    onClick={() =>
-                      setEnrichmentTypes((prev) =>
-                        active ? prev.filter((x) => x !== t) : [...prev, t],
-                      )
-                    }
-                  >
-                    {label}
-                  </button>
-                );
-              },
-            )}
-          </div>
+          <EnrichmentToggle value={enrichmentTypes} onChange={setEnrichmentTypes} />
         </div>
 
-        {/* Run button */}
         <Button
-          size="sm"
-          onClick={() => {
-            void handleRun();
-          }}
-          disabled={loading}
+          onClick={() => void handleRun()}
+          disabled={loading || !hasSearchContext || positiveControls.length === 0}
+          className="gap-2"
         >
           {loading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Play className="h-3.5 w-3.5" />
+            <Play className="h-4 w-4" />
           )}
-          {loading ? "Evaluating..." : "Run Evaluation"}
+          {loading ? "Running…" : "Run evaluation"}
         </Button>
 
-        {error != null && error !== "" && (
-          <p className="text-xs text-destructive">{error}</p>
+        {loading && progressText !== "" && (
+          <div className="text-xs text-muted-foreground">Phase: {progressText}</div>
         )}
 
-        {/* Results */}
-        {experiment?.metrics != null && (
-          <div className="space-y-6">
-            <MetricsOverview
-              metrics={experiment.metrics}
-              rankMetrics={experiment.rankMetrics ?? null}
-              robustness={experiment.robustness ?? null}
-            />
-            <ConfusionMatrixSection cm={experiment.metrics.confusionMatrix} />
-            {experiment.rankMetrics && (
-              <RankMetricsSection rankMetrics={experiment.rankMetrics} />
+        {error !== null && error !== "" && (
+          <div className="rounded border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        {experiment !== null && (
+          <div className="space-y-4 pt-2">
+            {metrics !== null && (
+              <MetricsOverview
+                metrics={metrics}
+                rankMetrics={rankMetrics}
+                robustness={robustness}
+              />
             )}
-            {experiment.robustness && (
-              <RobustnessSection robustness={experiment.robustness} />
+            {confusionMatrix !== null && (
+              <ConfusionMatrixSection cm={confusionMatrix} />
             )}
-            {experiment.crossValidation && (
-              <CrossValidationSection cv={experiment.crossValidation} />
-            )}
-            {(experiment.enrichmentResults?.length ?? 0) > 0 && (
-              <EnrichmentSection results={experiment.enrichmentResults ?? []} />
-            )}
+            {rankMetrics !== null && <RankMetricsSection rankMetrics={rankMetrics} />}
             <GeneListsSection experiment={experiment} />
+            {crossValidation !== null && (
+              <CrossValidationSection cv={crossValidation} />
+            )}
+            {enrichmentResults.length > 0 && (
+              <EnrichmentSection results={enrichmentResults} />
+            )}
+            {robustness !== null && <RobustnessSection robustness={robustness} />}
           </div>
         )}
       </div>
     </AnalysisPanelContainer>
+  );
+}
+
+const ENRICHMENT_OPTIONS: { value: EnrichmentAnalysisType; label: string }[] = [
+  { value: "go_function", label: "GO function" },
+  { value: "go_component", label: "GO component" },
+  { value: "go_process", label: "GO process" },
+  { value: "pathway", label: "Pathway" },
+  { value: "word", label: "Word" },
+];
+
+function EnrichmentToggle({
+  value,
+  onChange,
+}: {
+  value: EnrichmentAnalysisType[];
+  onChange: (v: EnrichmentAnalysisType[]) => void;
+}) {
+  return (
+    <details className="text-xs">
+      <summary className="cursor-pointer select-none text-muted-foreground">
+        Enrichment ({value.length})
+      </summary>
+      <div className="mt-2 flex flex-wrap gap-3">
+        {ENRICHMENT_OPTIONS.map((opt) => (
+          <label key={opt.value} className="flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={value.includes(opt.value)}
+              onChange={(e) => {
+                const next = e.target.checked
+                  ? [...value, opt.value]
+                  : value.filter((v) => v !== opt.value);
+                onChange(next);
+              }}
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+    </details>
   );
 }

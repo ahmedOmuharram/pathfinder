@@ -2,7 +2,6 @@
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from fastapi.sse import EventSourceResponse
 
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.evaluation import re_evaluate
@@ -14,6 +13,7 @@ from pathfinder.services.experiment.sweep_service import (
 )
 from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
 from pathfinder.transport.http.schemas.experiments import ThresholdSweepRequest
+from pathfinder.transport.http.sse_utils import typed_event_stream_response
 
 router = APIRouter()
 
@@ -31,7 +31,7 @@ async def threshold_sweep(
     exp: ExperimentDep,
     request: ThresholdSweepRequest,
     user_id: CurrentUser,
-) -> EventSourceResponse:
+) -> StreamingResponse:
     """Sweep a parameter across a range and stream metrics as they complete."""
     validate_sweep_parameter(exp, request.parameter_name)
     sweep_values = compute_sweep_values(
@@ -42,13 +42,15 @@ async def threshold_sweep(
         steps=request.steps,
     )
 
-    return EventSourceResponse(
-        generate_sweep_events(
-            exp=exp,
-            param_name=request.parameter_name,
-            sweep_type=request.sweep_type,
-            sweep_values=sweep_values,
-        ),
+    events = generate_sweep_events(
+        exp=exp,
+        param_name=request.parameter_name,
+        sweep_type=request.sweep_type,
+        sweep_values=sweep_values,
+    )
+    return typed_event_stream_response(
+        events,
+        event_name=lambda e: e.type,
     )
 
 

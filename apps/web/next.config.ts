@@ -22,36 +22,38 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     const apiBase = getConfiguredServerApiBaseUrl();
-    return [
-      {
-        source: "/health/:path*",
-        destination: `${apiBase}/health/:path*`,
-      },
-      {
-        source: "/api/:path*",
-        destination: `${apiBase}/api/:path*`,
-      },
-      {
-        source: "/docs",
-        destination: `${apiBase}/docs`,
-      },
-      {
-        source: "/docs/:path*",
-        destination: `${apiBase}/docs/:path*`,
-      },
-      {
-        source: "/redoc",
-        destination: `${apiBase}/redoc`,
-      },
-      {
-        source: "/redoc/:path*",
-        destination: `${apiBase}/redoc/:path*`,
-      },
-      {
-        source: "/openapi.json",
-        destination: `${apiBase}/openapi.json`,
-      },
-    ];
+    return {
+      afterFiles: [
+        {
+          source: "/health/:path*",
+          destination: `${apiBase}/health/:path*`,
+        },
+        {
+          source: "/api/:path*",
+          destination: `${apiBase}/api/:path*`,
+        },
+        {
+          source: "/docs",
+          destination: `${apiBase}/docs`,
+        },
+        {
+          source: "/docs/:path*",
+          destination: `${apiBase}/docs/:path*`,
+        },
+        {
+          source: "/redoc",
+          destination: `${apiBase}/redoc`,
+        },
+        {
+          source: "/redoc/:path*",
+          destination: `${apiBase}/redoc/:path*`,
+        },
+        {
+          source: "/openapi.json",
+          destination: `${apiBase}/openapi.json`,
+        },
+      ],
+    };
   },
 };
 

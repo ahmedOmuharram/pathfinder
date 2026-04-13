@@ -22,11 +22,10 @@ from pathfinder.integrations.veupathdb.factory import (
     list_sites,
 )
 from pathfinder.persistence.models import (
+    Chat,
     ControlSet,
     ExperimentRow,
     GeneSetRow,
-    Stream,
-    StreamProjection,
 )
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.gene_sets.store import get_gene_set_store
@@ -57,48 +56,48 @@ async def purge_user_data(
 ) -> PurgeResult:
     """Purge user data from all local stores.
 
-    When ``delete_wdk=False``: non-WDK streams are hard-deleted, WDK-linked
-    projections are **dismissed** so WDK sync won't re-import them.
+    When ``delete_wdk=False``: non-WDK chats are hard-deleted, WDK-linked chats
+    are **dismissed** so WDK sync won't re-import them.
 
     When ``delete_wdk=True``: everything is hard-deleted locally AND all WDK
     strategies are deleted from VEuPathDB.
 
     Always deletes: gene sets, experiments, control sets, Redis streams.
     """
-    # 1. Find all streams (for Redis + WDK cleanup)
-    stream_query = select(Stream).where(Stream.user_id == user_id)
+    # 1. Find all chats (for Redis + WDK cleanup)
+    chat_query = select(Chat).where(Chat.user_id == user_id)
     if site_id:
-        stream_query = stream_query.where(Stream.site_id == site_id)
-    streams = list((await session.execute(stream_query)).scalars().all())
-    stream_ids = [str(s.id) for s in streams]
+        chat_query = chat_query.where(Chat.site_id == site_id)
+    chats = list((await session.execute(chat_query)).scalars().all())
+    chat_ids = [str(c.id) for c in chats]
 
     # 2. Delete WDK strategies (only when explicitly requested)
     wdk_deleted = await _purge_wdk_strategies(site_id, delete_wdk=delete_wdk)
 
-    # 3. Delete Redis streams
+    # 3. Delete Redis streams (legacy cleanup — keys may linger from old runs)
     redis_deleted = 0
-    for sid in stream_ids:
+    for cid in chat_ids:
         with contextlib.suppress(Exception):
-            redis_deleted += int(await redis.delete(f"stream:{sid}"))
+            redis_deleted += int(await redis.delete(f"stream:{cid}"))
 
-    # 4. Handle streams
+    # 4. Handle chats
     dismissed_count = 0
     hard_deleted_count = 0
 
     if delete_wdk:
-        stream_del = delete(Stream).where(Stream.user_id == user_id)
+        chat_del = delete(Chat).where(Chat.user_id == user_id)
         if site_id:
-            stream_del = stream_del.where(Stream.site_id == site_id)
-        sr = cast("CursorResult[object]", await session.execute(stream_del))
+            chat_del = chat_del.where(Chat.site_id == site_id)
+        sr = cast("CursorResult[object]", await session.execute(chat_del))
         hard_deleted_count = sr.rowcount or 0
-    elif stream_ids:
-        all_uuids = [UUID(sid) for sid in stream_ids]
+    elif chat_ids:
+        all_uuids = [UUID(cid) for cid in chat_ids]
         await session.execute(
-            update(StreamProjection)
-            .where(StreamProjection.stream_id.in_(all_uuids))
+            update(Chat)
+            .where(Chat.id.in_(all_uuids))
             .values(dismissed_at=datetime.now(UTC))
         )
-        dismissed_count = len(stream_ids)
+        dismissed_count = len(chat_ids)
 
     # 5. Delete gene sets, experiments, control sets
     pg_gene_sets, pg_experiments, pg_control_sets = await _purge_related_data(

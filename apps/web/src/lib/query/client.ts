@@ -1,11 +1,40 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryCache, QueryClient } from "@tanstack/react-query";
 
 import { APIError } from "@/lib/api/http";
 import { modelCatalogOptions } from "@/lib/api/models";
 import { sitesOptions } from "@/lib/api/sites";
 
+export interface QueryErrorNotice {
+  message: string;
+  queryKey: readonly unknown[];
+}
+
+type NoticeHandler = (notice: QueryErrorNotice) => void;
+
+let handler: NoticeHandler | null = null;
+
+export function setQueryErrorHandler(next: NoticeHandler | null): void {
+  handler = next;
+}
+
+function extractMessage(error: unknown, fallback: string): string {
+  if (error instanceof APIError) {
+    if (error.status >= 400 && error.status < 500) return "";
+    return error.message || fallback;
+  }
+  if (error instanceof Error) return error.message || fallback;
+  return fallback;
+}
+
 function makeQueryClient(): QueryClient {
   return new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error, query) => {
+        const message = extractMessage(error, "Request failed");
+        if (!message) return;
+        handler?.({ message, queryKey: query.queryKey });
+      },
+    }),
     defaultOptions: {
       queries: {
         staleTime: 30_000,

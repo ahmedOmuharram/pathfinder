@@ -15,6 +15,7 @@ from __future__ import annotations
 import gc
 import hashlib
 import json
+import os
 import re
 import threading
 from dataclasses import dataclass, field
@@ -60,7 +61,8 @@ class _ModelState:
             if cls._instance is not None:
                 return cls._instance
             logger.info("Loading fastembed model", model=_MODEL_NAME)
-            cls._instance = TextEmbedding(model_name=_MODEL_NAME)
+            cache_dir = os.getenv("FASTEMBED_CACHE_DIR") or None
+            cls._instance = TextEmbedding(model_name=_MODEL_NAME, cache_dir=cache_dir)
             logger.info("Fastembed model loaded")
             return cls._instance
 

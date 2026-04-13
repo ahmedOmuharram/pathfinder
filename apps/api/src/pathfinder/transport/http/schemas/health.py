@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from pathfinder.platform.readiness import ReadinessState
+
 
 class HealthResponse(BaseModel):
     """Health check response."""
@@ -11,6 +13,16 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     timestamp: datetime
+
+
+class ReadinessResponse(BaseModel):
+    """Readiness check response, including per-subsystem detail."""
+
+    status: str
+    version: str
+    timestamp: datetime
+    readiness: ReadinessState
+    not_ready: list[str] = Field(default_factory=list)
 
 
 class ProviderStatus(BaseModel):

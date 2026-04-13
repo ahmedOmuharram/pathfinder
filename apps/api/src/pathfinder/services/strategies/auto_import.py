@@ -1,18 +1,14 @@
-"""Auto-import gene sets for WDK-linked strategy projections.
+"""Auto-import gene sets for WDK-linked chats.
 
-When strategies are synced from WDK, eligible projections automatically
-get a gene set created and linked. Once imported (or once the user deletes
-the auto-imported gene set), the projection is marked so re-syncs don't
-recreate it.
+When strategies are synced from WDK, eligible chats automatically get a gene
+set created and linked. Once imported (or once the user deletes the
+auto-imported gene set), the chat is marked so re-syncs don't recreate it.
 """
 
 from uuid import UUID
 
-from pathfinder.persistence.models import StreamProjection
-from pathfinder.persistence.repositories.stream import (
-    ProjectionUpdate,
-    StreamRepository,
-)
+from pathfinder.persistence.models import Chat
+from pathfinder.persistence.repositories import ChatRepository, ChatUpdate
 from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.errors import AppError, InternalError
 from pathfinder.platform.logging import get_logger
@@ -23,8 +19,8 @@ from pathfinder.services.gene_sets.wdk_helpers import GeneSetWdkContext
 logger = get_logger(__name__)
 
 
-def _is_eligible(proj: StreamProjection) -> bool:
-    """Check if a projection is eligible for gene set auto-import.
+def _is_eligible(chat: Chat) -> bool:
+    """Check if a chat is eligible for gene set auto-import.
 
     Eligible when:
     - Has a WDK strategy ID (is a WDK-linked strategy)
@@ -32,24 +28,24 @@ def _is_eligible(proj: StreamProjection) -> bool:
     - Does not already have a linked gene set
     """
     return (
-        proj.wdk_strategy_id is not None
-        and not proj.gene_set_auto_imported
-        and proj.gene_set_id is None
+        chat.wdk_strategy_id is not None
+        and not chat.gene_set_auto_imported
+        and chat.gene_set_id is None
     )
 
 
 async def auto_import_gene_sets(
-    projections: list[StreamProjection],
+    chats: list[Chat],
     *,
-    stream_repo: StreamRepository,
+    chat_repo: ChatRepository,
     gene_set_service: GeneSetService,
     site_id: str,
     user_id: UUID,
 ) -> list[GeneSet]:
-    """Create gene sets for eligible strategy projections.
+    """Create gene sets for eligible chats.
 
-    For each eligible projection (has wdk_strategy_id, not yet imported,
-    no existing gene set), creates a gene set and links it to the projection.
+    For each eligible chat (has wdk_strategy_id, not yet imported, no existing
+    gene set), creates a gene set and links it to the chat.
 
     Returns the list of newly created gene sets.
     """
@@ -59,16 +55,15 @@ async def auto_import_gene_sets(
     # to prevent concurrent background tasks from creating duplicates.
     seen_wdk_ids: set[int] = set()
 
-    for proj in projections:
-        if not _is_eligible(proj):
+    for chat in chats:
+        if not _is_eligible(chat):
             continue
 
-        wdk_id = proj.wdk_strategy_id
+        wdk_id = chat.wdk_strategy_id
         if wdk_id is None:
             msg = "wdk_id must not be None (guaranteed by _is_eligible)"
             raise InternalError(detail=msg)
 
-        # Skip if already processed in this batch.
         if wdk_id in seen_wdk_ids:
             continue
         seen_wdk_ids.add(wdk_id)
@@ -77,10 +72,9 @@ async def auto_import_gene_sets(
         # concurrent background task or previous partial import).
         existing = gene_set_service.find_by_wdk_strategy(user_id, wdk_id)
         if existing:
-            # Link to the existing gene set instead of creating a new one.
-            await stream_repo.update_projection(
-                proj.stream_id,
-                ProjectionUpdate(
+            await chat_repo.update_chat(
+                chat.id,
+                ChatUpdate(
                     gene_set_id=existing.id,
                     gene_set_id_set=True,
                     gene_set_auto_imported=True,
@@ -91,20 +85,19 @@ async def auto_import_gene_sets(
         try:
             gs = await gene_set_service.create(
                 user_id=user_id,
-                name=proj.name or f"WDK Strategy {wdk_id}",
+                name=chat.name or f"WDK Strategy {wdk_id}",
                 site_id=site_id,
                 gene_ids=[],
                 source="strategy",
                 wdk=GeneSetWdkContext(
                     wdk_strategy_id=wdk_id,
-                    record_type=proj.record_type,
+                    record_type=chat.record_type,
                 ),
             )
-            # Ensure gene set row exists in DB before setting the FK.
             await gene_set_service.flush(gs.id)
-            await stream_repo.update_projection(
-                proj.stream_id,
-                ProjectionUpdate(
+            await chat_repo.update_chat(
+                chat.id,
+                ChatUpdate(
                     gene_set_id=gs.id,
                     gene_set_id_set=True,
                     gene_set_auto_imported=True,
@@ -112,14 +105,14 @@ async def auto_import_gene_sets(
             )
             created.append(gs)
             logger.info(
-                "Auto-imported gene set for strategy",
+                "Auto-imported gene set for chat",
                 gene_set_id=gs.id,
                 wdk_strategy_id=wdk_id,
                 gene_count=len(gs.gene_ids),
             )
         except (AppError, RuntimeError) as exc:
             logger.warning(
-                "Failed to auto-import gene set for strategy",
+                "Failed to auto-import gene set for chat",
                 wdk_strategy_id=wdk_id,
                 error=str(exc),
             )
@@ -139,12 +132,12 @@ async def background_auto_import_gene_sets(
     """
     async with async_session_factory() as session:
         try:
-            repo = StreamRepository(session)
-            projections = await repo.list_projections(user_id, site_id)
+            repo = ChatRepository(session)
+            chats = await repo.list_chats(user_id, site_id)
             gene_set_svc = GeneSetService(get_gene_set_store())
             await auto_import_gene_sets(
-                projections,
-                stream_repo=repo,
+                chats,
+                chat_repo=repo,
                 gene_set_service=gene_set_svc,
                 site_id=site_id,
                 user_id=user_id,

@@ -3,7 +3,6 @@
 from fastapi import APIRouter
 
 from .analysis import router as analysis_router
-from .chat import router as chat_router
 from .crud import router as crud_router
 from .execution import router as execution_router
 from .results import router as results_router
@@ -17,4 +16,3 @@ router.include_router(execution_router)
 router.include_router(analysis_router)
 router.include_router(crud_router)
 router.include_router(results_router)
-router.include_router(chat_router)

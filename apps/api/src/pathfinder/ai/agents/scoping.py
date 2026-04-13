@@ -19,6 +19,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_graph_state,
     pinned_problem_frame,
 )
+from pathfinder.ai.agents._phase_decisions import ScopingDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -50,32 +51,48 @@ improve the problem frame. Keep notes short and source-grounded.
 4. **Inspect current work when relevant**: Use `get_strategy` if the user is \
 editing or extending an existing strategy.
 
-5. **Save the frame**: Call `set_problem_frame` exactly once before your final \
-answer. Set `ready_for_wdk_discovery` to true only when discovery can proceed \
-without a risky guess.
+5. **Save the frame**: Call `set_problem_frame` exactly once before producing \
+your final output. The problem frame you save should match the \
+`problem_frame` field of the ScopingDecision you return.
 
-6. **End the phase explicitly**: Call `finish_scoping` exactly once as your \
-last tool call. Use `decision="ask_user"` when you need a user answer before \
-WDK discovery. Use `decision="continue_to_discovery"` only when the request is \
-ready to move forward.
+## Final Output
+
+When you have gathered enough context, produce a `ScopingDecision` as your \
+final output. Do NOT call any `finish_*` tool; those tools no longer exist.
+
+Choose `next_action` based on what you found:
+  - `advance_to_discovery`: user intent is clear and you have at least one \
+candidate search (list concrete names in `discovered_searches`).
+  - `advance_to_planning`: user intent is so constrained that discovery \
+would be superfluous.
+  - `need_more_input`: you cannot proceed without the user clarifying \
+something. Explain what you need in `reason`.
+
+Populate every field:
+  - `problem_frame`: concise problem statement (organism, record type, \
+constraints, success criteria).
+  - `discovered_searches`: WDK search names already known to be relevant \
+(empty list if none).
+  - `reason`: one-to-two sentence justification for `next_action`.
 
 ## Boundaries
 
-- Do NOT use WDK catalog searches, WDK parameter tools, strategy-editing tools, \
-or plan tools in this phase.
+- Do NOT use WDK catalog searches, WDK parameter tools, strategy-editing \
+tools, or plan tools in this phase.
 - Do NOT create, submit, approve, or execute a plan.
 - If the request is clear enough, state the problem frame and move forward.
-- If it is not clear enough, ask the blocking questions in plain language, call \
-`finish_scoping(decision="ask_user", ...)`, and stop. The next user answer \
-will restart scoping with the saved frame.
+- If it is not clear enough, ask the blocking questions in plain language, \
+then return a ScopingDecision with `next_action="need_more_input"`. The next \
+user answer will restart scoping with the saved frame.
 """
 
 # ---------------------------------------------------------------------------
 # Agent
 # ---------------------------------------------------------------------------
 
-scoping_agent: Agent[AgentDeps, str] = Agent(
-    "anthropic:claude-sonnet-4-5",
+scoping_agent: Agent[AgentDeps, ScopingDecision] = Agent(
+    "openai:gpt-4.1-mini",
+    output_type=ScopingDecision,
     deps_type=AgentDeps,
     instructions=_SCOPING_INSTRUCTIONS,
     toolsets=[build_toolset()],

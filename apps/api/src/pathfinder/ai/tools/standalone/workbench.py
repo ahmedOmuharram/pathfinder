@@ -6,12 +6,16 @@ Provides:
 - ``list_workbench_gene_sets`` -- list all gene sets in the user's Workbench
 """
 
+from __future__ import annotations
+
 from typing import cast, get_args
 from uuid import uuid4
 
 from pydantic_ai import RunContext
+from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.tools.standalone._stream_parts import gene_set_chunk
 from pathfinder.ai.tools.standalone._workbench_models import (
     GeneSetAvailableItem,
     GeneSetCreatedResponse,
@@ -39,7 +43,7 @@ async def create_workbench_gene_set(
     gene_ids: list[str],
     record_type: str = "transcript",
     wdk_source: WdkSourceSpec | None = None,
-) -> GeneSetCreatedResponse | ToolErrorPayload:
+) -> ToolReturn[GeneSetCreatedResponse] | ToolErrorPayload:
     """Create a gene set in the user's Workbench for further analysis.
 
     Use this tool after building a strategy or collecting gene IDs to send them
@@ -89,15 +93,25 @@ async def create_workbench_gene_set(
         name=gs.name,
         gene_count=len(gs.gene_ids),
     )
-    return GeneSetCreatedResponse(
-        gene_set_created=GeneSetCreatedSummary(
-            id=gs.id,
-            name=gs.name,
-            gene_count=len(gs.gene_ids),
-            source=gs.source,
-            site_id=gs.site_id,
+    return ToolReturn(
+        return_value=GeneSetCreatedResponse(
+            gene_set_created=GeneSetCreatedSummary(
+                id=gs.id,
+                name=gs.name,
+                gene_count=len(gs.gene_ids),
+                source=gs.source,
+                site_id=gs.site_id,
+            ),
+            message=f"Gene set '{gs.name}' with {len(gs.gene_ids)} genes has been created in the Workbench.",
         ),
-        message=f"Gene set '{gs.name}' with {len(gs.gene_ids)} genes has been created in the Workbench.",
+        metadata=[
+            gene_set_chunk(
+                gene_set_id=gs.id,
+                name=gs.name,
+                gene_count=len(gs.gene_ids),
+                site_id=gs.site_id,
+            )
+        ],
     )
 
 
