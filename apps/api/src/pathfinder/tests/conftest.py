@@ -31,7 +31,7 @@ if "PIGUARD_MODEL_DIR" not in os.environ:
 
 # ---------------------------------------------------------------------------
 
-os.environ.setdefault("API_ENV", "development")
+os.environ.setdefault("API_ENV", "test")
 os.environ.setdefault("API_SECRET_KEY", "test-secret-key-test-secret-key-test")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")

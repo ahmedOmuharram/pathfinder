@@ -30,13 +30,24 @@ export function useStreamLifecycle(
     useState<OptimizationProgressData | null>(null);
   const [subscription, setSubscription] = useState<OperationSubscription | null>(null);
   const [operationId, setOperationId] = useState<string | null>(null);
+  /**
+   * Race A guard: if `stopStreaming()` fires during the window between
+   * `beginStream()` (flips isStreaming=true) and `trackOperation()` (records
+   * the subscription + operationId), we have nothing to cancel yet. Mark the
+   * stream as "pending stop" so that when the late `trackOperation()` finally
+   * arrives, we cancel the subscription + operation immediately.
+   */
+  const [pendingStop, setPendingStop] = useState(false);
 
   /** Cancel the in-flight operation and reset streaming state. */
   const stopStreaming = () => {
     if (operationId != null && operationId !== "") {
       void cancelOperation(operationId);
+      subscription?.unsubscribe();
+    } else {
+      // We are in the beginStream/trackOperation gap -- defer the cancel.
+      setPendingStop(true);
     }
-    subscription?.unsubscribe();
     setSubscription(null);
     setOperationId(null);
     setIsStreaming(false);
@@ -46,6 +57,7 @@ export function useStreamLifecycle(
   const beginStream = () => {
     setIsStreaming(true);
     setApiError(null);
+    setPendingStop(false);
     thinking.reset();
     setOptimizationProgress(null);
   };
@@ -82,6 +94,13 @@ export function useStreamLifecycle(
 
   /** Record subscription + operationId after streamChat resolves. */
   const trackOperation = (sub: OperationSubscription, opId: string) => {
+    if (pendingStop) {
+      // Stop was requested during the gap -- cancel immediately.
+      void cancelOperation(opId);
+      sub.unsubscribe();
+      setPendingStop(false);
+      return;
+    }
     setSubscription(sub);
     setOperationId(opId);
   };

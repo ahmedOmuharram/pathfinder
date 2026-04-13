@@ -77,6 +77,23 @@ async def produce_events(
     current_trace = _current_trace_id()
     tracer = get_tracer()
     intent = await classify_intent(deps, message, pipeline)
+
+    # Guard: if conversation has an active executing/approved plan and the
+    # classifier picked new_strategy, override to edit — the user is likely
+    # responding about the plan, not starting a new strategy.
+    if (
+        intent == Intent.NEW_STRATEGY
+        and deps.agent_state.active_plan is not None
+        and deps.agent_state.active_plan.status
+        in (PlanStatus.APPROVED, PlanStatus.EXECUTING)
+        and deps.strategy_session.graph is not None
+    ):
+        logger.info(
+            "Overriding new_strategy intent: active plan in %s status",
+            deps.agent_state.active_plan.status,
+        )
+        intent = Intent.EDIT_STRATEGY
+
     resume_phase = (
         deps.resume_phase
         if deps.resume_phase is not None

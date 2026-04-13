@@ -16,6 +16,7 @@ _COMMIT_AFTER = frozenset(
         "graph_snapshot",
         "graph_plan",
         "model_selected",
+        "phase_change",
     }
 )
 

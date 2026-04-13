@@ -200,10 +200,10 @@ export type paths = {
             cookie?: never;
         };
         /**
-         * List Organisms
+         * Get Organisms
          * @description Return all available organism names for a site via site-search.
          */
-        get: operations["list_organisms_api_v1_sites__siteId__organisms_get"];
+        get: operations["get_organisms_api_v1_sites__siteId__organisms_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -519,6 +519,26 @@ export type paths = {
          *     (and avoid re-implementing CSV/JSON parsing and WDK quirks).
          */
         post: operations["normalize_plan_api_v1_strategies_plan_normalize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/strategies/{strategy_id}/plan-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Plan Action
+         * @description Handle a structured plan action without creating a chat turn.
+         */
+        post: operations["submit_plan_action_api_v1_strategies__strategy_id__plan_actions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1129,6 +1149,10 @@ export type paths = {
         /**
          * Subscribe
          * @description SSE stream backed by Redis Streams.
+         *
+         *     Auth and operation lookup are handled by the ``VerifiedOp`` dependency,
+         *     so this handler is a clean async generator that FastAPI encodes into
+         *     SSE wire format automatically.
          */
         get: operations["subscribe_api_v1_operations__operation_id__subscribe_get"];
         put?: never;
@@ -1453,6 +1477,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/feedback/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Product Action
+         * @description Record a non-score product action in Langfuse.
+         */
+        post: operations["submit_product_action_api_v1_feedback_actions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/internal/sse-schemas": {
         parameters: {
             query?: never;
@@ -1577,6 +1621,10 @@ export type components = {
         AssistantDeltaEventData: {
             /** Messageid */
             messageId?: string | null;
+            /** Messagegroupid */
+            messageGroupId?: string | null;
+            /** Phase */
+            phase?: string | null;
             /** Delta */
             delta?: string | null;
         };
@@ -1587,6 +1635,10 @@ export type components = {
         AssistantMessageEventData: {
             /** Messageid */
             messageId?: string | null;
+            /** Messagegroupid */
+            messageGroupId?: string | null;
+            /** Phase */
+            phase?: string | null;
             /** Content */
             content?: string | null;
         };
@@ -3011,7 +3063,7 @@ export type components = {
         GraphPlanEventData: {
             /** Graphid */
             graphId?: string | null;
-            plan?: components["schemas"]["JSONObject"] | null;
+            plan?: components["schemas"]["StrategyPlanPayload-Output"] | null;
             /** Name */
             name?: string | null;
             /** Recordtype */
@@ -3040,7 +3092,7 @@ export type components = {
             steps?: components["schemas"]["JSONObject"][];
             /** Edges */
             edges?: components["schemas"]["GraphEdge"][];
-            plan?: components["schemas"]["JSONObject"] | null;
+            plan?: components["schemas"]["StrategyPlanPayload-Output"] | null;
         };
         /**
          * GraphSnapshotEventData
@@ -3124,6 +3176,12 @@ export type components = {
             role: "user" | "assistant";
             /** Content */
             content: string;
+            /** Messageid */
+            messageId?: string | null;
+            /** Messagegroupid */
+            messageGroupId?: string | null;
+            /** Phase */
+            phase?: string | null;
             /** Modelid */
             modelId?: string | null;
             /** Toolcalls */
@@ -3132,6 +3190,7 @@ export type components = {
             citations?: components["schemas"]["CitationResponse"][] | null;
             /** Planningartifacts */
             planningArtifacts?: components["schemas"]["PlanningArtifactResponse"][] | null;
+            problemFrame?: components["schemas"]["JSONObject"] | null;
             /** Reasoning */
             reasoning?: string | null;
             optimizationProgress?: components["schemas"]["OptimizationProgressEventData"] | null;
@@ -3153,7 +3212,7 @@ export type components = {
         };
         /**
          * ModelCatalogEntryResponse
-         * @description A single model in the catalog — for API responses.
+         * @description API response model — adds ``enabled`` status per provider configuration.
          */
         ModelCatalogEntryResponse: {
             /** Id */
@@ -3177,11 +3236,6 @@ export type components = {
              * @default false
              */
             supportsReasoning: boolean;
-            /**
-             * Enabled
-             * @default true
-             */
-            enabled: boolean;
             /**
              * Contextsize
              * @default 0
@@ -3207,6 +3261,11 @@ export type components = {
              * @default 0
              */
             outputPrice: number;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
         };
         /**
          * ModelListResponse
@@ -3710,12 +3769,36 @@ export type components = {
              * Phase
              * @enum {string}
              */
-            phase: "discovery" | "planning" | "execution" | "verification" | "completed";
+            phase: "scoping" | "discovery" | "planning" | "execution" | "verification" | "completed";
             /**
              * Status
              * @enum {string}
              */
-            status: "started" | "completed" | "failed" | "awaiting_approval";
+            status: "started" | "completed" | "failed" | "awaiting_approval" | "awaiting_input";
+            /** Messageid */
+            messageId?: string | null;
+            /** Messagegroupid */
+            messageGroupId?: string | null;
+            /**
+             * Emittedat
+             * @description UTC timestamp when this phase event was emitted.
+             */
+            emittedAt?: string | null;
+            /**
+             * Phasestartedat
+             * @description UTC timestamp when the phase most recently started.
+             */
+            phaseStartedAt?: string | null;
+            /**
+             * Phasecompletedat
+             * @description UTC timestamp when the phase reached its current terminal status.
+             */
+            phaseCompletedAt?: string | null;
+            /**
+             * Durationms
+             * @description Elapsed time in milliseconds since the phase started.
+             */
+            durationMs?: number | null;
             /**
              * Validationerror
              * @description Validation gate error message if the phase failed validation.
@@ -3741,10 +3824,10 @@ export type components = {
             costUsd: number;
         };
         /**
-         * PhaseTierResponse
-         * @description Single phase config in a tier preset.
+         * PhaseTierConfig
+         * @description Model + reasoning effort for a single pipeline phase.
          */
-        PhaseTierResponse: {
+        PhaseTierConfig: {
             /** Modelid */
             modelId: string;
             /**
@@ -3758,6 +3841,7 @@ export type components = {
          * @description Per-phase model configuration for the full pipeline.
          */
         PipelineConfig: {
+            scoping: components["schemas"]["PipelinePhaseConfig"];
             discovery: components["schemas"]["PipelinePhaseConfig"];
             planning: components["schemas"]["PipelinePhaseConfig"];
             execution: components["schemas"]["PipelinePhaseConfig"];
@@ -3776,6 +3860,38 @@ export type components = {
              */
             reasoningEffort: "none" | "low" | "medium" | "high";
         };
+        /**
+         * PlanActionRequest
+         * @description Structured control-plane action for an interactive plan.
+         */
+        PlanActionRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "approve" | "reject" | "suggest_changes";
+            /** Planid */
+            planId: string;
+            /** Traceid */
+            traceId?: string | null;
+            /** Messagegroupid */
+            messageGroupId?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Paramedits */
+            paramEdits?: components["schemas"]["PlanParameterEdit"][];
+            /** Answers */
+            answers?: components["schemas"]["PlanQuestionAnswer"][];
+        };
+        /**
+         * PlanApprovedEventData
+         * @description Payload for ``plan_approved`` SSE events.
+         */
+        PlanApprovedEventData: {
+            /** Planid */
+            planId: string;
+            plan: components["schemas"]["JSONObject"];
+        };
         /** PlanNormalizeRequest */
         PlanNormalizeRequest: {
             /** Siteid */
@@ -3788,11 +3904,31 @@ export type components = {
             warnings?: components["schemas"]["JSONArray"] | null;
         };
         /**
+         * PlanParameterEdit
+         * @description A structured parameter edit collected from the plan UI.
+         */
+        PlanParameterEdit: {
+            /** Stepid */
+            stepId: string;
+            /** Paramname */
+            paramName: string;
+            newValue: components["schemas"]["JSONValue"];
+        };
+        /**
          * PlanPresentedEventData
          * @description Payload for ``plan_presented`` SSE events.
          */
         PlanPresentedEventData: {
             plan: components["schemas"]["JSONObject"];
+        };
+        /**
+         * PlanQuestionAnswer
+         * @description A structured answer collected from the plan UI.
+         */
+        PlanQuestionAnswer: {
+            /** Questionid */
+            questionId: string;
+            answer: components["schemas"]["JSONValue"];
         };
         /**
          * PlanStepNode
@@ -3804,9 +3940,9 @@ export type components = {
          *     - search: no inputs
          *
          *     ``parameters`` accepts ``JSONObject`` (LLM's natural output).
-         *     ``WDKSerializedParams`` applies a ``PlainSerializer`` so that
-         *     ``model_dump(exclude_none=True)`` produces WDK-compatible
-         *     ``dict[str, str]`` (``Record<string, ParameterValue>``).
+         *     ``SerializedParams`` coerces each value to ``str`` via Pydantic
+         *     validation, producing WDK-compatible ``dict[str, str]``
+         *     (``Record<string, ParameterValue>``).
          */
         "PlanStepNode-Input": {
             /** Searchname */
@@ -3842,9 +3978,9 @@ export type components = {
          *     - search: no inputs
          *
          *     ``parameters`` accepts ``JSONObject`` (LLM's natural output).
-         *     ``WDKSerializedParams`` applies a ``PlainSerializer`` so that
-         *     ``model_dump(exclude_none=True)`` produces WDK-compatible
-         *     ``dict[str, str]`` (``Record<string, ParameterValue>``).
+         *     ``SerializedParams`` coerces each value to ``str`` via Pydantic
+         *     validation, producing WDK-compatible ``dict[str, str]``
+         *     (``Record<string, ParameterValue>``).
          */
         "PlanStepNode-Output": {
             /** Searchname */
@@ -3927,6 +4063,30 @@ export type components = {
             name: string;
             /** Value */
             value: string;
+        };
+        /**
+         * ProductActionRequest
+         * @description A user interaction to be recorded as a product signal.
+         */
+        ProductActionRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "plan_approve" | "plan_reject" | "plan_suggest_changes" | "plan_ask_question" | "undo_turn" | "assistant_regenerate";
+            /** Streamid */
+            streamId: string;
+            /** Traceid */
+            traceId?: string | null;
+            /** Strategyid */
+            strategyId?: string | null;
+            /** Planid */
+            planId?: string | null;
+            /** Entryid */
+            entryId?: string | null;
+            /** Messagegroupid */
+            messageGroupId?: string | null;
+            metadata?: components["schemas"]["JSONObject"] | null;
         };
         /**
          * ProviderStatus
@@ -4165,6 +4325,7 @@ export type components = {
             message_end?: components["schemas"]["MessageEndEventData"] | null;
             phase_change?: components["schemas"]["PhaseChangeEventData"] | null;
             plan_presented?: components["schemas"]["PlanPresentedEventData"] | null;
+            plan_approved?: components["schemas"]["PlanApprovedEventData"] | null;
             plan_updated?: components["schemas"]["PlanUpdatedEventData"] | null;
             decision_presented?: components["schemas"]["DecisionPresentedEventData"] | null;
             planning_thought?: components["schemas"]["PlanningThoughtEventData"] | null;
@@ -4467,13 +4628,42 @@ export type components = {
             isFiltered: boolean;
             /** Wdkpusherror */
             wdkPushError?: string | null;
-            validation?: components["schemas"]["WDKValidation"] | null;
+            validation?: components["schemas"]["StepValidation"] | null;
             /** Filters */
             filters?: components["schemas"]["StepFilter"][] | null;
             /** Analyses */
             analyses?: components["schemas"]["StepAnalysis-Output"][] | null;
             /** Reports */
             reports?: components["schemas"]["StepReport-Output"][] | null;
+        };
+        /**
+         * StepValidation
+         * @description Step/search/strategy validation state.
+         */
+        StepValidation: {
+            /**
+             * Level
+             * @default NONE
+             */
+            level: string;
+            /**
+             * Isvalid
+             * @default true
+             */
+            isValid: boolean;
+            errors?: components["schemas"]["StepValidationErrors"] | null;
+        };
+        /**
+         * StepValidationErrors
+         * @description Validation error details for a step.
+         */
+        StepValidationErrors: {
+            /** General */
+            general?: string[];
+            /** Bykey */
+            byKey?: {
+                [key: string]: string[];
+            };
         };
         /**
          * StrategyLinkEventData
@@ -4511,9 +4701,10 @@ export type components = {
         };
         /**
          * StrategyPlanPayload
-         * @description Wire format for strategy plans (API request/response).
+         * @description Canonical typed plan: the serialized graph state.
          *
-         *     Wire format for strategy plans shared between API request/response and persistence.
+         *     Used for API request/response, Redis persistence, and SSE events.
+         *     NOT the AI planning artifact (see domain/strategy/plan.py:StrategyPlan).
          */
         "StrategyPlanPayload-Input": {
             /** Recordtype */
@@ -4534,14 +4725,15 @@ export type components = {
             } | null;
             /** Stepvalidations */
             stepValidations?: {
-                [key: string]: components["schemas"]["WDKValidation"];
+                [key: string]: components["schemas"]["StepValidation"];
             } | null;
         };
         /**
          * StrategyPlanPayload
-         * @description Wire format for strategy plans (API request/response).
+         * @description Canonical typed plan: the serialized graph state.
          *
-         *     Wire format for strategy plans shared between API request/response and persistence.
+         *     Used for API request/response, Redis persistence, and SSE events.
+         *     NOT the AI planning artifact (see domain/strategy/plan.py:StrategyPlan).
          */
         "StrategyPlanPayload-Output": {
             /** Recordtype */
@@ -4562,7 +4754,7 @@ export type components = {
             } | null;
             /** Stepvalidations */
             stepValidations?: {
-                [key: string]: components["schemas"]["WDKValidation"];
+                [key: string]: components["schemas"]["StepValidation"];
             } | null;
         };
         /**
@@ -4603,6 +4795,8 @@ export type components = {
             messages?: components["schemas"]["MessageResponse"][] | null;
             thinking?: components["schemas"]["ThinkingResponse"] | null;
             pipeline?: components["schemas"]["JSONObject"] | null;
+            conversationState?: components["schemas"]["JSONObject"] | null;
+            activePlan?: components["schemas"]["JSONObject"] | null;
             /**
              * Createdat
              * Format: date-time
@@ -4729,19 +4923,20 @@ export type components = {
             /** Presets */
             presets: {
                 [key: string]: {
-                    [key: string]: components["schemas"]["TierPresetResponse"];
+                    [key: string]: components["schemas"]["TierPreset"];
                 };
             };
         };
         /**
-         * TierPresetResponse
-         * @description Full tier preset with all four phases.
+         * TierPreset
+         * @description Per-phase configuration for all five pipeline phases.
          */
-        TierPresetResponse: {
-            discovery: components["schemas"]["PhaseTierResponse"];
-            planning: components["schemas"]["PhaseTierResponse"];
-            execution: components["schemas"]["PhaseTierResponse"];
-            verification: components["schemas"]["PhaseTierResponse"];
+        TierPreset: {
+            scoping: components["schemas"]["PhaseTierConfig"];
+            discovery: components["schemas"]["PhaseTierConfig"];
+            planning: components["schemas"]["PhaseTierConfig"];
+            execution: components["schemas"]["PhaseTierConfig"];
+            verification: components["schemas"]["PhaseTierConfig"];
         };
         /**
          * TokenUsagePartialEventData
@@ -4896,6 +5091,8 @@ export type components = {
         UndoRequest: {
             /** Entryid */
             entryId: string;
+            /** Traceid */
+            traceId?: string | null;
         };
         /**
          * UndoResponse
@@ -4972,35 +5169,6 @@ export type components = {
             isValid: boolean;
             normalizedContextValues?: components["schemas"]["JSONObject"];
             errors?: components["schemas"]["ValidationErrors"];
-        };
-        /**
-         * WDKValidation
-         * @description Step/search/strategy validation state.
-         */
-        WDKValidation: {
-            /**
-             * Level
-             * @default NONE
-             */
-            level: string;
-            /**
-             * Isvalid
-             * @default true
-             */
-            isValid: boolean;
-            errors?: components["schemas"]["WDKValidationErrors"] | null;
-        };
-        /**
-         * WDKValidationErrors
-         * @description Validation error details.
-         */
-        WDKValidationErrors: {
-            /** General */
-            general?: string[];
-            /** Bykey */
-            byKey?: {
-                [key: string]: string[];
-            };
         };
         /** WorkbenchChatRequest */
         WorkbenchChatRequest: {
@@ -5295,7 +5463,7 @@ export interface operations {
             };
         };
     };
-    list_organisms_api_v1_sites__siteId__organisms_get: {
+    get_organisms_api_v1_sites__siteId__organisms_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5847,6 +6015,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanNormalizeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_plan_action_api_v1_strategies__strategy_id__plan_actions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                strategy_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -6966,7 +7169,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/event-stream": unknown;
                 };
             };
             /** @description Validation Error */
@@ -7518,6 +7721,37 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["FeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_product_action_api_v1_feedback_actions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductActionRequest"];
             };
         };
         responses: {

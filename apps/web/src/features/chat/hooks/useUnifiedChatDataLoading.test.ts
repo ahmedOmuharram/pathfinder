@@ -45,10 +45,26 @@ vi.mock("@/lib/api/http", async (importOriginal) => {
 // Mock useSessionStore to control authVersion and authRefreshed
 let mockAuthVersion = 0;
 let mockAuthRefreshed = true;
-vi.mock("@/state/useSessionStore", () => ({
-  useSessionStore: (selector: (s: { authVersion: number; authRefreshed: boolean }) => unknown) =>
-    selector({ authVersion: mockAuthVersion, authRefreshed: mockAuthRefreshed }),
-}));
+vi.mock("@/state/useSessionStore", () => {
+  // ``usePlanStore`` subscribes to ``useSessionStore`` at module load time to
+  // reset phase state when the strategy ID changes. The mock must expose
+  // ``subscribe`` / ``getState`` so the import graph does not blow up when
+  // transitive imports (useUnifiedChatDataLoading -> usePlanStore) run.
+  const fn = ((selector: (s: { authVersion: number; authRefreshed: boolean }) => unknown) =>
+    selector({ authVersion: mockAuthVersion, authRefreshed: mockAuthRefreshed })) as unknown as {
+    (selector: (s: { authVersion: number; authRefreshed: boolean }) => unknown): unknown;
+    subscribe: (
+      ...args: Parameters<typeof Function.prototype.apply>
+    ) => () => void;
+    getState: () => { authVersion: number; authRefreshed: boolean };
+  };
+  fn.subscribe = () => () => {};
+  fn.getState = () => ({
+    authVersion: mockAuthVersion,
+    authRefreshed: mockAuthRefreshed,
+  });
+  return { useSessionStore: fn };
+});
 
 function makeArgs(
   overrides?: Partial<Parameters<typeof useUnifiedChatDataLoading>[0]>,

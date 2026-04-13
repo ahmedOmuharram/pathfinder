@@ -27,7 +27,12 @@ describe("POST /api/v1/strategies/[id]/plan-actions", () => {
     await POST(req, { params: Promise.resolve({ id: "abc" }) });
 
     expect(proxyMock).toHaveBeenCalledOnce();
-    const [, path, opts] = proxyMock.mock.calls[0];
+    const firstCall = proxyMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    if (!firstCall) {
+      throw new Error("proxyJsonRequest was not called");
+    }
+    const [, path, opts] = firstCall;
     expect(path).toBe("/api/v1/strategies/abc/plan-actions");
     expect(opts).toEqual({ includeBody: true });
   });

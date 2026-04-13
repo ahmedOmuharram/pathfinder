@@ -98,6 +98,7 @@ export function useStreamEvents(deps: StreamEventDeps) {
         pipeline: null,
         reasoning: null,
         optimizationProgress: null,
+        currentModelId: null,
       };
 
       const ctx: ChatEventContext = {

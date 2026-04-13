@@ -125,12 +125,14 @@ The base profile is intentionally fail-closed. PathFinder will not boot until yo
 - `DATABASE_URL`
 - `REDIS_URL`
 - `NEXT_PUBLIC_API_URL`
-- either a real model backend (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OLLAMA_BASE_URL`) or `PATHFINDER_CHAT_PROVIDER=mock` in development only
+- `PATHFINDER_CHAT_PROVIDER=default`
+- a real model backend (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OLLAMA_BASE_URL`)
 
 Direct app runs have matching examples too:
 
 - API strict/dev: [`apps/api/.env.example`](/Users/ahmedmuharram/repos/pathfinder/apps/api/.env.example), [`apps/api/.env.dev.example`](/Users/ahmedmuharram/repos/pathfinder/apps/api/.env.dev.example)
 - Web strict/dev: [`apps/web/.env.example`](/Users/ahmedmuharram/repos/pathfinder/apps/web/.env.example), [`apps/web/.env.dev.example`](/Users/ahmedmuharram/repos/pathfinder/apps/web/.env.dev.example)
+- Dedicated test profile: [`/.env.test.example`](/Users/ahmedmuharram/repos/pathfinder/.env.test.example)
 
 ### Local models (Ollama)
 
@@ -194,6 +196,7 @@ From repo root:
 
 ```bash
 cp .env.dev.example .env.dev
+# fill in a real model backend before starting
 docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
@@ -202,7 +205,18 @@ docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.y
 - Postgres: `localhost:5432`
 - Redis: `localhost:6379`
 
-This is where local-only behavior lives: watch mode, local Postgres/Redis containers, and `PATHFINDER_CHAT_PROVIDER=mock` by default.
+This is where local-only behavior lives: watch mode and local Postgres/Redis containers. Mock mode is not enabled here.
+
+### Option C: test / E2E profile
+
+From repo root:
+
+```bash
+cp .env.test.example .env.test
+docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.e2e.yml up --build
+```
+
+This is the only Docker profile that enables `PATHFINDER_CHAT_PROVIDER=mock`.
 
 ### Observability
 

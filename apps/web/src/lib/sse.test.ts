@@ -1,6 +1,11 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { streamSSE } from "./sse";
 
+vi.mock("./api/http", () => ({
+  buildUrl: vi.fn((path: string) => `http://localhost${path}`),
+  getAuthHeaders: vi.fn(() => ({})),
+}));
+
 function makeHeaders(init: Record<string, string>) {
   const normalized = new Map<string, string>();
   for (const [k, v] of Object.entries(init)) normalized.set(k.toLowerCase(), v);
@@ -127,5 +132,32 @@ describe("lib/sse", () => {
         { onEvent: () => {} },
       ),
     ).rejects.toBeInstanceOf(Error);
+  });
+
+  it("flushes a trailing complete event when EOF arrives without a blank-line separator", async () => {
+    const events: Array<{ type: string; data: string }> = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          headers: makeHeaders({ "content-type": "text/event-stream" }),
+          body: streamFromStrings(['event: message_end\ndata: {"ok":true}']),
+        } as unknown as Response;
+      }),
+    );
+
+    await streamSSE(
+      "/api/v1/chat",
+      { method: "POST", body: { x: 1 } },
+      {
+        onEvent: (evt) => events.push(evt),
+      },
+    );
+
+    expect(events).toEqual([{ type: "message_end", data: '{"ok":true}' }]);
   });
 });

@@ -124,6 +124,9 @@ class AgentPipeline(StateChart[None]):
     replan = execution.to(planning, cond="should_replan")
     retry_scoping = discovery.to(scoping, cond="needs_more_scoping")
     retry_discovery = planning.to(discovery, cond="needs_more_discovery")
+    retry_discovery_from_execution = execution.to(
+        discovery, cond="needs_rediscovery"
+    )
 
     # Abort — transitions from each phase to failed.
     abort_scoping = scoping.to(failed)
@@ -175,6 +178,10 @@ class AgentPipeline(StateChart[None]):
         return count < self.retry_budget
 
     def needs_more_discovery(self) -> bool:
+        count = self.retry_counts.get("discovery", 0)
+        return count < self.retry_budget
+
+    def needs_rediscovery(self) -> bool:
         count = self.retry_counts.get("discovery", 0)
         return count < self.retry_budget
 

@@ -35,11 +35,11 @@ export function SetupRequiredScreen({ onRetry }: SetupRequiredScreenProps) {
             <li>OLLAMA_BASE_URL (local models)</li>
           </ul>
           <p className="mt-2">
-            Or, in development only, set{" "}
+            For test harnesses only, set{" "}
             <code className="rounded bg-muted px-1 py-0.5">
               PATHFINDER_CHAT_PROVIDER=mock
             </code>{" "}
-            to run without a real LLM.
+            in the test profile to run without a real LLM.
           </p>
         </div>
 

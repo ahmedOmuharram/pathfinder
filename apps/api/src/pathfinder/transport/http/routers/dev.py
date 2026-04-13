@@ -1,4 +1,4 @@
-"""Development-only endpoints (available only when chat_provider=mock)."""
+"""Test-only endpoints (available only when chat_provider=mock)."""
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -19,7 +19,7 @@ def _is_mock_provider() -> bool:
 async def dev_login(user_repo: UserRepo, user_id: str | None = None) -> JSONResponse:
     """Create a test user and return a valid auth token.
 
-    Only available when ``PATHFINDER_CHAT_PROVIDER=mock`` (e2e / local dev).
+    Only available when ``PATHFINDER_CHAT_PROVIDER=mock`` in the test profile.
 
     Pass ``?user_id=worker-0`` to create isolated users per Playwright
     worker so parallel tests don't share data.

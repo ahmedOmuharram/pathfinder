@@ -96,13 +96,18 @@ export const OptimizationProgressDataSchema = z.looseObject({
   error: z.string().nullish(),
 });
 
+const PipelinePhaseSchema = z.looseObject({
+  modelId: z.string(),
+  reasoningEffort: z.string(),
+});
+
 export const ModelSelectedDataSchema = z.looseObject({
-  pipeline: z.object({
-    scoping: z.object({ modelId: z.string(), reasoningEffort: z.string() }),
-    discovery: z.object({ modelId: z.string(), reasoningEffort: z.string() }),
-    planning: z.object({ modelId: z.string(), reasoningEffort: z.string() }),
-    execution: z.object({ modelId: z.string(), reasoningEffort: z.string() }),
-    verification: z.object({ modelId: z.string(), reasoningEffort: z.string() }),
+  pipeline: z.looseObject({
+    scoping: PipelinePhaseSchema,
+    discovery: PipelinePhaseSchema,
+    planning: PipelinePhaseSchema,
+    execution: PipelinePhaseSchema,
+    verification: PipelinePhaseSchema,
   }),
 });
 

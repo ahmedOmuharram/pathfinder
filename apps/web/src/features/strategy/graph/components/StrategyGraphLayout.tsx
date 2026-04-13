@@ -95,7 +95,7 @@ export function StrategyGraphLayout() {
           snapGrid={SNAP_GRID}
           minZoom={0.1}
           maxZoom={2}
-          colorMode="system"
+          colorMode="light"
           connectionRadius={20}
           nodesFocusable={!g.isCompact}
           edgesFocusable={!g.isCompact}

@@ -191,6 +191,7 @@ def build_projection_response(
         messages=msg_responses,
         thinking=thinking_response,
         pipeline=projection.pipeline,
+        conversationState=projection.conversation_state or None,
         createdAt=projection.stream.created_at
         if projection.stream
         else datetime.now(UTC),
@@ -223,6 +224,7 @@ def build_projection_summary(
         isSaved=projection.is_saved,
         stepCount=projection.step_count,
         estimatedSize=projection.estimated_size,
+        conversationState=projection.conversation_state or None,
         createdAt=projection.stream.created_at
         if projection.stream
         else datetime.now(UTC),

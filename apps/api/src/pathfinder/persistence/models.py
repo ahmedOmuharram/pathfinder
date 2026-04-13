@@ -209,6 +209,9 @@ class StreamProjection(Base):
     )
     gene_set_auto_imported: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Conversation FSM state — written by projection handler on phase/plan events.
+    conversation_state: Mapped[JSONObject] = mapped_column(JSON, default=dict)
+
     stream: Mapped[Stream] = relationship()
 
     __table_args__ = (

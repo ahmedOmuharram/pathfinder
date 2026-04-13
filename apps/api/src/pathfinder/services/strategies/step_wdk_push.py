@@ -272,7 +272,7 @@ async def push_all_steps_to_wdk(
             else:
                 continue
 
-        wdk_step_id, _validation, _push_error = await push_step_to_wdk(
+        wdk_step_id, _validation, push_error = await push_step_to_wdk(
             sync_state=sync_state,
             step=step,
             site_id=site_id,
@@ -282,5 +282,7 @@ async def push_all_steps_to_wdk(
         )
         if wdk_step_id is None:
             failed.append(step.id)
+            if push_error:
+                sync_state.wdk_push_errors[step.id] = push_error
 
     return failed

@@ -28,6 +28,40 @@ export interface SubscribeOptions<T> {
   maxReconnects?: number;
 }
 
+function buildTerminalSubscribeError(status: number, statusText: string): Error | null {
+  if (status === 404) {
+    return new Error("Operation not found or already completed");
+  }
+  if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
+    return new Error(`Subscribe failed: ${status} ${statusText}`.trim());
+  }
+  return null;
+}
+
+function emitParsedEvents<T>(
+  parsed: ReturnType<typeof parseSSEChunk>,
+  options: SubscribeOptions<T>,
+  endTypes: Set<string>,
+  setLastEventId: (id: string | undefined) => void,
+): boolean {
+  for (const evt of parsed.events) {
+    if (evt.id != null && evt.id !== "") setLastEventId(evt.id);
+
+    try {
+      const data = JSON.parse(evt.data) as T;
+      options.onEvent({ type: evt.type, data });
+    } catch (e) {
+      console.warn("[subscribe] JSON parse error:", evt.type, evt.data, e);
+    }
+
+    if (endTypes.has(evt.type)) {
+      options.onComplete?.();
+      return true;
+    }
+  }
+  return false;
+}
+
 export function subscribeToOperation<T = unknown>(
   operationId: string,
   options: SubscribeOptions<T>,
@@ -70,8 +104,12 @@ export function subscribeToOperation<T = unknown>(
       });
 
       if (!resp.ok) {
-        if (resp.status === 404) {
-          options.onError?.(new Error("Operation not found or already completed"));
+        const terminalError = buildTerminalSubscribeError(
+          resp.status,
+          resp.statusText,
+        );
+        if (terminalError != null) {
+          options.onError?.(terminalError);
           return;
         }
         throw new Error(`Subscribe failed: ${resp.status}`);
@@ -87,29 +125,24 @@ export function subscribeToOperation<T = unknown>(
       for (;;) {
         if (isAborted()) break;
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          buffer += decoder.decode();
+          const flushed = parseSSEChunk(buffer, { flushTrailingFrame: true });
+          emitParsedEvents(flushed, options, endTypes, (id) => {
+            lastEventId = id;
+          });
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const parsed = parseSSEChunk(buffer);
         buffer = parsed.rest;
-
-        for (const evt of parsed.events) {
-          if (evt.id != null && evt.id !== "") lastEventId = evt.id;
-
-          if (isAborted()) return;
-
-          try {
-            const data = JSON.parse(evt.data) as T;
-            options.onEvent({ type: evt.type, data });
-          } catch (e) {
-            console.warn("[subscribe] JSON parse error:", evt.type, evt.data, e);
-          }
-
-          if (endTypes.has(evt.type)) {
-            reader.cancel().catch(() => {});
-            options.onComplete?.();
-            return;
-          }
+        const isTerminal = emitParsedEvents(parsed, options, endTypes, (id) => {
+          lastEventId = id;
+        });
+        if (isTerminal) {
+          reader.cancel().catch(() => {});
+          return;
         }
       }
     } catch (err) {

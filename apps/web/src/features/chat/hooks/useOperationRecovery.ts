@@ -11,6 +11,7 @@ import { useEventCallback } from "usehooks-ts";
 import type {
   Citation,
   Message,
+  PipelineConfig,
   PlanningArtifact,
   ProblemFrame,
   Strategy,
@@ -27,6 +28,50 @@ import { handleChatEvent } from "@/features/chat/handlers/handleChatEvent";
 import type { ChatEventContext } from "@/features/chat/handlers/handleChatEvent";
 import type { useThinkingState } from "@/features/chat/hooks/useThinkingState";
 import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
+
+// Pipeline phase names in the fixed 5-phase order the backend guarantees.
+const PIPELINE_PHASES = [
+  "scoping",
+  "discovery",
+  "planning",
+  "execution",
+  "verification",
+] as const;
+
+const PIPELINE_PHASE_SET: ReadonlySet<string> = new Set(PIPELINE_PHASES);
+
+function isPipelinePhaseName(v: string): boolean {
+  return PIPELINE_PHASE_SET.has(v);
+}
+
+function asRecord(v: unknown): Record<string, unknown> | null {
+  if (v == null || typeof v !== "object" || Array.isArray(v)) return null;
+  return v as Record<string, unknown>;
+}
+
+/**
+ * Narrow a ``JSONObject | null`` pipeline payload to ``PipelineConfig``.
+ *
+ * Returns ``null`` when any phase entry is missing, is not an object, or
+ * lacks the required ``modelId`` / ``reasoningEffort`` string fields. This
+ * is the single chokepoint where unstructured REST data is validated into
+ * the strongly typed pipeline shape that ``streamState`` consumes.
+ */
+function narrowPipeline(raw: unknown): PipelineConfig | null {
+  const root = asRecord(raw);
+  if (root == null) return null;
+  for (const phase of PIPELINE_PHASES) {
+    const entry = asRecord(root[phase]);
+    if (entry == null) return null;
+    if (
+      typeof entry["modelId"] !== "string"
+      || typeof entry["reasoningEffort"] !== "string"
+    ) {
+      return null;
+    }
+  }
+  return root as unknown as PipelineConfig;
+}
 
 interface UseOperationRecoveryArgs {
   strategyId: string | null;
@@ -167,6 +212,25 @@ export function useOperationRecovery({
       setIsStreaming(true);
       thinking.reset();
 
+      // Seed streamState from the REST-loaded strategy so that messages
+      // streamed during recovery are tagged with the correct phase / model
+      // even when the recovery cursor starts AFTER the original
+      // model_selected / phase_change events were emitted.
+      const seedPipeline = narrowPipeline(currentStrategy?.pipeline ?? null);
+      const csRecord = asRecord(currentStrategy?.conversationState ?? null);
+      const rawSeedPhase = csRecord?.["currentPhase"];
+      const seedPhase =
+        typeof rawSeedPhase === "string" && isPipelinePhaseName(rawSeedPhase)
+          ? rawSeedPhase
+          : null;
+      const seedModelId = seedPipeline != null ? seedPipeline.planning.modelId : null;
+
+      // Re-seed the UI modelId so the model icon/name appears even when
+      // the SSE recovery subscription never re-emits ``model_selected``.
+      if (seedModelId != null && setSelectedModelId != null) {
+        setSelectedModelId(seedModelId);
+      }
+
       const session = new StreamingSession();
       const streamState: ChatEventContext["streamState"] = {
         streamingAssistantIndex: null,
@@ -175,10 +239,11 @@ export function useOperationRecovery({
         turnAssistantIndex: null,
         lastAssistantMessageId: null,
         messageGroupId: null,
-        currentPhase: null,
-        pipeline: null,
+        currentPhase: seedPhase,
+        pipeline: seedPipeline,
         reasoning: null,
         optimizationProgress: null,
+        currentModelId: seedModelId,
       };
       const toolCalls: ToolCall[] = [];
       const citationsBuffer: Citation[] = [];
@@ -214,7 +279,11 @@ export function useOperationRecovery({
         signal.addEventListener("abort", () => sub.unsubscribe());
       });
     },
-    enabled: activeOp != null && strategyId != null && strategyId !== "",
+    enabled:
+      activeOp != null &&
+      strategyId != null &&
+      strategyId !== "" &&
+      !isStreaming,
     staleTime: Infinity,
     gcTime: 0,
     retry: false,

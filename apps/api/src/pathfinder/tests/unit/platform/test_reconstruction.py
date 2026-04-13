@@ -7,11 +7,12 @@ from pathfinder.platform.reconstruction import (
     _process_stream_event,
     _TurnAccumulator,
 )
+from pathfinder.platform.types import JSONObject
 
 
 def test_reconstruction_keeps_phase_level_assistant_messages_separate() -> None:
     turn = _TurnAccumulator()
-    messages: list[dict[str, object]] = []
+    messages: list[JSONObject] = []
 
     _process_stream_event("message_start", {}, "1000-0", turn, messages)
     _process_stream_event(
@@ -166,3 +167,48 @@ def test_extract_resume_phase_from_entries_uses_latest_awaiting_input() -> None:
     )
 
     assert extract_resume_phase_from_entries(entries) == "discovery"
+
+
+def test_plan_presented_event_does_not_crash() -> None:
+    turn = _TurnAccumulator()
+    messages: list[JSONObject] = []
+
+    _process_stream_event("message_start", {}, "1000-0", turn, messages)
+    _process_stream_event(
+        "plan_presented",
+        {"plan": {"id": "plan_abc123", "title": "Test Plan", "status": "presented"}},
+        "1001-0",
+        turn,
+        messages,
+    )
+    assert len(messages) == 0
+
+
+def test_plan_approved_event_does_not_crash() -> None:
+    turn = _TurnAccumulator()
+    messages: list[JSONObject] = []
+
+    _process_stream_event("message_start", {}, "1000-0", turn, messages)
+    _process_stream_event(
+        "plan_approved",
+        {"planId": "plan_abc123", "plan": {}},
+        "1002-0",
+        turn,
+        messages,
+    )
+    assert len(messages) == 0
+
+
+def test_plan_updated_event_does_not_crash() -> None:
+    turn = _TurnAccumulator()
+    messages: list[JSONObject] = []
+
+    _process_stream_event("message_start", {}, "1000-0", turn, messages)
+    _process_stream_event(
+        "plan_updated",
+        {"planId": "plan_abc123", "updates": {"status": "executing"}},
+        "1003-0",
+        turn,
+        messages,
+    )
+    assert len(messages) == 0

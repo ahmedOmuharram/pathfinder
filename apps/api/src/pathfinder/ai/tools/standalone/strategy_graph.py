@@ -47,6 +47,17 @@ async def get_strategy(
     result counts.
     """
     deps = ctx.deps
+    guard = deps.tool_repetition_guard
+    warning = guard.check(
+        "get_strategy",
+        {"graph_id": graph_id, "summary_only": summary_only},
+    )
+    if warning is not None:
+        return ToolErrorPayload(
+            code="REPETITION_BLOCKED",
+            message=warning,
+        )
+
     session = deps.strategy_session
 
     graph = get_graph(session, graph_id)

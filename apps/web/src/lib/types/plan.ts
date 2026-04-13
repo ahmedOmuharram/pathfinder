@@ -17,10 +17,7 @@ export const PlannedParameterSchema = z.object({
   description: z.string().nullable(),
   constraints: z.record(z.string(), z.unknown()).nullable(),
   dependsOn: z.array(z.string()).default([]),
-  vocabularySummary: z.string().nullable().default(null),
-  question: z.string().nullable().default(null),
   options: z.array(z.string()).nullable().default(null),
-  rationale: z.string().nullable().default(null),
 });
 
 export const QuestionOptionSchema = z.object({

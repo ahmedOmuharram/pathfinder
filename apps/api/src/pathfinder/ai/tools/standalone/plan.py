@@ -8,9 +8,12 @@ Provides:
 - ``present_decision`` -- present a decision with options
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import httpx
 from pydantic_ai import RunContext
 
 from pathfinder.ai.orchestration.deps import AgentDeps
@@ -32,6 +35,8 @@ from pathfinder.ai.tools.standalone._plan_models import (
     _validate_domain_topology,
     _validate_plan_topology,
 )
+from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.plan import (
     PlannedStep,
@@ -40,8 +45,50 @@ from pathfinder.domain.strategy.plan import (
     StrategyPlan,
     UserQuestion,
 )
+from pathfinder.integrations.veupathdb.discovery_service import (
+    get_discovery_service,
+)
+from pathfinder.platform.errors import WDKError
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.catalog.param_adapters import (
+    adapt_param_specs_from_search,
+)
+
+
+async def _fetch_specs_by_search(
+    site_id: str,
+    steps: list[PlannedStepInput],
+) -> dict[str, dict[str, ParamSpecNormalized]]:
+    """Fetch WDK param specs for each unique search referenced by *steps*.
+
+    Returns ``{search_name: {param_name: ParamSpecNormalized}}``. Skips
+    COMBINE steps because their synthetic ``__combine__`` search has no
+    discoverable WDK schema. Any fetch failure propagates so the caller
+    can surface a real discovery error instead of silently producing
+    bogus specs.
+    """
+    unique: dict[str, PlannedStepInput] = {}
+    for step in steps:
+        if step.step_type == StepType.COMBINE or not step.search_name:
+            continue
+        if step.search_name not in unique:
+            unique[step.search_name] = step
+
+    if not unique:
+        return {}
+
+    discovery = get_discovery_service()
+    results: dict[str, dict[str, ParamSpecNormalized]] = {}
+    for search_name, step in unique.items():
+        ctx = SearchContext(
+            site_id=site_id,
+            record_type=step.record_type,
+            search_name=search_name,
+        )
+        response = await discovery.get_search_details(ctx, expand_params=True)
+        results[search_name] = adapt_param_specs_from_search(response.search_data)
+    return results
 
 
 def _step_to_node(step: PlannedStep) -> PlanStepNode:
@@ -184,7 +231,20 @@ async def create_plan(
     if topology_error is not None:
         return topology_error
 
-    domain_steps = [_convert_step(s) for s in steps]
+    try:
+        specs_by_search = await _fetch_specs_by_search(ctx.deps.site_id, steps)
+    except (httpx.HTTPError, WDKError) as exc:
+        return tool_error(
+            "DISCOVERY_ERROR",
+            f"Failed to fetch WDK param specs for plan: {exc}",
+        )
+    try:
+        domain_steps = [
+            _convert_step(s, param_specs=specs_by_search.get(s.search_name))
+            for s in steps
+        ]
+    except ValueError as exc:
+        return tool_error("DISCOVERY_ERROR", str(exc))
     domain_connections = [_convert_connection(c) for c in connections]
     domain_questions = _merge_questions([], questions or [])
 
@@ -225,6 +285,14 @@ async def get_plan(
     ctx: RunContext[AgentDeps],
 ) -> StrategyPlan | ToolErrorPayload:
     """Read the current active strategy plan. Use this to review the plan before making updates."""
+    guard = ctx.deps.tool_repetition_guard
+    warning = guard.check("get_plan", {})
+    if warning is not None:
+        return ToolErrorPayload(
+            code="REPETITION_BLOCKED",
+            message=warning,
+        )
+
     plan = ctx.deps.agent_state.active_plan
     if plan is None:
         return tool_error("NO_ACTIVE_PLAN", "No plan exists yet. Use create_plan to build one.")
@@ -242,6 +310,7 @@ def _mutate_plan(
     add_connections: list[PlannedConnectionInput] | None,
     remove_connections: list[ConnectionRef] | None,
     questions: list[UserQuestionInput] | None,
+    specs_by_search: dict[str, dict[str, ParamSpecNormalized]] | None = None,
 ) -> ToolErrorPayload | None:
     """Apply all mutations to a plan in-place. Returns an error payload or None."""
     if title is not None:
@@ -258,12 +327,17 @@ def _mutate_plan(
         ]
 
     if step_updates:
-        patch_err = _apply_step_patches(plan, step_updates)
+        patch_err = _apply_step_patches(
+            plan, step_updates, specs_by_search=specs_by_search,
+        )
         if patch_err is not None:
             return patch_err
 
     if add_steps:
-        plan.steps.extend(_convert_step(s) for s in add_steps)
+        plan.steps.extend(
+            _convert_step(s, param_specs=specs_by_search.get(s.search_name) if specs_by_search else None)
+            for s in add_steps
+        )
 
     if remove_connections:
         remove_pairs = {(r.from_step, r.to_step) for r in remove_connections}
@@ -311,17 +385,46 @@ async def update_plan(
     if plan is None:
         return tool_error("NO_ACTIVE_PLAN", "No plan exists yet. Use create_plan to build one.")
 
-    mutation_err = _mutate_plan(
-        plan,
-        title=title,
-        description=description,
-        step_updates=step_updates,
-        add_steps=add_steps,
-        remove_steps=remove_steps,
-        add_connections=add_connections,
-        remove_connections=remove_connections,
-        questions=questions,
-    )
+    # Fetch WDK specs for any new or patched steps.
+    enrichable_steps = list(add_steps or [])
+    if step_updates:
+        step_map = {s.id: s for s in plan.steps}
+        for patch in step_updates:
+            existing = step_map.get(patch.step_id)
+            if existing is not None and patch.parameters:
+                enrichable_steps.append(
+                    PlannedStepInput(
+                        search_name=patch.search_name or existing.search_name,
+                        display_name=existing.display_name,
+                        record_type=existing.record_type,
+                        step_type=existing.step_type,
+                    ),
+                )
+    try:
+        specs_by_search = await _fetch_specs_by_search(
+            ctx.deps.site_id, enrichable_steps,
+        )
+    except (httpx.HTTPError, WDKError) as exc:
+        return tool_error(
+            "DISCOVERY_ERROR",
+            f"Failed to fetch WDK param specs for plan update: {exc}",
+        )
+
+    try:
+        mutation_err = _mutate_plan(
+            plan,
+            title=title,
+            description=description,
+            step_updates=step_updates,
+            add_steps=add_steps,
+            remove_steps=remove_steps,
+            add_connections=add_connections,
+            remove_connections=remove_connections,
+            questions=questions,
+            specs_by_search=specs_by_search,
+        )
+    except ValueError as exc:
+        return tool_error("DISCOVERY_ERROR", str(exc))
     if mutation_err is not None:
         return mutation_err
 

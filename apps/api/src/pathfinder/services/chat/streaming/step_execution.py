@@ -525,7 +525,11 @@ async def run_execution_phase(config: PhaseConfig) -> None:
         if execution_failed:
             break
 
-    # Update plan status based on step outcomes.
+    # Update plan status based on step outcomes.  ``classify_failure`` on the
+    # plan inspects per-step ``failure_reason`` values; the phase driver reads
+    # that (via ``StrategyPlan.classify_failure``) together with the FSM's
+    # replan history to decide between ``replan`` and
+    # ``retry_discovery_from_execution``.
     all_complete = all(
         s.status == StepStatus.COMPLETE for s in active_plan.steps
     )

@@ -7,6 +7,31 @@
 
 export type RawSSEEvent = { type: string; data: string; id?: string };
 
+function parseSSEFrame(part: string): RawSSEEvent | null {
+  if (!part.trim()) return null;
+  const lines = part.split(/\r?\n/);
+  let type = "message";
+  let id: string | undefined;
+  const dataLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith(":")) {
+      continue;
+    } else if (line.startsWith("event:")) {
+      type = line.slice("event:".length).trim() || type;
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    } else if (line.startsWith("id:")) {
+      id = line.slice("id:".length).trim();
+    }
+  }
+
+  if (dataLines.length === 0) return null;
+  const event: RawSSEEvent = { type, data: dataLines.join("\n") };
+  if (id != null) event.id = id;
+  return event;
+}
+
 /**
  * Parse a text buffer containing one or more SSE frames.
  *
@@ -17,7 +42,10 @@ export type RawSSEEvent = { type: string; data: string; id?: string };
  * @returns The parsed events and any leftover buffer text that hasn't
  *   been terminated by a blank line yet.
  */
-export function parseSSEChunk(buffer: string): {
+export function parseSSEChunk(
+  buffer: string,
+  options?: { flushTrailingFrame?: boolean },
+): {
   events: RawSSEEvent[];
   rest: string;
 } {
@@ -26,29 +54,18 @@ export function parseSSEChunk(buffer: string): {
   const rest = parts.pop() ?? "";
 
   for (const part of parts) {
-    if (!part.trim()) continue;
-    const lines = part.split(/\r?\n/);
-    let type = "message";
-    let id: string | undefined;
-    const dataLines: string[] = [];
-
-    for (const line of lines) {
-      if (line.startsWith(":")) {
-        // SSE comment — skip (includes keepalive lines).
-        continue;
-      } else if (line.startsWith("event:")) {
-        type = line.slice("event:".length).trim() || type;
-      } else if (line.startsWith("data:")) {
-        dataLines.push(line.slice("data:".length).trimStart());
-      } else if (line.startsWith("id:")) {
-        id = line.slice("id:".length).trim();
-      }
+    const event = parseSSEFrame(part);
+    if (event != null) {
+      events.push(event);
     }
+  }
 
-    if (dataLines.length === 0) continue;
-    const event: RawSSEEvent = { type, data: dataLines.join("\n") };
-    if (id != null) event.id = id;
-    events.push(event);
+  if (options?.flushTrailingFrame === true) {
+    const trailingEvent = parseSSEFrame(rest);
+    if (trailingEvent != null) {
+      events.push(trailingEvent);
+      return { events, rest: "" };
+    }
   }
 
   return { events, rest };

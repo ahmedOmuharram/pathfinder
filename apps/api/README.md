@@ -156,7 +156,8 @@ Common env vars:
 - `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` if using those providers)
 - `API_SECRET_KEY` (32+ chars; required in every profile)
 - `DATABASE_URL` and `REDIS_URL` (required; no implicit localhost defaults)
-- `PATHFINDER_CHAT_PROVIDER=mock` is allowed only in development
+- `PATHFINDER_CHAT_PROVIDER=default` for normal runs
+- `PATHFINDER_CHAT_PROVIDER=mock` is allowed only in the dedicated test profile
 - `DEFAULT_PROVIDER` and `DEFAULT_TIER` choose the base model preset when using real providers
 ### Run locally (no Docker)
 

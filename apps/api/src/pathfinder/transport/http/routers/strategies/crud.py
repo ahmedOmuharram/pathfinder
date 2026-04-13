@@ -10,6 +10,7 @@ from pathfinder.domain.strategy.plan_payload import (
     PersistedStrategyGraph,
     StrategyPlanPayload,
 )
+from pathfinder.persistence.repositories import PlanRepository
 from pathfinder.persistence.repositories.stream import ProjectionUpdate
 from pathfinder.platform.errors import (
     AppError,
@@ -130,7 +131,17 @@ async def get_strategy(
     redis = get_redis()
     messages = await read_stream_messages(redis, str(strategyId))
     thinking = await read_stream_thinking(redis, str(strategyId))
-    return build_projection_response(projection, messages=messages, thinking=thinking)
+
+    # Load the interactive plan for frontend restoration.
+    plan_repo = PlanRepository(stream_repo.session)
+    active_plan = await plan_repo.get_latest_plan(strategyId)
+    active_plan_json: JSONObject | None = None
+    if active_plan is not None:
+        active_plan_json = active_plan.model_dump(by_alias=True, mode="json")
+
+    response = build_projection_response(projection, messages=messages, thinking=thinking)
+    response.active_plan = active_plan_json
+    return response
 
 
 @router.patch("/{strategyId:uuid}", response_model=StrategyResponse)

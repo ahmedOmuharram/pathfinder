@@ -5,8 +5,9 @@ from __future__ import annotations
 from typing import cast
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
+from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
     PlannedConnection,
@@ -20,7 +21,7 @@ from pathfinder.domain.strategy.plan import (
 )
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONArray, JSONObject, JSONValue
 
 
 class PlannedStepInput(BaseModel):
@@ -54,7 +55,7 @@ class UserQuestionInput(BaseModel):
     context: str = ""
     related_step: str | None = None
     related_param: str | None = None
-    options: list[dict[str, object]] | None = None
+    options: list[DecisionOptionInput] | None = None
 
 
 class ConnectionRef(BaseModel):
@@ -118,18 +119,21 @@ class DecisionResponse(CamelModel):
     recommendation: str | None = None
 
 
-def _convert_step(s: PlannedStepInput) -> PlannedStep:
-    """Convert an input step to a domain PlannedStep."""
+def _convert_step(
+    s: PlannedStepInput,
+    *,
+    param_specs: dict[str, ParamSpecNormalized] | None = None,
+) -> PlannedStep:
+    """Convert an input step to a domain PlannedStep.
+
+    When *param_specs* is provided (keyed by parameter name), real WDK
+    metadata (param_type, description, depends_on, required) is used
+    instead of the default ``"string"`` placeholder.
+    """
     params: dict[str, PlannedParameter] = {}
     for name, value in s.parameters.items():
-        params[name] = PlannedParameter(
-            name=name,
-            display_name=name,
-            param_type="string",
-            value=value,
-            status=ParamStatus.SET if value is not None else ParamStatus.NEEDS_DISCOVERY,
-            required=True,
-        )
+        spec = param_specs.get(name) if param_specs else None
+        params[name] = _build_param(name, value, spec)
     return PlannedStep(
         id=s.id,
         search_name=s.search_name,
@@ -143,6 +147,98 @@ def _convert_step(s: PlannedStepInput) -> PlannedStep:
     )
 
 
+def _build_param(
+    name: str,
+    value: JSONValue,
+    spec: ParamSpecNormalized | None,
+) -> PlannedParameter:
+    """Build a PlannedParameter, enriching from the WDK spec.
+
+    The spec is mandatory. Silent fallback to ``param_type="string"`` is
+    forbidden because the frontend widget registry requires real WDK types
+    (treebox, typeahead, select, checkbox, number, ...) to render the
+    correct input. A bogus "string" type corrupts the UI layer.
+    """
+    if spec is None:
+        msg = (
+            f"Cannot build PlannedParameter for {name!r}: no WDK ParamSpec "
+            "available. Callers must supply a spec (or run discovery first). "
+            "Silent fallback to param_type='string' is forbidden — the "
+            "frontend widget registry requires real WDK types to render "
+            "the correct input."
+        )
+        raise ValueError(msg)
+    return PlannedParameter(
+        name=name,
+        display_name=name,
+        param_type=spec.param_type,
+        value=value,
+        status=ParamStatus.SET if value is not None else ParamStatus.NEEDS_DISCOVERY,
+        required=not spec.allow_empty_value,
+        description=spec.help,
+        depends_on=list(spec.dependent_params),
+        constraints=_build_constraints(spec),
+        options=_extract_vocab_values(spec.vocabulary),
+    )
+
+
+def _build_constraints(spec: ParamSpecNormalized) -> dict[str, JSONValue] | None:
+    """Build a constraints dict from WDK spec metadata."""
+    constraints: dict[str, JSONValue] = {}
+    if spec.display_type:
+        constraints["displayType"] = spec.display_type
+    if spec.is_number:
+        constraints["isNumber"] = True
+    if spec.min_value is not None:
+        constraints["minValue"] = spec.min_value
+    if spec.max_value is not None:
+        constraints["maxValue"] = spec.max_value
+    if spec.increment is not None:
+        constraints["increment"] = spec.increment
+    if spec.min_selected_count is not None:
+        constraints["minSelectedCount"] = spec.min_selected_count
+    if spec.max_selected_count is not None:
+        constraints["maxSelectedCount"] = spec.max_selected_count
+    if spec.max_length is not None:
+        constraints["maxLength"] = spec.max_length
+    return constraints or None
+
+
+class _VocabItem(BaseModel):
+    """WDK vocabulary list entry shape: ``{"value": str, "display": ..., ...}``.
+
+    ``extra="ignore"`` forward-compatible with new WDK fields.  A raw string
+    is also accepted via the ``str`` arm of the union in ``_VOCAB_ADAPTER``.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+    value: str
+
+
+_VOCAB_ADAPTER: TypeAdapter[list[_VocabItem | str]] = TypeAdapter(
+    list[_VocabItem | str]
+)
+
+
+def _extract_vocab_values(
+    vocabulary: JSONObject | JSONArray | None,
+) -> list[str] | None:
+    """Extract vocabulary option values from a WDK vocabulary payload.
+
+    Routes validation through a typed ``TypeAdapter[list[_VocabItem | str]]``
+    so the isinstance discrimination happens inside Pydantic rather than
+    being scattered at the call site.
+    """
+    if vocabulary is None:
+        return None
+    try:
+        items = _VOCAB_ADAPTER.validate_python(vocabulary)
+    except ValidationError:
+        return None
+    values = [entry if isinstance(entry, str) else entry.value for entry in items]
+    return values or None
+
+
 def _convert_connection(c: PlannedConnectionInput) -> PlannedConnection:
     """Convert an input connection to a domain PlannedConnection."""
     return PlannedConnection(
@@ -153,27 +249,27 @@ def _convert_connection(c: PlannedConnectionInput) -> PlannedConnection:
     )
 
 
-def _to_str_list(val: object) -> list[str]:
-    """Safely convert an object to a list of strings."""
-    if isinstance(val, list):
-        return [str(v) for v in val]
-    return []
-
-
 def _convert_question(q: UserQuestionInput) -> UserQuestion:
-    """Convert an input question to a domain UserQuestion."""
-    options = None
-    if q.options:
-        options = [
+    """Convert an input question to a domain UserQuestion.
+
+    ``q.options`` is already ``list[DecisionOptionInput] | None`` — Pydantic
+    has coerced, validated, and defaulted every field.  No dict.get chains
+    or isinstance checks needed at this layer.
+    """
+    options = (
+        [
             QuestionOption(
-                label=str(o.get("label", "")),
-                description=str(o.get("description", "")),
-                pros=_to_str_list(o.get("pros")),
-                cons=_to_str_list(o.get("cons")),
-                recommended=bool(o.get("recommended", False)),
+                label=o.label,
+                description=o.description,
+                pros=list(o.pros),
+                cons=list(o.cons),
+                recommended=o.recommended,
             )
             for o in q.options
         ]
+        if q.options
+        else None
+    )
     return UserQuestion(
         id=f"q_{uuid4().hex[:8]}",
         question=q.question.strip(),
@@ -248,8 +344,14 @@ def _validate_domain_parameters(
 def _apply_step_patches(
     plan: StrategyPlan,
     patches: list[StepPatch],
+    *,
+    specs_by_search: dict[str, dict[str, ParamSpecNormalized]] | None = None,
 ) -> ToolErrorPayload | None:
-    """Apply patches to steps in a plan. Returns error if step not found."""
+    """Apply patches to steps in a plan. Returns error if step not found.
+
+    *specs_by_search* maps ``search_name → {param_name → spec}`` so that
+    newly added parameters get real WDK metadata.
+    """
     step_map = {s.id: s for s in plan.steps}
     for patch in patches:
         step = step_map.get(patch.step_id)
@@ -267,17 +369,16 @@ def _apply_step_patches(
         if patch.operator is not None:
             step.operator = patch.operator
         if patch.parameters is not None:
+            param_specs = (
+                specs_by_search.get(step.search_name)
+                if specs_by_search
+                else None
+            )
             for name, value in patch.parameters.items():
                 if name in step.parameters:
                     step.parameters[name].value = value
                     step.parameters[name].status = ParamStatus.SET
                 else:
-                    step.parameters[name] = PlannedParameter(
-                        name=name,
-                        display_name=name,
-                        param_type="string",
-                        value=value,
-                        status=ParamStatus.SET,
-                        required=True,
-                    )
+                    spec = param_specs.get(name) if param_specs else None
+                    step.parameters[name] = _build_param(name, value, spec)
     return None

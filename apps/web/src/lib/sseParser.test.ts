@@ -144,4 +144,22 @@ describe("parseSSEChunk", () => {
     expect(second.events[0]!.data).toBe("hello");
     expect(second.rest).toBe("");
   });
+
+  it("flushes a trailing complete frame at EOF when requested", () => {
+    const { events, rest } = parseSSEChunk('event: message_end\ndata: {"done":true}', {
+      flushTrailingFrame: true,
+    });
+
+    expect(events).toEqual([{ type: "message_end", data: '{"done":true}' }]);
+    expect(rest).toBe("");
+  });
+
+  it("does not flush a trailing comment-only frame at EOF", () => {
+    const { events, rest } = parseSSEChunk(": keepalive", {
+      flushTrailingFrame: true,
+    });
+
+    expect(events).toEqual([]);
+    expect(rest).toBe(": keepalive");
+  });
 });

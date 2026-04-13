@@ -140,6 +140,7 @@ export function makeCtx(overrides?: Partial<ChatEventContext>) {
       pipeline: null,
       reasoning: null,
       optimizationProgress: null,
+      currentModelId: null,
     },
     setOptimizationProgress: vi.fn(),
     setSelectedModelId: vi.fn(),

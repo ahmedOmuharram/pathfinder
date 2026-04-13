@@ -9,7 +9,7 @@ const isCI = Boolean(process.env["CI"]);
  *
  * 1. Start Docker services with the explicit development overlays:
  *
- *      docker compose --env-file .env.dev \
+ *      docker compose --env-file .env.test \
  *        -f docker-compose.yml \
  *        -f docker-compose.dev.yml \
  *        -f docker-compose.e2e.yml \
@@ -78,7 +78,7 @@ export default defineConfig({
 
   // Both local and CI: the Docker web container on port 3000 serves the
   // production build (no HMR). The Docker API on port 8000 must be running
-  // with PATHFINDER_CHAT_PROVIDER=mock via the explicit development overlays.
+  // with PATHFINDER_CHAT_PROVIDER=mock via the dedicated test overlay.
   //
-  // Start services: docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.e2e.yml up -d --build api web
+  // Start services: docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.e2e.yml up -d --build api web
 });

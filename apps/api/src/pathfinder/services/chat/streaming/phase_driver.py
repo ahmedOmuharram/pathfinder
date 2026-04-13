@@ -11,8 +11,9 @@ from pathfinder.ai.orchestration.phase_results import (
     PhaseName,
 )
 from pathfinder.ai.orchestration.pipeline import AgentPipeline
-from pathfinder.domain.strategy.plan import PlanStatus
+from pathfinder.domain.strategy.plan import FailureKind, PlanStatus
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.turn_metadata import read_failure_kind
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.chat.streaming.phase_recovery import (
     recover_missing_phase_decision,
@@ -30,13 +31,6 @@ from pathfinder.services.chat.streaming.turn_telemetry import (
 
 logger = get_logger(__name__)
 
-_PHASE_RESULT_ATTRS = {
-    "scoping": "scoping_result",
-    "discovery": "discovery_result",
-    "planning": "planning_result",
-    "verification": "verification_result",
-}
-
 
 class MissingPhaseDecisionError(ValueError):
     """Raised when a phase exits without declaring how it should end."""
@@ -47,10 +41,30 @@ class MissingPhaseDecisionError(ValueError):
         )
 
 
-def _require_phase_decision(deps: AgentDeps, phase: str) -> PhaseDecision:
+def _phase_decision(deps: AgentDeps, phase: PhaseName) -> PhaseDecision | None:
+    """Return the stored :class:`PhaseDecision` for *phase*, or ``None``.
+
+    Typed dispatch over the ``PhaseName`` literal union — no
+    :func:`getattr` by string, so mypy can still check the result types.
+    """
+    match phase:
+        case "scoping":
+            return deps.scoping_result.decision if deps.scoping_result else None
+        case "discovery":
+            return deps.discovery_result.decision if deps.discovery_result else None
+        case "planning":
+            return deps.planning_result.decision if deps.planning_result else None
+        case "verification":
+            return (
+                deps.verification_result.decision
+                if deps.verification_result
+                else None
+            )
+
+
+def _require_phase_decision(deps: AgentDeps, phase: PhaseName) -> PhaseDecision:
     """Return the declared phase decision or fail fast if the phase drifted."""
-    result = getattr(deps, _PHASE_RESULT_ATTRS[phase], None)
-    decision = result.decision if result is not None else None
+    decision = _phase_decision(deps, phase)
     if decision is None or decision.phase != phase:
         raise MissingPhaseDecisionError(phase)
     return decision
@@ -186,17 +200,33 @@ async def _run_execution_state_phase(
     sm: AgentPipeline,
     config: PhaseConfig,
 ) -> None:
-    """Run execution and advance to replanning or verification."""
+    """Run execution and advance to rediscovery, replanning, or verification."""
     await run_execution_phase(config)
     plan = config.deps.agent_state.active_plan
-    if plan is not None and plan.status == PlanStatus.FAILED and sm.should_replan():
-        logger.info(
-            "Execution failed, replanning",
-            attempt=sm.retry_counts.get("execution", 0),
-            budget=sm.retry_budget,
-        )
-        sm.send("replan")
-        return
+    if plan is not None and plan.status == PlanStatus.FAILED:
+        # Prefer an explicit classification written by the executor; fall back
+        # to the plan-level heuristic informed by the FSM's planning history.
+        failure_kind = read_failure_kind(config.deps.turn_metadata)
+        if failure_kind is None:
+            failure_kind = plan.classify_failure(
+                planning_attempts=sm.retry_counts.get("planning", 0),
+            )
+        if failure_kind == FailureKind.SEARCH_INVALID and sm.needs_rediscovery():
+            logger.info(
+                "Execution failed with invalid search, rediscovering",
+                attempt=sm.retry_counts.get("discovery", 0),
+                budget=sm.retry_budget,
+            )
+            sm.send("retry_discovery_from_execution")
+            return
+        if sm.should_replan():
+            logger.info(
+                "Execution failed, replanning",
+                attempt=sm.retry_counts.get("execution", 0),
+                budget=sm.retry_budget,
+            )
+            sm.send("replan")
+            return
     sm.send("finish_execution")
 
 

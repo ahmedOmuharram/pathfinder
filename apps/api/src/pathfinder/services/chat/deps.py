@@ -21,6 +21,7 @@ from pathfinder.ai.context.rendering import (
 )
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.orchestration.phase_results import PhaseName, ProblemFrame
+from pathfinder.domain.strategy.conversation_state import ConversationState
 from pathfinder.domain.strategy.plan import PlanStatus, StrategyPlan
 from pathfinder.domain.strategy.plan_payload import PersistedStrategyGraph
 from pathfinder.persistence.models import StreamProjection
@@ -66,6 +67,33 @@ def _register_plan_searches(
                 required_params=required_params,
             ),
         )
+
+
+_RESUMABLE_PHASE_MAP: dict[str, PhaseName] = {
+    "scoping": "scoping",
+    "discovery": "discovery",
+    "planning": "planning",
+    "verification": "verification",
+}
+
+_RESUMABLE_STATUSES: frozenset[str] = frozenset(
+    {"awaiting_input", "awaiting_approval"}
+)
+
+
+def resolve_resume_phase(
+    state: ConversationState,
+) -> PhaseName | None:
+    """Derive the resume phase from persisted conversation state.
+
+    Returns a phase name when the conversation was paused waiting for
+    user input/approval. Returns ``None`` when no resumption is needed.
+    """
+    if state.current_phase is None or state.phase_status is None:
+        return None
+    if state.phase_status not in _RESUMABLE_STATUSES:
+        return None
+    return _RESUMABLE_PHASE_MAP.get(state.current_phase)
 
 
 async def build_context_from_redis(
@@ -120,8 +148,15 @@ async def build_agent_deps(
         context_summary,
         discovered_searches,
         problem_frame,
-        resume_phase,
+        _redis_resume_phase,
     ) = await build_context_from_redis(turn.stream_id_str)
+
+    # Resolve resume phase from persisted conversation state (preferred)
+    # with fallback to Redis-based extraction for pre-migration streams.
+    conversation_state = ConversationState.model_validate(
+        projection.conversation_state or {}
+    )
+    resume_phase = resolve_resume_phase(conversation_state) or _redis_resume_phase
 
     logger.debug(
         "Reconstruction: context_summary=%s discovered=%d",

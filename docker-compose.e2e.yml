@@ -4,7 +4,7 @@
 # and maps the DB to port 5433 to avoid conflicts with local PostgreSQL.
 #
 # Usage:
-#   docker compose --env-file .env.dev \
+#   docker compose --env-file .env.test \
 #     -f docker-compose.yml \
 #     -f docker-compose.dev.yml \
 #     -f docker-compose.e2e.yml \
@@ -14,7 +14,7 @@
 services:
   api:
     environment:
-      API_ENV: development
+      API_ENV: test
       PATHFINDER_CHAT_PROVIDER: mock
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
       REDIS_URL: redis://redis:6379/1

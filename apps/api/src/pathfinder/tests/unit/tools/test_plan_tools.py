@@ -3,6 +3,7 @@
 Uses real AgentToolState and AgentDeps — only RunContext is a mock wrapper.
 """
 
+from collections.abc import Iterable
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,11 +11,14 @@ import pytest
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.standalone._plan_models import (
+    DecisionOptionInput,
     PlanCreatedResponse,
     PlannedConnectionInput,
     PlannedStepInput,
     StepPatch,
     UserQuestionInput,
+    _apply_step_patches,
+    _convert_step,
 )
 from pathfinder.ai.tools.standalone.plan import (
     create_plan,
@@ -22,6 +26,7 @@ from pathfinder.ai.tools.standalone.plan import (
     submit_plan,
     update_plan,
 )
+from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
     PlanStatus,
@@ -95,6 +100,61 @@ def _register_search(state: AgentToolState, search_name: str) -> None:
             parameter_names=["organism"],
             required_params=["organism"],
         ),
+    )
+
+
+# A minimal but realistic WDK-like spec map. ``_build_param`` refuses to
+# synthesize a ``param_type="string"`` fallback (that would hide structured
+# widget information from the frontend), so every param the LLM emits must
+# have a real ``ParamSpecNormalized``.  We return a dict keyed by
+# ``search_name`` whose values include the param names used by ``_leaf_step``.
+_DEFAULT_ORGANISM_SPEC = ParamSpecNormalized(
+    name="organism",
+    param_type="multi-pick-vocabulary",
+    display_type="treeBox",
+    vocabulary=[
+        {"value": "Plasmodium falciparum 3D7", "label": "P. falciparum 3D7"},
+        {"value": "Plasmodium vivax", "label": "P. vivax"},
+    ],
+    help="Select one or more organisms",
+    allow_empty_value=False,
+)
+
+
+@pytest.fixture(autouse=True)
+def _stub_fetch_specs_by_search(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Replace ``_fetch_specs_by_search`` with a deterministic stub.
+
+    Unit tests must not hit live WDK. The stub returns a spec map for
+    every referenced search containing canned specs for the param names
+    the helpers use (``organism`` for ``_leaf_step``, ``num_genes`` for
+    patch tests).
+    """
+    canned_specs: dict[str, ParamSpecNormalized] = {
+        "organism": _DEFAULT_ORGANISM_SPEC,
+        "num_genes": ParamSpecNormalized(
+            name="num_genes",
+            param_type="number",
+            is_number=True,
+            min_value=1.0,
+            max_value=10000.0,
+            help="Number of genes to return",
+        ),
+    }
+
+    async def _stub(
+        site_id: str,
+        steps: Iterable[PlannedStepInput],
+    ) -> dict[str, dict[str, ParamSpecNormalized]]:
+        out: dict[str, dict[str, ParamSpecNormalized]] = {}
+        for step in steps:
+            if step.step_type == StepType.COMBINE or not step.search_name:
+                continue
+            out[step.search_name] = dict(canned_specs)
+        return out
+
+    monkeypatch.setattr(
+        "pathfinder.ai.tools.standalone.plan._fetch_specs_by_search", _stub,
     )
 
 
@@ -290,10 +350,10 @@ async def test_update_plan_reuses_existing_question_and_preserves_answer() -> No
                 related_step="step_a",
                 related_param="organism",
                 options=[
-                    {
-                        "label": "Plasmodium vivax",
-                        "description": "Use the vivax organism context.",
-                    },
+                    DecisionOptionInput(
+                        label="Plasmodium vivax",
+                        description="Use the vivax organism context.",
+                    ),
                 ],
             ),
         ],
@@ -431,3 +491,133 @@ async def test_create_plan_archives_previous_plan() -> None:
     assert second_plan.title == "Plan 2"
     assert len(deps.agent_state.plan_history) == 1
     assert deps.agent_state.plan_history[0].title == "Plan 1"
+
+
+# ---------------------------------------------------------------------------
+# Parameter type enrichment from WDK specs
+# ---------------------------------------------------------------------------
+
+
+def test_convert_step_uses_real_param_type_from_specs() -> None:
+    """_convert_step should use the WDK spec param_type, not hardcode 'string'."""
+    step_input = PlannedStepInput(
+        id="step_a",
+        search_name="GenesByTaxon",
+        display_name="Genes by Taxon",
+        record_type="transcript",
+        step_type=StepType.LEAF,
+        parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+    )
+    specs = {
+        "organism": ParamSpecNormalized(
+            name="organism",
+            param_type="multi-pick-vocabulary",
+            display_type="treeBox",
+            help="Select one or more organisms",
+            allow_empty_value=False,
+            dependent_params=("geneBooleanFilter",),
+        ),
+    }
+
+    result = _convert_step(step_input, param_specs=specs)
+
+    param = result.parameters["organism"]
+    assert param.param_type == "multi-pick-vocabulary"
+    assert param.description == "Select one or more organisms"
+    assert param.depends_on == ["geneBooleanFilter"]
+    assert param.required is True
+
+
+def test_convert_step_populates_constraints_and_options_from_spec() -> None:
+    """_convert_step should transfer vocabulary, display_type, and numeric metadata."""
+    step_input = PlannedStepInput(
+        id="step_a",
+        search_name="GenesByTaxon",
+        display_name="Genes by Taxon",
+        record_type="transcript",
+        step_type=StepType.LEAF,
+        parameters={
+            "organism": '["pfal"]',
+            "num_genes": "100",
+        },
+    )
+    specs = {
+        "organism": ParamSpecNormalized(
+            name="organism",
+            param_type="multi-pick-vocabulary",
+            display_type="treeBox",
+            vocabulary=[
+                {"value": "pfal", "label": "P. falciparum"},
+                {"value": "pvivax", "label": "P. vivax"},
+            ],
+        ),
+        "num_genes": ParamSpecNormalized(
+            name="num_genes",
+            param_type="number",
+            is_number=True,
+            min_value=1.0,
+            max_value=10000.0,
+            increment=1.0,
+        ),
+    }
+
+    result = _convert_step(step_input, param_specs=specs)
+
+    # Vocabulary param should have options extracted.
+    org = result.parameters["organism"]
+    assert org.options == ["pfal", "pvivax"]
+    assert org.constraints is not None
+    assert org.constraints["displayType"] == "treeBox"
+
+    # Number param should have numeric constraints.
+    num = result.parameters["num_genes"]
+    assert num.constraints is not None
+    assert num.constraints["isNumber"] is True
+    assert num.constraints["minValue"] == 1.0
+    assert num.constraints["maxValue"] == 10000.0
+    assert num.constraints["increment"] == 1.0
+
+
+def test_apply_step_patches_uses_specs_for_new_params() -> None:
+    """_apply_step_patches should use WDK spec param_type for newly added params."""
+    step_input = PlannedStepInput(
+        id="step_a",
+        search_name="GenesByTaxon",
+        display_name="Genes by Taxon",
+        record_type="transcript",
+        step_type=StepType.LEAF,
+        parameters={"organism": "pfal"},
+    )
+    organism_spec = ParamSpecNormalized(
+        name="organism",
+        param_type="multi-pick-vocabulary",
+        display_type="treeBox",
+        help="Pick an organism",
+    )
+    plan = StrategyPlan(
+        title="Test",
+        description="Test",
+        rationale="Test",
+        steps=[_convert_step(step_input, param_specs={"organism": organism_spec})],
+        connections=[],
+    )
+
+    specs = {
+        "GenesByTaxon": {
+            "num_genes": ParamSpecNormalized(
+                name="num_genes",
+                param_type="number",
+                is_number=True,
+                min_value=1.0,
+                max_value=1000.0,
+                help="Number of genes to return",
+            ),
+        },
+    }
+
+    patches = [StepPatch(step_id="step_a", parameters={"num_genes": "100"})]
+    _apply_step_patches(plan, patches, specs_by_search=specs)
+
+    param = plan.steps[0].parameters["num_genes"]
+    assert param.param_type == "number"
+    assert param.description == "Number of genes to return"

@@ -1,5 +1,6 @@
 """Regression coverage for chat startup failures and stream termination."""
 
+import asyncio
 import json
 from uuid import uuid4
 
@@ -63,6 +64,21 @@ async def _collect_operation_events(
     return events
 
 
+async def _wait_for_operation_completion(operation_id: str) -> None:
+    for _ in range(50):
+        async with session_module.async_session_factory() as session:
+            result = await session.execute(
+                select(Operation).where(Operation.operation_id == operation_id)
+            )
+            operation = result.scalar_one()
+            if operation.status == "completed":
+                return
+        await asyncio.sleep(0.1)
+
+    msg = f"Operation {operation_id} did not complete in time"
+    raise AssertionError(msg)
+
+
 @pytest.mark.asyncio
 async def test_chat_startup_failure_emits_error_and_message_end(
     client: httpx.AsyncClient,
@@ -110,3 +126,37 @@ async def test_chat_startup_failure_emits_error_and_message_end(
         operation = result.scalar_one()
         assert operation.status == "failed"
         assert operation.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_completed_chat_operation_replays_full_stream_to_late_subscriber(
+    client: httpx.AsyncClient,
+) -> None:
+    user_id = uuid4()
+    async with session_module.async_session_factory() as session:
+        session.add(User(id=user_id))
+        await session.commit()
+
+    client.cookies.set("pathfinder-auth", create_user_token(user_id))
+
+    response = await client.post(
+        "/api/v1/chat",
+        json={
+            "siteId": "plasmodb",
+            "message": "Which P. vivax genes are likely membrane transporters?",
+            "pipeline": _MOCK_PIPELINE.model_dump(by_alias=True),
+        },
+        timeout=30.0,
+    )
+
+    assert response.status_code == 202
+    operation_id = response.json()["operationId"]
+
+    await _wait_for_operation_completion(operation_id)
+
+    events = await _collect_operation_events(client, operation_id=operation_id)
+    event_types = [event["type"] for event in events]
+
+    assert event_types[-1] == "message_end"
+    assert "assistant_message" in event_types
+    assert "message_start" in event_types

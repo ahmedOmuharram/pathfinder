@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { handleChatEvent } from "./handleChatEvent";
-import type { ChatEventContext } from "./handleChatEvent.types";
 import type { ChatSSEEvent } from "@/lib/sse_events";
-import type { AssistantMessage, Citation, PlanningArtifact, ToolCall } from "@pathfinder/shared";
-import { StreamingSession } from "@/features/chat/streaming/StreamingSession";
+import type { AssistantMessage, Message } from "@pathfinder/shared";
 import { makeBatchingStateSetters, makeCtx } from "./handleChatEvent.testUtils";
-import type { Message } from "@pathfinder/shared";
 
 function assertAssistant(msg: Message): asserts msg is AssistantMessage {
   if (msg.role !== "assistant") throw new Error(`Expected assistant, got ${msg.role}`);
@@ -99,65 +96,10 @@ describe("handleChatEvent — buffering & core events", () => {
 
   it("handles batched SSE events (deltas + artifact + finalize in one synchronous chunk)", () => {
     const batchState = makeBatchingStateSetters();
-    const toolCallsBuffer: ToolCall[] = [];
-    const citationsBuffer: Citation[] = [];
-    const planningArtifactsBuffer: PlanningArtifact[] = [];
-
-    const ctx = {
-      siteId: "plasmodb",
-      strategyIdAtStart: "s1",
-      toolCallsBuffer,
-      citationsBuffer,
-      planningArtifactsBuffer,
-      problemFrameBuffer: null,
-      thinking: {
-        activeMessageId: null,
-        activeToolCalls: [],
-        lastToolCalls: [],
-        reasoning: null,
-        getThinkingForMessage: vi.fn(() => ({
-          activeToolCalls: [],
-          lastToolCalls: [],
-          reasoning: null,
-        })),
-        setActiveMessage: vi.fn(),
-        reset: vi.fn(),
-        applyThinkingPayload: vi.fn(() => false),
-        updateActiveFromBuffer: vi.fn(),
-        finalizeToolCalls: vi.fn(),
-        updateReasoning: vi.fn(),
-      } satisfies ChatEventContext["thinking"],
-      setStrategyId: vi.fn(),
-      addStrategy: vi.fn(),
-      addExecutedStrategy: vi.fn(),
-      setWdkInfo: vi.fn(),
-      setStrategy: vi.fn(),
-      setStrategyMeta: vi.fn(),
-      clearStrategy: vi.fn(),
-      addStep: vi.fn(),
-      loadGraph: vi.fn(),
-      session: new StreamingSession(),
-      currentStrategy: null,
+    const { ctx } = makeCtx({
       setMessages: batchState.setMessages,
       setUndoSnapshots: batchState.setUndoSnapshots,
-      parseToolArguments: vi.fn(() => ({})),
-      parseToolResult: vi.fn(() => null),
-      applyGraphSnapshot: vi.fn(),
-      getStrategy: vi.fn(),
-      streamState: {
-        streamingAssistantIndex: null,
-        streamingAssistantMessageId: null,
-        assistantMessageIndices: {},
-        turnAssistantIndex: null,
-        lastAssistantMessageId: null,
-        messageGroupId: null,
-        currentPhase: null,
-        pipeline: null,
-        reasoning: null,
-        optimizationProgress: null,
-      },
-      setOptimizationProgress: vi.fn(),
-    };
+    });
 
     // Dispatch all events synchronously (as if they arrived in one SSE chunk).
     handleChatEvent(ctx, {

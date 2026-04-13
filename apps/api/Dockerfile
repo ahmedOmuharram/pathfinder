@@ -77,6 +77,7 @@ COPY ollama_models.yam[l] ./
 # code: installing the editable project needs the Hatchling build backend, and
 # build isolation may try to fetch it from PyPI during every code-layer rebuild.
 ENV PYTHONPATH=/app/apps/api/src:/app/packages/shared-py/src
+ENV PYTHONUNBUFFERED=1
 WORKDIR /app/apps/api
 
 # Expose port

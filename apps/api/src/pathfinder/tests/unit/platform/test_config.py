@@ -5,7 +5,7 @@ from pathfinder.platform.config import Settings
 
 def make_settings(**overrides: object) -> Settings:
     values: dict[str, object] = {
-        "api_env": "development",
+        "api_env": "test",
         "api_secret_key": "pathfinder-test-secret-key-1234567890",
         "database_url": "postgresql+asyncpg://postgres:postgres@db:5432/pathfinder",
         "redis_url": "redis://redis:6379/0",
@@ -69,7 +69,7 @@ def test_empty_env_value_is_ignored_for_complex_settings(
 
     settings = Settings(
         _env_file=None,
-        api_env="development",
+        api_env="test",
         api_secret_key="pathfinder-test-secret-key-1234567890",
         database_url="postgresql+asyncpg://postgres:postgres@db:5432/pathfinder",
         redis_url="redis://redis:6379/0",
@@ -84,3 +84,11 @@ def test_empty_env_value_is_ignored_for_complex_settings(
     )
 
     assert settings.cors_origins == ["http://localhost:3000"]
+
+
+def test_chat_provider_must_be_explicit() -> None:
+    with pytest.raises(
+        ValueError,
+        match="PATHFINDER_CHAT_PROVIDER must be set explicitly",
+    ):
+        make_settings(chat_provider="")

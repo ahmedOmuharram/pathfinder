@@ -76,8 +76,15 @@ export function handlePhaseChangeEvent(
     typeof data.messageId === "string" &&
     data.messageId !== ""
   ) {
+    // Only reset the cached index when the messageId actually CHANGES.
+    // Resetting on every phase_change (even for the same message) forces a
+    // re-lookup that can fail if the message hasn't been inserted yet,
+    // which leads to a duplicate message being appended.
+    const prevMessageId = ctx.streamState.streamingAssistantMessageId;
+    if (prevMessageId !== data.messageId) {
+      ctx.streamState.streamingAssistantIndex = null;
+    }
     ctx.streamState.streamingAssistantMessageId = data.messageId;
-    ctx.streamState.streamingAssistantIndex = null;
     ctx.thinking.setActiveMessage(data.messageId);
   }
   if (data.status !== "started") {

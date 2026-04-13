@@ -104,9 +104,6 @@ def apply_plan_approval(
     """Apply UI answers/edits to a presented plan and mark it approved."""
     step_by_id = {step.id: step for step in plan.steps}
     question_by_id = {question.id: question for question in plan.questions}
-    explicitly_edited_params = {
-        (edit.step_id, edit.param_name) for edit in param_edits
-    }
 
     for answer in answers:
         question = question_by_id.get(answer.question_id)
@@ -116,17 +113,6 @@ def apply_plan_approval(
                 detail=f"Unknown question '{answer.question_id}'.",
             )
         question.answer = answer.answer
-        if question.related_step and question.related_param:
-            step = step_by_id.get(question.related_step)
-            if step is not None:
-                parameter = step.parameters.get(question.related_param)
-                if (
-                    parameter is not None
-                    and (question.related_step, question.related_param)
-                    not in explicitly_edited_params
-                ):
-                    parameter.value = answer.answer
-                    parameter.status = ParamStatus.USER_SET
 
     for edit in param_edits:
         step = step_by_id.get(edit.step_id)

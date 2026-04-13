@@ -24,6 +24,7 @@ from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.orchestration.deps import AgentDeps
 from pathfinder.ai.tools.toolsets.discovery import build_toolset
+from pathfinder.domain.strategy.plan import PlanStatus, StepStatus
 
 # ---------------------------------------------------------------------------
 # Static instructions
@@ -121,6 +122,52 @@ def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
 @discovery_agent.instructions
 def _mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:
     return mentioned_context(ctx)
+
+
+@discovery_agent.instructions
+def _rediscovery_context(ctx: RunContext[AgentDeps]) -> str | None:
+    """Inject failure context when re-entering discovery after a failed execution.
+
+    Mirrors :func:`pathfinder.ai.agents.planning._replan_context`: when the
+    FSM falls back from execution -> discovery (via the
+    ``retry_discovery_from_execution`` transition) the previously chosen
+    searches are suspect, so the agent must look for *different* ones instead
+    of re-inspecting the same catalog entries.
+    """
+    plan = ctx.deps.agent_state.active_plan
+    if plan is None or plan.status != PlanStatus.FAILED:
+        return None
+
+    failed = [s for s in plan.steps if s.status == StepStatus.FAILED]
+    if not failed:
+        return None
+
+    lines = [
+        "## Rediscovery Required",
+        "",
+        "The previous execution plan failed in a way that suggests the chosen "
+        "searches are wrong for the user's biological question, not just the "
+        "parameters. Re-open the catalog and look for DIFFERENT searches. Do "
+        "NOT re-propose the same searches that failed.",
+        "",
+        "### Failed Steps (avoid these searches)",
+    ]
+    for step in failed:
+        reason = step.failure_reason or "unknown error"
+        lines.append(
+            f"- **{step.display_name}** ({step.step_type}, "
+            f"search: `{step.search_name}`): {reason}"
+        )
+    lines.extend(
+        [
+            "",
+            "Explore alternative record types, search categories, or related "
+            "queries that could answer the same question with a different "
+            "data source.",
+        ]
+    )
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------

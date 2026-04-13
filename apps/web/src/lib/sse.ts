@@ -26,6 +26,15 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
+function emitParsedFrames(
+  parsed: ReturnType<typeof parseSSEChunk>,
+  onEvent: (event: RawSSEEvent) => void,
+): void {
+  for (const evt of parsed.events) {
+    onEvent(evt);
+  }
+}
+
 async function runOnce(
   path: string,
   args: StreamSSEArgs,
@@ -97,13 +106,18 @@ async function runOnce(
     }
 
     const { done, value } = result as ReadableStreamReadResult<Uint8Array>;
-    if (done) break;
+    if (done) {
+      buffer += decoder.decode();
+      emitParsedFrames(
+        parseSSEChunk(buffer, { flushTrailingFrame: true }),
+        options.onEvent,
+      );
+      break;
+    }
     buffer += decoder.decode(value, { stream: true });
     const parsed = parseSSEChunk(buffer);
     buffer = parsed.rest;
-    for (const evt of parsed.events) {
-      options.onEvent(evt);
-    }
+    emitParsedFrames(parsed, options.onEvent);
   }
 }
 

@@ -207,6 +207,30 @@ describe("subscribeToOperation", () => {
     expect(onError.mock.calls[0]![0]!.message).toContain("not found");
   });
 
+  it("treats 401 subscribe failures as terminal instead of retrying forever", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      body: null,
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onError = vi.fn();
+    subscribeToOperation("op-auth", {
+      onEvent: () => {},
+      onError,
+      maxReconnects: 5,
+    });
+
+    await flush(0);
+    await flush(5000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0]![0]!.message).toContain("401");
+  });
+
   it("auto-reconnects on network failure then succeeds", async () => {
     const events: Array<{ type: string; data: unknown }> = [];
     let callCount = 0;
@@ -325,6 +349,30 @@ describe("subscribeToOperation", () => {
     expect(events).toEqual([{ type: "message_end", data: { ok: true } }]);
     expect(onComplete).toHaveBeenCalledOnce();
     expect(warnSpy).toHaveBeenCalledOnce();
+  });
+
+  it("flushes a trailing terminal event when the stream closes without a separator", async () => {
+    const events: Array<{ type: string; data: unknown }> = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        okSSEResponse(
+          streamFromStrings(['event: message_end\ndata: {"done":true}']),
+        ),
+      ),
+    );
+
+    const onComplete = vi.fn();
+    subscribeToOperation("op-tail", {
+      onEvent: (evt) => events.push(evt),
+      onComplete,
+    });
+
+    await flush();
+
+    expect(events).toEqual([{ type: "message_end", data: { done: true } }]);
+    expect(onComplete).toHaveBeenCalledOnce();
   });
 });
 

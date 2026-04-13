@@ -19,6 +19,7 @@ _API_DIR = Path(__file__).resolve().parents[3]  # apps/api/
 _REPO_ROOT = _API_DIR.parents[1]  # repo root
 _MIN_API_SECRET_LENGTH = 32
 _PLACEHOLDER_SECRET_MARKERS = ("dev-only", "change-me", "xxxx", "placeholder", "example")
+_ALLOWED_CHAT_PROVIDERS = {"default", "mock"}
 
 
 class TomlConfigSettingsSource(PydanticBaseSettingsSource):
@@ -81,7 +82,7 @@ class Settings(BaseSettings):
     # API
     api_host: str = Field(default_factory=lambda: str(IPv4Address(0)))
     api_port: int = 8000
-    api_env: Literal["development", "staging", "production"] = "production"
+    api_env: Literal["development", "staging", "production", "test"] = "production"
     api_debug: bool = False
     api_secret_key: str = Field(default="", repr=False)
     api_docs_enabled: bool = True
@@ -139,7 +140,7 @@ class Settings(BaseSettings):
 
     # Chat provider (set to "mock" for deterministic offline E2E testing)
     chat_provider: str = Field(
-        default="default",
+        default="",
         validation_alias="PATHFINDER_CHAT_PROVIDER",
     )
 
@@ -181,6 +182,11 @@ class Settings(BaseSettings):
         return self.api_env == "production"
 
     @computed_field
+    def is_test(self) -> bool:
+        """Check if running in test mode."""
+        return self.api_env == "test"
+
+    @computed_field
     def has_llm_configuration(self) -> bool:
         """Check whether at least one non-mock model backend is configured."""
         return bool(
@@ -190,8 +196,7 @@ class Settings(BaseSettings):
             or self.ollama_base_url.strip()
         )
 
-    def model_post_init(self, __context: object) -> None:
-        """Validate settings after initialization."""
+    def _validate_required_settings(self) -> None:
         missing: list[str] = []
         if not self.api_secret_key.strip():
             missing.append("API_SECRET_KEY")
@@ -210,18 +215,6 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
 
-        chat_provider = self.chat_provider.strip().lower()
-        if chat_provider == "mock" and self.api_env != "development":
-            msg = "PATHFINDER_CHAT_PROVIDER=mock is only allowed when API_ENV=development."
-            raise ValueError(msg)
-        if chat_provider != "mock" and not self.has_llm_configuration:
-            msg = (
-                "PathFinder requires a configured model backend. Set at least one of "
-                "OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or OLLAMA_BASE_URL, "
-                "or switch to PATHFINDER_CHAT_PROVIDER=mock in development."
-            )
-            raise ValueError(msg)
-
         if self.api_env != "development" and any(
             marker in self.api_secret_key.lower()
             for marker in _PLACEHOLDER_SECRET_MARKERS
@@ -232,6 +225,32 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
 
+    def _validate_chat_provider(self) -> None:
+        chat_provider = self.chat_provider.strip().lower()
+        if not chat_provider:
+            msg = (
+                "PATHFINDER_CHAT_PROVIDER must be set explicitly to "
+                "'default' or 'mock'."
+            )
+            raise ValueError(msg)
+        if chat_provider not in _ALLOWED_CHAT_PROVIDERS:
+            allowed = ", ".join(sorted(_ALLOWED_CHAT_PROVIDERS))
+            msg = f"PATHFINDER_CHAT_PROVIDER must be one of: {allowed}."
+            raise ValueError(msg)
+        self.chat_provider = chat_provider
+
+        if chat_provider == "mock" and self.api_env != "test":
+            msg = "PATHFINDER_CHAT_PROVIDER=mock is only allowed when API_ENV=test."
+            raise ValueError(msg)
+        if chat_provider != "mock" and not self.has_llm_configuration:
+            msg = (
+                "PathFinder requires a configured model backend. Set at least one of "
+                "OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or OLLAMA_BASE_URL, "
+                "or use the dedicated test profile with PATHFINDER_CHAT_PROVIDER=mock."
+            )
+            raise ValueError(msg)
+
+    def _validate_langfuse_settings(self) -> None:
         langfuse_values = {
             "LANGFUSE_HOST": self.langfuse_host.strip(),
             "LANGFUSE_PUBLIC_KEY": self.langfuse_public_key.strip(),
@@ -242,6 +261,12 @@ class Settings(BaseSettings):
             joined = ", ".join(langfuse_values)
             msg = f"{joined} must be set together when Langfuse is enabled."
             raise ValueError(msg)
+
+    def model_post_init(self, __context: object) -> None:
+        """Validate settings after initialization."""
+        self._validate_required_settings()
+        self._validate_chat_provider()
+        self._validate_langfuse_settings()
 
     @classmethod
     def settings_customise_sources(

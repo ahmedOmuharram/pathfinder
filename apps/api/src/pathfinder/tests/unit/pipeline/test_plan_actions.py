@@ -56,7 +56,7 @@ def _make_plan_with_questioned_param() -> StrategyPlan:
     )
 
 
-def test_apply_plan_approval_overwrites_default_param_with_answer() -> None:
+def test_answer_stored_on_question_but_does_not_overwrite_param() -> None:
     plan = _make_plan_with_questioned_param()
 
     approved = apply_plan_approval(
@@ -72,12 +72,32 @@ def test_apply_plan_approval_overwrites_default_param_with_answer() -> None:
 
     assert approved.status == PlanStatus.APPROVED
     assert approved.questions[0].answer == "5"
-    assert approved.steps[0].parameters["min_tm"].value == "5"
-    assert approved.steps[0].parameters["min_tm"].status == ParamStatus.USER_SET
-    assert approved.steps[0].status == StepStatus.READY
+    # Parameter keeps its original value — answers never auto-promote to params
+    assert approved.steps[0].parameters["min_tm"].value == "2"
+    assert approved.steps[0].parameters["min_tm"].status == ParamStatus.NEEDS_USER_INPUT
 
 
-def test_apply_plan_approval_prefers_explicit_param_edit_over_answer() -> None:
+def test_freeform_answer_with_related_param_does_not_set_param() -> None:
+    plan = _make_plan_with_questioned_param()
+
+    approved = apply_plan_approval(
+        plan,
+        param_edits=[],
+        answers=[
+            PlanQuestionAnswer(
+                question_id="q_tm_threshold",
+                answer="It is sufficient",
+            )
+        ],
+    )
+
+    assert approved.questions[0].answer == "It is sufficient"
+    # Free-form text must never end up as a WDK parameter value
+    assert approved.steps[0].parameters["min_tm"].value == "2"
+    assert approved.steps[0].parameters["min_tm"].status == ParamStatus.NEEDS_USER_INPUT
+
+
+def test_explicit_param_edit_is_only_way_to_change_param() -> None:
     plan = _make_plan_with_questioned_param()
 
     approved = apply_plan_approval(
@@ -97,6 +117,8 @@ def test_apply_plan_approval_prefers_explicit_param_edit_over_answer() -> None:
         ],
     )
 
+    # Answer is stored on the question
     assert approved.questions[0].answer == "5"
+    # Param changed ONLY because of the explicit edit, not the answer
     assert approved.steps[0].parameters["min_tm"].value == "6"
     assert approved.steps[0].parameters["min_tm"].status == ParamStatus.USER_SET

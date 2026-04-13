@@ -67,6 +67,8 @@ class StrategyResponse(BaseModel):
     messages: list[MessageResponse] | None = None
     thinking: ThinkingResponse | None = None
     pipeline: JSONObject | None = None
+    conversation_state: JSONObject | None = Field(default=None, alias="conversationState")
+    active_plan: JSONObject | None = Field(default=None, alias="activePlan")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
     # Summary fields — always set, avoids needing steps loaded.

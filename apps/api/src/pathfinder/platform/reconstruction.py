@@ -19,7 +19,7 @@ from pathfinder.platform.event_schemas import (
     UserMessageEventData,
 )
 from pathfinder.platform.event_schemas_pipeline import PhaseChangeEventData
-from pathfinder.platform.types import JSONObject
+from pathfinder.platform.types import JSONObject, JSONValue
 
 # ------------------------------------------------------------------
 # Helpers
@@ -77,7 +77,7 @@ class _TurnAccumulator:
 
     def _attach_accumulated_metadata(self, msg: JSONObject, data: JSONObject) -> None:
         """Attach buffered metadata and preserve direct event fields."""
-        buffered_fields: tuple[tuple[str, object], ...] = (
+        buffered_fields: tuple[tuple[str, JSONValue], ...] = (
             ("toolCalls", list(self.tool_calls) if self.tool_calls else None),
             ("citations", list(self.citations) if self.citations else None),
             (
@@ -260,6 +260,20 @@ def _handle_assistant_message(
     turn.reset_message_state()
 
 
+def _handle_plan_event_noop(
+    data: JSONObject,
+    entry_id: str,
+    turn: _TurnAccumulator,
+    messages: list[JSONObject],
+) -> None:
+    """No-op handler for plan lifecycle events.
+
+    Plan events (plan_presented, plan_approved, plan_updated) are persisted
+    in Redis and forwarded to the frontend via SSE replay. They don't produce
+    chat messages — the frontend handles them directly.
+    """
+
+
 # Type alias for stream event handler functions.
 type _StreamEventHandler = Callable[
     [JSONObject, str, _TurnAccumulator, list[JSONObject]], None
@@ -277,6 +291,9 @@ _STREAM_EVENT_HANDLERS: dict[str, _StreamEventHandler] = {
     "model_selected": _handle_model_selected,
     "phase_change": _handle_phase_change,
     "assistant_message": _handle_assistant_message,
+    "plan_presented": _handle_plan_event_noop,
+    "plan_approved": _handle_plan_event_noop,
+    "plan_updated": _handle_plan_event_noop,
 }
 
 

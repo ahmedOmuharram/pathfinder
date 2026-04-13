@@ -91,6 +91,11 @@ export const StrategySchema = z.object({
   messages: z.array(z.record(z.string(), z.unknown())).nullable().optional(),
   thinking: z.record(z.string(), z.unknown()).nullable().optional(),
   modelId: z.string().nullable().optional(),
+  // Pipeline + conversation state + plan: opaque JSON blobs from the backend.
+  // Validated downstream (InteractivePlanSchema, type guards) not here.
+  pipeline: z.record(z.string(), z.unknown()).nullable().optional(),
+  conversationState: z.record(z.string(), z.unknown()).nullable().optional(),
+  activePlan: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------

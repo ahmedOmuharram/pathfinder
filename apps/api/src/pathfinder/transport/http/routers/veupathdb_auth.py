@@ -289,7 +289,7 @@ async def auth_status(
 ) -> _AuthStatusDict:
     """Return current VEuPathDB auth status.
 
-    In mock mode (``PATHFINDER_CHAT_PROVIDER=mock``), a valid
+    In test-mode mock runs (``PATHFINDER_CHAT_PROVIDER=mock``), a valid
     ``pathfinder-auth`` cookie is sufficient — the dev-login endpoint
     doesn't create a VEuPathDB session, so we skip the real WDK call.
     """

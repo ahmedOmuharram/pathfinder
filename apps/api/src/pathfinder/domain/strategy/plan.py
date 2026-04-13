@@ -57,6 +57,21 @@ class ParamStatus(StrEnum):
     USER_SET = "user_set"
 
 
+class FailureKind(StrEnum):
+    """Classification of why a plan execution failed.
+
+    Drives the FSM recovery path: ``search_invalid`` triggers
+    ``retry_discovery_from_execution`` (execution -> discovery), while
+    ``parameter_invalid`` triggers ``replan`` (execution -> planning).
+    """
+
+    SEARCH_INVALID = "search_invalid"
+    """The chosen search is wrong for the biological question — rediscovery needed."""
+
+    PARAMETER_INVALID = "parameter_invalid"
+    """The search is right but parameters are off — replanning with the same catalog is enough."""
+
+
 # ── Helpers ─────────────────────────────────────────────────────────
 
 
@@ -85,10 +100,7 @@ class PlannedParameter(CamelModel):
     description: str | None = None
     constraints: dict[str, JSONValue] | None = None
     depends_on: list[str] = Field(default_factory=list)
-    vocabulary_summary: str | None = None
-    question: str | None = None
     options: list[str] | None = None
-    rationale: str | None = None
 
 
 class QuestionOption(CamelModel):
@@ -190,3 +202,55 @@ class StrategyPlan(CamelModel):
             raise ValueError(msg)
 
         return ordered
+
+    def classify_failure(self, *, planning_attempts: int = 1) -> FailureKind:
+        """Classify why this plan failed.
+
+        Conservative heuristic per the FSM recovery spec:
+        * A failure reason that reads like a WDK parameter validation error
+          maps to :attr:`FailureKind.PARAMETER_INVALID`.
+        * A zero-result run that has already been replanned more than once
+          maps to :attr:`FailureKind.SEARCH_INVALID` (the catalog choice is
+          the problem, not the parameters).
+        * Default -> :attr:`FailureKind.PARAMETER_INVALID`, which preserves
+          the existing ``replan`` behaviour for unknown causes.
+
+        :param planning_attempts: How many times planning has been entered
+            for this turn (``pipeline.retry_counts['planning']``).  Used to
+            decide whether a zero-result run has already exhausted the
+            same-catalog replanning escape hatch.
+        """
+        failed_steps = [s for s in self.steps if s.status == StepStatus.FAILED]
+        if not failed_steps:
+            return FailureKind.PARAMETER_INVALID
+
+        # If any step's failure reason looks like a parameter validation
+        # error, trust the search and replan parameters.
+        for step in failed_steps:
+            reason = (step.failure_reason or "").lower()
+            if _is_parameter_validation_error(reason):
+                return FailureKind.PARAMETER_INVALID
+
+        # Zero-result runs only escalate to SEARCH_INVALID after the
+        # same-catalog replanning escape hatch is spent.
+        zero_result = any(
+            step.actual_count == 0 for step in failed_steps
+        )
+        if zero_result and planning_attempts > 1:
+            return FailureKind.SEARCH_INVALID
+
+        return FailureKind.PARAMETER_INVALID
+
+
+_PARAMETER_ERROR_MARKERS: tuple[str, ...] = (
+    "invalid parameter",
+    "parameter validation",
+    "invalid value for",
+    "missing required parameter",
+    "unknown parameter",
+)
+
+
+def _is_parameter_validation_error(reason: str) -> bool:
+    """Return ``True`` when *reason* matches a WDK parameter-validation message."""
+    return any(marker in reason for marker in _PARAMETER_ERROR_MARKERS)

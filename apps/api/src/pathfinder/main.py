@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from importlib import import_module
 from typing import cast
 from uuid import uuid4
 
@@ -38,11 +39,13 @@ from pathfinder.platform.errors import (
     app_error_handler,
     http_exception_handler,
 )
+from pathfinder.platform.event_schemas import PipelineConfig
 from pathfinder.platform.logging import get_logger, setup_logging
 from pathfinder.platform.redis import close_redis, init_redis
 from pathfinder.platform.security import csrf_middleware, limiter
 from pathfinder.services.catalog.semantic_index import warm_up_model
 from pathfinder.services.chat import orchestrator
+from pathfinder.services.chat.pipeline_resolution import resolve_pipeline_config
 from pathfinder.transport.http.routers import (
     chat,
     control_sets,
@@ -153,19 +156,8 @@ def _wire_ai_dependencies() -> None:
     chains that must not execute at module-import time.
     """
     settings = get_settings()
-
-    from pathfinder.ai.models.tiers import get_tier_preset  # noqa: PLC0415
-    from pathfinder.platform.event_schemas import (  # noqa: PLC0415
-        PipelineConfig,
-        PipelinePhaseConfig,
-    )
-
-    def _build_mock_pipeline() -> PipelineConfig:
-        mock_phase = PipelinePhaseConfig(model_id="mock/deterministic", reasoning_effort="medium")
-        return PipelineConfig(
-            scoping=mock_phase, discovery=mock_phase,
-            planning=mock_phase, execution=mock_phase, verification=mock_phase,
-        )
+    tiers_module = import_module("pathfinder.ai.models.tiers")
+    get_tier_preset = tiers_module.get_tier_preset
 
     is_mock = settings.chat_provider.strip().lower() == "mock"
 
@@ -173,31 +165,13 @@ def _wire_ai_dependencies() -> None:
         pipeline_override: PipelineConfig | None = None,
         persisted_pipeline: dict[str, object] | None = None,
     ) -> PipelineConfig:
-        if is_mock:
-            return _build_mock_pipeline()
-        if pipeline_override is not None:
-            return pipeline_override
-        if persisted_pipeline is not None:
-            candidate = dict(persisted_pipeline)
-            if "scoping" not in candidate and "discovery" in candidate:
-                candidate["scoping"] = candidate["discovery"]
-            return PipelineConfig.model_validate(candidate)
-        preset = get_tier_preset(settings.default_provider, settings.default_tier)
-        if preset is None:
-            fallback = PipelinePhaseConfig(
-                model_id=f"{settings.default_provider}/default",
-                reasoning_effort="medium",
-            )
-            return PipelineConfig(
-                scoping=fallback, discovery=fallback,
-                planning=fallback, execution=fallback, verification=fallback,
-            )
-        return PipelineConfig(
-            scoping=PipelinePhaseConfig(model_id=preset.scoping.model_id, reasoning_effort=preset.scoping.reasoning_effort),
-            discovery=PipelinePhaseConfig(model_id=preset.discovery.model_id, reasoning_effort=preset.discovery.reasoning_effort),
-            planning=PipelinePhaseConfig(model_id=preset.planning.model_id, reasoning_effort=preset.planning.reasoning_effort),
-            execution=PipelinePhaseConfig(model_id=preset.execution.model_id, reasoning_effort=preset.execution.reasoning_effort),
-            verification=PipelinePhaseConfig(model_id=preset.verification.model_id, reasoning_effort=preset.verification.reasoning_effort),
+        return resolve_pipeline_config(
+            chat_provider="mock" if is_mock else settings.chat_provider,
+            default_provider=settings.default_provider,
+            default_tier=settings.default_tier,
+            get_tier_preset=get_tier_preset,
+            pipeline_override=pipeline_override,
+            persisted_pipeline=persisted_pipeline,
         )
 
     orchestrator.configure(resolve_pipeline_fn=_resolve_pipeline)

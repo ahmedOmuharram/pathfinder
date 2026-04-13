@@ -179,6 +179,7 @@ export function useChatPanelState({
     setStrategy,
     setStrategyMeta,
     onStrategyNotFound: handleStrategyNotFound,
+    isStreaming,
   });
 
   // --- Operation recovery (reconnect to in-flight ops on refresh) ---

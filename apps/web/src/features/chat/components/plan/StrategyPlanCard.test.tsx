@@ -146,10 +146,7 @@ describe("StrategyPlanCard", () => {
               description: null,
               constraints: null,
               dependsOn: [],
-              vocabularySummary: null,
-              question: null,
               options: null,
-              rationale: null,
             },
           },
         },
@@ -279,6 +276,103 @@ describe("StrategyPlanCard", () => {
         planStatus: "presented",
       },
     );
+  });
+
+  it("renders a WDK widget for questions with relatedStep and relatedParam", () => {
+    const onSendMessage = vi.fn();
+    const onApprovePlan = vi.fn(async () => {});
+
+    const planWithQuestion: InteractivePlan = {
+      ...basePlan,
+      questions: [
+        {
+          id: "q_1",
+          question: "Which organism?",
+          context: "",
+          relatedStep: "step_1",
+          relatedParam: "organism",
+          options: null,
+          answer: null,
+        },
+      ],
+    };
+
+    // Return a vocab spec for the organism param — the question card
+    // should render a select/checkbox widget instead of a plain text input.
+    mockUseParamSpecs.mockReturnValue({
+      paramSpecs: [
+        {
+          name: "organism",
+          displayName: "Organism",
+          type: "single-pick-vocabulary",
+          displayType: "select",
+          allowEmptyValue: false,
+          allowMultipleValues: false,
+          countOnlyLeaves: false,
+          initialDisplayValue: "pfal",
+          vocabulary: [
+            { value: "pfal", label: "P. falciparum" },
+            { value: "pvivax", label: "P. vivax" },
+          ],
+          isNumber: false,
+        } as ParamSpec,
+      ],
+      isLoading: false,
+    });
+
+    renderWithProviders(
+      <StrategyPlanCard
+        siteId="plasmodb"
+        plan={planWithQuestion}
+        planTraceId={null}
+        planMessageGroupId={null}
+        onSendMessage={onSendMessage}
+        onApprovePlan={onApprovePlan}
+      />,
+    );
+
+    // A WDK select widget should render — NOT a plain text input.
+    expect(screen.getByRole("combobox")).toBeTruthy();
+    // The question text should still appear.
+    expect(screen.getByText("Which organism?")).toBeTruthy();
+    // No plain text input for the question answer.
+    expect(screen.queryByPlaceholderText("Type your answer...")).toBeNull();
+  });
+
+  it("falls back to text input when question has no relatedStep", () => {
+    const onSendMessage = vi.fn();
+    const onApprovePlan = vi.fn(async () => {});
+
+    const planWithUnrelatedQuestion: InteractivePlan = {
+      ...basePlan,
+      questions: [
+        {
+          id: "q_2",
+          question: "What p-value threshold?",
+          context: "",
+          relatedStep: null,
+          relatedParam: null,
+          options: null,
+          answer: null,
+        },
+      ],
+    };
+
+    mockUseParamSpecs.mockReturnValue({ paramSpecs: [], isLoading: false });
+
+    renderWithProviders(
+      <StrategyPlanCard
+        siteId="plasmodb"
+        plan={planWithUnrelatedQuestion}
+        planTraceId={null}
+        planMessageGroupId={null}
+        onSendMessage={onSendMessage}
+        onApprovePlan={onApprovePlan}
+      />,
+    );
+
+    // Should render a plain text input for questions without step context.
+    expect(screen.getByPlaceholderText("Type your answer...")).toBeTruthy();
   });
 
   it("records regenerate and asks for a fresh plan", async () => {

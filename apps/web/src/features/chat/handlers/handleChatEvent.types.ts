@@ -31,7 +31,7 @@ export type StreamSessionState = {
   pipeline?: PipelineConfig | null;
   reasoning: string | null;
   optimizationProgress: OptimizationProgressData | null;
-  currentModelId?: string | null;
+  currentModelId: string | null;
 };
 
 // ── Sub-interfaces (ISP) ────────────────────────────────────────────

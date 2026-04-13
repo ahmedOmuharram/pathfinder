@@ -153,6 +153,9 @@ export type ControlSet = components["schemas"]["ControlSetResponse"];
  * Strategy normalizes the generated StrategyResponse: `steps` and `isSaved`
  * always have values at runtime (backend defaults), but OpenAPI marks them
  * optional. We make them required here to match actual API behavior.
+ *
+ * `activePlan` is served by the backend detail endpoint but not yet in the
+ * OpenAPI spec — added here until the next spec regeneration.
  */
 export type Strategy = Omit<
   components["schemas"]["StrategyResponse"],
@@ -160,6 +163,7 @@ export type Strategy = Omit<
 > & {
   steps: components["schemas"]["StepResponse"][];
   isSaved: boolean;
+  activePlan?: Record<string, unknown> | null;
 };
 
 // ── Hand-written types (frontend-enriched, not yet in generated schema) ────
@@ -435,6 +439,7 @@ export interface ResearchNote {
 }
 
 export interface ProblemFrame {
+  [key: string]: unknown;
   userGoal: string;
   interpretedGoal: string;
   organismScope?: string | null;

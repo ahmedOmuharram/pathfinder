@@ -145,6 +145,8 @@ async def create_leaf_step(
         callbacks=callbacks,
     )
 
+    deps.tool_repetition_guard.record_modifying_call("create_leaf_step")
+
     if result.error is not None or result.step is None:
         return (
             result.error
@@ -244,6 +246,8 @@ async def combine_steps(
             callbacks=callbacks,
         )
 
+    deps.tool_repetition_guard.record_modifying_call("combine_steps")
+
     if result.error is not None or result.step is None:
         return (
             result.error
@@ -317,6 +321,8 @@ async def transform_step(
         spec=spec,
         callbacks=callbacks,
     )
+
+    deps.tool_repetition_guard.record_modifying_call("create_transform_step")
 
     if result.error is not None or result.step is None:
         return (

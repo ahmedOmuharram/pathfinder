@@ -243,6 +243,9 @@ async def update_step(
     apply_error = await _apply_step_updates(
         deps.site_id, graph, sync_state, step, search_name, parameters, operator, display_name
     )
+
+    deps.tool_repetition_guard.record_modifying_call("update_step")
+
     return (
         apply_error
         if apply_error is not None
@@ -288,6 +291,8 @@ async def delete_step(
 
     sync_state = ensure_sync_state(session)
     result = await delete_step_connected(graph, sync_state, step_id)
+
+    deps.tool_repetition_guard.record_modifying_call("delete_step")
 
     response: JSONObject = {
         "deleted": cast("JSONArray", result.deleted_ids),

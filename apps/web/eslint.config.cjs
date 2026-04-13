@@ -106,6 +106,7 @@ module.exports = defineConfig([
             "@typescript-eslint/no-floating-promises": "off",
             "@typescript-eslint/strict-boolean-expressions": "off",
             "no-console": "off",
+            "max-lines": "off",
           },
         },
         // Playwright fixtures use a callback named "use", not React hooks.

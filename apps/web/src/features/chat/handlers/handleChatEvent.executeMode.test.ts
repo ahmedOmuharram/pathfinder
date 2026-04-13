@@ -152,6 +152,7 @@ describe("handleChatEvent — realistic execute mode", () => {
         pipeline: null,
         reasoning: null,
         optimizationProgress: null,
+        currentModelId: null,
       },
       setOptimizationProgress: vi.fn(),
     };

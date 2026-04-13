@@ -14,9 +14,8 @@ import { StepParamFields } from "@/features/strategy/editor/components/StepParam
 import { buildParamSchema } from "@/features/strategy/editor/schema/paramSchema";
 import { coerceParametersForSpecs } from "@/features/strategy/parameters/coerce";
 import { useParamSpecs } from "@/lib/hooks/useParamSpecs";
-import type { PlannedParameter, PlannedStep } from "@/lib/types/plan";
+import type { PlannedStep } from "@/lib/types/plan";
 import type { StepParameters } from "@/lib/strategyGraph/types";
-import { PlanParameterField } from "@/features/chat/components/plan/PlanParameterField";
 import {
   areParamValuesEquivalent,
   buildFormDefaults,
@@ -63,10 +62,6 @@ export function PlanParameterEditor({
   const editableSpecs = getEditableSpecs(plannedParams, paramSpecs);
 
   if (plannedParams.length === 0) return null;
-  const editableNames = new Set(editableSpecs.map((spec) => spec.name));
-  const fallbackParams = plannedParams.filter(
-    (param) => !editableNames.has(param.name),
-  );
 
   if (isLoading && editableSpecs.length === 0 && canFetchSpecs) {
     return (
@@ -78,38 +73,21 @@ export function PlanParameterEditor({
 
   if (editableSpecs.length === 0) {
     return (
-      <LegacyParameterFields
-        params={plannedParams}
-        disabled={disabled}
-        onParamChange={onParamChange}
-      />
+      <p className="text-xs text-muted-foreground">
+        No editable parameter controls available for this step.
+      </p>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <WdkParameterFields
-        siteId={siteId}
-        step={step}
-        paramSpecs={editableSpecs}
-        plannedValues={plannedValues}
-        disabled={disabled}
-        onParamChange={onParamChange}
-      />
-      {fallbackParams.length > 0 && (
-        <div className="space-y-3 border-t border-border pt-3">
-          <p className="text-[11px] text-muted-foreground">
-            Some parameters are not described by the current WDK spec, so they
-            use the raw fallback editor.
-          </p>
-          <LegacyParameterFields
-            params={fallbackParams}
-            disabled={disabled}
-            onParamChange={onParamChange}
-          />
-        </div>
-      )}
-    </div>
+    <WdkParameterFields
+      siteId={siteId}
+      step={step}
+      paramSpecs={editableSpecs}
+      plannedValues={plannedValues}
+      disabled={disabled}
+      onParamChange={onParamChange}
+    />
   );
 }
 
@@ -175,28 +153,5 @@ function WdkParameterFields({
         searchName={step.searchName}
       />
     </fieldset>
-  );
-}
-
-function LegacyParameterFields({
-  params,
-  disabled,
-  onParamChange,
-}: {
-  params: PlannedParameter[];
-  disabled: boolean;
-  onParamChange: (paramName: string, value: unknown) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      {params.map((param) => (
-        <PlanParameterField
-          key={param.name}
-          param={param}
-          onChange={onParamChange}
-          disabled={disabled}
-        />
-      ))}
-    </div>
   );
 }

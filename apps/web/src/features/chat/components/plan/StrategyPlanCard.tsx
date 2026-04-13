@@ -13,6 +13,11 @@ import { useSessionStore } from "@/state/useSessionStore";
 import { PlanStepItem } from "@/features/chat/components/plan/PlanStepItem";
 import { PlanQuestionCard } from "@/features/chat/components/plan/PlanQuestionCard";
 import { PlanActions } from "@/features/chat/components/plan/PlanActions";
+import {
+  storedValuesEqual,
+  collectParamEdits,
+  collectAnswers,
+} from "./strategyPlanCardUtils";
 
 interface StrategyPlanCardProps {
   siteId: string;
@@ -146,10 +151,16 @@ export function StrategyPlanCard({
     });
   }
 
-  function handleAskQuestion() {
+  type ProductAction = Parameters<typeof submitProductAction>[0]["action"];
+
+  function sendChatAction(
+    action: ProductAction,
+    message: string,
+    extra: Record<string, unknown> = {},
+  ) {
     if (strategyId != null && strategyId !== "") {
       void submitProductAction({
-        action: "plan_ask_question",
+        action,
         streamId: strategyId,
         strategyId,
         planId: plan.id,
@@ -159,84 +170,34 @@ export function StrategyPlanCard({
           source: "plan_panel",
           unansweredQuestionCount: unansweredQuestions.length,
           paramEditCount: paramEdits.length,
+          ...extra,
         },
       }).catch(() => {});
     }
-    onSendMessage(
-      "I have a question about this plan:",
-      buildPlanChatMetadata("plan_ask_question"),
-    );
+    onSendMessage(message, buildPlanChatMetadata(action, extra));
+  }
+
+  function handleAskQuestion() {
+    sendChatAction("plan_ask_question", "I have a question about this plan:");
   }
 
   function handleSuggestChanges() {
-    if (strategyId != null && strategyId !== "") {
-      void submitProductAction({
-        action: "plan_suggest_changes",
-        streamId: strategyId,
-        strategyId,
-        planId: plan.id,
-        traceId: planTraceId,
-        messageGroupId: planMessageGroupId,
-        metadata: {
-          source: "plan_panel",
-          unansweredQuestionCount: unansweredQuestions.length,
-          paramEditCount: paramEdits.length,
-        },
-      }).catch(() => {});
-    }
-    onSendMessage(
-      "I'd like to suggest some changes to this plan:",
-      buildPlanChatMetadata("plan_suggest_changes"),
-    );
+    sendChatAction("plan_suggest_changes", "I'd like to suggest some changes to this plan:");
   }
 
   function handleReject() {
-    if (strategyId != null && strategyId !== "") {
-      void submitProductAction({
-        action: "plan_reject",
-        streamId: strategyId,
-        strategyId,
-        planId: plan.id,
-        traceId: planTraceId,
-        messageGroupId: planMessageGroupId,
-        metadata: {
-          source: "plan_panel",
-          planStatus: plan.status,
-          unansweredQuestionCount: unansweredQuestions.length,
-          paramEditCount: paramEdits.length,
-        },
-      }).catch(() => {});
-    }
-    onSendMessage(
+    sendChatAction(
+      "plan_reject",
       "Please discard this plan and propose a different one for the same goal.",
-      buildPlanChatMetadata("plan_reject", { planStatus: plan.status }),
+      { planStatus: plan.status },
     );
   }
 
   function handleRegenerate() {
-    if (strategyId != null && strategyId !== "") {
-      void submitProductAction({
-        action: "assistant_regenerate",
-        streamId: strategyId,
-        strategyId,
-        planId: plan.id,
-        traceId: planTraceId,
-        messageGroupId: planMessageGroupId,
-        metadata: {
-          source: "plan_panel",
-          scope: "plan",
-          planStatus: plan.status,
-          unansweredQuestionCount: unansweredQuestions.length,
-          paramEditCount: paramEdits.length,
-        },
-      }).catch(() => {});
-    }
-    onSendMessage(
+    sendChatAction(
+      "assistant_regenerate",
       "Please regenerate this plan from scratch. Use a different approach if helpful.",
-      buildPlanChatMetadata("assistant_regenerate", {
-        scope: "plan",
-        planStatus: plan.status,
-      }),
+      { scope: "plan", planStatus: plan.status },
     );
   }
 
@@ -313,6 +274,8 @@ export function StrategyPlanCard({
                 question={q}
                 onAnswer={handleAnswer}
                 disabled={isDisabled}
+                steps={plan.steps}
+                siteId={siteId}
               />
             ))}
           </div>
@@ -349,39 +312,3 @@ export function StrategyPlanCard({
   );
 }
 
-function storedValuesEqual(left: unknown, right: unknown): boolean {
-  return stableStringify(left) === stableStringify(right);
-}
-
-function collectParamEdits(
-  localParamEdits: Record<string, Record<string, unknown>>,
-): Array<{ stepId: string; paramName: string; newValue: unknown }> {
-  const collected: Array<{
-    stepId: string;
-    paramName: string;
-    newValue: unknown;
-  }> = [];
-  for (const [stepId, params] of Object.entries(localParamEdits)) {
-    for (const [paramName, newValue] of Object.entries(params)) {
-      collected.push({ stepId, paramName, newValue });
-    }
-  }
-  return collected;
-}
-
-function collectAnswers(
-  localAnswers: Record<string, unknown>,
-): Array<{ questionId: string; answer: unknown }> {
-  return Object.entries(localAnswers).map(([questionId, answer]) => ({
-    questionId,
-    answer,
-  }));
-}
-
-function stableStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}

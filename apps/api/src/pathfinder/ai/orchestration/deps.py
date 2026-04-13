@@ -23,6 +23,9 @@ from pathfinder.ai.orchestration.phase_results import (
 from pathfinder.domain.strategy.plan_actions import PlanActionContext
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.chat.tool_repetition_guard import (
+    ToolRepetitionGuard,
+)
 from pathfinder.services.research.literature_search import (
     LiteratureSearchService,
 )
@@ -70,6 +73,11 @@ class AgentDeps:
 
     # --- Cancellation (long-running optimization) ---
     cancel_event: asyncio.Event = field(default_factory=asyncio.Event)
+
+    # --- Anti-thrash circuit breaker ---
+    tool_repetition_guard: ToolRepetitionGuard = field(
+        default_factory=ToolRepetitionGuard,
+    )
 
     # --- Phase results (structured handoffs between phases) ---
     scoping_result: ScopingResult | None = None

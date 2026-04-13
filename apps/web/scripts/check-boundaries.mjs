@@ -146,8 +146,11 @@ function isAllowedFeatureImport(specifier, selfFeature) {
 const CROSS_FEATURE_EXCEPTIONS = new Map([
   // workbench may import from analysis (ResultsTable exception)
   ["workbench", new Set(["analysis"])],
-  // chat may import from settings (ToolPicker) and engine (PipelinePill)
-  ["chat", new Set(["settings", "engine"])],
+  // chat may import from settings (ToolPicker), engine (PipelinePill),
+  // and strategy (PlanParameterEditor, WdkQuestionInput use StepParamFields)
+  ["chat", new Set(["settings", "engine", "strategy"])],
+  // sidebar uses StrategyLifecycleBadge from chat
+  ["sidebar", new Set(["chat"])],
 ]);
 
 function checkFile(filePath) {

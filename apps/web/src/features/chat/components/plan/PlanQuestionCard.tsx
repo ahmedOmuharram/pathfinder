@@ -2,12 +2,17 @@
 
 import { useState } from "react";
 
-import type { UserQuestion, QuestionOption } from "@/lib/types/plan";
+import type { UserQuestion, QuestionOption, PlannedStep } from "@/lib/types/plan";
+import { WdkQuestionInput } from "./WdkQuestionInput";
 
 interface PlanQuestionCardProps {
   question: UserQuestion;
   onAnswer: (questionId: string, answer: unknown) => void;
   disabled: boolean;
+  /** Plan steps — used to look up step context for WDK widget rendering. */
+  steps?: PlannedStep[];
+  /** Site identifier (e.g. "plasmodb"). */
+  siteId?: string;
 }
 
 function OptionButton({
@@ -88,7 +93,13 @@ function OptionButton({
   );
 }
 
-export function PlanQuestionCard({ question, onAnswer, disabled }: PlanQuestionCardProps) {
+export function PlanQuestionCard({
+  question,
+  onAnswer,
+  disabled,
+  steps,
+  siteId,
+}: PlanQuestionCardProps) {
   const [selectedOption, setSelectedOption] = useState<string | null>(
     question.answer != null ? String(question.answer) : null,
   );
@@ -97,8 +108,16 @@ export function PlanQuestionCard({ question, onAnswer, disabled }: PlanQuestionC
   );
 
   const hasOptions = question.options !== null && question.options.length > 0;
-
   const isAnswered = question.answer != null;
+
+  // Look up step context for WDK-aware widget rendering.
+  const relatedStep = steps?.find((s) => s.id === question.relatedStep);
+  const useWdkWidget =
+    !hasOptions &&
+    relatedStep != null &&
+    question.relatedParam != null &&
+    siteId != null &&
+    siteId !== "";
 
   function handleOptionSelect(label: string) {
     setSelectedOption(label);
@@ -126,7 +145,7 @@ export function PlanQuestionCard({ question, onAnswer, disabled }: PlanQuestionC
         <p className="text-[11px] leading-snug text-muted-foreground">{question.context}</p>
       )}
 
-      {/* Options or text input */}
+      {/* Options, WDK widget, or text input */}
       {hasOptions ? (
         <div className="space-y-1.5">
           {question.options!.map((opt) => (
@@ -147,6 +166,14 @@ export function PlanQuestionCard({ question, onAnswer, disabled }: PlanQuestionC
             Submit
           </button>
         </div>
+      ) : useWdkWidget ? (
+        <WdkQuestionInput
+          siteId={siteId}
+          step={relatedStep}
+          paramName={question.relatedParam!}
+          onSubmit={(value) => onAnswer(question.id, value)}
+          disabled={disabled || isAnswered}
+        />
       ) : (
         <div className="flex gap-2">
           <input

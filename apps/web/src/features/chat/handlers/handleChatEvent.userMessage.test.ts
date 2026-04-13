@@ -71,6 +71,7 @@ function makeMinimalCtx(overrides: Partial<ChatEventContext> = {}): ChatEventCon
       pipeline: null,
       reasoning: null,
       optimizationProgress: null,
+      currentModelId: null,
     },
     setOptimizationProgress: vi.fn(),
     ...overrides,
@@ -171,6 +172,7 @@ describe("recovery catch-up produces complete conversation", () => {
       pipeline: null,
       reasoning: null,
       optimizationProgress: null,
+      currentModelId: null as string | null,
     };
     const ctx = makeMinimalCtx({ setMessages, streamState });
 
