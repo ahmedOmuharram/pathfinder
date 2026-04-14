@@ -2,7 +2,7 @@
 
 from pydantic_ai.toolsets.function import FunctionToolset
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone.catalog import (
     browse_search_categories,
     get_record_types,

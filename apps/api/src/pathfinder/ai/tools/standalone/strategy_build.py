@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._graph_helpers import step_ok_response
 from pathfinder.ai.tools.standalone._record_type_helpers import (
     find_record_type_for_search,
@@ -169,7 +169,6 @@ async def create_leaf_step(
         callbacks=callbacks,
     )
 
-    deps.tool_repetition_guard.record_modifying_call("create_leaf_step")
 
     if result.error is not None or result.step is None:
         return (
@@ -270,7 +269,6 @@ async def combine_steps(
             callbacks=callbacks,
         )
 
-    deps.tool_repetition_guard.record_modifying_call("combine_steps")
 
     if result.error is not None or result.step is None:
         return (
@@ -346,7 +344,6 @@ async def transform_step(
         callbacks=callbacks,
     )
 
-    deps.tool_repetition_guard.record_modifying_call("create_transform_step")
 
     if result.error is not None or result.step is None:
         return (

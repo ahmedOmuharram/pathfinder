@@ -33,9 +33,9 @@ describe("StrategyPlanCard", () => {
 
     expect(
       screen.getByText(/Find host genes regulated by parasite invasion\./),
-    ).toBeTruthy();
+    ).toBeInTheDocument();
     const card = container.querySelector(".strategy-plan-card");
-    expect(card).toBeTruthy();
-    expect(card?.getAttribute("data-plan-id")).toBe("plan-123");
+    expect(card).toBeInTheDocument();
+    expect(card).toHaveAttribute("data-plan-id", "plan-123");
   });
 });

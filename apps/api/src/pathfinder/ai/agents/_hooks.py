@@ -27,7 +27,7 @@ from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.context.rendering import render_slim_step_result
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._stream_parts import (
     graph_snapshot_chunk,
     strategy_link_chunk,
@@ -364,13 +364,6 @@ async def _apply_single_root_build(
 
 
 def _serialize_tool_return_value(raw_value: Any) -> str:
-    """Stringify a tool's return_value to JSON-ish text for result slimming.
-
-    Mirrors ``serialize_tool_content`` in
-    :mod:`pathfinder.services.chat.streaming.events` — kept local to avoid
-    pulling a services-layer import into the AI agents layer. Pydantic
-    ``BaseModel`` instances dump via ``model_dump(by_alias=True, mode="json")``.
-    """
     if isinstance(raw_value, str):
         return raw_value
     if isinstance(raw_value, BaseModel):

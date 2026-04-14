@@ -32,7 +32,7 @@ from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
 import pathfinder.services.parameter_optimization.core
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._optimization_models import (
     OptimizationControls,
     OptimizationSettings,
@@ -109,20 +109,20 @@ async def optimize_search_parameters(
         estimated_size_penalty=max(0.0, settings.estimated_size_penalty),
     )
 
-    cancel_event = deps.cancel_event
-
-    # Approach C: accumulate progress events into a list; flush into
-    # ToolReturn.metadata at the end of the tool call.
     progress_events: list[JSONObject] = []
 
     async def progress_callback(event: JSONObject) -> None:
         progress_events.append(event)
 
+    cancel_event = deps.cancel_event
+    check_cancelled = (
+        cancel_event.is_set if cancel_event is not None else (lambda: False)
+    )
     result = await pathfinder.services.parameter_optimization.core.optimize_search_parameters(
         opt_inp,
         config=opt_cfg,
         progress_callback=progress_callback,
-        check_cancelled=cancel_event.is_set,
+        check_cancelled=check_cancelled,
     )
 
     result_json = result.model_dump(by_alias=True, mode="json")

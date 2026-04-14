@@ -30,7 +30,7 @@ from pathfinder.ai.capabilities.piguard import (
     SecurityRejectionError,
     resolve_model_dir,
 )
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)

@@ -186,7 +186,7 @@ class Settings(BaseSettings):
         """Check if running in test mode."""
         return self.api_env == "test"
 
-    @computed_field
+    @property
     def has_llm_configuration(self) -> bool:
         """Check whether at least one non-mock model backend is configured."""
         return bool(

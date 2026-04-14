@@ -1,34 +1,24 @@
-"""Planning-phase agent — builds structured execution plans.
-
-This agent receives discovery findings (via message_history from the
-discovery phase) and produces a concrete, step-by-step plan for the
-execution agent to follow.
-"""
-
 from __future__ import annotations
 
 from pydantic_ai import Agent
-from pydantic_ai.capabilities import Thinking
+from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
-    mentioned_context,
-    pinned_context_summary,
     pinned_graph_state,
     pinned_problem_frame,
 )
 from pathfinder.ai.agents._phase_decisions import PlanningDecision
+from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.toolsets.planning import build_toolset
 from pathfinder.domain.strategy.plan import PlanStatus, StepStatus
 
-# ---------------------------------------------------------------------------
-# Static instructions
-# ---------------------------------------------------------------------------
+_planning_hooks: Hooks[AgentDeps] = Hooks(tool_execute=repetition_guard_hook)
 
 _PLANNING_INSTRUCTIONS = """\
 You are the Planning Agent for PathFinder. You receive discovery findings \
@@ -53,28 +43,18 @@ parameter values based on discovery findings. Use `resolve_gene_ids_to_records` 
 if the plan requires gene ID lookups.
 
 4. **Submit for execution**: Once the plan is complete and reviewed, use \
-`submit_plan` to hand it off to the execution agent. The submit_plan tool \
-returns the canonical plan id — use that value as the `plan_id` field of \
-your final PlanningDecision.
+`submit_plan` to hand it off to the execution agent.
 
 ## Final Output
 
-When the plan is ready, produce a `PlanningDecision` as your final output. \
-Do NOT call any `finish_*` tool; those tools no longer exist.
-
-Choose `next_action` based on what you did:
-  - `advance_to_execution`: a plan has been submitted successfully; include \
-its id in `plan_id`.
+Your user-facing prose is the visible response — summarize the plan and its \
+rationale in it. When the plan is submitted (or you have decided not to \
+submit), return a `PlanningDecision` whose only field is `next_action`:
+  - `advance_to_execution`: a plan has been submitted successfully.
   - `request_revision`: the user needs to decide something before the plan \
-can be submitted; reuse the draft plan id you last used, or "" if none was \
-drafted.
+can be submitted; explain what you need in your prose.
   - `abort`: the task is not feasible with the available discovery findings; \
-`plan_id` should be "" and `reason` should explain why.
-
-Populate every field:
-  - `plan_id`: canonical plan id returned by `submit_plan`, or "" for \
-abort / request_revision with no draft.
-  - `reason`: one-to-two sentence justification for `next_action`.
+explain why in your prose.
 
 ## Guidelines
 
@@ -92,17 +72,18 @@ existing strategy.
 the findings you received.
 """
 
-# ---------------------------------------------------------------------------
-# Agent
-# ---------------------------------------------------------------------------
-
 planning_agent: Agent[AgentDeps, PlanningDecision] = Agent(
     "openai:gpt-4.1-mini",
     output_type=PlanningDecision,
     deps_type=AgentDeps,
     instructions=_PLANNING_INSTRUCTIONS,
     toolsets=[build_toolset()],
-    capabilities=[ToolResilience(), Thinking(effort="high"), SecurityGuardrail()],
+    capabilities=[
+        ToolResilience(),
+        _planning_hooks,
+        Thinking(effort="high"),
+        SecurityGuardrail(),
+    ],
     retries=3,
     description="Creates structured execution plans from discovery findings",
     name="planning",
@@ -116,11 +97,6 @@ def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
 
 
 @planning_agent.instructions
-def _pinned_context_summary(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_context_summary(ctx)
-
-
-@planning_agent.instructions
 def _pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_problem_frame(ctx)
 
@@ -131,13 +107,7 @@ def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
 
 
 @planning_agent.instructions
-def _mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:
-    return mentioned_context(ctx)
-
-
-@planning_agent.instructions
 def _replan_context(ctx: RunContext[AgentDeps]) -> str | None:
-    """Inject failure context when re-entering planning after a failed execution."""
     plan = ctx.deps.agent_state.active_plan
     if plan is None or plan.status != PlanStatus.FAILED:
         return None
@@ -164,10 +134,6 @@ def _replan_context(ctx: RunContext[AgentDeps]) -> str | None:
 
     return "\n".join(lines)
 
-
-# ---------------------------------------------------------------------------
-# Default usage limits
-# ---------------------------------------------------------------------------
 
 PLANNING_USAGE_LIMITS = UsageLimits(
     request_limit=200,

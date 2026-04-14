@@ -214,7 +214,11 @@ class Chat(Base):
         String(50), ForeignKey("gene_sets.id", ondelete="SET NULL"), nullable=True
     )
     gene_set_auto_imported: Mapped[bool] = mapped_column(Boolean, default=False)
-    conversation_state: Mapped[JSONObject] = mapped_column(JSON, default=dict)
+    experiment_id: Mapped[str | None] = mapped_column(
+        String(50),
+        ForeignKey("experiments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     dismissed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

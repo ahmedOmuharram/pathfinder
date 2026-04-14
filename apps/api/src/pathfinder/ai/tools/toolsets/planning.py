@@ -3,7 +3,7 @@
 from pydantic_ai.tools import Tool
 from pydantic_ai.toolsets.function import FunctionToolset
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone.artifact import set_conversation_title
 from pathfinder.ai.tools.standalone.gene import resolve_gene_ids_to_records
 from pathfinder.ai.tools.standalone.plan import (

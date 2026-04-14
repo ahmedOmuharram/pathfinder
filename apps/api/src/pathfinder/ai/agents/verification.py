@@ -1,10 +1,3 @@
-"""Verification-phase agent — inspects, tests, and exports results.
-
-This agent runs after execution completes. It inspects the built strategy,
-runs control tests, performs enrichment analysis, and exports gene sets
-for downstream use.
-"""
-
 from __future__ import annotations
 
 from pydantic_ai import Agent
@@ -14,19 +7,13 @@ from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
-    mentioned_context,
-    pinned_context_summary,
     pinned_graph_state,
 )
 from pathfinder.ai.agents._phase_decisions import VerificationDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.toolsets.verification import build_toolset
-
-# ---------------------------------------------------------------------------
-# Static instructions
-# ---------------------------------------------------------------------------
 
 _VERIFICATION_INSTRUCTIONS = """\
 You are the Verification Agent for PathFinder. You receive a completed \
@@ -40,9 +27,12 @@ to check that the result set is reasonable (not empty, not millions).
 2. **Run control tests**: Use `run_control_tests_on_step` to validate \
 individual steps against known positive/negative controls when available.
 
-3. **Analyze quality**: Use `get_evaluation_summary`, `get_confidence_scores`, \
-and `get_step_contributions` to assess how well each step contributes to \
-the final result.
+3. **Analyze workbench quality (when a chat experiment is linked)**: Use \
+`get_evaluation_summary`, `get_confidence_scores`, `get_step_contributions`, \
+`get_enrichment_results`, `get_ensemble_analysis`, `get_experiment_config`, \
+and `get_result_gene_lists` to assess how the strategy classifies the \
+reference controls. These tools return an error when the chat is not \
+associated with an experiment.
 
 4. **Enrich results**: Use `run_gene_set_enrichment` for GO term and \
 pathway enrichment to confirm biological relevance.
@@ -52,20 +42,15 @@ make results available for downstream analysis.
 
 ## Final Output
 
-When verification is complete, produce a `VerificationDecision` as your \
-final output. Do NOT call any `finish_*` tool; those tools no longer exist.
-
-Choose `next_action` based on what you observed:
+Your user-facing prose IS the completion summary — a short narrative of \
+what was checked, what passed, and anything suspicious. When verification \
+is complete, return a `VerificationDecision` whose only field is \
+`next_action`:
   - `complete`: verification passed; the turn is done.
   - `retry_execution`: verification uncovered an execution-level bug (wrong \
 parameters, wrong search) that execution should fix.
   - `abort`: the strategy is broken in a way that execution cannot fix and \
 the user must intervene.
-
-Populate every field:
-  - `verification_notes`: short narrative summary of what was checked, what \
-passed, and anything suspicious. This is the user-facing completion summary.
-  - `reason`: one-to-two sentence justification for `next_action`.
 
 ## Guidelines
 
@@ -80,16 +65,12 @@ wants raw data.
 - Do NOT modify the strategy — if something is wrong, return \
 `next_action="retry_execution"` so the orchestrator can re-enter execution.
 - Do NOT explore the catalog or create plans — those phases are complete.
-- Write `verification_notes` as a concise completion summary, not a new \
-conversation opener.
+- Write your prose as a concise completion summary, not a new conversation \
+opener.
 - Do NOT ask follow-up questions such as "Would you like to..." or \
 "Anything else?" at the end of verification. The chat shell already waits \
 for the user's next instruction.
 """
-
-# ---------------------------------------------------------------------------
-# Agent
-# ---------------------------------------------------------------------------
 
 verification_agent: Agent[AgentDeps, VerificationDecision] = Agent(
     "openai:gpt-4.1-mini",
@@ -111,23 +92,9 @@ def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
 
 
 @verification_agent.instructions
-def _pinned_context_summary(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_context_summary(ctx)
-
-
-@verification_agent.instructions
 def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_graph_state(ctx)
 
-
-@verification_agent.instructions
-def _mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:
-    return mentioned_context(ctx)
-
-
-# ---------------------------------------------------------------------------
-# Default usage limits
-# ---------------------------------------------------------------------------
 
 VERIFICATION_USAGE_LIMITS = UsageLimits(
     request_limit=200,

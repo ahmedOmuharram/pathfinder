@@ -101,7 +101,15 @@ function extractImports(source) {
 }
 
 /** Allowed import prefixes for feature files (rule 3). */
-const ALLOWED_PREFIXES = ["@/lib/", "@/state/", "@pathfinder/shared"];
+const ALLOWED_PREFIXES = [
+  "@/lib/",
+  "@/state/",
+  "@pathfinder/shared",
+  // Vendored shadcn / AI Elements primitives — installed via shadcn CLI,
+  // treated as third-party. Lives under src/components/{ui,ai-elements}/.
+  "@/components/ui/",
+  "@/components/ai-elements/",
+];
 
 /**
  * Check whether an import specifier is allowed from within a feature directory.

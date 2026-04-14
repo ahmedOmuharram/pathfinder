@@ -68,19 +68,20 @@ async def open_strategy(
             site_id=request.site_id,
             name=DEFAULT_STREAM_NAME,
         )
-        return OpenStrategyResponse(strategyId=chat.id)
+        return OpenStrategyResponse(strategy_id=chat.id)
 
     if request.strategy_id:
-        chat = await chat_repo.get_by_id(request.strategy_id)
-        if not chat:
+        existing_chat = await chat_repo.get_by_id(request.strategy_id)
+        if not existing_chat:
             raise NotFoundError(
                 code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
             )
+        chat = existing_chat
         if chat.user_id != user_id:
             raise NotFoundError(
                 code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
             )
-        return OpenStrategyResponse(strategyId=chat.id)
+        return OpenStrategyResponse(strategy_id=chat.id)
 
     if not request.site_id:
         raise ValidationError(
@@ -121,7 +122,7 @@ async def open_strategy(
         msg = f"Failed to load WDK strategy: {e}"
         raise WDKError(msg) from e
 
-    return OpenStrategyResponse(strategyId=chat.id)
+    return OpenStrategyResponse(strategy_id=chat.id)
 
 
 @router.post("/sync-wdk", response_model=list[StrategyResponse])

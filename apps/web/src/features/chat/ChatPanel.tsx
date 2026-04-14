@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef } from "react";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 
 import { ChatSessionProvider } from "./approval/useChatContext";
@@ -9,6 +8,7 @@ import { ChatInput } from "./composer/ChatInput";
 import { ModelPicker } from "./composer/ModelPicker";
 import { ChatEmptyState } from "./EmptyState";
 import { MessageList } from "./MessageList";
+import { useConversationTitleSync } from "./useConversationTitleSync";
 import { fetchChatHistory } from "@/lib/api/chat";
 import { useSessionStore } from "@/state/useSessionStore";
 
@@ -28,8 +28,7 @@ export function ChatPanel({
   chatId: string;
   mode: "strategy" | "experiment";
 }) {
-  const setStrategyId = useSessionStore((s) => s.setStrategyId);
-  const draftRef = useRef<string>("");
+  const selectedSite = useSessionStore((s) => s.selectedSite);
   const { data: history } = useQuery(chatHistoryOptions(chatId));
   const session = useChatSession(chatId, mode, history ?? []);
   const { messages, status, sendMessage, stop } = session;
@@ -37,11 +36,10 @@ export function ChatPanel({
   const streaming = status === "streaming" || status === "submitted";
   const hasMessages = messages.length > 0;
 
+  useConversationTitleSync({ chatId, messages, siteId: selectedSite });
+
   const handleSubmit = (text: string) => {
-    if (!chatId) {
-      if (!draftRef.current) draftRef.current = crypto.randomUUID();
-      setStrategyId(draftRef.current);
-    }
+    if (!chatId) return;
     void sendMessage({ text });
   };
 

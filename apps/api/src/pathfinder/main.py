@@ -13,6 +13,8 @@ from starlette.responses import Response
 
 from pathfinder import __version__
 from pathfinder.ai.capabilities.piguard import warm_up_piguard
+from pathfinder.ai.chat.checkpointer import lifespan_checkpointer
+from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.orchestration.observability import (
     setup_observability,
     shutdown_observability,
@@ -128,9 +130,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     await _warm_up_subsystems()
 
-    yield
+    async with lifespan_checkpointer(settings.database_url) as checkpointer:
+        app.state.compiled_graph = build_graph(checkpointer=checkpointer)
+        readiness.mark_ready("graph_checkpointer")
 
-    logger.info("Shutting down Pathfinder API")
+        yield
+
+        logger.info("Shutting down Pathfinder API")
+
     reset_readiness()
     await close_all_clients()
     await close_redis()

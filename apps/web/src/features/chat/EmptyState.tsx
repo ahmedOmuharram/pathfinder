@@ -1,24 +1,12 @@
 "use client";
 
-/**
- * Empty-state splash shown when a chat has no messages yet.
- *
- * Pulls site-specific starter prompts from `starter-prompts.ts` and renders them
- * as clickable cards. Clicking a card calls `sendMessage({ text })` on the same
- * AI SDK chat session used by the composer — the prompt flows through the
- * normal transport and the agent handles it like a typed user message. No
- * backend wire-format changes.
- *
- * Reads the active site from `useSessionStore` so prompts adapt as the user
- * switches between PlasmoDB / ToxoDB / etc. In experiment mode the site
- * selector is irrelevant so we use a single experiment-focused prompt list.
- */
-
 import { MessageSquare, Sparkles } from "lucide-react";
+
+import { Suggestion } from "@/components/ai-elements/suggestion";
+import { useSessionStore } from "@/state/useSessionStore";
 
 import { useChatSessionContext } from "./approval/useChatContext";
 import { getStarterPrompts } from "./starter-prompts";
-import { useSessionStore } from "@/state/useSessionStore";
 
 export function ChatEmptyState({
   mode,
@@ -31,16 +19,12 @@ export function ChatEmptyState({
   const siteId = useSessionStore((s) => s.selectedSite);
   const siteName = useSessionStore((s) => s.selectedSiteDisplayName);
 
-  const hasChat = chatId.length > 0;
-
-  if (!hasChat) {
+  if (mode === "experiment" && chatId.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground">
         <MessageSquare className="h-10 w-10 opacity-40" />
         <p className="text-sm font-medium text-foreground">
-          {mode === "strategy"
-            ? "Pick a conversation in the sidebar or click \u201CNew Chat\u201D"
-            : "Select a gene set to start chatting about experiments"}
+          Select a gene set to start chatting about experiments
         </p>
       </div>
     );
@@ -69,21 +53,23 @@ export function ChatEmptyState({
       {prompts.length > 0 && (
         <div className="grid w-full gap-2 sm:grid-cols-2">
           {prompts.map((p) => (
-            <button
+            <Suggestion
               key={p.title}
-              type="button"
-              onClick={() => {
-                void session.sendMessage({ text: p.prompt });
+              suggestion={p.prompt}
+              onClick={(text) => {
+                void session.sendMessage({ text });
               }}
-              className="group flex flex-col items-start gap-1 rounded-lg border border-border bg-card px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent"
+              variant="outline"
+              size="default"
+              className="group h-auto flex-col items-start gap-1 whitespace-normal rounded-lg border-border bg-card px-3 py-2.5 text-left hover:border-primary/40 hover:bg-accent"
             >
-              <span className="text-sm font-medium text-foreground group-hover:text-accent-foreground">
+              <span className="w-full text-sm font-medium text-foreground group-hover:text-accent-foreground">
                 {p.title}
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="w-full text-xs text-muted-foreground">
                 {p.description}
               </span>
-            </button>
+            </Suggestion>
           ))}
         </div>
       )}

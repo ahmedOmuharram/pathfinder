@@ -19,7 +19,7 @@ from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 from shared_py.stream_parts.plan import PlannedStep as StreamPlannedStep
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._plan_models import (
     ConnectionRef,
     DecisionOption,
@@ -316,14 +316,6 @@ async def get_plan(
     ctx: RunContext[AgentDeps],
 ) -> StrategyPlan | ToolErrorPayload:
     """Read the current active strategy plan. Use this to review the plan before making updates."""
-    guard = ctx.deps.tool_repetition_guard
-    warning = guard.check("get_plan", {})
-    if warning is not None:
-        return ToolErrorPayload(
-            code="REPETITION_BLOCKED",
-            message=warning,
-        )
-
     plan = ctx.deps.agent_state.active_plan
     if plan is None:
         return tool_error("NO_ACTIVE_PLAN", "No plan exists yet. Use create_plan to build one.")

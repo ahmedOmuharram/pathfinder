@@ -5,6 +5,8 @@ graph state pinning.
 ``render_graph_state`` / ``render_slim_step_result`` — within-turn graph state.
 """
 
+from collections.abc import Mapping
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.ai.context.extractors import extract_tool_summary
@@ -128,7 +130,7 @@ class _PlanNode(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _format_params_dict(params: JSONObject) -> str:
+def _format_params_dict(params: Mapping[str, object]) -> str:
     """Format parameters as an inline dict string the model can copy."""
     if not params:
         return ""

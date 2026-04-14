@@ -101,9 +101,9 @@ def load_prompt_result(name: str, *, label: str = "production") -> LoadedPrompt:
                 version=getattr(prompt, "version", None),
             )
 
-    text = _load_local(name, label=label)
+    loaded = _load_local(name, label=label)
     logger.debug("Prompt loaded from local file", name=name)
-    return text
+    return loaded
 
 
 def load_prompt(name: str, *, label: str = "production") -> str:

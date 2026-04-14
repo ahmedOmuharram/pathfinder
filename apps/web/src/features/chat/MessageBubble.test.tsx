@@ -79,7 +79,7 @@ describe("MessageBubble", () => {
     );
     const bubble = screen.getByTestId("message-bubble");
     expect(bubble.getAttribute("data-role")).toBe("user");
-    expect(screen.getByText("contents")).toBeTruthy();
+    expect(screen.getByText("contents")).toBeInTheDocument();
   });
 
   it("renders completed assistant header with all fields present", () => {
@@ -99,7 +99,7 @@ describe("MessageBubble", () => {
     expect(screen.getByTestId("message-model").textContent).toBe(
       "claude-sonnet-4-6",
     );
-    expect(screen.getByTestId("message-time")).toBeTruthy();
+    expect(screen.getByTestId("message-time")).toBeInTheDocument();
   });
 
   it("throws when a completed assistant message is missing required metadata", () => {
@@ -179,7 +179,7 @@ describe("MessageBubble", () => {
         </MessageBubble>
       </ChatSessionProvider>,
     );
-    expect(screen.queryByTestId("message-regenerate")).toBeNull();
+    expect(screen.queryByTestId("message-regenerate")).not.toBeInTheDocument();
   });
 
   it("calls submitFeedback with value=1 when thumbs up is clicked", async () => {
@@ -215,7 +215,75 @@ describe("MessageBubble", () => {
         <div>system text</div>
       </MessageBubble>,
     );
-    expect(screen.queryByTestId("message-avatar")).toBeNull();
-    expect(screen.queryByTestId("message-footer")).toBeNull();
+    expect(screen.queryByTestId("message-avatar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("message-footer")).not.toBeInTheDocument();
+  });
+
+  describe("token usage Context", () => {
+    it("renders the Context indicator when both tokensUsed and tokensBudget are present", () => {
+      renderWithSession(
+        <MessageBubble
+          message={msg({
+            role: "assistant",
+            metadata: { ...COMPLETE_META, tokensUsed: 5_000, tokensBudget: 100_000 },
+          })}
+          isLatest
+          isComplete
+        >
+          <div />
+        </MessageBubble>,
+      );
+      expect(screen.getByTestId("message-context")).toBeInTheDocument();
+      // 5000/100000 = 5%
+      expect(screen.getByTestId("message-context")).toHaveTextContent("5%");
+    });
+
+    it("hides the Context indicator when tokensUsed is missing", () => {
+      renderWithSession(
+        <MessageBubble
+          message={msg({
+            role: "assistant",
+            metadata: { ...COMPLETE_META, tokensBudget: 100_000 },
+          })}
+          isLatest
+          isComplete
+        >
+          <div />
+        </MessageBubble>,
+      );
+      expect(screen.queryByTestId("message-context")).not.toBeInTheDocument();
+    });
+
+    it("hides the Context indicator when tokensBudget is missing", () => {
+      renderWithSession(
+        <MessageBubble
+          message={msg({
+            role: "assistant",
+            metadata: { ...COMPLETE_META, tokensUsed: 1_000 },
+          })}
+          isLatest
+          isComplete
+        >
+          <div />
+        </MessageBubble>,
+      );
+      expect(screen.queryByTestId("message-context")).not.toBeInTheDocument();
+    });
+
+    it("hides the Context indicator when tokensBudget is zero (avoids divide-by-zero)", () => {
+      renderWithSession(
+        <MessageBubble
+          message={msg({
+            role: "assistant",
+            metadata: { ...COMPLETE_META, tokensUsed: 1_000, tokensBudget: 0 },
+          })}
+          isLatest
+          isComplete
+        >
+          <div />
+        </MessageBubble>,
+      );
+      expect(screen.queryByTestId("message-context")).not.toBeInTheDocument();
+    });
   });
 });

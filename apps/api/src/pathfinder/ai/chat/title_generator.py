@@ -1,0 +1,130 @@
+"""Conversation-title generation using the provider's smallest model.
+
+Called once per chat, on the first user message, to name the conversation in
+the sidebar. Uses a tiny, fast, cheap model per provider (nano for OpenAI,
+haiku for Anthropic, flash for Google, local for Ollama) so the title is ready
+quickly and the main agent pipeline isn't slowed down.
+
+The generated title flows to the UI via the native AI SDK metadata channel —
+see `pipeline_dispatcher._drive_pipeline` for where it is attached to the
+`MessageMetadataChunk`'s `conversationTitle` field.
+"""
+
+from __future__ import annotations
+
+import re
+
+from pydantic_ai import Agent
+from pydantic_ai.usage import UsageLimits
+
+from pathfinder.ai.models.catalog import ModelEntry, get_smallest_model
+from pathfinder.platform.config import get_settings
+from pathfinder.platform.types import ModelProvider
+
+MAX_TITLE_WORDS = 7
+MAX_TITLE_CHARS = 60
+_MIN_QUOTED_LEN = 2
+
+_TITLE_INSTRUCTIONS = (
+    "You produce conversation titles. Respond with ONLY the title — no "
+    "quotes, no punctuation, no leading dash, no trailing period, no "
+    "wrapping characters. Use Title Case. Use at most 7 words. Summarize "
+    "the subject of the user's request, not the request itself. Examples:\n"
+    "  User: Find genes in P. falciparum upregulated in liver stage\n"
+    "  Title: Plasmodium Liver Stage Upregulated Genes\n"
+    "  User: show me how toxo genes respond to IFN-gamma\n"
+    "  Title: Toxoplasma Genes Under IFN-Gamma"
+)
+
+_TITLE_USAGE_LIMITS = UsageLimits(
+    request_limit=1,
+    total_tokens_limit=500,
+)
+
+
+def _fallback_title(user_message: str) -> str:
+    """Produce a deterministic fallback when model generation fails.
+
+    Takes the first `MAX_TITLE_CHARS` characters of the user message, stripped
+    of whitespace. Better than showing "Untitled" in the sidebar.
+    """
+    cleaned = re.sub(r"\s+", " ", user_message.strip())
+    if not cleaned:
+        return "New conversation"
+    if len(cleaned) <= MAX_TITLE_CHARS:
+        return cleaned
+    return cleaned[: MAX_TITLE_CHARS - 1].rstrip() + "\u2026"
+
+
+def _trim_title(raw: str) -> str:
+    """Normalize a model-produced title to our formatting rules.
+
+    - Strip surrounding whitespace and matched outer quote characters.
+    - Drop any trailing punctuation.
+    - Collapse internal whitespace runs to single spaces.
+    - Truncate to `MAX_TITLE_WORDS` words.
+    - Truncate to `MAX_TITLE_CHARS` characters with an ellipsis suffix.
+    """
+    title = raw.strip()
+    # Strip outer matching quotes/backticks/angle brackets (a few iterations
+    # in case the model nested them).
+    for _ in range(3):
+        if len(title) >= _MIN_QUOTED_LEN and title[0] == title[-1] and title[0] in "\"'`":
+            title = title[1:-1].strip()
+        else:
+            break
+    title = re.sub(r"\s+", " ", title)
+    title = title.rstrip(".!?,;:")
+    words = title.split(" ")
+    if len(words) > MAX_TITLE_WORDS:
+        title = " ".join(words[:MAX_TITLE_WORDS])
+    if len(title) > MAX_TITLE_CHARS:
+        title = title[: MAX_TITLE_CHARS - 1].rstrip() + "\u2026"
+    return title
+
+
+def _pydantic_ai_model_id(entry: ModelEntry) -> str:
+    """Build the pydantic-ai `provider:model` string for an Agent."""
+    return f"{entry.provider}:{entry.model}"
+
+
+async def generate_conversation_title(
+    first_user_message: str,
+    provider: ModelProvider | None = None,
+) -> str:
+    """Generate a short conversation title from the user's first message.
+
+    :param first_user_message: The text of the first user message.
+    :param provider: Provider whose smallest model should be used. Defaults
+        to the configured ``settings.default_provider``.
+    :returns: A trimmed, formatted title of at most 7 words / 60 chars. If
+        generation fails, returns a truncated-first-message fallback.
+    """
+    cleaned = first_user_message.strip()
+    if not cleaned:
+        return "New conversation"
+
+    resolved_provider: ModelProvider = provider or get_settings().default_provider
+    try:
+        entry = get_smallest_model(resolved_provider)
+    except LookupError:
+        return _fallback_title(first_user_message)
+
+    agent: Agent[None, str] = Agent(
+        _pydantic_ai_model_id(entry),
+        output_type=str,
+        instructions=_TITLE_INSTRUCTIONS,
+        retries=1,
+        name="conversation-title",
+        defer_model_check=True,
+    )
+
+    try:
+        result = await agent.run(
+            f"User's first message:\n{cleaned}",
+            usage_limits=_TITLE_USAGE_LIMITS,
+        )
+    except Exception:  # noqa: BLE001 — any model error falls back deterministically
+        return _fallback_title(first_user_message)
+
+    return _trim_title(result.output) or _fallback_title(first_user_message)

@@ -3,6 +3,7 @@
 from pydantic import Field
 
 from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.integrations.veupathdb.wdk_models import WDKSortDirection
 from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat2
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.types import (
@@ -77,7 +78,7 @@ class ExperimentConfig(CamelModel):
     tree_optimization_budget: int = 50
     max_list_size: int | None = None
     sort_attribute: str | None = None
-    sort_direction: str = "ASC"
+    sort_direction: WDKSortDirection = "ASC"
     parent_experiment_id: str | None = None
     target_gene_ids: list[str] | None = None
 

@@ -66,11 +66,13 @@ async function collectChunks(stream: ReadableStream<Uint8Array>): Promise<string
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("NEXT_PUBLIC_API_URL", "http://api.test");
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("SSE proxy streaming behavior", () => {

@@ -53,21 +53,18 @@ describe("ChatPanel", () => {
 
     const { container } = renderPanel({ chatId: "strategy-abc", mode: "strategy" });
 
-    // Root panel exposes mode + chatId as data attrs.
     const root = container.querySelector("[data-mode='strategy']");
-    expect(root).toBeTruthy();
-    expect(root?.getAttribute("data-chat-id")).toBe("strategy-abc");
+    expect(root).toBeInTheDocument();
+    expect(root).toHaveAttribute("data-chat-id", "strategy-abc");
 
-    // Header: ModelPicker renders a button showing the tier label.
-    // The quick-swap dropdown is closed by default but the trigger button is present.
     const pickerButton = container.querySelector(
       "[data-mode='strategy'] button",
     );
-    expect(pickerButton).toBeTruthy();
+    expect(pickerButton).toBeInTheDocument();
 
-    // Footer: ChatInput has a textarea + Send button (ready state).
-    expect(screen.getByRole("textbox")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /send/i })).toBeTruthy();
+    // Footer: ChatInput has a textarea + Submit button (ready state).
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /submit/i })).toBeInTheDocument();
   });
 
   it("passes chatId and mode down to useChatSession", () => {
@@ -78,6 +75,6 @@ describe("ChatPanel", () => {
 
     renderPanel({ chatId: "experiment-xyz", mode: "experiment" });
 
-    expect(useChatSession).toHaveBeenCalledWith("experiment-xyz", "experiment");
+    expect(useChatSession).toHaveBeenCalledWith("experiment-xyz", "experiment", []);
   });
 });

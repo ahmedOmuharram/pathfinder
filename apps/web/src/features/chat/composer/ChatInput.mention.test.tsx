@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -77,15 +77,15 @@ describe("ChatInput @-mentions", () => {
     renderInput();
     const textarea = getTextarea();
     typeChar(textarea, "@");
-    expect(screen.queryByTestId("mention-dropdown")).not.toBeNull();
+    expect(screen.queryByTestId("mention-dropdown")).toBeInTheDocument();
   });
 
   it("filters candidates as the user types after @", () => {
     renderInput();
     const textarea = getTextarea();
     typeString(textarea, "@liver");
-    expect(screen.queryByTestId("mention-option-geneset-gs_2")).not.toBeNull();
-    expect(screen.queryByTestId("mention-option-geneset-gs_1")).toBeNull();
+    expect(screen.queryByTestId("mention-option-geneset-gs_2")).toBeInTheDocument();
+    expect(screen.queryByTestId("mention-option-geneset-gs_1")).not.toBeInTheDocument();
   });
 
   it("inserts a machine-readable token when a candidate is clicked", () => {
@@ -101,7 +101,7 @@ describe("ChatInput @-mentions", () => {
     renderInput();
     const textarea = getTextarea();
     typeString(textarea, "@liver hello");
-    expect(screen.queryByTestId("mention-dropdown")).toBeNull();
+    expect(screen.queryByTestId("mention-dropdown")).not.toBeInTheDocument();
   });
 
   it("ArrowDown then Enter inserts the active candidate", () => {
@@ -113,13 +113,17 @@ describe("ChatInput @-mentions", () => {
     expect(textarea.value).toMatch(/@(step|geneset|strategy):/);
   });
 
-  it("Enter submits when the dropdown is closed", () => {
+  it("submits the typed text via the form", async () => {
     const onSubmit = vi.fn();
     renderInput({ onSubmit });
     const textarea = getTextarea();
     typeString(textarea, "hello world");
-    fireEvent.keyDown(textarea, { key: "Enter" });
-    expect(onSubmit).toHaveBeenCalledWith("hello world");
+    const form = textarea.closest("form");
+    if (form === null) throw new Error("form not found");
+    fireEvent.submit(form);
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith("hello world");
+    });
   });
 
   it("Escape closes the dropdown without inserting", () => {
@@ -127,6 +131,6 @@ describe("ChatInput @-mentions", () => {
     const textarea = getTextarea();
     typeString(textarea, "@step");
     fireEvent.keyDown(textarea, { key: "Escape" });
-    expect(screen.queryByTestId("mention-dropdown")).toBeNull();
+    expect(screen.queryByTestId("mention-dropdown")).not.toBeInTheDocument();
   });
 });

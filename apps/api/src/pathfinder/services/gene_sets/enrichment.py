@@ -74,7 +74,7 @@ async def run_enrichment_for_gene_set(
         except (RedisError, OSError, ValueError, TypeError) as export_err:
             logger.warning("Enrichment export failed", error=str(export_err))
 
-    summary["enrichmentResults"] = serialized
+    summary["enrichmentResults"] = cast("JSONValue", serialized)
     if errors:
         summary["errors"] = cast("JSONValue", errors)
 

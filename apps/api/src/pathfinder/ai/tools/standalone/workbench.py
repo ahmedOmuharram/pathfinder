@@ -14,7 +14,7 @@ from uuid import uuid4
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._stream_parts import gene_set_chunk
 from pathfinder.ai.tools.standalone._workbench_models import (
     GeneSetAvailableItem,

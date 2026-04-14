@@ -9,7 +9,7 @@ from __future__ import annotations
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._graph_helpers import step_ok_response
 from pathfinder.ai.tools.standalone._stream_parts import (
     graph_snapshot_chunk,

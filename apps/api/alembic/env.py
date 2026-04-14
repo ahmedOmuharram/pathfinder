@@ -1,19 +1,15 @@
-"""Alembic env.py — async migration runner for PathFinder.
-
-Reads DATABASE_URL from the application settings so that alembic.ini
-doesn't need to contain credentials.
-"""
+from __future__ import annotations
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import pool
-from sqlalchemy.engine import Connection
+from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from pathfinder.persistence.models import Base
-from pathfinder.platform.config import get_settings
 
 config = context.config
 
@@ -22,53 +18,58 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Inject the database URL from application settings.
-settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
+
+def _database_url() -> str:
+    override = config.get_main_option("sqlalchemy.url")
+    if override:
+        return override
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url:
+        msg = "DATABASE_URL is not set"
+        raise RuntimeError(msg)
+    return url
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode (emit SQL without a live DB)."""
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
 
-def do_run_migrations(connection: Connection) -> None:
+def _run_sync_migrations(connection: Connection) -> None:
     context.configure(connection=connection, target_metadata=target_metadata)
-
     with context.begin_transaction():
         context.run_migrations()
 
 
-async def run_async_migrations() -> None:
-    """Run migrations in 'online' mode with an async engine."""
+async def _run_migrations_async() -> None:
+    url = make_url(_database_url())
+    section = config.get_section(config.config_ini_section, {}) or {}
+    section["sqlalchemy.url"] = url.render_as_string(hide_password=False)
+
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
-
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-
-    await connectable.dispose()
+    try:
+        async with connectable.connect() as connection:
+            await connection.run_sync(_run_sync_migrations)
+    finally:
+        await connectable.dispose()
 
 
 def run_migrations_online() -> None:
-    # If called from app startup with a connection, use it directly.
-    connection = config.attributes.get("connection")
-    if connection:
-        do_run_migrations(connection)
-    else:
-        asyncio.run(run_async_migrations())
+    provided_conn = config.attributes.get("connection")
+    if provided_conn is not None:
+        _run_sync_migrations(provided_conn)
+        return
+    asyncio.run(_run_migrations_async())
 
 
 if context.is_offline_mode():

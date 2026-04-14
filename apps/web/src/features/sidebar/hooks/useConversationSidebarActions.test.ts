@@ -24,6 +24,11 @@ const mockSetStrategyMeta = vi.hoisted(() => vi.fn());
 const mockSetStrategy = vi.hoisted(() => vi.fn());
 const mockClearStrategy = vi.hoisted(() => vi.fn());
 const mockSetDeleteFromWdk = vi.hoisted(() => vi.fn());
+const mockRouterPush = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockRouterPush, replace: mockRouterPush }),
+}));
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -136,7 +141,6 @@ function makeConversationItem(strategy: Strategy): ConversationItem {
 
 describe("useConversationSidebarActions", () => {
   const reportError = vi.fn();
-  const setNewConversationInFlight = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -148,7 +152,7 @@ describe("useConversationSidebarActions", () => {
   // 1. handleNewConversation creates strategy and adds to cache
   // =========================================================================
 
-  it("handleNewConversation creates strategy and adds to cache", async () => {
+  it("handleNewConversation navigates to /chat without a backend call", async () => {
     const { queryClient, Wrapper } = createTestWrapper();
 
     const existing = makeStrategy({ id: "existing-1", name: "Existing" });
@@ -157,14 +161,11 @@ describe("useConversationSidebarActions", () => {
       [existing],
     );
 
-    mockOpenStrategy.mockResolvedValueOnce({ strategyId: "new-123" });
-
     const { result } = renderHook(
       () =>
         useConversationSidebarActions({
           siteId: SITE_ID,
           reportError,
-          setNewConversationInFlight,
         }),
       { wrapper: Wrapper },
     );
@@ -173,23 +174,20 @@ describe("useConversationSidebarActions", () => {
       await result.current.handleNewConversation();
     });
 
-    // Cache now has 2 strategies, with the new one first.
+    // No backend call was made — the chat row is created lazily on the
+    // first POST to /api/v1/chat, not on the "New Chat" button click.
+    expect(mockOpenStrategy).not.toHaveBeenCalled();
+
+    // The sidebar cache was not touched — no placeholder row inserted.
     const cached = queryClient.getQueryData<Strategy[]>(
       strategiesListOptions(SITE_ID).queryKey,
     );
-    expect(cached).toHaveLength(2);
-    expect(cached![0]!.id).toBe("new-123");
-    expect(cached![1]!.id).toBe("existing-1");
+    expect(cached).toEqual([existing]);
 
-    // setStrategyId was called with the new id.
-    expect(mockSetStrategyId).toHaveBeenCalledWith("new-123");
-
-    // clearStrategy was called to reset graph state.
+    // Active strategy id + graph state cleared, router redirected to /chat.
+    expect(mockSetStrategyId).toHaveBeenCalledWith(null);
     expect(mockClearStrategy).toHaveBeenCalled();
-
-    // In-flight signals were toggled.
-    expect(setNewConversationInFlight).toHaveBeenCalledWith(true);
-    expect(setNewConversationInFlight).toHaveBeenCalledWith(false);
+    expect(mockRouterPush).toHaveBeenCalledWith("/chat");
   });
 
   // =========================================================================
@@ -215,7 +213,6 @@ describe("useConversationSidebarActions", () => {
         useConversationSidebarActions({
           siteId: SITE_ID,
           reportError,
-          setNewConversationInFlight,
         }),
       { wrapper: Wrapper },
     );
@@ -245,7 +242,6 @@ describe("useConversationSidebarActions", () => {
         useConversationSidebarActions({
           siteId: SITE_ID,
           reportError,
-          setNewConversationInFlight,
         }),
       { wrapper: Wrapper },
     );
@@ -258,7 +254,7 @@ describe("useConversationSidebarActions", () => {
       expect(mockGetStrategy).toHaveBeenCalledWith("picked-1");
     });
 
-    expect(mockSetStrategyId).toHaveBeenCalledWith("picked-1");
+    expect(mockRouterPush).toHaveBeenCalledWith("/chat/picked-1");
     expect(mockClearStrategy).toHaveBeenCalled();
   });
 

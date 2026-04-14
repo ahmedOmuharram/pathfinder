@@ -1,4 +1,12 @@
-import { Modal } from "@/lib/components/Modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 
 interface DeleteConversationModalProps {
@@ -15,39 +23,37 @@ export function DeleteConversationModal({
   onConfirmDelete,
 }: DeleteConversationModalProps) {
   return (
-    <Modal
-      open={!!target}
-      onClose={onClose}
-      title="Delete conversation"
-      maxWidth="max-w-sm"
-    >
-      <div className="px-6 pb-6 pt-4">
-        <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete{" "}
-          <span className="font-semibold text-foreground">
-            &ldquo;{target?.title}&rdquo;
-          </span>
-          ? This cannot be undone.
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
+    <Dialog open={!!target} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Delete conversation</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-foreground">
+              &ldquo;{target?.title}&rdquo;
+            </span>
+            ? This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
             type="button"
+            variant="outline"
             onClick={onClose}
             disabled={isDeleting}
-            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-muted disabled:opacity-60"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="destructive"
             onClick={onConfirmDelete}
             disabled={isDeleting}
-            className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground transition hover:bg-destructive/90 disabled:opacity-60"
           >
             {isDeleting ? "Deleting..." : "Delete"}
-          </button>
-        </div>
-      </div>
-    </Modal>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -11,7 +11,7 @@ import pytest
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._plan_models import (
     DecisionOptionInput,
     PlanCreatedResponse,

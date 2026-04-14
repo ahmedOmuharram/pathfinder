@@ -10,7 +10,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-_FIXED_SUBSYSTEMS = ("database", "redis", "embedding_model", "piguard")
+_FIXED_SUBSYSTEMS = (
+    "database",
+    "redis",
+    "embedding_model",
+    "piguard",
+    "graph_checkpointer",
+)
 
 
 class SubsystemStatus(BaseModel):
@@ -27,6 +33,7 @@ class ReadinessState(BaseModel):
     redis: SubsystemStatus = Field(default_factory=SubsystemStatus)
     embedding_model: SubsystemStatus = Field(default_factory=SubsystemStatus)
     piguard: SubsystemStatus = Field(default_factory=SubsystemStatus)
+    graph_checkpointer: SubsystemStatus = Field(default_factory=SubsystemStatus)
     catalogs: dict[str, SubsystemStatus] = Field(default_factory=dict)
 
     @property
@@ -36,6 +43,7 @@ class ReadinessState(BaseModel):
             and self.redis.ready
             and self.embedding_model.ready
             and self.piguard.ready
+            and self.graph_checkpointer.ready
             and all(c.ready for c in self.catalogs.values())
         )
 

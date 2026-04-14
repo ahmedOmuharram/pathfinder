@@ -13,7 +13,9 @@ dependencies = [
     "alembic>=1.18.0",
     "httpx>=0.28.1",
     "pydantic-ai>=1.80.0",
-    "python-statemachine>=3.0",
+    "langgraph==1.1.6",
+    "langgraph-checkpoint-postgres==3.0.5",
+    "psycopg[binary]>=3.2.0",
     "langfuse>=4.0.0",
     "opentelemetry-sdk>=1.39.0",
     "opentelemetry-exporter-otlp-proto-http>=1.39.0",
@@ -141,16 +143,6 @@ max-branches = 10
 "src/pathfinder/ai/capabilities/piguard.py" = [
     "S106",  # pad_token="[PAD]" is tokenizer config, not a password
 ]
-"src/pathfinder/ai/orchestration/pipeline.py" = [
-    "N801",  # python-statemachine compound states require lowercase class names
-]
-"src/pathfinder/ai/context/reconstruction.py" = [
-    "C901",     # discovery extraction inspects multiple nested data sources
-    "PLR0912",  # branching inherent to parsing tool calls from Redis history
-]
-"src/pathfinder/services/chat/streaming.py" = [
-    "PLR0912",  # _produce_events routes on intent + handles phase transitions
-]
 "src/pathfinder/ai/prompts/**" = [
     "E501",  # prompt strings are long by nature
 ]
@@ -161,10 +153,6 @@ max-branches = 10
 "src/pathfinder/ai/tools/standalone/**" = [
     "PLR0913",  # tool functions need many params for LLM tool interface
     "FBT",      # boolean params required for LLM tool descriptions
-]
-"src/pathfinder/ai/orchestration/classifier.py" = [
-    "C901",     # request classification is inherently branchy
-    "PLR0911",  # many return paths for many intent categories
 ]
 "src/pathfinder/devtools/**" = [
     "T20",      # devtools scripts use print() for CLI output

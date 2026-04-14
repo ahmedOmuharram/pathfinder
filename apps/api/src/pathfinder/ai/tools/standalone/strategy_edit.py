@@ -10,7 +10,7 @@ from typing import cast
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._graph_helpers import (
     step_ok_response,
     with_full_graph,
@@ -250,7 +250,6 @@ async def update_step(
         deps.site_id, graph, sync_state, step, search_name, parameters, operator, display_name
     )
 
-    deps.tool_repetition_guard.record_modifying_call("update_step")
 
     if apply_error is not None:
         return apply_error
@@ -306,7 +305,6 @@ async def delete_step(
     sync_state = ensure_sync_state(session)
     result = await delete_step_connected(graph, sync_state, step_id)
 
-    deps.tool_repetition_guard.record_modifying_call("delete_step")
 
     response: JSONObject = {
         "deleted": cast("JSONArray", result.deleted_ids),

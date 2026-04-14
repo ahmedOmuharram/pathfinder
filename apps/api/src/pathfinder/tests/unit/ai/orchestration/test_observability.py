@@ -112,8 +112,8 @@ def test_resource_includes_enriched_attributes() -> None:
     assert "service.instance.id" in attrs
 
 
-def test_configure_exporters_adds_langfuse_http_exporter_headers() -> None:
-    """Langfuse OTEL export uses Basic auth and ingestion version header."""
+def test_configure_exporters_returns_provider_for_langfuse_only() -> None:
+    """Langfuse-only setup gets a TracerProvider; SDK attaches its own processor."""
     mock_settings = MagicMock(
         signoz_otel_endpoint=None,
         signoz_trace_otel_http_endpoint=None,
@@ -122,8 +122,6 @@ def test_configure_exporters_adds_langfuse_http_exporter_headers() -> None:
         langfuse_secret_key="sk-lf-test",
         api_env="development",
     )
-    mock_exporter = MagicMock()
-    mock_processor = MagicMock()
 
     with (
         patch(
@@ -132,25 +130,102 @@ def test_configure_exporters_adds_langfuse_http_exporter_headers() -> None:
         ),
         patch(
             "pathfinder.ai.orchestration.observability.HttpSpanExporter",
-            return_value=mock_exporter,
         ) as exporter_cls,
-        patch(
-            "pathfinder.ai.orchestration.observability.BatchSpanProcessor",
-            return_value=mock_processor,
-        ),
     ):
         provider = _configure_exporters()
 
     assert provider is not None
-    exporter_cls.assert_called_once()
-    assert (
-        exporter_cls.call_args.kwargs["endpoint"]
-        == "http://langfuse:3000/api/public/otel/v1/traces"
+    exporter_cls.assert_not_called()
+
+
+def test_setup_observability_triggers_langfuse_sdk_when_key_set() -> None:
+    """When Langfuse is configured, setup_observability initializes the SDK.
+
+    The SDK's own ``LangfuseSpanProcessor`` attaches to our TracerProvider and
+    owns the actual OTLP export to Langfuse — no manual HttpSpanExporter.
+    """
+    mock_settings = MagicMock(
+        signoz_otel_endpoint=None,
+        signoz_trace_otel_http_endpoint=None,
+        langfuse_host="http://langfuse:3000",
+        langfuse_public_key="pk-lf-test",
+        langfuse_secret_key="sk-lf-test",
+        api_env="development",
     )
-    assert exporter_cls.call_args.kwargs["headers"][
-        "x-langfuse-ingestion-version"
-    ] == "4"
-    assert "Authorization" in exporter_cls.call_args.kwargs["headers"]
+
+    with (
+        patch(
+            "pathfinder.ai.orchestration.observability.get_settings",
+            return_value=mock_settings,
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability.get_langfuse",
+        ) as get_langfuse_mock,
+        patch(
+            "pathfinder.ai.orchestration.observability.trace.set_tracer_provider",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_fastapi",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_database",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_http_clients",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_redis",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_agents",
+        ),
+    ):
+        setup_observability(app=MagicMock(), db_engine=MagicMock())
+
+    get_langfuse_mock.assert_called_once()
+
+
+def test_setup_observability_skips_langfuse_sdk_when_key_absent() -> None:
+    """Langfuse SDK init is skipped when no secret key is set (SigNoz only)."""
+    mock_settings = MagicMock(
+        signoz_otel_endpoint=None,
+        signoz_trace_otel_http_endpoint="http://signoz:4318/v1/traces",
+        langfuse_host="",
+        langfuse_public_key="",
+        langfuse_secret_key="",
+        api_env="development",
+    )
+
+    with (
+        patch(
+            "pathfinder.ai.orchestration.observability.get_settings",
+            return_value=mock_settings,
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability.get_langfuse",
+        ) as get_langfuse_mock,
+        patch(
+            "pathfinder.ai.orchestration.observability.trace.set_tracer_provider",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_fastapi",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_database",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_http_clients",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_redis",
+        ),
+        patch(
+            "pathfinder.ai.orchestration.observability._instrument_agents",
+        ),
+    ):
+        setup_observability(app=MagicMock(), db_engine=MagicMock())
+
+    get_langfuse_mock.assert_not_called()
 
 
 def test_configure_exporters_prefers_signoz_http_for_traces_when_configured() -> None:

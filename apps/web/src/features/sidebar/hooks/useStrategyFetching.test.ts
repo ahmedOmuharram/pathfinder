@@ -96,10 +96,8 @@ describe("useStrategyFetching", () => {
     mockSyncWdkStrategies.mockResolvedValue([strategyA, strategyB]);
 
     const { Wrapper } = createTestWrapper();
-    const reportError = vi.fn();
-
     const { result } = renderHook(
-      () => useStrategyFetching({ siteId: "plasmodb", reportError }),
+      () => useStrategyFetching({ siteId: "plasmodb" }),
       { wrapper: Wrapper },
     );
 
@@ -115,10 +113,8 @@ describe("useStrategyFetching", () => {
 
   it("returns empty when siteId is empty", async () => {
     const { Wrapper } = createTestWrapper();
-    const reportError = vi.fn();
-
     const { result } = renderHook(
-      () => useStrategyFetching({ siteId: "", reportError }),
+      () => useStrategyFetching({ siteId: "" }),
       { wrapper: Wrapper },
     );
 
@@ -137,10 +133,8 @@ describe("useStrategyFetching", () => {
     mockVeupathdbSignedIn = false;
 
     const { Wrapper } = createTestWrapper();
-    const reportError = vi.fn();
-
     const { result } = renderHook(
-      () => useStrategyFetching({ siteId: "plasmodb", reportError }),
+      () => useStrategyFetching({ siteId: "plasmodb" }),
       { wrapper: Wrapper },
     );
 
@@ -155,11 +149,9 @@ describe("useStrategyFetching", () => {
   it("handleManualRefresh sets isSyncing then clears it", async () => {
     mockSyncWdkStrategies.mockResolvedValue([strategyA]);
 
-    const { Wrapper, queryClient } = createTestWrapper();
-    const reportError = vi.fn();
-
+    const { Wrapper } = createTestWrapper();
     const { result } = renderHook(
-      () => useStrategyFetching({ siteId: "plasmodb", reportError }),
+      () => useStrategyFetching({ siteId: "plasmodb" }),
       { wrapper: Wrapper },
     );
 
@@ -201,19 +193,18 @@ describe("useStrategyFetching", () => {
     expect(result.current.isSyncing).toBe(false);
   });
 
-  it("reports errors from a failed fetch", async () => {
+  it("returns empty strategies when fetch fails", async () => {
     mockSyncWdkStrategies.mockRejectedValue(new Error("WDK unreachable"));
 
     const { Wrapper } = createTestWrapper();
-    const reportError = vi.fn();
 
-    renderHook(
-      () => useStrategyFetching({ siteId: "plasmodb", reportError }),
+    const { result } = renderHook(
+      () => useStrategyFetching({ siteId: "plasmodb" }),
       { wrapper: Wrapper },
     );
 
     await waitFor(() => {
-      expect(reportError).toHaveBeenCalledWith("WDK unreachable");
+      expect(result.current.strategies).toHaveLength(0);
     });
   });
 });

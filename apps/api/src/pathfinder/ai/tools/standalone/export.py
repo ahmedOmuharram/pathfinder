@@ -13,7 +13,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import FileChunk
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._export_models import (
     ExportResultResponse,
     GeneSetSummaryItem,

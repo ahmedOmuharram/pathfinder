@@ -3,7 +3,7 @@
 from pydantic_ai.tools import Tool
 from pydantic_ai.toolsets.function import FunctionToolset
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone.execution import get_estimated_size
 from pathfinder.ai.tools.standalone.experiment import (
     run_control_tests_on_search,

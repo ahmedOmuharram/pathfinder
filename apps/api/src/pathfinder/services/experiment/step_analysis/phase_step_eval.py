@@ -81,7 +81,7 @@ async def evaluate_steps(
                 if branch is not None and has_transforms:
                     raw = await run_controls_against_tree(ctx, branch)
                 else:
-                    parameters: JSONObject = leaf.parameters or {}
+                    parameters: JSONObject = dict(leaf.parameters or {})
                     raw = await run_positive_negative_controls(
                         IntersectionConfig.from_controls_context(
                             ctx,

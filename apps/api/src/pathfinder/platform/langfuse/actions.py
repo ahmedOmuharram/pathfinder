@@ -39,7 +39,7 @@ class ProductActionEvent(CamelModel):
     metadata: JSONObject | None = None
 
 
-def _clean_payload(payload: dict[str, object | None]) -> JSONObject:
+def _clean_payload(payload: JSONObject) -> JSONObject:
     return {
         key: value
         for key, value in payload.items()

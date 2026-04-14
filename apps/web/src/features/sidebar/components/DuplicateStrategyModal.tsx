@@ -1,6 +1,14 @@
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/lib/components/ui/Label";
-import { Modal } from "@/lib/components/Modal";
-import { Input } from "@/lib/components/ui/Input";
 import type { DuplicateModalState } from "@/features/sidebar/utils/duplicateModalState";
 import {
   applyDuplicateSubmitFailure,
@@ -20,92 +28,100 @@ export function DuplicateStrategyModal({
   onDuplicate,
 }: DuplicateStrategyModalProps) {
   return (
-    <Modal
+    <Dialog
       open={duplicateModal != null}
-      onClose={() => setDuplicateModal(null)}
-      title="Duplicate strategy"
+      onOpenChange={(open) => !open && setDuplicateModal(null)}
     >
-      {duplicateModal && (
-        <div className="p-4">
-          <div className="mt-3 space-y-2">
-            <Label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Name
-            </Label>
-            <Input
-              value={duplicateModal.name}
-              onChange={(event) =>
-                setDuplicateModal((prev) =>
-                  prev ? { ...prev, name: event.target.value } : prev,
-                )
-              }
-              disabled={duplicateModal.isLoading}
-            />
-            <Label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Description
-            </Label>
-            <textarea
-              value={duplicateModal.description}
-              onChange={(event) =>
-                setDuplicateModal((prev) =>
-                  prev ? { ...prev, description: event.target.value } : prev,
-                )
-              }
-              rows={3}
-              disabled={duplicateModal.isLoading}
-              className="w-full resize-none rounded-md border border-border px-3 py-2 text-sm text-foreground"
-            />
-            {duplicateModal.isLoading && (
-              <div className="text-xs text-muted-foreground">
-                Loading strategy details...
-              </div>
-            )}
-            {duplicateModal.error != null && (
-              <div className="text-xs text-destructive">{duplicateModal.error}</div>
-            )}
-          </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setDuplicateModal(null)}
-              className="rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (duplicateModal.isLoading) return;
-                const nameError = validateDuplicateName(duplicateModal.name);
-                if (nameError != null) {
-                  setDuplicateModal((prev) =>
-                    prev ? { ...prev, error: nameError } : prev,
-                  );
-                  return;
-                }
-                setDuplicateModal((prev) => (prev ? startDuplicateSubmit(prev) : prev));
-                void (async () => {
-                  try {
-                    await onDuplicate(
-                      duplicateModal.item.id,
-                      duplicateModal.name.trim(),
-                      duplicateModal.description.trim(),
-                    );
-                    setDuplicateModal(null);
-                  } catch {
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Duplicate strategy</DialogTitle>
+        </DialogHeader>
+        {duplicateModal && (
+          <>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Name
+                </Label>
+                <Input
+                  value={duplicateModal.name}
+                  onChange={(event) =>
                     setDuplicateModal((prev) =>
-                      prev ? applyDuplicateSubmitFailure(prev) : prev,
-                    );
+                      prev ? { ...prev, name: event.target.value } : prev,
+                    )
                   }
-                })();
-              }}
-              disabled={duplicateModal.isSubmitting || duplicateModal.isLoading}
-              className="rounded-md bg-primary px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-            >
-              {duplicateModal.isSubmitting ? "Duplicating..." : "Duplicate"}
-            </button>
-          </div>
-        </div>
-      )}
-    </Modal>
+                  disabled={duplicateModal.isLoading}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Description
+                </Label>
+                <Textarea
+                  value={duplicateModal.description}
+                  onChange={(event) =>
+                    setDuplicateModal((prev) =>
+                      prev ? { ...prev, description: event.target.value } : prev,
+                    )
+                  }
+                  rows={3}
+                  disabled={duplicateModal.isLoading}
+                />
+              </div>
+              {duplicateModal.isLoading && (
+                <div className="text-xs text-muted-foreground">
+                  Loading strategy details...
+                </div>
+              )}
+              {duplicateModal.error != null && (
+                <div className="text-xs text-destructive">{duplicateModal.error}</div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setDuplicateModal(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (duplicateModal.isLoading) return;
+                  const nameError = validateDuplicateName(duplicateModal.name);
+                  if (nameError != null) {
+                    setDuplicateModal((prev) =>
+                      prev ? { ...prev, error: nameError } : prev,
+                    );
+                    return;
+                  }
+                  setDuplicateModal((prev) =>
+                    prev ? startDuplicateSubmit(prev) : prev,
+                  );
+                  void (async () => {
+                    try {
+                      await onDuplicate(
+                        duplicateModal.item.id,
+                        duplicateModal.name.trim(),
+                        duplicateModal.description.trim(),
+                      );
+                      setDuplicateModal(null);
+                    } catch {
+                      setDuplicateModal((prev) =>
+                        prev ? applyDuplicateSubmitFailure(prev) : prev,
+                      );
+                    }
+                  })();
+                }}
+                disabled={duplicateModal.isSubmitting || duplicateModal.isLoading}
+              >
+                {duplicateModal.isSubmitting ? "Duplicating..." : "Duplicate"}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

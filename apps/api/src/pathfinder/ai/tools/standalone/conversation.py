@@ -10,7 +10,7 @@ from __future__ import annotations
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._conversation_models import (
     ClearStrategyResult,
     RenameStrategyResult,

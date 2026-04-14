@@ -40,6 +40,7 @@ class ModelEntry(CamelModel):
     input_price: float = 0.0  # USD per 1M input tokens
     cached_input_price: float = 0.0  # USD per 1M cached input tokens
     output_price: float = 0.0  # USD per 1M output tokens
+    is_provider_smallest: bool = False  # exactly one per provider; used for title gen
 
 
 # Cloud models — always present.
@@ -77,6 +78,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         input_price=0.05,
         cached_input_price=0.025,
         output_price=0.20,
+        is_provider_smallest=True,
     ),
     ModelEntry(
         id="openai/gpt-5",
@@ -213,6 +215,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         input_price=1.00,
         cached_input_price=0.10,
         output_price=5.00,
+        is_provider_smallest=True,
     ),
     # Google
     ModelEntry(
@@ -266,6 +269,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         input_price=0.10,
         cached_input_price=0.01,
         output_price=0.40,
+        is_provider_smallest=True,
     ),
     # Mock (deterministic E2E testing)
     ModelEntry(
@@ -275,6 +279,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         model="deterministic",
         description="Deterministic mock for E2E testing — no LLM calls",
         context_size=128_000,
+        is_provider_smallest=True,
     ),
 )
 
@@ -336,6 +341,9 @@ def _load_ollama_models() -> tuple[ModelEntry, ...]:
                 model=item.model,
                 supports_reasoning=item.thinking,
                 context_size=item.context_size,
+                # First ollama entry in the YAML is treated as the smallest
+                # (title-generation) model for the local provider.
+                is_provider_smallest=not entries,
             )
         )
         seen.add(item.model)
@@ -361,3 +369,19 @@ def get_model_entry(model_id: str) -> ModelEntry | None:
     :returns: Model entry if found, otherwise None.
     """
     return _build_index().get(model_id)
+
+
+def get_smallest_model(provider: ModelProvider) -> ModelEntry:
+    """Return the provider's smallest (cheapest, fastest) model.
+
+    Used for utility tasks such as conversation-title generation where
+    quality matters less than latency and cost. Exactly one entry per
+    provider must be marked ``is_provider_smallest=True``.
+
+    :raises LookupError: if no smallest entry is marked for the provider.
+    """
+    for entry in get_model_catalog():
+        if entry.provider == provider and entry.is_provider_smallest:
+            return entry
+    msg = f"No is_provider_smallest=True entry for provider={provider!r}"
+    raise LookupError(msg)

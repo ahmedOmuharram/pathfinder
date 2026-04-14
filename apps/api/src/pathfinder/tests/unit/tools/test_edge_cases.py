@@ -4,17 +4,13 @@ Covers empty/degenerate inputs, immutability contracts, abort from initial
 state, and event emission without a queue.
 """
 
-import asyncio
-import dataclasses
-from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
-from pathfinder.ai.orchestration.deps import AgentDeps
-from pathfinder.ai.orchestration.phase_results import DiscoveryResult
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._validation_helpers import StepOkResponse
 from pathfinder.ai.tools.standalone.strategy_build import (
     combine_steps,
@@ -30,7 +26,6 @@ from pathfinder.domain.strategy.plan import (
     StrategyPlan,
 )
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.step_creation import StepCreationResult
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -219,61 +214,6 @@ def test_pipeline_abort_from_initial_state() -> None:
 
     assert state.active_plan is None
     assert len(state.discovered_searches) == 0
-
-
-# ── test_agent_deps_emit_event_without_queue ──────────────────────────────
-
-
-def test_agent_deps_emit_event_without_queue() -> None:
-    """Calling emit_event when event_queue is None should silently no-op."""
-    deps = AgentDeps(site_id="plasmodb")
-    assert deps.event_queue is None
-
-    # This must NOT raise.
-    deps.emit_event({"type": "test", "data": {}})
-
-
-def test_agent_deps_emit_event_with_queue() -> None:
-    """Calling emit_event with a queue should enqueue the event."""
-    deps = AgentDeps(site_id="plasmodb")
-    queue: asyncio.Queue[JSONObject] = asyncio.Queue()
-    deps.event_queue = queue
-
-    event: JSONObject = {"type": "test_event", "data": {"foo": "bar"}}
-    deps.emit_event(event)
-
-    assert not queue.empty()
-    queued = queue.get_nowait()
-    assert queued["type"] == "test_event"
-    data = cast("JSONObject", queued["data"])
-    assert data["foo"] == "bar"
-
-
-# ── test_discovery_result_is_frozen ───────────────────────────────────────
-
-
-def test_discovery_result_is_frozen() -> None:
-    """DiscoveryResult is a frozen dataclass — attribute assignment must fail."""
-    result = DiscoveryResult(
-        discovered_searches={
-            "GenesByTaxon": SearchOverview(
-                search_name="GenesByTaxon",
-                display_name="Genes by Taxon",
-                record_type="transcript",
-                description="desc",
-                parameter_names=["organism"],
-                required_params=["organism"],
-            )
-        },
-        research_notes="Found genes",
-        intent_summary="User wants malaria genes",
-    )
-
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        result.research_notes = "mutated"  # type: ignore[misc]
-
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        result.intent_summary = "mutated"  # type: ignore[misc]
 
 
 # ── test_strategy_plan_status_transitions ─────────────────────────────────

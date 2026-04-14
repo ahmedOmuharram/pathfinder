@@ -1,10 +1,3 @@
-"""Discovery-phase agent — explores the WDK catalog and literature.
-
-This agent handles the first phase of the PathFinder pipeline: understanding
-what searches, parameters, and record types are available on the target
-VEuPathDB site, and gathering relevant literature context.
-"""
-
 from __future__ import annotations
 
 from pydantic_ai import Agent
@@ -15,21 +8,16 @@ from pydantic_ai.usage import UsageLimits
 from pathfinder.ai.agents._hooks import apply_discovery_hook
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
-    mentioned_context,
-    pinned_context_summary,
     pinned_graph_state,
     pinned_problem_frame,
 )
 from pathfinder.ai.agents._phase_decisions import DiscoveryDecision
+from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.toolsets.discovery import build_toolset
 from pathfinder.domain.strategy.plan import PlanStatus, StepStatus
-
-# ---------------------------------------------------------------------------
-# Static instructions
-# ---------------------------------------------------------------------------
 
 _DISCOVERY_INSTRUCTIONS = """\
 You are the Discovery Agent for PathFinder, a research accelerator for \
@@ -64,24 +52,18 @@ problems.
 
 ## Final Output
 
-When you have gathered enough catalog context, produce a `DiscoveryDecision` \
-as your final output. Do NOT call any `finish_*` tool; those tools no \
-longer exist.
+Your user-facing prose is the visible response — summarize the candidate \
+searches, parameter trade-offs, and any caveats in it so the planner and the \
+user can see them. If catalog evidence reshapes the scoping frame, call \
+`set_problem_frame` to update it.
 
-Choose `next_action` based on what you found:
-  - `advance_to_planning`: you have concrete candidate searches and the \
-planner has enough information to build a plan.
-  - `advance_to_execution`: the discovery already pins a single unambiguous \
-leaf search that can be executed without further planning.
+When the prose is written, return a `DiscoveryDecision` whose only field is \
+`next_action`:
+  - `advance_to_planning`: you have concrete candidate searches.
+  - `advance_to_execution`: a single unambiguous leaf search can be executed \
+without further planning.
   - `need_more_input`: a WDK-specific ambiguity would materially change the \
 plan and only the user can resolve it.
-
-Populate every field:
-  - `discovered_searches`: concrete WDK search names relevant to the \
-question (non-empty for `advance_to_*` actions).
-  - `problem_frame_refined`: updated problem frame if catalog evidence \
-reshaped the scoping-phase frame, otherwise `null`.
-  - `reason`: one-to-two sentence justification for `next_action`.
 
 ## Guidelines
 
@@ -92,17 +74,15 @@ can express the user's constraints.
 - When multiple searches could work, note the trade-offs for the planner.
 - Do NOT create or modify strategies — that is the execution agent's job.
 - Do NOT create plans — that is the planning agent's job.
-- If you need the user to answer a blocking question, return a \
-DiscoveryDecision with `next_action="need_more_input"` and stop in that \
-same turn.
+- If you need the user to answer a blocking question, ask it in your prose \
+and return `next_action="need_more_input"` in the same turn.
 - Summarize your findings clearly so the planning agent can act on them.
 """
 
-# ---------------------------------------------------------------------------
-# Agent
-# ---------------------------------------------------------------------------
-
-_discovery_hooks: Hooks[AgentDeps] = Hooks(after_tool_execute=apply_discovery_hook)
+_discovery_hooks: Hooks[AgentDeps] = Hooks(
+    after_tool_execute=apply_discovery_hook,
+    tool_execute=repetition_guard_hook,
+)
 
 discovery_agent: Agent[AgentDeps, DiscoveryDecision] = Agent(
     "openai:gpt-4.1-mini",
@@ -110,7 +90,12 @@ discovery_agent: Agent[AgentDeps, DiscoveryDecision] = Agent(
     deps_type=AgentDeps,
     instructions=_DISCOVERY_INSTRUCTIONS,
     toolsets=[build_toolset()],
-    capabilities=[ToolResilience(), _discovery_hooks, Thinking(effort="medium"), SecurityGuardrail()],
+    capabilities=[
+        ToolResilience(),
+        _discovery_hooks,
+        Thinking(effort="medium"),
+        SecurityGuardrail(),
+    ],
     retries=3,
     description="Explores WDK catalog, searches, parameters, and literature",
     name="discovery",
@@ -124,11 +109,6 @@ def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
 
 
 @discovery_agent.instructions
-def _pinned_context_summary(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_context_summary(ctx)
-
-
-@discovery_agent.instructions
 def _pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_problem_frame(ctx)
 
@@ -139,20 +119,7 @@ def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
 
 
 @discovery_agent.instructions
-def _mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:
-    return mentioned_context(ctx)
-
-
-@discovery_agent.instructions
 def _rediscovery_context(ctx: RunContext[AgentDeps]) -> str | None:
-    """Inject failure context when re-entering discovery after a failed execution.
-
-    Mirrors :func:`pathfinder.ai.agents.planning._replan_context`: when the
-    FSM falls back from execution -> discovery (via the
-    ``retry_discovery_from_execution`` transition) the previously chosen
-    searches are suspect, so the agent must look for *different* ones instead
-    of re-inspecting the same catalog entries.
-    """
     plan = ctx.deps.agent_state.active_plan
     if plan is None or plan.status != PlanStatus.FAILED:
         return None
@@ -188,10 +155,6 @@ def _rediscovery_context(ctx: RunContext[AgentDeps]) -> str | None:
 
     return "\n".join(lines)
 
-
-# ---------------------------------------------------------------------------
-# Default usage limits
-# ---------------------------------------------------------------------------
 
 DISCOVERY_USAGE_LIMITS = UsageLimits(
     request_limit=200,

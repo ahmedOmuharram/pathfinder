@@ -67,14 +67,17 @@ describe("groupMessagesByDay", () => {
     expect(result.groups[0]?.label).toMatch(/2025/);
   });
 
-  it("falls back to Recent for untimed leading messages", () => {
+  it("groups untimed leading messages together with the first timed day", () => {
     const result = groupMessagesByDay(
       [msg("a"), msg("b"), msg("c", TODAY)],
       NOW,
     );
-    expect(result.groups[0]?.label).toBe("Recent");
-    expect(result.groups[1]?.label).toBe("Today");
-    expect(result.groupCounts).toEqual([2, 1]);
+    // A freshly-sent user message has no `createdAt` yet (server assigns it);
+    // rather than showing "Recent" and then "Today", we label untimed
+    // leading messages with the current day so the bubble lands with its
+    // peers instead of a confusing separator.
+    expect(result.groups.every((g) => g.label === "Today")).toBe(true);
+    expect(result.groupCounts.reduce((a, b) => a + b, 0)).toBe(3);
   });
 
   it("inherits the prior day bucket for untimed messages between timed ones", () => {

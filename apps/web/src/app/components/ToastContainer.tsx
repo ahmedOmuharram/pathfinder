@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
-import type { ToastItem } from "@/app/hooks/useToasts";
+import type { ToastItem } from "@/lib/hooks/useToasts";
 
 interface ToastContainerProps {
   toasts: ToastItem[];

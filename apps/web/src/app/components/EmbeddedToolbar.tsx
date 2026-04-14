@@ -2,30 +2,43 @@
 
 import { Layers, MessageCircle, Settings } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "@/lib/components/ui/Button";
 
 interface EmbeddedToolbarProps {
   onOpenSettings: () => void;
 }
 
-/**
- * Compact toolbar shown in embedded mode (inside an iframe) in place of the
- * full TopBar. Provides chat/workbench toggle and settings access.
- */
 export function EmbeddedToolbar({ onOpenSettings }: EmbeddedToolbarProps) {
+  const pathname = usePathname();
+  const chatActive = pathname === "/chat" || pathname.startsWith("/chat/");
+  const workbenchActive =
+    pathname === "/workbench" || pathname.startsWith("/workbench/");
+
   return (
     <div className="flex items-center justify-end gap-1 border-b border-border bg-background px-3 py-1">
-      <span
-        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
-        aria-current="page"
+      <Link
+        href="/chat"
+        aria-label="Go to Chat"
+        aria-current={chatActive ? "page" : undefined}
+        className={
+          chatActive
+            ? "inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
+            : "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground"
+        }
       >
         <MessageCircle className="h-3.5 w-3.5" aria-hidden />
         Chat
-      </span>
+      </Link>
       <Link
         href="/workbench"
         aria-label="Go to Workbench"
-        className="inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground"
+        aria-current={workbenchActive ? "page" : undefined}
+        className={
+          workbenchActive
+            ? "inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
+            : "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground"
+        }
       >
         <Layers className="h-3.5 w-3.5" aria-hidden />
         Workbench

@@ -58,10 +58,12 @@ export type paths = {
         };
         /**
          * Readiness Check
-         * @description Readiness check - is the service ready to accept requests?
+         * @description Readiness check — is every subsystem actually ready?
          *
-         *     Checks database connectivity.
-         *     Returns 503 if any dependency is unreachable.
+         *     Returns 503 until lifespan startup has marked *all* subsystems ready
+         *     (database, redis, embedding model, PIGuard, every site catalog).
+         *     Also re-verifies DB and Redis with live pings so stale state
+         *     doesn't mask a broken dependency.
          */
         get: operations["readiness_check_health_ready_get"];
         put?: never;
@@ -304,11 +306,31 @@ export type paths = {
         };
         get?: never;
         put?: never;
-        /**
-         * Chat
-         * @description Dispatch a chat turn; returns the raw SSE stream.
-         */
+        /** Chat */
         post: operations["chat_api_v1_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chats/{chat_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Chat Messages
+         * @description Return the chat's persisted messages as AI SDK v6 ``UIMessage[]``.
+         *
+         *     Returns an empty list if the chat has no messages yet (including when
+         *     the chat row itself doesn't exist — clients treat that as "fresh chat").
+         */
+        get: operations["list_chat_messages_api_v1_chats__chat_id__messages_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -324,13 +346,13 @@ export type paths = {
         };
         /**
          * List Strategies
-         * @description List user's conversation streams (projections).
+         * @description List the user's chats (active, non-dismissed).
          */
         get: operations["list_strategies_api_v1_strategies_get"];
         put?: never;
         /**
          * Create Strategy
-         * @description Create a new strategy (CQRS only).
+         * @description Create a new strategy (chat with plan metadata).
          */
         post: operations["create_strategy_api_v1_strategies_post"];
         delete?: never;
@@ -348,7 +370,7 @@ export type paths = {
         };
         /**
          * List Dismissed Strategies
-         * @description List user's dismissed (soft-deleted) strategies.
+         * @description List the user's dismissed (soft-deleted) chats.
          */
         get: operations["list_dismissed_strategies_api_v1_strategies_dismissed_get"];
         put?: never;
@@ -368,19 +390,17 @@ export type paths = {
         };
         /**
          * Get Strategy
-         * @description Get a strategy/stream by ID from the CQRS projection + Redis.
+         * @description Get a strategy (chat) by ID.
          */
         get: operations["get_strategy_api_v1_strategies__strategyId__get"];
         put?: never;
         post?: never;
         /**
          * Delete Strategy
-         * @description Delete a strategy: cancel ops, clean Redis stream, delete CQRS records.
+         * @description Delete a strategy.
          *
          *     For WDK-linked strategies with ``deleteFromWdk=false`` (default), the
-         *     strategy is soft-deleted (dismissed) instead of hard-deleted. This prevents
-         *     WDK sync from re-importing it. Use the restore endpoint to un-dismiss.
-         *
+         *     chat is soft-deleted (dismissed) to prevent WDK sync from re-importing it.
          *     Pass ``deleteFromWdk=true`` to hard-delete from both PathFinder and WDK.
          *     Non-WDK strategies are always hard-deleted.
          */
@@ -389,7 +409,7 @@ export type paths = {
         head?: never;
         /**
          * Update Strategy
-         * @description Update a strategy (CQRS only).
+         * @description Update strategy metadata (name, plan, wdk link, saved flag).
          */
         patch: operations["update_strategy_api_v1_strategies__strategyId__patch"];
         trace?: never;
@@ -423,7 +443,7 @@ export type paths = {
         };
         /**
          * Get Strategy Ast
-         * @description Return the raw plan AST from a strategy's projection.
+         * @description Return the raw plan AST from a strategy chat.
          */
         get: operations["get_strategy_ast_api_v1_strategies__strategyId__ast_get"];
         put?: never;
@@ -447,8 +467,7 @@ export type paths = {
          * Restore Strategy
          * @description Restore a dismissed (soft-deleted) strategy.
          *
-         *     Clears dismissed_at, resets plan to empty (triggers lazy WDK re-fetch),
-         *     and wipes message history. The strategy reappears as if freshly imported.
+         *     Clears dismissed_at and resets plan to empty (triggers lazy WDK re-fetch).
          */
         post: operations["restore_strategy_api_v1_strategies__strategyId__restore_post"];
         delete?: never;
@@ -511,7 +530,7 @@ export type paths = {
         put?: never;
         /**
          * Open Strategy
-         * @description Open a strategy by local or WDK strategy.
+         * @description Open a strategy by local id or WDK strategy id.
          */
         post: operations["open_strategy_api_v1_strategies_open_post"];
         delete?: never;
@@ -531,7 +550,7 @@ export type paths = {
         put?: never;
         /**
          * Sync All Wdk Strategies
-         * @description Batch-sync all WDK strategies into the CQRS layer and return the full list.
+         * @description Batch-sync all WDK strategies into the chats table and return the full list.
          */
         post: operations["sync_all_wdk_strategies_api_v1_strategies_sync_wdk_post"];
         delete?: never;
@@ -555,7 +574,7 @@ export type paths = {
         put?: never;
         /**
          * Create Experiment
-         * @description Create and run an experiment as a background task.
+         * @description Create and run an experiment, streaming typed progress events directly.
          */
         post: operations["create_experiment_api_v1_experiments__post"];
         delete?: never;
@@ -575,7 +594,7 @@ export type paths = {
         put?: never;
         /**
          * Create Batch Experiment
-         * @description Run the same search across multiple organisms as a background task.
+         * @description Run the same search across multiple organisms, streaming progress directly.
          */
         post: operations["create_batch_experiment_api_v1_experiments_batch_post"];
         delete?: never;
@@ -595,7 +614,7 @@ export type paths = {
         put?: never;
         /**
          * Create Benchmark
-         * @description Run the same strategy against multiple control sets as a background task.
+         * @description Run the same strategy against multiple control sets, streaming progress directly.
          */
         post: operations["create_benchmark_api_v1_experiments_benchmark_post"];
         delete?: never;
@@ -1395,9 +1414,9 @@ export type paths = {
          * Purge User Data Endpoint
          * @description Purge user data from all local stores.
          *
-         *     When ``deleteWdk=false`` (default): non-WDK streams are hard-deleted,
-         *     WDK-linked projections are **dismissed** so WDK sync won't re-import
-         *     them. The strategies remain on VEuPathDB but PathFinder ignores them.
+         *     When ``deleteWdk=false`` (default): non-WDK chats are hard-deleted,
+         *     WDK-linked chats are **dismissed** so WDK sync won't re-import them.
+         *     The strategies remain on VEuPathDB but PathFinder ignores them.
          *
          *     When ``deleteWdk=true``: everything is hard-deleted locally AND all
          *     WDK strategies are deleted from VEuPathDB.
@@ -2901,6 +2920,11 @@ export type components = {
              */
             outputPrice: number;
             /**
+             * Isprovidersmallest
+             * @default false
+             */
+            isProviderSmallest: boolean;
+            /**
              * Enabled
              * @default true
              */
@@ -3661,6 +3685,38 @@ export type components = {
             totalResults: number;
         };
         /**
+         * ReadinessResponse
+         * @description Readiness check response, including per-subsystem detail.
+         */
+        ReadinessResponse: {
+            /** Status */
+            status: string;
+            /** Version */
+            version: string;
+            /**
+             * Timestamp
+             * Format: date-time
+             */
+            timestamp: string;
+            readiness: components["schemas"]["ReadinessState"];
+            /** Not Ready */
+            not_ready?: string[];
+        };
+        /**
+         * ReadinessState
+         * @description Aggregate readiness for the whole API process.
+         */
+        ReadinessState: {
+            database?: components["schemas"]["SubsystemStatus"];
+            redis?: components["schemas"]["SubsystemStatus"];
+            embedding_model?: components["schemas"]["SubsystemStatus"];
+            piguard?: components["schemas"]["SubsystemStatus"];
+            /** Catalogs */
+            catalogs?: {
+                [key: string]: components["schemas"]["SubsystemStatus"];
+            };
+        };
+        /**
          * RecordDetailRequest
          * @description Request to fetch a single record by primary key.
          */
@@ -4319,6 +4375,19 @@ export type components = {
             conversation_title?: components["schemas"]["ConversationTitle"] | null;
         };
         /**
+         * SubsystemStatus
+         * @description Per-subsystem readiness record.
+         */
+        SubsystemStatus: {
+            /**
+             * Ready
+             * @default false
+             */
+            ready: boolean;
+            /** Error */
+            error?: string | null;
+        };
+        /**
          * SystemConfigResponse
          * @description System configuration status (unauthenticated).
          */
@@ -4602,7 +4671,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthResponse"];
+                    "application/json": components["schemas"]["ReadinessResponse"];
                 };
             };
         };
@@ -4960,6 +5029,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_chat_messages_api_v1_chats__chat_id__messages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ordered list of UIMessages for the chat id (oldest first). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Malformed chat id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5427,15 +5536,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Experiment launched as background task */
-            202: {
+            /** @description SSE stream of experiment progress + completion */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        operationId?: string;
-                    };
+                    "application/json": unknown;
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
@@ -5462,15 +5570,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Batch experiment launched as background task */
-            202: {
+            /** @description SSE stream of batch experiment progress + completion */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        operationId?: string;
-                    };
+                    "application/json": unknown;
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */
@@ -5497,15 +5604,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Benchmark suite launched as background task */
-            202: {
+            /** @description SSE stream of benchmark suite progress + completion */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        operationId?: string;
-                    };
+                    "application/json": unknown;
+                    "text/event-stream": string;
                 };
             };
             /** @description Validation Error */

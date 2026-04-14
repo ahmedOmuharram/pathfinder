@@ -1,12 +1,3 @@
-"""Execution-phase agent — builds and edits WDK strategies.
-
-This agent follows the plan produced by the planning agent, executing
-strategy operations (create_leaf_step, combine_steps, transform_step,
-etc.) one at a time. The orchestrator calls this agent per-step with a
-FilteredToolset scoped to the tools needed for that step; the agent
-itself is configured with the full execution toolset as default.
-"""
-
 from __future__ import annotations
 
 from pydantic_ai import Agent
@@ -17,20 +8,14 @@ from pydantic_ai.usage import UsageLimits
 from pathfinder.ai.agents._hooks import apply_auto_build_hook
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
-    mentioned_context,
-    pinned_approved_plan,
-    pinned_context_summary,
     pinned_graph_state,
 )
 from pathfinder.ai.agents._phase_decisions import ExecutionDecision
+from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.toolsets.execution import build_toolset
-
-# ---------------------------------------------------------------------------
-# Static instructions
-# ---------------------------------------------------------------------------
 
 _EXECUTION_INSTRUCTIONS = """\
 You are the Execution Agent for PathFinder. You receive a concrete plan \
@@ -52,21 +37,15 @@ creation automatically — you do not need to trigger these manually.
 
 ## Final Output
 
-When the plan has been fully applied, produce an `ExecutionDecision` as \
-your final output. Do NOT call any `finish_*` tool; those tools no longer \
-exist.
-
-Choose `next_action` based on what happened:
+Your user-facing prose is the visible response — keep it brief and factual: \
+report what completed, what failed, or which exact step is blocked. When \
+the plan has been fully applied (or cannot be), return an `ExecutionDecision` \
+whose only field is `next_action`:
   - `advance_to_verification`: all planned steps were applied successfully.
   - `retry`: one or more steps failed but retrying with adjusted parameters \
 is likely to succeed.
   - `abort`: the plan is fundamentally broken and verification cannot \
 proceed (the orchestrator will typically redirect to replanning).
-
-Populate every field:
-  - `executed_steps`: WDK step identifiers for every step successfully \
-applied during this run (visible via `get_strategy`).
-  - `reason`: one-to-two sentence justification for `next_action`.
 
 ## Guidelines
 
@@ -86,11 +65,10 @@ what completed, what failed, or which exact step is blocked. Do not narrate \
 hypothetical next actions.
 """
 
-# ---------------------------------------------------------------------------
-# Agent
-# ---------------------------------------------------------------------------
-
-_execution_hooks: Hooks[AgentDeps] = Hooks(after_tool_execute=apply_auto_build_hook)
+_execution_hooks: Hooks[AgentDeps] = Hooks(
+    after_tool_execute=apply_auto_build_hook,
+    tool_execute=repetition_guard_hook,
+)
 
 execution_agent: Agent[AgentDeps, ExecutionDecision] = Agent(
     "openai:gpt-4.1-mini",
@@ -98,7 +76,12 @@ execution_agent: Agent[AgentDeps, ExecutionDecision] = Agent(
     deps_type=AgentDeps,
     instructions=_EXECUTION_INSTRUCTIONS,
     toolsets=[build_toolset()],
-    capabilities=[ToolResilience(), _execution_hooks, Thinking(effort="medium"), SecurityGuardrail()],
+    capabilities=[
+        ToolResilience(),
+        _execution_hooks,
+        Thinking(effort="medium"),
+        SecurityGuardrail(),
+    ],
     retries=3,
     description="Builds WDK strategies by executing planned operations",
     name="execution",
@@ -112,35 +95,11 @@ def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
 
 
 @execution_agent.instructions
-def _pinned_context_summary(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_context_summary(ctx)
-
-
-@execution_agent.instructions
-def _pinned_approved_plan(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_approved_plan(ctx)
-
-
-@execution_agent.instructions
 def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_graph_state(ctx)
 
 
-@execution_agent.instructions
-def _mentioned_context(ctx: RunContext[AgentDeps]) -> str | None:
-    return mentioned_context(ctx)
-
-
-# ---------------------------------------------------------------------------
-# Default usage limits
-# ---------------------------------------------------------------------------
-
 EXECUTION_USAGE_LIMITS = UsageLimits(
-    request_limit=200,
-    total_tokens_limit=500_000,
-)
-
-EXECUTION_RECOVERY_LIMITS = UsageLimits(
     request_limit=200,
     total_tokens_limit=500_000,
 )

@@ -2,7 +2,7 @@
 
 from pydantic_ai import RunContext
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._experiment_models import (
     DownloadLinks,
     SearchControlTestResult,

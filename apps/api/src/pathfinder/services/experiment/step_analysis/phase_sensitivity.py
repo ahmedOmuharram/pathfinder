@@ -132,7 +132,7 @@ async def _discover_numeric_params(
     if specs is None:
         return []
 
-    node_params: JSONObject = leaf.parameters or {}
+    node_params: JSONObject = dict(leaf.parameters or {})
 
     result: list[_NumericParamSpec] = []
     for spec in specs.values():

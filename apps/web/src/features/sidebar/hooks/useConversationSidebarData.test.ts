@@ -28,14 +28,9 @@ vi.mock("@/features/sidebar/hooks/useStrategyFetching", () => ({
   useStrategyFetching: () => fetchingState,
 }));
 
-vi.mock("@/features/sidebar/hooks/useAutoConversation", () => ({
-  useAutoConversation: () => ({ setNewConversationInFlight: vi.fn() }),
-}));
-
 function makeArgs() {
   return {
     siteId: "plasmodb",
-    reportError: vi.fn(),
   };
 }
 

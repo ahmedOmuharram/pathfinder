@@ -12,6 +12,10 @@ module.exports = defineConfig([
       "playwright-report/**",
       "test-results/**",
       "coverage/**",
+      // Vendored shadcn / AI Elements primitives — copied via shadcn CLI.
+      // Treat as third-party; lint rules apply to PathFinder code only.
+      "src/components/ui/**",
+      "src/components/ai-elements/**",
     ],
   },
   ...nextConfig,

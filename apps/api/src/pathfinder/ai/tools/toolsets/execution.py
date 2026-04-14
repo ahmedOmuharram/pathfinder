@@ -3,7 +3,7 @@
 from pydantic_ai.tools import Tool
 from pydantic_ai.toolsets.function import FunctionToolset
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone.conversation import (
     clear_strategy,
     rename_strategy,

@@ -1,24 +1,5 @@
 "use client";
 
-/**
- * Rich message bubble.
- *
- * Reads from AI SDK v6 fields only — `message.role`, `message.metadata`,
- * `message.id`, `message.createdAt`. Assistant bubbles display an avatar +
- * provider label (derived from `metadata.model`), a phase tag, a timestamp,
- * and a footer with regenerate + thumbs up/down feedback. User bubbles are
- * compact and right-aligned. System bubbles are a dashed hint.
- *
- * Regenerate calls `useChat().regenerate()` via the chat session context.
- * Feedback POSTs to `/api/v1/feedback` keyed by `metadata.traceId` (backend
- * endpoint already exists, routes to Langfuse).
- *
- * This component is the visual wrapper; message parts flow inside as
- * children — tool calls, text, reasoning, etc. render in order (Claude-style
- * inline chronological — see docs/superpowers/chat-overhaul/04-decisions.md
- * §Decision 7).
- */
-
 import { Bot, Sparkles, User, type LucideIcon } from "lucide-react";
 import { type ReactNode } from "react";
 
@@ -28,20 +9,21 @@ import type {
   PathfinderUIMessage,
 } from "@pathfinder/shared";
 
+import {
+  Context,
+  ContextContent,
+  ContextContentBody,
+  ContextContentFooter,
+  ContextContentHeader,
+  ContextTrigger,
+} from "@/components/ai-elements/context";
+import { Message, MessageContent } from "@/components/ai-elements/message";
+
 import { buildCitationIndex } from "./citations/buildIndex";
 import { CitationsProvider } from "./citations/CitationsContext";
 import { SourcesFooter } from "./citations/SourcesFooter";
 import { AssistantFooter } from "./MessageFooter";
 
-/**
- * Fails loud when a completed assistant message is missing required metadata.
- *
- * During streaming, `MessageMetadataChunk`s arrive at different times so
- * partial metadata is expected. Once the stream ends (`isComplete` true),
- * `phase` / `model` / `traceId` / `createdAt` must all be present. Missing
- * fields at completion time are a backend bug — we surface it here instead
- * of silently rendering blank avatars or timestamps.
- */
 function assertCompletedAssistantMetadata(
   meta: PathfinderMessageMetadata | undefined,
   messageId: string,
@@ -63,14 +45,6 @@ function assertCompletedAssistantMetadata(
   }
 }
 
-const ROLE_STYLES: Record<"user" | "assistant" | "system", string> = {
-  user: "ml-auto max-w-[80%] rounded-lg bg-primary px-3 py-2 text-primary-foreground",
-  assistant:
-    "mr-auto w-full max-w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground",
-  system:
-    "mx-auto max-w-[90%] rounded border border-dashed border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground",
-};
-
 export function MessageBubble({
   message,
   isLatest,
@@ -79,12 +53,6 @@ export function MessageBubble({
 }: {
   message: PathfinderUIMessage;
   isLatest: boolean;
-  /**
-   * Whether streaming has finished for this message. When `true` on an
-   * assistant message, metadata MUST be fully populated — the type guard
-   * throws otherwise. When `false`, partial metadata is rendered as-is
-   * (streaming reality: chunks arrive incrementally).
-   */
   isComplete: boolean;
   children: ReactNode;
 }) {
@@ -98,18 +66,34 @@ export function MessageBubble({
   }
   const phaseLabel = metadata?.phase;
 
+  if (isSystem) {
+    return (
+      <Message
+        from={role}
+        data-testid="message-bubble"
+        data-role={role}
+        data-latest={isLatest || undefined}
+        data-complete={isComplete || undefined}
+      >
+        <MessageContent className="mx-auto max-w-[90%] rounded border border-dashed border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+          {children}
+        </MessageContent>
+      </Message>
+    );
+  }
+
   return (
-    <div
+    <Message
+      from={role}
       data-testid="message-bubble"
       data-role={role}
       data-phase={phaseLabel ?? undefined}
       data-latest={isLatest || undefined}
       data-complete={isComplete || undefined}
-      className={`my-2 flex gap-2 ${isAssistant ? "flex-row" : "flex-row-reverse"}`}
+      className={`my-2 flex w-full max-w-full flex-row gap-2 ${isAssistant ? "" : "flex-row-reverse"}`}
     >
-      {!isSystem && <Avatar role={role} modelId={metadata?.model} />}
-
-      <div className={`flex min-w-0 flex-1 flex-col ${ROLE_STYLES[role]}`}>
+      <Avatar role={role} modelId={metadata?.model} />
+      <MessageContent className="min-w-0 flex-1">
         {isAssistant && isComplete ? (
           <AssistantHeaderCompleted metadata={metadata as CompletedAssistantMetadata} />
         ) : isAssistant ? (
@@ -128,15 +112,11 @@ export function MessageBubble({
             isLatest={isLatest}
           />
         )}
-      </div>
-    </div>
+      </MessageContent>
+    </Message>
   );
 }
 
-/**
- * Small avatar tile — uses lucide icons and a subtle tint per role.
- * The model badge (if any) renders as a tooltip-like label below.
- */
 function Avatar({
   role,
   modelId,
@@ -177,11 +157,6 @@ function iconForRole(
   return { Icon: Bot, tint: "bg-muted text-muted-foreground" };
 }
 
-/**
- * Header for a fully-streamed assistant message — metadata is guaranteed
- * complete by the caller (`assertCompletedAssistantMetadata` ran upstream).
- * No null checks, no fallbacks: every field renders.
- */
 function AssistantHeaderCompleted({
   metadata,
 }: {
@@ -205,6 +180,11 @@ function AssistantHeaderCompleted({
           {metadata.phase}
         </span>
       )}
+      <ContextUsage
+        used={metadata.tokensUsed}
+        budget={metadata.tokensBudget}
+        modelId={metadata.model}
+      />
       <span className="ml-auto" data-testid="message-time">
         {timestamp}
       </span>
@@ -212,12 +192,32 @@ function AssistantHeaderCompleted({
   );
 }
 
-/**
- * Header for an assistant message whose stream hasn't completed yet. Metadata
- * chunks arrive incrementally — any of model/phase/timestamp may still be
- * missing. Renders what we have and suppresses the bar entirely if nothing
- * has arrived.
- */
+function ContextUsage({
+  used,
+  budget,
+  modelId,
+}: {
+  used: number | undefined;
+  budget: number | undefined;
+  modelId: string | undefined;
+}) {
+  if (used === undefined || budget === undefined || budget === 0) return null;
+  return (
+    <Context
+      usedTokens={used}
+      maxTokens={budget}
+      {...(modelId !== undefined ? { modelId } : {})}
+    >
+      <ContextTrigger className="h-5 px-1 py-0 text-[10px]" data-testid="message-context" />
+      <ContextContent>
+        <ContextContentHeader />
+        <ContextContentBody />
+        <ContextContentFooter />
+      </ContextContent>
+    </Context>
+  );
+}
+
 function AssistantHeaderStreaming({
   metadata,
 }: {

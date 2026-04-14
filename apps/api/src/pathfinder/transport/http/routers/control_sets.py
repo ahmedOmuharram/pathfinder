@@ -60,17 +60,17 @@ def _serialize(cs: ControlSet) -> ControlSetResponse:
     return ControlSetResponse(
         id=str(cs.id),
         name=cs.name,
-        siteId=cs.site_id,
-        recordType=cs.record_type,
-        positiveIds=[str(x) for x in (cs.positive_ids or [])],
-        negativeIds=[str(x) for x in (cs.negative_ids or [])],
+        site_id=cs.site_id,
+        record_type=cs.record_type,
+        positive_ids=[str(x) for x in (cs.positive_ids or [])],
+        negative_ids=[str(x) for x in (cs.negative_ids or [])],
         source=cs.source,
         tags=[str(x) for x in (cs.tags or [])],
-        provenanceNotes=cs.provenance_notes,
+        provenance_notes=cs.provenance_notes,
         version=cs.version,
-        isPublic=cs.is_public,
-        userId=str(cs.user_id) if cs.user_id else None,
-        createdAt=cs.created_at.isoformat() if cs.created_at else "",
+        is_public=cs.is_public,
+        user_id=str(cs.user_id) if cs.user_id else None,
+        created_at=cs.created_at.isoformat() if cs.created_at else "",
     )
 
 

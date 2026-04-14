@@ -13,7 +13,7 @@ from pathfinder.ai.agents._hooks import (
     _track_search_discovery,
 )
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
@@ -116,7 +116,7 @@ class TestTrackSearchDiscovery:
         assert parsed.recordType == "gene"
         assert parsed.description == "Chromosomal region search"
         assert len(parsed.required) == 1
-        assert parsed.required[0]["name"] == "sequenceId"
+        assert parsed.required[0].name == "sequenceId"
         assert parsed.optional == []
 
     def test_discovery_handles_missing_optional_fields(self) -> None:

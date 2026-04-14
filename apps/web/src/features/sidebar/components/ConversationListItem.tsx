@@ -1,9 +1,17 @@
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { MoreVertical } from "lucide-react";
 import type { Strategy } from "@pathfinder/shared";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { formatSidebarTime } from "@/lib/formatTime";
-import { Input } from "@/lib/components/ui/Input";
 
 interface ConversationListItemProps {
   item: ConversationItem;
@@ -11,7 +19,6 @@ interface ConversationListItemProps {
   isRenaming: boolean;
   renameValue: string;
   graphHasValidationIssue: boolean;
-  /** True when this item is the active conversation AND a chat stream is in progress. */
   isActiveStreaming: boolean;
   activePhase: string | null;
   activePhaseStatus: string | null;
@@ -32,8 +39,6 @@ export function ConversationListItem({
   renameValue,
   graphHasValidationIssue,
   isActiveStreaming,
-  activePhase,
-  activePhaseStatus,
   onRenameValueChange,
   onCommitRename,
   onCancelRename,
@@ -68,7 +73,7 @@ export function ConversationListItem({
             }
             if (e.key === "Escape") onCancelRename();
           }}
-          className="min-w-0 flex-1 bg-card px-1.5 py-0.5 font-medium"
+          className="h-7 min-w-0 flex-1 bg-card px-1.5 py-0.5 font-medium"
           autoFocus
         />
       ) : (
@@ -104,56 +109,40 @@ export function ConversationListItem({
       )}
 
       {!isRenaming && (
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild>
-            <button
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
               type="button"
-              className="ml-1 shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              variant="ghost"
+              size="icon-xs"
               aria-label="Conversation actions"
+              className="ml-1 shrink-0 opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
             >
               <MoreVertical className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content
-              className="z-50 min-w-[160px] rounded-md border border-border bg-card p-1 text-sm text-foreground shadow-lg"
-              sideOffset={4}
-              align="end"
-            >
-              <DropdownMenu.Item
-                className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-muted focus:bg-muted"
-                onSelect={() => onStartRename(item)}
-              >
-                Rename
-              </DropdownMenu.Item>
-              {si && (
-                <>
-                  <DropdownMenu.Item
-                    className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-muted focus:bg-muted"
-                    onSelect={() => onStartDuplicate(si)}
-                  >
-                    Duplicate
-                  </DropdownMenu.Item>
-                  {si.wdkStrategyId != null && (
-                    <DropdownMenu.Item
-                      className="cursor-pointer rounded px-2 py-1 outline-none hover:bg-muted focus:bg-muted"
-                      onSelect={() => onToggleSaved(si)}
-                    >
-                      {si.isSaved ? "Revert to draft" : "Mark as saved"}
-                    </DropdownMenu.Item>
-                  )}
-                </>
-              )}
-              <DropdownMenu.Separator className="my-1 h-px bg-muted" />
-              <DropdownMenu.Item
-                className="cursor-pointer rounded px-2 py-1 text-destructive outline-none hover:bg-destructive/5 focus:bg-destructive/5"
-                onSelect={() => onStartDelete(item)}
-              >
-                Delete
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={4} className="min-w-[160px]">
+            <DropdownMenuItem onSelect={() => onStartRename(item)}>
+              Rename
+            </DropdownMenuItem>
+            {si && (
+              <>
+                <DropdownMenuItem onSelect={() => onStartDuplicate(si)}>
+                  Duplicate
+                </DropdownMenuItem>
+                {si.wdkStrategyId != null && (
+                  <DropdownMenuItem onSelect={() => onToggleSaved(si)}>
+                    {si.isSaved ? "Revert to draft" : "Mark as saved"}
+                  </DropdownMenuItem>
+                )}
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => onStartDelete(item)}>
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </div>
   );

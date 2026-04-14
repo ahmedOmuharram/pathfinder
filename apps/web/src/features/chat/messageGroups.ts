@@ -21,7 +21,6 @@ export interface DayGroupedMessages {
 }
 
 const MS_PER_DAY = 86_400_000;
-const RECENT_LABEL = "Recent";
 
 export function groupMessagesByDay(
   messages: readonly PathfinderUIMessage[],
@@ -31,12 +30,17 @@ export function groupMessagesByDay(
     return { groups: [], groupCounts: [] };
   }
 
+  // Messages without a `createdAt` timestamp (e.g. a user message just sent,
+  // before the server round-trips its metadata back) inherit the current day's
+  // label. They're happening right now — "Today" is accurate.
+  const nowLabel = dayLabelFor(now.toISOString(), now) ?? "Today";
+
   const groups: DayGroup[] = [];
   let currentLabel: string | null = null;
 
   for (const message of messages) {
     const derived = dayLabelFor(message.metadata?.createdAt, now);
-    const label: string = derived ?? currentLabel ?? RECENT_LABEL;
+    const label: string = derived ?? currentLabel ?? nowLabel;
     const lastGroup = groups[groups.length - 1];
     if (lastGroup !== undefined && label === currentLabel) {
       lastGroup.count += 1;

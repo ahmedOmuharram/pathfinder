@@ -7,7 +7,7 @@ from pathfinder.ai.agents._hooks import (
     _track_search_discovery,
 )
 from pathfinder.ai.agents.state import AgentToolState
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.services.strategies.sync_state import WDKSyncState

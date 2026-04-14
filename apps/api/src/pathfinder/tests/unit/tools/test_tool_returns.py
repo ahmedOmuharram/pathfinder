@@ -21,10 +21,8 @@ from pydantic_ai.ui.vercel_ai.response_types import (
 )
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
-from pathfinder.ai.orchestration.deps import AgentDeps
-from pathfinder.ai.orchestration.phase_results import (
-    ProblemFrame,
-)
+from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.state import ProblemFrame
 from pathfinder.ai.tools.standalone._workbench_models import (
     GeneSetCreatedResponse,
 )

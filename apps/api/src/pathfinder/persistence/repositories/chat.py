@@ -234,17 +234,6 @@ class ChatRepository:
         )
         await self.session.flush()
 
-    async def update_conversation_state(
-        self, chat_id: UUID, state: dict[str, Any]
-    ) -> None:
-        """Replace the conversation FSM snapshot on a chat."""
-        await self.session.execute(
-            update(Chat)
-            .where(Chat.id == chat_id)
-            .values(conversation_state=state, updated_at=datetime.now(UTC))
-        )
-        await self.session.flush()
-
     async def dismiss(self, chat_id: UUID) -> None:
         """Soft-delete: mark a chat as dismissed (hidden from main list)."""
         await self.session.execute(

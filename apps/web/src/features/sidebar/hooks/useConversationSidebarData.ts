@@ -2,7 +2,6 @@
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import { useStrategyFetching } from "@/features/sidebar/hooks/useStrategyFetching";
-import { useAutoConversation } from "@/features/sidebar/hooks/useAutoConversation";
 import { useSearchFilter } from "@/features/sidebar/hooks/useSearchFilter";
 
 interface UseConversationSidebarDataArgs {
@@ -19,19 +18,12 @@ interface ConversationSidebarData {
   invalidateStrategies: () => Promise<void>;
   handleManualRefresh: () => Promise<void>;
   dismissedConversations: ConversationItem[];
-  setNewConversationInFlight: (inFlight: boolean) => void;
 }
 
 export function useConversationSidebarData({
   siteId,
 }: UseConversationSidebarDataArgs): ConversationSidebarData {
   const fetching = useStrategyFetching({ siteId });
-
-  const autoConversation = useAutoConversation({
-    siteId,
-    strategyItems: fetching.strategies,
-    isFetched: fetching.isFetched,
-  });
 
   const { strategies, dismissedStrategies } = fetching;
 
@@ -69,6 +61,5 @@ export function useConversationSidebarData({
     invalidateStrategies: fetching.invalidate,
     handleManualRefresh: fetching.handleManualRefresh,
     dismissedConversations,
-    setNewConversationInFlight: autoConversation.setNewConversationInFlight,
   };
 }

@@ -1,19 +1,19 @@
 "use client";
 
-/**
- * ConversationSidebar — sidebar listing strategy conversations
- * in chronologically sorted order.
- *
- * Composed from:
- * - `useConversationSidebarData` — data fetching, filtering
- * - `useConversationSidebarActions` — selection, rename, delete, duplicate
- * - `ConversationList` — list rendering
- */
-
 import { useState } from "react";
-import { AlertTriangle, Archive, Loader2, RefreshCw } from "lucide-react";
-import { Modal } from "@/lib/components/Modal";
-import { Input } from "@/lib/components/ui/Input";
+import { AlertTriangle, Archive, RefreshCw } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { useSessionStore } from "@/state/useSessionStore";
 import { usePlanStore } from "@/state/usePlanStore";
 import { useConversationSidebarData } from "@/features/sidebar/hooks/useConversationSidebarData";
@@ -43,61 +43,58 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
   const actions = useConversationSidebarActions({
     siteId,
     reportError,
-    setNewConversationInFlight: data.setNewConversationInFlight,
   });
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 px-3 py-4">
-      {/* Header: title + action buttons */}
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Conversations
         </div>
         <div className="flex items-center gap-1">
-          <button
+          <Button
             data-testid="conversations-refresh-button"
             type="button"
+            variant="ghost"
+            size="icon-sm"
             disabled={chatIsStreaming || data.isSyncing}
             onClick={() => void data.handleManualRefresh()}
-            className="rounded-md p-1 text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             title="Refresh conversations & strategies"
           >
             <RefreshCw
               className={`h-3.5 w-3.5 ${data.isSyncing ? "animate-spin" : ""}`}
             />
-          </button>
-          <button
+          </Button>
+          <Button
             data-testid="conversations-new-button"
             type="button"
+            variant="outline"
+            size="sm"
             disabled={chatIsStreaming}
             onClick={() => void actions.handleNewConversation()}
             aria-label="New chat"
-            className="rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             New Chat
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Search */}
       <Input
         data-testid="conversations-search-input"
         value={data.query}
         onChange={(e) => data.setQuery(e.target.value)}
         placeholder="Search conversations..."
         aria-label="Search conversations"
-        className="bg-card px-2.5 py-1.5"
+        className="bg-card"
       />
 
-      {/* Loading indicator — shown until the first fetch completes */}
       {(!data.hasInitiallyLoaded || data.isSyncing) && data.filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground animate-fade-in">
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Spinner className="h-5 w-5" />
           <p className="text-xs">Loading conversations…</p>
         </div>
       )}
 
-      {/* Conversation list */}
       <ConversationList
         items={data.filtered}
         query={data.query}
@@ -118,21 +115,22 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         onToggleSaved={(si) => void actions.handleToggleSaved(si)}
       />
 
-      {/* Dismissed strategies */}
       {data.dismissedConversations.length > 0 && (
         <>
-          <button
+          <Button
             data-testid="dismissed-toggle"
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => setShowDismissed((prev) => !prev)}
-            className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            className="h-7 justify-start gap-1.5 px-1 text-xs font-normal text-muted-foreground"
           >
             <Archive className="h-3 w-3" />
             <span>Dismissed ({data.dismissedConversations.length})</span>
             <span className="ml-auto text-[10px]">
               {showDismissed ? "\u25BC" : "\u25B6"}
             </span>
-          </button>
+          </Button>
           {showDismissed && (
             <div className="space-y-0.5 pl-1">
               {data.dismissedConversations.map((item) => (
@@ -144,22 +142,25 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
                 >
                   <span className="min-w-0 truncate">{item.title}</span>
                   <div className="ml-2 flex shrink-0 items-center gap-1">
-                    <button
+                    <Button
                       data-testid="dismissed-restore-button"
                       type="button"
+                      variant="ghost"
+                      size="xs"
                       onClick={() => void actions.handleRestore(item.id)}
-                      className="rounded px-1.5 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-accent"
                     >
                       Restore
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       data-testid="dismissed-delete-button"
                       type="button"
+                      variant="ghost"
+                      size="xs"
                       onClick={() => actions.setPermanentDeleteTarget(item.id)}
-                      className="rounded px-1.5 py-0.5 text-[10px] font-medium text-destructive transition-colors hover:bg-destructive/10"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
                       Delete
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -168,7 +169,6 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         </>
       )}
 
-      {/* Modals */}
       <DeleteConversationModal
         target={actions.deleteTarget}
         isDeleting={actions.isDeleting}
@@ -182,40 +182,39 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         onDuplicate={actions.handleDuplicate}
       />
 
-      {/* Permanent delete confirmation */}
-      <Modal
+      <Dialog
         open={actions.permanentDeleteTarget !== null}
-        onClose={() => actions.setPermanentDeleteTarget(null)}
-        title="Permanently delete strategy"
-        maxWidth="max-w-sm"
-        showCloseButton
+        onOpenChange={(open) => !open && actions.setPermanentDeleteTarget(null)}
       >
-        <div className="p-5 space-y-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-            <p className="text-sm text-muted-foreground">
-              This will permanently delete the strategy from both PathFinder and
-              VEuPathDB. This cannot be undone.
-            </p>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Permanently delete strategy</DialogTitle>
+            <DialogDescription className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+              <span>
+                This will permanently delete the strategy from both PathFinder and
+                VEuPathDB. This cannot be undone.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
               type="button"
+              variant="outline"
               onClick={() => actions.setPermanentDeleteTarget(null)}
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="destructive"
               onClick={() => void actions.confirmPermanentDelete()}
-              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
             >
               Delete permanently
-            </button>
-          </div>
-        </div>
-      </Modal>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

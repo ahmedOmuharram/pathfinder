@@ -89,20 +89,20 @@ def _to_response(gs: GeneSet) -> GeneSetResponse:
     )
     return GeneSetResponse(
         id=gs.id,
-        siteId=gs.site_id,
+        site_id=gs.site_id,
         name=gs.name,
-        geneIds=gs.gene_ids,
+        gene_ids=gs.gene_ids,
         source=gs.source,
-        geneCount=len(gs.gene_ids),
-        wdkStrategyId=gs.wdk_strategy_id,
-        wdkStepId=gs.wdk_step_id,
-        searchName=gs.search_name,
-        recordType=gs.record_type,
+        gene_count=len(gs.gene_ids),
+        wdk_strategy_id=gs.wdk_strategy_id,
+        wdk_step_id=gs.wdk_step_id,
+        search_name=gs.search_name,
+        record_type=gs.record_type,
         parameters=gs.parameters,
-        parentSetIds=gs.parent_set_ids,
+        parent_set_ids=gs.parent_set_ids,
         operation=operation,
-        createdAt=gs.created_at.isoformat(),
-        stepCount=gs.step_count,
+        created_at=gs.created_at.isoformat(),
+        step_count=gs.step_count,
     )
 
 
@@ -229,14 +229,14 @@ async def reverse_search(
     )
     return [
         ReverseSearchResultItem(
-            geneSetId=r.gene_set_id,
+            gene_set_id=r.gene_set_id,
             name=r.name,
-            searchName=r.search_name,
+            search_name=r.search_name,
             recall=r.recall,
             precision=r.precision,
             f1=r.f1,
-            estimatedSize=r.estimated_size,
-            overlapCount=r.overlap_count,
+            estimated_size=r.estimated_size,
+            overlap_count=r.overlap_count,
         )
         for r in ranked
     ]
@@ -432,11 +432,11 @@ async def gene_confidence(
     )
     return [
         GeneConfidenceScoreResponse(
-            geneId=s.gene_id,
-            compositeScore=s.composite_score,
-            classificationScore=s.classification_score,
-            ensembleScore=s.ensemble_score,
-            enrichmentScore=s.enrichment_score,
+            gene_id=s.gene_id,
+            composite_score=s.composite_score,
+            classification_score=s.classification_score,
+            ensemble_score=s.ensemble_score,
+            enrichment_score=s.enrichment_score,
         )
         for s in scores
     ]

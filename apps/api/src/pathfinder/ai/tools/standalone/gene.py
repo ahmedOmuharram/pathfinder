@@ -2,7 +2,7 @@
 
 from pydantic_ai import RunContext
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.services.gene_lookup import (
     GeneResolveResult,
     GeneSearchResult,

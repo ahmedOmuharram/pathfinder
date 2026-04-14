@@ -1,7 +1,28 @@
 import { createElement, type ComponentType, type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import { createTestQueryClient } from "./src/lib/query/testing";
+
+// Polyfills for libraries (cmdk, radix) that assume browser globals jsdom
+// doesn't ship by default.
+class ResizeObserverPolyfill {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver =
+    ResizeObserverPolyfill as unknown as typeof ResizeObserver;
+}
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
+if (typeof Element !== "undefined" && !Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.releasePointerCapture = () => {};
+  Element.prototype.setPointerCapture = () => {};
+}
 
 type WrapperComponent = ComponentType<{ children: ReactNode }>;
 

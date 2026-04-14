@@ -4,8 +4,20 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 
-import { useHasHydrated } from "@/lib/hooks/useHasHydrated";
+import {
+  ModelSelector,
+  ModelSelectorContent,
+  ModelSelectorEmpty,
+  ModelSelectorGroup,
+  ModelSelectorInput,
+  ModelSelectorItem,
+  ModelSelectorList,
+  ModelSelectorName,
+  ModelSelectorTrigger,
+} from "@/components/ai-elements/model-selector";
+import { Button } from "@/components/ui/button";
 import { modelCatalogOptions } from "@/lib/api/models";
+import { useHasHydrated } from "@/lib/hooks/useHasHydrated";
 import { useEngineStore } from "@/state/useEngineStore";
 
 const TIER_LABEL: Record<string, string> = {
@@ -31,53 +43,48 @@ export function ModelPicker() {
     : "";
   const tierLabel = hasHydrated ? (TIER_LABEL[tier] ?? tier) : "";
 
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium hover:bg-accent"
-      >
-        <span className="text-muted-foreground">{tierLabel}</span>
-        <span className="text-foreground">{currentLabel}</span>
-        <ChevronDown className="h-3 w-3 opacity-60" />
-      </button>
+  const allModels = catalog?.models ?? [];
+  const modelsByProvider = new Map<string, typeof allModels>();
+  for (const m of allModels) {
+    const list = modelsByProvider.get(m.provider) ?? [];
+    list.push(m);
+    modelsByProvider.set(m.provider, list);
+  }
 
-      {open && (
-        <>
-          <button
-            type="button"
-            aria-label="Close menu"
-            className="fixed inset-0 z-10 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute right-0 z-20 mt-1 w-64 rounded-md border border-border bg-card p-1 shadow-lg">
-            <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Quick swap (planning phase)
-            </div>
-            {(catalog?.models ?? []).map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => {
-                  setPhaseModel("planning", m.id);
-                  setOpen(false);
-                }}
-                className={`flex w-full flex-col items-start rounded px-2 py-1.5 text-left text-xs transition-colors ${
-                  m.id === planningModelId
-                    ? "bg-accent text-accent-foreground"
-                    : "hover:bg-accent/50"
-                }`}
-              >
-                <span className="font-medium">{m.name}</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {m.provider} · {m.model}
-                </span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+  return (
+    <ModelSelector open={open} onOpenChange={setOpen}>
+      <ModelSelectorTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2 text-xs font-medium">
+          <span className="text-muted-foreground">{tierLabel}</span>
+          <span className="text-foreground">{currentLabel}</span>
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </Button>
+      </ModelSelectorTrigger>
+      <ModelSelectorContent>
+        <ModelSelectorInput placeholder="Search models…" />
+        <ModelSelectorList>
+          <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
+          {[...modelsByProvider.entries()].map(([provider, models]) => (
+            <ModelSelectorGroup key={provider} heading={provider}>
+              {models.map((m) => (
+                <ModelSelectorItem
+                  key={m.id}
+                  value={`${m.id} ${m.name} ${m.provider}`}
+                  disabled={!m.enabled}
+                  onSelect={() => {
+                    setPhaseModel("planning", m.id);
+                    setOpen(false);
+                  }}
+                  data-active={m.id === planningModelId || undefined}
+                >
+                  <ModelSelectorName>{m.name}</ModelSelectorName>
+                  <span className="text-xs text-muted-foreground">{m.model}</span>
+                </ModelSelectorItem>
+              ))}
+            </ModelSelectorGroup>
+          ))}
+        </ModelSelectorList>
+      </ModelSelectorContent>
+    </ModelSelector>
   );
 }

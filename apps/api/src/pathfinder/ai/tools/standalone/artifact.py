@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._artifact_models import ConversationTitleResult
 from pathfinder.ai.tools.standalone._stream_parts import conversation_title_chunk
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error

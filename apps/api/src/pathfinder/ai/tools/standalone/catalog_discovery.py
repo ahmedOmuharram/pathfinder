@@ -10,7 +10,7 @@ Three focused tools replacing the old get_search_parameters / get_dependent_voca
 from pydantic_ai import RunContext
 
 from pathfinder.ai.agents.state import SearchOverview
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._catalog_models import (
     DependencyDag,
     _build_dependency_dag,

@@ -63,11 +63,11 @@ async def build_gold_strategy_endpoint(
         dataset_gene_ids=request.dataset_gene_ids,
     )
     return BuildGoldResponse(
-        goldId=result.gold_id,
-        wdkStrategyId=result.wdk_strategy_id,
-        rootStepId=result.root_step_id,
-        estimatedSize=len(result.gene_ids),
-        geneIds=result.gene_ids,
+        gold_id=result.gold_id,
+        wdk_strategy_id=result.wdk_strategy_id,
+        root_step_id=result.root_step_id,
+        estimated_size=len(result.gene_ids),
+        gene_ids=result.gene_ids,
     )
 
 

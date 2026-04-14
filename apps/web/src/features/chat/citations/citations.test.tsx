@@ -70,12 +70,12 @@ describe("TextPart citation transformation", () => {
         <TextPart text="See [@unknown] — not in index." state="done" />
       </CitationsProvider>,
     );
-    expect(screen.getByText(/\[@unknown\]/)).toBeTruthy();
+    expect(screen.getByText(/\[@unknown\]/)).toBeInTheDocument();
   });
 
   it("does not transform tokens outside a CitationsProvider", () => {
     render(<TextPart text="See [@x] for details." state="done" />);
-    expect(screen.getByText(/\[@x\]/)).toBeTruthy();
+    expect(screen.getByText(/\[@x\]/)).toBeInTheDocument();
   });
 });
 
@@ -106,16 +106,14 @@ describe("SourcePart with citations context", () => {
 });
 
 describe("SourcesFooter", () => {
-  it("renders a numbered list with id-anchors (cite-1, cite-2, ...)", () => {
+  it("emits anchor targets with id-anchors (cite-1, cite-2, ...)", () => {
     const index = buildCitationIndex([
       { type: "source-url", sourceId: "a", url: "https://a", title: "A" },
       { type: "source-url", sourceId: "b", url: "https://b" },
     ]);
     const { container } = render(<SourcesFooter entries={index.entries} />);
-    const items = container.querySelectorAll("li");
-    expect(items).toHaveLength(2);
-    expect(items[0]?.id).toBe("cite-1");
-    expect(items[1]?.id).toBe("cite-2");
+    expect(container.querySelector("#cite-1")).not.toBeNull();
+    expect(container.querySelector("#cite-2")).not.toBeNull();
   });
 
   it("returns null when there are no entries", () => {

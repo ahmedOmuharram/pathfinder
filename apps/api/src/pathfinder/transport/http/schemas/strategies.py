@@ -63,7 +63,6 @@ class StrategyResponse(BaseModel):
     wdk_strategy_id: int | None = Field(default=None, alias="wdkStrategyId")
     is_saved: bool = Field(default=False, alias="isSaved")
     pipeline: JSONObject | None = None
-    conversation_state: JSONObject | None = Field(default=None, alias="conversationState")
     active_plan: JSONObject | None = Field(default=None, alias="activePlan")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
@@ -72,6 +71,7 @@ class StrategyResponse(BaseModel):
     estimated_size: int | None = Field(default=None, alias="estimatedSize")
     wdk_url: str | None = Field(default=None, alias="wdkUrl")
     gene_set_id: str | None = Field(default=None, alias="geneSetId")
+    experiment_id: str | None = Field(default=None, alias="experimentId")
     dismissed_at: datetime | None = Field(default=None, alias="dismissedAt")
 
     model_config = {"populate_by_name": True}

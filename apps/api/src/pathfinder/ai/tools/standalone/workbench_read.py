@@ -1,18 +1,15 @@
-"""Standalone read-only workbench experiment tools for pydantic-ai agents.
+"""Read-only workbench experiment tools.
 
-Provides:
-- ``get_evaluation_summary`` -- classification metrics and sample gene IDs
-- ``get_enrichment_results`` -- GO/pathway/word enrichment results
-- ``get_confidence_scores`` -- cross-validation confidence scores
-- ``get_step_contributions`` -- step contribution (ablation) analysis
-- ``get_experiment_config`` -- experiment configuration and status
-- ``get_ensemble_analysis`` -- full ensemble step analysis
-- ``get_result_gene_lists`` -- gene IDs for a classification category
+Each tool loads the experiment scoped to ``ctx.deps.experiment_id`` — the chat
+row's ``experiment_id`` FK is resolved by the dispatcher and carried through
+``Context.experiment_id`` to ``AgentDeps.experiment_id``. When a chat is not
+associated with an experiment, these tools return a ``WorkbenchError`` rather
+than silently succeeding with empty data.
 """
 
 from pydantic_ai import RunContext
 
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._workbench_models import (
     ClassificationCounts,
     ConfidenceScoresResult,
@@ -30,7 +27,6 @@ from pathfinder.services.experiment.types import Experiment
 
 
 async def _get_experiment(ctx: RunContext[AgentDeps]) -> Experiment | None:
-    """Fetch the current experiment from the store."""
     experiment_id = ctx.deps.experiment_id
     if not experiment_id:
         return None
@@ -41,14 +37,10 @@ async def _get_experiment(ctx: RunContext[AgentDeps]) -> Experiment | None:
 async def get_evaluation_summary(
     ctx: RunContext[AgentDeps],
 ) -> EvaluationSummaryResult | WorkbenchError:
-    """Get a summary of the experiment evaluation results.
-
-    Returns classification metrics, confusion matrix counts, and sample
-    gene IDs from each classification category (TP/FP/FN/TN).
-    """
+    """Classification metrics, confusion counts, and sample gene IDs."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Experiment not found")
+        return WorkbenchError(error="Chat has no associated experiment")
     if not exp.metrics:
         return WorkbenchError(error="Experiment has no evaluation metrics yet")
 
@@ -73,15 +65,10 @@ async def get_evaluation_summary(
 async def get_enrichment_results(
     ctx: RunContext[AgentDeps],
 ) -> EnrichmentResultsResponse | WorkbenchError:
-    """Get the enrichment analysis results for this experiment.
-
-    Returns GO term, pathway, and word enrichment results. Each result
-    includes the analysis type, enriched terms with p-values, and
-    background statistics.
-    """
+    """GO term, pathway, and word enrichment for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Experiment not found")
+        return WorkbenchError(error="Chat has no associated experiment")
     if not exp.enrichment_results:
         return WorkbenchError(
             error="No enrichment results available for this experiment"
@@ -96,35 +83,25 @@ async def get_enrichment_results(
 async def get_confidence_scores(
     ctx: RunContext[AgentDeps],
 ) -> ConfidenceScoresResult | WorkbenchError:
-    """Get cross-validation confidence scores for this experiment.
-
-    Returns mean metrics, per-fold metrics, standard deviations, and
-    overfitting assessment. Indicates how robustly the strategy generalises.
-    """
+    """Cross-validation confidence scores for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Experiment not found")
+        return WorkbenchError(error="Chat has no associated experiment")
     if not exp.cross_validation:
         return WorkbenchError(
             error="No cross-validation results available for this experiment"
         )
 
-    return ConfidenceScoresResult(
-        cross_validation=exp.cross_validation,
-    )
+    return ConfidenceScoresResult(cross_validation=exp.cross_validation)
 
 
 async def get_step_contributions(
     ctx: RunContext[AgentDeps],
 ) -> StepContributionsResult | WorkbenchError:
-    """Get the step contribution (ablation) analysis for this experiment.
-
-    Returns per-step recall delta, FPR delta, and verdict indicating whether
-    each search step adds meaningful value to the strategy.
-    """
+    """Per-step recall/FPR deltas and verdict for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Experiment not found")
+        return WorkbenchError(error="Chat has no associated experiment")
     if not exp.step_analysis:
         return WorkbenchError(
             error="No step analysis available for this experiment"
@@ -139,14 +116,10 @@ async def get_step_contributions(
 async def get_experiment_config(
     ctx: RunContext[AgentDeps],
 ) -> ExperimentConfigResult | WorkbenchError:
-    """Get the experiment configuration, status, and WDK strategy IDs.
-
-    Returns the full config (search name, parameters, controls, mode),
-    current execution status, and WDK strategy/step IDs if available.
-    """
+    """Experiment configuration, status, and WDK strategy/step IDs."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Experiment not found")
+        return WorkbenchError(error="Chat has no associated experiment")
 
     return ExperimentConfigResult(
         config=exp.config,
@@ -162,23 +135,16 @@ async def get_experiment_config(
 async def get_ensemble_analysis(
     ctx: RunContext[AgentDeps],
 ) -> EnsembleAnalysisResult | WorkbenchError:
-    """Get the full ensemble step analysis for this experiment.
-
-    Returns step evaluations, operator comparisons, step contributions,
-    and parameter sensitivities. Useful for understanding multi-step
-    strategy behaviour in detail.
-    """
+    """Full ensemble step analysis for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Experiment not found")
+        return WorkbenchError(error="Chat has no associated experiment")
     if not exp.step_analysis:
         return WorkbenchError(
             error="No step analysis available for this experiment"
         )
 
-    return EnsembleAnalysisResult(
-        step_analysis=exp.step_analysis,
-    )
+    return EnsembleAnalysisResult(step_analysis=exp.step_analysis)
 
 
 async def get_result_gene_lists(
@@ -186,12 +152,7 @@ async def get_result_gene_lists(
     classification: str,
     limit: int = 50,
 ) -> GeneListResult | WorkbenchError:
-    """Get gene IDs for a specific classification category.
-
-    Returns gene IDs and basic metadata (name, organism, product) for
-    the requested category. Use 'tp' for hits that are known positives,
-    'fp' for hits that are known negatives, 'fn' for missed known positives,
-    'tn' for non-hits that are known negatives.
+    """Gene IDs for a classification category (tp/fp/fn/tn).
 
     Args:
         classification: Classification category: 'tp', 'fp', 'fn', or 'tn'.
@@ -206,7 +167,7 @@ async def get_result_gene_lists(
 
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Experiment not found")
+        return WorkbenchError(error="Chat has no associated experiment")
 
     gene_list = {
         "tp": exp.true_positive_genes,

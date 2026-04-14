@@ -39,10 +39,9 @@ describe("ApprovalDialog", () => {
       </ChatSessionProvider>,
     );
     const dialog = screen.getByRole("dialog");
-    expect(dialog).toBeTruthy();
-    expect(dialog.getAttribute("data-tool")).toBe("delete_strategy");
-    expect(screen.getByRole("button", { name: /allow/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /deny/i })).toBeTruthy();
+    expect(dialog).toHaveAttribute("data-tool", "delete_strategy");
+    expect(screen.getByRole("button", { name: /allow/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /deny/i })).toBeInTheDocument();
   });
 
   it("calls addToolApprovalResponse with approved=true when Allow is clicked", () => {

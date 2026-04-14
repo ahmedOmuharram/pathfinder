@@ -25,7 +25,7 @@ from pathfinder.ai.capabilities.error_classification import (
     build_error_directive,
     classify_error,
 )
-from pathfinder.ai.orchestration.deps import AgentDeps
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.logging import get_logger
 

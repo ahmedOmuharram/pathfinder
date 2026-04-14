@@ -38,7 +38,7 @@ from shared_py.stream_parts.strategy import (
     StrategyPatch,
 )
 
-from pathfinder.ai.orchestration.phase_results import ProblemFrame
+from pathfinder.ai.graph.state import ProblemFrame
 from pathfinder.ai.tools.standalone._graph_helpers import build_step_response
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
