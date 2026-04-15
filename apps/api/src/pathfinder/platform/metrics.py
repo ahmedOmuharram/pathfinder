@@ -14,7 +14,6 @@ from opentelemetry import metrics
 _pipeline_meter = metrics.get_meter("pathfinder.pipeline")
 _wdk_meter = metrics.get_meter("pathfinder.wdk")
 _site_search_meter = metrics.get_meter("pathfinder.site_search")
-_redis_meter = metrics.get_meter("pathfinder.redis")
 _sse_meter = metrics.get_meter("pathfinder.sse")
 
 # ---------------------------------------------------------------------------
@@ -97,28 +96,6 @@ pipeline_recoveries = _pipeline_meter.create_counter(
     "pathfinder.pipeline.recoveries",
     description="Recovered pipeline contract or orchestration issues by phase and kind",
     unit="{recovery}",
-)
-
-# ---------------------------------------------------------------------------
-# Redis stream metrics
-# ---------------------------------------------------------------------------
-
-redis_stream_emit_attempts = _redis_meter.create_counter(
-    "pathfinder.redis.stream_emit_attempts",
-    description="Redis Stream append attempts by event type and outcome",
-    unit="{attempt}",
-)
-
-redis_stream_events_emitted = _redis_meter.create_counter(
-    "pathfinder.redis.stream_events_emitted",
-    description="Successfully emitted Redis Stream events by stream kind and type",
-    unit="{event}",
-)
-
-redis_stream_emit_duration_s = _redis_meter.create_histogram(
-    "pathfinder.redis.stream_emit_duration",
-    description="Latency of Redis Stream append operations",
-    unit="s",
 )
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,6 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
 )
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
@@ -229,12 +228,6 @@ def _instrument_http_clients() -> None:
     logger.info("Instrumented: httpx")
 
 
-def _instrument_redis() -> None:
-    """Instrument Redis with per-command spans."""
-    RedisInstrumentor().instrument()
-    logger.info("Instrumented: Redis")
-
-
 def _instrument_agents() -> None:
     """Instrument pydantic-ai agents with per-run/model/tool spans."""
     Agent.instrument_all(InstrumentationSettings(include_content=True))
@@ -274,7 +267,6 @@ def setup_observability(
     if db_engine is not None:
         _instrument_database(db_engine)
     _instrument_http_clients()
-    _instrument_redis()
     _instrument_agents()
 
 

@@ -3,7 +3,7 @@ Description=Pathfinder PostgreSQL database
 
 [Container]
 ContainerName=pathfinder-db
-Image=docker.io/postgres:16-alpine
+Image=docker.io/pgvector/pgvector:pg16
 Network=pathfinder.network
 Volume=pathfinder-postgres-data.volume:/var/lib/postgresql/data
 Environment=POSTGRES_USER=postgres

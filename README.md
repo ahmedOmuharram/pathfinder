@@ -123,7 +123,6 @@ The base profile is intentionally fail-closed. PathFinder will not boot until yo
 
 - `API_SECRET_KEY`
 - `DATABASE_URL`
-- `REDIS_URL`
 - `NEXT_PUBLIC_API_URL`
 - `PATHFINDER_CHAT_PROVIDER=default`
 - a real model backend (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, or `OLLAMA_BASE_URL`)

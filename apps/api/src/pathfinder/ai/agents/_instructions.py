@@ -58,3 +58,14 @@ def pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     if not graph or not graph.steps:
         return None
     return render_graph_state(graph, session.sync_state)
+
+
+def pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
+    memories = ctx.deps.retrieved_memories
+    if not memories:
+        return None
+    lines = ["## What you know about this user"]
+    for m in memories:
+        tags_str = f" [{', '.join(m.tags)}]" if m.tags else ""
+        lines.append(f"- [{m.kind}] {m.name}{tags_str}: {m.summary}")
+    return "\n".join(lines)

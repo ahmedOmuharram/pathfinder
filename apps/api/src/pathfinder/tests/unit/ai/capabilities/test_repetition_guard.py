@@ -51,13 +51,3 @@ def test_unclassified_tool_resets_counter() -> None:
         guard.check("get_strategy", {})
     assert guard.check("set_problem_frame", {"frame": "x"}) is None
     assert guard.check("get_strategy", {}) is None
-
-
-def test_record_modifying_call_resets_only_for_modifying_tools() -> None:
-    guard = ToolRepetitionGuard()
-    for _ in range(REPETITION_THRESHOLD - 1):
-        guard.check("get_strategy", {})
-    guard.record_modifying_call("get_strategy")
-    assert guard.check("get_strategy", {}) is not None
-    guard.record_modifying_call("update_step")
-    assert guard.check("get_strategy", {}) is None

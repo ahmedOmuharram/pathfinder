@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from typing import Any
@@ -25,9 +26,11 @@ from pathfinder.ai.agents._phase_decisions import (
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import Chat, User
 from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.config import get_settings
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 
@@ -131,60 +134,64 @@ async def test_second_turn_inherits_state_from_checkpoint(
         session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.commit()
 
-    context = Context(
-        site_id="plasmodb",
-        user_id=user_id,
-        strategy_session=StrategySession(site_id="plasmodb"),
-        db_session_factory=async_session_factory,
-        web_search_service=WebSearchService(),
-        literature_search_service=LiteratureSearchService(),
-    )
+    settings = get_settings()
+    async with lifespan_memory_store(settings.database_url) as memory_store:
+        context = Context(
+            site_id="plasmodb",
+            user_id=user_id,
+            strategy_session=StrategySession(site_id="plasmodb"),
+            db_session_factory=async_session_factory,
+            web_search_service=WebSearchService(),
+            literature_search_service=LiteratureSearchService(),
+            cancel_event=asyncio.Event(),
+            memory_store=memory_store,
+        )
 
-    initial_state = PipelineState(
-        chat_id=chat_id,
-        user_id=user_id,
-        site_id="plasmodb",
-        mode="strategy",
-        user_message_id=uuid4(),
-        user_prompt="turn one",
-        user_parts=[{"type": "text", "text": "turn one"}],
-        turn_trace_id=str(uuid4()),
-        turn_created_at="2026-04-14T00:00:00+00:00",
-    )
+        initial_state = PipelineState(
+            chat_id=chat_id,
+            user_id=user_id,
+            site_id="plasmodb",
+            mode="strategy",
+            user_message_id=uuid4(),
+            user_prompt="turn one",
+            user_parts=[{"type": "text", "text": "turn one"}],
+            turn_trace_id=str(uuid4()),
+            turn_created_at="2026-04-14T00:00:00+00:00",
+        )
 
-    async for _ in graph.astream(
-        initial_state.model_dump(),
-        config=config,
-        context=context,
-        stream_mode=["custom"],
-    ):
-        pass
+        async for _ in graph.astream(
+            initial_state.model_dump(),
+            config=config,
+            context=context,
+            stream_mode=["custom"],
+        ):
+            pass
 
-    snap_after_turn1 = await graph.aget_state(config)
-    history_len_after_turn1 = len(snap_after_turn1.values["message_history"])
-    assert history_len_after_turn1 > 0
-    assert "verification" in snap_after_turn1.values["phase_decisions"]
+        snap_after_turn1 = await graph.aget_state(config)
+        history_len_after_turn1 = len(snap_after_turn1.values["message_history"])
+        assert history_len_after_turn1 > 0
+        assert "verification" in snap_after_turn1.values["phase_decisions"]
 
-    second_turn = {
-        "user_message_id": uuid4(),
-        "user_prompt": "turn two",
-        "user_parts": [{"type": "text", "text": "turn two"}],
-        "turn_trace_id": str(uuid4()),
-        "turn_created_at": "2026-04-14T00:01:00+00:00",
-        "phase_decisions": {},
-    }
-    async for _ in graph.astream(
-        second_turn,
-        config=config,
-        context=context,
-        stream_mode=["custom"],
-    ):
-        pass
+        second_turn = {
+            "user_message_id": uuid4(),
+            "user_prompt": "turn two",
+            "user_parts": [{"type": "text", "text": "turn two"}],
+            "turn_trace_id": str(uuid4()),
+            "turn_created_at": "2026-04-14T00:01:00+00:00",
+            "phase_decisions": {},
+        }
+        async for _ in graph.astream(
+            second_turn,
+            config=config,
+            context=context,
+            stream_mode=["custom"],
+        ):
+            pass
 
-    snap_after_turn2 = await graph.aget_state(config)
-    history_len_after_turn2 = len(snap_after_turn2.values["message_history"])
+        snap_after_turn2 = await graph.aget_state(config)
+        history_len_after_turn2 = len(snap_after_turn2.values["message_history"])
 
-    assert history_len_after_turn2 > history_len_after_turn1, (
-        "second turn should append to checkpointed history, not replace it"
-    )
-    assert snap_after_turn2.values["phase_decisions"]["verification"]
+        assert history_len_after_turn2 > history_len_after_turn1, (
+            "second turn should append to checkpointed history, not replace it"
+        )
+        assert snap_after_turn2.values["phase_decisions"]["verification"]

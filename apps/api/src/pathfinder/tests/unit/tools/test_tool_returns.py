@@ -26,7 +26,6 @@ from pathfinder.ai.graph.state import ProblemFrame
 from pathfinder.ai.tools.standalone._workbench_models import (
     GeneSetCreatedResponse,
 )
-from pathfinder.ai.tools.standalone.artifact import set_conversation_title
 from pathfinder.ai.tools.standalone.conversation import (
     clear_strategy,
     rename_strategy,
@@ -146,32 +145,20 @@ async def test_set_problem_frame_returns_tool_return_with_problem_frame_data():
     assert isinstance(result, ToolReturn)
     # return_value preserves the existing ProblemFrameResponse shape
     assert result.return_value.problem_frame.user_goal == "find drug targets for PfATP4"
-    # Exactly one data-problem-frame DataChunk
+    # Exactly one data-problem-frame DataChunk with the full frame
     chunks = _data_chunks(result, "data-problem-frame")
     assert len(chunks) == 1
-    assert chunks[0].data["intentSummary"]
-    assert "PfATP4" in chunks[0].data["entities"]
-    assert chunks[0].data["siteId"] == "plasmodb"
-
-
-# ── set_conversation_title ─────────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_set_conversation_title_returns_tool_return_with_title_data():
-    """set_conversation_title should emit data-conversation-title DataChunk."""
-    session = _make_session()
-    deps = _make_deps(session)
-    ctx = _make_ctx(deps)
-
-    result = await set_conversation_title(ctx, "Malaria gene expression")
-
-    assert isinstance(result, ToolReturn)
-    # Existing return_value type preserved
-    assert result.return_value.conversation_title == "Malaria gene expression"
-    chunks = _data_chunks(result, "data-conversation-title")
-    assert len(chunks) == 1
-    assert chunks[0].data == {"title": "Malaria gene expression"}
+    payload = chunks[0].data
+    assert payload["siteId"] == "plasmodb"
+    assert payload["userGoal"] == "find drug targets for PfATP4"
+    assert payload["interpretedGoal"] == (
+        "identify essential plasmodium genes related to ATP4"
+    )
+    assert payload["organismScope"] == "plasmodb"
+    assert payload["recordType"] == "transcript"
+    assert "PfATP4" in payload["biologicalEntities"]
+    assert payload["readyForWdkDiscovery"] is True
+    assert payload["confidence"] == 0.9
 
 
 # ── literature_search ──────────────────────────────────────────────────────

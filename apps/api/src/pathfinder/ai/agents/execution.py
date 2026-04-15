@@ -9,6 +9,7 @@ from pathfinder.ai.agents._hooks import apply_auto_build_hook
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
+    pinned_user_memories,
 )
 from pathfinder.ai.agents._phase_decisions import ExecutionDecision
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
@@ -35,17 +36,22 @@ whether to retry or escalate.
 operations. The auto-build hook handles WDK push, sync, and gene set \
 creation automatically — you do not need to trigger these manually.
 
-## Final Output
+## Final Output (STRICT — follow exactly)
 
-Your user-facing prose is the visible response — keep it brief and factual: \
-report what completed, what failed, or which exact step is blocked. When \
-the plan has been fully applied (or cannot be), return an `ExecutionDecision` \
-whose only field is `next_action`:
+You MUST produce two things every turn, in this order:
+
+1. **Prose**: a short, user-facing message — brief and factual. Report what \
+completed, what failed, or which exact step is blocked.
+2. **Decision**: finalize with an `ExecutionDecision` whose only field is \
+`next_action`:
   - `advance_to_verification`: all planned steps were applied successfully.
   - `retry`: one or more steps failed but retrying with adjusted parameters \
 is likely to succeed.
   - `abort`: the plan is fundamentally broken and verification cannot \
 proceed (the orchestrator will typically redirect to replanning).
+
+NEVER skip the prose. A reply that is only tool calls with no visible text \
+is a failure — the user sees a blank assistant message.
 
 ## Guidelines
 
@@ -70,9 +76,9 @@ _execution_hooks: Hooks[AgentDeps] = Hooks(
     tool_execute=repetition_guard_hook,
 )
 
-execution_agent: Agent[AgentDeps, ExecutionDecision] = Agent(
+execution_agent: Agent[AgentDeps, str | ExecutionDecision] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=ExecutionDecision,
+    output_type=[str, ExecutionDecision],
     deps_type=AgentDeps,
     instructions=_EXECUTION_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -97,6 +103,11 @@ def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
 @execution_agent.instructions
 def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_graph_state(ctx)
+
+
+@execution_agent.instructions
+def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_user_memories(ctx)
 
 
 EXECUTION_USAGE_LIMITS = UsageLimits(

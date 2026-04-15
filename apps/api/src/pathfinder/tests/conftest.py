@@ -3,7 +3,7 @@ import os
 from collections.abc import AsyncGenerator, Coroutine, Generator
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 # ---------------------------------------------------------------------------
 # PIGuard ONNX model — MUST run before any pathfinder imports.
@@ -34,18 +34,17 @@ os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test",
 )
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("PATHFINDER_CHAT_PROVIDER", "mock")
 os.environ.setdefault("OPENAI_API_KEY", "")
 os.environ.setdefault("ANTHROPIC_API_KEY", "")
 os.environ.setdefault("GEMINI_API_KEY", "")
 
 import httpx
+import procrastinate
+import psycopg
 import pydantic_ai.models
 import pytest
-import redis
 from fastapi import FastAPI
-from redis.asyncio import Redis
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -55,11 +54,11 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
-from testcontainers.redis import RedisContainer
 
 import pathfinder.persistence.session as session_module
-import pathfinder.platform.redis as redis_module
+from pathfinder.ai.chat.checkpointer import to_psycopg_url
 from pathfinder.integrations.veupathdb.site_router import get_site_router
+from pathfinder.jobs.app import procrastinate_app
 from pathfinder.main import create_app
 from pathfinder.persistence.models import Base, User
 from pathfinder.platform.config import get_settings
@@ -148,7 +147,7 @@ def postgres_container(
 
     # This requires Docker
     container = PostgresContainer(
-        "postgres:16-alpine",
+        "pgvector/pgvector:pg16",
         username="postgres",
         password="postgres",
         dbname="pathfinder_test",
@@ -174,6 +173,35 @@ def postgres_container(
     container.stop()
 
 
+_PROCRASTINATE_SCHEMA_SQL = (
+    Path(__file__).resolve().parents[3]
+    / "alembic"
+    / "versions"
+    / "procrastinate_schema.sql"
+).read_text()
+
+
+def _apply_procrastinate_schema_sync(database_url: str) -> None:
+    """Apply the Procrastinate schema via psycopg.
+
+    Asyncpg rejects multi-statement SQL inside a single prepared statement, so
+    the procrastinate DDL (which contains ~600 lines of CREATE FUNCTION /
+    CREATE TRIGGER blocks) must be applied through a driver that accepts it.
+    Psycopg happily executes multi-statement strings. We only apply when the
+    target tables are missing so the call is idempotent across test sessions.
+    """
+    psycopg_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+    with psycopg.connect(psycopg_url, autocommit=True) as connection, \
+            connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_name = 'procrastinate_jobs'"
+        )
+        if cursor.fetchone() is not None:
+            return
+        cursor.execute(_PROCRASTINATE_SCHEMA_SQL)
+
+
 @pytest.fixture(scope="session")
 async def db_engine(
     database_url: str, postgres_container: PostgresContainer | None
@@ -184,9 +212,14 @@ async def db_engine(
     # to the loop they were created in. Use NullPool to avoid cross-loop reuse.
     engine = create_async_engine(database_url, poolclass=NullPool)
 
-    # Ensure tables exist once for the session.
+    # Ensure pgvector extension + tables exist once for the session.
     async with engine.begin() as conn:
+        await conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
         await conn.run_sync(Base.metadata.create_all)
+
+    # Procrastinate's DDL is multi-statement and asyncpg rejects that inside
+    # prepared statements. Apply via psycopg (same driver Alembic uses).
+    _apply_procrastinate_schema_sync(database_url)
 
     try:
         yield engine
@@ -211,6 +244,13 @@ def patch_app_db_engine(
     """Patch the app's global DB engine/sessionmaker so:
     - FastAPI lifespan init_db() uses the test engine
     - get_db_session dependency uses the test engine
+    - the module-level Procrastinate connector points at the test DB
+
+    The last point matters because ``pathfinder.jobs.app`` builds a
+    ``PsycopgConnector`` at import time using ``get_settings().database_url``.
+    When a test uses ``testcontainers``, the DB URL is assigned to
+    ``os.environ["DATABASE_URL"]`` *after* that import happens, so we must
+    rebuild the connector once the test DB is known.
 
     :param db_engine: Database engine.
     :param session_maker: Async session maker.
@@ -218,6 +258,13 @@ def patch_app_db_engine(
     """
     session_module._engine = db_engine
     session_module._session_factory_instance = session_maker
+
+    get_settings.cache_clear()
+    test_connector = procrastinate.PsycopgConnector(
+        conninfo=to_psycopg_url(get_settings().database_url),
+    )
+    procrastinate_app.connector = test_connector
+    procrastinate_app.job_manager.connector = test_connector
 
 
 @pytest.fixture
@@ -228,95 +275,10 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
     async with db_engine.begin() as conn:
         await conn.exec_driver_sql(
             "TRUNCATE TABLE "
-            "messages, chats, "
+            "messages, chats, exports, "
             "experiments, gene_sets, control_sets, users "
             "RESTART IDENTITY CASCADE"
         )
-
-
-# ---------------------------------------------------------------------------
-# Redis — real instance, not fakeredis
-# ---------------------------------------------------------------------------
-
-
-def _probe_redis(url: str) -> bool:
-    """Synchronously check if a Redis server is reachable."""
-    try:
-        r = redis.from_url(url, socket_connect_timeout=2)
-        r.ping()
-        r.close()
-    except redis.ConnectionError, redis.TimeoutError, OSError:
-        return False
-    return True
-
-
-@pytest.fixture(scope="session")
-def redis_url() -> str:
-    return os.environ.get("REDIS_URL", "").strip()
-
-
-@pytest.fixture(scope="session")
-def redis_container(redis_url: str) -> Generator[RedisContainer | None]:
-    """Start a real Redis container if no REDIS_URL is set.
-
-    Mirrors the PostgreSQL container pattern: prefer explicit env var,
-    fall back to testcontainers.
-    """
-    url = redis_url or os.environ.get("REDIS_URL", "").strip()
-    if url and _probe_redis(url):
-        yield None
-        return
-
-    container = RedisContainer("redis:7-alpine")
-    try:
-        container.start()
-    except Exception as exc:
-        msg = (
-            "REDIS_URL was not set and Redis could not be started via Docker. "
-            "Fix by either:\n"
-            "- setting REDIS_URL to a running Redis instance, or\n"
-            "- installing/running Docker so testcontainers can start Redis.\n"
-            f"Underlying error: {exc}"
-        )
-        raise RuntimeError(msg) from exc
-
-    host = container.get_container_host_ip()
-    port = container.get_exposed_port(6379)
-    url = f"redis://{host}:{port}/0"
-    os.environ["REDIS_URL"] = url
-    yield container
-    container.stop()
-
-
-@pytest.fixture(scope="session")
-def _get_test_redis_url(redis_container: RedisContainer | None) -> str:
-    del redis_container
-    return os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-
-
-# ---------------------------------------------------------------------------
-# Redis — session-scoped connection, per-test flush
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="session")
-async def _redis_conn(_get_test_redis_url: str) -> AsyncGenerator[Redis]:
-    """One real Redis connection for the entire test session.
-
-    Lazily started — the container only boots when a test actually needs Redis.
-    """
-    conn = Redis.from_url(_get_test_redis_url, decode_responses=True)
-    await conn.ping()
-    yield conn
-    await conn.aclose()
-
-
-@pytest.fixture
-async def redis_setup(_redis_conn: Redis) -> AsyncGenerator[None]:
-    """Opt-in fixture: makes Redis available and flushes between tests."""
-    redis_module._state["redis"] = _redis_conn
-    await _redis_conn.flushdb()
-    return
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +305,6 @@ async def client(
     app: FastAPI,
     patch_app_db_engine: None,
     db_cleaner: None,
-    redis_setup: None,
 ) -> AsyncGenerator[httpx.AsyncClient]:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
@@ -355,20 +316,89 @@ async def client(
 
 
 @pytest.fixture
-async def authed_client(
-    client: httpx.AsyncClient,
-) -> AsyncGenerator[httpx.AsyncClient]:
+async def authed_user_id(
+    patch_app_db_engine: None,
+    db_cleaner: None,
+) -> UUID:
     """
-    Client with a valid `pathfinder-auth` cookie set (anonymous user created).
+    Create an anonymous user row and return its id.
+
+    Shares the user row with ``authed_client``; tests needing only the id
+    (e.g. direct store calls) depend on this fixture, while tests needing
+    an HTTP client depend on ``authed_client``.
     """
+    del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     async with session_module.async_session_factory() as session:
         session.add(User(id=user_id))
         await session.commit()
+    return user_id
 
-    token = create_user_token(user_id)
+
+@pytest.fixture
+async def authed_client(
+    client: httpx.AsyncClient,
+    authed_user_id: UUID,
+) -> httpx.AsyncClient:
+    """Client with a valid `pathfinder-auth` cookie set."""
+    token = create_user_token(authed_user_id)
     client.cookies.set("pathfinder-auth", token)
     return client
+
+
+@pytest.fixture
+async def app_notify_dispatcher(
+    app: FastAPI,
+    patch_app_db_engine: None,
+) -> AsyncGenerator[Any]:
+    """Attach a running :class:`NotifyDispatcher` to ``app.state``.
+
+    Tests that hit the task-events SSE endpoint need this — production
+    ``main.py`` lifespan opens the dispatcher, but the ASGI test transport
+    skips lifespan.
+    """
+    del patch_app_db_engine
+    from pathfinder.platform.notify_dispatcher import (  # noqa: PLC0415
+        lifespan_notify_dispatcher,
+    )
+    database_url = os.environ["DATABASE_URL"]
+    async with lifespan_notify_dispatcher(database_url) as dispatcher:
+        app.state.notify_dispatcher = dispatcher
+        yield dispatcher
+
+
+@pytest.fixture
+async def app_memory_store(
+    app: FastAPI,
+    patch_app_db_engine: None,
+    db_cleaner: None,
+) -> AsyncGenerator[Any]:
+    """Open a `MemoryStore` bound to the test DB and attach it to `app.state`.
+
+    The production `main.py` lifespan does this attachment; tests skip the
+    FastAPI lifespan (ASGITransport mounts the app without running startup),
+    so we do it explicitly here. We also open a
+    :class:`NotifyDispatcher` so endpoints that subscribe via
+    ``app.state.notify_dispatcher`` see a functioning multiplexer.
+    """
+    del patch_app_db_engine, db_cleaner
+    from pathfinder.ai.memory.lifespan import (  # noqa: PLC0415
+        lifespan_memory_store,
+    )
+    from pathfinder.ai.memory.store import MemoryStore  # noqa: PLC0415
+    from pathfinder.platform.notify_dispatcher import (  # noqa: PLC0415
+        lifespan_notify_dispatcher,
+    )
+
+    database_url = os.environ["DATABASE_URL"]
+    async with (
+        lifespan_memory_store(database_url) as raw,
+        lifespan_notify_dispatcher(database_url) as disp,
+    ):
+        store = MemoryStore(store=raw)
+        app.state.memory_store = raw
+        app.state.notify_dispatcher = disp
+        yield store
 
 
 @pytest.fixture(autouse=True)

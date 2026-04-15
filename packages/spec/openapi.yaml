@@ -42,12 +42,16 @@ paths:
       tags:
       - health
       summary: Readiness Check
-      description: 'Readiness check - is the service ready to accept requests?
+      description: 'Readiness check — is every subsystem actually ready?
 
 
-        Checks database connectivity.
+        Returns 503 until lifespan startup has marked *all* subsystems ready
 
-        Returns 503 if any dependency is unreachable.'
+        (database, embedding model, PIGuard, graph checkpointer, every site
+
+        catalog). Also re-verifies the DB with a live ping so stale state
+
+        doesn''t mask a broken dependency.'
       operationId: readiness_check_health_ready_get
       responses:
         '200':
@@ -55,7 +59,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: '#/components/schemas/ReadinessResponse'
   /api/v1/sites:
     get:
       tags:
@@ -438,7 +442,6 @@ paths:
       tags:
       - chat
       summary: Chat
-      description: Dispatch a chat turn; returns the raw SSE stream.
       operationId: chat_api_v1_chat_post
       responses:
         '200':
@@ -446,12 +449,52 @@ paths:
           content:
             application/json:
               schema: {}
+      security:
+      - APIKeyCookie: []
+  /api/v1/chats/{chat_id}/messages:
+    get:
+      tags:
+      - chat
+      summary: List Chat Messages
+      description: 'Return the chat''s persisted messages as AI SDK v6 ``UIMessage[]``.
+
+
+        Returns an empty list if the chat has no messages yet (including when
+
+        the chat row itself doesn''t exist — clients treat that as "fresh chat").'
+      operationId: list_chat_messages_api_v1_chats__chat_id__messages_get
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Chat Id
+      responses:
+        '200':
+          description: Ordered list of UIMessages for the chat id (oldest first).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                title: Response List Chat Messages Api V1 Chats  Chat Id  Messages Get
+        '400':
+          description: Malformed chat id
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/strategies:
     get:
       tags:
       - strategies
       summary: List Strategies
-      description: List user's conversation streams (projections).
+      description: List the user's chats (active, non-dismissed).
       operationId: list_strategies_api_v1_strategies_get
       security:
       - APIKeyCookie: []
@@ -484,7 +527,7 @@ paths:
       tags:
       - strategies
       summary: Create Strategy
-      description: Create a new strategy (CQRS only).
+      description: Create a new strategy (chat with plan metadata).
       operationId: create_strategy_api_v1_strategies_post
       security:
       - APIKeyCookie: []
@@ -512,7 +555,7 @@ paths:
       tags:
       - strategies
       summary: List Dismissed Strategies
-      description: List user's dismissed (soft-deleted) strategies.
+      description: List the user's dismissed (soft-deleted) chats.
       operationId: list_dismissed_strategies_api_v1_strategies_dismissed_get
       security:
       - APIKeyCookie: []
@@ -546,7 +589,7 @@ paths:
       tags:
       - strategies
       summary: Get Strategy
-      description: Get a strategy/stream by ID from the CQRS projection + Redis.
+      description: Get a strategy (chat) by ID.
       operationId: get_strategy_api_v1_strategies__strategyId__get
       security:
       - APIKeyCookie: []
@@ -575,7 +618,7 @@ paths:
       tags:
       - strategies
       summary: Update Strategy
-      description: Update a strategy (CQRS only).
+      description: Update strategy metadata (name, plan, wdk link, saved flag).
       operationId: update_strategy_api_v1_strategies__strategyId__patch
       security:
       - APIKeyCookie: []
@@ -610,15 +653,12 @@ paths:
       tags:
       - strategies
       summary: Delete Strategy
-      description: 'Delete a strategy: cancel ops, clean Redis stream, delete CQRS records.
+      description: 'Delete a strategy.
 
 
         For WDK-linked strategies with ``deleteFromWdk=false`` (default), the
 
-        strategy is soft-deleted (dismissed) instead of hard-deleted. This prevents
-
-        WDK sync from re-importing it. Use the restore endpoint to un-dismiss.
-
+        chat is soft-deleted (dismissed) to prevent WDK sync from re-importing it.
 
         Pass ``deleteFromWdk=true`` to hard-delete from both PathFinder and WDK.
 
@@ -691,7 +731,7 @@ paths:
       tags:
       - strategies
       summary: Get Strategy Ast
-      description: Return the raw plan AST from a strategy's projection.
+      description: Return the raw plan AST from a strategy chat.
       operationId: get_strategy_ast_api_v1_strategies__strategyId__ast_get
       security:
       - APIKeyCookie: []
@@ -724,9 +764,7 @@ paths:
       description: 'Restore a dismissed (soft-deleted) strategy.
 
 
-        Clears dismissed_at, resets plan to empty (triggers lazy WDK re-fetch),
-
-        and wipes message history. The strategy reappears as if freshly imported.'
+        Clears dismissed_at and resets plan to empty (triggers lazy WDK re-fetch).'
       operationId: restore_strategy_api_v1_strategies__strategyId__restore_post
       security:
       - APIKeyCookie: []
@@ -815,7 +853,7 @@ paths:
       tags:
       - strategies
       summary: Open Strategy
-      description: Open a strategy by local or WDK strategy.
+      description: Open a strategy by local id or WDK strategy id.
       operationId: open_strategy_api_v1_strategies_open_post
       requestBody:
         content:
@@ -843,7 +881,7 @@ paths:
       tags:
       - strategies
       summary: Sync All Wdk Strategies
-      description: Batch-sync all WDK strategies into the CQRS layer and return the full list.
+      description: Batch-sync all WDK strategies into the chats table and return the full list.
       operationId: sync_all_wdk_strategies_api_v1_strategies_sync_wdk_post
       security:
       - APIKeyCookie: []
@@ -875,7 +913,7 @@ paths:
       tags:
       - experiments
       summary: Create Experiment
-      description: Create and run an experiment as a background task.
+      description: Create and run an experiment, streaming typed progress events directly.
       operationId: create_experiment_api_v1_experiments__post
       security:
       - APIKeyCookie: []
@@ -886,15 +924,14 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateExperimentRequest'
       responses:
-        '202':
-          description: Experiment launched as background task
+        '200':
+          description: SSE stream of experiment progress + completion
           content:
             application/json:
+              schema: {}
+            text/event-stream:
               schema:
-                type: object
-                properties:
-                  operationId:
-                    type: string
+                type: string
         '422':
           description: Validation Error
           content:
@@ -939,7 +976,7 @@ paths:
       tags:
       - experiments
       summary: Create Batch Experiment
-      description: Run the same search across multiple organisms as a background task.
+      description: Run the same search across multiple organisms, streaming progress directly.
       operationId: create_batch_experiment_api_v1_experiments_batch_post
       requestBody:
         content:
@@ -948,15 +985,14 @@ paths:
               $ref: '#/components/schemas/CreateBatchExperimentRequest'
         required: true
       responses:
-        '202':
-          description: Batch experiment launched as background task
+        '200':
+          description: SSE stream of batch experiment progress + completion
           content:
             application/json:
+              schema: {}
+            text/event-stream:
               schema:
-                properties:
-                  operationId:
-                    type: string
-                type: object
+                type: string
         '422':
           description: Validation Error
           content:
@@ -970,7 +1006,7 @@ paths:
       tags:
       - experiments
       summary: Create Benchmark
-      description: Run the same strategy against multiple control sets as a background task.
+      description: Run the same strategy against multiple control sets, streaming progress directly.
       operationId: create_benchmark_api_v1_experiments_benchmark_post
       requestBody:
         content:
@@ -979,15 +1015,14 @@ paths:
               $ref: '#/components/schemas/CreateBenchmarkRequest'
         required: true
       responses:
-        '202':
-          description: Benchmark suite launched as background task
+        '200':
+          description: SSE stream of benchmark suite progress + completion
           content:
             application/json:
+              schema: {}
+            text/event-stream:
               schema:
-                properties:
-                  operationId:
-                    type: string
-                type: object
+                type: string
         '422':
           description: Validation Error
           content:
@@ -2334,14 +2369,19 @@ paths:
       description: 'Serve a previously generated export file.
 
 
-        Export IDs are uuid4 tokens with a 10-minute TTL. No auth required.'
+        Export IDs are uuid4 tokens with a 10-minute TTL. Requires the
+
+        authenticated user to own the export row.'
       operationId: download_export_api_v1_exports__export_id__get
+      security:
+      - APIKeyCookie: []
       parameters:
       - name: export_id
         in: path
         required: true
         schema:
           type: string
+          format: uuid
           title: Export Id
       responses:
         '200':
@@ -2435,11 +2475,11 @@ paths:
       description: 'Purge user data from all local stores.
 
 
-        When ``deleteWdk=false`` (default): non-WDK streams are hard-deleted,
+        When ``deleteWdk=false`` (default): non-WDK chats are hard-deleted,
 
-        WDK-linked projections are **dismissed** so WDK sync won''t re-import
+        WDK-linked chats are **dismissed** so WDK sync won''t re-import them.
 
-        them. The strategies remain on VEuPathDB but PathFinder ignores them.
+        The strategies remain on VEuPathDB but PathFinder ignores them.
 
 
         When ``deleteWdk=true``: everything is hard-deleted locally AND all
@@ -2447,7 +2487,7 @@ paths:
         WDK strategies are deleted from VEuPathDB.
 
 
-        Always deletes: gene sets, experiments, control sets, Redis streams.
+        Always deletes: gene sets, experiments, control sets.
 
 
         Pass ``?siteId=X`` to limit to one site, or omit for everything.'
@@ -2541,6 +2581,271 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - APIKeyCookie: []
+  /api/v1/memories:
+    get:
+      tags:
+      - memories
+      summary: List Memories
+      operationId: list_memories_api_v1_memories_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          description: Per-namespace page size
+          default: 50
+          title: Limit
+        description: Per-namespace page size
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          description: Per-namespace offset
+          default: 0
+          title: Offset
+        description: Per-namespace offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/memories/search:
+    get:
+      tags:
+      - memories
+      summary: Search Memories
+      operationId: search_memories_api_v1_memories_search_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 500
+          title: Q
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemorySearchResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/memories/{key}:
+    patch:
+      tags:
+      - memories
+      summary: Edit Memory
+      operationId: edit_memory_api_v1_memories__key__patch
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Key
+      - name: kind
+        in: query
+        required: true
+        schema:
+          enum:
+          - gene_set
+          - strategy
+          - preference
+          - knowledge
+          type: string
+          title: Kind
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemoryEditRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryItem'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - memories
+      summary: Delete Memory
+      operationId: delete_memory_api_v1_memories__key__delete
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Key
+      - name: kind
+        in: query
+        required: true
+        schema:
+          enum:
+          - gene_set
+          - strategy
+          - preference
+          - knowledge
+          type: string
+          title: Kind
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/chats/{chat_id}/tasks/{task_id}:
+    get:
+      tags:
+      - tasks
+      summary: Task Status
+      description: Return current status + metadata for a durable task.
+      operationId: task_status_api_v1_chats__chat_id__tasks__task_id__get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chat Id
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/chats/{chat_id}/tasks/{task_id}/progress:
+    get:
+      tags:
+      - tasks
+      summary: Task Progress History
+      description: Return the ordered list of progress rows persisted so far.
+      operationId: task_progress_history_api_v1_chats__chat_id__tasks__task_id__progress_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chat Id
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskProgressEvent'
+                title: Response Task Progress History Api V1 Chats  Chat Id  Tasks  Task Id  Progress Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/chats/{chat_id}/tasks/{task_id}/events:
+    get:
+      tags:
+      - tasks
+      summary: Task Events
+      description: Open an SSE stream for a durable task's progress + resumed graph output.
+      operationId: task_events_api_v1_chats__chat_id__tasks__task_id__events_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chat Id
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AuthStatusResponse:
@@ -2573,6 +2878,23 @@ components:
       - success
       title: AuthSuccessResponse
       description: Success response. Auth token is set via httpOnly cookie only.
+    BackgroundTaskStarted:
+      properties:
+        taskId:
+          type: string
+          title: Taskid
+        toolName:
+          type: string
+          title: Toolname
+        estimatedDurationSeconds:
+          type: integer
+          title: Estimateddurationseconds
+      type: object
+      required:
+      - taskId
+      - toolName
+      - estimatedDurationSeconds
+      title: BackgroundTaskStarted
     BatchOrganismTargetRequest:
       properties:
         organism:
@@ -2716,6 +3038,36 @@ components:
       - estimatedSize
       - geneIds
       title: BuildGoldResponse
+    ClarificationQuestion:
+      properties:
+        question:
+          type: string
+          title: Question
+        context:
+          type: string
+          title: Context
+          default: ''
+        field:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Field
+        priority:
+          type: string
+          enum:
+          - blocking
+          - optional
+          title: Priority
+          default: blocking
+        options:
+          items:
+            type: string
+          type: array
+          title: Options
+      type: object
+      required:
+      - question
+      title: ClarificationQuestion
     ColocationParams:
       properties:
         operation:
@@ -3001,16 +3353,6 @@ components:
       - negativeCount
       title: ControlSetSummaryResponse
       description: Control set summary for listing.
-    ConversationTitle:
-      properties:
-        title:
-          type: string
-          title: Title
-      type: object
-      required:
-      - title
-      title: ConversationTitle
-      description: A proposed short title for the conversation.
     CreateBatchExperimentRequest:
       properties:
         base:
@@ -4906,6 +5248,172 @@ components:
       - email
       - password
       title: LoginPayload
+    MemoryEditRequest:
+      properties:
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Summary
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+        content:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Content
+        autoRetrieve:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Autoretrieve
+      type: object
+      title: MemoryEditRequest
+    MemoryItem:
+      properties:
+        key:
+          type: string
+          title: Key
+        value:
+          $ref: '#/components/schemas/MemoryValue'
+      type: object
+      required:
+      - key
+      - value
+      title: MemoryItem
+    MemoryListResponse:
+      properties:
+        geneSets:
+          items:
+            $ref: '#/components/schemas/MemoryItem'
+          type: array
+          title: Genesets
+        strategies:
+          items:
+            $ref: '#/components/schemas/MemoryItem'
+          type: array
+          title: Strategies
+        preferences:
+          items:
+            $ref: '#/components/schemas/MemoryItem'
+          type: array
+          title: Preferences
+        knowledge:
+          items:
+            $ref: '#/components/schemas/MemoryItem'
+          type: array
+          title: Knowledge
+        pageSize:
+          type: integer
+          title: Pagesize
+        offset:
+          type: integer
+          title: Offset
+        hasMore:
+          type: boolean
+          title: Hasmore
+      type: object
+      required:
+      - geneSets
+      - strategies
+      - preferences
+      - knowledge
+      - pageSize
+      - offset
+      - hasMore
+      title: MemoryListResponse
+      description: 'Paginated list, grouped by namespace.
+
+
+        ``page_size`` and ``offset`` echo the query params. ``has_more`` is
+
+        ``True`` when at least one namespace returned a full page (i.e. more
+
+        rows likely exist at the next offset). Clients use this to decide
+
+        whether to render a "load more" affordance without an additional
+
+        count query.'
+    MemorySearchResponse:
+      properties:
+        hits:
+          items:
+            $ref: '#/components/schemas/MemoryItem'
+          type: array
+          title: Hits
+      type: object
+      required:
+      - hits
+      title: MemorySearchResponse
+    MemoryValue:
+      properties:
+        kind:
+          type: string
+          enum:
+          - gene_set
+          - strategy
+          - preference
+          - knowledge
+          title: Kind
+        name:
+          type: string
+          title: Name
+        summary:
+          type: string
+          title: Summary
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        siteId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Siteid
+        content:
+          additionalProperties: true
+          type: object
+          title: Content
+        autoRetrieve:
+          type: boolean
+          title: Autoretrieve
+          default: true
+        sourceChatId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Sourcechatid
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+        lastUsedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Lastusedat
+      type: object
+      required:
+      - kind
+      - name
+      - summary
+      - content
+      - createdAt
+      title: MemoryValue
     ModelCatalogEntryResponse:
       properties:
         id:
@@ -4954,6 +5462,10 @@ components:
           type: number
           title: Outputprice
           default: 0.0
+        isProviderSmallest:
+          type: boolean
+          title: Isprovidersmallest
+          default: false
         enabled:
           type: boolean
           title: Enabled
@@ -6127,22 +6639,83 @@ components:
       description: A single part of a composite WDK primary key.
     ProblemFrame:
       properties:
-        intentSummary:
-          type: string
-          title: Intentsummary
-        entities:
-          items:
-            type: string
-          type: array
-          title: Entities
         siteId:
           type: string
           title: Siteid
+        userGoal:
+          type: string
+          title: Usergoal
+        interpretedGoal:
+          type: string
+          title: Interpretedgoal
+        organismScope:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Organismscope
+        recordType:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recordtype
+        biologicalEntities:
+          items:
+            type: string
+          type: array
+          title: Biologicalentities
+        inclusionCriteria:
+          items:
+            type: string
+          type: array
+          title: Inclusioncriteria
+        exclusionCriteria:
+          items:
+            type: string
+          type: array
+          title: Exclusioncriteria
+        likelyDataSources:
+          items:
+            type: string
+          type: array
+          title: Likelydatasources
+        successCriteria:
+          items:
+            type: string
+          type: array
+          title: Successcriteria
+        assumptions:
+          items:
+            type: string
+          type: array
+          title: Assumptions
+        blockingQuestions:
+          items:
+            $ref: '#/components/schemas/ClarificationQuestion'
+          type: array
+          title: Blockingquestions
+        optionalQuestions:
+          items:
+            $ref: '#/components/schemas/ClarificationQuestion'
+          type: array
+          title: Optionalquestions
+        researchNotes:
+          items:
+            $ref: '#/components/schemas/ResearchNote'
+          type: array
+          title: Researchnotes
+        readyForWdkDiscovery:
+          type: boolean
+          title: Readyforwdkdiscovery
+          default: false
+        confidence:
+          type: number
+          title: Confidence
+          default: 0.0
       type: object
       required:
-      - intentSummary
-      - entities
       - siteId
+      - userGoal
+      - interpretedGoal
       title: ProblemFrame
     ProductActionRequest:
       properties:
@@ -6285,6 +6858,51 @@ components:
       type: object
       title: RankMetricsResponse
       description: Rank-based evaluation metrics computed over an ordered result list.
+    ReadinessResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        version:
+          type: string
+          title: Version
+        timestamp:
+          type: string
+          format: date-time
+          title: Timestamp
+        readiness:
+          $ref: '#/components/schemas/ReadinessState'
+        not_ready:
+          items:
+            type: string
+          type: array
+          title: Not Ready
+      type: object
+      required:
+      - status
+      - version
+      - timestamp
+      - readiness
+      title: ReadinessResponse
+      description: Readiness check response, including per-subsystem detail.
+    ReadinessState:
+      properties:
+        database:
+          $ref: '#/components/schemas/SubsystemStatus'
+        embedding_model:
+          $ref: '#/components/schemas/SubsystemStatus'
+        piguard:
+          $ref: '#/components/schemas/SubsystemStatus'
+        graph_checkpointer:
+          $ref: '#/components/schemas/SubsystemStatus'
+        catalogs:
+          additionalProperties:
+            $ref: '#/components/schemas/SubsystemStatus'
+          type: object
+          title: Catalogs
+      type: object
+      title: ReadinessState
+      description: Aggregate readiness for the whole API process.
     RecordDetailRequest:
       properties:
         primaryKey:
@@ -6344,6 +6962,29 @@ components:
       - action
       title: RefineRequest
       description: Request to refine an experiment's strategy.
+    ResearchNote:
+      properties:
+        source:
+          type: string
+          title: Source
+        finding:
+          type: string
+          title: Finding
+        url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Url
+        citationId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Citationid
+      type: object
+      required:
+      - source
+      - finding
+      title: ResearchNote
     ResolvedGeneResponse:
       properties:
         geneId:
@@ -7224,10 +7865,6 @@ components:
           anyOf:
           - $ref: '#/components/schemas/JSONObject'
           - type: 'null'
-        conversationState:
-          anyOf:
-          - $ref: '#/components/schemas/JSONObject'
-          - type: 'null'
         activePlan:
           anyOf:
           - $ref: '#/components/schemas/JSONObject'
@@ -7260,6 +7897,11 @@ components:
           - type: string
           - type: 'null'
           title: Genesetid
+        experimentId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Experimentid
         dismissedAt:
           anyOf:
           - type: string
@@ -7335,13 +7977,35 @@ components:
           anyOf:
           - $ref: '#/components/schemas/PhaseChange'
           - type: 'null'
-        conversation_title:
+        background_task_started:
           anyOf:
-          - $ref: '#/components/schemas/ConversationTitle'
+          - $ref: '#/components/schemas/BackgroundTaskStarted'
+          - type: 'null'
+        task_progress:
+          anyOf:
+          - $ref: '#/components/schemas/TaskProgress'
+          - type: 'null'
+        task_completed:
+          anyOf:
+          - $ref: '#/components/schemas/TaskCompleted'
           - type: 'null'
       type: object
       title: StreamPartsSchemaIndex
       description: Index of stream-part payload schemas. Never called — exists for OpenAPI generation.
+    SubsystemStatus:
+      properties:
+        ready:
+          type: boolean
+          title: Ready
+          default: false
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      type: object
+      title: SubsystemStatus
+      description: Per-subsystem readiness record.
     SystemConfigResponse:
       properties:
         chatProvider:
@@ -7359,6 +8023,124 @@ components:
       - providers
       title: SystemConfigResponse
       description: System configuration status (unauthenticated).
+    TaskCompleted:
+      properties:
+        taskId:
+          type: string
+          title: Taskid
+        status:
+          type: string
+          enum:
+          - success
+          - failed
+          title: Status
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      type: object
+      required:
+      - taskId
+      - status
+      title: TaskCompleted
+    TaskProgress:
+      properties:
+        taskId:
+          type: string
+          title: Taskid
+        percent:
+          type: number
+          title: Percent
+        message:
+          type: string
+          title: Message
+        toolSpecific:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Toolspecific
+      type: object
+      required:
+      - taskId
+      - percent
+      - message
+      title: TaskProgress
+    TaskProgressEvent:
+      properties:
+        taskId:
+          type: string
+          format: uuid
+          title: Taskid
+        percent:
+          type: number
+          title: Percent
+        message:
+          type: string
+          title: Message
+        data:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Data
+        emittedAt:
+          type: string
+          format: date-time
+          title: Emittedat
+      type: object
+      required:
+      - taskId
+      - percent
+      - message
+      - emittedAt
+      title: TaskProgressEvent
+    TaskStatusResponse:
+      properties:
+        taskId:
+          type: string
+          format: uuid
+          title: Taskid
+        toolName:
+          type: string
+          title: Toolname
+        status:
+          type: string
+          title: Status
+        estimatedDurationSeconds:
+          type: integer
+          title: Estimateddurationseconds
+        startedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Startedat
+        completedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Completedat
+        result:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Result
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      type: object
+      required:
+      - taskId
+      - toolName
+      - status
+      - estimatedDurationSeconds
+      title: TaskStatusResponse
     ThresholdKnobRequest:
       properties:
         stepId:

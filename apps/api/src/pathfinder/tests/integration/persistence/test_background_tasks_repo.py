@@ -1,0 +1,83 @@
+from __future__ import annotations
+
+from uuid import uuid4
+
+import pytest
+
+from pathfinder.persistence.models import Chat, User
+from pathfinder.persistence.repositories.background_tasks import (
+    BackgroundTaskRepository,
+)
+from pathfinder.persistence.session import async_session_factory
+
+
+@pytest.mark.asyncio
+async def test_create_mark_transitions(
+    db_cleaner: None, patch_app_db_engine: None
+) -> None:
+    del db_cleaner, patch_app_db_engine
+    user_id = uuid4()
+    chat_id = uuid4()
+    async with async_session_factory() as session:
+        session.add(User(id=user_id))
+        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        await session.commit()
+
+    repo = BackgroundTaskRepository(session_factory=async_session_factory)
+    task_id = await repo.create(
+        chat_id=chat_id,
+        user_id=user_id,
+        tool_name="test",
+        args={"kwargs": {}},
+        estimated_duration_seconds=30,
+    )
+    await repo.mark_running(task_id=task_id)
+    task = await repo.get(task_id=task_id)
+    assert task is not None
+    assert task.status == "running"
+    assert task.started_at is not None
+
+    await repo.mark_result_ready(task_id=task_id, result={"ok": True})
+    task = await repo.get(task_id=task_id)
+    assert task is not None
+    assert task.status == "result_ready"
+    assert task.result == {"ok": True}
+
+    await repo.mark_resuming(task_id=task_id)
+    task = await repo.get(task_id=task_id)
+    assert task is not None
+    assert task.status == "resuming"
+
+    await repo.mark_complete(task_id=task_id)
+    task = await repo.get(task_id=task_id)
+    assert task is not None
+    assert task.status == "complete"
+    assert task.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_mark_failed(
+    db_cleaner: None, patch_app_db_engine: None
+) -> None:
+    del db_cleaner, patch_app_db_engine
+    user_id = uuid4()
+    chat_id = uuid4()
+    async with async_session_factory() as session:
+        session.add(User(id=user_id))
+        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        await session.commit()
+
+    repo = BackgroundTaskRepository(session_factory=async_session_factory)
+    task_id = await repo.create(
+        chat_id=chat_id,
+        user_id=user_id,
+        tool_name="test",
+        args={},
+        estimated_duration_seconds=30,
+    )
+    await repo.mark_failed(task_id=task_id, error="boom")
+    task = await repo.get(task_id=task_id)
+    assert task is not None
+    assert task.status == "failed"
+    assert task.error == "boom"
+    assert task.completed_at is not None

@@ -2,35 +2,31 @@
 
 Provides:
 - ``create_workbench_gene_set`` -- create a gene set in the user's Workbench
-- ``run_gene_set_enrichment`` -- run enrichment analysis on a gene set
+- ``run_gene_set_enrichment`` -- run enrichment analysis on a gene set (durable)
 - ``list_workbench_gene_sets`` -- list all gene sets in the user's Workbench
 """
 
 from __future__ import annotations
 
-from typing import cast, get_args
+from typing import Any
 from uuid import uuid4
 
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.tools.durable import durable_tool
 from pathfinder.ai.tools.standalone._stream_parts import gene_set_chunk
 from pathfinder.ai.tools.standalone._workbench_models import (
-    GeneSetAvailableItem,
     GeneSetCreatedResponse,
     GeneSetCreatedSummary,
     GeneSetListItem,
     GeneSetListResponse,
-    GeneSetNotFoundResponse,
     WdkSourceSpec,
 )
 from pathfinder.platform.errors import ErrorCode
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject
-from pathfinder.services.enrichment.types import EnrichmentAnalysisType
-from pathfinder.services.gene_sets.enrichment import run_enrichment_for_gene_set
 from pathfinder.services.gene_sets.store import get_gene_set_store
 from pathfinder.services.gene_sets.types import GeneSet, GeneSetSource
 
@@ -115,60 +111,36 @@ async def create_workbench_gene_set(
     )
 
 
+@durable_tool(
+    tool_name="geneset_enrichment",
+    estimated_duration_seconds=120,
+)
 async def run_gene_set_enrichment(
     ctx: RunContext[AgentDeps],
     gene_set_id: str,
     enrichment_types: list[str] | None = None,
-) -> GeneSetNotFoundResponse | JSONObject:
+) -> dict[str, Any]:
     """Run enrichment analysis on a gene set in the Workbench.
 
-    This performs over-representation analysis (ORA) to find enriched
-    GO terms, pathways, or word patterns in the gene set. Requires
-    the gene set to have a WDK step ID or search parameters.
+    Durable: the real analysis runs on the verification worker; the graph
+    suspends on ``interrupt()`` while GO/Pathway/Word ORA phases complete
+    and progress streams back through ``task_progress``. The resumed value
+    is the summary dict (``geneSetId``, ``geneCount``, ``enrichmentResults``,
+    ``downloads``).
+
+    Requires the gene set to have a WDK step ID or search parameters so the
+    enrichment service can recover the full background gene universe.
 
     Args:
-        gene_set_id: ID of the gene set to run enrichment on (from create_workbench_gene_set result).
-        enrichment_types: Types of enrichment to run. Options: 'go_function', 'go_process',
-            'go_component', 'pathway', 'word'. Default: all five types.
+        gene_set_id: ID of the gene set to run enrichment on (from
+            ``create_workbench_gene_set`` result).
+        enrichment_types: Types of enrichment to run. Options: ``go_function``,
+            ``go_process``, ``go_component``, ``pathway``, ``word``. Default:
+            all five types.
     """
-    deps = ctx.deps
-    store = get_gene_set_store()
-    gs = await store.aget(gene_set_id)
-    if gs is None:
-        if deps.user_id is not None:
-            available = await store.alist_for_user(
-                deps.user_id, site_id=deps.site_id
-            )
-        else:
-            available = await store.alist_all(site_id=deps.site_id)
-        return GeneSetNotFoundResponse(
-            error=f"Gene set '{gene_set_id}' not found. Use one of the available IDs below.",
-            available_gene_sets=[
-                GeneSetAvailableItem(
-                    id=g.id,
-                    name=g.name,
-                    gene_count=len(g.gene_ids),
-                )
-                for g in available[:10]
-            ],
-        )
-
-    _valid_types = get_args(EnrichmentAnalysisType)
-    types: list[EnrichmentAnalysisType] = (
-        [
-            cast("EnrichmentAnalysisType", t)
-            for t in enrichment_types
-            if t in _valid_types
-        ]
-        if enrichment_types
-        else ["go_function", "go_process", "go_component", "pathway", "word"]
-    )
-
-    summary = await run_enrichment_for_gene_set(gs, types)
-    summary["geneSetId"] = gene_set_id
-    summary["geneSetName"] = gs.name
-    summary["geneCount"] = len(gs.gene_ids)
-    return summary
+    del ctx, gene_set_id, enrichment_types
+    msg = "run_gene_set_enrichment runs on the worker via @durable_tool"
+    raise NotImplementedError(msg)
 
 
 async def list_workbench_gene_sets(

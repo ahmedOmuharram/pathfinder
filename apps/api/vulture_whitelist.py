@@ -64,7 +64,6 @@ create_step  # noqa
 
 # ai/tools/planner/artifact_tools.py
 save_planning_artifact  # noqa
-set_conversation_title  # noqa
 report_reasoning  # noqa
 
 # ai/tools/planner/experiment_tools.py

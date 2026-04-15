@@ -6,12 +6,14 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from langgraph.store.postgres.aio import AsyncPostgresStore
 from pydantic import BaseModel, ConfigDict, Field, SkipValidation
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.capabilities.repetition_guard import ToolRepetitionGuard
 from pathfinder.ai.graph.state import PipelineState, ProblemFrame
+from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
@@ -35,6 +37,7 @@ class Context:
     web_search_service: WebSearchService
     literature_search_service: LiteratureSearchService
     cancel_event: asyncio.Event
+    memory_store: AsyncPostgresStore | None = None
     experiment_id: str | None = None
 
 
@@ -66,9 +69,17 @@ class AgentDeps(BaseModel):
     )
     experiment_id: str | None = None
     cancel_event: SkipValidation[asyncio.Event] | None = None
+    memory_store: SkipValidation[AsyncPostgresStore] | None = None
+    retrieved_memories: list[MemoryValue] = Field(default_factory=list)
+    chat_id: UUID | None = None
 
 
-def build_node_deps(state: PipelineState, context: Context) -> AgentDeps:
+def build_node_deps(
+    state: PipelineState,
+    context: Context,
+    *,
+    memories: list[MemoryValue] | None = None,
+) -> AgentDeps:
     """Construct ``AgentDeps`` for one node invocation."""
     agent_state = AgentToolState(
         discovered_searches=dict(state.discovered_searches),
@@ -84,6 +95,9 @@ def build_node_deps(state: PipelineState, context: Context) -> AgentDeps:
         problem_frame=state.problem_frame,
         experiment_id=context.experiment_id,
         cancel_event=context.cancel_event,
+        memory_store=context.memory_store,
+        retrieved_memories=memories or [],
+        chat_id=state.chat_id,
     )
 
 

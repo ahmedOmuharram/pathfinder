@@ -23,7 +23,6 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.60b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.60b0",
     "opentelemetry-instrumentation-httpx>=0.60b0",
-    "opentelemetry-instrumentation-redis>=0.60b0",
     "opentelemetry-instrumentation-logging>=0.60b0",
     "python-multipart>=0.0.22",
     "structlog>=25.0.0",
@@ -34,12 +33,12 @@ dependencies = [
     "tokenizers>=0.21.0",
     "rapidfuzz>=3.14.0",
     "optuna>=4.8.0",
-    "redis[hiredis]>=7.0.0",
     "pyjwt>=2.12.1",
     "slowapi>=0.1.9",
     "pathfinder-shared",
     "cachetools>=7.0.5",
     "fastembed>=0.8.0",
+    "procrastinate>=3.8.1",
 ]
 
 [tool.uv]
@@ -154,6 +153,10 @@ max-branches = 10
     "PLR0913",  # tool functions need many params for LLM tool interface
     "FBT",      # boolean params required for LLM tool descriptions
 ]
+"src/pathfinder/jobs/impls/**" = [
+    "PLR0913",  # worker impls mirror tool signatures + framework kwargs
+    "FBT",      # booleans mirror tool interface
+]
 "src/pathfinder/devtools/**" = [
     "T20",      # devtools scripts use print() for CLI output
     "C901",     # stream analysis inspects many event types
@@ -196,7 +199,6 @@ min_confidence = 80
 
 [dependency-groups]
 dev = [
-    "fakeredis>=2.34.1",
     "hypothesis>=6.151.0",
     "import-linter>=2.11",
     "mypy>=1.20.0",
@@ -244,7 +246,6 @@ forbidden_modules = [
     "httpx",
     "sqlalchemy",
     "asyncpg",
-    "redis",
     "fastapi",
 ]
 

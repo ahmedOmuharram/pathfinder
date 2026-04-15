@@ -2,8 +2,6 @@
 
 from typing import cast
 
-from redis.exceptions import RedisError
-
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject, JSONValue
 from pathfinder.services.enrichment.service import EnrichmentService
@@ -71,7 +69,7 @@ async def run_enrichment_for_gene_set(
                 "json": json_result.url,
                 "expiresInSeconds": csv_result.expires_in_seconds,
             }
-        except (RedisError, OSError, ValueError, TypeError) as export_err:
+        except (OSError, ValueError, TypeError) as export_err:
             logger.warning("Enrichment export failed", error=str(export_err))
 
     summary["enrichmentResults"] = cast("JSONValue", serialized)

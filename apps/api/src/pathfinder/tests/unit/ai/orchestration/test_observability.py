@@ -174,9 +174,6 @@ def test_setup_observability_triggers_langfuse_sdk_when_key_set() -> None:
             "pathfinder.ai.orchestration.observability._instrument_http_clients",
         ),
         patch(
-            "pathfinder.ai.orchestration.observability._instrument_redis",
-        ),
-        patch(
             "pathfinder.ai.orchestration.observability._instrument_agents",
         ),
     ):
@@ -215,9 +212,6 @@ def test_setup_observability_skips_langfuse_sdk_when_key_absent() -> None:
         ),
         patch(
             "pathfinder.ai.orchestration.observability._instrument_http_clients",
-        ),
-        patch(
-            "pathfinder.ai.orchestration.observability._instrument_redis",
         ),
         patch(
             "pathfinder.ai.orchestration.observability._instrument_agents",

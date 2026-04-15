@@ -1,18 +1,22 @@
-"""Export service — CSV/TSV/TXT generation + Redis temp storage."""
+"""Export service — CSV/TSV/TXT generation + Postgres-backed temp storage."""
 
-import base64
+from __future__ import annotations
+
 import csv
 import io
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from pydantic import BaseModel
-from redis.asyncio import Redis
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.platform.context import request_base_url_ctx
+from pathfinder.persistence.models import Export
+from pathfinder.platform.context import request_base_url_ctx, user_id_ctx
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.enrichment.types import EnrichmentResult
 from pathfinder.services.experiment.types import Experiment
@@ -20,16 +24,10 @@ from pathfinder.services.gene_sets.types import GeneSet
 
 logger = get_logger(__name__)
 
-EXPORT_TTL = 600  # 10 minutes
-REDIS_PREFIX = "export:"
+EXPORT_TTL = timedelta(minutes=10)
+_EXPORT_TTL_SECONDS = int(EXPORT_TTL.total_seconds())
 
-
-class _ExportPayload(BaseModel):
-    """Shape of the JSON blob stored in Redis for each export."""
-
-    filename: str
-    content_type: str
-    data: str  # base64-encoded content bytes
+SessionFactory = Callable[[], AsyncSession]
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,56 +42,109 @@ class ExportResult:
     expires_in_seconds: int
 
 
+@dataclass(frozen=True, slots=True)
+class StoredExport:
+    """A persisted export row retrieved for download."""
+
+    id: UUID
+    filename: str
+    content_type: str
+    data: bytes
+
+
 def _sanitize_filename(name: str) -> str:
     """Strip non-alphanumeric chars from a name for use in filenames."""
     return re.sub(r"[^a-zA-Z0-9_-]", "_", name)[:60]
 
 
-class ExportService:
-    """Generates downloadable files and stores them in Redis with TTL."""
+def _current_user_id() -> UUID:
+    """Return the user_id for the current request; raise if missing."""
+    uid = user_id_ctx.get()
+    if uid is None:
+        msg = "ExportService requires an authenticated user in the request context."
+        raise RuntimeError(msg)
+    return uid
 
-    def __init__(self, redis: Redis) -> None:
-        self._redis = redis
+
+class ExportService:
+    """Generates downloadable files and stores them in Postgres with TTL."""
+
+    def __init__(self, *, session_factory: SessionFactory) -> None:
+        self._session_factory = session_factory
+
+    async def store(
+        self,
+        *,
+        user_id: UUID,
+        filename: str,
+        content_type: str,
+        data: bytes,
+    ) -> UUID:
+        """Persist the given bytes for later download by the owner."""
+        export_id = uuid4()
+        async with self._session_factory() as session:
+            session.add(
+                Export(
+                    id=export_id,
+                    user_id=user_id,
+                    filename=filename,
+                    content_type=content_type,
+                    data=data,
+                    expires_at=datetime.now(UTC) + EXPORT_TTL,
+                )
+            )
+            await session.commit()
+        return export_id
+
+    async def get_export(
+        self, *, export_id: UUID, user_id: UUID
+    ) -> StoredExport | None:
+        """Retrieve a non-expired export row owned by the caller."""
+        async with self._session_factory() as session:
+            row = (
+                await session.execute(
+                    select(Export).where(
+                        Export.id == export_id,
+                        Export.user_id == user_id,
+                        Export.expires_at > datetime.now(UTC),
+                    )
+                )
+            ).scalar_one_or_none()
+            if row is None:
+                return None
+            return StoredExport(
+                id=row.id,
+                filename=row.filename,
+                content_type=row.content_type,
+                data=bytes(row.data),
+            )
 
     async def _store(
         self, content: bytes, filename: str, content_type: str
     ) -> ExportResult:
-        """Store file bytes in Redis and return export metadata."""
-        export_id = str(uuid4())
-        key = f"{REDIS_PREFIX}{export_id}"
-        payload = _ExportPayload(
+        """Persist file bytes for the current user and return export metadata."""
+        user_id = _current_user_id()
+        export_id = await self.store(
+            user_id=user_id,
             filename=filename,
             content_type=content_type,
-            data=base64.b64encode(content).decode("ascii"),
-        )
-        await self._redis.set(
-            key, payload.model_dump_json().encode("utf-8"), ex=EXPORT_TTL
+            data=content,
         )
         logger.info(
             "Export stored",
-            export_id=export_id,
+            export_id=str(export_id),
             filename=filename,
             size_bytes=len(content),
         )
         base = request_base_url_ctx.get() or ""
         return ExportResult(
-            export_id=export_id,
+            export_id=str(export_id),
             filename=filename,
             content_type=content_type,
             url=f"{base}/api/v1/exports/{export_id}",
             size_bytes=len(content),
-            expires_in_seconds=EXPORT_TTL,
+            expires_in_seconds=_EXPORT_TTL_SECONDS,
         )
-
-    async def get_export(self, export_id: str) -> tuple[bytes, str, str] | None:
-        """Retrieve stored export. Returns (content, filename, content_type) or None."""
-        key = f"{REDIS_PREFIX}{export_id}"
-        raw = await self._redis.get(key)
-        if raw is None:
-            return None
-        payload = _ExportPayload.model_validate_json(raw)
-        content = base64.b64decode(payload.data)
-        return content, payload.filename, payload.content_type
 
     async def export_gene_set(
         self, gene_set: GeneSet, output_format: Literal["csv", "txt"]

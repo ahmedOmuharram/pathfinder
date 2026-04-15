@@ -1,19 +1,17 @@
 """User data purge service.
 
 Business logic for purging user data across all local stores (PostgreSQL,
-Redis, in-memory caches) and optionally deleting WDK strategies.
+in-memory caches) and optionally deleting WDK strategies.
 
 The transport layer (``transport.http.routers.user_data``) is a thin HTTP
 adapter that delegates to this module.
 """
 
-import contextlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
 
-from redis.asyncio import Redis
 from sqlalchemy import CursorResult, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,7 +38,6 @@ class PurgeResult:
     hard_deleted: int
     dismissed: int
     wdk_strategies: int
-    redis_streams: int
     gene_sets: int
     experiments: int
     control_sets: int
@@ -49,7 +46,6 @@ class PurgeResult:
 async def purge_user_data(
     *,
     session: AsyncSession,
-    redis: Redis,
     user_id: UUID,
     site_id: str | None,
     delete_wdk: bool,
@@ -62,9 +58,9 @@ async def purge_user_data(
     When ``delete_wdk=True``: everything is hard-deleted locally AND all WDK
     strategies are deleted from VEuPathDB.
 
-    Always deletes: gene sets, experiments, control sets, Redis streams.
+    Always deletes: gene sets, experiments, control sets.
     """
-    # 1. Find all chats (for Redis + WDK cleanup)
+    # 1. Find all chats (for WDK cleanup)
     chat_query = select(Chat).where(Chat.user_id == user_id)
     if site_id:
         chat_query = chat_query.where(Chat.site_id == site_id)
@@ -74,13 +70,7 @@ async def purge_user_data(
     # 2. Delete WDK strategies (only when explicitly requested)
     wdk_deleted = await _purge_wdk_strategies(site_id, delete_wdk=delete_wdk)
 
-    # 3. Delete Redis streams (legacy cleanup — keys may linger from old runs)
-    redis_deleted = 0
-    for cid in chat_ids:
-        with contextlib.suppress(Exception):
-            redis_deleted += int(await redis.delete(f"stream:{cid}"))
-
-    # 4. Handle chats
+    # 3. Handle chats
     dismissed_count = 0
     hard_deleted_count = 0
 
@@ -99,14 +89,14 @@ async def purge_user_data(
         )
         dismissed_count = len(chat_ids)
 
-    # 5. Delete gene sets, experiments, control sets
+    # 4. Delete gene sets, experiments, control sets
     pg_gene_sets, pg_experiments, pg_control_sets = await _purge_related_data(
         session, user_id, site_id
     )
 
     await session.commit()
 
-    # 6. Clear in-memory caches so stale data doesn't reappear
+    # 5. Clear in-memory caches so stale data doesn't reappear
     _clear_gene_set_cache(user_id, site_id)
 
     strategies_handled = hard_deleted_count + dismissed_count
@@ -117,7 +107,6 @@ async def purge_user_data(
         delete_wdk=delete_wdk,
         strategies=strategies_handled,
         wdk_strategies=wdk_deleted,
-        redis_streams=redis_deleted,
         gene_sets=pg_gene_sets,
         experiments=pg_experiments,
         control_sets=pg_control_sets,
@@ -127,7 +116,6 @@ async def purge_user_data(
         hard_deleted=hard_deleted_count,
         dismissed=dismissed_count,
         wdk_strategies=wdk_deleted,
-        redis_streams=redis_deleted,
         gene_sets=pg_gene_sets,
         experiments=pg_experiments,
         control_sets=pg_control_sets,

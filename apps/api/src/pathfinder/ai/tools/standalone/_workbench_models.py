@@ -46,21 +46,6 @@ class GeneSetCreatedResponse(CamelModel):
     message: str
 
 
-class GeneSetAvailableItem(CamelModel):
-    """Summary of an available gene set (for error messages)."""
-
-    id: str
-    name: str
-    gene_count: int
-
-
-class GeneSetNotFoundResponse(CamelModel):
-    """Response when a gene set is not found."""
-
-    error: str
-    available_gene_sets: list[GeneSetAvailableItem] = Field(default_factory=list)
-
-
 class GeneSetListItem(CamelModel):
     """Summary of a gene set in a list."""
 

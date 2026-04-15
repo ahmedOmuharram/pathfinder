@@ -20,7 +20,6 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     DataChunk,
     SourceUrlChunk,
 )
-from shared_py.stream_parts.conversation import ConversationTitle
 from shared_py.stream_parts.gene_set import GeneSet as GeneSetPart
 from shared_py.stream_parts.graph import (
     GraphCleared,
@@ -278,12 +277,15 @@ def strategy_link_chunk(
 def problem_frame_chunk(
     frame: ProblemFrame, *, site_id: str
 ) -> DataChunk:
-    """Build the ``data-problem-frame`` DataChunk from an internal ProblemFrame."""
-    intent = frame.interpreted_goal or frame.user_goal
-    payload = ProblemFramePart(
-        intent_summary=intent,
-        entities=list(frame.biological_entities),
-        site_id=site_id,
+    """Build the ``data-problem-frame`` DataChunk from an internal ProblemFrame.
+
+    The wire payload mirrors the internal frame field-for-field so the UI can
+    render every populated piece of context, not just a summary. Pydantic
+    re-validates through the shared-py model to strip any backend-only extras
+    and emit camelCase aliases.
+    """
+    payload = ProblemFramePart.model_validate(
+        {**frame.model_dump(by_alias=True, mode="json"), "siteId": site_id},
     )
     return DataChunk(
         type="data-problem-frame",
@@ -356,18 +358,6 @@ def gene_set_chunk(
     )
     return DataChunk(
         type="data-gene-set",
-        data=payload.model_dump(by_alias=True, mode="json"),
-    )
-
-
-# ── Conversation title ─────────────────────────────────────────────────────
-
-
-def conversation_title_chunk(title: str) -> DataChunk:
-    """Build the ``data-conversation-title`` DataChunk."""
-    payload = ConversationTitle(title=title)
-    return DataChunk(
-        type="data-conversation-title",
         data=payload.model_dump(by_alias=True, mode="json"),
     )
 

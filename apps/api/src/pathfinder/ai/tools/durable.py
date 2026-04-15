@@ -1,0 +1,249 @@
+"""Primitives for durable (long-running) agent tools.
+
+Durable tools dispatch their work to the Procrastinate worker and stream
+progress back to the chat via ``TaskProgressEmitter``. The emitter persists
+rows to ``task_progress`` and publishes a LISTEN/NOTIFY event on
+``task_progress:<chat_id>`` so the dispatcher can resume/flush progress into
+the UI message stream without polling.
+
+``@durable_tool`` wraps an agent-side tool so calling it submits a
+Procrastinate job and then ``interrupt()``s the graph. The real work runs on
+the worker via the ``TOOL_REGISTRY`` mapping.
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from functools import wraps
+from typing import Any, ParamSpec, TypeVar, cast
+from uuid import UUID
+
+from langgraph.types import interrupt
+from pydantic import BaseModel
+from pydantic_ai.tools import RunContext
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.jobs.app import procrastinate_app
+from pathfinder.persistence.models import TaskProgress
+from pathfinder.persistence.repositories.background_tasks import (
+    BackgroundTaskRepository,
+)
+from pathfinder.persistence.session import async_session_factory
+
+SessionFactory = Callable[[], AsyncSession]
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+@dataclass(frozen=True)
+class _PendingProgress:
+    percent: float
+    message: str
+    data: dict[str, Any] | None
+
+
+@dataclass
+class TaskProgressEmitter:
+    """Records a durable task's incremental progress.
+
+    By default (``batch_size=1``), each :meth:`update` commits immediately
+    and fires one ``pg_notify`` — same semantics as the original
+    implementation, safe for tests and low-frequency progress. Callers
+    that emit many rows rapidly (e.g. :mod:`optimize_params_impl` with
+    30 trials) can opt in to batching by passing ``batch_size > 1`` at
+    construction: rows buffer in memory and flush when the buffer fills,
+    when :attr:`max_flush_interval_seconds` elapses, or on explicit
+    :meth:`flush` / :meth:`aclose`. :meth:`aclose` is called by the
+    runner at task completion so no rows are ever dropped.
+
+    Batched flushes insert N rows in a single ``session.add_all`` and
+    fire ONE NOTIFY per batch — O(batches) DB round-trips instead of
+    O(rows).
+    """
+
+    task_id: UUID
+    chat_id: UUID
+    session_factory: SessionFactory
+    batch_size: int = 1
+    max_flush_interval_seconds: float = 1.0
+    _buffer: list[_PendingProgress] = field(default_factory=list)
+    _last_flush_monotonic: float = field(default=0.0)
+
+    async def update(
+        self,
+        *,
+        percent: float,
+        message: str,
+        data: dict[str, Any] | None = None,
+    ) -> None:
+        self._buffer.append(
+            _PendingProgress(percent=percent, message=message, data=data),
+        )
+        now = time.monotonic()
+        if self._last_flush_monotonic == 0.0:
+            self._last_flush_monotonic = now
+        should_flush = (
+            len(self._buffer) >= self.batch_size
+            or (now - self._last_flush_monotonic)
+            >= self.max_flush_interval_seconds
+        )
+        if should_flush:
+            await self.flush()
+
+    async def flush(self) -> None:
+        """Commit all buffered rows + fire one NOTIFY. No-op if empty."""
+        if not self._buffer:
+            return
+        pending = list(self._buffer)
+        self._buffer.clear()
+        async with self.session_factory() as session:
+            session.add_all(
+                TaskProgress(
+                    task_id=self.task_id,
+                    percent=row.percent,
+                    message=row.message,
+                    data=row.data,
+                )
+                for row in pending
+            )
+            await session.flush()
+            await session.execute(
+                text("SELECT pg_notify(:channel, :payload)"),
+                {
+                    "channel": f"task_progress:{self.chat_id}",
+                    "payload": str(self.task_id),
+                },
+            )
+            await session.commit()
+        self._last_flush_monotonic = time.monotonic()
+
+    async def aclose(self) -> None:
+        await self.flush()
+
+
+def durable_tool(
+    *,
+    tool_name: str,
+    estimated_duration_seconds: int,
+) -> Callable[
+    [Callable[P, Awaitable[R]]],
+    Callable[P, Awaitable[R]],
+]:
+    """Mark an agent-side pydantic-ai tool as durable.
+
+    The decorated function is called by the agent with the usual
+    ``RunContext[AgentDeps]`` + tool kwargs. The decorator:
+
+    - Creates a ``BackgroundTask`` row (``pending``)
+    - Defers a Procrastinate job on the ``verification`` queue named
+      ``durable:<tool_name>``
+    - Calls ``interrupt(...)`` to suspend the graph
+
+    The worker picks up the job, runs the real impl registered in
+    ``TOOL_REGISTRY``, writes the result, and resumes the graph via
+    ``Command(resume=...)``. The resumed value becomes this tool's return
+    value.
+    """
+
+    def decorator(
+        fn: Callable[P, Awaitable[R]],
+    ) -> Callable[P, Awaitable[R]]:
+        @wraps(fn)
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            ctx, tool_args = _parse_invocation(args, kwargs)
+            deps = _require_durable_deps(ctx.deps)
+
+            repo = BackgroundTaskRepository(session_factory=async_session_factory)
+            task_id = await repo.create(
+                chat_id=deps.chat_id,
+                user_id=deps.user_id,
+                tool_name=tool_name,
+                args=tool_args,
+                estimated_duration_seconds=estimated_duration_seconds,
+            )
+            # ``procrastinate_app`` is opened in the FastAPI lifespan (api)
+            # and in ``amain()`` (worker), so configure_task + defer_async
+            # share the process-wide connection pool — no per-call reconnect.
+            task = procrastinate_app.configure_task(
+                name=f"durable:{tool_name}",
+                queue="verification",
+            )
+            await task.defer_async(
+                task_id=str(task_id),
+                thread_id=str(deps.chat_id),
+                args=tool_args,
+            )
+
+            resumed = interrupt(
+                {
+                    "kind": "durable_task",
+                    "task_id": str(task_id),
+                    "tool_name": tool_name,
+                    "estimated_duration_seconds": estimated_duration_seconds,
+                }
+            )
+            # The resumed value comes from the worker via Command(resume=...);
+            # the typed return contract is whatever the tool declared. The
+            # worker impl must honour that contract — cast is the boundary.
+            return cast("R", resumed)
+
+        return wrapper
+
+    return decorator
+
+
+@dataclass(frozen=True)
+class _DurableDeps:
+    """AgentDeps subset required for durable dispatch."""
+
+    chat_id: UUID
+    user_id: UUID
+
+
+def _require_durable_deps(deps: AgentDeps) -> _DurableDeps:
+    if deps.chat_id is None:
+        msg = "durable_tool requires chat_id on AgentDeps"
+        raise RuntimeError(msg)
+    if deps.user_id is None:
+        msg = "durable_tool requires user_id on AgentDeps"
+        raise RuntimeError(msg)
+    return _DurableDeps(chat_id=deps.chat_id, user_id=deps.user_id)
+
+
+def _parse_invocation(
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> tuple[RunContext[AgentDeps], dict[str, Any]]:
+    if not args:
+        msg = "durable_tool requires RunContext[AgentDeps] as first argument"
+        raise RuntimeError(msg)
+    ctx = cast("RunContext[AgentDeps]", args[0])
+    tool_args: dict[str, Any] = {
+        "args": [_to_jsonable(v) for v in args[1:]],
+        "kwargs": {k: _to_jsonable(v) for k, v in kwargs.items()},
+    }
+    return ctx, tool_args
+
+
+def _to_jsonable(value: Any) -> Any:
+    """Coerce a tool argument into a JSON-serialisable shape.
+
+    Procrastinate persists job args via ``json.dumps`` — raw Pydantic
+    ``BaseModel`` instances crash. We dump models (including nested ones) to
+    plain dicts; primitives / dicts / lists pass through. Worker-side impls
+    receive the dict and can ``model_validate`` if they want the typed form.
+    """
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if isinstance(value, list):
+        return [_to_jsonable(v) for v in value]
+    if isinstance(value, tuple):
+        return [_to_jsonable(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _to_jsonable(v) for k, v in value.items()}
+    return value

@@ -4,8 +4,8 @@ from pydantic_ai.tools import Tool
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.tools.standalone.artifact import set_conversation_title
 from pathfinder.ai.tools.standalone.gene import resolve_gene_ids_to_records
+from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.plan import (
     create_plan,
     get_plan,
@@ -37,8 +37,9 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             Tool(submit_plan, requires_approval=True),
             present_decision,
             resolve_gene_ids_to_records,
-            set_conversation_title,
             get_strategy,
             think,
+            search_memory,
+            remember,
         ],
     )

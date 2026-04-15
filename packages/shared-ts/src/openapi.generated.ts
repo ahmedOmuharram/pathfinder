@@ -61,8 +61,8 @@ export type paths = {
          * @description Readiness check — is every subsystem actually ready?
          *
          *     Returns 503 until lifespan startup has marked *all* subsystems ready
-         *     (database, redis, embedding model, PIGuard, every site catalog).
-         *     Also re-verifies DB and Redis with live pings so stale state
+         *     (database, embedding model, PIGuard, graph checkpointer, every site
+         *     catalog). Also re-verifies the DB with a live ping so stale state
          *     doesn't mask a broken dependency.
          */
         get: operations["readiness_check_health_ready_get"];
@@ -1309,7 +1309,8 @@ export type paths = {
          * Download Export
          * @description Serve a previously generated export file.
          *
-         *     Export IDs are uuid4 tokens with a 10-minute TTL. No auth required.
+         *     Export IDs are uuid4 tokens with a 10-minute TTL. Requires the
+         *     authenticated user to own the export row.
          */
         get: operations["download_export_api_v1_exports__export_id__get"];
         put?: never;
@@ -1421,7 +1422,7 @@ export type paths = {
          *     When ``deleteWdk=true``: everything is hard-deleted locally AND all
          *     WDK strategies are deleted from VEuPathDB.
          *
-         *     Always deletes: gene sets, experiments, control sets, Redis streams.
+         *     Always deletes: gene sets, experiments, control sets.
          *
          *     Pass ``?siteId=X`` to limit to one site, or omit for everything.
          */
@@ -1471,6 +1472,118 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/memories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Memories */
+        get: operations["list_memories_api_v1_memories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memories/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Memories */
+        get: operations["search_memories_api_v1_memories_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memories/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Memory */
+        delete: operations["delete_memory_api_v1_memories__key__delete"];
+        options?: never;
+        head?: never;
+        /** Edit Memory */
+        patch: operations["edit_memory_api_v1_memories__key__patch"];
+        trace?: never;
+    };
+    "/api/v1/chats/{chat_id}/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Task Status
+         * @description Return current status + metadata for a durable task.
+         */
+        get: operations["task_status_api_v1_chats__chat_id__tasks__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chats/{chat_id}/tasks/{task_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Task Progress History
+         * @description Return the ordered list of progress rows persisted so far.
+         */
+        get: operations["task_progress_history_api_v1_chats__chat_id__tasks__task_id__progress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/chats/{chat_id}/tasks/{task_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Task Events
+         * @description Open an SSE stream for a durable task's progress + resumed graph output.
+         */
+        get: operations["task_events_api_v1_chats__chat_id__tasks__task_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 };
 
 export type webhooks = Record<string, never>;
@@ -1496,6 +1609,15 @@ export type components = {
         AuthSuccessResponse: {
             /** Success */
             success: boolean;
+        };
+        /** BackgroundTaskStarted */
+        BackgroundTaskStarted: {
+            /** Taskid */
+            taskId: string;
+            /** Toolname */
+            toolName: string;
+            /** Estimateddurationseconds */
+            estimatedDurationSeconds: number;
         };
         /**
          * BatchOrganismTargetRequest
@@ -1589,6 +1711,26 @@ export type components = {
             estimatedSize: number;
             /** Geneids */
             geneIds: string[];
+        };
+        /** ClarificationQuestion */
+        ClarificationQuestion: {
+            /** Question */
+            question: string;
+            /**
+             * Context
+             * @default
+             */
+            context: string;
+            /** Field */
+            field?: string | null;
+            /**
+             * Priority
+             * @default blocking
+             * @enum {string}
+             */
+            priority: "blocking" | "optional";
+            /** Options */
+            options?: string[];
         };
         /**
          * ColocationParams
@@ -1795,14 +1937,6 @@ export type components = {
             positiveCount: number;
             /** Negativecount */
             negativeCount: number;
-        };
-        /**
-         * ConversationTitle
-         * @description A proposed short title for the conversation.
-         */
-        ConversationTitle: {
-            /** Title */
-            title: string;
         };
         /**
          * CreateBatchExperimentRequest
@@ -2868,6 +3002,92 @@ export type components = {
             /** Password */
             password: string;
         };
+        /** MemoryEditRequest */
+        MemoryEditRequest: {
+            /** Name */
+            name?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Tags */
+            tags?: string[] | null;
+            /** Content */
+            content?: {
+                [key: string]: unknown;
+            } | null;
+            /** Autoretrieve */
+            autoRetrieve?: boolean | null;
+        };
+        /** MemoryItem */
+        MemoryItem: {
+            /** Key */
+            key: string;
+            value: components["schemas"]["MemoryValue"];
+        };
+        /**
+         * MemoryListResponse
+         * @description Paginated list, grouped by namespace.
+         *
+         *     ``page_size`` and ``offset`` echo the query params. ``has_more`` is
+         *     ``True`` when at least one namespace returned a full page (i.e. more
+         *     rows likely exist at the next offset). Clients use this to decide
+         *     whether to render a "load more" affordance without an additional
+         *     count query.
+         */
+        MemoryListResponse: {
+            /** Genesets */
+            geneSets: components["schemas"]["MemoryItem"][];
+            /** Strategies */
+            strategies: components["schemas"]["MemoryItem"][];
+            /** Preferences */
+            preferences: components["schemas"]["MemoryItem"][];
+            /** Knowledge */
+            knowledge: components["schemas"]["MemoryItem"][];
+            /** Pagesize */
+            pageSize: number;
+            /** Offset */
+            offset: number;
+            /** Hasmore */
+            hasMore: boolean;
+        };
+        /** MemorySearchResponse */
+        MemorySearchResponse: {
+            /** Hits */
+            hits: components["schemas"]["MemoryItem"][];
+        };
+        /** MemoryValue */
+        MemoryValue: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "gene_set" | "strategy" | "preference" | "knowledge";
+            /** Name */
+            name: string;
+            /** Summary */
+            summary: string;
+            /** Tags */
+            tags?: string[];
+            /** Siteid */
+            siteId?: string | null;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            };
+            /**
+             * Autoretrieve
+             * @default true
+             */
+            autoRetrieve: boolean;
+            /** Sourcechatid */
+            sourceChatId?: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Lastusedat */
+            lastUsedAt?: string | null;
+        };
         /**
          * ModelCatalogEntryResponse
          * @description API response model — adds ``enabled`` status per provider configuration.
@@ -3593,12 +3813,44 @@ export type components = {
         };
         /** ProblemFrame */
         ProblemFrame: {
-            /** Intentsummary */
-            intentSummary: string;
-            /** Entities */
-            entities: string[];
             /** Siteid */
             siteId: string;
+            /** Usergoal */
+            userGoal: string;
+            /** Interpretedgoal */
+            interpretedGoal: string;
+            /** Organismscope */
+            organismScope?: string | null;
+            /** Recordtype */
+            recordType?: string | null;
+            /** Biologicalentities */
+            biologicalEntities?: string[];
+            /** Inclusioncriteria */
+            inclusionCriteria?: string[];
+            /** Exclusioncriteria */
+            exclusionCriteria?: string[];
+            /** Likelydatasources */
+            likelyDataSources?: string[];
+            /** Successcriteria */
+            successCriteria?: string[];
+            /** Assumptions */
+            assumptions?: string[];
+            /** Blockingquestions */
+            blockingQuestions?: components["schemas"]["ClarificationQuestion"][];
+            /** Optionalquestions */
+            optionalQuestions?: components["schemas"]["ClarificationQuestion"][];
+            /** Researchnotes */
+            researchNotes?: components["schemas"]["ResearchNote"][];
+            /**
+             * Readyforwdkdiscovery
+             * @default false
+             */
+            readyForWdkDiscovery: boolean;
+            /**
+             * Confidence
+             * @default 0
+             */
+            confidence: number;
         };
         /**
          * ProductActionRequest
@@ -3708,9 +3960,9 @@ export type components = {
          */
         ReadinessState: {
             database?: components["schemas"]["SubsystemStatus"];
-            redis?: components["schemas"]["SubsystemStatus"];
             embedding_model?: components["schemas"]["SubsystemStatus"];
             piguard?: components["schemas"]["SubsystemStatus"];
+            graph_checkpointer?: components["schemas"]["SubsystemStatus"];
             /** Catalogs */
             catalogs?: {
                 [key: string]: components["schemas"]["SubsystemStatus"];
@@ -3762,6 +4014,17 @@ export type components = {
              * @default
              */
             transformName: string;
+        };
+        /** ResearchNote */
+        ResearchNote: {
+            /** Source */
+            source: string;
+            /** Finding */
+            finding: string;
+            /** Url */
+            url?: string | null;
+            /** Citationid */
+            citationId?: string | null;
         };
         /**
          * ResolvedGeneResponse
@@ -4331,7 +4594,6 @@ export type components = {
              */
             isSaved: boolean;
             pipeline?: components["schemas"]["JSONObject"] | null;
-            conversationState?: components["schemas"]["JSONObject"] | null;
             activePlan?: components["schemas"]["JSONObject"] | null;
             /**
              * Createdat
@@ -4351,6 +4613,8 @@ export type components = {
             wdkUrl?: string | null;
             /** Genesetid */
             geneSetId?: string | null;
+            /** Experimentid */
+            experimentId?: string | null;
             /** Dismissedat */
             dismissedAt?: string | null;
         };
@@ -4372,7 +4636,9 @@ export type components = {
             gene_set?: components["schemas"]["GeneSet"] | null;
             optimization_snapshot?: components["schemas"]["OptimizationSnapshot"] | null;
             phase_change?: components["schemas"]["PhaseChange"] | null;
-            conversation_title?: components["schemas"]["ConversationTitle"] | null;
+            background_task_started?: components["schemas"]["BackgroundTaskStarted"] | null;
+            task_progress?: components["schemas"]["TaskProgress"] | null;
+            task_completed?: components["schemas"]["TaskCompleted"] | null;
         };
         /**
          * SubsystemStatus
@@ -4397,6 +4663,76 @@ export type components = {
             /** Llmconfigured */
             llmConfigured: boolean;
             providers: components["schemas"]["ProviderStatus"];
+        };
+        /** TaskCompleted */
+        TaskCompleted: {
+            /** Taskid */
+            taskId: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "success" | "failed";
+            /** Error */
+            error?: string | null;
+        };
+        /** TaskProgress */
+        TaskProgress: {
+            /** Taskid */
+            taskId: string;
+            /** Percent */
+            percent: number;
+            /** Message */
+            message: string;
+            /** Toolspecific */
+            toolSpecific?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** TaskProgressEvent */
+        TaskProgressEvent: {
+            /**
+             * Taskid
+             * Format: uuid
+             */
+            taskId: string;
+            /** Percent */
+            percent: number;
+            /** Message */
+            message: string;
+            /** Data */
+            data?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Emittedat
+             * Format: date-time
+             */
+            emittedAt: string;
+        };
+        /** TaskStatusResponse */
+        TaskStatusResponse: {
+            /**
+             * Taskid
+             * Format: uuid
+             */
+            taskId: string;
+            /** Toolname */
+            toolName: string;
+            /** Status */
+            status: string;
+            /** Estimateddurationseconds */
+            estimatedDurationSeconds: number;
+            /** Startedat */
+            startedAt?: string | null;
+            /** Completedat */
+            completedAt?: string | null;
+            /** Result */
+            result?: {
+                [key: string]: unknown;
+            } | null;
+            /** Error */
+            error?: string | null;
         };
         /**
          * ThresholdKnobRequest
@@ -7098,6 +7434,235 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_memories_api_v1_memories_get: {
+        parameters: {
+            query?: {
+                /** @description Per-namespace page size */
+                limit?: number;
+                /** @description Per-namespace offset */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_memories_api_v1_memories_search_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemorySearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_memory_api_v1_memories__key__delete: {
+        parameters: {
+            query: {
+                kind: "gene_set" | "strategy" | "preference" | "knowledge";
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_memory_api_v1_memories__key__patch: {
+        parameters: {
+            query: {
+                kind: "gene_set" | "strategy" | "preference" | "knowledge";
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemoryEditRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    task_status_api_v1_chats__chat_id__tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    task_progress_history_api_v1_chats__chat_id__tasks__task_id__progress_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskProgressEvent"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    task_events_api_v1_chats__chat_id__tasks__task_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

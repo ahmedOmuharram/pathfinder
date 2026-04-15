@@ -9,6 +9,7 @@ from pydantic_ai.messages import ModelMessage
 
 from pathfinder.ai.agents._phase_decisions import PhaseDecision
 from pathfinder.ai.agents.state import SearchOverview
+from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -85,3 +86,5 @@ class PipelineState(BaseModel):
     problem_frame: ProblemFrame | None = None
     discovered_searches: dict[str, SearchOverview] = Field(default_factory=dict)
     active_plan: StrategyPlan | None = None
+    created_gene_set_ids: list[str] = Field(default_factory=list)
+    retrieved_memories: list[MemoryValue] = Field(default_factory=list)

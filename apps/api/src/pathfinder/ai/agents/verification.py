@@ -8,6 +8,7 @@ from pydantic_ai.usage import UsageLimits
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
+    pinned_user_memories,
 )
 from pathfinder.ai.agents._phase_decisions import VerificationDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
@@ -40,17 +41,22 @@ pathway enrichment to confirm biological relevance.
 5. **Export**: Use `export_gene_set` and `create_workbench_gene_set` to \
 make results available for downstream analysis.
 
-## Final Output
+## Final Output (STRICT — follow exactly)
 
-Your user-facing prose IS the completion summary — a short narrative of \
-what was checked, what passed, and anything suspicious. When verification \
-is complete, return a `VerificationDecision` whose only field is \
+You MUST produce two things every turn, in this order:
+
+1. **Prose**: a short, user-facing completion summary — what was checked, \
+what passed, and anything suspicious.
+2. **Decision**: finalize with a `VerificationDecision` whose only field is \
 `next_action`:
   - `complete`: verification passed; the turn is done.
   - `retry_execution`: verification uncovered an execution-level bug (wrong \
 parameters, wrong search) that execution should fix.
   - `abort`: the strategy is broken in a way that execution cannot fix and \
 the user must intervene.
+
+NEVER skip the prose. A reply that is only tool calls with no visible text \
+is a failure — the user sees a blank assistant message.
 
 ## Guidelines
 
@@ -72,9 +78,9 @@ opener.
 for the user's next instruction.
 """
 
-verification_agent: Agent[AgentDeps, VerificationDecision] = Agent(
+verification_agent: Agent[AgentDeps, str | VerificationDecision] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=VerificationDecision,
+    output_type=[str, VerificationDecision],
     deps_type=AgentDeps,
     instructions=_VERIFICATION_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -94,6 +100,11 @@ def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
 @verification_agent.instructions
 def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_graph_state(ctx)
+
+
+@verification_agent.instructions
+def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_user_memories(ctx)
 
 
 VERIFICATION_USAGE_LIMITS = UsageLimits(

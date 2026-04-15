@@ -9,6 +9,7 @@ from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
     pinned_problem_frame,
+    pinned_user_memories,
 )
 from pathfinder.ai.agents._phase_decisions import ScopingDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
@@ -43,17 +44,24 @@ editing or extending an existing strategy.
 your final output — it captures the authoritative problem statement that \
 downstream phases read.
 
-## Final Output
+## Final Output (STRICT — follow exactly)
 
-Your user-facing prose is the visible response. When the prose is written \
-and the frame is saved, return a `ScopingDecision` whose only field is \
-`next_action`:
+You MUST produce two things every turn, in this order:
+
+1. **Prose**: a short, user-facing message (the user sees this). Confirm the \
+problem, state assumptions, and either ask the blocking questions or \
+describe what happens next.
+2. **Decision**: finalize with a `ScopingDecision` object whose only field \
+is `next_action`:
   - `advance_to_discovery`: user intent is clear and concrete candidate \
 searches exist.
   - `advance_to_planning`: user intent is so constrained that discovery \
 would be superfluous.
   - `need_more_input`: you cannot proceed without the user clarifying \
 something. Your prose must contain the blocking questions.
+
+NEVER skip the prose. A reply that is only tool calls with no visible text \
+is a failure — the user sees a blank assistant message.
 
 ## Boundaries
 
@@ -66,9 +74,9 @@ then return `next_action="need_more_input"`. The next user answer will \
 restart scoping with the saved frame.
 """
 
-scoping_agent: Agent[AgentDeps, ScopingDecision] = Agent(
+scoping_agent: Agent[AgentDeps, str | ScopingDecision] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=ScopingDecision,
+    output_type=[str, ScopingDecision],
     deps_type=AgentDeps,
     instructions=_SCOPING_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -93,6 +101,11 @@ def _pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
 @scoping_agent.instructions
 def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_graph_state(ctx)
+
+
+@scoping_agent.instructions
+def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_user_memories(ctx)
 
 
 SCOPING_USAGE_LIMITS = UsageLimits(

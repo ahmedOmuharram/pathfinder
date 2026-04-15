@@ -2,7 +2,6 @@
 
 import pytest
 from pydantic import ValidationError
-from shared_py.stream_parts.conversation import ConversationTitle
 from shared_py.stream_parts.gene_set import GeneSet
 from shared_py.stream_parts.graph import GraphEdge, GraphNode, GraphSnapshot
 from shared_py.stream_parts.optimization import OptimizationSnapshot
@@ -115,11 +114,16 @@ def test_decision_presented_validates():
 
 def test_problem_frame_validates():
     pf = ProblemFrame(
-        intent_summary="find drug targets for PfATP4",
-        entities=["PfATP4"],
         site_id="plasmodb",
+        user_goal="find drug targets for PfATP4",
+        interpreted_goal="identify essential plasmodium genes related to ATP4",
+        biological_entities=["PfATP4"],
+        ready_for_wdk_discovery=True,
+        confidence=0.9,
     )
     assert pf.site_id == "plasmodb"
+    assert pf.biological_entities == ["PfATP4"]
+    assert pf.ready_for_wdk_discovery is True
 
 
 def test_gene_set_validates():
@@ -150,13 +154,6 @@ def test_phase_change_validates():
         duration_ms=None,
     )
     assert pc.phase == "discovery"
-
-
-def test_conversation_title_validates():
-    ct = ConversationTitle(title="Malaria gene expression analysis")
-    assert ct.title == "Malaria gene expression analysis"
-    dumped = ct.model_dump(by_alias=True)
-    assert dumped == {"title": "Malaria gene expression analysis"}
 
 
 # ── Wire-contract tests ─────────────────────────────────────────────────────

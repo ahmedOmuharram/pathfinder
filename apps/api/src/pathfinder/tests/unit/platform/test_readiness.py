@@ -37,25 +37,24 @@ class TestReadinessState:
         state = ReadinessState()
         assert state.all_ready is False
         assert "database" in state.not_ready
-        assert "redis" in state.not_ready
         assert "embedding_model" in state.not_ready
         assert "piguard" in state.not_ready
 
     def test_all_ready_requires_every_subsystem(self) -> None:
         state = ReadinessState()
         state.mark_ready("database")
-        state.mark_ready("redis")
         state.mark_ready("embedding_model")
         state.mark_ready("piguard")
+        state.mark_ready("graph_checkpointer")
         assert state.all_ready is True
         assert state.not_ready == []
 
     def test_catalog_participation(self) -> None:
         state = ReadinessState()
         state.mark_ready("database")
-        state.mark_ready("redis")
         state.mark_ready("embedding_model")
         state.mark_ready("piguard")
+        state.mark_ready("graph_checkpointer")
         state.register_catalog("plasmodb")
         state.register_catalog("toxodb")
         assert state.all_ready is False

@@ -362,39 +362,8 @@ export type PhaseStatus =
   | "awaiting_approval"
   | "awaiting_input";
 
-export interface ClarificationQuestion {
-  question: string;
-  context?: string;
-  field?: string | null;
-  priority?: "blocking" | "optional";
-  options?: string[];
-}
-
-export interface ResearchNote {
-  source: string;
-  finding: string;
-  url?: string | null;
-  citationId?: string | null;
-}
-
-export interface ProblemFrame {
-  [key: string]: unknown;
-  userGoal: string;
-  interpretedGoal: string;
-  organismScope?: string | null;
-  recordType?: string | null;
-  biologicalEntities?: string[];
-  inclusionCriteria?: string[];
-  exclusionCriteria?: string[];
-  likelyDataSources?: string[];
-  successCriteria?: string[];
-  assumptions?: string[];
-  blockingQuestions?: ClarificationQuestion[];
-  optionalQuestions?: ClarificationQuestion[];
-  researchNotes?: ResearchNote[];
-  readyForWdkDiscovery: boolean;
-  confidence: number;
-}
+export type ClarificationQuestion = components["schemas"]["ClarificationQuestion"];
+export type ResearchNote = components["schemas"]["ResearchNote"];
 
 export type StepKind = "search" | "transform" | "combine";
 
@@ -472,11 +441,24 @@ export type Classification = "TP" | "FP" | "FN" | "TN";
 // Typed shapes for every `data-<name>` part emitted during a chat turn.
 // One-to-one with the Pydantic models in `shared_py.stream_parts`.
 //
-// NOTE: `GeneSet` and `ProblemFrame` are already taken by existing types
-// above (the workbench REST resource and the hand-written frontend shape,
-// respectively), so the stream-part variants use the `Part` suffix to
-// avoid collisions. The `PathfinderDataParts` map below references the
-// generated OpenAPI schemas directly so the wire contract is preserved.
+// NOTE: `GeneSet` is already taken above (the workbench REST resource), so
+// the stream-part variant uses the `Part` suffix to avoid collisions. The
+// `PathfinderDataParts` map below references the generated OpenAPI schemas
+// directly so the wire contract is preserved.
+
+// Memory (langgraph store) types
+
+export type MemoryKind = components["schemas"]["MemoryValue"]["kind"];
+export type MemoryValue = components["schemas"]["MemoryValue"];
+export type MemoryItem = components["schemas"]["MemoryItem"];
+export type MemoryListResponse = components["schemas"]["MemoryListResponse"];
+export type MemorySearchResponse = components["schemas"]["MemorySearchResponse"];
+export type MemoryEditRequest = components["schemas"]["MemoryEditRequest"];
+
+// Durable background task types (SSE + REST)
+
+export type TaskProgressEvent = components["schemas"]["TaskProgressEvent"];
+export type TaskStatusResponse = components["schemas"]["TaskStatusResponse"];
 
 export type GraphSnapshot = components["schemas"]["GraphSnapshot"];
 export type GraphPlan = components["schemas"]["GraphPlan"];
@@ -491,7 +473,9 @@ export type ProblemFramePart = components["schemas"]["ProblemFrame"];
 export type GeneSetPart = components["schemas"]["GeneSet"];
 export type OptimizationSnapshot = components["schemas"]["OptimizationSnapshot"];
 export type PhaseChange = components["schemas"]["PhaseChange"];
-export type ConversationTitle = components["schemas"]["ConversationTitle"];
+export type BackgroundTaskStarted = components["schemas"]["BackgroundTaskStarted"];
+export type TaskProgressChunk = components["schemas"]["TaskProgress"];
+export type TaskCompleted = components["schemas"]["TaskCompleted"];
 
 /**
  * Per-data-part UIMessagePart types using AI SDK's custom data-part convention.
@@ -513,7 +497,9 @@ export type PathfinderDataParts = {
   "gene-set": GeneSetPart;
   "optimization-snapshot": OptimizationSnapshot;
   "phase-change": PhaseChange;
-  "conversation-title": ConversationTitle;
+  "background-task-started": BackgroundTaskStarted;
+  "task-progress": TaskProgressChunk;
+  "task-completed": TaskCompleted;
 };
 
 /**

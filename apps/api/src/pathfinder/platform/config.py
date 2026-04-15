@@ -90,9 +90,6 @@ class Settings(BaseSettings):
     # Database
     database_url: str = Field(default="", repr=False)
 
-    # Redis (event store + live SSE delivery)
-    redis_url: str = Field(default="", repr=False)
-
     # OpenAI
     openai_api_key: str = Field(default="", repr=False)
     openai_model: str = "gpt-4.1"
@@ -202,8 +199,6 @@ class Settings(BaseSettings):
             missing.append("API_SECRET_KEY")
         if not self.database_url.strip():
             missing.append("DATABASE_URL")
-        if not self.redis_url.strip():
-            missing.append("REDIS_URL")
         if missing:
             joined = ", ".join(missing)
             msg = f"Missing required settings: {joined}."

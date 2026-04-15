@@ -15,6 +15,7 @@ from pathfinder import __version__
 from pathfinder.ai.capabilities.piguard import warm_up_piguard
 from pathfinder.ai.chat.checkpointer import lifespan_checkpointer
 from pathfinder.ai.graph.builder import build_graph
+from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.orchestration.observability import (
     setup_observability,
     shutdown_observability,
@@ -41,7 +42,6 @@ from pathfinder.platform.errors import (
 )
 from pathfinder.platform.logging import get_logger, setup_logging
 from pathfinder.platform.readiness import get_readiness, reset_readiness
-from pathfinder.platform.redis import close_redis, init_redis
 from pathfinder.platform.security import csrf_middleware, limiter
 from pathfinder.services.catalog.semantic_index import warm_up_model
 from pathfinder.transport.http.routers import (
@@ -57,9 +57,11 @@ from pathfinder.transport.http.routers import (
     gene_sets,
     health,
     internal,
+    memories,
     models,
     sites,
     strategies,
+    tasks,
     tiers,
     user_data,
     veupathdb_auth,
@@ -71,9 +73,9 @@ logger = get_logger(__name__)
 async def _warm_up_subsystems() -> None:
     """Load models and preload catalogs, marking readiness per subsystem.
 
-    Runs after DB+Redis init. Each step is best-effort: a failure flips
-    the subsystem's readiness flag and keeps ``/health/ready`` returning
-    503 with the per-subsystem detail.
+    Runs after DB init. Each step is best-effort: a failure flips the
+    subsystem's readiness flag and keeps ``/health/ready`` returning 503
+    with the per-subsystem detail.
     """
     readiness = get_readiness()
     try:
@@ -115,14 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         readiness.mark_failed("database", str(e))
         raise
 
-    try:
-        await init_redis()
-        readiness.mark_ready("redis")
-    except (AppError, OSError, RuntimeError) as e:
-        readiness.mark_failed("redis", str(e))
-        raise
-
-    # Observability + Langfuse prompt seed after DB/Redis are ready.
+    # Observability + Langfuse prompt seed after DB is ready.
     setup_observability(app=app, db_engine=get_engine())
     from pathfinder.platform.langfuse.prompts import seed_prompts  # noqa: PLC0415
 
@@ -130,17 +125,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     await _warm_up_subsystems()
 
-    async with lifespan_checkpointer(settings.database_url) as checkpointer:
+    from pathfinder.jobs.app import procrastinate_app  # noqa: PLC0415
+    from pathfinder.platform.notify_dispatcher import (  # noqa: PLC0415
+        lifespan_notify_dispatcher,
+    )
+    async with (
+        lifespan_checkpointer(settings.database_url) as checkpointer,
+        lifespan_memory_store(settings.database_url) as memory_store,
+        procrastinate_app.open_async(),
+        lifespan_notify_dispatcher(settings.database_url) as notify_dispatcher,
+    ):
         app.state.compiled_graph = build_graph(checkpointer=checkpointer)
+        app.state.memory_store = memory_store
+        app.state.notify_dispatcher = notify_dispatcher
         readiness.mark_ready("graph_checkpointer")
+
+        from pathfinder.platform.tasks import spawn  # noqa: PLC0415
+        from pathfinder.services.export.sweeper import (  # noqa: PLC0415
+            run_sweeper_loop,
+        )
+        export_sweeper_task = spawn(run_sweeper_loop(), name="export-sweeper")
 
         yield
 
         logger.info("Shutting down Pathfinder API")
 
+        if export_sweeper_task is not None:
+            export_sweeper_task.cancel()
+
     reset_readiness()
     await close_all_clients()
-    await close_redis()
     await close_db()
     shutdown_observability()
     from pathfinder.platform.langfuse.client import (  # noqa: PLC0415
@@ -256,6 +270,8 @@ def create_app() -> FastAPI:
     app.include_router(_stream_parts_schemas.router)
     app.include_router(user_data.router)
     app.include_router(evaluation.router)
+    app.include_router(memories.router)
+    app.include_router(tasks.router)
 
     # Dev-only routes (e2e / local dev with mock chat provider).
     if settings.chat_provider.strip().lower() == "mock":

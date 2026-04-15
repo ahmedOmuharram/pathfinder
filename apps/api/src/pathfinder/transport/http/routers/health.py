@@ -1,6 +1,5 @@
 """Health check endpoints."""
 
-from collections.abc import Awaitable
 from datetime import UTC, datetime
 
 from fastapi import APIRouter
@@ -12,7 +11,6 @@ from pathfinder.platform.config import get_settings
 from pathfinder.platform.health import check_database
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.readiness import get_readiness
-from pathfinder.platform.redis import get_redis
 from pathfinder.transport.http.schemas import HealthResponse, SystemConfigResponse
 from pathfinder.transport.http.schemas.health import ProviderStatus, ReadinessResponse
 
@@ -61,8 +59,8 @@ async def readiness_check() -> ReadinessResponse | JSONResponse:
     """Readiness check — is every subsystem actually ready?
 
     Returns 503 until lifespan startup has marked *all* subsystems ready
-    (database, redis, embedding model, PIGuard, every site catalog).
-    Also re-verifies DB and Redis with live pings so stale state
+    (database, embedding model, PIGuard, graph checkpointer, every site
+    catalog). Also re-verifies the DB with a live ping so stale state
     doesn't mask a broken dependency.
     """
     state = get_readiness()
@@ -73,14 +71,6 @@ async def readiness_check() -> ReadinessResponse | JSONResponse:
     except Exception as e:
         logger.exception("Readiness check: database unreachable")
         state.mark_failed("database", str(e))
-
-    try:
-        ping_result = get_redis().ping()
-        if isinstance(ping_result, Awaitable):
-            await ping_result
-    except Exception as e:
-        logger.exception("Readiness check: redis unreachable")
-        state.mark_failed("redis", str(e))
 
     ready = state.all_ready
     response = ReadinessResponse(

@@ -98,10 +98,10 @@ def _rank_by_semantic_similarity(
         import numpy as np  # noqa: PLC0415
 
         from pathfinder.services.catalog.semantic_index import (  # noqa: PLC0415
-            _get_model,
+            get_embedding_model,
         )
 
-        model = _get_model()
+        model = get_embedding_model()
         query_emb = np.array(list(model.embed([query])))
         label_embs = np.array(list(model.embed([label for _, label, _ in candidates])))
         sims = (label_embs @ query_emb.T).flatten()

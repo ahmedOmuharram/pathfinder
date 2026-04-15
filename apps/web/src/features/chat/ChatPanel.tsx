@@ -3,11 +3,13 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 
 import { ChatSessionProvider } from "./approval/useChatContext";
+import { ChatErrorBanner } from "./ChatErrorBanner";
 import { useChatSession } from "./chat-hook";
 import { ChatInput } from "./composer/ChatInput";
 import { ModelPicker } from "./composer/ModelPicker";
 import { ChatEmptyState } from "./EmptyState";
 import { MessageList } from "./MessageList";
+import { TaskListBadge } from "./TaskListBadge";
 import { useConversationTitleSync } from "./useConversationTitleSync";
 import { fetchChatHistory } from "@/lib/api/chat";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -31,7 +33,8 @@ export function ChatPanel({
   const selectedSite = useSessionStore((s) => s.selectedSite);
   const { data: history } = useQuery(chatHistoryOptions(chatId));
   const session = useChatSession(chatId, mode, history ?? []);
-  const { messages, status, sendMessage, stop } = session;
+  const { messages, status, sendMessage, stop, error, regenerate, clearError } =
+    session;
 
   const streaming = status === "streaming" || status === "submitted";
   const hasMessages = messages.length > 0;
@@ -52,6 +55,7 @@ export function ChatPanel({
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-2">
           <ModelPicker />
+          <TaskListBadge />
         </div>
 
         <div className="relative min-h-0 flex-1">
@@ -61,6 +65,17 @@ export function ChatPanel({
             <ChatEmptyState mode={mode} chatId={chatId} />
           )}
         </div>
+
+        {error ? (
+          <ChatErrorBanner
+            error={error}
+            onRetry={() => {
+              clearError();
+              void regenerate();
+            }}
+            onDismiss={clearError}
+          />
+        ) : null}
 
         <div className="border-t border-border p-3">
           <ChatInput

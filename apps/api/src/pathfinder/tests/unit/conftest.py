@@ -16,16 +16,6 @@ from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_validation import ValidationCallbacks
 
 
-@pytest.fixture(autouse=True)
-async def _unit_redis(redis_setup: None) -> None:
-    """Ensure Redis is available for all unit tests.
-
-    Many unit tests call production code that transitively hits get_redis()
-    (e.g. event emission, orchestrator helpers). The container is session-scoped
-    so this adds ~1ms per test for flushdb, not container startup.
-    """
-
-
 @pytest.fixture
 async def db_session(
     session_maker: async_sessionmaker[AsyncSession],

@@ -18,6 +18,7 @@ from pathfinder.ai.tools.standalone.catalog_discovery import (
     get_search_overview,
 )
 from pathfinder.ai.tools.standalone.gene import lookup_gene_records
+from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.research import literature_search, web_search
 from pathfinder.ai.tools.standalone.strategy_graph import get_strategy
 from pathfinder.ai.tools.standalone.think import think
@@ -46,5 +47,7 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             lookup_gene_records,
             get_strategy,
             think,
+            search_memory,
+            remember,
         ],
     )

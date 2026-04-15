@@ -1,13 +1,15 @@
 """Standalone experiment control test tools for pydantic-ai migration."""
 
+from typing import Any
+
 from pydantic_ai import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.tools.durable import durable_tool
 from pathfinder.ai.tools.standalone._experiment_models import (
     DownloadLinks,
     SearchControlTestResult,
     StepControlTestResult,
-    _run_step_control_tests,
 )
 from pathfinder.domain.strategy.types import SerializedParams
 from pathfinder.platform.errors import AppError, ErrorCode
@@ -59,13 +61,18 @@ async def _export_search_control_result(
     return result
 
 
+@durable_tool(tool_name="run_control_tests_on_step", estimated_duration_seconds=180)
 async def run_control_tests_on_step(
     ctx: RunContext[AgentDeps],
     wdk_step_id: int,
     positive_controls: list[str] | None = None,
     negative_controls: list[str] | None = None,
-) -> StepControlTestResult | ToolErrorPayload:
+) -> dict[str, Any]:
     """Run control tests against an already-built WDK strategy step.
+
+    Durable: this tool defers work to the verification worker and the graph
+    suspends via ``interrupt()`` while it runs. The resumed value is a dict
+    matching :class:`StepControlTestResult`'s serialised shape.
 
     Tests directly against the strategy's actual results using Python set
     operations -- no temporary WDK strategy needed.  Use this after building
@@ -82,22 +89,9 @@ async def run_control_tests_on_step(
         positive_controls: Known-positive IDs that should be returned.
         negative_controls: Known-negative IDs that should NOT be returned.
     """
-    has_positives = positive_controls and len(positive_controls) > 0
-    has_negatives = negative_controls and len(negative_controls) > 0
-    if not has_positives and not has_negatives:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "At least one of positive_controls or negative_controls must be provided.",
-        )
-    result = await _run_step_control_tests(
-        site_id=ctx.deps.site_id,
-        wdk_step_id=wdk_step_id,
-        positive_controls=positive_controls,
-        negative_controls=negative_controls,
-    )
-    return await _export_step_control_result(
-        result, f"step_{wdk_step_id}_control_tests"
-    )
+    del ctx, wdk_step_id, positive_controls, negative_controls
+    msg = "run_control_tests_on_step runs on the worker via @durable_tool"
+    raise NotImplementedError(msg)
 
 
 async def run_control_tests_on_search(

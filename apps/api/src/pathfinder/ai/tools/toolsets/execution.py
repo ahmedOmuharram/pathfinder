@@ -8,6 +8,7 @@ from pathfinder.ai.tools.standalone.conversation import (
     clear_strategy,
     rename_strategy,
 )
+from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.strategy_attach import (
     add_step_analysis,
     add_step_filter,
@@ -52,5 +53,7 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             Tool(clear_strategy, requires_approval=True),
             get_strategy,
             think,
+            search_memory,
+            remember,
         ],
     )

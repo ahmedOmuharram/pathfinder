@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import re
 
+import httpx
 from pydantic_ai import Agent
+from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.models.catalog import ModelEntry, get_smallest_model
@@ -124,7 +126,7 @@ async def generate_conversation_title(
             f"User's first message:\n{cleaned}",
             usage_limits=_TITLE_USAGE_LIMITS,
         )
-    except Exception:  # noqa: BLE001 — any model error falls back deterministically
+    except (AgentRunError, httpx.HTTPError, TimeoutError, OSError):
         return _fallback_title(first_user_message)
 
     return _trim_title(result.output) or _fallback_title(first_user_message)

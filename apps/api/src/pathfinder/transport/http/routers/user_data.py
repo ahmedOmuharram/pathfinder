@@ -8,7 +8,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from pathfinder.platform.redis import get_redis
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.user_data import purge_user_data
 from pathfinder.transport.http.deps import ChatRepo, CurrentUser
@@ -33,13 +32,12 @@ async def purge_user_data_endpoint(
     When ``deleteWdk=true``: everything is hard-deleted locally AND all
     WDK strategies are deleted from VEuPathDB.
 
-    Always deletes: gene sets, experiments, control sets, Redis streams.
+    Always deletes: gene sets, experiments, control sets.
 
     Pass ``?siteId=X`` to limit to one site, or omit for everything.
     """
     result = await purge_user_data(
         session=chat_repo.session,
-        redis=get_redis(),
         user_id=user_id,
         site_id=site_id,
         delete_wdk=delete_wdk,
@@ -51,7 +49,6 @@ async def purge_user_data_endpoint(
         "deleted": {
             "strategies": strategies_handled,
             "wdkStrategies": result.wdk_strategies,
-            "redisStreams": result.redis_streams,
             "geneSets": result.gene_sets,
             "experiments": result.experiments,
             "controlSets": result.control_sets,

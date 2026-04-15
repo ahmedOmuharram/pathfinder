@@ -10,6 +10,7 @@ from pathfinder.ai.tools.standalone.experiment import (
     run_control_tests_on_step,
 )
 from pathfinder.ai.tools.standalone.export import export_gene_set
+from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.optimization import optimize_search_parameters
 from pathfinder.ai.tools.standalone.results import (
     get_download_url,
@@ -65,5 +66,7 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             get_result_gene_lists,
             get_strategy,
             think,
+            search_memory,
+            remember,
         ],
     )

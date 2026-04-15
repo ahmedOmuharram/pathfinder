@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -111,19 +112,19 @@ async def repetition_guard_hook(
     call: ToolCallPart,
     tool_def: ToolDefinition,
     args: dict[str, Any],
-    handler: Any,
+    handler: Callable[[dict[str, Any]], Awaitable[Any]],
 ) -> Any:
     """Wrap a tool execution; short-circuit on detected repetition.
 
-    Registered via ``Hooks(wrap_tool_execute=repetition_guard_hook)`` on phase
+    Registered via ``Hooks(tool_execute=repetition_guard_hook)`` on phase
     agents whose toolsets contain read-only inspectors. State lives on
     ``ctx.deps.tool_repetition_guard`` (fresh per ``AgentDeps`` instance).
     """
     del tool_def
     guard = getattr(ctx.deps, "tool_repetition_guard", None)
     if guard is None:
-        return await handler()
+        return await handler(args)
     warning = guard.check(call.tool_name, args)
     if warning is not None:
         return warning
-    return await handler()
+    return await handler(args)

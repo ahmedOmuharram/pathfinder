@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic_ai.ui.vercel_ai.response_types import (
     BaseChunk,
+    DataChunk,
+    ErrorChunk,
     FinishChunk,
     MessageMetadataChunk,
     StartChunk,
@@ -38,6 +40,36 @@ def phase_finish_chunk(*, reason: str) -> FinishChunk:
 
 def title_metadata_chunk(title: str) -> MessageMetadataChunk:
     return MessageMetadataChunk(message_metadata={"conversationTitle": title})
+
+
+def error_chunk(text: str) -> ErrorChunk:
+    """Build an AI SDK v6 ``ErrorChunk`` surfacing a server-side failure.
+
+    The client's ``useChat`` sets its ``error`` field when it receives one of
+    these; the chat UI renders a distinct error bubble.
+    """
+    return ErrorChunk(error_text=text)
+
+
+def background_task_started_chunk(
+    *,
+    task_id: str,
+    tool_name: str,
+    estimated_duration_seconds: int,
+) -> DataChunk:
+    """Signal that a durable tool has been dispatched and the graph is paused.
+
+    The UI keeps the stream open and displays a progress panel until the
+    worker resumes the graph (or the task is cancelled).
+    """
+    return DataChunk(
+        type="data-background-task-started",
+        data={
+            "taskId": task_id,
+            "toolName": tool_name,
+            "estimatedDurationSeconds": estimated_duration_seconds,
+        },
+    )
 
 
 def encode_chunk_as_sse(chunk: BaseChunk) -> str:

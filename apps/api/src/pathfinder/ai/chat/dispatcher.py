@@ -4,11 +4,13 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import Request
-from pydantic import BaseModel
+from langgraph.store.postgres.aio import AsyncPostgresStore
+from langgraph.types import Interrupt
+from pydantic import BaseModel, ValidationError
 from pydantic_ai.ui import SSE_CONTENT_TYPE
 from pydantic_ai.ui.vercel_ai.request_types import UIMessage
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +21,9 @@ from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.graph.stream_chunks import (
     SSE_DONE_LINE,
+    background_task_started_chunk,
     encode_chunk_as_sse,
+    error_chunk,
     title_metadata_chunk,
 )
 from pathfinder.domain.strategy.plan_payload import (
@@ -112,9 +116,13 @@ async def dispatch(
     await session.commit()
 
     compiled_graph = request.app.state.compiled_graph
+    memory_store = request.app.state.memory_store
     chat = await ChatRepository(session).get_by_id(incoming.chat_id)
     runtime_context = _build_runtime_context(
-        chat=chat, site_id=incoming.site_id, user_id=user_id,
+        chat=chat,
+        site_id=incoming.site_id,
+        user_id=user_id,
+        memory_store=memory_store,
     )
 
     headers = {"x-vercel-ai-ui-message-stream": "v1"}
@@ -174,6 +182,7 @@ def _build_runtime_context(
     chat: Chat | None,
     site_id: str,
     user_id: UUID,
+    memory_store: AsyncPostgresStore,
 ) -> Context:
     persisted: PersistedStrategyGraph | None = None
     experiment_id: str | None = None
@@ -203,6 +212,7 @@ def _build_runtime_context(
         web_search_service=WebSearchService(),
         literature_search_service=LiteratureSearchService(),
         cancel_event=asyncio.Event(),
+        memory_store=memory_store,
         experiment_id=experiment_id,
     )
 
@@ -247,21 +257,23 @@ async def _stream_graph_chunks(
         graph_input,
         config=thread_config,
         context=runtime_context,
-        stream_mode=["custom"],
+        stream_mode=["custom", "updates"],
     ):
-        if mode != "custom":
-            continue
-        sse = _extract_sse(payload)
-        if sse is not None:
-            yield sse
-        if not title_emitted:
-            async for sse_line in _maybe_emit_title_metadata(
-                title_task=title_task,
-                chat_id=incoming.chat_id,
-                wait_for_completion=False,
-            ):
+        if mode == "custom":
+            sse = _extract_sse(payload)
+            if sse is not None:
+                yield sse
+            if not title_emitted:
+                async for sse_line in _maybe_emit_title_metadata(
+                    title_task=title_task,
+                    chat_id=incoming.chat_id,
+                    wait_for_completion=False,
+                ):
+                    yield sse_line
+                    title_emitted = True
+        elif mode == "updates":
+            async for sse_line in _emit_interrupt_chunks(payload):
                 yield sse_line
-                title_emitted = True
 
     if not title_emitted:
         async for sse_line in _maybe_emit_title_metadata(
@@ -270,6 +282,50 @@ async def _stream_graph_chunks(
             wait_for_completion=True,
         ):
             yield sse_line
+
+
+class _DurableInterruptPayload(BaseModel):
+    """Typed shape of the value passed to ``interrupt()`` by ``@durable_tool``."""
+
+    kind: Literal["durable_task"]
+    task_id: str
+    tool_name: str
+    estimated_duration_seconds: int
+
+
+async def _emit_interrupt_chunks(payload: object) -> AsyncIterator[str]:
+    """Translate ``__interrupt__`` entries into SSE chunks for the UI."""
+    for durable in _iter_durable_interrupts(payload):
+        yield encode_chunk_as_sse(
+            background_task_started_chunk(
+                task_id=durable.task_id,
+                tool_name=durable.tool_name,
+                estimated_duration_seconds=durable.estimated_duration_seconds,
+            )
+        )
+
+
+def _iter_durable_interrupts(
+    payload: object,
+) -> list[_DurableInterruptPayload]:
+    if not isinstance(payload, dict):
+        return []
+    raw_interrupts = payload.get("__interrupt__")
+    if not isinstance(raw_interrupts, tuple | list):
+        return []
+    parsed: list[_DurableInterruptPayload] = []
+    for item in raw_interrupts:
+        if not isinstance(item, Interrupt):
+            continue
+        try:
+            parsed.append(
+                _DurableInterruptPayload.model_validate(
+                    item.value, strict=False
+                )
+            )
+        except ValidationError:
+            continue
+    return parsed
 
 
 async def _event_source(
@@ -296,7 +352,19 @@ async def _event_source(
         cancelled = True
     except Exception as exc:
         runtime_context.cancel_event.set()
-        logger.exception("Pipeline dispatcher failed", exc_info=exc)
+        logger.exception(
+            "Pipeline dispatcher failed",
+            chat_id=str(incoming.chat_id),
+            user_id=str(user_id),
+            site_id=incoming.site_id,
+            mode=incoming.mode,
+            error_type=type(exc).__name__,
+        )
+        # Forward the failure to the UI so the user sees a visible error
+        # instead of an empty assistant turn.
+        yield encode_chunk_as_sse(
+            error_chunk(f"{type(exc).__name__}: {exc}")
+        )
     finally:
         if not cancelled:
             yield SSE_DONE_LINE

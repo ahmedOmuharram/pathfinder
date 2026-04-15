@@ -39,7 +39,6 @@ env/
 .codex/
 .cursor/
 .claude/
-memory/
 .superpowers/
 .hypothesis/
 docs/superpowers/

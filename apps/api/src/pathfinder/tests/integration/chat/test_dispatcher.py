@@ -35,6 +35,9 @@ from pathfinder.persistence.repositories import MessagesRepository
 @pytest.fixture
 def in_memory_compiled_graph(app: FastAPI) -> None:
     app.state.compiled_graph = build_graph(checkpointer=InMemorySaver())
+    # Dispatcher reads app.state.memory_store; tests that don't exercise retrieval
+    # can pass None (nodes short-circuit on a missing store).
+    app.state.memory_store = None
 
 
 def _deferred_tool_call(name: str, payload: dict[str, Any]) -> ToolCallPart:

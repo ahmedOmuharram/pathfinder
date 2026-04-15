@@ -79,7 +79,6 @@ PathfinderAgent (Unified)
 
 **Session**
 
-- ``set_conversation_title`` — Set conversation title
 - ``report_reasoning`` — Report reasoning to the user
 
 SubtaskAgent (Sub-kani)

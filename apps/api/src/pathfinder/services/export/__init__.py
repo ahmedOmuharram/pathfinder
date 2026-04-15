@@ -1,21 +1,27 @@
-"""Export service — generates downloadable files, stores in Redis with TTL."""
+"""Export service — generates downloadable files, stores in Postgres with TTL."""
 
-import threading
+from __future__ import annotations
 
-from pathfinder.platform.redis import get_redis
-from pathfinder.services.export.service import ExportResult, ExportService
+from pathfinder.persistence.session import async_session_factory
+from pathfinder.services.export.service import (
+    ExportResult,
+    ExportService,
+    StoredExport,
+)
 
-__all__ = ["ExportResult", "ExportService", "get_export_service"]
+__all__ = [
+    "ExportResult",
+    "ExportService",
+    "StoredExport",
+    "get_export_service",
+]
 
-_service_holder: dict[str, ExportService] = {}
-_service_lock = threading.Lock()
+_instance: ExportService | None = None
 
 
 def get_export_service() -> ExportService:
     """Get the export service singleton (lazy init)."""
-    if "v" in _service_holder:
-        return _service_holder["v"]
-    with _service_lock:
-        if "v" not in _service_holder:
-            _service_holder["v"] = ExportService(get_redis())
-        return _service_holder["v"]
+    global _instance  # noqa: PLW0603
+    if _instance is None:
+        _instance = ExportService(session_factory=async_session_factory)
+    return _instance

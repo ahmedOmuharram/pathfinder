@@ -73,14 +73,14 @@ def set_cache_dir(path: Path) -> None:
     _cache_config.dir.mkdir(parents=True, exist_ok=True)
 
 
-def _get_model() -> TextEmbedding:
+def get_embedding_model() -> TextEmbedding:
     """Return the lazy-loaded fastembed model singleton."""
     return _ModelState.get()
 
 
 def warm_up_model() -> None:
     """Eagerly load the embedding model so the first request doesn't pay for it."""
-    _get_model()
+    get_embedding_model()
 
 
 def _strip_html(text: str) -> str:
@@ -196,7 +196,7 @@ class SemanticSearchIndex:
             return
 
         # Cache miss — encode with fastembed.
-        model = _get_model()
+        model = get_embedding_model()
         texts = [f"search_document: {e.enriched_text}" for e in self.entries]
         self.embeddings = np.array(list(model.embed(texts, batch_size=8)))
         _save_cache(self.site_id, h, self.embeddings)
@@ -218,7 +218,7 @@ class SemanticSearchIndex:
         if self.embeddings is None or not self.entries:
             return []
 
-        model = _get_model()
+        model = get_embedding_model()
         query_emb = np.array(list(model.embed([f"search_query: {query_text}"])))
         similarities = (self.embeddings @ query_emb.T).flatten()
 

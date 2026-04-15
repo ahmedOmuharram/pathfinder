@@ -8,7 +8,11 @@ $ref from their parent schemas and do not need explicit entries.
 
 from fastapi import APIRouter
 from pydantic import BaseModel
-from shared_py.stream_parts.conversation import ConversationTitle
+from shared_py.stream_parts.background_task import (
+    BackgroundTaskStarted,
+    TaskCompleted,
+    TaskProgress,
+)
 from shared_py.stream_parts.gene_set import GeneSet
 from shared_py.stream_parts.graph import (
     GraphCleared,
@@ -48,7 +52,9 @@ class StreamPartsSchemaIndex(BaseModel):
     gene_set: GeneSet | None = None
     optimization_snapshot: OptimizationSnapshot | None = None
     phase_change: PhaseChange | None = None
-    conversation_title: ConversationTitle | None = None
+    background_task_started: BackgroundTaskStarted | None = None
+    task_progress: TaskProgress | None = None
+    task_completed: TaskCompleted | None = None
 
 
 @router.get(

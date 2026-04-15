@@ -9,6 +9,7 @@ from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
     pinned_problem_frame,
+    pinned_user_memories,
 )
 from pathfinder.ai.agents._phase_decisions import PlanningDecision
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
@@ -45,16 +46,21 @@ if the plan requires gene ID lookups.
 4. **Submit for execution**: Once the plan is complete and reviewed, use \
 `submit_plan` to hand it off to the execution agent.
 
-## Final Output
+## Final Output (STRICT — follow exactly)
 
-Your user-facing prose is the visible response — summarize the plan and its \
-rationale in it. When the plan is submitted (or you have decided not to \
-submit), return a `PlanningDecision` whose only field is `next_action`:
+You MUST produce two things every turn, in this order:
+
+1. **Prose**: a short, user-facing summary of the plan and its rationale.
+2. **Decision**: finalize with a `PlanningDecision` whose only field is \
+`next_action`:
   - `advance_to_execution`: a plan has been submitted successfully.
   - `request_revision`: the user needs to decide something before the plan \
 can be submitted; explain what you need in your prose.
   - `abort`: the task is not feasible with the available discovery findings; \
 explain why in your prose.
+
+NEVER skip the prose. A reply that is only tool calls with no visible text \
+is a failure — the user sees a blank assistant message.
 
 ## Guidelines
 
@@ -63,7 +69,6 @@ parameter values. No placeholders or "TBD" values.
 - Respect parameter dependencies: if param B depends on param A, the plan \
 must set A before B (the execution agent handles refresh).
 - Use `update_plan` to refine the plan if the user requests changes.
-- Use `set_conversation_title` to give the conversation a descriptive name.
 - Use `get_strategy` to check the current graph state if editing an \
 existing strategy.
 - `present_decision` is non-blocking. Do not rely on it to stop the pipeline.
@@ -72,9 +77,9 @@ existing strategy.
 the findings you received.
 """
 
-planning_agent: Agent[AgentDeps, PlanningDecision] = Agent(
+planning_agent: Agent[AgentDeps, str | PlanningDecision] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=PlanningDecision,
+    output_type=[str, PlanningDecision],
     deps_type=AgentDeps,
     instructions=_PLANNING_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -104,6 +109,11 @@ def _pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
 @planning_agent.instructions
 def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_graph_state(ctx)
+
+
+@planning_agent.instructions
+def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_user_memories(ctx)
 
 
 @planning_agent.instructions

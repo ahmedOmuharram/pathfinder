@@ -10,6 +10,7 @@ from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
     pinned_problem_frame,
+    pinned_user_memories,
 )
 from pathfinder.ai.agents._phase_decisions import DiscoveryDecision
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
@@ -50,20 +51,24 @@ pathway identifiers, organism-specific terminology).
 already in progress. Use `search_example_plans` to find similar solved \
 problems.
 
-## Final Output
+## Final Output (STRICT — follow exactly)
 
-Your user-facing prose is the visible response — summarize the candidate \
-searches, parameter trade-offs, and any caveats in it so the planner and the \
-user can see them. If catalog evidence reshapes the scoping frame, call \
-`set_problem_frame` to update it.
+You MUST produce two things every turn, in this order:
 
-When the prose is written, return a `DiscoveryDecision` whose only field is \
+1. **Prose**: a short, user-facing summary of the candidate searches, \
+parameter trade-offs, and any caveats so the planner and the user can see \
+them. If catalog evidence reshapes the scoping frame, call \
+`set_problem_frame` to update it first.
+2. **Decision**: finalize with a `DiscoveryDecision` whose only field is \
 `next_action`:
   - `advance_to_planning`: you have concrete candidate searches.
   - `advance_to_execution`: a single unambiguous leaf search can be executed \
 without further planning.
   - `need_more_input`: a WDK-specific ambiguity would materially change the \
 plan and only the user can resolve it.
+
+NEVER skip the prose. A reply that is only tool calls with no visible text \
+is a failure — the user sees a blank assistant message.
 
 ## Guidelines
 
@@ -84,9 +89,9 @@ _discovery_hooks: Hooks[AgentDeps] = Hooks(
     tool_execute=repetition_guard_hook,
 )
 
-discovery_agent: Agent[AgentDeps, DiscoveryDecision] = Agent(
+discovery_agent: Agent[AgentDeps, str | DiscoveryDecision] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=DiscoveryDecision,
+    output_type=[str, DiscoveryDecision],
     deps_type=AgentDeps,
     instructions=_DISCOVERY_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -116,6 +121,11 @@ def _pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
 @discovery_agent.instructions
 def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_graph_state(ctx)
+
+
+@discovery_agent.instructions
+def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_user_memories(ctx)
 
 
 @discovery_agent.instructions

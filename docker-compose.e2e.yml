@@ -17,12 +17,17 @@ services:
       API_ENV: test
       PATHFINDER_CHAT_PROVIDER: mock
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
-      REDIS_URL: redis://redis:6379/1
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health/ready || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  worker:
+    environment:
+      API_ENV: test
+      PATHFINDER_CHAT_PROVIDER: mock
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/pathfinder
 
   db:
     ports:

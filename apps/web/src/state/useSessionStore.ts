@@ -37,7 +37,6 @@ interface SessionState {
   problemFrame: ProblemFramePart | null;
   lastGeneSet: GeneSetPart | null;
   optimizationProgress: OptimizationSnapshot | null;
-  conversationTitle: string | null;
 
   setSelectedSite: (siteId: string) => void;
   /** Switch site with full cleanup — clears strategy data and resets workbench. */
@@ -59,7 +58,6 @@ interface SessionState {
   setProblemFrame: (frame: ProblemFramePart) => void;
   recordGeneSet: (set: GeneSetPart) => void;
   setOptimizationProgress: (snapshot: OptimizationSnapshot) => void;
-  setConversationTitle: (title: string) => void;
 }
 
 export const useSessionStore = createPersistedStore<SessionState>(
@@ -83,7 +81,6 @@ export const useSessionStore = createPersistedStore<SessionState>(
     problemFrame: null,
     lastGeneSet: null,
     optimizationProgress: null,
-    conversationTitle: null,
 
     setSelectedSite: (siteId) =>
       set((s) => {
@@ -157,7 +154,6 @@ export const useSessionStore = createPersistedStore<SessionState>(
     setProblemFrame: (frame) => set({ problemFrame: frame }),
     recordGeneSet: (geneSet) => set({ lastGeneSet: geneSet }),
     setOptimizationProgress: (snapshot) => set({ optimizationProgress: snapshot }),
-    setConversationTitle: (title) => set({ conversationTitle: title }),
   }),
   {
     name: "pathfinder-session",

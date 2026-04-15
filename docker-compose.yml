@@ -9,7 +9,6 @@ services:
       API_ENV: ${API_ENV:-production}
       API_SECRET_KEY: ${API_SECRET_KEY:-}
       DATABASE_URL: ${DATABASE_URL:-}
-      REDIS_URL: ${REDIS_URL:-}
       PATHFINDER_CHAT_PROVIDER: ${PATHFINDER_CHAT_PROVIDER:?Set PATHFINDER_CHAT_PROVIDER=default for real providers or use the test overlay for mock mode}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -29,6 +28,39 @@ services:
       LOG_FORMAT: ${LOG_FORMAT:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-}
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: .venv/bin/python -m pathfinder.jobs.worker
+    # Worker shares the API image (and its curl-based FastAPI healthcheck).
+    # The worker process does not serve HTTP, so override with a no-op probe —
+    # Procrastinate's own crash-on-error handling restarts the container via
+    # ``restart: always`` if the worker loop dies.
+    healthcheck:
+      disable: true
+    environment:
+      API_ENV: ${API_ENV:-production}
+      API_SECRET_KEY: ${API_SECRET_KEY:-}
+      DATABASE_URL: ${DATABASE_URL:-}
+      PATHFINDER_CHAT_PROVIDER: ${PATHFINDER_CHAT_PROVIDER:?Set PATHFINDER_CHAT_PROVIDER=default for real providers or use the test overlay for mock mode}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      DEFAULT_PROVIDER: ${DEFAULT_PROVIDER:-anthropic}
+      DEFAULT_TIER: ${DEFAULT_TIER:-balanced}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      S2_API_KEY: ${S2_API_KEY:-}
+      VEUPATHDB_SITES_CONFIG: ${VEUPATHDB_SITES_CONFIG:-}
+      VEUPATHDB_AUTH_TOKEN: ${VEUPATHDB_AUTH_TOKEN:-}
+      VEUPATHDB_OAUTH_URL: ${VEUPATHDB_OAUTH_URL:-}
+      VEUPATHDB_OAUTH_CLIENT_ID: ${VEUPATHDB_OAUTH_CLIENT_ID:-}
+      LOG_LEVEL: ${LOG_LEVEL:-}
+      LOG_FORMAT: ${LOG_FORMAT:-}
 
   web:
     build:

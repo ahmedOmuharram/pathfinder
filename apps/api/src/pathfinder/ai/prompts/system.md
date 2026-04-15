@@ -123,7 +123,6 @@ For EXTEND_STRATEGY, start at step 2 (or 3 if you already know the searches). Fo
 
 - `rename_strategy(new_name, description)` — Rename the current strategy.
 - `clear_strategy(confirm)` — Clear all steps. Requires `confirm=true`.
-- `set_conversation_title(title)` — Set conversation title in the sidebar.
 
 ## Strategic Thinking (plan-thinking tags)
 

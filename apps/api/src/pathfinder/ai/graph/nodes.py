@@ -14,6 +14,7 @@ from pydantic_ai.ui.vercel_ai.request_types import RequestData, SubmitMessage, U
 from pydantic_ai.ui.vercel_ai.response_types import (
     BaseChunk,
     DoneChunk,
+    ErrorChunk,
     FinishChunk,
     StartChunk,
     ToolInputAvailableChunk,
@@ -23,8 +24,16 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     ToolOutputAvailableChunk,
 )
 from pydantic_ai.usage import UsageLimits
+from sqlalchemy.exc import SQLAlchemyError
 
-from pathfinder.ai.agents._phase_decisions import PhaseDecision
+from pathfinder.ai.agents._phase_decisions import (
+    DiscoveryDecision,
+    ExecutionDecision,
+    PhaseDecision,
+    PlanningDecision,
+    ScopingDecision,
+    VerificationDecision,
+)
 from pathfinder.ai.agents.discovery import DISCOVERY_USAGE_LIMITS
 from pathfinder.ai.agents.execution import EXECUTION_USAGE_LIMITS
 from pathfinder.ai.agents.planning import PLANNING_USAGE_LIMITS
@@ -43,6 +52,11 @@ from pathfinder.ai.graph.stream_chunks import (
     phase_finish_chunk,
     phase_start_chunk,
 )
+from pathfinder.ai.memory.autowrite import auto_write_memories
+from pathfinder.ai.memory.retrieval import retrieve_relevant_memories
+from pathfinder.ai.memory.schemas import MemoryValue
+from pathfinder.ai.memory.store import MemoryStore
+from pathfinder.ai.memory.tombstones import TombstoneRepository
 from pathfinder.persistence.repositories import MessagesRepository
 from pathfinder.platform.logging import get_logger
 
@@ -55,6 +69,32 @@ PHASE_USAGE_LIMITS: dict[PhaseName, UsageLimits] = {
     "execution": EXECUTION_USAGE_LIMITS,
     "verification": VERIFICATION_USAGE_LIMITS,
 }
+
+# Each phase agent uses ``output_type=[str, <Decision>]``; plain-prose outputs
+# fall back to a "do not advance" decision so the pipeline halts cleanly and
+# the user still sees the text.
+_DEFAULT_PHASE_DECISIONS: dict[PhaseName, PhaseDecision] = {
+    "scoping": ScopingDecision(next_action="need_more_input"),
+    "discovery": DiscoveryDecision(next_action="need_more_input"),
+    "planning": PlanningDecision(next_action="request_revision"),
+    "execution": ExecutionDecision(next_action="abort"),
+    "verification": VerificationDecision(next_action="abort"),
+}
+
+_DECISION_TYPES: tuple[type[PhaseDecision], ...] = (
+    ScopingDecision,
+    DiscoveryDecision,
+    PlanningDecision,
+    ExecutionDecision,
+    VerificationDecision,
+)
+
+
+def _resolve_decision(raw_output: object, phase: PhaseName) -> PhaseDecision:
+    """Return the structured decision, or the phase's safe default for prose."""
+    if isinstance(raw_output, _DECISION_TYPES):
+        return raw_output
+    return _DEFAULT_PHASE_DECISIONS[phase]
 
 
 class PhaseRunError(RuntimeError):
@@ -85,10 +125,21 @@ def model_id(agent: Agent[Any, Any]) -> str:
     return model.model_name
 
 
+def _is_final_result_tool(name: str) -> bool:
+    """True for the pydantic-ai structured-output tools.
+
+    Plain structured output uses ``final_result``; output unions like
+    ``output_type=[str, Decision]`` use ``final_result_<TypeName>``.
+    """
+    return name == "final_result" or name.startswith("final_result_")
+
+
 def is_chunk_to_drop(chunk: BaseChunk, suppressed_tool_ids: set[str]) -> bool:
     if isinstance(chunk, StartChunk | FinishChunk | DoneChunk):
         return True
-    if isinstance(chunk, ToolInputStartChunk) and chunk.tool_name == "final_result":
+    if isinstance(chunk, ToolInputStartChunk) and _is_final_result_tool(
+        chunk.tool_name,
+    ):
         suppressed_tool_ids.add(chunk.tool_call_id)
         return True
     return bool(
@@ -158,11 +209,15 @@ async def _run_phase_node(
     runtime: Runtime[Context],
     *,
     phase: PhaseName,
+    memories: list[MemoryValue] | None = None,
 ) -> dict[str, Any]:
     agent: Agent[AgentDeps, Any] = PHASE_AGENTS[phase]
     usage_limits = PHASE_USAGE_LIMITS[phase]
     writer = get_stream_writer()
-    deps = build_node_deps(state, runtime.context)
+    # Prefer freshly retrieved memories (scoping); otherwise use the batch
+    # the scoping phase persisted to state so downstream agents see them too.
+    effective_memories = memories if memories is not None else state.retrieved_memories
+    deps = build_node_deps(state, runtime.context, memories=effective_memories)
     run_input = build_run_input(state)
 
     adapter: VercelAIAdapter[AgentDeps, Any] = VercelAIAdapter(
@@ -191,26 +246,69 @@ async def _run_phase_node(
     )
 
     suppressed_tool_ids: set[str] = set()
-    async for chunk in event_stream.transform_stream(
-        adapter.run_stream_native(
-            deps=deps,
-            message_history=state.message_history or None,
-            usage_limits=usage_limits,
+    error_text: str | None = None
+    try:
+        async for chunk in event_stream.transform_stream(
+            adapter.run_stream_native(
+                deps=deps,
+                message_history=state.message_history or None,
+                usage_limits=usage_limits,
+            )
+        ):
+            if isinstance(chunk, ErrorChunk):
+                # pydantic-ai's UI stream swallows run-time exceptions and
+                # emits them as ErrorChunks. Capture the message so the
+                # PhaseRunError below carries the real cause instead of a
+                # blank "no result", and log it with full context.
+                error_text = chunk.error_text
+                logger.error(
+                    "phase stream error chunk",
+                    phase=phase,
+                    chat_id=str(state.chat_id),
+                    user_id=str(state.user_id),
+                    trace_id=state.turn_trace_id,
+                    model=model_id(agent),
+                    error_text=chunk.error_text,
+                )
+            if is_chunk_to_drop(chunk, suppressed_tool_ids):
+                continue
+            writer({"sse": event_stream.encode_event(chunk)})
+    except Exception:
+        logger.exception(
+            "phase stream raised",
+            phase=phase,
+            chat_id=str(state.chat_id),
+            user_id=str(state.user_id),
+            trace_id=state.turn_trace_id,
+            model=model_id(agent),
+            message_history_len=len(state.message_history or []),
         )
-    ):
-        if is_chunk_to_drop(chunk, suppressed_tool_ids):
-            continue
-        writer({"sse": event_stream.encode_event(chunk)})
+        raise
 
     finish_reason = event_stream._finish_reason or "stop"
     writer({"sse": encode_chunk_as_sse(phase_finish_chunk(reason=finish_reason))})
 
     run_result = event_stream._result
     if run_result is None:
-        msg = f"phase {phase} stream errored without AgentRunResult"
+        detail = f": {error_text}" if error_text else ""
+        msg = (
+            f"phase {phase} stream errored without AgentRunResult "
+            f"(finish_reason={finish_reason}){detail}"
+        )
+        logger.error(
+            "phase produced no AgentRunResult",
+            phase=phase,
+            chat_id=str(state.chat_id),
+            user_id=str(state.user_id),
+            trace_id=state.turn_trace_id,
+            model=model_id(agent),
+            finish_reason=finish_reason,
+            error_text=error_text,
+            message_history_len=len(state.message_history or []),
+        )
         raise PhaseRunError(msg)
 
-    decision: PhaseDecision = run_result.output
+    decision = _resolve_decision(run_result.output, phase)
     new_messages = list(run_result.new_messages())
 
     await persist_phase_message(
@@ -243,7 +341,24 @@ async def _run_phase_node(
 async def scoping_node(
     state: PipelineState, runtime: Runtime[Context]
 ) -> dict[str, Any]:
-    return await _run_phase_node(state, runtime, phase="scoping")
+    memories: list[MemoryValue] = []
+    if runtime.context.memory_store is not None and state.user_prompt.strip():
+        mem_store = MemoryStore(store=runtime.context.memory_store)
+        memories = await retrieve_relevant_memories(
+            store=mem_store,
+            user_id=state.user_id,
+            query=state.user_prompt,
+            site_id=state.site_id,
+            top_k=8,
+        )
+    delta = await _run_phase_node(
+        state, runtime, phase="scoping", memories=memories,
+    )
+    # Persist for downstream phases — discovery/planning/execution/verification
+    # read from ``state.retrieved_memories`` via the default branch in
+    # ``_run_phase_node``.
+    delta["retrieved_memories"] = memories
+    return delta
 
 
 async def discovery_node(
@@ -267,4 +382,39 @@ async def execution_node(
 async def verification_node(
     state: PipelineState, runtime: Runtime[Context]
 ) -> dict[str, Any]:
-    return await _run_phase_node(state, runtime, phase="verification")
+    delta = await _run_phase_node(state, runtime, phase="verification")
+    decision = delta["phase_decisions"]["verification"]
+    if (
+        isinstance(decision, VerificationDecision)
+        and decision.next_action == "complete"
+        and runtime.context.memory_store is not None
+    ):
+        await _safe_auto_write(state=state, delta=delta, runtime=runtime)
+    return delta
+
+
+async def _safe_auto_write(
+    *,
+    state: PipelineState,
+    delta: dict[str, Any],
+    runtime: Runtime[Context],
+) -> None:
+    """Best-effort autowrite — never fails the verification turn.
+
+    Autowrite is a side effect: if embedding/IO/DB hiccups, log and return.
+    """
+    if runtime.context.memory_store is None:
+        return
+    mem_store = MemoryStore(store=runtime.context.memory_store)
+    tombstones = TombstoneRepository(
+        session_factory=runtime.context.db_session_factory,
+    )
+    merged_state = state.model_copy(update={
+        k: v for k, v in delta.items() if k in PipelineState.model_fields
+    })
+    try:
+        await auto_write_memories(
+            store=mem_store, tombstones=tombstones, state=merged_state,
+        )
+    except (RuntimeError, ValueError, OSError, SQLAlchemyError) as exc:
+        logger.warning("auto-write memories failed: %s", exc)
