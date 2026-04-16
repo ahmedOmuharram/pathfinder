@@ -1,9 +1,9 @@
 "use client";
 
-import { FormProvider, useFormContext, type UseFormReturn } from "react-hook-form";
 import { extractVocabTree, type VocabOption } from "@/lib/utils/vocab";
 import { extractSpecVocabulary } from "./stepEditorUtils";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
+import type { ParamForm } from "../hooks/useParamForm";
 import { Label } from "@/lib/components/ui/Label";
 import {
   resolveDisplayType,
@@ -22,24 +22,16 @@ import {
 } from "../widgets/PhyleticProfileParam";
 import { AdvancedParamsGroup } from "../widgets/AdvancedParamsGroup";
 import type { ParamWidgetProps } from "../widgets/types";
-import { useDependentParams } from "../hooks/useDependentParams";
+import { buildFieldSchema } from "../schema/paramSchema";
 
 type StepParamFieldsProps = {
-  /** RHF form instance owned by the parent. */
-  form: UseFormReturn;
+  form: ParamForm;
   paramSpecs: ParamSpec[];
   vocabOptions: Record<string, VocabOption[]>;
-  /** Site identifier (e.g. "plasmodb") for dependent param refresh. */
-  siteId: string;
-  /** Normalized record type (e.g. "transcript") for dependent param refresh. */
-  recordType: string;
-  /** WDK search name (e.g. "GenesByTaxon") for dependent param refresh. */
-  searchName: string;
+  dependentOptions: Record<string, VocabOption[]>;
+  dependentLoading: Record<string, boolean>;
+  dependentErrors: Record<string, string | null>;
 };
-
-// ---------------------------------------------------------------------------
-// Widget dispatch — maps displayType to component
-// ---------------------------------------------------------------------------
 
 function renderWidget(displayType: string, props: ParamWidgetProps): React.ReactNode {
   switch (displayType) {
@@ -56,53 +48,16 @@ function renderWidget(displayType: string, props: ParamWidgetProps): React.React
   }
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
 export function StepParamFields({
   form,
   paramSpecs,
   vocabOptions,
-  siteId,
-  recordType,
-  searchName,
+  dependentOptions,
+  dependentLoading,
+  dependentErrors,
 }: StepParamFieldsProps) {
-  return (
-    <FormProvider {...form}>
-      <StepParamFieldsContent
-        form={form}
-        paramSpecs={paramSpecs}
-        vocabOptions={vocabOptions}
-        siteId={siteId}
-        recordType={recordType}
-        searchName={searchName}
-      />
-    </FormProvider>
-  );
-}
-
-function StepParamFieldsContent({
-  form,
-  paramSpecs,
-  vocabOptions,
-  siteId,
-  recordType,
-  searchName,
-}: StepParamFieldsProps) {
-  // Dependent param refresh — driven by form watch internally.
-  const { dependentOptions, dependentLoading, dependentErrors } = useDependentParams({
-    control: form.control,
-    specs: paramSpecs,
-    siteId,
-    recordType,
-    searchName,
-  });
-
-  // 1. Detect composite widgets
   const claimedParamNames = new Set(claimsPhyleticParams(paramSpecs));
 
-  // 2. Separate params into groups
   const { compositeSpecs, normalSpecs, advancedSpecs } = (() => {
     const composite: ParamSpec[] = [];
     const normal: ParamSpec[] = [];
@@ -113,7 +68,7 @@ function StepParamFieldsContent({
         composite.push(spec);
         continue;
       }
-      if (isHiddenParam(spec)) continue; // hidden, handled by hiddenDefaults
+      if (isHiddenParam(spec)) continue;
       if (isAdvancedParam(spec)) {
         advanced.push(spec);
       } else {
@@ -134,21 +89,26 @@ function StepParamFieldsContent({
     );
   }
 
+  const advancedHasErrors = advancedSpecs.some((s) => {
+    const meta = form.getFieldMeta(s.name);
+    return meta != null && meta.errors.length > 0;
+  });
+
   return (
     <div className="space-y-3">
-      {/* Composite widgets */}
       {hasComposite && (
         <PhyleticProfileParam
           specs={compositeSpecs}
           allSpecs={paramSpecs}
+          form={form}
         />
       )}
 
-      {/* Normal params */}
       {normalSpecs.map((spec) => (
         <ParamField
           key={spec.name}
           spec={spec}
+          form={form}
           vocabOptions={vocabOptions}
           dependentOptions={dependentOptions}
           dependentLoading={dependentLoading}
@@ -156,18 +116,13 @@ function StepParamFieldsContent({
         />
       ))}
 
-      {/* Advanced params (collapsible) */}
       {advancedSpecs.length > 0 && (
-        <AdvancedParamsGroup
-          count={advancedSpecs.length}
-          hasErrors={advancedSpecs.some(
-            (s) => s.name !== "" && form.formState.errors[s.name] != null,
-          )}
-        >
+        <AdvancedParamsGroup count={advancedSpecs.length} hasErrors={advancedHasErrors}>
           {advancedSpecs.map((spec) => (
             <ParamField
               key={spec.name}
               spec={spec}
+              form={form}
               vocabOptions={vocabOptions}
               dependentOptions={dependentOptions}
               dependentLoading={dependentLoading}
@@ -180,64 +135,78 @@ function StepParamFieldsContent({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Individual param field — wraps a widget with label, help, dependent status
-// ---------------------------------------------------------------------------
-
 function ParamField({
   spec,
+  form,
   vocabOptions,
   dependentOptions,
   dependentLoading,
   dependentErrors,
 }: {
   spec: ParamSpec;
+  form: ParamForm;
   vocabOptions: Record<string, VocabOption[]>;
   dependentOptions: Record<string, VocabOption[]>;
   dependentLoading: Record<string, boolean>;
   dependentErrors: Record<string, string | null>;
 }) {
-  const { formState: { errors } } = useFormContext();
-
   const paramName = spec.name;
   const label = spec.displayName ?? paramName;
   const options = vocabOptions[paramName] ?? dependentOptions[paramName] ?? [];
   const vocabulary = extractSpecVocabulary(spec);
   const vocabTree = extractVocabTree(vocabulary);
-  const hasFieldError = errors[paramName] != null;
-
-  const fieldWrapperClass = hasFieldError
-    ? "rounded-md border border-destructive/20 bg-destructive/5 p-2"
-    : "";
-  const fieldLabelClass = hasFieldError
-    ? "mb-1 block text-xs font-semibold uppercase tracking-wide text-destructive"
-    : "mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
-
   const displayType = resolveDisplayType(spec);
+  const fieldSchema = buildFieldSchema(spec);
 
   return (
-    <div className={fieldWrapperClass}>
-      <Label className={fieldLabelClass}>
-        {label}
-        {spec.allowEmptyValue === false && (
-          <span className="ml-1 text-destructive">*</span>
-        )}
-      </Label>
-      {renderWidget(displayType, {
-        spec,
-        name: paramName,
-        options,
-        vocabTree,
-      })}
-      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-        {dependentLoading[paramName] === true && <span>Loading options...</span>}
-        {dependentErrors[paramName] != null && dependentErrors[paramName] !== "" && (
-          <span className="text-destructive">{dependentErrors[paramName]}</span>
-        )}
-      </div>
-      {spec.help != null && spec.help !== "" && (
-        <p className="mt-1 text-xs text-muted-foreground">{spec.help}</p>
-      )}
-    </div>
+    <form.Field
+      name={paramName}
+      validators={{
+        onBlur: ({ value }) => {
+          const result = fieldSchema.safeParse(value);
+          if (result.success) return undefined;
+          return result.error.issues[0]?.message ?? "Invalid value";
+        },
+      }}
+    >
+      {(field) => {
+        const fieldApi = field as unknown as ParamWidgetProps["field"];
+        const hasFieldError = field.state.meta.errors.length > 0;
+
+        const fieldWrapperClass = hasFieldError
+          ? "rounded-md border border-destructive/20 bg-destructive/5 p-2"
+          : "";
+        const fieldLabelClass = hasFieldError
+          ? "mb-1 block text-xs font-semibold uppercase tracking-wide text-destructive"
+          : "mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground";
+
+        return (
+          <div className={fieldWrapperClass}>
+            <Label className={fieldLabelClass}>
+              {label}
+              {spec.allowEmptyValue === false && (
+                <span className="ml-1 text-destructive">*</span>
+              )}
+            </Label>
+            {renderWidget(displayType, {
+              spec,
+              name: paramName,
+              options,
+              vocabTree,
+              field: fieldApi,
+            })}
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+              {dependentLoading[paramName] === true && <span>Loading options...</span>}
+              {dependentErrors[paramName] != null && dependentErrors[paramName] !== "" && (
+                <span className="text-destructive">{dependentErrors[paramName]}</span>
+              )}
+            </div>
+            {spec.help != null && spec.help !== "" && (
+              <p className="mt-1 text-xs text-muted-foreground">{spec.help}</p>
+            )}
+          </div>
+        );
+      }}
+    </form.Field>
   );
 }

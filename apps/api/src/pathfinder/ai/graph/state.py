@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from operator import add
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai.messages import ModelMessage
 
-from pathfinder.ai.agents._phase_decisions import PhaseDecision
 from pathfinder.ai.agents.state import SearchOverview
+from pathfinder.ai.graph.messages_reducer import append_messages_safely
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
@@ -78,10 +77,15 @@ class PipelineState(BaseModel):
     turn_created_at: str | None = None
 
     current_phase: PhaseName | None = None
-    phase_decisions: dict[PhaseName, PhaseDecision] = Field(default_factory=dict)
-    retry_counts: dict[PhaseName, int] = Field(default_factory=dict)
+    last_routing_reason: str | None = None
+    supervisor_call_count: int = 0
+    phase_call_counts: dict[PhaseName, int] = Field(default_factory=dict)
+    last_assistant_prose: str = ""
+    last_verification_message_id: UUID | None = None
 
-    message_history: Annotated[list[ModelMessage], add] = Field(default_factory=list)
+    message_history: Annotated[list[ModelMessage], append_messages_safely] = Field(
+        default_factory=list,
+    )
 
     problem_frame: ProblemFrame | None = None
     discovered_searches: dict[str, SearchOverview] = Field(default_factory=dict)

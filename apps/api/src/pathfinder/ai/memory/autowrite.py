@@ -29,7 +29,7 @@ async def auto_write_memories(
 ) -> int:
     """Write successful turn artifacts into the user's memory namespaces.
 
-    Called from ``verification_node`` when ``decision.next_action == "complete"``.
+    Called from the supervisor when it routes to ``end`` after verification.
     Deterministic keys so successive turns update rather than duplicate.
     Returns the number of memories written.
 
@@ -160,8 +160,7 @@ async def _check_verifications_threshold(
             Chat.user_id == user_id,
             Message.role == "assistant",
             Message.metadata_["phase"].as_string() == "verification",
-            Message.metadata_["phaseDecision"]["next_action"].as_string()
-            == "complete",
+            Message.metadata_["turnCompleted"].as_boolean().is_(True),
         )
         .limit(threshold)
     ).subquery()

@@ -8,13 +8,17 @@ const sharedDir = fileURLToPath(
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@": srcDir,
-      "@pathfinder/shared": sharedDir,
-    },
+    alias: [
+      { find: "@/", replacement: `${srcDir}/` },
+      {
+        find: /^@pathfinder\/shared\/generated\/(.*)$/,
+        replacement: `${sharedDir}/generated/$1`,
+      },
+      { find: "@pathfinder/shared", replacement: sharedDir },
+    ],
   },
   test: {
-    setupFiles: ["./vitest.setup.ts"],
+    setupFiles: ["./vitest.setup.ts", "./vitest.msw-setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["e2e/**", "node_modules/**"],
     coverage: {

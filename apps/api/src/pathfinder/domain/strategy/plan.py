@@ -216,7 +216,7 @@ class StrategyPlan(CamelModel):
           the existing ``replan`` behaviour for unknown causes.
 
         :param planning_attempts: How many times planning has been entered
-            for this turn (``pipeline.retry_counts['planning']``).  Used to
+            for this turn (``state.phase_call_counts['planning']``). Used to
             decide whether a zero-result run has already exhausted the
             same-catalog replanning escape hatch.
         """

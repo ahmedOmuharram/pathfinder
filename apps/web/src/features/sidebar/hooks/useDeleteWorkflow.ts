@@ -1,40 +1,44 @@
 "use client";
 
 /**
- * Delete / restore / permanent-delete workflows for the conversation sidebar.
+ * Delete / dismiss / restore workflows for the conversation sidebar.
  *
- * Owns delete-confirmation modal state (soft-delete), permanent-delete
- * confirmation (hard-delete from WDK), and the restore-from-dismissed flow.
- *
- * Uses useQueryClient() directly for optimistic cache updates.
+ * - Dismiss (soft-delete): hides the chat from the main list, shows it
+ *   in the dismissed list.
+ * - Restore: un-dismisses a previously-dismissed chat.
+ * - Permanent delete: hard-deletes a dismissed chat (and its messages)
+ *   from the backend.
  */
 
-import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { deleteStrategy, restoreStrategy, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
-import { toUserMessage } from "@/lib/api/errors";
-import { useSessionStore } from "@/state/useSessionStore";
-import { useSettingsStore } from "@/state/useSettingsStore";
-import { useStrategyStore } from "@/state/strategy/store";
-import type { Strategy } from "@pathfinder/shared";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
+import {
+  chatListOptions,
+  deleteChat,
+  dismissChat,
+  dismissedChatsOptions,
+  restoreChat,
+  type ChatListItem,
+} from "@/lib/api/chats";
+import { toUserMessage } from "@/lib/api/errors";
 
 interface UseDeleteWorkflowArgs {
   siteId: string;
   reportError: (message: string) => void;
+  activeChatId: string | null;
 }
 
 export interface DeleteWorkflow {
-  // Soft-delete
   deleteTarget: ConversationItem | null;
   isDeleting: boolean;
   setDeleteTarget: (item: ConversationItem | null) => void;
   confirmDelete: () => Promise<void>;
 
-  // Restore dismissed
-  handleRestore: (strategyId: string) => Promise<void>;
+  handleRestore: (chatId: string) => Promise<void>;
 
-  // Permanent delete (dismissed -> hard-delete from PathFinder + WDK)
   permanentDeleteTarget: string | null;
   setPermanentDeleteTarget: (id: string | null) => void;
   confirmPermanentDelete: () => Promise<void>;
@@ -43,68 +47,51 @@ export interface DeleteWorkflow {
 export function useDeleteWorkflow({
   siteId,
   reportError,
+  activeChatId,
 }: UseDeleteWorkflowArgs): DeleteWorkflow {
-  const strategyId = useSessionStore((s) => s.strategyId);
-  const setStrategyId = useSessionStore((s) => s.setStrategyId);
-  const bumpChatPreviewVersion = useSessionStore((s) => s.bumpChatPreviewVersion);
-  const deleteFromWdk = useSettingsStore((s) => s.deleteFromWdk);
-  const clearStrategy = useStrategyStore((s) => s.clear);
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const [deleteTarget, setDeleteTarget] = useState<ConversationItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<string | null>(
-    null,
-  );
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<
+    string | null
+  >(null);
 
-  const listKey = strategiesListOptions(siteId).queryKey;
-  const dismissedKey = dismissedStrategiesOptions(siteId).queryKey;
+  const listKey = chatListOptions(siteId).queryKey;
+  const dismissedKey = dismissedChatsOptions(siteId).queryKey;
 
-  // --- Soft-delete ---
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      const si = deleteTarget.strategyItem;
-      if (si) {
-        // Optimistic: remove from main list.
-        queryClient.setQueryData<Strategy[]>(listKey, (old) =>
-          (old ?? []).filter((entry) => entry.id !== si.id),
+      const target = deleteTarget;
+      // Optimistic: remove from active list, add to dismissed list.
+      queryClient.setQueryData<ChatListItem[]>(listKey, (old) =>
+        (old ?? []).filter((c) => c.id !== target.id),
+      );
+      queryClient.setQueryData<ChatListItem[]>(dismissedKey, (old) => [
+        target.chat,
+        ...(old ?? []).filter((c) => c.id !== target.id),
+      ]);
+      if (activeChatId === target.id) {
+        router.push("/chat");
+      }
+      try {
+        await dismissChat(target.id);
+      } catch (err) {
+        // Rollback: put back into active list, remove from dismissed.
+        queryClient.setQueryData<ChatListItem[]>(listKey, (old) => [
+          target.chat,
+          ...(old ?? []).filter((c) => c.id !== target.id),
+        ]);
+        queryClient.setQueryData<ChatListItem[]>(dismissedKey, (old) =>
+          (old ?? []).filter((c) => c.id !== target.id),
         );
-
-        // For WDK-linked strategies that will be soft-deleted (dismissed),
-        // optimistically add to the dismissed list.
-        const willSoftDelete = si.wdkStrategyId != null && !deleteFromWdk;
-        if (willSoftDelete) {
-          queryClient.setQueryData<Strategy[]>(dismissedKey, (old) => [
-            ...(old ?? []),
-            si,
-          ]);
-        }
-
-        // If deleting active strategy, reset active state.
-        if (strategyId === si.id) {
-          bumpChatPreviewVersion();
-          clearStrategy();
-          setStrategyId(null);
-        }
-
-        try {
-          await deleteStrategy(si.id, deleteFromWdk);
-        } catch (e) {
-          // Rollback optimistic dismissed addition on failure.
-          if (willSoftDelete) {
-            queryClient.setQueryData<Strategy[]>(dismissedKey, (old) =>
-              (old ?? []).filter((s) => s.id !== si.id),
-            );
-          }
-          reportError(
-            toUserMessage(e, "Failed to delete strategy. Please try again."),
-          );
-        } finally {
-          void queryClient.invalidateQueries({ queryKey: listKey });
-          void queryClient.invalidateQueries({ queryKey: dismissedKey });
-        }
+        reportError(toUserMessage(err, "Failed to dismiss conversation."));
+      } finally {
+        void queryClient.invalidateQueries({ queryKey: listKey });
+        void queryClient.invalidateQueries({ queryKey: dismissedKey });
       }
     } finally {
       setIsDeleting(false);
@@ -112,35 +99,29 @@ export function useDeleteWorkflow({
     }
   };
 
-  // --- Restore dismissed ---
-  const handleRestore = async (strategyIdToRestore: string) => {
-      try {
-        const restored = await restoreStrategy(strategyIdToRestore);
-        queryClient.setQueryData<Strategy[]>(dismissedKey, (old) =>
-          (old ?? []).filter((s) => s.id !== strategyIdToRestore),
-        );
-        queryClient.setQueryData<Strategy[]>(listKey, (old) => [
-          restored,
-          ...(old ?? []).filter((s) => s.id !== restored.id),
-        ]);
-      } catch (err) {
-        reportError(toUserMessage(err, "Failed to restore strategy."));
-      } finally {
-        void queryClient.invalidateQueries({ queryKey: listKey });
-        void queryClient.invalidateQueries({ queryKey: dismissedKey });
+  const handleRestore = async (chatId: string) => {
+    try {
+      await restoreChat(chatId);
+    } catch (err) {
+      reportError(toUserMessage(err, "Failed to restore conversation."));
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: listKey });
+      void queryClient.invalidateQueries({ queryKey: dismissedKey });
     }
   };
 
-  // --- Permanent delete (dismissed strategy -> hard-delete from WDK) ---
   const confirmPermanentDelete = async () => {
-    if (permanentDeleteTarget == null) return;
+    if (permanentDeleteTarget === null) return;
+    const id = permanentDeleteTarget;
     try {
-      await deleteStrategy(permanentDeleteTarget, true);
-      queryClient.setQueryData<Strategy[]>(dismissedKey, (old) =>
-        (old ?? []).filter((s) => s.id !== permanentDeleteTarget),
+      await deleteChat(id);
+      queryClient.setQueryData<ChatListItem[]>(dismissedKey, (old) =>
+        (old ?? []).filter((c) => c.id !== id),
       );
     } catch (err) {
-      reportError(toUserMessage(err, "Failed to permanently delete strategy."));
+      reportError(
+        toUserMessage(err, "Failed to permanently delete conversation."),
+      );
     } finally {
       void queryClient.invalidateQueries({ queryKey: dismissedKey });
       setPermanentDeleteTarget(null);

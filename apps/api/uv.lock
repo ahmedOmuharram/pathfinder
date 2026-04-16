@@ -2485,6 +2485,12 @@ dependencies = [
 [package.metadata]
 requires-dist = [{ name = "pydantic", specifier = ">=2.9.0" }]
 
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.20.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
+]
+
 [[package]]
 name = "pathspec"
 version = "1.0.4"

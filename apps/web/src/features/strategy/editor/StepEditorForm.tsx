@@ -18,7 +18,11 @@ export function StepEditorForm({ state }: StepEditorFormProps) {
           {state.stepValidationError}
         </div>
       )}
-      <StepNameFields oldName={state.oldName ?? ""} />
+      <StepNameFields
+        oldName={state.oldName ?? ""}
+        name={state.name ?? ""}
+        onNameChange={state.setName}
+      />
 
       {(state.kind === "search" || state.kind === "transform") && (
         <>
@@ -46,9 +50,9 @@ export function StepEditorForm({ state }: StepEditorFormProps) {
             form={state.form}
             paramSpecs={state.paramSpecs}
             vocabOptions={state.vocabOptions}
-            siteId={state.siteId}
-            recordType={state.recordType ?? ""}
-            searchName={state.searchName}
+            dependentOptions={state.dependentOptions}
+            dependentLoading={state.dependentLoading}
+            dependentErrors={state.dependentErrors}
           />
         </>
       )}

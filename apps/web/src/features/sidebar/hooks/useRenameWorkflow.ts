@@ -3,17 +3,20 @@
 /**
  * Rename workflow for the conversation sidebar.
  *
- * Owns inline-rename UI state (which item is being renamed, the
- * current rename value) and commits renames to the API.
- *
- * Uses useQueryClient() directly for cache invalidation after rename.
+ * Owns inline-rename UI state (which item is being renamed, the current
+ * rename value) and commits renames to the chats API.
  */
 
-import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { updateStrategy as updateStrategyApi, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
-import { toUserMessage } from "@/lib/api/errors";
+import { useState } from "react";
+
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
+import {
+  chatListOptions,
+  dismissedChatsOptions,
+  renameChat,
+} from "@/lib/api/chats";
+import { toUserMessage } from "@/lib/api/errors";
 
 interface UseRenameWorkflowArgs {
   siteId: string;
@@ -44,21 +47,27 @@ export function useRenameWorkflow({
 
   const commitRename = async (item: ConversationItem) => {
     const next = renameValue.trim();
-    if (!next || next === item.title) {
+    if (next === "" || next === item.title) {
       setRenamingId(null);
       return;
     }
     try {
-      await updateStrategyApi(item.id, { name: next });
-      void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
-      void queryClient.invalidateQueries({ queryKey: dismissedStrategiesOptions(siteId).queryKey });
+      await renameChat(item.id, next);
+      void queryClient.invalidateQueries({
+        queryKey: chatListOptions(siteId).queryKey,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: dismissedChatsOptions(siteId).queryKey,
+      });
     } catch (err) {
-      reportError(toUserMessage(err, "Failed to rename."));
+      reportError(toUserMessage(err, "Failed to rename conversation."));
     }
     setRenamingId(null);
   };
 
-  const cancelRename = () => setRenamingId(null);
+  const cancelRename = () => {
+    setRenamingId(null);
+  };
 
   return {
     renamingId,

@@ -6,6 +6,8 @@ import type {
   MemorySearchResponse,
 } from "@pathfinder/shared";
 
+import { getAuthHeaders } from "@/lib/api/http";
+
 const BASE = "/api/v1/memories";
 
 export async function listMemories(opts?: {
@@ -16,7 +18,10 @@ export async function listMemories(opts?: {
   if (opts?.limit != null) params.set("limit", String(opts.limit));
   if (opts?.offset != null) params.set("offset", String(opts.offset));
   const url = params.size > 0 ? `${BASE}?${params.toString()}` : BASE;
-  const res = await fetch(url, { credentials: "include" });
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: getAuthHeaders(),
+  });
   if (!res.ok) throw new Error(`listMemories: ${res.status}`);
   return (await res.json()) as MemoryListResponse;
 }
@@ -26,7 +31,7 @@ export async function searchMemories(
 ): Promise<MemorySearchResponse> {
   const res = await fetch(
     `${BASE}/search?q=${encodeURIComponent(query)}`,
-    { credentials: "include" },
+    { credentials: "include", headers: getAuthHeaders() },
   );
   if (!res.ok) throw new Error(`searchMemories: ${res.status}`);
   return (await res.json()) as MemorySearchResponse;
@@ -42,7 +47,7 @@ export async function editMemory(
     {
       method: "PATCH",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders({ contentType: "application/json" }),
       body: JSON.stringify(body),
     },
   );
@@ -56,7 +61,11 @@ export async function deleteMemory(
 ): Promise<void> {
   const res = await fetch(
     `${BASE}/${encodeURIComponent(key)}?kind=${encodeURIComponent(kind)}`,
-    { method: "DELETE", credentials: "include" },
+    {
+      method: "DELETE",
+      credentials: "include",
+      headers: getAuthHeaders(),
+    },
   );
   if (!res.ok && res.status !== 204) {
     throw new Error(`deleteMemory: ${res.status}`);

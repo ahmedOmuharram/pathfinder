@@ -24,9 +24,6 @@ export function useStepEditorState({
   onUpdate,
   onClose,
 }: UseStepEditorStateArgs) {
-  // ---------------------------------------------------------------------------
-  // Sub-hooks
-  // ---------------------------------------------------------------------------
   const metadata = useStepMetadata({ step });
 
   const recordTypeState = useStepRecordType({
@@ -59,26 +56,25 @@ export function useStepEditorState({
     paramSpecs: paramState.paramSpecs,
   });
 
-  // ---------------------------------------------------------------------------
-  // RHF form instance — owned here, passed to StepParamFields as prop.
-  // ---------------------------------------------------------------------------
   const form = useParamForm(paramState.paramSpecs);
 
   const getDirtyFields = (): Partial<Record<string, boolean>> => {
-    const fields = form.formState.dirtyFields;
-    return fields as Partial<Record<string, boolean>>;
+    const meta = form.state.fieldMeta;
+    const result: Partial<Record<string, boolean>> = {};
+    for (const [name, fieldMeta] of Object.entries(meta)) {
+      if (fieldMeta?.isDirty === true) {
+        result[name] = true;
+      }
+    }
+    return result;
   };
 
-  const setFieldError = (name: string, error: { type: string; message: string }) => {
-    form.setError(name, error);
+  const setFieldError = (_name: string, _error: { type: string; message: string }) => {
+    // Server-side field errors are displayed via the validation.error state
+    // in the step editor rather than per-field TanStack Form errors.
+    // The save handler already calls setError() with formatted WDK messages.
   };
 
-
-  // ---------------------------------------------------------------------------
-  // Save handler (extracted concern).
-  // Built lazily at invocation time (not during render) so that
-  // getDirtyFields/setFieldError can safely read from the formRef.
-  // ---------------------------------------------------------------------------
   const handleSave = async () => {
     const handler = buildStepSaveHandler({
       step,
@@ -105,20 +101,14 @@ export function useStepEditorState({
     await handler();
   };
 
-  // ---------------------------------------------------------------------------
-  // Public surface -- same shape as before for consumers
-  // ---------------------------------------------------------------------------
   return {
-    // Step metadata
     kind: metadata.kind,
     stepValidationError: metadata.stepValidationError,
 
-    // Name fields
     oldName: metadata.oldName,
     name: metadata.name,
     setName: metadata.setName,
 
-    // Search selector
     siteId,
     editableSearchName: searchState.editableSearchName,
     setEditableSearchName: searchState.setEditableSearchName,
@@ -127,7 +117,7 @@ export function useStepEditorState({
     isSearchNameAvailable: searchState.isSearchNameAvailable,
     searchOptions: searchState.searchOptions,
     filteredSearchOptions: searchState.filteredSearchOptions,
-    // Record type
+
     recordTypeValue: recordTypeState.recordTypeValue,
     setRecordTypeValue: recordTypeState.setRecordTypeValue,
     normalizedRecordTypeValue: recordTypeState.normalizedRecordTypeValue,
@@ -137,7 +127,6 @@ export function useStepEditorState({
     filteredRecordTypes: recordTypeState.filteredRecordTypes,
     recordType,
 
-    // Parameters
     paramSpecs: paramState.paramSpecs,
     parameters: paramState.parameters,
     setParameters: paramState.setParameters,
@@ -148,21 +137,17 @@ export function useStepEditorState({
     dependentErrors: paramState.dependentErrors,
     validationErrorKeys: validation.validationErrorKeys,
 
-    // Validation / loading
     error: validation.error,
     setError: validation.setError,
     isLoading: paramState.isLoading,
 
-    // Combine operator
     operatorValue: metadata.operatorValue,
     setOperatorValue: metadata.setOperatorValue,
     colocationParams: metadata.colocationParams,
     setColocationParams: metadata.setColocationParams,
 
-    // Form integration
     form,
 
-    // Actions
     handleSave,
   };
 }

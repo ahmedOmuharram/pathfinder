@@ -5,5 +5,8 @@
   "workspaces": [
     "apps/web",
     "packages/shared-ts"
-  ]
+  ],
+  "scripts": {
+    "generate:types": "docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml exec api curl -s http://localhost:8000/openapi.json | python3 -m json.tool > packages/spec/openapi.json && yarn --cwd packages/shared-ts generate"
+  }
 }

@@ -42,3 +42,17 @@ class MessagesRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def mark_turn_completed(self, message_id: UUID) -> None:
+        """Flag an assistant message as the verification-complete row of its turn.
+
+        The autowrite path reads ``metadata.turnCompleted == true`` on
+        verification messages to count successful turns without consulting
+        the in-flight pipeline state.
+        """
+        message = await self.session.get(Message, message_id)
+        if message is None:
+            return
+        updated = dict(message.metadata_ or {})
+        updated["turnCompleted"] = True
+        message.metadata_ = updated

@@ -3,14 +3,12 @@ import { Modal } from "@/lib/components/Modal";
 import { Button } from "@/lib/components/ui/Button";
 import { StrategyGraph } from "@/features/strategy/graph/components/StrategyGraph";
 import type { Strategy } from "@pathfinder/shared";
-import type { ToastItem } from "@/lib/hooks/useToasts";
 
 interface GraphEditorModalProps {
   open: boolean;
   onClose: () => void;
   strategy: Strategy | null;
   siteId: string;
-  onToast: (toast: Omit<ToastItem, "id">) => void;
 }
 
 export function GraphEditorModal({
@@ -18,7 +16,6 @@ export function GraphEditorModal({
   onClose,
   strategy,
   siteId,
-  onToast,
 }: GraphEditorModalProps) {
   return (
     <Modal open={open} onClose={onClose} title="Graph Editor" maxWidth="max-w-[95vw]">
@@ -33,7 +30,7 @@ export function GraphEditorModal({
           </Button>
         </div>
         <div className="min-h-0 flex-1">
-          <StrategyGraph strategy={strategy} siteId={siteId} onToast={onToast} />
+          <StrategyGraph strategy={strategy} siteId={siteId} />
         </div>
       </div>
     </Modal>

@@ -7,10 +7,6 @@ import type { useStrategyGraph } from "@/features/strategy/graph/hooks/useStrate
 export type StrategyGraphContextValue = ReturnType<typeof useStrategyGraph> & {
   strategy: Strategy | null;
   siteId: string;
-  onToast?: (toast: {
-    type: "success" | "error" | "warning" | "info";
-    message: string;
-  }) => void;
 };
 
 const Ctx = createContext<StrategyGraphContextValue | null>(null);

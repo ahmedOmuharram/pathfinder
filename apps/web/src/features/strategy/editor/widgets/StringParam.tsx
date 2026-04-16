@@ -1,24 +1,22 @@
-import { useFormContext } from "react-hook-form";
 import { cn } from "@/lib/utils/cn";
 import type { ParamWidgetProps } from "./types";
 
-export function StringParam({ spec, name }: ParamWidgetProps) {
-  const {
-    register,
-    formState: { errors },
-  } = useFormContext();
-
+export function StringParam({ spec, name, field }: ParamWidgetProps) {
   const isNumeric =
     spec.isNumber === true ||
     ["number", "integer", "float"].includes(spec.type.toLowerCase());
 
-  const error = errors[name];
-  const hasError = error != null;
+  const errors = field.state.meta.errors;
+  const hasError = errors.length > 0;
+  const errorMessage = hasError ? String(errors[0]) : null;
 
   return (
     <div>
       <input
-        {...register(name)}
+        name={name}
+        value={field.state.value as string}
+        onChange={(e) => field.handleChange(e.target.value)}
+        onBlur={field.handleBlur}
         type={isNumeric ? "number" : "text"}
         min={isNumeric && spec.min != null ? spec.min : undefined}
         max={isNumeric && spec.max != null ? spec.max : undefined}
@@ -31,9 +29,9 @@ export function StringParam({ spec, name }: ParamWidgetProps) {
           hasError ? "border-destructive/30 bg-destructive/5" : "border-border",
         )}
       />
-      {hasError && error.message != null && (
+      {hasError && errorMessage != null && (
         <p id={`${name}-error`} role="alert" className="mt-1 text-xs text-destructive">
-          {String(error.message)}
+          {errorMessage}
         </p>
       )}
     </div>

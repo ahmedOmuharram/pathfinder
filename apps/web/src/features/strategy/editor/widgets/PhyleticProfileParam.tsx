@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useFormContext } from "react-hook-form";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
+import type { ParamForm } from "../hooks/useParamForm";
 import {
   type PhyleticNode,
   type TriState,
@@ -24,20 +24,13 @@ export { claimsPhyleticParams } from "./phyleticProfileLogic";
 type PhyleticProfileParamProps = {
   specs: ParamSpec[];
   allSpecs: ParamSpec[];
+  form: ParamForm;
 };
-
-// ---------------------------------------------------------------------------
-// Extract vocab from spec
-// ---------------------------------------------------------------------------
 
 function findSpecVocab(specs: ParamSpec[], name: string): unknown {
   const spec = specs.find((s) => s.name === name);
   return spec?.vocabulary;
 }
-
-// ---------------------------------------------------------------------------
-// Tree node component
-// ---------------------------------------------------------------------------
 
 type TreeNodeProps = {
   node: PhyleticNode;
@@ -113,36 +106,26 @@ function TreeNodeRow({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
 export function PhyleticProfileParam({
   specs,
+  form,
 }: PhyleticProfileParamProps) {
-  const { setValue, getValues } = useFormContext();
-
-  // Read form values for tree building
   const termMapVocab =
-    (getValues("phyletic_term_map") as unknown) ?? findSpecVocab(specs, "phyletic_term_map");
+    (form.getFieldValue("phyletic_term_map") as unknown) ?? findSpecVocab(specs, "phyletic_term_map");
   const indentMapVocab =
-    (getValues("phyletic_indent_map") as unknown) ?? findSpecVocab(specs, "phyletic_indent_map");
+    (form.getFieldValue("phyletic_indent_map") as unknown) ?? findSpecVocab(specs, "phyletic_indent_map");
 
   const tree = buildPhyleticTree(termMapVocab, indentMapVocab);
-
   const codeToLabel = buildCodeToLabel(tree);
 
-  // Initialize state from current profile_pattern in form
-  const initialPattern = String(getValues("profile_pattern") ?? "");
+  const initialPattern = String(form.getFieldValue("profile_pattern"));
   const [states, setStates] = useState<Map<string, TriState>>(() =>
     decodeProfilePattern(initialPattern),
   );
 
   const [expanded, setExpanded] = useState<Set<string>>(() => defaultExpanded(tree, 3));
-
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Compute summary counts
   const allCodes = collectCodes(tree);
   const summary = (() => {
     let included = 0;
@@ -168,12 +151,11 @@ export function PhyleticProfileParam({
         next.set(code, newState);
       }
 
-      // Update form fields via setValue
       const pattern = encodeProfilePattern(next);
       const { included, excluded } = buildSpeciesLists(next, codeToLabel);
-      setValue("profile_pattern", pattern, { shouldDirty: true });
-      setValue("included_species", included, { shouldDirty: true });
-      setValue("excluded_species", excluded, { shouldDirty: true });
+      form.setFieldValue("profile_pattern", pattern);
+      form.setFieldValue("included_species", included);
+      form.setFieldValue("excluded_species", excluded);
 
       return next;
     });
@@ -193,7 +175,6 @@ export function PhyleticProfileParam({
 
   return (
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-      {/* Search */}
       <input
         type="text"
         placeholder="Search species..."
@@ -201,8 +182,6 @@ export function PhyleticProfileParam({
         onChange={(e) => setSearchQuery(e.target.value)}
         className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
       />
-
-      {/* Legend */}
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span>
           <span className="text-muted-foreground font-bold">{"\u25CB"}</span>{" "}
@@ -215,8 +194,6 @@ export function PhyleticProfileParam({
           <span className="text-red-500 font-bold">{"\u2717"}</span> exclude
         </span>
       </div>
-
-      {/* Tree */}
       <div className="max-h-80 overflow-y-auto">
         {tree.map((node) => (
           <TreeNodeRow
@@ -230,8 +207,6 @@ export function PhyleticProfileParam({
           />
         ))}
       </div>
-
-      {/* Summary footer */}
       <div className="text-xs text-muted-foreground border-t border-border pt-2">
         {summary.included} included &middot; {summary.excluded} excluded &middot;{" "}
         {summary.unconstrained} unconstrained

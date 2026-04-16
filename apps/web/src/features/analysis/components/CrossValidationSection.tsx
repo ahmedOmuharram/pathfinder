@@ -27,7 +27,7 @@ const SUMMARY_METRICS: {
 ];
 
 export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
-  const overfitting = OVERFITTING_STYLES[cv.overfittingLevel] ?? {
+  const overfitting = OVERFITTING_STYLES[cv.overfittingLevel ?? "low"] ?? {
     label: "Low",
     className: "text-green-600 dark:text-green-400",
   };
@@ -47,7 +47,7 @@ export function CrossValidationSection({ cv }: CrossValidationSectionProps) {
               {overfitting.label}
             </Badge>
             <span className="font-mono text-xs text-muted-foreground">
-              ({(cv.overfittingScore * 100).toFixed(0)}%)
+              ({((cv.overfittingScore ?? 0) * 100).toFixed(0)}%)
             </span>
           </div>
         </Card>

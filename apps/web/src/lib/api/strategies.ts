@@ -1,4 +1,3 @@
-import { queryOptions } from "@tanstack/react-query";
 import type { StrategyPlan, Strategy, PlanArtifact } from "@pathfinder/shared";
 import { z } from "zod";
 import { APIError, requestJson, requestVoid } from "./http";
@@ -146,24 +145,6 @@ export async function deleteStrategy(
   );
 }
 
-export async function restoreStrategy(strategyId: string): Promise<Strategy> {
-  const raw = await requestJson(
-    StrategySchema,
-    `/api/v1/strategies/${strategyId}/restore`,
-    { method: "POST" },
-  );
-  return withDefaults(raw as Parameters<typeof withDefaults>[0]);
-}
-
-export async function listDismissedStrategies(siteId: string): Promise<Strategy[]> {
-  const raw = await requestJson(
-    StrategyListItemListSchema,
-    "/api/v1/strategies/dismissed",
-    { query: { siteId } },
-  );
-  return raw.map((s) => withDefaults(s as Parameters<typeof withDefaults>[0]));
-}
-
 export async function computeStepCounts(
   siteId: string,
   plan: StrategyPlan,
@@ -205,16 +186,3 @@ export async function undoTurn(
   );
 }
 
-export function strategiesListOptions(siteId: string) {
-  return queryOptions({
-    queryKey: ["strategies", "list", siteId] as const,
-    queryFn: () => syncWdkStrategies(siteId),
-  });
-}
-
-export function dismissedStrategiesOptions(siteId: string) {
-  return queryOptions({
-    queryKey: ["strategies", "dismissed", siteId] as const,
-    queryFn: () => listDismissedStrategies(siteId),
-  });
-}

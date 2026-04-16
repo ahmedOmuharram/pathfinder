@@ -11,7 +11,6 @@ from pathfinder.ai.agents._instructions import (
     pinned_problem_frame,
     pinned_user_memories,
 )
-from pathfinder.ai.agents._phase_decisions import ScopingDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -40,25 +39,16 @@ improve the problem frame. Keep notes short and source-grounded.
 4. **Inspect current work when relevant**: Use `get_strategy` if the user is \
 editing or extending an existing strategy.
 
-5. **Save the frame**: Call `set_problem_frame` exactly once before producing \
-your final output — it captures the authoritative problem statement that \
-downstream phases read.
+5. **Save the frame**: Call `set_problem_frame` exactly once before ending \
+your turn — it captures the authoritative problem statement that downstream \
+phases read.
 
-## Final Output (STRICT — follow exactly)
+## Output
 
-You MUST produce two things every turn, in this order:
-
-1. **Prose**: a short, user-facing message (the user sees this). Confirm the \
-problem, state assumptions, and either ask the blocking questions or \
-describe what happens next.
-2. **Decision**: finalize with a `ScopingDecision` object whose only field \
-is `next_action`:
-  - `advance_to_discovery`: user intent is clear and concrete candidate \
-searches exist.
-  - `advance_to_planning`: user intent is so constrained that discovery \
-would be superfluous.
-  - `need_more_input`: you cannot proceed without the user clarifying \
-something. Your prose must contain the blocking questions.
+End your turn with concise prose describing what you did (assumptions, \
+blocking questions, or the framed problem statement). A supervisor will read \
+your prose and decide whether to continue to discovery, skip straight to \
+planning, or end the turn to wait for the user. You do not route; you write.
 
 NEVER skip the prose. A reply that is only tool calls with no visible text \
 is a failure — the user sees a blank assistant message.
@@ -68,15 +58,16 @@ is a failure — the user sees a blank assistant message.
 - Do NOT use WDK catalog searches, WDK parameter tools, strategy-editing \
 tools, or plan tools in this phase.
 - Do NOT create, submit, approve, or execute a plan.
-- If the request is clear enough, state the problem frame and move forward.
-- If it is not clear enough, ask the blocking questions in your prose, \
-then return `next_action="need_more_input"`. The next user answer will \
-restart scoping with the saved frame.
+- If the request is clear enough, state the problem frame and let the \
+supervisor advance.
+- If it is not clear enough, ask the blocking questions in your prose. The \
+supervisor will end the turn and the user's next reply will re-enter scoping \
+with the saved frame.
 """
 
-scoping_agent: Agent[AgentDeps, str | ScopingDecision] = Agent(
+scoping_agent: Agent[AgentDeps, str] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=[str, ScopingDecision],
+    output_type=str,
     deps_type=AgentDeps,
     instructions=_SCOPING_INSTRUCTIONS,
     toolsets=[build_toolset()],

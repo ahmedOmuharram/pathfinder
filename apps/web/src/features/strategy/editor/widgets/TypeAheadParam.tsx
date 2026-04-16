@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import { useOnClickOutside } from "usehooks-ts";
-import { Controller, useFormContext } from "react-hook-form";
 import { useDebouncedCallback } from "use-debounce";
 import { cn } from "@/lib/utils/cn";
 import { isMultiParam } from "@/features/strategy/parameters/spec";
@@ -9,49 +8,37 @@ import type { VocabOption } from "@/lib/utils/vocab";
 
 const MAX_VISIBLE = 50;
 
-export function TypeAheadParam({ spec, name, options }: ParamWidgetProps) {
-  const { control } = useFormContext();
+export function TypeAheadParam({ spec, name, options, field }: ParamWidgetProps) {
   const multi = isMultiParam(spec);
+  const errors = field.state.meta.errors;
+  const hasError = errors.length > 0;
+  const errorMessage = hasError ? String(errors[0]) : undefined;
 
-  return (
-    <Controller
+  return multi ? (
+    <MultiTypeAhead
+      onBlur={field.handleBlur}
       name={name}
-      control={control}
-      render={({ field, fieldState }) => {
-        const hasError = fieldState.error != null;
-        const errorMessage = fieldState.error?.message;
-
-        const common = {
-          onBlur: field.onBlur,
-          fieldRef: field.ref,
-          name,
-          options,
-          hasError,
-          errorMessage,
-        };
-
-        return multi ? (
-          <MultiTypeAhead
-            {...common}
-            value={Array.isArray(field.value) ? (field.value as string[]) : []}
-            onChange={(v) => field.onChange(v)}
-          />
-        ) : (
-          <SingleTypeAhead
-            {...common}
-            value={(field.value ?? "") as string}
-            onChange={(v) => field.onChange(v)}
-          />
-        );
-      }}
+      options={options}
+      hasError={hasError}
+      errorMessage={errorMessage}
+      value={Array.isArray(field.state.value) ? field.state.value : []}
+      onChange={(v) => field.handleChange(v)}
+    />
+  ) : (
+    <SingleTypeAhead
+      onBlur={field.handleBlur}
+      name={name}
+      options={options}
+      hasError={hasError}
+      errorMessage={errorMessage}
+      value={typeof field.state.value === "string" ? field.state.value : ""}
+      onChange={(v) => field.handleChange(v)}
     />
   );
 }
 
-
 type BaseInnerProps = {
   onBlur: () => void;
-  fieldRef: React.RefCallback<HTMLElement>;
   name: string;
   options: VocabOption[];
   hasError: boolean;
@@ -72,7 +59,6 @@ function SingleTypeAhead({
   value,
   onChange,
   onBlur,
-  fieldRef,
   name,
   options,
   hasError,
@@ -111,7 +97,6 @@ function SingleTypeAhead({
         onChange={(e) => { setSearchTerm(e.target.value); doFilter(e.target.value); }}
         onKeyDown={(e) => { if (e.key === "Escape") close(); }}
         onBlur={onBlur}
-        ref={fieldRef as React.RefCallback<HTMLInputElement>}
         placeholder="Type to search..."
         aria-invalid={hasError ? "true" : undefined}
         aria-describedby={hasError ? `${name}-error` : undefined}
@@ -140,7 +125,6 @@ function MultiTypeAhead({
   value: selected,
   onChange,
   onBlur,
-  fieldRef,
   name,
   options,
   hasError,
@@ -173,7 +157,7 @@ function MultiTypeAhead({
                 onClick={() => onChange(selected.filter((v) => v !== val))}
                 className="text-muted-foreground hover:text-foreground"
               >
-                ×
+                x
               </button>
             </span>
           ))}
@@ -185,7 +169,6 @@ function MultiTypeAhead({
         onChange={(e) => { setSearchTerm(e.target.value); doFilter(e.target.value); }}
         onKeyDown={(e) => { if (e.key === "Escape") close(); }}
         onBlur={onBlur}
-        ref={fieldRef as React.RefCallback<HTMLInputElement>}
         placeholder="Type to search..."
         aria-invalid={hasError ? "true" : undefined}
         aria-describedby={hasError ? `${name}-error` : undefined}

@@ -64,6 +64,11 @@ class TaskProgressEmitter:
     Batched flushes insert N rows in a single ``session.add_all`` and
     fire ONE NOTIFY per batch — O(batches) DB round-trips instead of
     O(rows).
+
+    Use :meth:`scoped` to derive a child emitter that tags every
+    ``data`` payload with a fixed scope dict (e.g. ``variantId="v3"`` for
+    parameter-sweep fan-out). Children share the parent's persistence
+    plumbing but maintain their own buffer and merged scope.
     """
 
     task_id: UUID
@@ -71,8 +76,27 @@ class TaskProgressEmitter:
     session_factory: SessionFactory
     batch_size: int = 1
     max_flush_interval_seconds: float = 1.0
+    _scope_data: dict[str, Any] = field(default_factory=dict)
     _buffer: list[_PendingProgress] = field(default_factory=list)
     _last_flush_monotonic: float = field(default=0.0)
+
+    def scoped(self, **scope: Any) -> TaskProgressEmitter:
+        """Return a child emitter that tags every update with ``scope``.
+
+        The child shares persistence config (session_factory, task_id,
+        chat_id, batch_size) with this emitter but holds its own buffer
+        + scope. Each ``update`` on the child merges the scope dict into
+        its ``data`` field before persisting.
+        """
+        child = TaskProgressEmitter(
+            task_id=self.task_id,
+            chat_id=self.chat_id,
+            session_factory=self.session_factory,
+            batch_size=self.batch_size,
+            max_flush_interval_seconds=self.max_flush_interval_seconds,
+        )
+        child._scope_data = {**self._scope_data, **scope}
+        return child
 
     async def update(
         self,
@@ -81,8 +105,13 @@ class TaskProgressEmitter:
         message: str,
         data: dict[str, Any] | None = None,
     ) -> None:
+        merged: dict[str, Any] | None
+        if self._scope_data or data is not None:
+            merged = {**self._scope_data, **(data or {})}
+        else:
+            merged = None
         self._buffer.append(
-            _PendingProgress(percent=percent, message=message, data=data),
+            _PendingProgress(percent=percent, message=message, data=merged),
         )
         now = time.monotonic()
         if self._last_flush_monotonic == 0.0:

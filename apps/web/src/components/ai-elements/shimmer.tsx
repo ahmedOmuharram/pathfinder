@@ -1,35 +1,21 @@
 "use client";
 
 import { cn } from "@/lib/utils/cn";
-import type { MotionProps } from "motion/react";
-import { motion } from "motion/react";
-import type { CSSProperties, ElementType, JSX } from "react";
-import { memo, useMemo } from "react";
+import { motion, type MotionStyle } from "motion/react";
+import {
+  type ElementType,
+  type JSX,
+  memo,
+  useMemo,
+} from "react";
 
-type MotionHTMLProps = MotionProps & Record<string, unknown>;
-
-// Cache motion components at module level to avoid creating during render
-const motionComponentCache = new Map<
-  keyof JSX.IntrinsicElements,
-  React.ComponentType<MotionHTMLProps>
->();
-
-const getMotionComponent = (element: keyof JSX.IntrinsicElements) => {
-  let component = motionComponentCache.get(element);
-  if (!component) {
-    component = motion.create(element);
-    motionComponentCache.set(element, component);
-  }
-  return component;
-};
-
-export interface TextShimmerProps {
+export type TextShimmerProps = {
   children: string;
   as?: ElementType;
   className?: string;
   duration?: number;
   spread?: number;
-}
+};
 
 const ShimmerComponent = ({
   children,
@@ -38,7 +24,7 @@ const ShimmerComponent = ({
   duration = 2,
   spread = 2,
 }: TextShimmerProps) => {
-  const MotionComponent = getMotionComponent(
+  const MotionComponent = motion.create(
     Component as keyof JSX.IntrinsicElements
   );
 
@@ -56,15 +42,17 @@ const ShimmerComponent = ({
         className
       )}
       initial={{ backgroundPosition: "100% center" }}
-      style={{
-        ["--spread" as string]: `${dynamicSpread}px`,
-        backgroundImage:
-          "var(--bg), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))",
-      }}
+      style={
+        {
+          "--spread": `${dynamicSpread}px`,
+          backgroundImage:
+            "var(--bg), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))",
+        } as MotionStyle
+      }
       transition={{
+        repeat: Number.POSITIVE_INFINITY,
         duration,
         ease: "linear",
-        repeat: Number.POSITIVE_INFINITY,
       }}
     >
       {children}

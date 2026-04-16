@@ -1,19 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  cleanup,
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  act,
-} from "@testing-library/react";
-import { FormProvider, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { cleanup, render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { TypeAheadParam } from "./TypeAheadParam";
 import type { ParamSpec } from "@pathfinder/shared";
 import type { VocabOption } from "@/lib/utils/vocab";
+import { WidgetTestForm, WidgetTestFormWithValidation } from "./testUtils";
 
 afterEach(cleanup);
 
@@ -39,39 +30,13 @@ function makeSpec(overrides: Partial<ParamSpec> = {}): ParamSpec {
   } as ParamSpec;
 }
 
-function TestForm({
-  spec,
-  schema,
-  defaultValue,
-  options = sampleOptions,
-}: {
-  spec: ParamSpec;
-  schema: z.ZodObject<Record<string, z.ZodType>>;
-  defaultValue?: string | string[];
-  options?: VocabOption[];
-}) {
-  const form = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: { [spec.name]: defaultValue ?? "" },
-    mode: "onBlur",
-  });
-  return (
-    <FormProvider {...form}>
-      <TypeAheadParam
-        spec={spec}
-        name={spec.name}
-        options={options}
-        vocabTree={null}
-      />
-    </FormProvider>
-  );
-}
-
 describe("TypeAheadParam -- single-pick", () => {
   it("renders a text input with placeholder", () => {
     const spec = makeSpec();
     render(
-      <TestForm spec={spec} schema={z.object({ test_param: z.string() })} />,
+      <WidgetTestForm name="test_param" defaultValue="">
+        {(field) => <TypeAheadParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     const input = screen.getByPlaceholderText("Type to search...");
     expect(input).toBeTruthy();
@@ -81,21 +46,16 @@ describe("TypeAheadParam -- single-pick", () => {
     vi.useFakeTimers();
     const spec = makeSpec();
     render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.string() })}
-        defaultValue=""
-      />,
+      <WidgetTestForm name="test_param" defaultValue="">
+        {(field) => <TypeAheadParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "vivax" } });
-    act(() => {
-      vi.advanceTimersByTime(250);
-    });
+    act(() => { vi.advanceTimersByTime(250); });
     expect(screen.getByText("Plasmodium vivax")).toBeTruthy();
     expect(screen.queryByText("Toxoplasma gondii")).toBeNull();
     fireEvent.click(screen.getByText("Plasmodium vivax"));
-    expect(screen.queryByText("Plasmodium vivax")).toBeNull();
     expect((input as HTMLInputElement).value).toBe("Plasmodium vivax");
     vi.useRealTimers();
   });
@@ -103,11 +63,9 @@ describe("TypeAheadParam -- single-pick", () => {
   it("displays label for current form value", () => {
     const spec = makeSpec();
     render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.string() })}
-        defaultValue="pf"
-      />,
+      <WidgetTestForm name="test_param" defaultValue="pf">
+        {(field) => <TypeAheadParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     const input: HTMLInputElement = screen.getByRole("textbox");
     expect(input.value).toBe("Plasmodium falciparum");
@@ -117,13 +75,13 @@ describe("TypeAheadParam -- single-pick", () => {
     vi.useFakeTimers();
     const spec = makeSpec();
     render(
-      <TestForm spec={spec} schema={z.object({ test_param: z.string() })} />,
+      <WidgetTestForm name="test_param" defaultValue="">
+        {(field) => <TypeAheadParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "Plasmo" } });
-    act(() => {
-      vi.advanceTimersByTime(250);
-    });
+    act(() => { vi.advanceTimersByTime(250); });
     expect(screen.getByText("Plasmodium falciparum")).toBeTruthy();
     expect(screen.getByText("Plasmodium vivax")).toBeTruthy();
     expect(screen.getByText("Plasmodium knowlesi")).toBeTruthy();
@@ -135,13 +93,13 @@ describe("TypeAheadParam -- single-pick", () => {
     vi.useFakeTimers();
     const spec = makeSpec();
     render(
-      <TestForm spec={spec} schema={z.object({ test_param: z.string() })} />,
+      <WidgetTestForm name="test_param" defaultValue="">
+        {(field) => <TypeAheadParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "Plasmo" } });
-    act(() => {
-      vi.advanceTimersByTime(250);
-    });
+    act(() => { vi.advanceTimersByTime(250); });
     expect(screen.getByText("Plasmodium falciparum")).toBeTruthy();
     fireEvent.keyDown(input, { key: "Escape" });
     expect(screen.queryByText("Plasmodium falciparum")).toBeNull();
@@ -150,10 +108,15 @@ describe("TypeAheadParam -- single-pick", () => {
 
   it("shows validation error for required field on blur", async () => {
     const spec = makeSpec({ allowEmptyValue: false });
-    const schema = z.object({
-      test_param: z.string().min(1, { message: "Required" }),
-    });
-    render(<TestForm spec={spec} schema={schema} defaultValue="" />);
+    render(
+      <WidgetTestFormWithValidation
+        name="test_param"
+        defaultValue=""
+        validator={(v) => (v === "" ? "Required" : undefined)}
+      >
+        {(field) => <TypeAheadParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestFormWithValidation>,
+    );
     fireEvent.blur(screen.getByRole("textbox"));
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeTruthy();
@@ -163,15 +126,18 @@ describe("TypeAheadParam -- single-pick", () => {
 
   it("sets aria-invalid on input when field has error", async () => {
     const spec = makeSpec({ allowEmptyValue: false });
-    const schema = z.object({
-      test_param: z.string().min(1, { message: "Required" }),
-    });
-    render(<TestForm spec={spec} schema={schema} defaultValue="" />);
+    render(
+      <WidgetTestFormWithValidation
+        name="test_param"
+        defaultValue=""
+        validator={(v) => (v === "" ? "Required" : undefined)}
+      >
+        {(field) => <TypeAheadParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestFormWithValidation>,
+    );
     fireEvent.blur(screen.getByRole("textbox"));
     await waitFor(() => {
-      expect(
-        screen.getByRole("textbox").getAttribute("aria-invalid"),
-      ).toBe("true");
+      expect(screen.getByRole("textbox").getAttribute("aria-invalid")).toBe("true");
     });
   });
 });

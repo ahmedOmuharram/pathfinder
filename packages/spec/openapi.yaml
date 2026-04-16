@@ -443,12 +443,24 @@ paths:
       - chat
       summary: Chat
       operationId: chat_api_v1_chat_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequestBody'
+        required: true
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
       security:
       - APIKeyCookie: []
   /api/v1/chats/{chat_id}/messages:
@@ -2467,6 +2479,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StreamPartsSchemaIndex'
+  /internal/schema/stream-event:
+    post:
+      tags:
+      - internal-schema
+      summary: ' Schema Stream Event'
+      operationId: _schema_stream_event_internal_schema_stream_event_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/MessagesPartialEvent'
+                - $ref: '#/components/schemas/MessagesCompleteEvent'
+                - $ref: '#/components/schemas/UpdatesEvent'
+                - $ref: '#/components/schemas/CustomEvent'
+                - $ref: '#/components/schemas/InterruptsEvent'
+                - $ref: '#/components/schemas/CheckpointEvent'
+                - $ref: '#/components/schemas/ErrorEvent'
+                - $ref: '#/components/schemas/DoneEvent'
+                title: Response  Schema Stream Event Internal Schema Stream Event Post
+                discriminator:
+                  propertyName: type
+                  mapping:
+                    messages/partial: '#/components/schemas/MessagesPartialEvent'
+                    messages/complete: '#/components/schemas/MessagesCompleteEvent'
+                    updates: '#/components/schemas/UpdatesEvent'
+                    custom: '#/components/schemas/CustomEvent'
+                    interrupts: '#/components/schemas/InterruptsEvent'
+                    checkpoint: '#/components/schemas/CheckpointEvent'
+                    error: '#/components/schemas/ErrorEvent'
+                    done: '#/components/schemas/DoneEvent'
   /api/v1/user/data:
     delete:
       tags:
@@ -2846,6 +2891,251 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/chats/{chat_id}/checkpoints:
+    get:
+      tags:
+      - checkpoints
+      summary: List Checkpoints
+      description: 'Return the full checkpoint tree for a chat thread.
+
+
+        Joins the per-user labels sidecar via the authenticated user — labels
+
+        on other users'' rows are intentionally invisible.'
+      operationId: list_checkpoints_api_v1_chats__chat_id__checkpoints_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chat Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CheckpointNode'
+                title: Response List Checkpoints Api V1 Chats  Chat Id  Checkpoints Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/chats/{chat_id}/checkpoints/{checkpoint_id}:
+    get:
+      tags:
+      - checkpoints
+      summary: Get Checkpoint
+      description: Materialize a single checkpoint via ``graph.aget_state``.
+      operationId: get_checkpoint_api_v1_chats__chat_id__checkpoints__checkpoint_id__get
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chat Id
+      - name: checkpoint_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Checkpoint Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckpointSnapshot'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/chats/{chat_id}/fork:
+    post:
+      tags:
+      - checkpoints
+      summary: Fork Checkpoint
+      description: Create a branched checkpoint via ``graph.aupdate_state``.
+      operationId: fork_checkpoint_api_v1_chats__chat_id__fork_post
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chat Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForkRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForkResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/chats/{chat_id}/labels:
+    get:
+      tags:
+      - labels
+      summary: List Labels
+      operationId: list_labels_api_v1_chats__chat_id__labels_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chat Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LabelRow'
+                title: Response List Labels Api V1 Chats  Chat Id  Labels Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/chats/{chat_id}/labels/{checkpoint_id}:
+    put:
+      tags:
+      - labels
+      summary: Set Label
+      operationId: set_label_api_v1_chats__chat_id__labels__checkpoint_id__put
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chat Id
+      - name: checkpoint_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Checkpoint Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LabelRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabelRow'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - labels
+      summary: Delete Label
+      operationId: delete_label_api_v1_chats__chat_id__labels__checkpoint_id__delete
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Chat Id
+      - name: checkpoint_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Checkpoint Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/dev/login:
+    post:
+      tags:
+      - dev
+      summary: Dev Login
+      description: 'Create a test user and return a valid auth token.
+
+
+        Only available when ``PATHFINDER_CHAT_PROVIDER=mock`` in the test profile.
+
+
+        Pass ``?user_id=worker-0`` to create isolated users per Playwright
+
+        worker so parallel tests don''t share data.'
+      operationId: dev_login_api_v1_dev_login_post
+      parameters:
+      - name: user_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AuthStatusResponse:
@@ -3038,6 +3328,186 @@ components:
       - estimatedSize
       - geneIds
       title: BuildGoldResponse
+    ChatRequestBody:
+      properties:
+        chatId:
+          type: string
+          format: uuid
+          title: Chatid
+        userId:
+          type: string
+          format: uuid
+          title: Userid
+        message:
+          type: string
+          title: Message
+        parentCheckpointId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parentcheckpointid
+        siteId:
+          type: string
+          title: Siteid
+          default: ''
+        mode:
+          type: string
+          title: Mode
+          default: strategy
+        experimentId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Experimentid
+        userMessageId:
+          type: string
+          format: uuid
+          title: Usermessageid
+      type: object
+      required:
+      - chatId
+      - userId
+      - message
+      title: ChatRequestBody
+      description: 'Typed body for ``POST /api/v1/chat`` — surfaces in OpenAPI as-is.
+
+
+        Receives the JSON the frontend sends (camelCase). Auxiliary turn-state
+
+        fields (``user_message_id``, ``site_id``, ``mode``, ``experiment_id``)
+
+        default-fill when omitted, so older clients and tests that supply only
+
+        the chat/user/message trio still validate.'
+    CheckpointEvent:
+      properties:
+        type:
+          type: string
+          const: checkpoint
+          title: Type
+          default: checkpoint
+        checkpointId:
+          type: string
+          title: Checkpointid
+        parentCheckpointId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parentcheckpointid
+        node:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Node
+        step:
+          type: integer
+          title: Step
+        createdAt:
+          type: string
+          title: Createdat
+      additionalProperties: false
+      type: object
+      required:
+      - checkpointId
+      - step
+      - createdAt
+      title: CheckpointEvent
+    CheckpointNode:
+      properties:
+        checkpointId:
+          type: string
+          title: Checkpointid
+        parentCheckpointId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parentcheckpointid
+        threadId:
+          type: string
+          title: Threadid
+        source:
+          type: string
+          title: Source
+        step:
+          type: integer
+          title: Step
+        node:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Node
+        createdAt:
+          type: string
+          title: Createdat
+        label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Label
+        pinned:
+          type: boolean
+          title: Pinned
+          default: false
+      type: object
+      required:
+      - checkpointId
+      - parentCheckpointId
+      - threadId
+      - source
+      - step
+      - node
+      - createdAt
+      title: CheckpointNode
+      description: 'Tree node returned by ``CheckpointService.list_tree``.
+
+
+        Built from a single row of the LangGraph ``checkpoints`` table joined
+
+        with the per-user ``checkpoint_labels`` sidecar. ``node`` is derived
+
+        from the parent checkpoint''s ``branch:to:<node>`` write — that is
+
+        LangGraph''s own routing channel and so identifies the node that
+
+        produced this checkpoint. ``source`` is one of ``input``/``loop``/
+
+        ``update``/``fork`` (LangGraph''s own classification).'
+    CheckpointSnapshot:
+      properties:
+        checkpointId:
+          type: string
+          title: Checkpointid
+        threadId:
+          type: string
+          title: Threadid
+        values:
+          additionalProperties: true
+          type: object
+          title: Values
+        next:
+          items:
+            type: string
+          type: array
+          title: Next
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        createdAt:
+          type: string
+          title: Createdat
+        parentCheckpointId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parentcheckpointid
+      type: object
+      required:
+      - checkpointId
+      - threadId
+      - createdAt
+      title: CheckpointSnapshot
+      description: Full materialized checkpoint state from ``graph.aget_state``.
     ClarificationQuestion:
       properties:
         question:
@@ -3212,6 +3682,25 @@ components:
       - UNION
       title: CombineOp
       description: Set operations for combining two step results.
+    CompletedToolCall:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        arguments:
+          additionalProperties: true
+          type: object
+          title: Arguments
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - arguments
+      title: CompletedToolCall
     ConfidenceIntervalResponse:
       properties:
         lower:
@@ -3811,6 +4300,26 @@ components:
       - oddsRatio
       title: CustomEnrichmentResult
       description: Return shape of :func:`run_custom_enrichment`.
+    CustomEvent:
+      properties:
+        type:
+          type: string
+          const: custom
+          title: Type
+          default: custom
+        kind:
+          type: string
+          title: Kind
+        data:
+          additionalProperties: true
+          type: object
+          title: Data
+      additionalProperties: false
+      type: object
+      required:
+      - kind
+      - data
+      title: CustomEvent
     DecisionPresented:
       properties:
         decisionType:
@@ -3846,6 +4355,25 @@ components:
       - parameterName
       title: DependentParamsRequest
       description: Dependent parameter values request.
+    DoneEvent:
+      properties:
+        type:
+          type: string
+          const: done
+          title: Type
+          default: done
+        reason:
+          type: string
+          enum:
+          - completed
+          - interrupted
+          - error
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - reason
+      title: DoneEvent
     EnrichmentCompareRequest:
       properties:
         experimentIds:
@@ -4052,6 +4580,26 @@ components:
       - geneSetIds
       title: EnsembleScoringRequest
       description: Compute ensemble frequency scores across multiple gene sets.
+    ErrorEvent:
+      properties:
+        type:
+          type: string
+          const: error
+          title: Type
+          default: error
+        message:
+          type: string
+          title: Message
+        code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code
+      additionalProperties: false
+      type: object
+      required:
+      - message
+      title: ErrorEvent
     ExperimentConfigResponse:
       properties:
         siteId:
@@ -4751,6 +5299,45 @@ components:
       - metrics
       title: FoldMetricsResponse
       description: Metrics for a single cross-validation fold.
+    ForkRequest:
+      properties:
+        fromCheckpointId:
+          type: string
+          title: Fromcheckpointid
+        stateOverride:
+          additionalProperties: true
+          type: object
+          title: Stateoverride
+        asNode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Asnode
+      type: object
+      required:
+      - fromCheckpointId
+      title: ForkRequest
+      description: 'Body for ``POST /chats/{chat_id}/fork``.
+
+
+        ``state_override`` defaults to an empty dict — the absence of overrides
+
+        still produces a fresh checkpoint that becomes a child of
+
+        ``from_checkpoint_id``. ``as_node`` is forwarded to
+
+        ``graph.aupdate_state(..., as_node=...)`` and decides which node
+
+        "owns" the synthetic write.'
+    ForkResponse:
+      properties:
+        newCheckpointId:
+          type: string
+          title: Newcheckpointid
+      type: object
+      required:
+      - newCheckpointId
+      title: ForkResponse
     GeneConfidenceRequest:
       properties:
         tpIds:
@@ -5225,6 +5812,38 @@ components:
       - timestamp
       title: HealthResponse
       description: Health check response.
+    InterruptPayload:
+      properties:
+        id:
+          type: string
+          title: Id
+        value:
+          additionalProperties: true
+          type: object
+          title: Value
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - value
+      title: InterruptPayload
+    InterruptsEvent:
+      properties:
+        type:
+          type: string
+          const: interrupts
+          title: Type
+          default: interrupts
+        interrupts:
+          items:
+            $ref: '#/components/schemas/InterruptPayload'
+          type: array
+          title: Interrupts
+      additionalProperties: false
+      type: object
+      required:
+      - interrupts
+      title: InterruptsEvent
     JSONArray:
       items:
         $ref: '#/components/schemas/JSONValue'
@@ -5235,6 +5854,38 @@ components:
       type: object
     JSONValue: {}
     JsonValue: {}
+    LabelRequest:
+      properties:
+        label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Label
+        pinned:
+          type: boolean
+          title: Pinned
+          default: false
+      type: object
+      title: LabelRequest
+    LabelRow:
+      properties:
+        checkpointId:
+          type: string
+          title: Checkpointid
+        label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Label
+        pinned:
+          type: boolean
+          title: Pinned
+      type: object
+      required:
+      - checkpointId
+      - label
+      - pinned
+      title: LabelRow
     LoginPayload:
       properties:
         email:
@@ -5414,6 +6065,81 @@ components:
       - content
       - createdAt
       title: MemoryValue
+    MessagesCompleteEvent:
+      properties:
+        type:
+          type: string
+          const: messages/complete
+          title: Type
+          default: messages/complete
+        messageId:
+          type: string
+          title: Messageid
+        role:
+          type: string
+          enum:
+          - human
+          - ai
+          - tool
+          - system
+          title: Role
+        content:
+          type: string
+          title: Content
+          default: ''
+        toolCalls:
+          items:
+            $ref: '#/components/schemas/CompletedToolCall'
+          type: array
+          title: Toolcalls
+        toolCallId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Toolcallid
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        reasoning:
+          type: string
+          title: Reasoning
+          default: ''
+      additionalProperties: false
+      type: object
+      required:
+      - messageId
+      - role
+      title: MessagesCompleteEvent
+    MessagesPartialEvent:
+      properties:
+        type:
+          type: string
+          const: messages/partial
+          title: Type
+          default: messages/partial
+        messageId:
+          type: string
+          title: Messageid
+        delta:
+          type: string
+          title: Delta
+          default: ''
+        toolCallDeltas:
+          items:
+            $ref: '#/components/schemas/ToolCallDelta'
+          type: array
+          title: Toolcalldeltas
+        reasoningDelta:
+          type: string
+          title: Reasoningdelta
+          default: ''
+      additionalProperties: false
+      type: object
+      required:
+      - messageId
+      title: MessagesPartialEvent
     ModelCatalogEntryResponse:
       properties:
         id:
@@ -6353,6 +7079,11 @@ components:
             minimum: 0.0
           - type: 'null'
           title: Durationms
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
       type: object
       required:
       - phase
@@ -8282,6 +9013,25 @@ components:
       - verification
       title: TierPreset
       description: Per-phase configuration for all five pipeline phases.
+    ToolCallDelta:
+      properties:
+        toolCallId:
+          type: string
+          title: Toolcallid
+        toolName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Toolname
+        argumentsDelta:
+          type: string
+          title: Argumentsdelta
+          default: ''
+      additionalProperties: false
+      type: object
+      required:
+      - toolCallId
+      title: ToolCallDelta
     TreeOptimizationResultResponse:
       properties:
         bestTrial:
@@ -8404,6 +9154,26 @@ components:
       type: object
       title: UpdateStrategyRequest
       description: Request to update a strategy.
+    UpdatesEvent:
+      properties:
+        type:
+          type: string
+          const: updates
+          title: Type
+          default: updates
+        node:
+          type: string
+          title: Node
+        writes:
+          additionalProperties: true
+          type: object
+          title: Writes
+      additionalProperties: false
+      type: object
+      required:
+      - node
+      - writes
+      title: UpdatesEvent
     ValidationError:
       properties:
         loc:

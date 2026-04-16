@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { CombineOperator, DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
@@ -21,16 +22,12 @@ export const COMBINE_OPERATORS = Object.values(CombineOperator);
 interface UseStrategyGraphOptions {
   strategy: Strategy | null;
   siteId: string;
-  onToast?: (toast: {
-    type: "success" | "error" | "warning" | "info";
-    message: string;
-  }) => void;
   variant?: "full" | "compact";
 }
 
 /** Orchestrates all StrategyGraph state, derived values, callbacks, and side effects. */
 export function useStrategyGraph(options: UseStrategyGraphOptions) {
-  const { strategy, siteId, onToast, variant = "full" } = options;
+  const { strategy, siteId, variant = "full" } = options;
   const isCompact = variant === "compact";
 
   // --- Name/description local state ---
@@ -51,14 +48,10 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   const selectedSite = useSessionStore((state) => state.selectedSite);
 
   // --- Auto-sync ---
-  const autoSyncArgs: Parameters<typeof useAutoSync>[0] = {
+  const { syncStatus, lastSyncError, triggerSync } = useAutoSync({
     strategy,
     siteId,
-  };
-  if (onToast != null) {
-    autoSyncArgs.onToast = onToast;
-  }
-  const { syncStatus, lastSyncError, triggerSync } = useAutoSync(autoSyncArgs);
+  });
 
   // --- Sub-hook: Nodes ---
   const graphNodes = useStrategyGraphNodes({ strategy, siteId, variant });
@@ -88,7 +81,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     addStep,
     updateStep,
     failCombineMismatch: () => {
-      onToast?.({ type: "error", message: COMBINE_MISMATCH_ERROR });
+      toast.error(COMBINE_MISMATCH_ERROR);
     },
     triggerSync,
   });

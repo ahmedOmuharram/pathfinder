@@ -34,12 +34,13 @@ function CIBadge({
   robustness?: BootstrapResult | null;
   fmt?: (v: number) => string;
 }) {
-  if (robustness == null) return null;
-  const ci = robustness.rankMetricCis?.[ciKey] ?? robustness.metricCis?.[ciKey];
-  if (!ci) return null;
+  const ci = robustness?.rankMetricCis?.[ciKey] ?? robustness?.metricCis?.[ciKey];
+  const lower = ci?.lower;
+  const upper = ci?.upper;
+  if (lower === undefined || upper === undefined) return null;
   return (
     <span className="ml-1.5 text-[10px] text-muted-foreground/70 tabular-nums">
-      [{fmt(ci.lower)}, {fmt(ci.upper)}]
+      [{fmt(lower)}, {fmt(upper)}]
     </span>
   );
 }
@@ -74,7 +75,14 @@ export function MetricsOverview({
     },
   ];
 
-  const primary = [
+  interface MetricRow {
+    label: string;
+    value: number;
+    desc: string;
+    raw?: boolean;
+  }
+
+  const primary: MetricRow[] = [
     {
       label: "Sensitivity",
       value: metrics.sensitivity,
@@ -108,25 +116,25 @@ export function MetricsOverview({
     },
   ];
 
-  const secondary = [
+  const secondary: MetricRow[] = [
     {
       label: "NPV",
-      value: metrics.negativePredictiveValue,
+      value: metrics.negativePredictiveValue ?? 0,
       desc: "TN / (TN + FN) \u2014 negative predictive value",
     },
     {
       label: "FPR",
-      value: metrics.falsePositiveRate,
+      value: metrics.falsePositiveRate ?? 0,
       desc: "FP / (FP + TN) \u2014 false positive rate",
     },
     {
       label: "FNR",
-      value: metrics.falseNegativeRate,
+      value: metrics.falseNegativeRate ?? 0,
       desc: "FN / (FN + TP) \u2014 false negative rate",
     },
     {
       label: "Youden\u2019s J",
-      value: metrics.youdensJ,
+      value: metrics.youdensJ ?? 0,
       raw: true,
       desc: "Sensitivity + Specificity - 1 \u2014 ranges from -1 to 1",
     },

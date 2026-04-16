@@ -1,17 +1,9 @@
-"""Worker-side impl for ``optimize_search_parameters``.
-
-Moved from ``ai/tools/standalone/optimization.py``. The agent-side wrapper
-is now a thin durable stub; all parameter-optimisation trials run here, on
-the verification worker. Progress is emitted per trial via the injected
-``TaskProgressEmitter`` so the UI sees each score update as it lands.
-"""
-
 from __future__ import annotations
 
+import asyncio
 from typing import Any, cast
 from uuid import UUID
 
-import pathfinder.services.parameter_optimization.core
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.tools.durable import TaskProgressEmitter
@@ -22,16 +14,64 @@ from pathfinder.ai.tools.standalone._optimization_models import (
     _attach_export,
     _parse_and_validate_inputs,
 )
+from pathfinder.domain.parameters.optimization import (
+    SweepResult,
+    VariantResult,
+    VariantSpec,
+)
+from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject, JSONValue
 from pathfinder.services.experiment.types import (
     ControlValueFormat,
     OptimizationObjective,
 )
-from pathfinder.services.parameter_optimization import (
-    OptimizationConfig,
-    OptimizationInput,
-    OptimizationMethod,
+from pathfinder.services.parameter_optimization.config import OptimizationConfig
+from pathfinder.services.parameter_optimization.sweep import (
+    SweepControls,
+    SweepTarget,
+    enumerate_variants,
+    run_trial,
 )
+
+logger = get_logger(__name__)
+
+# Default fan-out cap when the caller does not pin ``max_parallel``. Five
+# matches the WDK-friendly batch size used elsewhere and keeps a sweep of
+# typical 5-15 variants from oversubscribing the upstream service.
+_DEFAULT_MAX_PARALLEL = 5
+
+
+async def run_single_trial(
+    variant: VariantSpec,
+    *,
+    progress: TaskProgressEmitter,
+    context: Context,
+    target: SweepTarget,
+    controls: SweepControls,
+    score_cfg: OptimizationConfig,
+) -> dict[str, Any]:
+    """Run a single variant trial and return its serialised result.
+
+    Module-level so tests can ``monkeypatch.setattr`` it without touching
+    the orchestrator. In production the body delegates to
+    :func:`run_trial` in the service layer; the impl wraps the typed
+    result back into a JSON-serialisable dict for the durable task row.
+    """
+    del context
+
+    async def _on_progress(
+        pct: float, msg: str, data: dict[str, JSONValue] | None
+    ) -> None:
+        await progress.update(percent=pct, message=msg, data=data)
+
+    result = await run_trial(
+        variant,
+        target=target,
+        controls=controls,
+        score_cfg=score_cfg,
+        progress_callback=_on_progress,
+    )
+    return result.model_dump(by_alias=True, mode="json")
 
 
 async def optimize_search_parameters_impl(
@@ -45,12 +85,17 @@ async def optimize_search_parameters_impl(
     settings: dict[str, Any] | OptimizationSettings | None = None,
     **_extra: Any,
 ) -> dict[str, Any]:
-    """Run parameter optimisation against controls and return the result dict."""
+    """Run a parallel parameter sweep and return ``SweepResult`` as JSON.
+
+    Builds the Cartesian variant grid from ``target.parameter_space``,
+    fans out via ``asyncio.gather`` bounded by a Semaphore, and tags
+    every per-variant progress event with ``variantId`` so the UI can
+    render one lane per variant. One variant raising does NOT abort the
+    others — each gated wrapper converts the exception into a
+    ``status="failed"`` :class:`VariantResult`.
+    """
     del task_id, memory_store
 
-    # Opt into batched progress commits — budget is typically 30 trials and
-    # each `progress.update` would otherwise be its own round-trip. The
-    # runner's `progress.aclose()` flushes any residual.
     progress.batch_size = 8
 
     target_m = (
@@ -73,75 +118,91 @@ async def optimize_search_parameters_impl(
         _parse_and_validate_inputs(target_m, controls_m)
     )
 
-    await progress.update(
-        percent=0.0,
-        message=f"Starting optimisation (budget={settings_m.budget})",
-        data={
-            "search_name": target_m.search_name,
-            "budget": settings_m.budget,
-            "objective": settings_m.objective,
-        },
-    )
-
-    opt_inp = OptimizationInput(
+    sweep_target = SweepTarget(
         site_id=context.site_id,
         record_type=target_m.record_type,
         search_name=target_m.search_name,
         fixed_parameters=cast("dict[str, JSONValue]", fixed_parameters),
-        parameter_space=specs,
+    )
+    sweep_controls = SweepControls(
         controls_search_name=controls_m.controls_search_name,
         controls_param_name=controls_m.controls_param_name,
-        positive_controls=controls_m.positive_controls,
-        negative_controls=controls_m.negative_controls,
         controls_value_format=cast(
             "ControlValueFormat", controls_m.controls_value_format
         ),
         controls_extra_parameters=cast(
             "dict[str, JSONValue]", controls_extra_parameters
         ),
+        positive_controls=controls_m.positive_controls or None,
+        negative_controls=controls_m.negative_controls or None,
         id_field=controls_m.id_field,
     )
-    opt_cfg = OptimizationConfig(
+    score_cfg = OptimizationConfig(
         budget=settings_m.budget,
         objective=cast("OptimizationObjective", settings_m.objective),
         beta=settings_m.beta,
-        method=cast("OptimizationMethod", settings_m.method),
         estimated_size_penalty=max(0.0, settings_m.estimated_size_penalty),
     )
 
-    trial_count = 0
-
-    async def _progress_callback(event: JSONObject) -> None:
-        nonlocal trial_count
-        event_kind = event.get("event")
-        data = event.get("data") if isinstance(event.get("data"), dict) else None
-        if event_kind == "trial_complete":
-            trial_count += 1
-            await progress.update(
-                percent=min(0.95, trial_count / max(1, settings_m.budget)),
-                message=f"Trial {trial_count}/{settings_m.budget} complete",
-                data=cast("dict[str, Any]", data) if data is not None else None,
-            )
-
-    result = await pathfinder.services.parameter_optimization.core.optimize_search_parameters(
-        opt_inp,
-        config=opt_cfg,
-        progress_callback=_progress_callback,
-        check_cancelled=None,
+    variants = enumerate_variants(
+        specs, cast("dict[str, JSONValue]", fixed_parameters)
     )
 
-    result_json: dict[str, Any] = result.model_dump(by_alias=True, mode="json")
     await progress.update(
-        percent=0.98,
-        message="Exporting optimisation result",
-        data=None,
+        percent=0.0,
+        message=f"Starting parallel sweep ({len(variants)} variants)",
+        data={
+            "search_name": target_m.search_name,
+            "variant_count": len(variants),
+            "objective": settings_m.objective,
+        },
     )
-    await _attach_export(result_json, opt_inp.search_name)
+
+    cap = settings_m.max_parallel or _DEFAULT_MAX_PARALLEL
+    sem = asyncio.Semaphore(cap)
+
+    async def gated(v: VariantSpec) -> dict[str, Any]:
+        scoped = progress.scoped(variantId=v.id)
+        async with sem:
+            try:
+                return await run_single_trial(
+                    v,
+                    progress=scoped,
+                    context=context,
+                    target=sweep_target,
+                    controls=sweep_controls,
+                    score_cfg=score_cfg,
+                )
+            except Exception as exc:
+                logger.exception(
+                    "variant trial failed", variant_id=v.id, error=str(exc),
+                )
+                await scoped.update(
+                    percent=1.0, message=f"Variant {v.id} failed: {exc}",
+                )
+                return VariantResult(
+                    variant_id=v.id,
+                    status="failed",
+                    params=v.params,
+                    error=str(exc) or exc.__class__.__name__,
+                ).model_dump(by_alias=True, mode="json")
+            finally:
+                # Per-variant child has its own buffer; without an explicit
+                # flush here partial batches would never persist (the parent
+                # owns a different buffer and cannot drain children).
+                await scoped.aclose()
+
+    raw_results = await asyncio.gather(*(gated(v) for v in variants))
+
+    sweep = SweepResult.model_validate({"variants": raw_results, "best": None})
+    result_json: dict[str, Any] = sweep.model_dump(by_alias=True, mode="json")
+
     await progress.update(
-        percent=1.0, message="Optimisation complete", data=None,
+        percent=0.98, message="Exporting sweep result", data=None,
     )
-    # Flush remaining buffered rows so callers querying task_progress
-    # immediately see the full trial history. The runner's ``aclose()`` is
-    # a safety net on top of this.
+    await _attach_export(cast("JSONObject", result_json), target_m.search_name)
+    await progress.update(
+        percent=1.0, message="Sweep complete", data=None,
+    )
     await progress.flush()
     return result_json

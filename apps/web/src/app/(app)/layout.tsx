@@ -3,12 +3,13 @@
 import { useSearchParams } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
 
+import { toast } from "sonner";
+
 import { AppShellError } from "@/app/components/AppShellError";
 import { EmbeddedToolbar } from "@/app/components/EmbeddedToolbar";
 import { LoadingScreen } from "@/app/components/LoadingScreen";
 import { LoginModal } from "@/app/components/LoginModal";
 import { SetupRequiredScreen } from "@/app/components/SetupRequiredScreen";
-import { ToastContainer } from "@/app/components/ToastContainer";
 import { TopBar } from "@/app/components/TopBar";
 import { TopBarActions } from "@/app/components/TopBarActions";
 import { useAuthCheck } from "@/app/hooks/useAuthCheck";
@@ -16,7 +17,6 @@ import { useAuthRefresh } from "@/app/hooks/useAuthRefresh";
 import { useModalState } from "@/app/hooks/useModalState";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
 import { useSystemConfig } from "@/app/hooks/useSystemConfig";
-import { useToasts } from "@/lib/hooks/useToasts";
 import { EngineModal } from "@/features/engine/components/EngineModal";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
@@ -60,10 +60,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   useSiteTheme(selectedSite);
   const { setupRequired, retry: retryConfig } = useSystemConfig();
 
-  const { toasts, addToast, removeToast, durationMs } = useToasts();
-  setQueryErrorHandler((notice) =>
-    addToast({ type: "error", message: notice.message }),
-  );
+  setQueryErrorHandler((notice) => {
+    toast.error(notice.message);
+  });
 
   const { layoutRef, sidebarWidth, startDragging } = useSidebarResize();
   const modals = useModalState();
@@ -81,8 +80,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           onSiteChange={handleSiteChange}
         />
       )}
-      <ToastContainer toasts={toasts} durationMs={durationMs} onDismiss={removeToast} />
-
       {embedded ? (
         <EmbeddedToolbar onOpenSettings={modals.openSettings} />
       ) : (
@@ -103,7 +100,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           className="flex shrink-0 flex-col border-r border-border bg-sidebar"
           style={{ width: sidebarWidth }}
         >
-          <ConversationSidebar siteId={selectedSite} onToast={addToast} />
+          <ConversationSidebar siteId={selectedSite} />
         </div>
 
         <div

@@ -17,7 +17,8 @@ from uuid import UUID
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter, ValidationError
+from shared_py.stream_events import StreamEvent
 from sqlalchemy import text
 
 from pathfinder.ai.chat.checkpointer import lifespan_checkpointer
@@ -214,11 +215,29 @@ async def _resume_graph(
             )
 
 
+_STREAM_EVENT_ADAPTER: TypeAdapter[StreamEvent] = TypeAdapter(StreamEvent)
+
+
+class _ResumedStreamEnvelope(BaseModel):
+    stream_event: dict[str, Any]
+
+
 def _extract_sse(payload: Any) -> str | None:
+    """Re-encode a resumed-graph custom payload as an SSE frame for replay.
+
+    Wave 3.A standardised node writers on the ``{"stream_event": <dict>}``
+    envelope. We validate, coerce back to a typed ``StreamEvent``, and
+    re-serialise as ``event: stream\\ndata: {...}\\n\\n`` so the persisted
+    ``chat_events.chunk`` rows match the live dispatcher's wire format.
+    """
     if not isinstance(payload, dict):
         return None
-    sse = payload.get("sse")
-    return sse if isinstance(sse, str) else None
+    try:
+        envelope = _ResumedStreamEnvelope.model_validate(payload)
+    except ValidationError:
+        return None
+    event = _STREAM_EVENT_ADAPTER.validate_python(envelope.stream_event)
+    return f"event: stream\ndata: {event.model_dump_json(by_alias=True)}\n\n"
 
 
 async def _persist_chat_event(

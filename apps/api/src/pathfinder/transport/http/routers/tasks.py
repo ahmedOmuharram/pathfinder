@@ -6,6 +6,12 @@ Streams durable-task progress and resumed-graph chunks to the client as
 (``task_progress:<chat_id>`` and ``chat_events:<chat_id>``) via
 ``LISTEN/NOTIFY`` so new rows land in the stream as soon as they are written.
 
+Frame format mirrors the chat dispatcher: every frame is
+``event: stream\\ndata: {camelCase StreamEvent JSON}\\n\\n``. The terminal
+marker is a typed :class:`shared_py.stream_events.DoneEvent`; clients filter
+on ``event: stream`` and dispatch on the typed payload's ``type``
+discriminator.
+
 Ordering: we track ``last_progress_id`` and ``last_event_id`` across the
 replay + NOTIFY loop. Every NOTIFY triggers ``WHERE id > :last`` queries that
 yield the full batch of unseen rows in id order, so no rows are duplicated
@@ -13,8 +19,8 @@ or dropped even when multiple writes arrive between notifications.
 
 Termination: the loop exits when the ``BackgroundTask`` row reaches the
 terminal ``complete`` or ``failed`` status (emitting a final
-``data-task-completed`` chunk), when the client disconnects, or when the
-long poll on ``notifies()`` is cancelled.
+``data-task-completed`` chunk + a typed ``DoneEvent``), when the client
+disconnects, or when the long poll on ``notifies()`` is cancelled.
 """
 
 from __future__ import annotations
@@ -27,11 +33,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from pydantic_ai.ui.vercel_ai.response_types import DataChunk
+from shared_py.stream_events import CustomEvent, DoneEvent, StreamEvent
 from sqlalchemy import select
 from starlette.responses import StreamingResponse
 
-from pathfinder.ai.graph.stream_chunks import SSE_DONE_LINE, encode_chunk_as_sse
 from pathfinder.persistence.models import (
     BackgroundTask,
     ChatEvent,
@@ -51,6 +56,13 @@ router = APIRouter(prefix="/api/v1/chats", tags=["tasks"])
 # ``request.is_disconnected()`` responsively; long enough to avoid busy-looping.
 _NOTIFY_POLL_TIMEOUT_SECONDS: float = 1.0
 _TERMINAL_TASK_STATUSES: frozenset[str] = frozenset({"complete", "failed"})
+
+
+def _encode_event(event: StreamEvent) -> str:
+    return (
+        f"event: stream\n"
+        f"data: {event.model_dump_json(by_alias=True)}\n\n"
+    )
 
 
 class _Cursor(BaseModel):
@@ -140,10 +152,7 @@ async def task_events(
             dispatcher=dispatcher,
         ),
         media_type="text/event-stream",
-        headers={
-            "x-vercel-ai-ui-message-stream": "v1",
-            "Cache-Control": "no-cache",
-        },
+        headers={"Cache-Control": "no-cache"},
     )
 
 
@@ -165,9 +174,9 @@ async def _load_task(
     return task
 
 
-def _progress_chunk(task_id: UUID, row: TaskProgress) -> DataChunk:
-    return DataChunk(
-        type="data-task-progress",
+def _progress_chunk(task_id: UUID, row: TaskProgress) -> CustomEvent:
+    return CustomEvent(
+        kind="data-task-progress",
         data={
             "taskId": str(task_id),
             "percent": row.percent,
@@ -179,9 +188,9 @@ def _progress_chunk(task_id: UUID, row: TaskProgress) -> DataChunk:
 
 def _completed_chunk(
     task_id: UUID, status: str, error: str | None
-) -> DataChunk:
-    return DataChunk(
-        type="data-task-completed",
+) -> CustomEvent:
+    return CustomEvent(
+        kind="data-task-completed",
         data={
             "taskId": str(task_id),
             "status": "success" if status == "complete" else "failed",
@@ -226,6 +235,7 @@ async def _event_stream(
     """
     progress_channel = f"task_progress:{chat_id}"
     events_channel = f"chat_events:{chat_id}"
+    encountered_error = False
     try:
         cursor = _Cursor()
         async with dispatcher.subscribe(
@@ -238,7 +248,7 @@ async def _event_stream(
 
             terminal = await _terminal_chunk_if_done(task_id)
             if terminal is not None:
-                yield encode_chunk_as_sse(terminal)
+                yield _encode_event(terminal)
                 return
 
             async for frame in _poll_loop(
@@ -252,8 +262,13 @@ async def _event_stream(
                 request=request,
             ):
                 yield frame
+    except Exception:
+        encountered_error = True
+        raise
     finally:
-        yield SSE_DONE_LINE
+        yield _encode_event(
+            DoneEvent(reason="error" if encountered_error else "completed")
+        )
 
 
 async def _replay(
@@ -271,7 +286,7 @@ async def _replay(
             cursor.last_progress_id = max(
                 cursor.last_progress_id, progress_row.id
             )
-            yield encode_chunk_as_sse(_progress_chunk(task_id, progress_row))
+            yield _encode_event(_progress_chunk(task_id, progress_row))
 
         event_rows = (
             await session.execute(
@@ -310,51 +325,52 @@ async def _poll_loop(
         if await request.is_disconnected():
             return
 
-        notified_channel = await _wait_for_notify(notify_queue)
-        async for frame in _drain_both_tables(
-            target, cursor, notified_channel,
-        ):
+        await _wait_for_notify(notify_queue)
+        async for frame in _drain_both_tables(target, cursor):
             yield frame
 
         terminal = await _terminal_chunk_if_done(target.task_id)
         if terminal is not None:
-            yield encode_chunk_as_sse(terminal)
+            yield _encode_event(terminal)
             return
 
 
 async def _wait_for_notify(
     notify_queue: asyncio.Queue[tuple[str, str]],
-) -> str | None:
-    """Return the channel name, or ``None`` on poll-timeout."""
+) -> None:
+    """Wake up on any NOTIFY or on poll-timeout. Channel is ignored.
+
+    Both tables are drained unconditionally every iteration, so which
+    channel fired is irrelevant — we only need the wake-up signal.
+    """
     try:
-        channel, _payload = await asyncio.wait_for(
+        await asyncio.wait_for(
             notify_queue.get(), timeout=_NOTIFY_POLL_TIMEOUT_SECONDS,
         )
     except TimeoutError:
-        return None
-    return channel
+        return
 
 
 async def _drain_both_tables(
     target: _PollTarget,
     cursor: _Cursor,
-    notified_channel: str | None,
 ) -> AsyncIterator[str]:
-    """Drain progress + events; on NOTIFY, prefer that channel first.
+    """Drain progress + events unconditionally.
 
-    When ``notified_channel`` is ``None`` (poll timeout), drain both tables
-    defensively — NOTIFYs can be lost during dispatcher reconnect (Postgres
-    session-scoped queues don't survive disconnect). The backstop drain
-    keeps staleness bounded by ``_NOTIFY_POLL_TIMEOUT_SECONDS``.
+    Filtering by notified channel used to drop trailing rows whenever a
+    progress NOTIFY and an events NOTIFY both arrived before the terminal
+    flip: the progress iteration drained only progress, the terminal check
+    fired, and the queued events NOTIFY (with its unread row) was
+    discarded. Draining both every iteration is cheap — each query is
+    ``WHERE id > :cursor`` with no rows to return on the no-op side — and
+    closes the race entirely.
     """
-    if notified_channel is None or notified_channel == target.progress_channel:
-        async for frame in _drain_progress(target.task_id, cursor):
-            yield frame
-    if notified_channel is None or notified_channel == target.events_channel:
-        async for frame in _drain_events(
-            target.chat_id, target.task_id, cursor,
-        ):
-            yield frame
+    async for frame in _drain_progress(target.task_id, cursor):
+        yield frame
+    async for frame in _drain_events(
+        target.chat_id, target.task_id, cursor,
+    ):
+        yield frame
 
 
 async def _drain_progress(
@@ -373,7 +389,7 @@ async def _drain_progress(
         ).scalars().all()
     for row in rows:
         cursor.last_progress_id = row.id
-        yield encode_chunk_as_sse(_progress_chunk(task_id, row))
+        yield _encode_event(_progress_chunk(task_id, row))
 
 
 async def _drain_events(
@@ -398,7 +414,7 @@ async def _drain_events(
             yield line
 
 
-async def _terminal_chunk_if_done(task_id: UUID) -> DataChunk | None:
+async def _terminal_chunk_if_done(task_id: UUID) -> CustomEvent | None:
     async with async_session_factory() as session:
         task = (
             await session.execute(

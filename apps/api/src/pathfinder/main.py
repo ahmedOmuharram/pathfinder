@@ -48,6 +48,7 @@ from pathfinder.transport.http.routers import (
     _stream_parts_schemas,
     chat,
     chats,
+    checkpoints,
     control_sets,
     dev,
     evaluation,
@@ -57,10 +58,12 @@ from pathfinder.transport.http.routers import (
     gene_sets,
     health,
     internal,
+    labels,
     memories,
     models,
     sites,
     strategies,
+    streaming_schema,
     tasks,
     tiers,
     user_data,
@@ -268,10 +271,13 @@ def create_app() -> FastAPI:
     app.include_router(feedback.router)
     app.include_router(internal.router)
     app.include_router(_stream_parts_schemas.router)
+    app.include_router(streaming_schema.router)
     app.include_router(user_data.router)
     app.include_router(evaluation.router)
     app.include_router(memories.router)
     app.include_router(tasks.router)
+    app.include_router(checkpoints.router)
+    app.include_router(labels.router)
 
     # Dev-only routes (e2e / local dev with mock chat provider).
     if settings.chat_provider.strip().lower() == "mock":

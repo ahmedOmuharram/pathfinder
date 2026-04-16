@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from operator import add
 from typing import get_args, get_origin
 from uuid import uuid4
 
@@ -13,14 +12,8 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from pathfinder.ai.agents._phase_decisions import (
-    DiscoveryDecision,
-    ExecutionDecision,
-    PlanningDecision,
-    ScopingDecision,
-    VerificationDecision,
-)
 from pathfinder.ai.agents.state import SearchOverview
+from pathfinder.ai.graph.messages_reducer import append_messages_safely
 from pathfinder.ai.graph.state import (
     PHASE_NAMES,
     PhaseName,
@@ -56,11 +49,14 @@ def test_state_minimum_construction(base_state: PipelineState) -> None:
     assert base_state.user_prompt == ""
     assert base_state.user_parts == []
     assert base_state.message_history == []
-    assert base_state.phase_decisions == {}
-    assert base_state.retry_counts == {}
     assert base_state.discovered_searches == {}
     assert base_state.problem_frame is None
     assert base_state.current_phase is None
+    assert base_state.supervisor_call_count == 0
+    assert base_state.phase_call_counts == {}
+    assert base_state.last_routing_reason is None
+    assert base_state.last_assistant_prose == ""
+    assert base_state.last_verification_message_id is None
 
 
 def test_state_rejects_unknown_phase_name() -> None:
@@ -74,14 +70,11 @@ def test_state_rejects_unknown_phase_name() -> None:
         )
 
 
-def test_message_history_uses_add_reducer() -> None:
+def test_message_history_uses_tool_safe_reducer() -> None:
     field_info = PipelineState.model_fields["message_history"]
     metadata = field_info.metadata
     reducer_callables = [m for m in metadata if callable(m)]
-    assert add in reducer_callables, (
-        "message_history must declare operator.add as its reducer "
-        "so node returns concatenate rather than overwrite"
-    )
+    assert append_messages_safely in reducer_callables
     origin = get_origin(field_info.annotation)
     assert origin is list
 
@@ -95,48 +88,6 @@ def test_state_serializes_with_pydantic_ai_messages(base_state: PipelineState) -
     assert len(rehydrated.message_history) == 2
     assert isinstance(rehydrated.message_history[0], ModelRequest)
     assert isinstance(rehydrated.message_history[1], ModelResponse)
-
-
-def test_state_phase_decisions_roundtrip_discriminated_union(
-    base_state: PipelineState,
-) -> None:
-    decisions: dict[PhaseName, object] = {
-        "scoping": ScopingDecision(next_action="advance_to_discovery"),
-        "discovery": DiscoveryDecision(next_action="advance_to_planning"),
-        "planning": PlanningDecision(next_action="advance_to_execution"),
-        "execution": ExecutionDecision(next_action="advance_to_verification"),
-        "verification": VerificationDecision(next_action="complete"),
-    }
-    state = base_state.model_copy(update={"phase_decisions": decisions})
-    dumped = state.model_dump(mode="json")
-    rehydrated = PipelineState.model_validate(dumped)
-    assert isinstance(rehydrated.phase_decisions["scoping"], ScopingDecision)
-    assert isinstance(rehydrated.phase_decisions["discovery"], DiscoveryDecision)
-    assert isinstance(rehydrated.phase_decisions["planning"], PlanningDecision)
-    assert isinstance(rehydrated.phase_decisions["execution"], ExecutionDecision)
-    assert isinstance(
-        rehydrated.phase_decisions["verification"], VerificationDecision
-    )
-
-
-def test_state_overlapping_next_action_discriminates_by_phase(
-    base_state: PipelineState,
-) -> None:
-    state = base_state.model_copy(
-        update={
-            "phase_decisions": {
-                "planning": PlanningDecision(next_action="abort"),
-                "execution": ExecutionDecision(next_action="abort"),
-                "verification": VerificationDecision(next_action="abort"),
-            }
-        }
-    )
-    rehydrated = PipelineState.model_validate(state.model_dump(mode="json"))
-    assert isinstance(rehydrated.phase_decisions["planning"], PlanningDecision)
-    assert isinstance(rehydrated.phase_decisions["execution"], ExecutionDecision)
-    assert isinstance(
-        rehydrated.phase_decisions["verification"], VerificationDecision
-    )
 
 
 def test_state_carries_problem_frame(base_state: PipelineState) -> None:
@@ -172,3 +123,21 @@ def test_state_carries_discovered_searches(base_state: PipelineState) -> None:
         rehydrated.discovered_searches["GenesByExpression"].display_name
         == "Genes by Expression"
     )
+
+
+def test_state_roundtrips_supervisor_fields(base_state: PipelineState) -> None:
+    state = base_state.model_copy(
+        update={
+            "current_phase": "planning",
+            "supervisor_call_count": 4,
+            "phase_call_counts": {"scoping": 1, "planning": 2},
+            "last_routing_reason": "plan submitted — execute",
+            "last_assistant_prose": "We prepared a two-step plan.",
+        }
+    )
+    rehydrated = PipelineState.model_validate(state.model_dump(mode="json"))
+    assert rehydrated.current_phase == "planning"
+    assert rehydrated.supervisor_call_count == 4
+    assert rehydrated.phase_call_counts == {"scoping": 1, "planning": 2}
+    assert rehydrated.last_routing_reason == "plan submitted — execute"
+    assert rehydrated.last_assistant_prose == "We prepared a two-step plan."

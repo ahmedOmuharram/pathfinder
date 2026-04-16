@@ -1,7 +1,7 @@
-"""Shared helper for simple typed-event SSE streams (not chat/AI SDK).
+"""Shared helper for simple typed-event SSE streams (not chat).
 
-Used by experiment/sweep/seed progress streams. Chat uses VercelAIAdapter;
-don't use this for chat.
+Used by experiment/sweep/seed progress streams. Chat uses the
+LangGraph stream-event pipeline; don't use this for chat.
 
 The helper wraps any ``AsyncIterator[BaseModel]`` as a Starlette
 ``StreamingResponse`` emitting ``text/event-stream`` frames. Each yielded

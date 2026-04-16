@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
-import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { useForm, useStore } from "@tanstack/react-form";
 import {
   buildPhyleticTree,
   encodeProfilePattern,
@@ -10,12 +10,9 @@ import {
 } from "./phyleticProfileLogic";
 import { PhyleticProfileParam } from "./PhyleticProfileParam";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
+import type { ParamForm } from "../hooks/useParamForm";
 
 afterEach(cleanup);
-
-// ---------------------------------------------------------------------------
-// Test fixtures
-// ---------------------------------------------------------------------------
 
 const TERM_MAP_VOCAB = [
   ["ALL", "Root", null],
@@ -39,7 +36,7 @@ const PARAM_DEFAULTS = {
   allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true,
 } as const;
 
-const PHYLETIC_DEFAULTS = {
+const PHYLETIC_DEFAULTS: Record<string, string | string[] | unknown> = {
   profile_pattern: "",
   included_species: "",
   excluded_species: "",
@@ -57,33 +54,24 @@ function makeAllSpecs(): ParamSpec[] {
   ];
 }
 
-// ---------------------------------------------------------------------------
-// Test wrapper — provides FormProvider with all phyletic fields
-// ---------------------------------------------------------------------------
-
 function TestForm({
   defaultValues,
   children,
 }: {
   defaultValues?: Record<string, unknown>;
-  children: React.ReactNode;
+  children: (form: ParamForm) => React.ReactNode;
 }) {
   const form = useForm({
-    defaultValues: { ...PHYLETIC_DEFAULTS, ...defaultValues },
-    mode: "onBlur",
+    defaultValues: { ...PHYLETIC_DEFAULTS, ...defaultValues } as Record<string, string | string[]>,
+    onSubmit: () => {},
   });
-  return <FormProvider {...form}>{children}</FormProvider>;
+  return <>{children(form)}</>;
 }
 
-/** Reactive child that re-renders when the watched field changes via setValue. */
-function FormValueReader({ name }: { name: string }) {
-  const value = useWatch({ name });
+function FormValueReader({ form, name }: { form: ParamForm; name: string }) {
+  const value = useStore(form.store, (s) => s.values[name]);
   return <output data-testid={`form-${name}`}>{String(value ?? "")}</output>;
 }
-
-// ---------------------------------------------------------------------------
-// Pure logic tests
-// ---------------------------------------------------------------------------
 
 describe("buildPhyleticTree", () => {
   it("builds correct hierarchy from term/indent map vocabs", () => {
@@ -161,17 +149,13 @@ describe("claimsPhyleticParams", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Component rendering (form-aware)
-// ---------------------------------------------------------------------------
-
 describe("PhyleticProfileParam component", () => {
   const specs = makeAllSpecs();
 
   it("renders tree nodes from vocab data in form context", () => {
     render(
       <TestForm>
-        <PhyleticProfileParam specs={specs} allSpecs={specs} />
+        {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
       </TestForm>,
     );
     expect(screen.getByText("Eukaryota")).toBeTruthy();
@@ -184,23 +168,24 @@ describe("PhyleticProfileParam component", () => {
   it("clicking tri-state icon cycles through states and updates form", () => {
     render(
       <TestForm>
-        <PhyleticProfileParam specs={specs} allSpecs={specs} />
-        <FormValueReader name="profile_pattern" />
+        {(form) => (
+          <>
+            <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />
+            <FormValueReader form={form} name="profile_pattern" />
+          </>
+        )}
       </TestForm>,
     );
 
     const pfalRow = screen.getByText("P. falciparum").closest("[data-node]");
     const toggleBtn = pfalRow!.querySelector("[data-toggle]") as HTMLElement;
 
-    // Click 1: unconstrained -> include
     fireEvent.click(toggleBtn);
     expect(screen.getByTestId("form-profile_pattern").textContent).toContain("pfal>=1T");
 
-    // Click 2: include -> exclude
     fireEvent.click(toggleBtn);
     expect(screen.getByTestId("form-profile_pattern").textContent).toContain("pfal=0T");
 
-    // Click 3: exclude -> unconstrained
     fireEvent.click(toggleBtn);
     expect(screen.getByTestId("form-profile_pattern").textContent).not.toContain("pfal");
   });
@@ -208,7 +193,7 @@ describe("PhyleticProfileParam component", () => {
   it("shows correct summary footer counts", () => {
     render(
       <TestForm defaultValues={{ profile_pattern: "pfal>=1T,hsap=0T" }}>
-        <PhyleticProfileParam specs={specs} allSpecs={specs} />
+        {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
       </TestForm>,
     );
     expect(screen.getByText(/1 included/)).toBeTruthy();
@@ -219,7 +204,7 @@ describe("PhyleticProfileParam component", () => {
   it("search filters tree nodes by label", () => {
     render(
       <TestForm>
-        <PhyleticProfileParam specs={specs} allSpecs={specs} />
+        {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
       </TestForm>,
     );
     fireEvent.change(screen.getByPlaceholderText(/search/i), {
@@ -232,7 +217,7 @@ describe("PhyleticProfileParam component", () => {
   it("initializes state from existing profile_pattern in form", () => {
     render(
       <TestForm defaultValues={{ profile_pattern: "pfal>=1T" }}>
-        <PhyleticProfileParam specs={specs} allSpecs={specs} />
+        {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
       </TestForm>,
     );
     const pfalRow = screen.getByText("P. falciparum").closest("[data-node]");
@@ -243,7 +228,7 @@ describe("PhyleticProfileParam component", () => {
   it("renders legend showing the three states", () => {
     render(
       <TestForm>
-        <PhyleticProfileParam specs={specs} allSpecs={specs} />
+        {(form) => <PhyleticProfileParam specs={specs} allSpecs={specs} form={form} />}
       </TestForm>,
     );
     expect(screen.getAllByText(/unconstrained/i).length).toBeGreaterThanOrEqual(2);

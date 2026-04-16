@@ -28,7 +28,7 @@ function draftFromItem(item: MemoryItem): EditorDraft {
     summary: item.value.summary,
     tagsText: (item.value.tags ?? []).join(", "),
     contentText: JSON.stringify(item.value.content, null, 2),
-    autoRetrieve: item.value.autoRetrieve,
+    autoRetrieve: item.value.autoRetrieve ?? false,
     sourceKey: item.key,
   };
 }

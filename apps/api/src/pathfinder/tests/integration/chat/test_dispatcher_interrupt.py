@@ -13,26 +13,41 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 import pathfinder.ai.chat.dispatcher as dispatcher_module
-from pathfinder.ai.chat.dispatcher import _emit_interrupt_chunks, _stream_graph_chunks
+from pathfinder.ai.chat.dispatcher import _emit_interrupt_events, _stream_graph_chunks
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 
+_FIXED_TASK_ID = "9b4f6e6a-7e1c-4c8e-9b0a-aa1122334455"
+
+
+def _parse_data_payload(frame: str) -> dict[str, Any]:
+    """Extract the JSON payload from a single ``event: stream\\ndata: {...}\\n\\n`` frame."""
+    payload: str | None = None
+    for line in frame.splitlines():
+        if line.startswith("data:"):
+            payload = line[len("data:") :].lstrip()
+            break
+    if payload is None:
+        msg = f"frame missing data: line: {frame!r}"
+        raise AssertionError(msg)
+    parsed: dict[str, Any] = json.loads(payload)
+    return parsed
+
 
 async def _interrupt_node(state: PipelineState) -> dict[str, Any]:
+    del state
     resumed = interrupt(
         {
             "kind": "durable_task",
-            "task_id": "abc-123",
+            "task_id": _FIXED_TASK_ID,
             "tool_name": "run_control_tests_on_step",
             "estimated_duration_seconds": 180,
         }
     )
-    return {
-        "phase_decisions": {**state.phase_decisions, "scoping": resumed}
-    }
+    return {"last_routing_reason": str(resumed)}
 
 
 def _build_interrupting_graph(checkpointer: InMemorySaver) -> Any:
@@ -60,7 +75,7 @@ def _build_context(user_id: UUID) -> Context:
 
 
 @pytest.mark.asyncio
-async def test_emit_interrupt_chunks_emits_background_task_started() -> None:
+async def test_emit_interrupt_events_emits_background_task_started() -> None:
     # Exercise the dispatcher's interrupt detector against a real graph
     # so the payload shape is guaranteed to match langgraph's emission.
     saver = InMemorySaver()
@@ -75,7 +90,7 @@ async def test_emit_interrupt_chunks_emits_background_task_started() -> None:
         site_id="plasmodb",
         mode="strategy",
     )
-    emitted_interrupts: list[str] = []
+    emitted_lines: list[str] = []
     async for mode, payload in graph.astream(
         initial_state.model_dump(),
         config=config,
@@ -83,17 +98,23 @@ async def test_emit_interrupt_chunks_emits_background_task_started() -> None:
         stream_mode=["custom", "updates"],
     ):
         if mode == "updates":
-            emitted_interrupts.extend(
-                [sse async for sse in _emit_interrupt_chunks(payload)]
+            emitted_lines.extend(
+                [sse async for sse in _emit_interrupt_events(payload)]
             )
 
-    assert len(emitted_interrupts) == 1
-    payload_text = emitted_interrupts[0].removeprefix("data: ").strip()
-    payload_json = json.loads(payload_text)
-    assert payload_json["type"] == "data-background-task-started"
-    assert payload_json["data"]["taskId"] == "abc-123"
-    assert payload_json["data"]["toolName"] == "run_control_tests_on_step"
-    assert payload_json["data"]["estimatedDurationSeconds"] == 180
+    parsed = [_parse_data_payload(line) for line in emitted_lines]
+    interrupts_events = [p for p in parsed if p.get("type") == "interrupts"]
+    custom_events = [
+        p
+        for p in parsed
+        if p.get("type") == "custom"
+        and p.get("kind") == "data-background-task-started"
+    ]
+    assert len(interrupts_events) == 1
+    assert len(custom_events) == 1
+    assert custom_events[0]["data"]["taskId"] == _FIXED_TASK_ID
+    assert custom_events[0]["data"]["toolName"] == "run_control_tests_on_step"
+    assert custom_events[0]["data"]["estimatedDurationSeconds"] == 180
 
 
 @pytest.mark.asyncio
@@ -115,33 +136,31 @@ async def test_stream_graph_chunks_yields_interrupt_sse(
     user_id = uuid4()
     context = _build_context(user_id)
 
-    incoming = dispatcher_module._IncomingChatRequest(
+    incoming = dispatcher_module.ChatRequestBody(
         chat_id=chat_id,
-        user_message_id=uuid4(),
-        user_prompt="run controls",
-        user_parts=[{"type": "text", "text": "run controls"}],
+        user_id=user_id,
+        message="run controls",
         site_id="plasmodb",
         mode="strategy",
-        pipeline_config=None,
-        experiment_id=None,
     )
 
-    collected: list[dict[str, Any]] = []
-    async for sse in _stream_graph_chunks(
-        incoming=incoming,
-        user_id=user_id,
-        compiled_graph=graph,
-        runtime_context=context,
-        title_task=None,
-    ):
-        if sse.startswith("data: "):
-            payload_text = sse.removeprefix("data: ").strip()
-            if payload_text and payload_text != "[DONE]":
-                collected.append(json.loads(payload_text))
+    collected: list[dict[str, Any]] = [
+        _parse_data_payload(sse)
+        async for sse in _stream_graph_chunks(
+            incoming=incoming,
+            user_id=user_id,
+            compiled_graph=graph,
+            runtime_context=context,
+            title_task=None,
+        )
+    ]
 
     started = [
-        c for c in collected if c.get("type") == "data-background-task-started"
+        c
+        for c in collected
+        if c.get("type") == "custom"
+        and c.get("kind") == "data-background-task-started"
     ]
     assert len(started) == 1
-    assert started[0]["data"]["taskId"] == "abc-123"
+    assert started[0]["data"]["taskId"] == _FIXED_TASK_ID
     assert started[0]["data"]["toolName"] == "run_control_tests_on_step"

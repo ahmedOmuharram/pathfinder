@@ -5,30 +5,25 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "generate:openapi": "node scripts/generate-openapi.mjs",
-    "check:openapi": "node scripts/generate-openapi.mjs --check",
+    "generate": "kubb",
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@kubb/cli": "^4.37.2",
+    "@kubb/core": "^4.37.2",
+    "@kubb/plugin-oas": "^4.37.2",
+    "@kubb/plugin-react-query": "^4.37.2",
+    "@kubb/plugin-ts": "^4.37.2",
+    "@kubb/plugin-zod": "^4.37.2",
+    "@kubb/react-fabric": "^0.14.0",
     "@types/node": "^25.3.5",
-    "ai": "^6.0.158",
-    "openapi-typescript": "^7.13.0",
     "typescript": "^5.9.3"
   },
-  "peerDependencies": {
-    "ai": "^6.0.158"
-  },
   "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    },
-    "./types": {
-      "import": "./dist/types.js",
-      "types": "./dist/types.d.ts"
-    }
+    ".": "./src/index.ts",
+    "./generated/*": "./src/generated/*"
   }
 }

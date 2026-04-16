@@ -156,6 +156,23 @@ def test_phase_change_validates():
     assert pc.phase == "discovery"
 
 
+def test_phase_change_carries_reason():
+    pc = PhaseChange(
+        phase="planning",
+        status="started",
+        reason="user answered scoping question",
+    )
+    assert pc.reason == "user answered scoping question"
+    dumped = pc.model_dump(by_alias=True, exclude_none=True)
+    assert dumped["reason"] == "user answered scoping question"
+
+
+def test_phase_change_reason_optional():
+    pc = PhaseChange(phase="completed", status="completed")
+    dumped = pc.model_dump(by_alias=True, exclude_none=True)
+    assert "reason" not in dumped
+
+
 # ── Wire-contract tests ─────────────────────────────────────────────────────
 # These lock the camelCase alias behavior, snake_case acceptance via
 # populate_by_name, and extra-field tolerance. Without them, a flip of

@@ -1,14 +1,23 @@
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
 import type { VocabOption, VocabNode } from "@/lib/utils/vocab";
 
-/** Props for form-aware parameter widgets. Widgets self-serve via useFormContext(). */
+export type ParamFieldApi = {
+  state: {
+    value: string | string[];
+    meta: {
+      errors: unknown[];
+      isDirty: boolean;
+      isTouched: boolean;
+    };
+  };
+  handleChange: (value: string | string[]) => void;
+  handleBlur: () => void;
+};
+
 export type ParamWidgetProps = {
-  /** WDK parameter specification */
   spec: ParamSpec;
-  /** Form field name (= WDK parameter name) */
   name: string;
-  /** Flat vocabulary options */
   options: VocabOption[];
-  /** Hierarchical tree (null if flat) */
   vocabTree: VocabNode[] | null;
+  field: ParamFieldApi;
 };

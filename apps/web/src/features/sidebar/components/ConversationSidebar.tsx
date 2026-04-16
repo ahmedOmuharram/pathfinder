@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AlertTriangle, Archive, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,22 +21,18 @@ import { useConversationSidebarData } from "@/features/sidebar/hooks/useConversa
 import { useConversationSidebarActions } from "@/features/sidebar/hooks/useConversationSidebarActions";
 import { ConversationList } from "@/features/sidebar/components/ConversationList";
 import { DeleteConversationModal } from "@/features/sidebar/components/DeleteConversationModal";
-import { DuplicateStrategyModal } from "@/features/sidebar/components/DuplicateStrategyModal";
+import { DuplicateConversationModal } from "@/features/sidebar/components/DuplicateConversationModal";
 
 interface ConversationSidebarProps {
   siteId: string;
-  onToast?: (toast: {
-    type: "success" | "error" | "warning" | "info";
-    message: string;
-  }) => void;
 }
 
-export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProps) {
+export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
   const chatIsStreaming = useSessionStore((s) => s.chatIsStreaming);
   const currentPhase = usePlanStore((s) => s.currentPhase);
   const phaseStatus = usePlanStore((s) => s.phaseStatus);
 
-  const reportError = (message: string) => onToast?.({ type: "error", message });
+  const reportError = (message: string) => toast.error(message);
 
   const [showDismissed, setShowDismissed] = useState(false);
 
@@ -111,8 +108,8 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         onSelect={actions.handleSelect}
         onStartRename={actions.startRename}
         onStartDelete={actions.setDeleteTarget}
-        onStartDuplicate={actions.startDuplicate}
-        onToggleSaved={(si) => void actions.handleToggleSaved(si)}
+        onStartDuplicate={actions.setDuplicateTarget}
+        onToggleSaved={(item) => void actions.handleToggleSaved(item)}
       />
 
       {data.dismissedConversations.length > 0 && (
@@ -176,10 +173,11 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
         onConfirmDelete={() => void actions.confirmDelete()}
       />
 
-      <DuplicateStrategyModal
-        duplicateModal={actions.duplicateModal}
-        setDuplicateModal={actions.setDuplicateModal}
-        onDuplicate={actions.handleDuplicate}
+      <DuplicateConversationModal
+        target={actions.duplicateTarget}
+        isDuplicating={actions.isDuplicating}
+        onClose={() => actions.setDuplicateTarget(null)}
+        onConfirm={() => void actions.confirmDuplicate()}
       />
 
       <Dialog
@@ -188,12 +186,12 @@ export function ConversationSidebar({ siteId, onToast }: ConversationSidebarProp
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Permanently delete strategy</DialogTitle>
+            <DialogTitle>Permanently delete conversation</DialogTitle>
             <DialogDescription className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
               <span>
-                This will permanently delete the strategy from both PathFinder and
-                VEuPathDB. This cannot be undone.
+                This permanently removes the conversation and all its messages.
+                This cannot be undone.
               </span>
             </DialogDescription>
           </DialogHeader>

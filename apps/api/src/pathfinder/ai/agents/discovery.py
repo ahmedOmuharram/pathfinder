@@ -12,7 +12,6 @@ from pathfinder.ai.agents._instructions import (
     pinned_problem_frame,
     pinned_user_memories,
 )
-from pathfinder.ai.agents._phase_decisions import DiscoveryDecision
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
@@ -51,21 +50,13 @@ pathway identifiers, organism-specific terminology).
 already in progress. Use `search_example_plans` to find similar solved \
 problems.
 
-## Final Output (STRICT — follow exactly)
+## Output
 
-You MUST produce two things every turn, in this order:
-
-1. **Prose**: a short, user-facing summary of the candidate searches, \
-parameter trade-offs, and any caveats so the planner and the user can see \
-them. If catalog evidence reshapes the scoping frame, call \
-`set_problem_frame` to update it first.
-2. **Decision**: finalize with a `DiscoveryDecision` whose only field is \
-`next_action`:
-  - `advance_to_planning`: you have concrete candidate searches.
-  - `advance_to_execution`: a single unambiguous leaf search can be executed \
-without further planning.
-  - `need_more_input`: a WDK-specific ambiguity would materially change the \
-plan and only the user can resolve it.
+End your turn with concise prose summarizing candidate searches, parameter \
+trade-offs, and caveats so the planner and the user can see them. If catalog \
+evidence reshapes the scoping frame, call `set_problem_frame` to update it \
+first. A supervisor reads your prose and decides whether to continue to \
+planning, skip to execution, or end the turn to wait for the user.
 
 NEVER skip the prose. A reply that is only tool calls with no visible text \
 is a failure — the user sees a blank assistant message.
@@ -79,8 +70,8 @@ can express the user's constraints.
 - When multiple searches could work, note the trade-offs for the planner.
 - Do NOT create or modify strategies — that is the execution agent's job.
 - Do NOT create plans — that is the planning agent's job.
-- If you need the user to answer a blocking question, ask it in your prose \
-and return `next_action="need_more_input"` in the same turn.
+- If you need the user to answer a blocking question, ask it in your prose. \
+The supervisor will end the turn.
 - Summarize your findings clearly so the planning agent can act on them.
 """
 
@@ -89,9 +80,9 @@ _discovery_hooks: Hooks[AgentDeps] = Hooks(
     tool_execute=repetition_guard_hook,
 )
 
-discovery_agent: Agent[AgentDeps, str | DiscoveryDecision] = Agent(
+discovery_agent: Agent[AgentDeps, str] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=[str, DiscoveryDecision],
+    output_type=str,
     deps_type=AgentDeps,
     instructions=_DISCOVERY_INSTRUCTIONS,
     toolsets=[build_toolset()],

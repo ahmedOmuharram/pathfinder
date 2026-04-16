@@ -1,8 +1,7 @@
-import { Controller, useFormContext, useWatch } from "react-hook-form";
+import { useStore } from "@tanstack/react-form";
 import { Input } from "@/lib/components/ui/Input";
 import type { ColocationFormValues } from "../schema/colocationSchema";
-
-// ── Toggle button group ─────────────────────────────────────────────────
+import type { ColocationForm } from "../hooks/useColocationForm";
 
 type ToggleOption<T extends string> = { value: T; label: string };
 
@@ -46,96 +45,84 @@ export function ToggleGroup<T extends string>({
   );
 }
 
-// ── Offset row (anchor + direction + offset number via Controller) ──────
-
 export function OffsetRow({
   label,
   anchorField,
   directionField,
   offsetField,
+  form,
 }: {
   label: string;
   anchorField: keyof ColocationFormValues;
   directionField: keyof ColocationFormValues;
   offsetField: keyof ColocationFormValues;
+  form: ColocationForm;
 }) {
-  const { control } = useFormContext<ColocationFormValues>();
-
   return (
     <div className="space-y-1">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="flex items-center gap-1">
-        <Controller
-          name={anchorField}
-          control={control}
-          render={({ field }) => (
+        <form.Field name={anchorField}>
+          {(field) => (
             <ToggleGroup
               options={[
                 { value: "start" as const, label: "Start" },
                 { value: "stop" as const, label: "Stop" },
               ]}
-              value={field.value as "start" | "stop"}
-              onChange={field.onChange}
+              value={field.state.value as string}
+              onChange={(v) => field.handleChange(v as never)}
               columns={2}
             />
           )}
-        />
-        <Controller
-          name={directionField}
-          control={control}
-          render={({ field }) => (
+        </form.Field>
+        <form.Field name={directionField}>
+          {(field) => (
             <ToggleGroup
               options={[
                 { value: "+" as const, label: "+" },
                 { value: "-" as const, label: "\u2212" },
               ]}
-              value={field.value as "+" | "-"}
-              onChange={field.onChange}
+              value={field.state.value as string}
+              onChange={(v) => field.handleChange(v as never)}
               columns={2}
             />
           )}
-        />
-        <Controller
-          name={offsetField}
-          control={control}
-          render={({ field }) => (
+        </form.Field>
+        <form.Field name={offsetField}>
+          {(field) => (
             <Input
               type="number"
               min={0}
-              value={field.value as number}
-              onChange={(e) => field.onChange(Math.max(0, Number(e.target.value || 0)))}
-              onBlur={field.onBlur}
-              ref={field.ref}
+              value={field.state.value as number}
+              onChange={(e) => field.handleChange(Math.max(0, Number(e.target.value || 0)) as never)}
+              onBlur={field.handleBlur}
               className="h-7 w-20 bg-card text-xs"
             />
           )}
-        />
+        </form.Field>
       </div>
     </div>
   );
 }
 
-// ── Region editor (region type + begin/end offset rows) ─────────────────
-
-type RegionSuffix = "A" | "B";
-
 export function RegionEditor({
   label,
   suffix,
+  form,
 }: {
   label: string;
-  suffix: RegionSuffix;
+  suffix: "A" | "B";
+  form: ColocationForm;
 }) {
-  const { control, setValue } = useFormContext<ColocationFormValues>();
-  const regionKey = `region${suffix}` as const;
-  const beginKey = `begin${suffix}` as const;
-  const beginDirKey = `beginDirection${suffix}` as const;
-  const beginOffKey = `beginOffset${suffix}` as const;
-  const endKey = `end${suffix}` as const;
-  const endDirKey = `endDirection${suffix}` as const;
-  const endOffKey = `endOffset${suffix}` as const;
+  const regionKey = `region${suffix}` as keyof ColocationFormValues;
+  const beginKey = `begin${suffix}` as keyof ColocationFormValues;
+  const beginDirKey = `beginDirection${suffix}` as keyof ColocationFormValues;
+  const beginOffKey = `beginOffset${suffix}` as keyof ColocationFormValues;
+  const endKey = `end${suffix}` as keyof ColocationFormValues;
+  const endDirKey = `endDirection${suffix}` as keyof ColocationFormValues;
+  const endOffKey = `endOffset${suffix}` as keyof ColocationFormValues;
 
-  const region = useWatch({ control, name: regionKey });
+  const region = useStore(form.store, (s) => s.values[regionKey]);
   const showDetails = region !== "exact";
 
   return (
@@ -143,10 +130,8 @@ export function RegionEditor({
       <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
-      <Controller
-        name={regionKey}
-        control={control}
-        render={({ field }) => (
+      <form.Field name={regionKey}>
+        {(field) => (
           <ToggleGroup
             options={[
               { value: "exact" as const, label: "Exact" },
@@ -154,50 +139,40 @@ export function RegionEditor({
               { value: "downstream" as const, label: "Downstream" },
               { value: "custom" as const, label: "Custom" },
             ]}
-            value={field.value}
+            value={field.state.value as string}
             onChange={(r) => {
-              field.onChange(r);
+              field.handleChange(r as never);
               if (r === "exact") {
-                setValue(beginKey, "start");
-                setValue(beginDirKey, "+");
-                setValue(beginOffKey, 0);
-                setValue(endKey, "stop");
-                setValue(endDirKey, "+");
-                setValue(endOffKey, 0);
+                form.setFieldValue(beginKey, "start" as never);
+                form.setFieldValue(beginDirKey, "+" as never);
+                form.setFieldValue(beginOffKey, 0 as never);
+                form.setFieldValue(endKey, "stop" as never);
+                form.setFieldValue(endDirKey, "+" as never);
+                form.setFieldValue(endOffKey, 0 as never);
               } else if (r === "upstream") {
-                setValue(beginKey, "start");
-                setValue(beginDirKey, "-");
-                setValue(beginOffKey, 0);
-                setValue(endKey, "start");
-                setValue(endDirKey, "+");
-                setValue(endOffKey, 0);
+                form.setFieldValue(beginKey, "start" as never);
+                form.setFieldValue(beginDirKey, "-" as never);
+                form.setFieldValue(beginOffKey, 0 as never);
+                form.setFieldValue(endKey, "start" as never);
+                form.setFieldValue(endDirKey, "+" as never);
+                form.setFieldValue(endOffKey, 0 as never);
               } else if (r === "downstream") {
-                setValue(beginKey, "stop");
-                setValue(beginDirKey, "-");
-                setValue(beginOffKey, 0);
-                setValue(endKey, "stop");
-                setValue(endDirKey, "+");
-                setValue(endOffKey, 0);
+                form.setFieldValue(beginKey, "stop" as never);
+                form.setFieldValue(beginDirKey, "-" as never);
+                form.setFieldValue(beginOffKey, 0 as never);
+                form.setFieldValue(endKey, "stop" as never);
+                form.setFieldValue(endDirKey, "+" as never);
+                form.setFieldValue(endOffKey, 0 as never);
               }
             }}
             columns={4}
           />
         )}
-      />
+      </form.Field>
       {showDetails && (
         <div className="grid grid-cols-2 gap-3 rounded-md border border-border bg-background p-2">
-          <OffsetRow
-            label="Begin"
-            anchorField={beginKey}
-            directionField={beginDirKey}
-            offsetField={beginOffKey}
-          />
-          <OffsetRow
-            label="End"
-            anchorField={endKey}
-            directionField={endDirKey}
-            offsetField={endOffKey}
-          />
+          <OffsetRow label="Begin" anchorField={beginKey} directionField={beginDirKey} offsetField={beginOffKey} form={form} />
+          <OffsetRow label="End" anchorField={endKey} directionField={endDirKey} offsetField={endOffKey} form={form} />
         </div>
       )}
     </div>

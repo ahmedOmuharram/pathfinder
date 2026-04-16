@@ -2,7 +2,7 @@
  * Shared helper for consuming simple typed-event SSE streams.
  *
  * Used by experiment/sweep/seed routes — NOT for chat.  Chat goes through
- * `@ai-sdk/react` and the Vercel AI SDK wire format.
+ * `useLangGraphStream` and the LangGraph streaming wire format.
  *
  * The async generator fetches the given URL, parses `event:` / `data:`
  * frames out of the response body, and yields each `data:` payload as

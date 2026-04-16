@@ -76,24 +76,24 @@ export function CatalogPanel({
                     "border-b transition-colors",
                     isInteractive && "cursor-pointer hover:bg-accent/50",
                     isActive && "bg-primary/5 font-medium",
-                    !model.enabled && "opacity-40",
+                    model.enabled === false && "opacity-40",
                   )}
                 >
                   <td className="py-2">
                     <div className="flex items-center gap-1.5">
                       {model.name}
-                      {model.supportsReasoning && (
+                      {model.supportsReasoning === true && (
                         <Zap className="h-3 w-3 text-amber-500" />
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground">{model.description}</div>
                   </td>
-                  <td className="py-2">${model.inputPrice.toFixed(2)}</td>
-                  <td className="py-2">${model.outputPrice.toFixed(2)}</td>
-                  <td className="py-2">${model.cachedInputPrice.toFixed(2)}</td>
+                  <td className="py-2">${(model.inputPrice ?? 0).toFixed(2)}</td>
+                  <td className="py-2">${(model.outputPrice ?? 0).toFixed(2)}</td>
+                  <td className="py-2">${(model.cachedInputPrice ?? 0).toFixed(2)}</td>
                   <td className="py-2">
-                    {model.contextSize > 0
-                      ? `${(model.contextSize / 1_000_000).toFixed(1)}M`
+                    {(model.contextSize ?? 0) > 0
+                      ? `${((model.contextSize ?? 0) / 1_000_000).toFixed(1)}M`
                       : "\u2014"}
                   </td>
                 </tr>

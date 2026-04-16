@@ -10,7 +10,6 @@ from pathfinder.ai.agents._instructions import (
     pinned_graph_state,
     pinned_user_memories,
 )
-from pathfinder.ai.agents._phase_decisions import VerificationDecision
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -41,19 +40,12 @@ pathway enrichment to confirm biological relevance.
 5. **Export**: Use `export_gene_set` and `create_workbench_gene_set` to \
 make results available for downstream analysis.
 
-## Final Output (STRICT — follow exactly)
+## Output
 
-You MUST produce two things every turn, in this order:
-
-1. **Prose**: a short, user-facing completion summary — what was checked, \
-what passed, and anything suspicious.
-2. **Decision**: finalize with a `VerificationDecision` whose only field is \
-`next_action`:
-  - `complete`: verification passed; the turn is done.
-  - `retry_execution`: verification uncovered an execution-level bug (wrong \
-parameters, wrong search) that execution should fix.
-  - `abort`: the strategy is broken in a way that execution cannot fix and \
-the user must intervene.
+End your turn with a concise user-facing completion summary — what was \
+checked, what passed, and anything suspicious. A supervisor reads your \
+prose and decides whether to end the turn or route back to execution / \
+planning / discovery to fix a problem you surfaced.
 
 NEVER skip the prose. A reply that is only tool calls with no visible text \
 is a failure — the user sees a blank assistant message.
@@ -68,8 +60,8 @@ record types) that counts alone miss.
 the user should review manually.
 - Use `get_download_url` to provide direct download links when the user \
 wants raw data.
-- Do NOT modify the strategy — if something is wrong, return \
-`next_action="retry_execution"` so the orchestrator can re-enter execution.
+- Do NOT modify the strategy — if something is wrong, describe it in your \
+prose and the supervisor will re-enter execution.
 - Do NOT explore the catalog or create plans — those phases are complete.
 - Write your prose as a concise completion summary, not a new conversation \
 opener.
@@ -78,9 +70,9 @@ opener.
 for the user's next instruction.
 """
 
-verification_agent: Agent[AgentDeps, str | VerificationDecision] = Agent(
+verification_agent: Agent[AgentDeps, str] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=[str, VerificationDecision],
+    output_type=str,
     deps_type=AgentDeps,
     instructions=_VERIFICATION_INSTRUCTIONS,
     toolsets=[build_toolset()],

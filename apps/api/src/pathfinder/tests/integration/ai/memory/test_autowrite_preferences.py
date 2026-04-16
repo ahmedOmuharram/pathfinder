@@ -40,7 +40,7 @@ async def test_preferences_autowrite_only_after_three_successes(
                     parts=[],
                     metadata_={
                         "phase": "verification",
-                        "phaseDecision": {"next_action": "complete"},
+                        "turnCompleted": True,
                     },
                     created_at=datetime.now(UTC) - timedelta(days=i + 1),
                 )
@@ -90,7 +90,7 @@ async def test_preferences_not_written_with_fewer_than_three_successes(
                     parts=[],
                     metadata_={
                         "phase": "verification",
-                        "phaseDecision": {"next_action": "complete"},
+                        "turnCompleted": True,
                     },
                     created_at=datetime.now(UTC) - timedelta(days=i + 1),
                 )

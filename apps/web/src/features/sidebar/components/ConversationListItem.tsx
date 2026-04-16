@@ -1,5 +1,4 @@
 import { MoreVertical } from "lucide-react";
-import type { Strategy } from "@pathfinder/shared";
 
 import {
   DropdownMenu,
@@ -18,7 +17,6 @@ interface ConversationListItemProps {
   isActive: boolean;
   isRenaming: boolean;
   renameValue: string;
-  graphHasValidationIssue: boolean;
   isActiveStreaming: boolean;
   activePhase: string | null;
   activePhaseStatus: string | null;
@@ -28,8 +26,8 @@ interface ConversationListItemProps {
   onSelect: (item: ConversationItem) => void;
   onStartRename: (item: ConversationItem) => void;
   onStartDelete: (item: ConversationItem) => void;
-  onStartDuplicate: (strategy: Strategy) => void;
-  onToggleSaved: (strategy: Strategy) => void;
+  onStartDuplicate: (item: ConversationItem) => void;
+  onToggleSaved: (item: ConversationItem) => void;
 }
 
 export function ConversationListItem({
@@ -37,7 +35,6 @@ export function ConversationListItem({
   isActive,
   isRenaming,
   renameValue,
-  graphHasValidationIssue,
   isActiveStreaming,
   onRenameValueChange,
   onCommitRename,
@@ -48,8 +45,6 @@ export function ConversationListItem({
   onStartDuplicate,
   onToggleSaved,
 }: ConversationListItemProps) {
-  const si = item.strategyItem;
-
   return (
     <div
       data-testid="conversation-item"
@@ -89,18 +84,10 @@ export function ConversationListItem({
             >
               {item.title}
             </span>
-            {si && graphHasValidationIssue && (
-              <span
-                className="inline-flex h-2 w-2 shrink-0 rounded-full bg-destructive/50"
-                title="Validation issues"
-              />
-            )}
-            {si != null && (
-              <span className="ml-auto text-xs text-muted-foreground">
-                {si.stepCount ?? 0} step{(si.stepCount ?? 0) === 1 ? "" : "s"}
-                {isActiveStreaming ? " · streaming" : ""}
-              </span>
-            )}
+            <span className="ml-auto text-xs text-muted-foreground">
+              {item.stepCount} step{item.stepCount === 1 ? "" : "s"}
+              {isActiveStreaming ? " · streaming" : ""}
+            </span>
           </div>
           <div className="text-xs text-muted-foreground">
             {formatSidebarTime(item.updatedAt)}
@@ -125,18 +112,12 @@ export function ConversationListItem({
             <DropdownMenuItem onSelect={() => onStartRename(item)}>
               Rename
             </DropdownMenuItem>
-            {si && (
-              <>
-                <DropdownMenuItem onSelect={() => onStartDuplicate(si)}>
-                  Duplicate
-                </DropdownMenuItem>
-                {si.wdkStrategyId != null && (
-                  <DropdownMenuItem onSelect={() => onToggleSaved(si)}>
-                    {si.isSaved ? "Revert to draft" : "Mark as saved"}
-                  </DropdownMenuItem>
-                )}
-              </>
-            )}
+            <DropdownMenuItem onSelect={() => onStartDuplicate(item)}>
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onToggleSaved(item)}>
+              {item.isSaved ? "Unmark saved" : "Mark as saved"}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => onStartDelete(item)}>
               Delete

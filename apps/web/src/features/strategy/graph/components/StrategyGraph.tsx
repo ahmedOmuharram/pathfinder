@@ -35,10 +35,6 @@ interface StrategyGraphProps {
   strategy: Strategy | null;
   siteId: string;
   onReset?: () => void;
-  onToast?: (toast: {
-    type: "success" | "error" | "warning" | "info";
-    message: string;
-  }) => void;
   variant?: "full" | "compact";
   onSwitchToChat?: () => void;
 }
@@ -52,17 +48,9 @@ export function StrategyGraph(props: StrategyGraphProps) {
 }
 
 function StrategyGraphInner(props: StrategyGraphProps) {
-  const { strategy, siteId, onToast, variant = "full", onSwitchToChat } = props;
+  const { strategy, siteId, variant = "full", onSwitchToChat } = props;
 
-  const graphArgs: Parameters<typeof useStrategyGraph>[0] = {
-    strategy,
-    siteId,
-    variant,
-  };
-  if (onToast != null) {
-    graphArgs.onToast = onToast;
-  }
-  const g = useStrategyGraph(graphArgs);
+  const g = useStrategyGraph({ strategy, siteId, variant });
 
   const HINTS_KEY = "pathfinder:graph-hints-dismissed";
   const [hintsDismissed, setHintsDismissed] = useState(() =>
@@ -87,9 +75,6 @@ function StrategyGraphInner(props: StrategyGraphProps) {
   }
 
   const ctxValue: StrategyGraphContextValue = { ...g, strategy, siteId };
-  if (onToast != null) {
-    ctxValue.onToast = onToast;
-  }
   return (
     <StrategyGraphProvider value={ctxValue}>
       <div className="relative flex h-full w-full flex-col">

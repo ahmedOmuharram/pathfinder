@@ -1,44 +1,37 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from langgraph.config import get_stream_writer
 from langgraph.runtime import Runtime
-from pydantic_ai import Agent
-from pydantic_ai.messages import ModelMessage
-from pydantic_ai.ui.vercel_ai import VercelAIAdapter
-from pydantic_ai.ui.vercel_ai._event_stream import VercelAIEventStream
-from pydantic_ai.ui.vercel_ai.request_types import RequestData, SubmitMessage, UIMessage
-from pydantic_ai.ui.vercel_ai.response_types import (
-    BaseChunk,
-    DoneChunk,
-    ErrorChunk,
-    FinishChunk,
-    StartChunk,
-    ToolInputAvailableChunk,
-    ToolInputDeltaChunk,
-    ToolInputErrorChunk,
-    ToolInputStartChunk,
-    ToolOutputAvailableChunk,
+from langgraph.types import Command
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai import Agent, AgentRunResultEvent
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelResponse,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
 )
 from pydantic_ai.usage import UsageLimits
+from shared_py.stream_events import StreamEvent
 from sqlalchemy.exc import SQLAlchemyError
 
-from pathfinder.ai.agents._phase_decisions import (
-    DiscoveryDecision,
-    ExecutionDecision,
-    PhaseDecision,
-    PlanningDecision,
-    ScopingDecision,
-    VerificationDecision,
-)
 from pathfinder.ai.agents.discovery import DISCOVERY_USAGE_LIMITS
 from pathfinder.ai.agents.execution import EXECUTION_USAGE_LIMITS
 from pathfinder.ai.agents.planning import PLANNING_USAGE_LIMITS
 from pathfinder.ai.agents.scoping import SCOPING_USAGE_LIMITS
+from pathfinder.ai.agents.supervisor import (
+    SUPERVISOR_USAGE_LIMITS,
+    SupervisorDecision,
+    SupervisorTarget,
+    build_supervisor_agent,
+)
 from pathfinder.ai.agents.verification import VERIFICATION_USAGE_LIMITS
+from pathfinder.ai.chat.langgraph_adapter import LangGraphEventAdapter
 from pathfinder.ai.graph.agents import PHASE_AGENTS
 from pathfinder.ai.graph.runtime import (
     AgentDeps,
@@ -47,10 +40,10 @@ from pathfinder.ai.graph.runtime import (
     extract_state_delta,
 )
 from pathfinder.ai.graph.state import PhaseName, PipelineState
-from pathfinder.ai.graph.stream_chunks import (
-    encode_chunk_as_sse,
-    phase_finish_chunk,
-    phase_start_chunk,
+from pathfinder.ai.graph.stream_events import (
+    phase_change_event,
+    phase_finish_event,
+    phase_start_event,
 )
 from pathfinder.ai.memory.autowrite import auto_write_memories
 from pathfinder.ai.memory.retrieval import retrieve_relevant_memories
@@ -62,6 +55,8 @@ from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
+SUPERVISOR_CALL_BUDGET: int = 15
+
 PHASE_USAGE_LIMITS: dict[PhaseName, UsageLimits] = {
     "scoping": SCOPING_USAGE_LIMITS,
     "discovery": DISCOVERY_USAGE_LIMITS,
@@ -70,50 +65,9 @@ PHASE_USAGE_LIMITS: dict[PhaseName, UsageLimits] = {
     "verification": VERIFICATION_USAGE_LIMITS,
 }
 
-# Each phase agent uses ``output_type=[str, <Decision>]``; plain-prose outputs
-# fall back to a "do not advance" decision so the pipeline halts cleanly and
-# the user still sees the text.
-_DEFAULT_PHASE_DECISIONS: dict[PhaseName, PhaseDecision] = {
-    "scoping": ScopingDecision(next_action="need_more_input"),
-    "discovery": DiscoveryDecision(next_action="need_more_input"),
-    "planning": PlanningDecision(next_action="request_revision"),
-    "execution": ExecutionDecision(next_action="abort"),
-    "verification": VerificationDecision(next_action="abort"),
-}
-
-_DECISION_TYPES: tuple[type[PhaseDecision], ...] = (
-    ScopingDecision,
-    DiscoveryDecision,
-    PlanningDecision,
-    ExecutionDecision,
-    VerificationDecision,
-)
-
-
-def _resolve_decision(raw_output: object, phase: PhaseName) -> PhaseDecision:
-    """Return the structured decision, or the phase's safe default for prose."""
-    if isinstance(raw_output, _DECISION_TYPES):
-        return raw_output
-    return _DEFAULT_PHASE_DECISIONS[phase]
-
 
 class PhaseRunError(RuntimeError):
     """Raised when a phase agent stream ends without an ``AgentRunResult``."""
-
-
-def build_run_input(state: PipelineState) -> RequestData:
-    user_message = UIMessage.model_validate(
-        {
-            "id": str(state.user_message_id) if state.user_message_id else str(uuid4()),
-            "role": "user",
-            "parts": state.user_parts,
-        }
-    )
-    return SubmitMessage(
-        trigger="submit-message",
-        id=str(state.chat_id),
-        messages=[user_message],
-    )
 
 
 def model_id(agent: Agent[Any, Any]) -> str:
@@ -126,32 +80,69 @@ def model_id(agent: Agent[Any, Any]) -> str:
 
 
 def _is_final_result_tool(name: str) -> bool:
-    """True for the pydantic-ai structured-output tools.
-
-    Plain structured output uses ``final_result``; output unions like
-    ``output_type=[str, Decision]`` use ``final_result_<TypeName>``.
-    """
     return name == "final_result" or name.startswith("final_result_")
 
 
-def is_chunk_to_drop(chunk: BaseChunk, suppressed_tool_ids: set[str]) -> bool:
-    if isinstance(chunk, StartChunk | FinishChunk | DoneChunk):
-        return True
-    if isinstance(chunk, ToolInputStartChunk) and _is_final_result_tool(
-        chunk.tool_name,
-    ):
-        suppressed_tool_ids.add(chunk.tool_call_id)
-        return True
-    return bool(
-        isinstance(
-            chunk,
-            ToolInputDeltaChunk
-            | ToolInputAvailableChunk
-            | ToolInputErrorChunk
-            | ToolOutputAvailableChunk,
-        )
-        and chunk.tool_call_id in suppressed_tool_ids
-    )
+def _to_camel(s: str) -> str:
+    parts = s.split("_")
+    return parts[0] + "".join(p.capitalize() for p in parts[1:])
+
+
+class _PersistedTextPart(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
+    type: Literal["text"] = "text"
+    text: str
+    state: Literal["done"] = "done"
+
+
+class _PersistedReasoningPart(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
+    type: Literal["reasoning"] = "reasoning"
+    text: str
+    state: Literal["done"] = "done"
+
+
+class _PersistedToolCallPart(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
+    type: str
+    tool_call_id: str
+    state: Literal["input-available"] = "input-available"
+    input: dict[str, Any] = Field(default_factory=dict)
+    provider_executed: bool = False
+
+
+def _convert_assistant_parts(
+    new_messages: list[ModelMessage],
+) -> list[dict[str, Any]]:
+    """Convert pydantic-ai assistant ModelResponses into persisted parts."""
+    parts: list[dict[str, Any]] = []
+    for msg in new_messages:
+        if not isinstance(msg, ModelResponse):
+            continue
+        for part in msg.parts:
+            converted = _convert_response_part(part)
+            if converted is None:
+                continue
+            parts.append(converted.model_dump(by_alias=True, exclude_none=True))
+    return parts
+
+
+def _convert_response_part(
+    part: object,
+) -> _PersistedTextPart | _PersistedReasoningPart | _PersistedToolCallPart | None:
+    match part:
+        case TextPart(content=content) if content:
+            return _PersistedTextPart(text=content)
+        case ThinkingPart(content=content) if content:
+            return _PersistedReasoningPart(text=content)
+        case ToolCallPart() as tc if not _is_final_result_tool(tc.tool_name):
+            return _PersistedToolCallPart(
+                type=f"tool-{tc.tool_name}",
+                tool_call_id=tc.tool_call_id,
+                input=tc.args_as_dict(),
+            )
+        case _:
+            return None
 
 
 @dataclass(frozen=True)
@@ -162,27 +153,16 @@ class PhaseMessage:
     phase: PhaseName
     message_id: UUID
     new_messages: list[ModelMessage]
-    decision: PhaseDecision
     agent: Agent[Any, Any]
     trace_id: str | None
     created_at: str | None
 
 
-async def persist_phase_message(context: Context, message: PhaseMessage) -> None:
-    assistant_parts: list[dict[str, Any]] = []
-    if message.new_messages:
-        ui_messages = VercelAIAdapter.dump_messages(message.new_messages)
-        for ui in ui_messages:
-            if ui.role != "assistant":
-                continue
-            for part in ui.parts:
-                dumped = part.model_dump(by_alias=True, exclude_none=True)
-                if dumped.get("type") == "tool-final_result":
-                    continue
-                assistant_parts.append(dumped)
-
+async def persist_phase_message(context: Context, message: PhaseMessage) -> UUID | None:
+    """Persist the assistant message for a phase; return its id when written."""
+    assistant_parts = _convert_assistant_parts(message.new_messages)
     if not assistant_parts:
-        return
+        return None
 
     async with context.db_session_factory() as session:
         repo = MessagesRepository(session)
@@ -198,10 +178,25 @@ async def persist_phase_message(context: Context, message: PhaseMessage) -> None
                 "createdAt": message.created_at,
                 "siteId": message.site_id,
                 "mode": message.mode,
-                "phaseDecision": message.decision.model_dump(mode="json"),
             },
         )
         await session.commit()
+    return message.message_id
+
+
+def _extract_latest_assistant_prose(new_messages: list[ModelMessage]) -> str:
+    for msg in reversed(new_messages):
+        if not isinstance(msg, ModelResponse):
+            continue
+        texts = [p.content for p in msg.parts if isinstance(p, TextPart)]
+        prose = "\n".join(t for t in texts if t.strip())
+        if prose:
+            return prose
+    return ""
+
+
+def _emit_event(writer: Any, event: StreamEvent) -> None:
+    writer({"stream_event": event.model_dump(by_alias=True, mode="json")})
 
 
 async def _run_phase_node(
@@ -214,65 +209,39 @@ async def _run_phase_node(
     agent: Agent[AgentDeps, Any] = PHASE_AGENTS[phase]
     usage_limits = PHASE_USAGE_LIMITS[phase]
     writer = get_stream_writer()
-    # Prefer freshly retrieved memories (scoping); otherwise use the batch
-    # the scoping phase persisted to state so downstream agents see them too.
     effective_memories = memories if memories is not None else state.retrieved_memories
     deps = build_node_deps(state, runtime.context, memories=effective_memories)
-    run_input = build_run_input(state)
-
-    adapter: VercelAIAdapter[AgentDeps, Any] = VercelAIAdapter(
-        agent=agent,
-        run_input=run_input,
-        sdk_version=6,
-    )
-    event_stream = cast(
-        "VercelAIEventStream[AgentDeps, Any]", adapter.build_event_stream()
-    )
 
     phase_message_id = uuid4()
-    writer(
-        {
-            "sse": encode_chunk_as_sse(
-                phase_start_chunk(
-                    message_id=str(phase_message_id),
-                    phase=phase,
-                    model_name=model_id(agent),
-                    trace_id=state.turn_trace_id or "",
-                    created_at=state.turn_created_at or "",
-                    chat_id=str(state.chat_id),
-                )
-            )
-        }
+    adapter = LangGraphEventAdapter(message_id=str(phase_message_id))
+
+    _emit_event(
+        writer,
+        phase_start_event(
+            phase=phase,
+            trace_id=state.turn_trace_id or "",
+            model=model_id(agent),
+        ),
     )
 
-    suppressed_tool_ids: set[str] = set()
-    error_text: str | None = None
+    new_messages: list[ModelMessage] = []
+    finish_reason = "stop"
     try:
-        async for chunk in event_stream.transform_stream(
-            adapter.run_stream_native(
-                deps=deps,
-                message_history=state.message_history or None,
-                usage_limits=usage_limits,
-            )
+        async for event in agent.run_stream_events(
+            state.user_prompt,
+            deps=deps,
+            message_history=state.message_history or None,
+            usage_limits=usage_limits,
         ):
-            if isinstance(chunk, ErrorChunk):
-                # pydantic-ai's UI stream swallows run-time exceptions and
-                # emits them as ErrorChunks. Capture the message so the
-                # PhaseRunError below carries the real cause instead of a
-                # blank "no result", and log it with full context.
-                error_text = chunk.error_text
-                logger.error(
-                    "phase stream error chunk",
-                    phase=phase,
-                    chat_id=str(state.chat_id),
-                    user_id=str(state.user_id),
-                    trace_id=state.turn_trace_id,
-                    model=model_id(agent),
-                    error_text=chunk.error_text,
-                )
-            if is_chunk_to_drop(chunk, suppressed_tool_ids):
+            if isinstance(event, AgentRunResultEvent):
+                run_result = event.result
+                new_messages = list(run_result.new_messages())
+                pydantic_reason = run_result.response.finish_reason
+                if pydantic_reason:
+                    finish_reason = pydantic_reason
                 continue
-            writer({"sse": event_stream.encode_event(chunk)})
+            for stream_event in adapter.handle(event):
+                _emit_event(writer, stream_event)
     except Exception:
         logger.exception(
             "phase stream raised",
@@ -285,15 +254,16 @@ async def _run_phase_node(
         )
         raise
 
-    finish_reason = event_stream._finish_reason or "stop"
-    writer({"sse": encode_chunk_as_sse(phase_finish_chunk(reason=finish_reason))})
+    final = adapter.finalize()
+    if final.content or final.tool_calls:
+        _emit_event(writer, final)
 
-    run_result = event_stream._result
-    if run_result is None:
-        detail = f": {error_text}" if error_text else ""
+    _emit_event(writer, phase_finish_event(phase=phase, reason=finish_reason))
+
+    if not new_messages:
         msg = (
-            f"phase {phase} stream errored without AgentRunResult "
-            f"(finish_reason={finish_reason}){detail}"
+            f"phase {phase} stream ended without AgentRunResult "
+            f"(finish_reason={finish_reason})"
         )
         logger.error(
             "phase produced no AgentRunResult",
@@ -303,15 +273,11 @@ async def _run_phase_node(
             trace_id=state.turn_trace_id,
             model=model_id(agent),
             finish_reason=finish_reason,
-            error_text=error_text,
             message_history_len=len(state.message_history or []),
         )
         raise PhaseRunError(msg)
 
-    decision = _resolve_decision(run_result.output, phase)
-    new_messages = list(run_result.new_messages())
-
-    await persist_phase_message(
+    persisted_id = await persist_phase_message(
         runtime.context,
         PhaseMessage(
             chat_id=state.chat_id,
@@ -320,27 +286,34 @@ async def _run_phase_node(
             phase=phase,
             message_id=phase_message_id,
             new_messages=new_messages,
-            decision=decision,
             agent=agent,
             trace_id=state.turn_trace_id,
             created_at=state.turn_created_at,
         ),
     )
 
+    _emit_event(
+        writer, phase_change_event(phase=phase, status="completed", reason=""),
+    )
+
     delta = extract_state_delta(deps)
     delta["current_phase"] = phase
-    delta["phase_decisions"] = {**state.phase_decisions, phase: decision}
     delta["message_history"] = new_messages
-    delta["retry_counts"] = {
-        **state.retry_counts,
-        phase: state.retry_counts.get(phase, 0) + 1,
+    delta["phase_call_counts"] = {
+        **state.phase_call_counts,
+        phase: state.phase_call_counts.get(phase, 0) + 1,
     }
+    prose = _extract_latest_assistant_prose(new_messages)
+    if prose:
+        delta["last_assistant_prose"] = prose
+    if phase == "verification" and persisted_id is not None:
+        delta["last_verification_message_id"] = persisted_id
     return delta
 
 
 async def scoping_node(
     state: PipelineState, runtime: Runtime[Context]
-) -> dict[str, Any]:
+) -> Command[Literal["supervisor"]]:
     memories: list[MemoryValue] = []
     if runtime.context.memory_store is not None and state.user_prompt.strip():
         mem_store = MemoryStore(store=runtime.context.memory_store)
@@ -354,67 +327,227 @@ async def scoping_node(
     delta = await _run_phase_node(
         state, runtime, phase="scoping", memories=memories,
     )
-    # Persist for downstream phases — discovery/planning/execution/verification
-    # read from ``state.retrieved_memories`` via the default branch in
-    # ``_run_phase_node``.
     delta["retrieved_memories"] = memories
-    return delta
+    return Command(goto="supervisor", update=delta)
 
 
 async def discovery_node(
     state: PipelineState, runtime: Runtime[Context]
-) -> dict[str, Any]:
-    return await _run_phase_node(state, runtime, phase="discovery")
+) -> Command[Literal["supervisor"]]:
+    delta = await _run_phase_node(state, runtime, phase="discovery")
+    return Command(goto="supervisor", update=delta)
 
 
 async def planning_node(
     state: PipelineState, runtime: Runtime[Context]
-) -> dict[str, Any]:
-    return await _run_phase_node(state, runtime, phase="planning")
+) -> Command[Literal["supervisor"]]:
+    delta = await _run_phase_node(state, runtime, phase="planning")
+    return Command(goto="supervisor", update=delta)
 
 
 async def execution_node(
     state: PipelineState, runtime: Runtime[Context]
-) -> dict[str, Any]:
-    return await _run_phase_node(state, runtime, phase="execution")
+) -> Command[Literal["supervisor"]]:
+    delta = await _run_phase_node(state, runtime, phase="execution")
+    return Command(goto="supervisor", update=delta)
 
 
 async def verification_node(
     state: PipelineState, runtime: Runtime[Context]
-) -> dict[str, Any]:
+) -> Command[Literal["supervisor"]]:
     delta = await _run_phase_node(state, runtime, phase="verification")
-    decision = delta["phase_decisions"]["verification"]
+    return Command(goto="supervisor", update=delta)
+
+
+SupervisorGoto = Literal[
+    "scoping", "discovery", "planning", "execution", "verification", "__end__"
+]
+
+_END: Literal["__end__"] = "__end__"
+
+
+def _render_supervisor_context(state: PipelineState) -> str:
+    lines: list[str] = ["## Turn State"]
+    lines.append(f"- User prompt: {state.user_prompt or '(empty)'}")
+    lines.append(f"- Supervisor call #: {state.supervisor_call_count + 1}")
+    lines.append(
+        f"- Current phase: {state.current_phase or '(none yet this turn)'}"
+    )
+    if state.phase_call_counts:
+        parts = ", ".join(
+            f"{p}={n}" for p, n in state.phase_call_counts.items()
+        )
+        lines.append(f"- Phase call counts this turn: {parts}")
+    if state.last_routing_reason:
+        lines.append(f"- Previous routing reason: {state.last_routing_reason}")
+
+    if state.problem_frame is not None:
+        lines.extend([
+            "",
+            "## Problem Frame",
+            f"- Interpreted goal: {state.problem_frame.interpreted_goal}",
+            f"- Ready for WDK discovery: "
+            f"{state.problem_frame.ready_for_wdk_discovery}",
+            f"- Confidence: {state.problem_frame.confidence:.2f}",
+        ])
+        if state.problem_frame.blocking_questions:
+            lines.append(
+                f"- Open blocking questions: "
+                f"{len(state.problem_frame.blocking_questions)}"
+            )
+
+    if state.active_plan is not None:
+        lines.extend([
+            "",
+            "## Active Plan",
+            f"- Status: {state.active_plan.status.value}",
+            f"- Steps: {len(state.active_plan.steps)}",
+        ])
+
+    if state.last_assistant_prose:
+        lines.extend([
+            "",
+            "## Latest Assistant Prose",
+            state.last_assistant_prose[:2000],
+        ])
+
+    return "\n".join(lines)
+
+
+def _supervisor_goto(target: SupervisorTarget) -> SupervisorGoto:
+    if target == "end":
+        return _END
+    return target
+
+
+async def supervisor_node(
+    state: PipelineState, runtime: Runtime[Context]
+) -> Command[SupervisorGoto]:
+    writer = get_stream_writer()
+
     if (
-        isinstance(decision, VerificationDecision)
-        and decision.next_action == "complete"
-        and runtime.context.memory_store is not None
+        state.supervisor_call_count == 0
+        and state.current_phase is None
+        and not state.message_history
     ):
-        await _safe_auto_write(state=state, delta=delta, runtime=runtime)
-    return delta
+        _emit_event(
+            writer,
+            phase_change_event(
+                phase="scoping", status="started", reason="turn start",
+            ),
+        )
+        return Command(
+            goto="scoping",
+            update={
+                "current_phase": "scoping",
+                "last_routing_reason": "turn start",
+                "supervisor_call_count": state.supervisor_call_count + 1,
+            },
+        )
+
+    if state.supervisor_call_count >= SUPERVISOR_CALL_BUDGET:
+        logger.warning(
+            "supervisor call budget exhausted",
+            chat_id=str(state.chat_id),
+            count=state.supervisor_call_count,
+        )
+        abort_reason = "supervisor call budget exhausted — safety abort"
+        _emit_event(
+            writer,
+            phase_change_event(
+                phase="completed", status="failed", reason=abort_reason,
+            ),
+        )
+        return Command(
+            goto=_END,
+            update={
+                "last_routing_reason": abort_reason,
+                "supervisor_call_count": state.supervisor_call_count + 1,
+            },
+        )
+
+    agent = build_supervisor_agent()
+    rendered = _render_supervisor_context(state)
+    try:
+        result = await agent.run(
+            rendered,
+            usage_limits=SUPERVISOR_USAGE_LIMITS,
+        )
+    except Exception:
+        logger.exception(
+            "supervisor agent failed; ending turn",
+            chat_id=str(state.chat_id),
+        )
+        fallback_reason = "supervisor failed — ending turn"
+        _emit_event(
+            writer,
+            phase_change_event(
+                phase="completed", status="failed", reason=fallback_reason,
+            ),
+        )
+        return Command(
+            goto=_END,
+            update={
+                "last_routing_reason": fallback_reason,
+                "supervisor_call_count": state.supervisor_call_count + 1,
+            },
+        )
+
+    decision: SupervisorDecision = result.output
+    goto = _supervisor_goto(decision.to)
+    if decision.to == "end":
+        status = "completed"
+        phase_for_chip: str = "completed"
+    else:
+        status = "started"
+        phase_for_chip = decision.to
+    _emit_event(
+        writer,
+        phase_change_event(
+            phase=phase_for_chip, status=status, reason=decision.reason,
+        ),
+    )
+
+    update: dict[str, Any] = {
+        "last_routing_reason": decision.reason,
+        "supervisor_call_count": state.supervisor_call_count + 1,
+    }
+    if decision.to != "end":
+        update["current_phase"] = decision.to
+    elif state.current_phase == "verification":
+        await _finalize_verified_turn(state=state, runtime=runtime)
+
+    return Command(goto=goto, update=update)
 
 
-async def _safe_auto_write(
+async def _finalize_verified_turn(
     *,
     state: PipelineState,
-    delta: dict[str, Any],
     runtime: Runtime[Context],
 ) -> None:
-    """Best-effort autowrite — never fails the verification turn.
+    """Mark the verification message as turn-complete and autowrite memories."""
+    if state.last_verification_message_id is not None:
+        try:
+            async with runtime.context.db_session_factory() as session:
+                repo = MessagesRepository(session)
+                await repo.mark_turn_completed(state.last_verification_message_id)
+                await session.commit()
+        except SQLAlchemyError:
+            logger.warning(
+                "failed to mark verification message as turn-complete",
+                chat_id=str(state.chat_id),
+                message_id=str(state.last_verification_message_id),
+            )
 
-    Autowrite is a side effect: if embedding/IO/DB hiccups, log and return.
-    """
     if runtime.context.memory_store is None:
         return
     mem_store = MemoryStore(store=runtime.context.memory_store)
     tombstones = TombstoneRepository(
         session_factory=runtime.context.db_session_factory,
     )
-    merged_state = state.model_copy(update={
-        k: v for k, v in delta.items() if k in PipelineState.model_fields
-    })
     try:
         await auto_write_memories(
-            store=mem_store, tombstones=tombstones, state=merged_state,
+            store=mem_store, tombstones=tombstones, state=state,
         )
     except (RuntimeError, ValueError, OSError, SQLAlchemyError) as exc:
         logger.warning("auto-write memories failed: %s", exc)

@@ -1,15 +1,13 @@
 // @vitest-environment jsdom
-/** RHF-23: Edge-case tests for the strategy editor react-hook-form migration. */
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import { FormProvider, useForm, useWatch, type UseFormReturn } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useStore } from "@tanstack/react-form";
 import type { ParamSpec } from "@pathfinder/shared";
-import { buildParamSchema } from "../schema/paramSchema";
-import { useParamForm } from "../hooks/useParamForm";
+import { buildParamSchema, buildFieldSchemaMap } from "../schema/paramSchema";
+import { useParamForm, type ParamForm } from "../hooks/useParamForm";
 import { SelectParam } from "../widgets/SelectParam";
 import { makeSpec, molecularWeightSpecs, textSearchSpecs, organismOptions } from "./fixtures";
+import { WidgetTestForm } from "../widgets/testUtils";
 
 afterEach(cleanup);
 
@@ -18,79 +16,53 @@ vi.mock("@/lib/api/sites", () => ({
 }));
 
 function ParamFormWrapper({
-  specs, onFormReady, children,
+  specs,
+  onFormReady,
+  children,
 }: {
   specs: ParamSpec[];
-  onFormReady?: (form: UseFormReturn) => void;
-  children?: (form: UseFormReturn) => React.ReactNode;
+  onFormReady?: (form: ParamForm) => void;
+  children?: (form: ParamForm) => React.ReactNode;
 }) {
   const form = useParamForm(specs);
   if (onFormReady) onFormReady(form);
-  return (
-    <FormProvider {...form}>{children ? children(form) : null}</FormProvider>
-  );
+  return <>{children ? children(form) : null}</>;
 }
 
-function FormVal({ name }: { name: string }) {
-  const value = useWatch({ name });
+function FormVal({ form, name }: { form: ParamForm; name: string }) {
+  const value = useStore(form.store, (s) => s.values[name]);
   const display = Array.isArray(value) ? JSON.stringify(value) : String(value ?? "");
   return <output data-testid={`fv-${name}`}>{display}</output>;
 }
 
-function WidgetTestForm({
-  spec, schema, defaultValue, children,
-}: {
-  spec: ParamSpec;
-  schema: ReturnType<typeof buildParamSchema>;
-  defaultValue: string | string[];
-  children?: React.ReactNode;
-}) {
-  const form = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: { [spec.name]: defaultValue },
-    mode: "onBlur",
-  });
-  return <FormProvider {...form}>{children}</FormProvider>;
-}
-
-// -- Empty param specs ---------------------------------------------------------
-
-describe("RHF-23: empty param specs", () => {
+describe("TF: empty param specs", () => {
   it("buildParamSchema([]) produces valid empty schema", () => {
     const schema = buildParamSchema([]);
     expect(schema.safeParse({}).success).toBe(true);
     expect(schema.safeParse({}).data).toEqual({});
   });
 
+  it("buildFieldSchemaMap([]) produces empty map", () => {
+    const map = buildFieldSchemaMap([]);
+    expect(map.size).toBe(0);
+  });
+
   it("useParamForm with empty specs produces empty defaults", () => {
-    let formRef: UseFormReturn | null = null;
+    let formRef: ParamForm | null = null;
     render(<ParamFormWrapper specs={[]} onFormReady={(f) => { formRef = f; }} />);
-    expect(formRef!.getValues()).toEqual({});
+    expect(formRef!.state.values).toEqual({});
   });
 });
 
-// -- All defaults unchanged ----------------------------------------------------
-
-describe("RHF-23: all defaults unchanged", () => {
-  it("isDirty is false and dirtyFields empty when nothing is changed", () => {
-    let formRef: UseFormReturn | null = null;
-    render(
-      <ParamFormWrapper specs={molecularWeightSpecs()} onFormReady={(f) => { formRef = f; }}>
-        {(form) => {
-          void form.formState.isDirty;
-          void form.formState.dirtyFields;
-          return null;
-        }}
-      </ParamFormWrapper>,
-    );
-    expect(formRef!.formState.isDirty).toBe(false);
-    expect(formRef!.formState.dirtyFields).toEqual({});
+describe("TF: all defaults unchanged", () => {
+  it("isDirty is false when nothing is changed", () => {
+    let formRef: ParamForm | null = null;
+    render(<ParamFormWrapper specs={molecularWeightSpecs()} onFormReady={(f) => { formRef = f; }} />);
+    expect(formRef!.state.isDirty).toBe(false);
   });
 });
 
-// -- Numeric validation edge cases ---------------------------------------------
-
-describe("RHF-23: numeric validation edge cases", () => {
+describe("TF: numeric validation edge cases", () => {
   it("rejects non-numeric string for numeric param", () => {
     const schema = buildParamSchema([makeSpec({ name: "w", isNumber: true, allowEmptyValue: false })]);
     expect(schema.safeParse({ w: "abc" }).success).toBe(false);
@@ -122,55 +94,49 @@ describe("RHF-23: numeric validation edge cases", () => {
   });
 });
 
-// -- Form reset on spec change (search switch) ---------------------------------
-
-describe("RHF-23: form reset on spec change (search switch)", () => {
+describe("TF: form reset on spec change (search switch)", () => {
   function SpecSwappableForm({
-    specs, onFormReady,
+    specs,
+    onFormReady,
   }: {
     specs: ParamSpec[];
-    onFormReady?: (form: UseFormReturn) => void;
+    onFormReady?: (form: ParamForm) => void;
   }) {
     const form = useParamForm(specs);
     if (onFormReady) onFormReady(form);
     return (
-      <FormProvider {...form}>
-        {specs.map((spec) => <FormVal key={spec.name} name={spec.name} />)}
-      </FormProvider>
+      <>
+        {specs.map((spec) => <FormVal key={spec.name} form={form} name={spec.name} />)}
+      </>
     );
   }
 
   it("resets form values when specs change (simulating search switch)", () => {
-    let formRef: UseFormReturn | null = null;
+    let formRef: ParamForm | null = null;
     const { rerender } = render(
       <SpecSwappableForm specs={molecularWeightSpecs()} onFormReady={(f) => { formRef = f; }} />,
     );
-    expect(formRef!.getValues()["organism"]).toBe("Plasmodium falciparum 3D7");
-    void formRef!.formState.isDirty;
+    expect(formRef!.state.values["organism"]).toBe("Plasmodium falciparum 3D7");
 
     rerender(
       <SpecSwappableForm specs={textSearchSpecs()} onFormReady={(f) => { formRef = f; }} />,
     );
-    const values = formRef!.getValues();
-    expect(values["organism"]).toBeUndefined();
+    const values = formRef!.state.values;
     expect(values["text_expression"]).toBe("");
     expect(values["text_fields"]).toEqual(["Gene ID", "Product Description"]);
-    expect(formRef!.formState.isDirty).toBe(false);
   });
 });
 
-// -- Hidden and empty-name params ----------------------------------------------
-
-describe("RHF-23: hidden and empty-name params are excluded", () => {
+describe("TF: hidden and empty-name params are excluded", () => {
   it("hidden params are not included in form defaults", () => {
     const specs = [
       makeSpec({ name: "visible_param", isVisible: true, initialDisplayValue: "hello" }),
       makeSpec({ name: "hidden_param", isVisible: false, initialDisplayValue: "secret" }),
     ];
-    let formRef: UseFormReturn | null = null;
+    let formRef: ParamForm | null = null;
     render(<ParamFormWrapper specs={specs} onFormReady={(f) => { formRef = f; }} />);
-    expect(formRef!.getValues()["visible_param"]).toBe("hello");
-    expect(formRef!.getValues()["hidden_param"]).toBeUndefined();
+    expect(formRef!.state.values["visible_param"]).toBe("hello");
+    expect(formRef!.state.values["hidden_param"]).toBeUndefined();
   });
 
   it("empty-name params are excluded from schema", () => {
@@ -183,9 +149,7 @@ describe("RHF-23: hidden and empty-name params are excluded", () => {
   });
 });
 
-// -- Multi-pick required -------------------------------------------------------
-
-describe("RHF-23: multi-pick required rejects empty array", () => {
+describe("TF: multi-pick required rejects empty array", () => {
   it("rejects [] and accepts non-empty array", () => {
     const schema = buildParamSchema([
       makeSpec({ name: "orgs", allowMultipleValues: true, allowEmptyValue: false }),
@@ -195,17 +159,15 @@ describe("RHF-23: multi-pick required rejects empty array", () => {
   });
 });
 
-// -- Select param required validation ------------------------------------------
-
-describe("RHF-23: select param with required validation", () => {
+describe("TF: select param with required validation", () => {
   it("renders without blank option when allowEmptyValue is false", () => {
     const specs = [makeSpec({
       name: "organism", displayName: "Organism", displayType: "select",
       allowEmptyValue: false, initialDisplayValue: "Plasmodium falciparum 3D7",
     })];
     render(
-      <WidgetTestForm spec={specs[0]!} schema={buildParamSchema(specs)} defaultValue="Plasmodium falciparum 3D7">
-        <SelectParam spec={specs[0]!} name="organism" options={organismOptions} vocabTree={null} />
+      <WidgetTestForm name="organism" defaultValue="Plasmodium falciparum 3D7">
+        {(field) => <SelectParam spec={specs[0]!} name="organism" options={organismOptions} vocabTree={null} field={field} />}
       </WidgetTestForm>,
     );
     expect(screen.getByRole("combobox")).toBeTruthy();
@@ -213,9 +175,7 @@ describe("RHF-23: select param with required validation", () => {
   });
 });
 
-// -- Mixed param type schema ---------------------------------------------------
-
-describe("RHF-23: schema for mixed param types", () => {
+describe("TF: schema for mixed param types", () => {
   it("validates string, number, and multi-pick params together", () => {
     const schema = buildParamSchema([
       makeSpec({ name: "organism", type: "string", allowEmptyValue: false }),

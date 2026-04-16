@@ -47,6 +47,10 @@ class OptimizationSettings(BaseModel):
     beta: float = 1.0
     method: str = "bayesian"
     estimated_size_penalty: float = 0.0
+    max_parallel: int | None = None
+    """Maximum number of variants to evaluate concurrently in the parallel
+    sweep. ``None`` falls back to the impl default (5). Bounded so a large
+    parameter grid does not stampede WDK."""
 
 
 def _parse_and_validate_inputs(

@@ -39,13 +39,16 @@ async def _seed_chat_and_task(
 def _parse_progress(body: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for line in body.splitlines():
-        if not line.startswith("data: "):
+        if not line.startswith("data:"):
             continue
-        payload = line[len("data: ") :]
-        if payload.strip() == "[DONE]":
+        payload = line[len("data:") :].lstrip()
+        if not payload:
             continue
         chunk = json.loads(payload)
-        if chunk.get("type") == "data-task-progress":
+        if (
+            chunk.get("type") == "custom"
+            and chunk.get("kind") == "data-task-progress"
+        ):
             out.append(chunk)
     return out
 

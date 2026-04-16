@@ -13,11 +13,14 @@ def compiled_graph() -> CompiledStateGraph:
     return build_graph(checkpointer=InMemorySaver())
 
 
-def test_graph_has_all_phase_nodes(compiled_graph: CompiledStateGraph) -> None:
+def test_graph_has_supervisor_and_phase_nodes(
+    compiled_graph: CompiledStateGraph,
+) -> None:
     nodes = set(compiled_graph.get_graph().nodes.keys())
     expected = {
         START,
         END,
+        "supervisor",
         "scoping",
         "discovery",
         "planning",
@@ -27,12 +30,12 @@ def test_graph_has_all_phase_nodes(compiled_graph: CompiledStateGraph) -> None:
     assert expected.issubset(nodes), nodes
 
 
-def test_graph_entry_edge_is_start_to_scoping(
+def test_graph_entry_edge_is_start_to_supervisor(
     compiled_graph: CompiledStateGraph,
 ) -> None:
     edges = compiled_graph.get_graph().edges
-    sources_to_scoping = {e.source for e in edges if e.target == "scoping"}
-    assert START in sources_to_scoping
+    sources_to_supervisor = {e.source for e in edges if e.target == "supervisor"}
+    assert START in sources_to_supervisor
 
 
 def test_compiled_graph_records_state_schema_with_checkpointer(
@@ -40,4 +43,3 @@ def test_compiled_graph_records_state_schema_with_checkpointer(
 ) -> None:
     assert compiled_graph.checkpointer is not None
     assert getattr(compiled_graph, "context_schema", None) is not None
-

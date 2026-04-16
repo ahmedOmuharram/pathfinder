@@ -75,11 +75,11 @@ function SummaryBar({
         <span className="font-medium text-foreground">{filteredCount}</span> significant
         term{filteredCount !== 1 ? "s" : ""}
       </span>
-      {result.totalGenesAnalyzed > 0 && (
-        <span>{fmtCount(result.totalGenesAnalyzed)} genes analyzed</span>
+      {(result.totalGenesAnalyzed ?? 0) > 0 && (
+        <span>{fmtCount(result.totalGenesAnalyzed ?? 0)} genes analyzed</span>
       )}
-      {result.backgroundSize > 0 && (
-        <span>background: {fmtCount(result.backgroundSize)}</span>
+      {(result.backgroundSize ?? 0) > 0 && (
+        <span>background: {fmtCount(result.backgroundSize ?? 0)}</span>
       )}
     </div>
   );

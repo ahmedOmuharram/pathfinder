@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { useEventCallback } from "usehooks-ts";
 import type { Strategy } from "@pathfinder/shared";
 import { pushStrategy } from "@/lib/api/strategies";
@@ -11,10 +12,6 @@ type SyncStatus = "idle" | "syncing" | "synced" | "error";
 interface UseAutoSyncArgs {
   strategy: Strategy | null;
   siteId: string;
-  onToast?: (toast: {
-    type: "success" | "error" | "warning" | "info";
-    message: string;
-  }) => void;
 }
 
 interface UseAutoSyncResult {
@@ -23,27 +20,21 @@ interface UseAutoSyncResult {
   triggerSync: () => void;
 }
 
+// In-flight guard: if a sync is running when a new trigger arrives we drop
+// the duplicate. The next user edit naturally re-triggers, so no self-retry
+// loop is required.
 export function useAutoSync(args: UseAutoSyncArgs): UseAutoSyncResult {
-  const { strategy, siteId, onToast } = args;
+  const { strategy, siteId } = args;
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
   const syncingRef = useRef(false);
-  const pendingRef = useRef(false);
   const setStrategyMeta = useStrategyStore((s) => s.setStrategyMeta);
 
-  const doSyncRef = useRef<() => void>(() => {});
-  const retrigger = useEventCallback(() => doSyncRef.current());
-
-  const doSync = () => {
+  const triggerSync = useEventCallback(() => {
     const isAiStreaming = useSessionStore.getState().chatIsStreaming;
     if (isAiStreaming) return;
-
     if (!strategy || strategy.steps.length === 0) return;
-
-    if (syncingRef.current) {
-      pendingRef.current = true;
-      return;
-    }
+    if (syncingRef.current) return;
 
     const draftStrategy = useStrategyStore.getState().strategy;
     if (!draftStrategy) return;
@@ -77,18 +68,12 @@ export function useAutoSync(args: UseAutoSyncArgs): UseAutoSyncResult {
         setSyncStatus("error");
         const msg = err instanceof Error ? err.message : "Sync failed";
         setLastSyncError(msg);
-        onToast?.({ type: "error", message: `Sync failed: ${msg}` });
+        toast.error(`Sync failed: ${msg}`);
       })
       .finally(() => {
         syncingRef.current = false;
-        if (pendingRef.current) {
-          pendingRef.current = false;
-          retrigger();
-        }
       });
-  };
+  });
 
-  doSyncRef.current = doSync;
-
-  return { syncStatus, lastSyncError, triggerSync: doSync };
+  return { syncStatus, lastSyncError, triggerSync };
 }

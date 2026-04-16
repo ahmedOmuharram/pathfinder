@@ -1,17 +1,15 @@
 "use client";
 
-import { useFormContext } from "react-hook-form";
 import { Input } from "@/lib/components/ui/Input";
 import { Label } from "@/lib/components/ui/Label";
 
 type StepNameFieldsProps = {
   oldName: string;
+  name: string;
+  onNameChange: (name: string) => void;
 };
 
-export function StepNameFields({ oldName }: StepNameFieldsProps) {
-  const { register, formState: { errors } } = useFormContext();
-  const nameError = errors["name"];
-
+export function StepNameFields({ oldName, name, onNameChange }: StepNameFieldsProps) {
   return (
     <div className="space-y-2">
       <div>
@@ -25,17 +23,10 @@ export function StepNameFields({ oldName }: StepNameFieldsProps) {
           New name
         </Label>
         <Input
-          {...register("name")}
           type="text"
-          aria-invalid={nameError ? "true" : undefined}
-          aria-describedby={nameError ? "name-error" : undefined}
-          className="bg-card"
+          value={name}
+          onChange={(e) => onNameChange(e.target.value)}
         />
-        {nameError?.message != null && (
-          <p id="name-error" role="alert" className="mt-1 text-xs text-destructive">
-            {String(nameError.message)}
-          </p>
-        )}
       </div>
     </div>
   );

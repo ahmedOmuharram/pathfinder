@@ -11,7 +11,6 @@ from pathfinder.ai.agents._instructions import (
     pinned_problem_frame,
     pinned_user_memories,
 )
-from pathfinder.ai.agents._phase_decisions import PlanningDecision
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
@@ -46,18 +45,12 @@ if the plan requires gene ID lookups.
 4. **Submit for execution**: Once the plan is complete and reviewed, use \
 `submit_plan` to hand it off to the execution agent.
 
-## Final Output (STRICT — follow exactly)
+## Output
 
-You MUST produce two things every turn, in this order:
-
-1. **Prose**: a short, user-facing summary of the plan and its rationale.
-2. **Decision**: finalize with a `PlanningDecision` whose only field is \
-`next_action`:
-  - `advance_to_execution`: a plan has been submitted successfully.
-  - `request_revision`: the user needs to decide something before the plan \
-can be submitted; explain what you need in your prose.
-  - `abort`: the task is not feasible with the available discovery findings; \
-explain why in your prose.
+End your turn with concise prose summarizing the plan and its rationale. A \
+supervisor reads your prose and routes the pipeline — it may send you back \
+to discovery if a gap emerges, continue to execution, or end the turn to \
+wait for the user.
 
 NEVER skip the prose. A reply that is only tool calls with no visible text \
 is a failure — the user sees a blank assistant message.
@@ -71,15 +64,15 @@ must set A before B (the execution agent handles refresh).
 - Use `update_plan` to refine the plan if the user requests changes.
 - Use `get_strategy` to check the current graph state if editing an \
 existing strategy.
-- `present_decision` is non-blocking. Do not rely on it to stop the pipeline.
+- `present_decision` is non-blocking.
 - Do NOT execute strategy operations — that is the execution agent's job.
 - Do NOT explore the catalog — that was the discovery agent's job. Use \
 the findings you received.
 """
 
-planning_agent: Agent[AgentDeps, str | PlanningDecision] = Agent(
+planning_agent: Agent[AgentDeps, str] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=[str, PlanningDecision],
+    output_type=str,
     deps_type=AgentDeps,
     instructions=_PLANNING_INSTRUCTIONS,
     toolsets=[build_toolset()],

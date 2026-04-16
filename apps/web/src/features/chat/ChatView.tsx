@@ -1,62 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { parseAsString, useQueryState } from "nuqs";
 
-import { ChatPanel } from "@/features/chat/ChatPanel";
-import { CompactStrategyView } from "@/features/strategy/graph/components/CompactStrategyView";
-import { GraphEditorModal } from "@/lib/components/GraphEditorModal";
-import { useGeneSetExport } from "@/lib/hooks/useGeneSetExport";
-import { useStableGraph } from "@/lib/hooks/useStableGraph";
-import { useToasts } from "@/lib/hooks/useToasts";
-import { useSessionStore } from "@/state/useSessionStore";
-import { useStrategyStore } from "@/state/strategy/store";
+import { ChatThread } from "./ChatThread";
+import { BranchSwitcher } from "./branches/BranchSwitcher";
 
-export function ChatView({ chatId }: { chatId: string }) {
-  const setStrategyId = useSessionStore((s) => s.setStrategyId);
-  const currentStrategyId = useSessionStore((s) => s.strategyId);
-  const clearStrategy = useStrategyStore((s) => s.clear);
-  const strategy = useStrategyStore((s) => s.strategy);
-  const selectedSite = useSessionStore((s) => s.selectedSite);
+export function ChatView({
+  chatId,
+}: {
+  chatId: string;
+}) {
+  const [activeBranch] = useQueryState("branch", parseAsString);
 
-  const { addToast } = useToasts();
-  const [graphEditing, setGraphEditing] = useState(false);
-  const { exportingGeneSet, handleExportAsGeneSet } = useGeneSetExport();
-  const { displayStrategy, hasGraph } = useStableGraph(strategy);
-
-  const [syncedFor, setSyncedFor] = useState<string | null>(null);
-  const normalizedChatId = chatId === "" ? null : chatId;
-  if (normalizedChatId !== syncedFor) {
-    setSyncedFor(normalizedChatId);
-    if (currentStrategyId !== normalizedChatId) {
-      setStrategyId(normalizedChatId);
-      if (normalizedChatId === null) {
-        clearStrategy();
-      }
-    }
+  async function getCheckpointId(): Promise<string | null> {
+    return activeBranch;
   }
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
-      <div className="min-h-0 flex-1">
-        <ChatPanel chatId={chatId} mode="strategy" />
+      <div className="flex items-center justify-end border-b border-border px-3 py-1.5">
+        <BranchSwitcher chatId={chatId} />
       </div>
-
-      {hasGraph && displayStrategy && (
-        <CompactStrategyView
-          strategy={displayStrategy}
-          onEditGraph={() => setGraphEditing(true)}
-          onExportAsGeneSet={(s) => void handleExportAsGeneSet(s)}
-          exportingGeneSet={exportingGeneSet}
-        />
-      )}
-
-      <GraphEditorModal
-        open={graphEditing}
-        onClose={() => setGraphEditing(false)}
-        strategy={displayStrategy ?? strategy}
-        siteId={selectedSite}
-        onToast={addToast}
-      />
+      <ChatThread chatId={chatId} getCheckpointId={getCheckpointId} />
     </div>
   );
 }

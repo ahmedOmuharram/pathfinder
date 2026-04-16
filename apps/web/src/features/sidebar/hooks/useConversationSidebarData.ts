@@ -1,7 +1,10 @@
 "use client";
 
-import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
-import { useStrategyFetching } from "@/features/sidebar/hooks/useStrategyFetching";
+import {
+  chatToConversationItem,
+  type ConversationItem,
+} from "@/features/sidebar/components/conversationSidebarTypes";
+import { useChatListFetching } from "@/features/sidebar/hooks/useChatListFetching";
 import { useSearchFilter } from "@/features/sidebar/hooks/useSearchFilter";
 
 interface UseConversationSidebarDataArgs {
@@ -23,31 +26,17 @@ interface ConversationSidebarData {
 export function useConversationSidebarData({
   siteId,
 }: UseConversationSidebarDataArgs): ConversationSidebarData {
-  const fetching = useStrategyFetching({ siteId });
+  const fetching = useChatListFetching({ siteId });
 
-  const { strategies, dismissedStrategies } = fetching;
-
-  const conversations: ConversationItem[] = strategies
-    .map((s) => ({
-      id: s.id,
-      kind: "strategy" as const,
-      title: s.name,
-      updatedAt: s.updatedAt,
-      siteId: s.siteId,
-      strategyItem: s,
-    }))
+  const conversations: ConversationItem[] = fetching.chats
+    .map(chatToConversationItem)
     .sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
     );
 
-  const dismissedConversations: ConversationItem[] = dismissedStrategies.map((s) => ({
-    id: s.id,
-    kind: "strategy" as const,
-    title: s.name,
-    updatedAt: s.updatedAt,
-    siteId: s.siteId,
-    strategyItem: s,
-  }));
+  const dismissedConversations: ConversationItem[] =
+    fetching.dismissedChats.map(chatToConversationItem);
 
   const { query, setQuery, filtered } = useSearchFilter(conversations);
 

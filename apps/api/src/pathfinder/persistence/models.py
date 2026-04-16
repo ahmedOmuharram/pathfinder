@@ -18,6 +18,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -426,4 +427,40 @@ class ChatEvent(Base):
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
+    )
+
+
+class CheckpointLabel(Base):
+    """Per-user label + pin sidecar for a LangGraph checkpoint.
+
+    The composite PK ``(thread_id, checkpoint_id, user_id)`` ties one row to
+    a single checkpoint snapshot owned by a single user — different users
+    can label the same checkpoint independently. The columns mirror the
+    Phase-0 nuke migration; keep the two definitions in lockstep.
+    """
+
+    __tablename__ = "checkpoint_labels"
+
+    thread_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    checkpoint_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True
+    )
+    label: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pinned: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index("checkpoint_labels_thread_idx", "thread_id"),
     )

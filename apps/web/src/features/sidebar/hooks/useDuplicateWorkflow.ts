@@ -3,73 +3,68 @@
 /**
  * Duplicate workflow for the conversation sidebar.
  *
- * Owns the duplicate-strategy modal state and handles
- * the full duplicate flow: load strategy, build plan, create copy.
- *
- * Uses useQueryClient() directly for cache invalidation after duplication.
+ * Clones a conversation (new row + copied messages) via the chats API
+ * and routes the user to the fresh copy.
  */
 
-import { type Dispatch, type SetStateAction, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { createStrategy, getStrategy, strategiesListOptions, dismissedStrategiesOptions } from "@/lib/api/strategies";
-import type { Strategy } from "@pathfinder/shared";
-import { buildDuplicatePlan } from "@/features/sidebar/utils/duplicatePlan";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import {
-  type DuplicateModalState,
-  applyDuplicateLoadFailure,
-  applyDuplicateLoadSuccess,
-  initDuplicateModal,
-} from "@/features/sidebar/utils/duplicateModalState";
+  chatListOptions,
+  dismissedChatsOptions,
+  duplicateChat,
+} from "@/lib/api/chats";
+import { toUserMessage } from "@/lib/api/errors";
 
 interface UseDuplicateWorkflowArgs {
   siteId: string;
+  reportError: (message: string) => void;
 }
 
 export interface DuplicateWorkflow {
-  duplicateModal: DuplicateModalState | null;
-  setDuplicateModal: Dispatch<SetStateAction<DuplicateModalState | null>>;
-  handleDuplicate: (id: string, name: string, desc: string) => Promise<void>;
-  startDuplicate: (strategy: Strategy) => void;
+  duplicateTarget: ConversationItem | null;
+  isDuplicating: boolean;
+  setDuplicateTarget: (item: ConversationItem | null) => void;
+  confirmDuplicate: () => Promise<void>;
 }
 
 export function useDuplicateWorkflow({
   siteId,
+  reportError,
 }: UseDuplicateWorkflowArgs): DuplicateWorkflow {
   const queryClient = useQueryClient();
-  const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState | null>(
-    null,
-  );
+  const router = useRouter();
 
-  const handleDuplicate = async (strategyIdToDuplicate: string, name: string, description: string) => {
-    const baseStrategy = await getStrategy(strategyIdToDuplicate);
-    const plan = buildDuplicatePlan({ baseStrategy, name, description });
-    await createStrategy({
-      name,
-      siteId: baseStrategy.siteId,
-      plan,
-    });
-    void queryClient.invalidateQueries({ queryKey: strategiesListOptions(siteId).queryKey });
-    void queryClient.invalidateQueries({ queryKey: dismissedStrategiesOptions(siteId).queryKey });
-  };
+  const [duplicateTarget, setDuplicateTarget] =
+    useState<ConversationItem | null>(null);
+  const [isDuplicating, setIsDuplicating] = useState(false);
 
-  const startDuplicate = (strategy: Strategy) => {
-    setDuplicateModal(initDuplicateModal(strategy));
-    getStrategy(strategy.id)
-      .then((loadedStrategy) => {
-        setDuplicateModal((prev) =>
-          prev ? applyDuplicateLoadSuccess(prev, loadedStrategy) : prev,
-        );
-      })
-      .catch((err) => {
-        console.error("[startDuplicate]", err);
-        setDuplicateModal((prev) => (prev ? applyDuplicateLoadFailure(prev) : prev));
-      });
+  const listKey = chatListOptions(siteId).queryKey;
+  const dismissedKey = dismissedChatsOptions(siteId).queryKey;
+
+  const confirmDuplicate = async () => {
+    if (!duplicateTarget) return;
+    setIsDuplicating(true);
+    try {
+      const { id: newId } = await duplicateChat(duplicateTarget.id);
+      router.push(`/chat/${newId}`);
+    } catch (err) {
+      reportError(toUserMessage(err, "Failed to duplicate conversation."));
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: listKey });
+      void queryClient.invalidateQueries({ queryKey: dismissedKey });
+      setIsDuplicating(false);
+      setDuplicateTarget(null);
+    }
   };
 
   return {
-    duplicateModal,
-    setDuplicateModal,
-    handleDuplicate,
-    startDuplicate,
+    duplicateTarget,
+    isDuplicating,
+    setDuplicateTarget,
+    confirmDuplicate,
   };
 }

@@ -4,69 +4,48 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select
 
-import pathfinder.services.parameter_optimization.core
-from pathfinder.ai.tools.durable import TaskProgressEmitter
+from pathfinder.domain.parameters.optimization import VariantSpec
 from pathfinder.jobs.impls import optimize_params_impl, register_all_tools
 from pathfinder.jobs.impls.optimize_params_impl import (
     optimize_search_parameters_impl,
 )
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runner import run_durable_task
-from pathfinder.persistence.models import (
-    BackgroundTask,
-    Chat,
-    TaskProgress,
-    User,
-)
+from pathfinder.persistence.models import Chat, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
 from pathfinder.persistence.session import async_session_factory
 
 
-class _FakeOptimizationResult:
-    def model_dump(self, **_kwargs: Any) -> dict[str, Any]:
-        return {
-            "bestConfig": {"foo": "1"},
-            "trials": [
-                {"trialIndex": 0, "score": 0.8},
-                {"trialIndex": 1, "score": 0.9},
-            ],
-            "paretoFrontier": [],
-            "sensitivity": {},
-        }
-
-
-async def _fake_core_optimize(
-    inp: Any,
-    config: Any = None,
-    progress_callback: Any = None,
-    check_cancelled: Any = None,
-) -> _FakeOptimizationResult:
-    del inp, config, check_cancelled
-    if progress_callback is not None:
-        await progress_callback(
-            {
-                "event": "trial_complete",
-                "data": {"trialIndex": 0, "score": 0.8},
-            }
-        )
-        await progress_callback(
-            {
-                "event": "trial_complete",
-                "data": {"trialIndex": 1, "score": 0.9},
-            }
-        )
-    return _FakeOptimizationResult()
-
-
 async def _fake_attach_export(
     result_json: dict[str, Any], search_name: str
 ) -> None:
     del search_name
-    result_json["downloads"] = {"jsonUrl": "https://ex/opt.json"}
+    result_json["downloads"] = {"jsonUrl": "https://ex/sweep.json"}
+
+
+async def _fake_run_single_trial(
+    variant: VariantSpec,
+    *,
+    progress: Any,
+    **_kwargs: Any,
+) -> dict[str, Any]:
+    """Stand-in trial — emits two progress rows so the runner round-trip
+    persists progress under the variant scope."""
+    await progress.update(
+        percent=0.5, message=f"halfway {variant.id}", data={"phase": "mid"},
+    )
+    await progress.update(
+        percent=1.0, message=f"done {variant.id}", data={"phase": "end"},
+    )
+    return {
+        "variantId": variant.id,
+        "status": "success",
+        "params": variant.params,
+        "score": 0.9,
+    }
 
 
 async def _seed_user_chat(user_id: UUID, chat_id: UUID) -> None:
@@ -79,13 +58,9 @@ async def _seed_user_chat(user_id: UUID, chat_id: UUID) -> None:
         await session.commit()
 
 
-class _FakeContext:
-    def __init__(self, site_id: str) -> None:
-        self.site_id = site_id
-
-
 @pytest.fixture
 def target_kwargs() -> dict[str, Any]:
+    """Inputs sized to produce two variants in the Cartesian sweep."""
     return {
         "target": {
             "site_id": "plasmodb",
@@ -94,12 +69,9 @@ def target_kwargs() -> dict[str, Any]:
             "fixed_parameters": {},
             "parameter_space": [
                 {
-                    "name": "threshold",
-                    "type": "numeric",
-                    "min_value": 0.0,
-                    "max_value": 1.0,
-                    "log_scale": False,
-                    "choices": None,
+                    "name": "knob",
+                    "type": "categorical",
+                    "choices": ["a", "b"],
                 }
             ],
         },
@@ -116,8 +88,9 @@ def target_kwargs() -> dict[str, Any]:
             "budget": 2,
             "objective": "f1",
             "beta": 1.0,
-            "method": "bayesian",
+            "method": "grid",
             "estimated_size_penalty": 0.0,
+            "max_parallel": 2,
         },
     }
 
@@ -132,93 +105,20 @@ def test_optimize_search_parameters_registered_in_registry() -> None:
 
 
 @pytest.mark.asyncio
-async def test_optimize_impl_emits_per_trial_progress(
-    db_cleaner: None,
-    patch_app_db_engine: None,
-    monkeypatch: pytest.MonkeyPatch,
-    target_kwargs: dict[str, Any],
-) -> None:
-    del db_cleaner, patch_app_db_engine
-
-    monkeypatch.setattr(
-        pathfinder.services.parameter_optimization.core,
-        "optimize_search_parameters",
-        _fake_core_optimize,
-    )
-    monkeypatch.setattr(
-        optimize_params_impl, "_attach_export", _fake_attach_export
-    )
-
-    user_id = uuid4()
-    chat_id = uuid4()
-    task_id = uuid4()
-    await _seed_user_chat(user_id, chat_id)
-
-    async with async_session_factory() as session:
-        session.add(
-            BackgroundTask(
-                id=task_id,
-                chat_id=chat_id,
-                user_id=user_id,
-                tool_name="optimize_search_parameters",
-                status="running",
-                args={},
-                estimated_duration_seconds=300,
-            )
-        )
-        await session.commit()
-
-    progress = TaskProgressEmitter(
-        task_id=task_id,
-        chat_id=chat_id,
-        session_factory=async_session_factory,
-    )
-
-    result = await optimize_search_parameters_impl(
-        context=_FakeContext(site_id="plasmodb"),
-        task_id=task_id,
-        progress=progress,
-        memory_store=None,
-        **target_kwargs,
-    )
-
-    assert isinstance(result, dict)
-    assert result["bestConfig"] == {"foo": "1"}
-    assert result["downloads"]["jsonUrl"] == "https://ex/opt.json"
-
-    async with async_session_factory() as session:
-        rows = list(
-            (
-                await session.execute(
-                    select(TaskProgress)
-                    .where(TaskProgress.task_id == task_id)
-                    .order_by(TaskProgress.id)
-                )
-            ).scalars()
-        )
-
-    trial_rows = [r for r in rows if (r.data or {}).get("trialIndex") is not None]
-    assert len(trial_rows) == 2
-    assert trial_rows[0].data == {"trialIndex": 0, "score": 0.8}
-    assert trial_rows[1].data == {"trialIndex": 1, "score": 0.9}
-
-
-@pytest.mark.asyncio
 async def test_run_durable_task_wiring_optimize(
     db_cleaner: None,
     patch_app_db_engine: None,
     monkeypatch: pytest.MonkeyPatch,
     target_kwargs: dict[str, Any],
 ) -> None:
+    """End-to-end: runner submits -> impl fans out -> result row matches sweep shape."""
     del db_cleaner, patch_app_db_engine
 
     monkeypatch.setattr(
-        pathfinder.services.parameter_optimization.core,
-        "optimize_search_parameters",
-        _fake_core_optimize,
+        optimize_params_impl, "_attach_export", _fake_attach_export
     )
     monkeypatch.setattr(
-        optimize_params_impl, "_attach_export", _fake_attach_export
+        optimize_params_impl, "run_single_trial", _fake_run_single_trial
     )
     register_all_tools()
 
@@ -242,8 +142,13 @@ async def test_run_durable_task_wiring_optimize(
         args={"args": [], "kwargs": target_kwargs},
     )
 
-    t = await repo.get(task_id=task_id)
-    assert t is not None
-    assert t.status in ("complete", "resuming", "result_ready")
-    assert t.result is not None
-    assert t.result["bestConfig"] == {"foo": "1"}
+    task = await repo.get(task_id=task_id)
+    assert task is not None
+    assert task.status in ("complete", "resuming", "result_ready")
+    assert task.result is not None
+    assert task.result["downloads"]["jsonUrl"] == "https://ex/sweep.json"
+    variants = task.result["variants"]
+    assert len(variants) == 2
+    assert {v["variantId"] for v in variants} == {"v0", "v1"}
+    assert all(v["status"] == "success" for v in variants)
+    assert task.result["best"]["score"] == 0.9

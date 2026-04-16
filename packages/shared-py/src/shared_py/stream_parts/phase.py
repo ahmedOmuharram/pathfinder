@@ -1,5 +1,3 @@
-"""Typed payload for phase_change data-part."""
-
 from __future__ import annotations
 
 from typing import Literal
@@ -25,3 +23,4 @@ class PhaseChange(CamelModel):
     phase: PhaseName
     status: PhaseStatus
     duration_ms: int | None = Field(default=None, ge=0)
+    reason: str | None = None

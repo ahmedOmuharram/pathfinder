@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import type { ParamSpec } from "@pathfinder/shared";
 import { useParamForm } from "./useParamForm";
 
@@ -35,7 +35,7 @@ describe("useParamForm", () => {
   it("initializes with WDK default values", () => {
     const specs = makeSpecs();
     const { result } = renderHook(() => useParamForm(specs));
-    const values = result.current.getValues();
+    const values = result.current.state.values;
     expect(values["organism"]).toBe("P. falciparum 3D7");
     expect(values["min_weight"]).toBe("0");
   });
@@ -43,20 +43,7 @@ describe("useParamForm", () => {
   it("isDirty is false on mount", () => {
     const specs = makeSpecs();
     const { result } = renderHook(() => useParamForm(specs));
-    expect(result.current.formState.isDirty).toBe(false);
-  });
-
-  it("tracks dirty fields after setValue", () => {
-    const specs = makeSpecs();
-    const { result } = renderHook(() => useParamForm(specs));
-    // Subscribe to formState.dirtyFields before mutation — RHF uses proxies
-    // and only tracks fields that have been read at least once.
-    void result.current.formState.dirtyFields;
-    act(() => {
-      result.current.setValue("organism", "P. vivax", { shouldDirty: true });
-    });
-    expect(result.current.formState.dirtyFields["organism"]).toBe(true);
-    expect(result.current.formState.dirtyFields["min_weight"]).toBeUndefined();
+    expect(result.current.state.isDirty).toBe(false);
   });
 
   it("handles multi-pick defaults from JSON array string", () => {
@@ -75,7 +62,7 @@ describe("useParamForm", () => {
       },
     ] as ParamSpec[];
     const { result } = renderHook(() => useParamForm(specs));
-    expect(result.current.getValues()["go_terms"]).toEqual(["GO:0006915", "GO:0006916"]);
+    expect(result.current.state.values["go_terms"]).toEqual(["GO:0006915", "GO:0006916"]);
   });
 
   it("handles multi-pick defaults from plain string", () => {
@@ -94,7 +81,7 @@ describe("useParamForm", () => {
       },
     ] as ParamSpec[];
     const { result } = renderHook(() => useParamForm(specs));
-    expect(result.current.getValues()["organisms"]).toEqual(["P. falciparum"]);
+    expect(result.current.state.values["organisms"]).toEqual(["P. falciparum"]);
   });
 
   it("handles empty multi-pick defaults", () => {
@@ -113,7 +100,7 @@ describe("useParamForm", () => {
       },
     ] as ParamSpec[];
     const { result } = renderHook(() => useParamForm(specs));
-    expect(result.current.getValues()["organisms"]).toEqual([]);
+    expect(result.current.state.values["organisms"]).toEqual([]);
   });
 
   it("skips hidden params in defaults", () => {
@@ -132,6 +119,6 @@ describe("useParamForm", () => {
       } as ParamSpec,
     ];
     const { result } = renderHook(() => useParamForm(specs));
-    expect(result.current.getValues()["hidden_param"]).toBeUndefined();
+    expect(result.current.state.values["hidden_param"]).toBeUndefined();
   });
 });

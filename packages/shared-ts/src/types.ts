@@ -1,30 +1,130 @@
 /**
- * Shared TypeScript types for Pathfinder - VEuPathDB Strategy Builder
+ * Shared TypeScript types for Pathfinder - VEuPathDB Strategy Builder.
  *
- * Canonical combine operators (matches WDK BooleanOperator): INTERSECT, MINUS,
- * RMINUS, LONLY, RONLY, COLOCATE, UNION.
+ * Generated API types come from Kubb (packages/shared-ts/src/generated/).
+ * Hand-written types below cover domain concepts that don't live in OpenAPI
+ * (combine-operator enum, VEuPathDB site catalog, StrategyPlan AST).
  */
 
-import type { UIMessage } from "ai";
-import type { components } from "./openapi.generated";
+import type {
+  AuthStatusResponse,
+  BackgroundTaskStarted,
+  BootstrapResultResponse,
+  CheckpointEvent,
+  ClarificationQuestion,
+  ColocationParams,
+  ConfidenceIntervalResponse,
+  ConfusionMatrixResponse,
+  ControlSetResponse,
+  ControlSetSummaryResponse,
+  CreateStrategyRequest,
+  CrossValidationResultResponse,
+  CustomEvent,
+  DecisionPresented,
+  DoneEvent,
+  EnrichmentResultResponse,
+  EnrichmentTermResponse,
+  ErrorEvent,
+  ExperimentConfigResponse,
+  ExperimentMetricsResponse,
+  ExperimentProgressDataResponse,
+  ExperimentResponse,
+  ExperimentSummaryResponse,
+  FoldMetricsResponse,
+  GeneConfidenceScoreResponse,
+  GeneInfoResponse,
+  GeneResolveResponse,
+  GeneSearchResponse,
+  GeneSearchResultResponse,
+  GeneSet as GeneSetStreamPart,
+  GeneSetResponse,
+  GraphCleared,
+  GraphPlan,
+  GraphSnapshot,
+  InterruptsEvent,
+  MessagesCompleteEvent,
+  MessagesPartialEvent,
+  MemoryEditRequest,
+  MemoryItem,
+  MemoryListResponse,
+  MemorySearchResponse,
+  MemoryValue,
+  ModelCatalogEntryResponse,
+  NegativeSetVariantResponse,
+  OpenStrategyRequest,
+  OpenStrategyResponse,
+  OperatorComparisonResponse,
+  OperatorKnobResponse,
+  OperatorVariantResponse,
+  OptimizationParameterSpecData,
+  OptimizationProgressEventData,
+  OptimizationResultResponse,
+  OptimizationSnapshot,
+  OptimizationSpecResponse,
+  OptimizationTrialData,
+  ParamSpecResponse,
+  ParameterSensitivityResponse,
+  ParameterSweepPointResponse,
+  PhaseChange,
+  PlanArtifact,
+  PlanUpdate,
+  ProblemFrame,
+  RankMetricsResponse,
+  RecordTypeResponse,
+  ResearchNote,
+  ResolvedGeneResponse,
+  SearchResponse,
+  StepAnalysisProgressDataResponse,
+  StepAnalysisResultResponse,
+  StepContributionResponse,
+  StepCountsResponse,
+  StepEvaluationResponse,
+  StepResponse,
+  StrategyLink,
+  StrategyMeta,
+  StrategyPatch,
+  StrategyResponse,
+  TaskCompleted,
+  TaskProgress as TaskProgressStreamPart,
+  TaskProgressEvent,
+  TaskStatusResponse,
+  ThresholdKnobResponse,
+  ToolCallDelta,
+  TreeOptimizationResultResponse,
+  TreeOptimizationTrialResponse,
+  TrialProgressDataResponse,
+  UpdatesEvent,
+  UpdateStrategyRequest,
+} from "./generated/types/index";
 
-// ── Generated API types (SSOT — do not hand-edit these shapes) ─────────────
-// Re-exported from openapi.generated.ts with aliases matching existing names.
-// Types where the generated shape is structurally compatible with existing usage.
+/**
+ * Discriminated union of every backend SSE chat event. Wire shape is locked
+ * by `packages/shared-py/src/shared_py/stream_events.py`. Frontend uses this
+ * to type the `parseSseStream` async iterator.
+ */
+export type StreamEvent =
+  | (MessagesPartialEvent & { type: "messages/partial" })
+  | (MessagesCompleteEvent & { type: "messages/complete" })
+  | (UpdatesEvent & { type: "updates" })
+  | (CustomEvent & { type: "custom" })
+  | (InterruptsEvent & { type: "interrupts" })
+  | (CheckpointEvent & { type: "checkpoint" })
+  | (ErrorEvent & { type: "error" })
+  | (DoneEvent & { type: "done" });
 
-export type ModelCatalogEntry = components["schemas"]["ModelCatalogEntryResponse"];
-export type GeneSearchResult = components["schemas"]["GeneSearchResultResponse"];
-export type GeneSearchResponse = components["schemas"]["GeneSearchResponse"];
-export type ResolvedGene = components["schemas"]["ResolvedGeneResponse"];
-export type GeneResolveResponse = components["schemas"]["GeneResolveResponse"];
-export type Search = components["schemas"]["SearchResponse"];
-export type RecordType = components["schemas"]["RecordTypeResponse"];
-export type StepCountsResponse = components["schemas"]["StepCountsResponse"];
-export type OpenStrategyRequest = components["schemas"]["OpenStrategyRequest"];
-export type OpenStrategyResponse = components["schemas"]["OpenStrategyResponse"];
-export type ParamSpec = components["schemas"]["ParamSpecResponse"];
-// Search validation types — defined locally (not in OpenAPI spec since
-// validation is a WDK proxy endpoint, not a PathFinder model).
+export type StreamEventType = StreamEvent["type"];
+
+export type { MessagesPartialEvent, MessagesCompleteEvent, ToolCallDelta };
+
+export type ModelCatalogEntry = ModelCatalogEntryResponse;
+export type GeneSearchResult = GeneSearchResultResponse;
+export type { GeneSearchResponse, GeneResolveResponse };
+export type ResolvedGene = ResolvedGeneResponse;
+export type Search = SearchResponse;
+export type RecordType = RecordTypeResponse;
+export type { StepCountsResponse, OpenStrategyRequest, OpenStrategyResponse };
+export type ParamSpec = ParamSpecResponse;
+
 export interface SearchValidationErrors {
   general?: string[];
   byKey?: Record<string, string[]>;
@@ -38,79 +138,58 @@ export interface SearchValidationResponse {
   validation: SearchValidationPayload;
 }
 
-export type CreateStrategyRequest = components["schemas"]["CreateStrategyRequest"];
-export type UpdateStrategyRequest = components["schemas"]["UpdateStrategyRequest"];
+export type { CreateStrategyRequest, UpdateStrategyRequest };
 
-// Optimization event types (used by experiment/optimization streaming)
-export type OptimizationProgressData = components["schemas"]["OptimizationProgressEventData"];
-export type OptimizationTrialData = components["schemas"]["OptimizationTrialData"];
-export type OptimizationParameterSpecData = components["schemas"]["OptimizationParameterSpecData"];
+export type OptimizationProgressData = OptimizationProgressEventData;
+export type { OptimizationTrialData };
+export type OptimizationParameterSpec = OptimizationParameterSpecData;
 
-// Experiment response types
-export type ConfusionMatrix = components["schemas"]["ConfusionMatrixResponse"];
-export type ExperimentMetrics = components["schemas"]["ExperimentMetricsResponse"];
-export type GeneInfo = components["schemas"]["GeneInfoResponse"];
-export type FoldMetrics = components["schemas"]["FoldMetricsResponse"];
-export type CrossValidationResult = components["schemas"]["CrossValidationResultResponse"];
-export type EnrichmentTerm = components["schemas"]["EnrichmentTermResponse"];
-export type EnrichmentResult = components["schemas"]["EnrichmentResultResponse"];
-export type BootstrapResult = components["schemas"]["BootstrapResultResponse"];
-export type ConfidenceInterval = components["schemas"]["ConfidenceIntervalResponse"];
-export type RankMetrics = components["schemas"]["RankMetricsResponse"];
-export type NegativeSetVariant = components["schemas"]["NegativeSetVariantResponse"];
-export type StepEvaluation = components["schemas"]["StepEvaluationResponse"];
-export type OperatorVariant = components["schemas"]["OperatorVariantResponse"];
-export type OperatorComparison = components["schemas"]["OperatorComparisonResponse"];
-export type StepContribution = components["schemas"]["StepContributionResponse"];
-export type ParameterSweepPoint = components["schemas"]["ParameterSweepPointResponse"];
-export type ParameterSensitivity = components["schemas"]["ParameterSensitivityResponse"];
-export type StepAnalysisResult = components["schemas"]["StepAnalysisResultResponse"];
-export type TreeOptimizationTrial = components["schemas"]["TreeOptimizationTrialResponse"];
-export type TreeOptimizationResult = components["schemas"]["TreeOptimizationResultResponse"];
-export type ExperimentConfig = components["schemas"]["ExperimentConfigResponse"];
-export type Experiment = components["schemas"]["ExperimentResponse"];
-export type ExperimentSummary = components["schemas"]["ExperimentSummaryResponse"];
-export type OptimizeSpec = components["schemas"]["OptimizationSpecResponse"];
-export type ThresholdKnob = components["schemas"]["ThresholdKnobResponse"];
-export type OperatorKnob = components["schemas"]["OperatorKnobResponse"];
+export type ConfusionMatrix = ConfusionMatrixResponse;
+export type ExperimentMetrics = ExperimentMetricsResponse;
+export type GeneInfo = GeneInfoResponse;
+export type FoldMetrics = FoldMetricsResponse;
+export type CrossValidationResult = CrossValidationResultResponse;
+export type EnrichmentTerm = EnrichmentTermResponse;
+export type EnrichmentResult = EnrichmentResultResponse;
+export type BootstrapResult = BootstrapResultResponse;
+export type ConfidenceInterval = ConfidenceIntervalResponse;
+export type RankMetrics = RankMetricsResponse;
+export type NegativeSetVariant = NegativeSetVariantResponse;
+export type StepEvaluation = StepEvaluationResponse;
+export type OperatorVariant = OperatorVariantResponse;
+export type OperatorComparison = OperatorComparisonResponse;
+export type StepContribution = StepContributionResponse;
+export type ParameterSweepPoint = ParameterSweepPointResponse;
+export type ParameterSensitivity = ParameterSensitivityResponse;
+export type StepAnalysisResult = StepAnalysisResultResponse;
+export type TreeOptimizationTrial = TreeOptimizationTrialResponse;
+export type TreeOptimizationResult = TreeOptimizationResultResponse;
+export type ExperimentConfig = ExperimentConfigResponse;
+export type Experiment = ExperimentResponse;
+export type ExperimentSummary = ExperimentSummaryResponse;
+export type OptimizeSpec = OptimizationSpecResponse;
+export type ThresholdKnob = ThresholdKnobResponse;
+export type OperatorKnob = OperatorKnobResponse;
 
-// Newly typed models (were JSONObject before)
-export type ColocationParams = components["schemas"]["ColocationParams"];
-export type ControlSetSummary = components["schemas"]["ControlSetSummaryResponse"];
-export type OptimizationResult = components["schemas"]["OptimizationResultResponse"];
-export type TrialProgressData = components["schemas"]["TrialProgressDataResponse"];
-export type StepAnalysisProgressData = components["schemas"]["StepAnalysisProgressDataResponse"];
-export type ExperimentProgressData = components["schemas"]["ExperimentProgressDataResponse"];
+export type { ColocationParams };
+export type ControlSetSummary = ControlSetSummaryResponse;
+export type OptimizationResult = OptimizationResultResponse;
+export type TrialProgressData = TrialProgressDataResponse;
+export type StepAnalysisProgressData = StepAnalysisProgressDataResponse;
+export type ExperimentProgressData = ExperimentProgressDataResponse;
 
-// REST response types — formerly hand-written, now generated SSOT
-export type Step = components["schemas"]["StepResponse"];
-export type GeneSet = components["schemas"]["GeneSetResponse"];
-export type GeneConfidenceScore =
-  components["schemas"]["GeneConfidenceScoreResponse"];
-export type ControlSet = components["schemas"]["ControlSetResponse"];
-/**
- * Strategy normalizes the generated StrategyResponse: `steps` and `isSaved`
- * always have values at runtime (backend defaults), but OpenAPI marks them
- * optional. We make them required here to match actual API behavior.
- *
- * `activePlan` is served by the backend detail endpoint but not yet in the
- * OpenAPI spec — added here until the next spec regeneration.
- */
-export type Strategy = Omit<
-  components["schemas"]["StrategyResponse"],
-  "steps" | "isSaved"
-> & {
-  steps: components["schemas"]["StepResponse"][];
+export type Step = StepResponse;
+export type GeneSet = GeneSetResponse;
+export type GeneConfidenceScore = GeneConfidenceScoreResponse;
+export type ControlSet = ControlSetResponse;
+
+export type Strategy = Omit<StrategyResponse, "steps" | "isSaved"> & {
+  steps: StepResponse[];
   isSaved: boolean;
   activePlan?: Record<string, unknown> | null;
 };
 
-// ── Hand-written types (frontend-enriched, not yet in generated schema) ────
-// These types extend/differ from their generated counterparts with frontend-
-// specific fields or stricter typing.  They'll migrate to generated re-exports
-// as the backend schema evolves to cover their full shape.
-
-// Combine Operations
+export type { AuthStatusResponse };
 
 export const CombineOperator = {
   INTERSECT: "INTERSECT",
@@ -135,7 +214,6 @@ export const CombineOperatorLabels: Record<CombineOperator, string> = {
   UNION: "Combined (OR)",
 };
 
-/** Short display labels for operator badges (e.g. "AND (INTERSECT)"). */
 export const CombineOperatorBadgeLabels: Record<CombineOperator, string> = {
   INTERSECT: "AND (INTERSECT)",
   MINUS: "NOT (MINUS LEFT)",
@@ -145,9 +223,6 @@ export const CombineOperatorBadgeLabels: Record<CombineOperator, string> = {
   COLOCATE: "NEAR (COLOCATE)",
   UNION: "OR (UNION)",
 };
-
-
-// Strategy Plan DSL (AST)
 
 export interface StepFilter {
   name: string;
@@ -174,16 +249,6 @@ export interface BasePlanNode {
   reports?: StepReport[];
 }
 
-/**
- * Untyped recursive plan node.
- *
- * A node's kind is inferred from structure:
- * - combine: primaryInput && secondaryInput
- * - transform: primaryInput && !secondaryInput
- * - search: !primaryInput && !secondaryInput
- *
- * All nodes use `searchName` to identify the underlying WDK question/search.
- */
 export interface PlanStepNode extends BasePlanNode {
   searchName: string;
   parameters?: Record<string, unknown>;
@@ -202,8 +267,6 @@ export interface StrategyPlan {
   metadata?: Record<string, unknown> | null;
 }
 
-// VEuPathDB Site Configuration
-
 export interface VEuPathDBSite {
   id: string;
   name: string;
@@ -214,121 +277,21 @@ export interface VEuPathDBSite {
 }
 
 export const VEUPATHDB_SITES: VEuPathDBSite[] = [
-  {
-    id: "veupathdb",
-    name: "VEuPathDB",
-    displayName: "VEuPathDB Portal (All organisms)",
-    baseUrl: "https://veupathdb.org",
-    projectId: "EuPathDB",
-    isPortal: true,
-  },
-  {
-    id: "plasmodb",
-    name: "PlasmoDB",
-    displayName: "PlasmoDB (Plasmodium)",
-    baseUrl: "https://plasmodb.org",
-    projectId: "PlasmoDB",
-    isPortal: false,
-  },
-  {
-    id: "toxodb",
-    name: "ToxoDB",
-    displayName: "ToxoDB (Toxoplasma)",
-    baseUrl: "https://toxodb.org",
-    projectId: "ToxoDB",
-    isPortal: false,
-  },
-  {
-    id: "cryptodb",
-    name: "CryptoDB",
-    displayName: "CryptoDB (Cryptosporidium)",
-    baseUrl: "https://cryptodb.org",
-    projectId: "CryptoDB",
-    isPortal: false,
-  },
-  {
-    id: "giardiadb",
-    name: "GiardiaDB",
-    displayName: "GiardiaDB (Giardia)",
-    baseUrl: "https://giardiadb.org",
-    projectId: "GiardiaDB",
-    isPortal: false,
-  },
-  {
-    id: "amoebadb",
-    name: "AmoebaDB",
-    displayName: "AmoebaDB (Amoeba)",
-    baseUrl: "https://amoebadb.org",
-    projectId: "AmoebaDB",
-    isPortal: false,
-  },
-  {
-    id: "microsporidiadb",
-    name: "MicrosporidiaDB",
-    displayName: "MicrosporidiaDB (Microsporidia)",
-    baseUrl: "https://microsporidiadb.org",
-    projectId: "MicrosporidiaDB",
-    isPortal: false,
-  },
-  {
-    id: "piroplasmadb",
-    name: "PiroplasmaDB",
-    displayName: "PiroplasmaDB (Piroplasma)",
-    baseUrl: "https://piroplasmadb.org",
-    projectId: "PiroplasmaDB",
-    isPortal: false,
-  },
-  {
-    id: "tritrypdb",
-    name: "TriTrypDB",
-    displayName: "TriTrypDB (Kinetoplastids)",
-    baseUrl: "https://tritrypdb.org",
-    projectId: "TriTrypDB",
-    isPortal: false,
-  },
-  {
-    id: "trichdb",
-    name: "TrichDB",
-    displayName: "TrichDB (Trichomonas)",
-    baseUrl: "https://trichdb.org",
-    projectId: "TrichDB",
-    isPortal: false,
-  },
-  {
-    id: "fungidb",
-    name: "FungiDB",
-    displayName: "FungiDB (Fungi)",
-    baseUrl: "https://fungidb.org",
-    projectId: "FungiDB",
-    isPortal: false,
-  },
-  {
-    id: "hostdb",
-    name: "HostDB",
-    displayName: "HostDB (Hosts)",
-    baseUrl: "https://hostdb.org",
-    projectId: "HostDB",
-    isPortal: false,
-  },
-  {
-    id: "vectorbase",
-    name: "VectorBase",
-    displayName: "VectorBase (Vectors)",
-    baseUrl: "https://vectorbase.org",
-    projectId: "VectorBase",
-    isPortal: false,
-  },
-  {
-    id: "orthomcl",
-    name: "OrthoMCL",
-    displayName: "OrthoMCL (Orthologs)",
-    baseUrl: "https://orthomcl.org",
-    projectId: "OrthoMCL",
-    isPortal: false,
-  },
+  { id: "veupathdb", name: "VEuPathDB", displayName: "VEuPathDB Portal (All organisms)", baseUrl: "https://veupathdb.org", projectId: "EuPathDB", isPortal: true },
+  { id: "plasmodb", name: "PlasmoDB", displayName: "PlasmoDB (Plasmodium)", baseUrl: "https://plasmodb.org", projectId: "PlasmoDB", isPortal: false },
+  { id: "toxodb", name: "ToxoDB", displayName: "ToxoDB (Toxoplasma)", baseUrl: "https://toxodb.org", projectId: "ToxoDB", isPortal: false },
+  { id: "cryptodb", name: "CryptoDB", displayName: "CryptoDB (Cryptosporidium)", baseUrl: "https://cryptodb.org", projectId: "CryptoDB", isPortal: false },
+  { id: "giardiadb", name: "GiardiaDB", displayName: "GiardiaDB (Giardia)", baseUrl: "https://giardiadb.org", projectId: "GiardiaDB", isPortal: false },
+  { id: "amoebadb", name: "AmoebaDB", displayName: "AmoebaDB (Amoeba)", baseUrl: "https://amoebadb.org", projectId: "AmoebaDB", isPortal: false },
+  { id: "microsporidiadb", name: "MicrosporidiaDB", displayName: "MicrosporidiaDB (Microsporidia)", baseUrl: "https://microsporidiadb.org", projectId: "MicrosporidiaDB", isPortal: false },
+  { id: "piroplasmadb", name: "PiroplasmaDB", displayName: "PiroplasmaDB (Piroplasma)", baseUrl: "https://piroplasmadb.org", projectId: "PiroplasmaDB", isPortal: false },
+  { id: "tritrypdb", name: "TriTrypDB", displayName: "TriTrypDB (Kinetoplastids)", baseUrl: "https://tritrypdb.org", projectId: "TriTrypDB", isPortal: false },
+  { id: "trichdb", name: "TrichDB", displayName: "TrichDB (Trichomonas)", baseUrl: "https://trichdb.org", projectId: "TrichDB", isPortal: false },
+  { id: "fungidb", name: "FungiDB", displayName: "FungiDB (Fungi)", baseUrl: "https://fungidb.org", projectId: "FungiDB", isPortal: false },
+  { id: "hostdb", name: "HostDB", displayName: "HostDB (Hosts)", baseUrl: "https://hostdb.org", projectId: "HostDB", isPortal: false },
+  { id: "vectorbase", name: "VectorBase", displayName: "VectorBase (Vectors)", baseUrl: "https://vectorbase.org", projectId: "VectorBase", isPortal: false },
+  { id: "orthomcl", name: "OrthoMCL", displayName: "OrthoMCL (Orthologs)", baseUrl: "https://orthomcl.org", projectId: "OrthoMCL", isPortal: false },
 ];
-
-// Chat Types
 
 export type ModelProvider = "openai" | "anthropic" | "google" | "ollama" | "mock";
 export type ReasoningEffort = "none" | "low" | "medium" | "high";
@@ -362,12 +325,9 @@ export type PhaseStatus =
   | "awaiting_approval"
   | "awaiting_input";
 
-export type ClarificationQuestion = components["schemas"]["ClarificationQuestion"];
-export type ResearchNote = components["schemas"]["ResearchNote"];
+export type { ClarificationQuestion, ResearchNote };
 
 export type StepKind = "search" | "transform" | "combine";
-
-// Parameter Optimisation
 
 export interface OptimizationTrial {
   trialNumber: number;
@@ -382,15 +342,6 @@ export interface OptimizationTrial {
   totalNegatives?: number | null;
 }
 
-export interface OptimizationParameterSpec {
-  name: string;
-  type: "numeric" | "integer" | "categorical";
-  minValue?: number | null;
-  maxValue?: number | null;
-  logScale?: boolean;
-  choices?: string[] | null;
-}
-
 export type OptimizationStatus =
   | "started"
   | "running"
@@ -398,23 +349,7 @@ export type OptimizationStatus =
   | "cancelled"
   | "error";
 
-// SSE Event Types
-
-export type SSEEventType =
-  | "message_start"
-  | "content_delta"
-  | "tool_call_start"
-  | "tool_call_delta"
-  | "tool_call_end"
-  | "message_end"
-  | "error";
-
-export interface SSEEvent {
-  type: SSEEventType;
-  data: unknown;
-}
-
-// Experiment Lab Types
+export type Classification = "TP" | "FP" | "FN" | "TN";
 
 export type ExperimentMode = "single" | "multi-step" | "import";
 
@@ -434,109 +369,121 @@ export type ExperimentStatus =
 
 export type StepContributionVerdict = "essential" | "helpful" | "neutral" | "harmful";
 
-// Classification for control test results
-export type Classification = "TP" | "FP" | "FN" | "TN";
+export type MemoryKind = MemoryValue["kind"];
+export type { MemoryValue, MemoryItem, MemoryListResponse, MemorySearchResponse, MemoryEditRequest };
 
-// ── Chat stream-part payloads (AI SDK v6 DataChunk data types) ─────────────
-// Typed shapes for every `data-<name>` part emitted during a chat turn.
-// One-to-one with the Pydantic models in `shared_py.stream_parts`.
-//
-// NOTE: `GeneSet` is already taken above (the workbench REST resource), so
-// the stream-part variant uses the `Part` suffix to avoid collisions. The
-// `PathfinderDataParts` map below references the generated OpenAPI schemas
-// directly so the wire contract is preserved.
+export type { TaskProgressEvent, TaskStatusResponse };
 
-// Memory (langgraph store) types
+export type {
+  GraphSnapshot,
+  GraphPlan,
+  GraphCleared,
+  StrategyPatch,
+  StrategyMeta,
+  StrategyLink,
+  PlanArtifact,
+  PlanUpdate,
+  DecisionPresented,
+  OptimizationSnapshot,
+  PhaseChange,
+  BackgroundTaskStarted,
+  TaskCompleted,
+};
+export type ProblemFramePart = ProblemFrame;
+export type GeneSetPart = GeneSetStreamPart;
+export type TaskProgressChunk = TaskProgressStreamPart;
 
-export type MemoryKind = components["schemas"]["MemoryValue"]["kind"];
-export type MemoryValue = components["schemas"]["MemoryValue"];
-export type MemoryItem = components["schemas"]["MemoryItem"];
-export type MemoryListResponse = components["schemas"]["MemoryListResponse"];
-export type MemorySearchResponse = components["schemas"]["MemorySearchResponse"];
-export type MemoryEditRequest = components["schemas"]["MemoryEditRequest"];
+// ── Data-part kind → payload mapping ────────────────────────────────────
+// Used by the frontend content-part dispatcher (ts-pattern exhaustive match).
+// Adding a backend kind here WITHOUT adding a renderer triggers a compile error.
 
-// Durable background task types (SSE + REST)
+export interface DataPhaseStartPayload {
+  phase: string;
+  traceId: string;
+  model: string;
+}
 
-export type TaskProgressEvent = components["schemas"]["TaskProgressEvent"];
-export type TaskStatusResponse = components["schemas"]["TaskStatusResponse"];
+export interface DataPhaseFinishPayload {
+  phase: string;
+  reason: string;
+}
 
-export type GraphSnapshot = components["schemas"]["GraphSnapshot"];
-export type GraphPlan = components["schemas"]["GraphPlan"];
-export type GraphCleared = components["schemas"]["GraphCleared"];
-export type StrategyPatch = components["schemas"]["StrategyPatch"];
-export type StrategyMeta = components["schemas"]["StrategyMeta"];
-export type StrategyLink = components["schemas"]["StrategyLink"];
-export type PlanArtifact = components["schemas"]["PlanArtifact"];
-export type PlanUpdate = components["schemas"]["PlanUpdate"];
-export type DecisionPresented = components["schemas"]["DecisionPresented"];
-export type ProblemFramePart = components["schemas"]["ProblemFrame"];
-export type GeneSetPart = components["schemas"]["GeneSet"];
-export type OptimizationSnapshot = components["schemas"]["OptimizationSnapshot"];
-export type PhaseChange = components["schemas"]["PhaseChange"];
-export type BackgroundTaskStarted = components["schemas"]["BackgroundTaskStarted"];
-export type TaskProgressChunk = components["schemas"]["TaskProgress"];
-export type TaskCompleted = components["schemas"]["TaskCompleted"];
+export interface DataConversationTitlePayload {
+  title: string;
+}
 
-/**
- * Per-data-part UIMessagePart types using AI SDK's custom data-part convention.
- * The protocol convention is: `data-<name>` where <name> matches the
- * kebab-case of the `type` string emitted by the backend's
- * `DataChunk(type="data-<name>")`.
- */
-export type PathfinderDataParts = {
-  "graph-snapshot": GraphSnapshot;
-  "graph-plan": GraphPlan;
-  "graph-cleared": GraphCleared;
-  "strategy-patch": StrategyPatch;
-  "strategy-meta": StrategyMeta;
-  "strategy-link": StrategyLink;
-  "plan-artifact": PlanArtifact;
-  "plan-update": PlanUpdate;
-  "decision-presented": DecisionPresented;
-  "problem-frame": ProblemFramePart;
-  "gene-set": GeneSetPart;
-  "optimization-snapshot": OptimizationSnapshot;
-  "phase-change": PhaseChange;
-  "background-task-started": BackgroundTaskStarted;
-  "task-progress": TaskProgressChunk;
-  "task-completed": TaskCompleted;
+export interface DataToolApprovalRequestPayload {
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+}
+
+export interface DataToolApprovalResultPayload {
+  toolCallId: string;
+  approved: boolean;
+  reason?: string;
+}
+
+export interface DataMemoryRetrievedPayload {
+  memories: Array<{
+    key: string;
+    kind: string;
+    name: string;
+    summary: string;
+    score: number;
+  }>;
+}
+
+export interface DataVerificationSummaryPayload {
+  passed: boolean;
+  checks: Array<{
+    name: string;
+    passed: boolean;
+    detail?: string;
+  }>;
+  summary: string;
+}
+
+export type DataPartKind =
+  | "data-phase-start"
+  | "data-phase-finish"
+  | "data-phase-change"
+  | "data-background-task-started"
+  | "data-task-progress"
+  | "data-task-completed"
+  | "data-strategy-link"
+  | "data-problem-frame"
+  | "data-plan-artifact"
+  | "data-tool-approval-request"
+  | "data-tool-approval-result"
+  | "data-memory-retrieved"
+  | "data-gene-set-created"
+  | "data-verification-summary"
+  | "data-conversation-title";
+
+export interface DataPartPayloadMap {
+  "data-phase-start": DataPhaseStartPayload;
+  "data-phase-finish": DataPhaseFinishPayload;
+  "data-phase-change": PhaseChange;
+  "data-background-task-started": BackgroundTaskStarted;
+  "data-task-progress": TaskProgressStreamPart;
+  "data-task-completed": TaskCompleted;
+  "data-strategy-link": StrategyLink;
+  "data-problem-frame": ProblemFrame;
+  "data-plan-artifact": PlanArtifact;
+  "data-tool-approval-request": DataToolApprovalRequestPayload;
+  "data-tool-approval-result": DataToolApprovalResultPayload;
+  "data-memory-retrieved": DataMemoryRetrievedPayload;
+  "data-gene-set-created": GeneSetStreamPart;
+  "data-verification-summary": DataVerificationSummaryPayload;
+  "data-conversation-title": DataConversationTitlePayload;
+}
+
+export type TypedDataPart<K extends DataPartKind = DataPartKind> = {
+  kind: K;
+  data: DataPartPayloadMap[K];
 };
 
-/**
- * Metadata attached to a PathfinderUIMessage (populated incrementally via
- * MessageMetadataChunks during streaming).
- *
- * All fields are optional because metadata chunks arrive at different points
- * in a streaming turn — the first chunk may carry only `traceId` before
- * `model` and `phase` land. User and system messages legitimately have most
- * of these absent.
- *
- * For **completed assistant messages**, use `CompletedAssistantMetadata` and
- * the `assertCompletedAssistantMetadata` type guard: once the stream ends,
- * missing `phase` / `model` / `traceId` / `createdAt` is a bug we want to
- * surface loudly rather than silently paper over.
- */
-export interface PathfinderMessageMetadata {
-  phase?: "scoping" | "discovery" | "planning" | "execution" | "verification" | "completed";
-  model?: string;
-  tokensUsed?: number;
-  tokensBudget?: number;
-  conversationTitle?: string;
-  traceId?: string;
-  /** ISO 8601 timestamp of when the message was created server-side. */
-  createdAt?: string;
-}
-
-/** A fully-hydrated assistant message's metadata — all required fields are present. */
-export interface CompletedAssistantMetadata {
-  phase: "scoping" | "discovery" | "planning" | "execution" | "verification" | "completed";
-  model: string;
-  traceId: string;
-  createdAt: string;
-  tokensUsed?: number;
-  tokensBudget?: number;
-  conversationTitle?: string;
-}
-
-/** The typed UIMessage alias used throughout the chat feature. */
-export type PathfinderUIMessage = UIMessage<PathfinderMessageMetadata, PathfinderDataParts>;
+export type AnyTypedDataPart = {
+  [K in DataPartKind]: TypedDataPart<K>;
+}[DataPartKind];

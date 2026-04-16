@@ -7,9 +7,16 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from sqlalchemy import select, text
 
 from pathfinder.ai.tools.durable import TaskProgressEmitter
-from pathfinder.persistence.models import BackgroundTask, Chat, User
+from pathfinder.persistence.models import (
+    BackgroundTask,
+    Chat,
+    ChatEvent,
+    TaskProgress,
+    User,
+)
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
@@ -39,10 +46,10 @@ async def _seed_chat_and_task(
 def _parse_data_chunks(body: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for line in body.splitlines():
-        if not line.startswith("data: "):
+        if not line.startswith("data:"):
             continue
-        payload = line[len("data: ") :]
-        if payload.strip() == "[DONE]":
+        payload = line[len("data:") :].lstrip()
+        if not payload:
             continue
         out.append(json.loads(payload))
     return out
@@ -121,11 +128,13 @@ async def test_sse_replays_past_progress_and_completes(
     )
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/event-stream")
-    assert resp.headers.get("x-vercel-ai-ui-message-stream") == "v1"
+    assert "x-vercel-ai-ui-message-stream" not in resp.headers
 
     chunks = _parse_data_chunks(resp.text)
-    progress = [c for c in chunks if c.get("type") == "data-task-progress"]
-    completion = [c for c in chunks if c.get("type") == "data-task-completed"]
+    progress = [c for c in chunks if c.get("type") == "custom"
+        and c.get("kind") == "data-task-progress"]
+    completion = [c for c in chunks if c.get("type") == "custom"
+        and c.get("kind") == "data-task-completed"]
 
     assert len(progress) == 2, progress
     assert progress[0]["data"]["message"] == "starting"
@@ -180,11 +189,13 @@ async def test_sse_receives_past_and_live_progress(
     messages = [
         c["data"]["message"]
         for c in chunks
-        if c.get("type") == "data-task-progress"
+        if c.get("type") == "custom"
+        and c.get("kind") == "data-task-progress"
     ]
     assert "starting" in messages, f"past progress missing: {messages}"
     assert "halfway" in messages, f"live progress missing: {messages}"
-    completion = [c for c in chunks if c.get("type") == "data-task-completed"]
+    completion = [c for c in chunks if c.get("type") == "custom"
+        and c.get("kind") == "data-task-completed"]
     assert completion, completion
     assert completion[-1]["data"]["status"] == "success"
 
@@ -210,7 +221,8 @@ async def test_sse_emits_task_completed_when_task_failed(
     )
     assert resp.status_code == 200
     chunks = _parse_data_chunks(resp.text)
-    completion = [c for c in chunks if c.get("type") == "data-task-completed"]
+    completion = [c for c in chunks if c.get("type") == "custom"
+        and c.get("kind") == "data-task-completed"]
     assert completion, chunks
     assert completion[-1]["data"]["status"] == "failed"
     assert completion[-1]["data"]["error"] == "boom"
@@ -292,3 +304,114 @@ async def test_task_progress_history_returns_404_when_missing(
         f"/api/v1/chats/{uuid4()}/tasks/{uuid4()}/progress"
     )
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_live_stream_emits_chat_event_when_batched_with_progress_and_terminal(
+    authed_client: httpx.AsyncClient,
+    authed_user_id: UUID,
+    app_notify_dispatcher: Any,
+) -> None:
+    """Regression: bug_006 — live SSE must yield trailing chat_events rows.
+
+    When progress NOTIFY, events NOTIFY, and the terminal status flip all
+    land in a single commit (realistic tail-of-stream pattern), the client
+    dequeues both NOTIFYs before its first post-replay iteration. The old
+    :func:`_drain_both_tables` was channel-filtered: a progress NOTIFY
+    drained **only** ``task_progress``, so the events row stayed unread,
+    the terminal check fired, and the client returned without ever yielding
+    the chat_events row on the live stream. The row survived in the DB
+    (replay-on-reconnect could catch it) but the already-connected
+    subscriber silently lost the trailing assistant output.
+
+    This test commits progress + chat_event + status-flip together so both
+    NOTIFYs arrive batched in the listener's queue, then asserts the
+    chat_event's SSE line is present in the response body.
+    """
+    del app_notify_dispatcher
+    chat_id = uuid4()
+    task_id = uuid4()
+    await _seed_chat_and_task(
+        user_id=authed_user_id, chat_id=chat_id, task_id=task_id
+    )
+
+    sentinel_sse = (
+        'event: stream\ndata: {"type":"custom","kind":"data-sentinel"}\n\n'
+    )
+
+    async def producer() -> None:
+        # Let the endpoint subscribe, finish replay, and park in _poll_loop
+        # before any of the three writes commit.
+        await asyncio.sleep(0.3)
+        async with async_session_factory() as session:
+            session.add(
+                TaskProgress(
+                    task_id=task_id,
+                    percent=1.0,
+                    message="final",
+                    data=None,
+                ),
+            )
+            await session.flush()
+            await session.execute(
+                text("SELECT pg_notify(:channel, :payload)"),
+                {
+                    "channel": f"task_progress:{chat_id}",
+                    "payload": str(task_id),
+                },
+            )
+            session.add(
+                ChatEvent(
+                    chat_id=chat_id,
+                    task_id=task_id,
+                    chunk={"sse": sentinel_sse},
+                ),
+            )
+            await session.flush()
+            await session.execute(
+                text("SELECT pg_notify(:channel, :payload)"),
+                {
+                    "channel": f"chat_events:{chat_id}",
+                    "payload": str(task_id),
+                },
+            )
+            # Flip status in the same transaction so all three land on one
+            # commit — NOTIFYs are delivered together, terminal is already
+            # visible when the client next checks.
+            task_row = (
+                await session.execute(
+                    select(BackgroundTask).where(
+                        BackgroundTask.id == task_id,
+                    ),
+                )
+            ).scalar_one()
+            task_row.status = "complete"
+            await session.commit()
+
+    producer_task = asyncio.create_task(producer())
+    resp = await authed_client.get(
+        f"/api/v1/chats/{chat_id}/tasks/{task_id}/events"
+    )
+    await producer_task
+
+    assert resp.status_code == 200
+    assert "data-sentinel" in resp.text, (
+        "chat_event row was dropped from the live SSE stream; "
+        f"body=\n{resp.text}"
+    )
+    # The progress row and the terminal marker must also be present — the
+    # fix must not regress the normal case.
+    progress_messages = [
+        c["data"]["message"]
+        for c in _parse_data_chunks(resp.text)
+        if c.get("type") == "custom"
+        and c.get("kind") == "data-task-progress"
+    ]
+    assert "final" in progress_messages, progress_messages
+    completion = [
+        c
+        for c in _parse_data_chunks(resp.text)
+        if c.get("type") == "custom" and c.get("kind") == "data-task-completed"
+    ]
+    assert completion, resp.text
+    assert completion[-1]["data"]["status"] == "success"

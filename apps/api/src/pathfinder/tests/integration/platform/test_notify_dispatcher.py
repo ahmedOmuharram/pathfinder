@@ -174,6 +174,39 @@ async def test_start_is_idempotent(patch_app_db_engine: None) -> None:
 
 
 @pytest.mark.asyncio
+async def test_subscribe_on_dead_connection_does_not_raise(
+    patch_app_db_engine: None,
+) -> None:
+    """Subscribe must never propagate connection errors.
+
+    By design, ``subscribe`` only mutates the in-memory registry — it
+    never touches the database. If the connection has died and the
+    reader hasn't yet reconnected, the channel is still recorded in the
+    registry and will be LISTENed on next reconnect. Subscribers see no
+    errors regardless of connection state.
+    """
+    del patch_app_db_engine
+    database_url = os.environ["DATABASE_URL"]
+    dispatcher = NotifyDispatcher(database_url=database_url)
+    await dispatcher.start()
+    try:
+        # Give the reader a chance to open the initial connection.
+        await asyncio.sleep(0.2)
+        closing_conn = dispatcher._conn
+        assert closing_conn is not None
+        await closing_conn.close()
+        # Subscribe while the connection is known-dead. The registry
+        # update + signal are purely in-memory, so this must not raise
+        # even if the reader hasn't noticed yet.
+        async with dispatcher.subscribe(
+            frozenset({"pf_subscribe_on_dead"}),
+        ):
+            assert "pf_subscribe_on_dead" in dispatcher._registry.counts
+    finally:
+        await dispatcher.close()
+
+
+@pytest.mark.asyncio
 async def test_reconnect_restores_delivery_after_connection_loss(
     patch_app_db_engine: None,
 ) -> None:
@@ -181,14 +214,15 @@ async def test_reconnect_restores_delivery_after_connection_loss(
 
     Production-critical: Postgres restarts, network blips, PgBouncer cycles
     all drop the dispatcher's pooled connection. Without recovery, every
-    SSE subscriber goes silent. This test force-closes ``_conn`` to trigger
+    SSE subscriber goes silent. This test force-closes the conn to trigger
     ``OperationalError`` in ``notifies()``, then asserts the same subscriber
     receives a NOTIFY fired AFTER reconnect — no resubscribe required.
     """
     del patch_app_db_engine
     database_url = os.environ["DATABASE_URL"]
     dispatcher = NotifyDispatcher(database_url=database_url)
-    dispatcher._RECONNECT_BACKOFF_SECONDS = (0.1, 0.1, 0.2)  # speed up test
+    dispatcher._CONNECT_WAIT_MIN_SECONDS = 0.1  # speed up test
+    dispatcher._CONNECT_WAIT_MAX_SECONDS = 0.2
     await dispatcher.start()
     try:
         async with dispatcher.subscribe(frozenset({"pf_test_reconn"})) as queue:

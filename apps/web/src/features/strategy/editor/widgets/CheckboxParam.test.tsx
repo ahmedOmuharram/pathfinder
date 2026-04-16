@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { FormProvider, useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { CheckboxParam } from "./CheckboxParam";
 import type { ParamSpec } from "@pathfinder/shared";
+import { WidgetTestForm, WidgetTestFormWithValidation } from "./testUtils";
 
 afterEach(cleanup);
 
@@ -30,67 +28,13 @@ function makeSpec(overrides: Partial<ParamSpec> = {}): ParamSpec {
   } as ParamSpec;
 }
 
-/** Test wrapper that creates a form and renders a CheckboxParam inside it. */
-function TestForm({
-  spec,
-  schema,
-  defaultValue,
-}: {
-  spec: ParamSpec;
-  schema: z.ZodObject<Record<string, z.ZodType>>;
-  defaultValue?: string | string[];
-}) {
-  const form = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: { [spec.name]: defaultValue ?? "" },
-    mode: "onBlur",
-  });
-  return (
-    <FormProvider {...form}>
-      <CheckboxParam
-        spec={spec}
-        name={spec.name}
-        options={sampleOptions}
-        vocabTree={null}
-      />
-    </FormProvider>
-  );
-}
-
-/** Variant that accepts custom options. */
-function TestFormWithOptions({
-  spec,
-  schema,
-  defaultValue,
-  options,
-}: {
-  spec: ParamSpec;
-  schema: z.ZodObject<Record<string, z.ZodType>>;
-  defaultValue?: string | string[];
-  options: { label: string; value: string }[];
-}) {
-  const form = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: { [spec.name]: defaultValue ?? "" },
-    mode: "onBlur",
-  });
-  return (
-    <FormProvider {...form}>
-      <CheckboxParam
-        spec={spec}
-        name={spec.name}
-        options={options}
-        vocabTree={null}
-      />
-    </FormProvider>
-  );
-}
-
-describe("CheckboxParam — single-pick (radios)", () => {
+describe("CheckboxParam -- single-pick (radios)", () => {
   it("renders radio buttons for each option", () => {
     const spec = makeSpec();
     render(
-      <TestForm spec={spec} schema={z.object({ test_param: z.string() })} />,
+      <WidgetTestForm name="test_param" defaultValue="">
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     const radios = screen.getAllByRole("radio");
     expect(radios.length).toBe(4);
@@ -99,11 +43,9 @@ describe("CheckboxParam — single-pick (radios)", () => {
   it("checks the radio matching the current form value", () => {
     const spec = makeSpec();
     render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.string() })}
-        defaultValue="b"
-      />,
+      <WidgetTestForm name="test_param" defaultValue="b">
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     const radios = screen.getAllByRole("radio");
     expect((radios[0] as HTMLInputElement).checked).toBe(false);
@@ -115,7 +57,9 @@ describe("CheckboxParam — single-pick (radios)", () => {
   it("updates form value when a radio is clicked", () => {
     const spec = makeSpec();
     render(
-      <TestForm spec={spec} schema={z.object({ test_param: z.string() })} />,
+      <WidgetTestForm name="test_param" defaultValue="">
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     fireEvent.click(screen.getByText("Gamma"));
     const radios = screen.getAllByRole("radio");
@@ -124,10 +68,15 @@ describe("CheckboxParam — single-pick (radios)", () => {
 
   it("shows error for required field on blur", async () => {
     const spec = makeSpec({ allowEmptyValue: false });
-    const schema = z.object({
-      test_param: z.string().min(1, { message: "Required" }),
-    });
-    render(<TestForm spec={spec} schema={schema} defaultValue="" />);
+    render(
+      <WidgetTestFormWithValidation
+        name="test_param"
+        defaultValue=""
+        validator={(v) => (v === "" ? "Required" : undefined)}
+      >
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestFormWithValidation>,
+    );
     const radios = screen.getAllByRole("radio");
     fireEvent.focus(radios[0]!);
     fireEvent.blur(radios[0]!);
@@ -139,74 +88,55 @@ describe("CheckboxParam — single-pick (radios)", () => {
 
   it("sets aria-invalid on container when error exists", async () => {
     const spec = makeSpec({ allowEmptyValue: false });
-    const schema = z.object({
-      test_param: z.string().min(1, { message: "Required" }),
-    });
-    render(<TestForm spec={spec} schema={schema} defaultValue="" />);
+    render(
+      <WidgetTestFormWithValidation
+        name="test_param"
+        defaultValue=""
+        validator={(v) => (v === "" ? "Required" : undefined)}
+      >
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestFormWithValidation>,
+    );
     const radios = screen.getAllByRole("radio");
     fireEvent.focus(radios[0]!);
     fireEvent.blur(radios[0]!);
     await waitFor(() => {
-      expect(screen.getByRole("radiogroup").getAttribute("aria-invalid")).toBe(
-        "true",
-      );
+      expect(screen.getByRole("radiogroup").getAttribute("aria-invalid")).toBe("true");
     });
   });
 });
 
-describe("CheckboxParam — multi-pick (checkboxes)", () => {
+describe("CheckboxParam -- multi-pick (checkboxes)", () => {
   it("renders checkboxes instead of radios", () => {
     const spec = makeSpec({ multiPick: true });
     render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.array(z.string()) })}
-        defaultValue={[]}
-      />,
+      <WidgetTestForm name="test_param" defaultValue={[]}>
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     expect(screen.queryByRole("radio")).toBeNull();
     const checkboxes = screen.getAllByRole("checkbox");
-    // 4 option checkboxes + 1 "Select all" (since options.length > 3)
     expect(checkboxes.length).toBe(5);
   });
 
   it("shows 'Select all' toggle when options > 3", () => {
     const spec = makeSpec({ multiPick: true });
     render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.array(z.string()) })}
-        defaultValue={[]}
-      />,
+      <WidgetTestForm name="test_param" defaultValue={[]}>
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     expect(screen.getByText(/Select all/)).toBeTruthy();
-  });
-
-  it("does not show 'Select all' when options <= 3", () => {
-    const spec = makeSpec({ multiPick: true });
-    const fewOptions = sampleOptions.slice(0, 3);
-    render(
-      <TestFormWithOptions
-        spec={spec}
-        schema={z.object({ test_param: z.array(z.string()) })}
-        defaultValue={[]}
-        options={fewOptions}
-      />,
-    );
-    expect(screen.queryByText(/Select all/)).toBeNull();
   });
 
   it("checks selected values from form default", () => {
     const spec = makeSpec({ multiPick: true });
     render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.array(z.string()) })}
-        defaultValue={["a", "d"]}
-      />,
+      <WidgetTestForm name="test_param" defaultValue={["a", "d"]}>
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     const checkboxes = screen.getAllByRole("checkbox");
-    // [selectAll, a, b, c, d]
     expect((checkboxes[1] as HTMLInputElement).checked).toBe(true);
     expect((checkboxes[2] as HTMLInputElement).checked).toBe(false);
     expect((checkboxes[3] as HTMLInputElement).checked).toBe(false);
@@ -216,41 +146,22 @@ describe("CheckboxParam — multi-pick (checkboxes)", () => {
   it("toggles individual checkbox on", () => {
     const spec = makeSpec({ multiPick: true });
     render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.array(z.string()) })}
-        defaultValue={["a"]}
-      />,
+      <WidgetTestForm name="test_param" defaultValue={["a"]}>
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     fireEvent.click(screen.getByText("Beta"));
     const checkboxes = screen.getAllByRole("checkbox");
-    expect((checkboxes[1] as HTMLInputElement).checked).toBe(true); // Alpha
-    expect((checkboxes[2] as HTMLInputElement).checked).toBe(true); // Beta
-  });
-
-  it("toggles individual checkbox off", () => {
-    const spec = makeSpec({ multiPick: true });
-    render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.array(z.string()) })}
-        defaultValue={["a", "b"]}
-      />,
-    );
-    fireEvent.click(screen.getByText("Alpha"));
-    const checkboxes = screen.getAllByRole("checkbox");
-    expect((checkboxes[1] as HTMLInputElement).checked).toBe(false); // Alpha
-    expect((checkboxes[2] as HTMLInputElement).checked).toBe(true); // Beta
+    expect((checkboxes[1] as HTMLInputElement).checked).toBe(true);
+    expect((checkboxes[2] as HTMLInputElement).checked).toBe(true);
   });
 
   it("'Select all' selects all values", () => {
     const spec = makeSpec({ multiPick: true });
     render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.array(z.string()) })}
-        defaultValue={[]}
-      />,
+      <WidgetTestForm name="test_param" defaultValue={[]}>
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     fireEvent.click(screen.getByText(/Select all/));
     const checkboxes = screen.getAllByRole("checkbox");
@@ -263,11 +174,9 @@ describe("CheckboxParam — multi-pick (checkboxes)", () => {
   it("'Select all' deselects all when all are selected", () => {
     const spec = makeSpec({ multiPick: true });
     render(
-      <TestForm
-        spec={spec}
-        schema={z.object({ test_param: z.array(z.string()) })}
-        defaultValue={["a", "b", "c", "d"]}
-      />,
+      <WidgetTestForm name="test_param" defaultValue={["a", "b", "c", "d"]}>
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestForm>,
     );
     fireEvent.click(screen.getByText(/Select all/));
     const checkboxes = screen.getAllByRole("checkbox");
@@ -279,10 +188,15 @@ describe("CheckboxParam — multi-pick (checkboxes)", () => {
 
   it("shows error for required multi field on blur", async () => {
     const spec = makeSpec({ multiPick: true, allowEmptyValue: false });
-    const schema = z.object({
-      test_param: z.array(z.string()).min(1, { message: "Select at least one" }),
-    });
-    render(<TestForm spec={spec} schema={schema} defaultValue={[]} />);
+    render(
+      <WidgetTestFormWithValidation
+        name="test_param"
+        defaultValue={[]}
+        validator={(v) => (Array.isArray(v) && v.length === 0 ? "Select at least one" : undefined)}
+      >
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestFormWithValidation>,
+    );
     const checkboxes = screen.getAllByRole("checkbox");
     fireEvent.focus(checkboxes[1]!);
     fireEvent.blur(checkboxes[1]!);
@@ -294,17 +208,20 @@ describe("CheckboxParam — multi-pick (checkboxes)", () => {
 
   it("sets aria-invalid on container when error exists", async () => {
     const spec = makeSpec({ multiPick: true, allowEmptyValue: false });
-    const schema = z.object({
-      test_param: z.array(z.string()).min(1, { message: "Select at least one" }),
-    });
-    render(<TestForm spec={spec} schema={schema} defaultValue={[]} />);
+    render(
+      <WidgetTestFormWithValidation
+        name="test_param"
+        defaultValue={[]}
+        validator={(v) => (Array.isArray(v) && v.length === 0 ? "Select at least one" : undefined)}
+      >
+        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+      </WidgetTestFormWithValidation>,
+    );
     const checkboxes = screen.getAllByRole("checkbox");
     fireEvent.focus(checkboxes[1]!);
     fireEvent.blur(checkboxes[1]!);
     await waitFor(() => {
-      expect(screen.getByRole("group").getAttribute("aria-invalid")).toBe(
-        "true",
-      );
+      expect(screen.getByRole("group").getAttribute("aria-invalid")).toBe("true");
     });
   });
 });

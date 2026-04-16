@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Controller, useFormContext } from "react-hook-form";
 import { cn } from "@/lib/utils/cn";
 import { isMultiParam } from "@/features/strategy/parameters/spec";
 import type { VocabNode } from "@/lib/utils/vocab";
-import type { ParamWidgetProps } from "./types";
+import type { ParamWidgetProps, ParamFieldApi } from "./types";
 import { CheckboxParam } from "./CheckboxParam";
 
 function collectLeaves(node: VocabNode): string[] {
@@ -37,26 +36,25 @@ function buildDefaultExpanded(nodes: VocabNode[], depth = 0): Set<string> {
   return result;
 }
 
-export function TreeBoxParam({ spec, name, options, vocabTree }: ParamWidgetProps) {
+export function TreeBoxParam({ spec, name, options, vocabTree, field }: ParamWidgetProps) {
   if (!vocabTree) {
-    return <CheckboxParam spec={spec} name={name} options={options} vocabTree={null} />;
+    return <CheckboxParam spec={spec} name={name} options={options} vocabTree={null} field={field} />;
   }
 
-  return (
-    <TreeBoxInner spec={spec} name={name} vocabTree={vocabTree} />
-  );
+  return <TreeBoxInner spec={spec} name={name} vocabTree={vocabTree} field={field} />;
 }
 
 function TreeBoxInner({
   spec,
   name,
   vocabTree,
+  field,
 }: {
   spec: ParamWidgetProps["spec"];
   name: string;
   vocabTree: VocabNode[];
+  field: ParamFieldApi;
 }) {
-  const { control } = useFormContext();
   const multi = isMultiParam(spec);
 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() =>
@@ -80,177 +78,156 @@ function TreeBoxInner({
 
   const lowerSearch = searchTerm.toLowerCase();
 
-  return (
-    <Controller
-      name={name}
-      control={control}
-      render={({ field, fieldState }) => {
-        const hasError = fieldState.error != null;
+  const errors = field.state.meta.errors;
+  const hasError = errors.length > 0;
+  const errorMessage = hasError ? String(errors[0]) : null;
 
-        const currentValue: string[] = multi
-          ? (Array.isArray(field.value)
-              ? (field.value as unknown[]).filter(
-                  (v): v is string => typeof v === "string",
-                )
-              : [])
-          : [];
-        const selectedSet = new Set(currentValue);
+  const currentValue: string[] = multi
+    ? (Array.isArray(field.state.value)
+        ? (field.state.value as unknown[]).filter(
+            (v): v is string => typeof v === "string",
+          )
+        : [])
+    : [];
+  const selectedSet = new Set(currentValue);
 
-        const toggleBranch = (node: VocabNode) => {
-          const leaves = collectLeaves(node);
-          const allChecked = leaves.every((l) => selectedSet.has(l));
-          if (allChecked) {
-            field.onChange(currentValue.filter((v) => !leaves.includes(v)));
-          } else {
-            const next = [...currentValue];
-            for (const l of leaves) {
-              if (!next.includes(l)) next.push(l);
-            }
-            field.onChange(next);
-          }
-        };
+  const toggleBranch = (node: VocabNode) => {
+    const leaves = collectLeaves(node);
+    const allChecked = leaves.every((l) => selectedSet.has(l));
+    if (allChecked) {
+      field.handleChange(currentValue.filter((v) => !leaves.includes(v)));
+    } else {
+      const next = [...currentValue];
+      for (const l of leaves) {
+        if (!next.includes(l)) next.push(l);
+      }
+      field.handleChange(next);
+    }
+  };
 
-        const toggleLeaf = (leafValue: string) => {
-          if (selectedSet.has(leafValue)) {
-            field.onChange(currentValue.filter((v) => v !== leafValue));
-          } else {
-            field.onChange([...currentValue, leafValue]);
-          }
-        };
+  const toggleLeaf = (leafValue: string) => {
+    if (selectedSet.has(leafValue)) {
+      field.handleChange(currentValue.filter((v) => v !== leafValue));
+    } else {
+      field.handleChange([...currentValue, leafValue]);
+    }
+  };
 
-        function renderNode(node: VocabNode, depth: number) {
-          if (lowerSearch && !nodeMatchesSearch(node, lowerSearch)) {
-            return null;
-          }
+  function renderNode(node: VocabNode, depth: number) {
+    if (lowerSearch && !nodeMatchesSearch(node, lowerSearch)) {
+      return null;
+    }
 
-          const isBranch = Boolean(
-            node.children != null && node.children.length > 0,
-          );
-          const isExpanded = expandedNodes.has(node.value);
-          const leaves = collectLeaves(node);
-          const allChecked = leaves.every((l) => selectedSet.has(l));
-          const someChecked =
-            !allChecked && leaves.some((l) => selectedSet.has(l));
+    const isBranch = Boolean(node.children != null && node.children.length > 0);
+    const isExpanded = expandedNodes.has(node.value);
+    const leaves = collectLeaves(node);
+    const allChecked = leaves.every((l) => selectedSet.has(l));
+    const someChecked = !allChecked && leaves.some((l) => selectedSet.has(l));
 
-          return (
-            <div key={node.value}>
-              <div
-                data-node-row
-                className="flex items-center gap-1 py-0.5"
-                style={{ paddingLeft: depth * 20 }}
-              >
-                {isBranch ? (
-                  <button
-                    type="button"
-                    onClick={() => toggleExpand(node.value)}
-                    className="w-4 h-4 flex items-center justify-center text-muted-foreground"
-                    aria-label={isExpanded ? "Collapse" : "Expand"}
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 12 12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{
-                        transform: isExpanded
-                          ? "rotate(90deg)"
-                          : "rotate(0deg)",
-                        transition: "transform 0.15s",
-                      }}
-                    >
-                      <path d="M4 2 L8 6 L4 10" />
-                    </svg>
-                  </button>
-                ) : (
-                  <span className="w-4" />
-                )}
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  {multi ? (
-                    <input
-                      type="checkbox"
-                      checked={allChecked}
-                      ref={(el) => {
-                        if (el) el.indeterminate = someChecked;
-                      }}
-                      onChange={() =>
-                        isBranch
-                          ? toggleBranch(node)
-                          : toggleLeaf(node.value)
-                      }
-                      onBlur={field.onBlur}
-                      className="accent-primary"
-                    />
-                  ) : (
-                    !isBranch && (
-                      <input
-                        type="radio"
-                        name={name}
-                        value={node.value}
-                        checked={field.value === node.value}
-                        onChange={() => field.onChange(node.value)}
-                        onBlur={field.onBlur}
-                        className="accent-primary"
-                      />
-                    )
-                  )}
-                  {node.label}
-                </label>
-              </div>
-              {isBranch &&
-                isExpanded &&
-                node.children?.map((child) => renderNode(child, depth + 1))}
-            </div>
-          );
-        }
-
-        const selectedCount = currentValue.filter((v) =>
-          allLeaves.includes(v),
-        ).length;
-
-        return (
-          <div>
-            <div
-              aria-invalid={hasError ? "true" : undefined}
-              aria-describedby={hasError ? `${name}-error` : undefined}
-              className={cn(
-                "rounded-md border bg-card text-sm",
-                hasError
-                  ? "border-destructive/30 bg-destructive/5"
-                  : "border-border",
-              )}
+    return (
+      <div key={node.value}>
+        <div
+          data-node-row
+          className="flex items-center gap-1 py-0.5"
+          style={{ paddingLeft: depth * 20 }}
+        >
+          {isBranch ? (
+            <button
+              type="button"
+              onClick={() => toggleExpand(node.value)}
+              className="w-4 h-4 flex items-center justify-center text-muted-foreground"
+              aria-label={isExpanded ? "Collapse" : "Expand"}
             >
-              <div className="p-2 border-b border-border">
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full rounded border border-border bg-card px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground"
-                />
-              </div>
-              <div className="max-h-64 overflow-y-auto p-2">
-                {vocabTree.map((node) => renderNode(node, 0))}
-              </div>
-              <div className="px-2 py-1.5 border-t border-border text-xs text-muted-foreground">
-                {selectedCount} of {allLeaves.length} selected
-              </div>
-            </div>
-            {fieldState.error?.message != null && (
-              <p
-                id={`${name}-error`}
-                role="alert"
-                className="mt-1 text-xs text-destructive"
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                  transition: "transform 0.15s",
+                }}
               >
-                {fieldState.error.message}
-              </p>
+                <path d="M4 2 L8 6 L4 10" />
+              </svg>
+            </button>
+          ) : (
+            <span className="w-4" />
+          )}
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            {multi ? (
+              <input
+                type="checkbox"
+                checked={allChecked}
+                ref={(el) => {
+                  if (el) el.indeterminate = someChecked;
+                }}
+                onChange={() =>
+                  isBranch ? toggleBranch(node) : toggleLeaf(node.value)
+                }
+                onBlur={field.handleBlur}
+                className="accent-primary"
+              />
+            ) : (
+              !isBranch && (
+                <input
+                  type="radio"
+                  name={name}
+                  value={node.value}
+                  checked={field.state.value === node.value}
+                  onChange={() => field.handleChange(node.value)}
+                  onBlur={field.handleBlur}
+                  className="accent-primary"
+                />
+              )
             )}
-          </div>
-        );
-      }}
-    />
+            {node.label}
+          </label>
+        </div>
+        {isBranch &&
+          isExpanded &&
+          node.children?.map((child) => renderNode(child, depth + 1))}
+      </div>
+    );
+  }
+
+  const selectedCount = currentValue.filter((v) => allLeaves.includes(v)).length;
+
+  return (
+    <div>
+      <div
+        aria-invalid={hasError ? "true" : undefined}
+        aria-describedby={hasError ? `${name}-error` : undefined}
+        className={cn(
+          "rounded-md border bg-card text-sm",
+          hasError ? "border-destructive/30 bg-destructive/5" : "border-border",
+        )}
+      >
+        <div className="p-2 border-b border-border">
+          <input
+            type="text"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded border border-border bg-card px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+        <div className="max-h-64 overflow-y-auto p-2">
+          {vocabTree.map((node) => renderNode(node, 0))}
+        </div>
+        <div className="px-2 py-1.5 border-t border-border text-xs text-muted-foreground">
+          {selectedCount} of {allLeaves.length} selected
+        </div>
+      </div>
+      {hasError && errorMessage != null && (
+        <p id={`${name}-error`} role="alert" className="mt-1 text-xs text-destructive">
+          {errorMessage}
+        </p>
+      )}
+    </div>
   );
 }
