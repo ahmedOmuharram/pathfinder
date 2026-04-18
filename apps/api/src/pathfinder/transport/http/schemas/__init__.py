@@ -8,6 +8,19 @@ from pathfinder.services.strategies.schemas import (
     StepResponse,
 )
 
+from .conversations import (
+    ConversationDuplicateResponse,
+    ConversationPatchBody,
+    ConversationResponse,
+    ConversationSummaryResponse,
+    CreateConversationRequest,
+    OpenConversationRequest,
+    OpenConversationResponse,
+    PushConversationRequest,
+    StepCountsRequest,
+    StepCountsResponse,
+    UpdateConversationRequest,
+)
 from .health import HealthResponse, SystemConfigResponse
 from .optimization import (
     OptimizationParameterSpecData,
@@ -29,26 +42,20 @@ from .sites import (
 from .steps import (
     RecordDetailRequest,
 )
-from .strategies import (
-    CreateStrategyRequest,
-    OpenStrategyRequest,
-    OpenStrategyResponse,
-    PushStrategyRequest,
-    StepCountsRequest,
-    StepCountsResponse,
-    StrategyResponse,
-    UpdateStrategyRequest,
-)
 from .veupathdb_auth import AuthStatusResponse, AuthSuccessResponse
 
 __all__ = [
     "AuthStatusResponse",
     "AuthSuccessResponse",
-    "CreateStrategyRequest",
+    "ConversationDuplicateResponse",
+    "ConversationPatchBody",
+    "ConversationResponse",
+    "ConversationSummaryResponse",
+    "CreateConversationRequest",
     "DependentParamsRequest",
     "HealthResponse",
-    "OpenStrategyRequest",
-    "OpenStrategyResponse",
+    "OpenConversationRequest",
+    "OpenConversationResponse",
     "OptimizationParameterSpecData",
     "OptimizationProgressEventData",
     "OptimizationTrialData",
@@ -57,7 +64,7 @@ __all__ = [
     "PlanNormalizeRequest",
     "PlanNormalizeResponse",
     "ProductActionRequest",
-    "PushStrategyRequest",
+    "PushConversationRequest",
     "RecordDetailRequest",
     "RecordTypeResponse",
     "SearchDetailsResponse",
@@ -68,8 +75,7 @@ __all__ = [
     "StepCountsResponse",
     "StepResponse",
     "StrategyPlanPayload",
-    "StrategyResponse",
     "SystemConfigResponse",
-    "UpdateStrategyRequest",
+    "UpdateConversationRequest",
     "ValidationResponse",
 ]

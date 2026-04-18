@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { authStatusOptions, logoutVeupathdb } from "@/lib/api/veupathdb-auth";
-import { useSessionStore } from "@/state/useSessionStore";
 import { Modal } from "@/lib/components/Modal";
 import { SignInForm } from "@/features/sites/components/SignInForm";
 import type { HeaderTextVariant } from "@/features/sites/siteBanners";
 import { useHasHydrated } from "@/lib/hooks/useHasHydrated";
+import { invalidateUserScopedQueries } from "@/lib/query/invalidateUserScoped";
 import { cn } from "@/lib/utils/cn";
 
 interface SiteAuthProps {
@@ -22,16 +22,21 @@ export function SiteAuth({
   headerTextVariant,
 }: SiteAuthProps) {
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const queryClient = useQueryClient();
 
-  const veupathdbSignedIn = useSessionStore((state) => state.veupathdbSignedIn);
-  const veupathdbName = useSessionStore((state) => state.veupathdbName);
-  const setVeupathdbAuth = useSessionStore((state) => state.setVeupathdbAuth);
   const { data: authStatus } = useQuery(authStatusOptions(siteId));
 
   const hasHydrated = useHasHydrated();
-  const signedIn = veupathdbSignedIn === true || authStatus?.signedIn === true;
+  const signedIn = authStatus?.signedIn === true;
   const displaySignedIn = hasHydrated && signedIn;
-  const displayName = veupathdbName ?? authStatus?.name ?? "";
+  const displayName = authStatus?.name ?? "";
+
+  const refreshAfterAuthChange = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: authStatusOptions(siteId).queryKey,
+    });
+    invalidateUserScopedQueries(queryClient);
+  };
 
   const lightClass =
     "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition-colors duration-150 hover:text-primary hover:drop-shadow-none";
@@ -57,7 +62,7 @@ export function SiteAuth({
               void (async () => {
                 try {
                   await logoutVeupathdb(siteId);
-                  setVeupathdbAuth(false, null);
+                  await refreshAfterAuthChange();
                 } catch {
                   console.warn("[SiteAuth] Failed to log out");
                 }
@@ -82,7 +87,11 @@ export function SiteAuth({
 
       {authDisplay === "inline" && !displaySignedIn && (
         <div className="mt-4">
-          <SignInForm onSuccess={() => setVeupathdbAuth(true, null)} />
+          <SignInForm
+            onSuccess={() => {
+              void refreshAfterAuthChange();
+            }}
+          />
         </div>
       )}
 
@@ -97,7 +106,7 @@ export function SiteAuth({
           <SignInForm
             onSuccess={() => {
               setShowLoginModal(false);
-              setVeupathdbAuth(true, null);
+              void refreshAfterAuthChange();
             }}
           />
         </div>

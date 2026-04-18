@@ -17,7 +17,7 @@ import type {
   ConfusionMatrixResponse,
   ControlSetResponse,
   ControlSetSummaryResponse,
-  CreateStrategyRequest,
+  CreateConversationRequest,
   CrossValidationResultResponse,
   CustomEvent,
   DecisionPresented,
@@ -51,8 +51,8 @@ import type {
   MemoryValue,
   ModelCatalogEntryResponse,
   NegativeSetVariantResponse,
-  OpenStrategyRequest,
-  OpenStrategyResponse,
+  OpenConversationRequest,
+  OpenConversationResponse,
   OperatorComparisonResponse,
   OperatorKnobResponse,
   OperatorVariantResponse,
@@ -68,6 +68,7 @@ import type {
   PhaseChange,
   PlanArtifact,
   PlanUpdate,
+  PushConversationRequest,
   ProblemFrame,
   RankMetricsResponse,
   RecordTypeResponse,
@@ -83,7 +84,7 @@ import type {
   StrategyLink,
   StrategyMeta,
   StrategyPatch,
-  StrategyResponse,
+  ConversationResponse,
   TaskCompleted,
   TaskProgress as TaskProgressStreamPart,
   TaskProgressEvent,
@@ -94,7 +95,7 @@ import type {
   TreeOptimizationTrialResponse,
   TrialProgressDataResponse,
   UpdatesEvent,
-  UpdateStrategyRequest,
+  UpdateConversationRequest,
 } from "./generated/types/index";
 
 /**
@@ -122,7 +123,15 @@ export type { GeneSearchResponse, GeneResolveResponse };
 export type ResolvedGene = ResolvedGeneResponse;
 export type Search = SearchResponse;
 export type RecordType = RecordTypeResponse;
-export type { StepCountsResponse, OpenStrategyRequest, OpenStrategyResponse };
+export type {
+  ConversationResponse,
+  CreateConversationRequest,
+  OpenConversationRequest,
+  OpenConversationResponse,
+  PushConversationRequest,
+  StepCountsResponse,
+  UpdateConversationRequest,
+};
 export type ParamSpec = ParamSpecResponse;
 
 export interface SearchValidationErrors {
@@ -137,8 +146,6 @@ export interface SearchValidationPayload {
 export interface SearchValidationResponse {
   validation: SearchValidationPayload;
 }
-
-export type { CreateStrategyRequest, UpdateStrategyRequest };
 
 export type OptimizationProgressData = OptimizationProgressEventData;
 export type { OptimizationTrialData };
@@ -183,7 +190,7 @@ export type GeneSet = GeneSetResponse;
 export type GeneConfidenceScore = GeneConfidenceScoreResponse;
 export type ControlSet = ControlSetResponse;
 
-export type Strategy = Omit<StrategyResponse, "steps" | "isSaved"> & {
+export type Strategy = Omit<ConversationResponse, "steps" | "isSaved"> & {
   steps: StepResponse[];
   isSaved: boolean;
   activePlan?: Record<string, unknown> | null;
@@ -403,13 +410,23 @@ export interface DataPhaseStartPayload {
   model: string;
 }
 
-export interface DataPhaseFinishPayload {
-  phase: string;
+export interface DataConversationTitlePayload {
+  title: string;
+}
+
+export interface DataTurnRejectedPayload {
+  message: string;
   reason: string;
 }
 
-export interface DataConversationTitlePayload {
-  title: string;
+export interface DataTurnQaPayload {
+  answer: string;
+  reason: string;
+}
+
+export interface DataSupervisorDecisionPayload {
+  to: string;
+  reason: string;
 }
 
 export interface DataToolApprovalRequestPayload {
@@ -446,7 +463,6 @@ export interface DataVerificationSummaryPayload {
 
 export type DataPartKind =
   | "data-phase-start"
-  | "data-phase-finish"
   | "data-phase-change"
   | "data-background-task-started"
   | "data-task-progress"
@@ -459,11 +475,13 @@ export type DataPartKind =
   | "data-memory-retrieved"
   | "data-gene-set-created"
   | "data-verification-summary"
-  | "data-conversation-title";
+  | "data-conversation-title"
+  | "data-turn-rejected"
+  | "data-turn-qa"
+  | "data-supervisor-decision";
 
 export interface DataPartPayloadMap {
   "data-phase-start": DataPhaseStartPayload;
-  "data-phase-finish": DataPhaseFinishPayload;
   "data-phase-change": PhaseChange;
   "data-background-task-started": BackgroundTaskStarted;
   "data-task-progress": TaskProgressStreamPart;
@@ -477,6 +495,9 @@ export interface DataPartPayloadMap {
   "data-gene-set-created": GeneSetStreamPart;
   "data-verification-summary": DataVerificationSummaryPayload;
   "data-conversation-title": DataConversationTitlePayload;
+  "data-turn-rejected": DataTurnRejectedPayload;
+  "data-turn-qa": DataTurnQaPayload;
+  "data-supervisor-decision": DataSupervisorDecisionPayload;
 }
 
 export type TypedDataPart<K extends DataPartKind = DataPartKind> = {

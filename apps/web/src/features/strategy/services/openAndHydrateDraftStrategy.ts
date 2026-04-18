@@ -4,7 +4,7 @@ import { buildDraftStrategySummary } from "@/features/strategy/utils/draftSummar
 export async function openAndHydrateDraftStrategy(args: {
   siteId: string;
   open: () => Promise<{ strategyId: string }>;
-  getStrategy: (strategyId: string) => Promise<Strategy>;
+  getConversation: (strategyId: string) => Promise<Strategy>;
   nowIso: () => string;
   setStrategyId: (strategyId: string | null) => void;
   addStrategy: (summary: ReturnType<typeof buildDraftStrategySummary>) => void;
@@ -22,7 +22,7 @@ export async function openAndHydrateDraftStrategy(args: {
   const {
     siteId,
     open,
-    getStrategy,
+    getConversation,
     nowIso,
     setStrategyId,
     addStrategy,
@@ -42,7 +42,7 @@ export async function openAndHydrateDraftStrategy(args: {
   clearStrategy();
 
   try {
-    const full = await getStrategy(nextId);
+    const full = await getConversation(nextId);
     setStrategy(full);
     const meta: { name: string; recordType?: string; siteId: string } = {
       name: full.name,

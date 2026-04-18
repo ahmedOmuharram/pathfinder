@@ -21,7 +21,7 @@ class MemoryValue(CamelModel):
     site_id: str | None = None
     content: dict[str, object]
     auto_retrieve: bool = True
-    source_chat_id: UUID | None = None
+    source_conversation_id: UUID | None = None
     created_at: datetime
     last_used_at: datetime | None = None
 

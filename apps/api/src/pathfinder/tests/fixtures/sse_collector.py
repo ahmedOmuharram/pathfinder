@@ -130,7 +130,7 @@ async def collect_chat_stream(
     then GET /operations/{operationId}/subscribe streams SSE events.
 
     :param client: HTTP client for the request.
-    :param message: Chat message to send.
+    :param message: Conversation message to send.
     :param site_id: VEuPathDB site identifier (default ``"veupathdb"``).
     :param strategy_id: Optional strategy ID.
     :param request_timeout: Request timeout in seconds.

@@ -1,0 +1,80 @@
+{
+  "plasmodb": [
+    "P. vivax transmembrane transporter candidates",
+    "Gametocyte-stage proteases in Plasmodium",
+    "P. berghei orthologs of gametocyte kinases",
+    "Genes upregulated in liver-stage P. falciparum"
+  ],
+  "toxodb": [
+    "Oocyst-upregulated Toxoplasma genes",
+    "Secreted bradyzoite proteins in T. gondii",
+    "Invasion-correlated T. gondii cell-cycle genes",
+    "T. gondii kinases conserved in apicomplexa"
+  ],
+  "cryptodb": [
+    "Cryptosporidium genes with Plasmodium but not Toxoplasma orthologs",
+    "Signal-peptide Cryptosporidium secreted proteins",
+    "Oocyst-expressed membrane proteins",
+    "Sporozoite-enriched surface antigens"
+  ],
+  "piroplasmadb": [
+    "Predicted surface proteins in Theileria or Babesia",
+    "Blood-stage Babesia secreted candidates",
+    "PiroplasmaDB genes with Plasmodium orthologs",
+    "AMA1-like invasion genes across piroplasms"
+  ],
+  "giardiadb": [
+    "Giardia genes in Cryptosporidium but not Toxoplasma",
+    "Cyst-wall-annotated secreted Giardia proteins",
+    "Trophozoite surface-localized genes",
+    "Variant surface proteins across Giardia isolates"
+  ],
+  "amoebadb": [
+    "Adhesion-related Entamoeba trophozoite genes",
+    "Cyst-upregulated secreted E. histolytica proteins",
+    "AmoebaDB genes with Giardia orthologs and TM domains",
+    "Lectin-family proteins across amoeba species"
+  ],
+  "microsporidiadb": [
+    "Host-interaction secreted Microsporidia genes",
+    "Spore-stage membrane protein candidates",
+    "Microsporidia genes with fungal orthologs",
+    "Polar-tube-related protein family"
+  ],
+  "tritrypdb": [
+    "Enzymatically active T. cruzi trans-sialidases",
+    "Bloodstream-form secreted T. brucei proteins",
+    "TriTrypDB orthologs with transmembrane domains",
+    "Leishmania amastigote-upregulated surface proteins"
+  ],
+  "fungidb": [
+    "Candida filamentation genes with known structures",
+    "C. albicans in-vivo-specific infection genes",
+    "Cryptococcus patient-specific meningitis upregulation",
+    "Aspergillus genes conserved across pathogenic fungi"
+  ],
+  "hostdb": [
+    "Host immune genes upregulated in Plasmodium blood infection",
+    "Macrophage-expressed cytokine activity genes",
+    "HostDB genes conserved across mammals with signal peptides",
+    "Mouse liver genes responding to P. berghei"
+  ],
+  "vectorbase": [
+    "Mosquito hemocyte proteins during Plasmodium infection",
+    "Insecticide-resistance genes in midgut",
+    "VectorBase genes with Aedes orthologs and TM domains",
+    "Anopheles salivary-gland secreted proteins"
+  ],
+  "orthomcl": [
+    "Ortholog groups in Plasmodium but not Cryptosporidium",
+    "OrthoMCL groups shared between two species sets",
+    "Groups with P. falciparum and T. gondii orthologs",
+    "Single-copy orthologs across apicomplexa"
+  ],
+  "veupathdb": [
+    "Apicoplast-targeted genes via comparative genomics",
+    "Transmission-blocking malaria vaccine studies",
+    "Plasmodium gametocyte transcriptomics datasets",
+    "Kinome comparison across apicomplexan parasites"
+  ]
+}

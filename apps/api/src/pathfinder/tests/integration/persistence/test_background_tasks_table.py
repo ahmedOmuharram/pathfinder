@@ -7,8 +7,8 @@ from sqlalchemy import select
 
 from pathfinder.persistence.models import (
     BackgroundTask,
-    Chat,
-    ChatEvent,
+    Conversation,
+    ConversationEvent,
     TaskProgress,
     User,
 )
@@ -21,16 +21,16 @@ async def test_background_tasks_roundtrip(
 ) -> None:
     del db_cleaner, patch_app_db_engine
     user_id = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     async with async_session_factory() as session:
         session.add(User(id=user_id))
-        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.flush()
         session.add(
             BackgroundTask(
                 id=task_id,
-                chat_id=chat_id,
+                conversation_id=conversation_id,
                 user_id=user_id,
                 tool_name="test_tool",
                 status="pending",
@@ -48,8 +48,8 @@ async def test_background_tasks_roundtrip(
             )
         )
         session.add(
-            ChatEvent(
-                chat_id=chat_id,
+            ConversationEvent(
+                conversation_id=conversation_id,
                 task_id=task_id,
                 chunk={"type": "test"},
             )
@@ -76,7 +76,7 @@ async def test_background_tasks_roundtrip(
 
         event = (
             await session.execute(
-                select(ChatEvent).where(ChatEvent.chat_id == chat_id)
+                select(ConversationEvent).where(ConversationEvent.conversation_id == conversation_id)
             )
         ).scalar_one()
         assert event.chunk == {"type": "test"}

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { createTestWrapper } from "@/lib/query/testing";
 
 const mockGetRecords = vi.fn();
@@ -38,13 +38,19 @@ describe("useResultsTableRecords", () => {
     vi.clearAllMocks();
   });
 
-  it("fetches records when visibleColumns are non-empty", async () => {
+  it("fetches records when attributes are non-empty", async () => {
     mockGetRecords.mockResolvedValueOnce(makeRecordsResponse(3));
 
     const { Wrapper } = createTestWrapper();
-    const visibleColumns = new Set(["gene_id", "organism"]);
     const { result } = renderHook(
-      () => useResultsTableRecords(entityRef, visibleColumns),
+      () =>
+        useResultsTableRecords({
+          entityRef,
+          attributes: ["gene_id", "organism"],
+          sorting: [],
+          pageIndex: 0,
+          pageSize: 25,
+        }),
       { wrapper: Wrapper },
     );
 
@@ -56,107 +62,108 @@ describe("useResultsTableRecords", () => {
     expect(result.current.meta?.totalCount).toBe(3);
   });
 
-  it("does not fetch when visibleColumns is empty", () => {
+  it("does not fetch when attributes list is empty", () => {
     const { Wrapper } = createTestWrapper();
-    const visibleColumns = new Set<string>();
     renderHook(
-      () => useResultsTableRecords(entityRef, visibleColumns),
+      () =>
+        useResultsTableRecords({
+          entityRef,
+          attributes: [],
+          sorting: [],
+          pageIndex: 0,
+          pageSize: 25,
+        }),
       { wrapper: Wrapper },
     );
 
     expect(mockGetRecords).not.toHaveBeenCalled();
   });
 
-  it("handleSort toggles direction on same column", async () => {
-    mockGetRecords.mockResolvedValue(makeRecordsResponse(1));
+  it("translates SortingState ASC into sort/dir query params", async () => {
+    mockGetRecords.mockResolvedValueOnce(makeRecordsResponse(1));
 
     const { Wrapper } = createTestWrapper();
-    const visibleColumns = new Set(["gene_id"]);
-    const { result } = renderHook(
-      () => useResultsTableRecords(entityRef, visibleColumns),
+    renderHook(
+      () =>
+        useResultsTableRecords({
+          entityRef,
+          attributes: ["gene_id"],
+          sorting: [{ id: "gene_id", desc: false }],
+          pageIndex: 0,
+          pageSize: 25,
+        }),
       { wrapper: Wrapper },
     );
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(mockGetRecords).toHaveBeenCalledTimes(1);
     });
 
-    act(() => {
-      result.current.handleSort("gene_id");
-    });
-
-    expect(result.current.sortColumn).toBe("gene_id");
-    expect(result.current.sortDir).toBe("ASC");
-
-    act(() => {
-      result.current.handleSort("gene_id");
-    });
-
-    expect(result.current.sortDir).toBe("DESC");
+    const call = mockGetRecords.mock.calls[0];
+    expect(call?.[1]).toMatchObject({ sort: "gene_id", dir: "ASC" });
   });
 
-  it("handleSort resets to ASC on new column", async () => {
-    mockGetRecords.mockResolvedValue(makeRecordsResponse(1));
+  it("translates SortingState DESC into sort/dir query params", async () => {
+    mockGetRecords.mockResolvedValueOnce(makeRecordsResponse(1));
 
     const { Wrapper } = createTestWrapper();
-    const visibleColumns = new Set(["gene_id", "organism"]);
-    const { result } = renderHook(
-      () => useResultsTableRecords(entityRef, visibleColumns),
+    renderHook(
+      () =>
+        useResultsTableRecords({
+          entityRef,
+          attributes: ["gene_id"],
+          sorting: [{ id: "gene_id", desc: true }],
+          pageIndex: 0,
+          pageSize: 25,
+        }),
       { wrapper: Wrapper },
     );
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(mockGetRecords).toHaveBeenCalledTimes(1);
     });
 
-    act(() => {
-      result.current.handleSort("gene_id");
-    });
-    act(() => {
-      result.current.handleSort("gene_id");
-    });
-    // Now sortDir is DESC for gene_id
-    expect(result.current.sortDir).toBe("DESC");
-
-    act(() => {
-      result.current.handleSort("organism");
-    });
-
-    expect(result.current.sortColumn).toBe("organism");
-    expect(result.current.sortDir).toBe("ASC");
+    const call = mockGetRecords.mock.calls[0];
+    expect(call?.[1]).toMatchObject({ sort: "gene_id", dir: "DESC" });
   });
 
-  it("resets offset on sort change", async () => {
-    mockGetRecords.mockResolvedValue(makeRecordsResponse(1));
+  it("computes offset from pageIndex * pageSize", async () => {
+    mockGetRecords.mockResolvedValueOnce(makeRecordsResponse(1));
 
     const { Wrapper } = createTestWrapper();
-    const visibleColumns = new Set(["gene_id"]);
-    const { result } = renderHook(
-      () => useResultsTableRecords(entityRef, visibleColumns),
+    renderHook(
+      () =>
+        useResultsTableRecords({
+          entityRef,
+          attributes: ["gene_id"],
+          sorting: [],
+          pageIndex: 3,
+          pageSize: 25,
+        }),
       { wrapper: Wrapper },
     );
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(mockGetRecords).toHaveBeenCalledTimes(1);
     });
 
-    act(() => {
-      result.current.setOffset(50);
-    });
-    act(() => {
-      result.current.handleSort("gene_id");
-    });
-
-    expect(result.current.offset).toBe(0);
+    const call = mockGetRecords.mock.calls[0];
+    expect(call?.[1]).toMatchObject({ offset: 75, limit: 25 });
   });
 
   it("reports error on fetch failure", async () => {
     mockGetRecords.mockRejectedValueOnce(new Error("Network error"));
 
     const { Wrapper } = createTestWrapper();
-    const visibleColumns = new Set(["gene_id"]);
     const { result } = renderHook(
-      () => useResultsTableRecords(entityRef, visibleColumns),
+      () =>
+        useResultsTableRecords({
+          entityRef,
+          attributes: ["gene_id"],
+          sorting: [],
+          pageIndex: 0,
+          pageSize: 25,
+        }),
       { wrapper: Wrapper },
     );
 

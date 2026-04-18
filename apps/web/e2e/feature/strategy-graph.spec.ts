@@ -35,7 +35,7 @@ test.describe("Strategy Graph", () => {
     // API: Strategy persisted with steps — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(fullResp.ok()).toBeTruthy();
     const full = await fullResp.json();
     expect(full.steps.length).toBeGreaterThan(0);
@@ -59,7 +59,7 @@ test.describe("Strategy Graph", () => {
     // API: Strategy persisted — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(fullResp.ok()).toBeTruthy();
   });
 
@@ -90,7 +90,7 @@ test.describe("Strategy Graph", () => {
     expect(pillCount).toBeGreaterThan(0);
 
     // API: Strategy still in DB after reload with steps intact
-    const afterResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const afterResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(afterResp.ok()).toBeTruthy();
     const strategy = await afterResp.json();
     expect(strategy.steps.length).toBeGreaterThan(0);
@@ -136,7 +136,7 @@ test.describe("Strategy Graph", () => {
     expect(pillCount).toBeGreaterThan(0);
 
     // API: Steps persisted
-    const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(resp.ok()).toBeTruthy();
     const strategy = await resp.json();
     expect(strategy.steps.length).toBeGreaterThan(0);

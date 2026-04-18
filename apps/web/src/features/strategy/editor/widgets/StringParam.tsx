@@ -14,7 +14,7 @@ export function StringParam({ spec, name, field }: ParamWidgetProps) {
     <div>
       <input
         name={name}
-        value={field.state.value as string}
+        value={(field.state.value as string | undefined) ?? ""}
         onChange={(e) => field.handleChange(e.target.value)}
         onBlur={field.handleBlur}
         type={isNumeric ? "number" : "text"}

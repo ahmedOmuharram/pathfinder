@@ -19,7 +19,7 @@ from pathfinder.services.eval import (
     fetch_strategy_gene_ids,
 )
 from pathfinder.services.wdk import get_strategy_api
-from pathfinder.transport.http.deps import ChatRepo, CurrentUser
+from pathfinder.transport.http.deps import ConversationRepo, CurrentUser
 
 router = APIRouter(prefix="/api/v1/eval", tags=["eval"])
 logger = get_logger(__name__)
@@ -45,6 +45,7 @@ class BuildGoldResponse(BaseModel):
     root_step_id: int = Field(alias="rootStepId")
     estimated_size: int = Field(alias="estimatedSize")
     gene_ids: list[str] = Field(alias="geneIds")
+    conversation_id: str | None = Field(default=None, alias="conversationId")
 
     model_config = {"populate_by_name": True}
 
@@ -61,6 +62,7 @@ async def build_gold_strategy_endpoint(
         record_type=request.record_type,
         step_tree=request.step_tree,
         dataset_gene_ids=request.dataset_gene_ids,
+        user_id=user_id,
     )
     return BuildGoldResponse(
         gold_id=result.gold_id,
@@ -68,6 +70,7 @@ async def build_gold_strategy_endpoint(
         root_step_id=result.root_step_id,
         estimated_size=len(result.gene_ids),
         gene_ids=result.gene_ids,
+        conversation_id=str(result.conversation_id) if result.conversation_id is not None else None,
     )
 
 
@@ -83,16 +86,16 @@ class FetchGeneIdsRequest(BaseModel):
 @router.post("/strategy-gene-ids")
 async def get_strategy_gene_ids(
     request: FetchGeneIdsRequest,
-    chat_repo: ChatRepo,
+    conv_repo: ConversationRepo,
     user_id: CurrentUser,
 ) -> dict[str, Any]:
     """Fetch all gene IDs from a PathFinder strategy's WDK root step."""
-    chat = await chat_repo.get_by_id(UUID(request.strategy_id))
-    if not chat or not chat.wdk_strategy_id:
+    conversation = await conv_repo.get_by_id(UUID(request.strategy_id))
+    if not conversation or not conversation.wdk_strategy_id:
         return {"geneIds": [], "error": "No WDK strategy linked"}
 
     api = get_strategy_api(request.site_id)
-    gene_ids = await fetch_strategy_gene_ids(api=api, chat=chat)
+    gene_ids = await fetch_strategy_gene_ids(api=api, conversation=conversation)
 
     if not gene_ids:
         return {"geneIds": [], "error": "No gene IDs found"}

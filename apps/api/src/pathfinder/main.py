@@ -13,7 +13,7 @@ from starlette.responses import Response
 
 from pathfinder import __version__
 from pathfinder.ai.capabilities.piguard import warm_up_piguard
-from pathfinder.ai.chat.checkpointer import lifespan_checkpointer
+from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.orchestration.observability import (
@@ -47,9 +47,9 @@ from pathfinder.services.catalog.semantic_index import warm_up_model
 from pathfinder.transport.http.routers import (
     _stream_parts_schemas,
     chat,
-    chats,
     checkpoints,
     control_sets,
+    conversations,
     dev,
     evaluation,
     experiments,
@@ -62,7 +62,6 @@ from pathfinder.transport.http.routers import (
     memories,
     models,
     sites,
-    strategies,
     streaming_schema,
     tasks,
     tiers,
@@ -261,8 +260,7 @@ def create_app() -> FastAPI:
     app.include_router(models.router)
     app.include_router(tiers.router)
     app.include_router(chat.router)
-    app.include_router(chats.router)
-    app.include_router(strategies.router)
+    app.include_router(conversations.router)
     app.include_router(experiments.router)
     app.include_router(control_sets.router)
     app.include_router(veupathdb_auth.router)

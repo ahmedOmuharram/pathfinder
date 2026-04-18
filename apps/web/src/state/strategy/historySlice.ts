@@ -1,70 +1,97 @@
-/**
- * History slice — undo/redo with bounded history buffer.
- */
-
-import type { Strategy } from "@pathfinder/shared";
+import { enablePatches, produceWithPatches, applyPatches } from "immer";
+import type { Draft, Patch } from "immer";
+import type { Step, Strategy } from "@pathfinder/shared";
 import type { StateCreator } from "zustand";
 import type { DevtoolsMutators } from "@/state/middleware";
 import type { StrategyState, HistorySlice } from "./types";
-import { buildStepsById } from "./helpers";
+
+enablePatches();
 
 const MAX_HISTORY = 50;
 
+export interface HistorySnapshot {
+  strategy: Strategy | null;
+  stepsById: Record<string, Step>;
+}
+
+export type HistoryRecipe = (draft: Draft<HistorySnapshot>) => void;
+
+function trimStack(stack: Patch[][]): Patch[][] {
+  while (stack.length > MAX_HISTORY) {
+    stack.shift();
+  }
+  return stack;
+}
+
 /**
- * Push a strategy snapshot onto the history stack, truncating future entries
- * and capping at MAX_HISTORY.
+ * Apply a recipe that mutates the strategy/stepsById snapshot, and record an
+ * undo-patch entry when the previous state had a non-null strategy.
+ *
+ * Returns the partial state update to merge into the Zustand store.
  */
 export function pushHistory(
-  history: Strategy[],
-  historyIndex: number,
-  strategy: Strategy | null,
-): { history: Strategy[]; historyIndex: number } {
-  if (!strategy) {
-    return { history, historyIndex };
-  }
-  const nextHistory = history.slice(0, historyIndex + 1);
-  nextHistory.push(strategy);
-  if (nextHistory.length > MAX_HISTORY) {
-    nextHistory.shift();
-  }
-  return { history: nextHistory, historyIndex: nextHistory.length - 1 };
+  state: HistorySnapshot & { undoStack: Patch[][]; redoStack: Patch[][] },
+  recipe: HistoryRecipe,
+): HistorySnapshot & { undoStack: Patch[][]; redoStack: Patch[][] } {
+  const prev: HistorySnapshot = { strategy: state.strategy, stepsById: state.stepsById };
+  const [next, , inverse] = produceWithPatches(prev, recipe);
+
+  const hadPriorStrategy = state.strategy !== null;
+  const nextUndoStack = hadPriorStrategy && inverse.length > 0
+    ? trimStack([...state.undoStack, inverse])
+    : state.undoStack;
+
+  return {
+    strategy: next.strategy,
+    stepsById: next.stepsById,
+    undoStack: nextUndoStack,
+    redoStack: [],
+  };
 }
 
 export const createHistorySlice: StateCreator<StrategyState, DevtoolsMutators, [], HistorySlice> = (
   set,
   get,
 ) => ({
-  history: [],
-  historyIndex: -1,
+  undoStack: [],
+  redoStack: [],
 
   undo: () => {
-    const { history, historyIndex } = get();
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      const strategy = history[newIndex];
-      if (strategy === undefined) return;
-      set({
-        strategy,
-        stepsById: buildStepsById(strategy.steps),
-        historyIndex: newIndex,
-      });
-    }
+    const { undoStack, redoStack, strategy, stepsById } = get();
+    const lastInverse = undoStack[undoStack.length - 1];
+    if (!lastInverse) return;
+
+    const current: HistorySnapshot = { strategy, stepsById };
+    const [restored, , forward] = produceWithPatches(current, (draft) => {
+      applyPatches(draft, lastInverse);
+    });
+
+    set({
+      strategy: restored.strategy,
+      stepsById: restored.stepsById,
+      undoStack: undoStack.slice(0, -1),
+      redoStack: [...redoStack, forward],
+    });
   },
 
   redo: () => {
-    const { history, historyIndex } = get();
-    if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
-      const strategy = history[newIndex];
-      if (strategy === undefined) return;
-      set({
-        strategy,
-        stepsById: buildStepsById(strategy.steps),
-        historyIndex: newIndex,
-      });
-    }
+    const { undoStack, redoStack, strategy, stepsById } = get();
+    const lastForward = redoStack[redoStack.length - 1];
+    if (!lastForward) return;
+
+    const current: HistorySnapshot = { strategy, stepsById };
+    const [restored, , inverse] = produceWithPatches(current, (draft) => {
+      applyPatches(draft, lastForward);
+    });
+
+    set({
+      strategy: restored.strategy,
+      stepsById: restored.stepsById,
+      undoStack: [...undoStack, inverse],
+      redoStack: redoStack.slice(0, -1),
+    });
   },
 
-  canUndo: () => get().historyIndex > 0,
-  canRedo: () => get().historyIndex < get().history.length - 1,
+  canUndo: () => get().undoStack.length > 0,
+  canRedo: () => get().redoStack.length > 0,
 });

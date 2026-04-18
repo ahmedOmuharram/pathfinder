@@ -17,7 +17,7 @@ class MessagesRepository:
         self,
         *,
         message_id: UUID,
-        chat_id: UUID,
+        conversation_id: UUID,
         role: str,
         parts: list[dict[str, Any]],
         metadata: dict[str, Any],
@@ -26,18 +26,18 @@ class MessagesRepository:
         self.session.add(
             Message(
                 id=message_id,
-                chat_id=chat_id,
+                conversation_id=conversation_id,
                 role=role,
                 parts=parts,
                 metadata_=metadata,
             )
         )
 
-    async def list_messages_for_chat(self, chat_id: UUID) -> list[Message]:
+    async def list_messages_for_conversation(self, conversation_id: UUID) -> list[Message]:
         """Return messages for a chat, oldest first."""
         stmt = (
             select(Message)
-            .where(Message.chat_id == chat_id)
+            .where(Message.conversation_id == conversation_id)
             .order_by(Message.created_at)
         )
         result = await self.session.execute(stmt)

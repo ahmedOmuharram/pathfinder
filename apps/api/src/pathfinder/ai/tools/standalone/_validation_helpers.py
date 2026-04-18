@@ -92,11 +92,13 @@ class StepOkResponse(CamelModel):
 
 
 def get_graph(session: StrategySession, graph_id: str | None) -> StrategyGraph | None:
-    graph = session.get_graph(graph_id)
-    if graph:
-        return graph
-    # Fallback to active graph if an invalid id was provided.
-    return session.get_graph(None)
+    """Return the graph with ``graph_id`` (or the active graph when ``None``).
+
+    Returns ``None`` when ``graph_id`` is supplied but no matching graph
+    exists — callers then surface :func:`graph_not_found`. No silent
+    substitution; an unknown id is a caller bug we want visible.
+    """
+    return session.get_graph(graph_id)
 
 
 def graph_not_found(graph_id: str | None) -> ToolErrorPayload:

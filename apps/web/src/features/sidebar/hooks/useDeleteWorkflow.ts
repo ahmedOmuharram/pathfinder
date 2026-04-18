@@ -16,13 +16,13 @@ import { useState } from "react";
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import {
-  chatListOptions,
-  deleteChat,
-  dismissChat,
-  dismissedChatsOptions,
-  restoreChat,
-  type ChatListItem,
-} from "@/lib/api/chats";
+  conversationListOptions,
+  deleteConversation,
+  dismissConversation,
+  dismissedConversationsOptions,
+  restoreConversation,
+  type ConversationSummary,
+} from "@/lib/api/conversations";
 import { toUserMessage } from "@/lib/api/errors";
 
 interface UseDeleteWorkflowArgs {
@@ -58,8 +58,8 @@ export function useDeleteWorkflow({
     string | null
   >(null);
 
-  const listKey = chatListOptions(siteId).queryKey;
-  const dismissedKey = dismissedChatsOptions(siteId).queryKey;
+  const listKey = conversationListOptions(siteId).queryKey;
+  const dismissedKey = dismissedConversationsOptions(siteId).queryKey;
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -67,25 +67,25 @@ export function useDeleteWorkflow({
     try {
       const target = deleteTarget;
       // Optimistic: remove from active list, add to dismissed list.
-      queryClient.setQueryData<ChatListItem[]>(listKey, (old) =>
+      queryClient.setQueryData<ConversationSummary[]>(listKey, (old) =>
         (old ?? []).filter((c) => c.id !== target.id),
       );
-      queryClient.setQueryData<ChatListItem[]>(dismissedKey, (old) => [
+      queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) => [
         target.chat,
         ...(old ?? []).filter((c) => c.id !== target.id),
       ]);
       if (activeChatId === target.id) {
-        router.push("/chat");
+        router.push("/conversation");
       }
       try {
-        await dismissChat(target.id);
+        await dismissConversation(target.id);
       } catch (err) {
         // Rollback: put back into active list, remove from dismissed.
-        queryClient.setQueryData<ChatListItem[]>(listKey, (old) => [
+        queryClient.setQueryData<ConversationSummary[]>(listKey, (old) => [
           target.chat,
           ...(old ?? []).filter((c) => c.id !== target.id),
         ]);
-        queryClient.setQueryData<ChatListItem[]>(dismissedKey, (old) =>
+        queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) =>
           (old ?? []).filter((c) => c.id !== target.id),
         );
         reportError(toUserMessage(err, "Failed to dismiss conversation."));
@@ -101,7 +101,7 @@ export function useDeleteWorkflow({
 
   const handleRestore = async (chatId: string) => {
     try {
-      await restoreChat(chatId);
+      await restoreConversation(chatId);
     } catch (err) {
       reportError(toUserMessage(err, "Failed to restore conversation."));
     } finally {
@@ -114,8 +114,8 @@ export function useDeleteWorkflow({
     if (permanentDeleteTarget === null) return;
     const id = permanentDeleteTarget;
     try {
-      await deleteChat(id);
-      queryClient.setQueryData<ChatListItem[]>(dismissedKey, (old) =>
+      await deleteConversation(id);
+      queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) =>
         (old ?? []).filter((c) => c.id !== id),
       );
     } catch (err) {

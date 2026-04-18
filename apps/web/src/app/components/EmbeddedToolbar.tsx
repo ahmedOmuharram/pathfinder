@@ -11,14 +11,14 @@ interface EmbeddedToolbarProps {
 
 export function EmbeddedToolbar({ onOpenSettings }: EmbeddedToolbarProps) {
   const pathname = usePathname();
-  const chatActive = pathname === "/chat" || pathname.startsWith("/chat/");
+  const chatActive = pathname === "/conversation" || pathname.startsWith("/conversation/") || pathname.startsWith("/conversation/");
   const workbenchActive =
     pathname === "/workbench" || pathname.startsWith("/workbench/");
 
   return (
     <div className="flex items-center justify-end gap-1 border-b border-border bg-background px-3 py-1">
       <Link
-        href="/chat"
+        href="/conversation"
         aria-label="Go to Chat"
         aria-current={chatActive ? "page" : undefined}
         className={

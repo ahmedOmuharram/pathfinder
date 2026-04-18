@@ -105,8 +105,8 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   const nodePositions = new Map(nodes.map((n: Node) => [n.id, { x: n.position.x, y: n.position.y }]));
 
   const draftStrategy = useStrategyStore((state) => state.strategy);
-  const setStepValidationErrors = useStrategyStore(
-    (state) => state.setStepValidationErrors,
+  const applyStepValidationErrors = useStrategyStore(
+    (state) => state.applyStepValidationErrors,
   );
   const stepsById = useStrategyStore((state) => state.stepsById);
   const setGraphValidationStatus = useStrategyStore(
@@ -158,7 +158,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
       steps,
       strategy,
     });
-    setStepValidationErrors(errorsByStepId);
+    applyStepValidationErrors(errorsByStepId);
     const hasErrors = hasFieldErrors || combineMismatchGroups.length > 0;
     const graphId = draftStrategy?.id ?? strategy?.id;
     if (graphId != null && graphId !== "") {

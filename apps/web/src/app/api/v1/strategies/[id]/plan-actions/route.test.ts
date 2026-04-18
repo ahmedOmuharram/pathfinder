@@ -11,12 +11,12 @@ import { POST } from "./route";
 
 const proxyMock = vi.mocked(proxyJsonRequest);
 
-describe("POST /api/v1/strategies/[id]/plan-actions", () => {
+describe("POST /api/v1/conversations/[id]/plan-actions", () => {
   beforeEach(() => proxyMock.mockClear());
 
   it("proxies the request body to the backend plan-actions route", async () => {
     const req = new NextRequest(
-      new URL("http://localhost:3000/api/v1/strategies/abc/plan-actions"),
+      new URL("http://localhost:3000/api/v1/conversations/abc/plan-actions"),
       {
         method: "POST",
         body: JSON.stringify({ action: "approve", planId: "plan_1" }),
@@ -33,7 +33,7 @@ describe("POST /api/v1/strategies/[id]/plan-actions", () => {
       throw new Error("proxyJsonRequest was not called");
     }
     const [, path, opts] = firstCall;
-    expect(path).toBe("/api/v1/strategies/abc/plan-actions");
+    expect(path).toBe("/api/v1/conversations/abc/plan-actions");
     expect(opts).toEqual({ includeBody: true });
   });
 });

@@ -1,14 +1,10 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
-import type { RecordAttribute, RecordDetail, WdkRecord } from "@/lib/types/wdk";
-import { ClassificationBadge, AttributeValue } from "./ResultsTableColumns";
+import { flexRender, type Row } from "@tanstack/react-table";
+import type { RecordDetail, WdkRecord } from "@/lib/types/wdk";
 import { ExpandedRowDetail } from "./ExpandedRowDetail";
 
 interface RecordRowProps {
-  record: WdkRecord;
-  pk: string;
-  columns: RecordAttribute[];
-  hasClassification: boolean;
-  isExpanded: boolean;
+  row: Row<WdkRecord>;
   detail: RecordDetail | null;
   detailError: string | null;
   detailLoading: boolean;
@@ -16,17 +12,16 @@ interface RecordRowProps {
 }
 
 export function RecordRow({
-  record,
-  pk,
-  columns,
-  hasClassification,
-  isExpanded,
+  row,
   detail,
   detailError,
   detailLoading,
   onToggle,
 }: RecordRowProps) {
-  const colSpan = columns.length + (hasClassification ? 1 : 0) + 1;
+  const isExpanded = row.getIsExpanded();
+  const visibleCells = row.getVisibleCells();
+  const colSpan = visibleCells.length + 1;
+  const pk = row.id;
 
   return (
     <>
@@ -35,17 +30,12 @@ export function RecordRow({
         className="cursor-pointer transition-colors hover:bg-accent/50 data-[expanded=true]:bg-accent/30"
         data-expanded={isExpanded}
       >
-        {hasClassification && (
-          <td className="px-4 py-2">
-            <ClassificationBadge value={record._classification ?? null} />
-          </td>
-        )}
-        {columns.map((col) => (
+        {visibleCells.map((cell) => (
           <td
-            key={col.name}
+            key={cell.id}
             className="max-w-[300px] truncate px-4 py-2 text-sm text-foreground"
           >
-            <AttributeValue value={record.attributes[col.name]} />
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </td>
         ))}
         <td className="px-2 py-2 text-muted-foreground">

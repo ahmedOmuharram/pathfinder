@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { geneSetsListOptions } from "@/features/workbench/api/geneSets";
-import { useSessionStore } from "@/state/useSessionStore";
+import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 
 export function useGeneSetsQuery(siteId: string) {
-  const veupathdbSignedIn = useSessionStore((s) => s.veupathdbSignedIn);
-  const authStatusKnown = useSessionStore((s) => s.authStatusKnown);
+  const { data: authStatus } = useQuery(authStatusOptions(siteId));
+  const signedIn = authStatus?.signedIn === true;
 
   return useQuery({
     ...geneSetsListOptions(siteId),
-    enabled: authStatusKnown && veupathdbSignedIn && siteId !== "",
+    enabled: signedIn && siteId !== "",
   });
 }

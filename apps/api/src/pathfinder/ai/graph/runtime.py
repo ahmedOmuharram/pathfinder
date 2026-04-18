@@ -71,7 +71,7 @@ class AgentDeps(BaseModel):
     cancel_event: SkipValidation[asyncio.Event] | None = None
     memory_store: SkipValidation[AsyncPostgresStore] | None = None
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
-    chat_id: UUID | None = None
+    conversation_id: UUID | None = None
 
 
 def build_node_deps(
@@ -97,7 +97,7 @@ def build_node_deps(
         cancel_event=context.cancel_event,
         memory_store=context.memory_store,
         retrieved_memories=memories or [],
-        chat_id=state.chat_id,
+        conversation_id=state.conversation_id,
     )
 
 

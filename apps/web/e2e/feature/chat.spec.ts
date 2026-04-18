@@ -29,7 +29,7 @@ test.describe("Chat", () => {
     // Fetch full strategy — verify messages stored (use captured ID)
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(fullResp.ok()).toBeTruthy();
     const full = await fullResp.json();
     expect(full.messages).toBeDefined();
@@ -57,7 +57,7 @@ test.describe("Chat", () => {
     // Fetch full strategy — verify steps were created from the plan
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(fullResp.ok()).toBeTruthy();
     const full = await fullResp.json();
     expect(full.steps.length).toBeGreaterThan(0);
@@ -100,7 +100,7 @@ test.describe("Chat", () => {
 
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(fullResp.ok()).toBeTruthy();
     const full = await fullResp.json();
 
@@ -122,7 +122,7 @@ test.describe("Chat", () => {
     // Fetch full conversation — messages should be stored (use captured ID)
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(fullResp.ok()).toBeTruthy();
     const full = await fullResp.json();
     expect(full.messages.length).toBeGreaterThan(0);
@@ -150,7 +150,7 @@ test.describe("Chat", () => {
     // Verify both messages persisted (use captured ID)
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     const full = await fullResp.json();
     const userMsgs = full.messages.filter((m: { role: string }) => m.role === "user");
     const assistantMsgs = full.messages.filter(
@@ -188,7 +188,7 @@ test.describe("Chat", () => {
     });
 
     // Strategy still exists after reload
-    const afterResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const afterResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(afterResp.ok()).toBeTruthy();
   });
 });

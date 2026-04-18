@@ -105,7 +105,6 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
         onRenameValueChange={actions.setRenameValue}
         onCommitRename={(target) => void actions.commitRename(target)}
         onCancelRename={actions.cancelRename}
-        onSelect={actions.handleSelect}
         onStartRename={actions.startRename}
         onStartDelete={actions.setDeleteTarget}
         onStartDuplicate={actions.setDuplicateTarget}

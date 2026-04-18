@@ -16,8 +16,11 @@ from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
-from pathfinder.persistence.models import Chat
-from pathfinder.persistence.repositories import ChatRepository, ChatUpdate
+from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.repositories import (
+    ConversationRepository,
+    ConversationUpdate,
+)
 from pathfinder.platform.errors import AppError, InternalError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.wdk import get_strategy_api
@@ -46,16 +49,16 @@ class WdkChatSpec:
     step_count: int = field(default=0)
 
 
-def plan_needs_detail_fetch(chat: Chat) -> bool:
+def plan_needs_detail_fetch(conversation: Conversation) -> bool:
     """Check if a WDK-linked chat needs its full detail fetched from WDK.
 
     Returns True when the chat has a ``wdk_strategy_id`` but no plan data
     (i.e. it was synced with summary data only and the user is now opening it).
     Local strategies (no ``wdk_strategy_id``) never need a WDK fetch.
     """
-    if chat.wdk_strategy_id is None:
+    if conversation.wdk_strategy_id is None:
         return False
-    plan = chat.plan
+    plan = conversation.plan
     if not plan:
         return True
     return "root" not in plan
@@ -93,9 +96,9 @@ async def sync_to_chat(
     wdk_id: int,
     site_id: str,
     api: StrategyAPI,
-    chat_repo: ChatRepository,
+    conv_repo: ConversationRepository,
     user_id: UUID,
-) -> Chat:
+) -> Conversation:
     """Fetch a single WDK strategy and upsert into the chats table.
 
     Shared by ``open_strategy`` and ``sync_all_wdk_strategies``.
@@ -104,7 +107,7 @@ async def sync_to_chat(
     name = payload.name or f"WDK Strategy {wdk_id}"
 
     return await upsert_chat(
-        chat_repo=chat_repo,
+        conv_repo=conv_repo,
         user_id=user_id,
         site_id=site_id,
         spec=WdkChatSpec(
@@ -120,17 +123,17 @@ async def sync_to_chat(
 
 async def upsert_chat(
     *,
-    chat_repo: ChatRepository,
+    conv_repo: ConversationRepository,
     user_id: UUID,
     site_id: str,
     spec: WdkChatSpec,
-) -> Chat:
+) -> Conversation:
     """Upsert a WDK strategy into the chats table (create or update)."""
-    existing = await chat_repo.get_by_wdk_strategy_id(user_id, spec.wdk_id)
+    existing = await conv_repo.get_by_wdk_strategy_id(user_id, spec.wdk_id)
     if existing:
-        await chat_repo.update_chat(
+        await conv_repo.update_conversation(
             existing.id,
-            ChatUpdate(
+            ConversationUpdate(
                 name=spec.name,
                 plan=spec.plan,
                 record_type=spec.record_type,
@@ -141,16 +144,16 @@ async def upsert_chat(
                 step_count=spec.step_count,
             ),
         )
-        chat = await chat_repo.get_by_id(existing.id)
+        conversation = await conv_repo.get_by_id(existing.id)
     else:
-        created = await chat_repo.create(
+        created = await conv_repo.create(
             user_id=user_id,
             site_id=site_id,
             name=spec.name,
         )
-        await chat_repo.update_chat(
+        await conv_repo.update_conversation(
             created.id,
-            ChatUpdate(
+            ConversationUpdate(
                 plan=spec.plan,
                 record_type=spec.record_type,
                 wdk_strategy_id=spec.wdk_id,
@@ -160,21 +163,21 @@ async def upsert_chat(
                 step_count=spec.step_count,
             ),
         )
-        chat = await chat_repo.get_by_id(created.id)
+        conversation = await conv_repo.get_by_id(created.id)
 
-    if chat is None:
-        msg = f"Chat disappeared for WDK strategy {spec.wdk_id}"
+    if conversation is None:
+        msg = f"Conversation disappeared for WDK strategy {spec.wdk_id}"
         raise InternalError(detail=msg)
-    return chat
+    return conversation
 
 
 async def upsert_summary_chat(
     wdk_item: WDKStrategySummary,
     *,
-    chat_repo: ChatRepository,
+    conv_repo: ConversationRepository,
     user_id: UUID,
     site_id: str,
-) -> Chat | None:
+) -> Conversation | None:
     """Create or update a chat from WDK list summary data only.
 
     Unlike ``sync_to_chat``, this does NOT fetch the full strategy detail
@@ -191,14 +194,14 @@ async def upsert_summary_chat(
     estimated_size = wdk_item.estimated_size
     step_count = wdk_item.leaf_and_transform_step_count
 
-    existing = await chat_repo.get_by_wdk_strategy_id(user_id, wdk_id)
+    existing = await conv_repo.get_by_wdk_strategy_id(user_id, wdk_id)
     if existing and existing.dismissed_at is not None:
         # Strategy was dismissed by user — don't re-import or update it.
         return existing
     if existing:
-        await chat_repo.update_chat(
+        await conv_repo.update_conversation(
             existing.id,
-            ChatUpdate(
+            ConversationUpdate(
                 name=name,
                 record_type=record_type,
                 wdk_strategy_id=wdk_id,
@@ -211,16 +214,16 @@ async def upsert_summary_chat(
                 touch_updated_at=False,
             ),
         )
-        return await chat_repo.get_by_id(existing.id)
+        return await conv_repo.get_by_id(existing.id)
 
-    created = await chat_repo.create(
+    created = await conv_repo.create(
         user_id=user_id,
         site_id=site_id,
         name=name,
     )
-    await chat_repo.update_chat(
+    await conv_repo.update_conversation(
         created.id,
-        ChatUpdate(
+        ConversationUpdate(
             record_type=record_type,
             wdk_strategy_id=wdk_id,
             wdk_strategy_id_set=True,
@@ -231,14 +234,14 @@ async def upsert_summary_chat(
             estimated_size_set=True,
         ),
     )
-    return await chat_repo.get_by_id(created.id)
+    return await conv_repo.get_by_id(created.id)
 
 
 async def lazy_fetch_wdk_detail(
     *,
-    chat: Chat,
-    chat_repo: ChatRepository,
-) -> Chat:
+    conversation: Conversation,
+    conv_repo: ConversationRepository,
+) -> Conversation:
     """Fetch full WDK strategy detail for a summary-only chat.
 
     If the chat has a ``wdk_strategy_id`` but no plan data (created during
@@ -246,17 +249,17 @@ async def lazy_fetch_wdk_detail(
     the chat. Returns the updated chat, or the original if no fetch was
     needed or the fetch failed.
     """
-    site_id = chat.site_id
-    wdk_id = chat.wdk_strategy_id
-    if not plan_needs_detail_fetch(chat) or not site_id or wdk_id is None:
-        return chat
+    site_id = conversation.site_id
+    wdk_id = conversation.wdk_strategy_id
+    if not plan_needs_detail_fetch(conversation) or not site_id or wdk_id is None:
+        return conversation
 
     try:
         api = get_strategy_api(site_id)
         payload, is_saved = await fetch_and_convert(api, wdk_id)
-        await chat_repo.update_chat(
-            chat.id,
-            ChatUpdate(
+        await conv_repo.update_conversation(
+            conversation.id,
+            ConversationUpdate(
                 plan=payload,
                 record_type=payload.record_type,
                 step_count=len(walk_step_tree(payload.root)),
@@ -265,41 +268,41 @@ async def lazy_fetch_wdk_detail(
                 touch_updated_at=False,
             ),
         )
-        updated = await chat_repo.get_by_id(chat.id)
+        updated = await conv_repo.get_by_id(conversation.id)
         if updated is not None:
             return updated
     except (AppError, RuntimeError) as exc:
         logger.warning(
             "Lazy WDK detail fetch failed",
-            chat_id=str(chat.id),
+            conversation_id=str(conversation.id),
             wdk_id=wdk_id,
             error=str(exc),
         )
 
-    return chat
+    return conversation
 
 
-async def sync_is_saved_to_wdk(*, chat: Chat) -> None:
+async def sync_is_saved_to_wdk(*, conversation: Conversation) -> None:
     """Sync the isSaved flag from a chat to WDK.
 
     No-op if the chat has no wdk_strategy_id or site_id.
     Failures are logged and swallowed (non-critical sync).
     """
-    wdk_id = chat.wdk_strategy_id
+    wdk_id = conversation.wdk_strategy_id
     if not wdk_id:
         return
 
-    site_id = chat.site_id
+    site_id = conversation.site_id
     if not site_id:
         return
 
     try:
         api = get_strategy_api(site_id)
-        await api.set_saved(wdk_id, is_saved=chat.is_saved)
+        await api.set_saved(wdk_id, is_saved=conversation.is_saved)
     except AppError as exc:
         logger.warning(
             "Failed to sync isSaved to WDK",
-            chat_id=str(chat.id),
+            conversation_id=str(conversation.id),
             wdk_id=wdk_id,
             error=str(exc),
         )

@@ -20,8 +20,8 @@ from pathfinder.integrations.veupathdb.factory import (
     list_sites,
 )
 from pathfinder.persistence.models import (
-    Chat,
     ControlSet,
+    Conversation,
     ExperimentRow,
     GeneSetRow,
 )
@@ -60,34 +60,34 @@ async def purge_user_data(
 
     Always deletes: gene sets, experiments, control sets.
     """
-    # 1. Find all chats (for WDK cleanup)
-    chat_query = select(Chat).where(Chat.user_id == user_id)
+    # 1. Find all conversations (for WDK cleanup)
+    conversation_query = select(Conversation).where(Conversation.user_id == user_id)
     if site_id:
-        chat_query = chat_query.where(Chat.site_id == site_id)
-    chats = list((await session.execute(chat_query)).scalars().all())
-    chat_ids = [str(c.id) for c in chats]
+        conversation_query = conversation_query.where(Conversation.site_id == site_id)
+    conversations = list((await session.execute(conversation_query)).scalars().all())
+    conversation_ids = [str(c.id) for c in conversations]
 
     # 2. Delete WDK strategies (only when explicitly requested)
     wdk_deleted = await _purge_wdk_strategies(site_id, delete_wdk=delete_wdk)
 
-    # 3. Handle chats
+    # 3. Handle conversations
     dismissed_count = 0
     hard_deleted_count = 0
 
     if delete_wdk:
-        chat_del = delete(Chat).where(Chat.user_id == user_id)
+        conv_del = delete(Conversation).where(Conversation.user_id == user_id)
         if site_id:
-            chat_del = chat_del.where(Chat.site_id == site_id)
-        sr = cast("CursorResult[object]", await session.execute(chat_del))
+            conv_del = conv_del.where(Conversation.site_id == site_id)
+        sr = cast("CursorResult[object]", await session.execute(conv_del))
         hard_deleted_count = sr.rowcount or 0
-    elif chat_ids:
-        all_uuids = [UUID(cid) for cid in chat_ids]
+    elif conversation_ids:
+        all_uuids = [UUID(conv_id) for conv_id in conversation_ids]
         await session.execute(
-            update(Chat)
-            .where(Chat.id.in_(all_uuids))
+            update(Conversation)
+            .where(Conversation.id.in_(all_uuids))
             .values(dismissed_at=datetime.now(UTC))
         )
-        dismissed_count = len(chat_ids)
+        dismissed_count = len(conversation_ids)
 
     # 4. Delete gene sets, experiments, control sets
     pg_gene_sets, pg_experiments, pg_control_sets = await _purge_related_data(

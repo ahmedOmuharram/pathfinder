@@ -26,7 +26,7 @@ async def test_auto_write_gene_sets(
         await session.commit()
 
     state = PipelineState(
-        chat_id=uuid4(),
+        conversation_id=uuid4(),
         user_id=user_id,
         site_id="toxodb",
         mode="strategy",

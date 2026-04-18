@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from pathfinder.ai.chat.checkpointer import to_psycopg_url
+from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 
 
 @pytest.mark.parametrize(

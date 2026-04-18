@@ -3,7 +3,7 @@
 Streams durable-task progress and resumed-graph chunks to the client as
 ``text/event-stream`` frames. Replays existing ``task_progress`` +
 ``chat_events`` rows on connect, then subscribes to two Postgres channels
-(``task_progress:<chat_id>`` and ``chat_events:<chat_id>``) via
+(``task_progress:<conversation_id>`` and ``chat_events:<conversation_id>``) via
 ``LISTEN/NOTIFY`` so new rows land in the stream as soon as they are written.
 
 Frame format mirrors the chat dispatcher: every frame is
@@ -39,7 +39,7 @@ from starlette.responses import StreamingResponse
 
 from pathfinder.persistence.models import (
     BackgroundTask,
-    ChatEvent,
+    ConversationEvent,
     TaskProgress,
 )
 from pathfinder.persistence.session import async_session_factory
@@ -50,7 +50,7 @@ from pathfinder.transport.http.schemas.tasks import (
     TaskStatusResponse,
 )
 
-router = APIRouter(prefix="/api/v1/chats", tags=["tasks"])
+router = APIRouter(prefix="/api/v1/conversations", tags=["tasks"])
 
 # Polling timeout on ``aconn.notifies()``. Short enough to check
 # ``request.is_disconnected()`` responsively; long enough to avoid busy-looping.
@@ -78,17 +78,17 @@ class _Cursor(BaseModel):
 
 
 @router.get(
-    "/{chat_id}/tasks/{task_id}",
+    "/{conversation_id}/tasks/{task_id}",
     response_model=TaskStatusResponse,
 )
 async def task_status(
-    chat_id: UUID,
+    conversation_id: UUID,
     task_id: UUID,
     user_id: Annotated[UUID, Depends(get_current_user)],
 ) -> TaskStatusResponse:
     """Return current status + metadata for a durable task."""
     task = await _load_task(
-        chat_id=chat_id, task_id=task_id, user_id=user_id
+        conversation_id=conversation_id, task_id=task_id, user_id=user_id
     )
     return TaskStatusResponse(
         task_id=task.id,
@@ -103,16 +103,16 @@ async def task_status(
 
 
 @router.get(
-    "/{chat_id}/tasks/{task_id}/progress",
+    "/{conversation_id}/tasks/{task_id}/progress",
     response_model=list[TaskProgressEvent],
 )
 async def task_progress_history(
-    chat_id: UUID,
+    conversation_id: UUID,
     task_id: UUID,
     user_id: Annotated[UUID, Depends(get_current_user)],
 ) -> list[TaskProgressEvent]:
     """Return the ordered list of progress rows persisted so far."""
-    await _load_task(chat_id=chat_id, task_id=task_id, user_id=user_id)
+    await _load_task(conversation_id=conversation_id, task_id=task_id, user_id=user_id)
     async with async_session_factory() as session:
         rows = (
             await session.execute(
@@ -133,20 +133,20 @@ async def task_progress_history(
     ]
 
 
-@router.get("/{chat_id}/tasks/{task_id}/events")
+@router.get("/{conversation_id}/tasks/{task_id}/events")
 async def task_events(
-    chat_id: UUID,
+    conversation_id: UUID,
     task_id: UUID,
     request: Request,
     user_id: Annotated[UUID, Depends(get_current_user)],
 ) -> StreamingResponse:
     """Open an SSE stream for a durable task's progress + resumed graph output."""
-    await _load_task(chat_id=chat_id, task_id=task_id, user_id=user_id)
+    await _load_task(conversation_id=conversation_id, task_id=task_id, user_id=user_id)
     dispatcher: NotifyDispatcher = request.app.state.notify_dispatcher
 
     return StreamingResponse(
         _event_stream(
-            chat_id=chat_id,
+            conversation_id=conversation_id,
             task_id=task_id,
             request=request,
             dispatcher=dispatcher,
@@ -157,14 +157,14 @@ async def task_events(
 
 
 async def _load_task(
-    *, chat_id: UUID, task_id: UUID, user_id: UUID
+    *, conversation_id: UUID, task_id: UUID, user_id: UUID
 ) -> BackgroundTask:
     async with async_session_factory() as session:
         task = (
             await session.execute(
                 select(BackgroundTask).where(
                     BackgroundTask.id == task_id,
-                    BackgroundTask.chat_id == chat_id,
+                    BackgroundTask.conversation_id == conversation_id,
                     BackgroundTask.user_id == user_id,
                 )
             )
@@ -220,7 +220,7 @@ def _extract_sse_line(chunk: dict[str, Any]) -> str | None:
 
 async def _event_stream(
     *,
-    chat_id: UUID,
+    conversation_id: UUID,
     task_id: UUID,
     request: Request,
     dispatcher: NotifyDispatcher,
@@ -233,8 +233,8 @@ async def _event_stream(
     returns, so any NOTIFY fired after that is queued for delivery — even
     ones that race with the replay and terminal check below.
     """
-    progress_channel = f"task_progress:{chat_id}"
-    events_channel = f"chat_events:{chat_id}"
+    progress_channel = f"task_progress:{conversation_id}"
+    events_channel = f"chat_events:{conversation_id}"
     encountered_error = False
     try:
         cursor = _Cursor()
@@ -242,7 +242,7 @@ async def _event_stream(
             frozenset({progress_channel, events_channel}),
         ) as notify_queue:
             async for frame in _replay(
-                chat_id=chat_id, task_id=task_id, cursor=cursor,
+                conversation_id=conversation_id, task_id=task_id, cursor=cursor,
             ):
                 yield frame
 
@@ -254,7 +254,7 @@ async def _event_stream(
             async for frame in _poll_loop(
                 notify_queue=notify_queue,
                 target=_PollTarget(
-                    chat_id=chat_id, task_id=task_id,
+                    conversation_id=conversation_id, task_id=task_id,
                     progress_channel=progress_channel,
                     events_channel=events_channel,
                 ),
@@ -272,7 +272,7 @@ async def _event_stream(
 
 
 async def _replay(
-    *, chat_id: UUID, task_id: UUID, cursor: _Cursor
+    *, conversation_id: UUID, task_id: UUID, cursor: _Cursor
 ) -> AsyncIterator[str]:
     async with async_session_factory() as session:
         progress_rows = (
@@ -290,12 +290,12 @@ async def _replay(
 
         event_rows = (
             await session.execute(
-                select(ChatEvent)
+                select(ConversationEvent)
                 .where(
-                    ChatEvent.chat_id == chat_id,
-                    ChatEvent.task_id == task_id,
+                    ConversationEvent.conversation_id == conversation_id,
+                    ConversationEvent.task_id == task_id,
                 )
-                .order_by(ChatEvent.id)
+                .order_by(ConversationEvent.id)
             )
         ).scalars().all()
         for event_row in event_rows:
@@ -307,7 +307,7 @@ async def _replay(
 
 @dataclass(frozen=True)
 class _PollTarget:
-    chat_id: UUID
+    conversation_id: UUID
     task_id: UUID
     progress_channel: str
     events_channel: str
@@ -368,7 +368,7 @@ async def _drain_both_tables(
     async for frame in _drain_progress(target.task_id, cursor):
         yield frame
     async for frame in _drain_events(
-        target.chat_id, target.task_id, cursor,
+        target.conversation_id, target.task_id, cursor,
     ):
         yield frame
 
@@ -393,18 +393,18 @@ async def _drain_progress(
 
 
 async def _drain_events(
-    chat_id: UUID, task_id: UUID, cursor: _Cursor
+    conversation_id: UUID, task_id: UUID, cursor: _Cursor
 ) -> AsyncIterator[str]:
     async with async_session_factory() as session:
         rows = (
             await session.execute(
-                select(ChatEvent)
+                select(ConversationEvent)
                 .where(
-                    ChatEvent.chat_id == chat_id,
-                    ChatEvent.task_id == task_id,
-                    ChatEvent.id > cursor.last_event_id,
+                    ConversationEvent.conversation_id == conversation_id,
+                    ConversationEvent.task_id == task_id,
+                    ConversationEvent.id > cursor.last_event_id,
                 )
-                .order_by(ChatEvent.id)
+                .order_by(ConversationEvent.id)
             )
         ).scalars().all()
     for row in rows:

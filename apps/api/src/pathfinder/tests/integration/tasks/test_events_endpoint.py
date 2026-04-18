@@ -12,8 +12,8 @@ from sqlalchemy import select, text
 from pathfinder.ai.tools.durable import TaskProgressEmitter
 from pathfinder.persistence.models import (
     BackgroundTask,
-    Chat,
-    ChatEvent,
+    Conversation,
+    ConversationEvent,
     TaskProgress,
     User,
 )
@@ -24,15 +24,15 @@ from pathfinder.persistence.session import async_session_factory
 
 
 async def _seed_chat_and_task(
-    *, user_id: UUID, chat_id: UUID, task_id: UUID, tool_name: str = "t"
+    *, user_id: UUID, conversation_id: UUID, task_id: UUID, tool_name: str = "t"
 ) -> None:
     async with async_session_factory() as session:
-        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.flush()
         session.add(
             BackgroundTask(
                 id=task_id,
-                chat_id=chat_id,
+                conversation_id=conversation_id,
                 user_id=user_id,
                 tool_name=tool_name,
                 status="running",
@@ -60,7 +60,7 @@ async def test_sse_returns_404_when_task_missing(
     authed_client: httpx.AsyncClient,
 ) -> None:
     resp = await authed_client.get(
-        f"/api/v1/chats/{uuid4()}/tasks/{uuid4()}/events"
+        f"/api/v1/conversations/{uuid4()}/tasks/{uuid4()}/events"
     )
     assert resp.status_code == 404
 
@@ -72,17 +72,17 @@ async def test_sse_returns_404_for_other_users_task(
 ) -> None:
     del authed_user_id
     other_user = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     async with async_session_factory() as session:
         session.add(User(id=other_user))
         await session.flush()
-        session.add(Chat(id=chat_id, user_id=other_user, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=other_user, site_id="plasmodb", name=""))
         await session.flush()
         session.add(
             BackgroundTask(
                 id=task_id,
-                chat_id=chat_id,
+                conversation_id=conversation_id,
                 user_id=other_user,
                 tool_name="t",
                 status="running",
@@ -93,7 +93,7 @@ async def test_sse_returns_404_for_other_users_task(
         await session.commit()
 
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}/events"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}/events"
     )
     assert resp.status_code == 404
 
@@ -105,14 +105,14 @@ async def test_sse_replays_past_progress_and_completes(
     app_notify_dispatcher: Any,
 ) -> None:
     del app_notify_dispatcher
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     await _seed_chat_and_task(
-        user_id=authed_user_id, chat_id=chat_id, task_id=task_id
+        user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, chat_id=chat_id, session_factory=async_session_factory
+        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
     )
     await emitter.update(percent=0.1, message="starting", data=None)
     await emitter.update(percent=0.25, message="loading data", data={"step": "a"})
@@ -124,7 +124,7 @@ async def test_sse_replays_past_progress_and_completes(
     await repo.mark_complete(task_id=task_id)
 
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}/events"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}/events"
     )
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/event-stream")
@@ -155,14 +155,14 @@ async def test_sse_receives_past_and_live_progress(
     app_notify_dispatcher: Any,
 ) -> None:
     del app_notify_dispatcher
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     await _seed_chat_and_task(
-        user_id=authed_user_id, chat_id=chat_id, task_id=task_id
+        user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, chat_id=chat_id, session_factory=async_session_factory
+        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
     )
     # One row is persisted BEFORE the client connects — must replay.
     await emitter.update(percent=0.1, message="starting", data=None)
@@ -180,7 +180,7 @@ async def test_sse_receives_past_and_live_progress(
 
     producer_task = asyncio.create_task(producer())
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}/events"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}/events"
     )
     await producer_task
 
@@ -207,17 +207,17 @@ async def test_sse_emits_task_completed_when_task_failed(
     app_notify_dispatcher: Any,
 ) -> None:
     del app_notify_dispatcher
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     await _seed_chat_and_task(
-        user_id=authed_user_id, chat_id=chat_id, task_id=task_id
+        user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     await repo.mark_failed(task_id=task_id, error="boom")
 
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}/events"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}/events"
     )
     assert resp.status_code == 200
     chunks = _parse_data_chunks(resp.text)
@@ -233,11 +233,11 @@ async def test_task_status_returns_current_state(
     authed_client: httpx.AsyncClient,
     authed_user_id: UUID,
 ) -> None:
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     await _seed_chat_and_task(
         user_id=authed_user_id,
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         task_id=task_id,
         tool_name="run_control_tests_on_step",
     )
@@ -246,7 +246,7 @@ async def test_task_status_returns_current_state(
     await repo.mark_complete(task_id=task_id)
 
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}"
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -263,7 +263,7 @@ async def test_task_status_returns_404_when_missing(
     authed_client: httpx.AsyncClient,
 ) -> None:
     resp = await authed_client.get(
-        f"/api/v1/chats/{uuid4()}/tasks/{uuid4()}"
+        f"/api/v1/conversations/{uuid4()}/tasks/{uuid4()}"
     )
     assert resp.status_code == 404
 
@@ -273,20 +273,20 @@ async def test_task_progress_history_returns_rows_in_order(
     authed_client: httpx.AsyncClient,
     authed_user_id: UUID,
 ) -> None:
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     await _seed_chat_and_task(
-        user_id=authed_user_id, chat_id=chat_id, task_id=task_id
+        user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
     emitter = TaskProgressEmitter(
-        task_id=task_id, chat_id=chat_id, session_factory=async_session_factory
+        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
     )
     await emitter.update(percent=0.1, message="a", data=None)
     await emitter.update(percent=0.5, message="b", data={"k": "v"})
     await emitter.update(percent=0.9, message="c", data=None)
 
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}/progress"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}/progress"
     )
     assert resp.status_code == 200
     rows = resp.json()
@@ -301,7 +301,7 @@ async def test_task_progress_history_returns_404_when_missing(
     authed_client: httpx.AsyncClient,
 ) -> None:
     resp = await authed_client.get(
-        f"/api/v1/chats/{uuid4()}/tasks/{uuid4()}/progress"
+        f"/api/v1/conversations/{uuid4()}/tasks/{uuid4()}/progress"
     )
     assert resp.status_code == 404
 
@@ -329,10 +329,10 @@ async def test_live_stream_emits_chat_event_when_batched_with_progress_and_termi
     chat_event's SSE line is present in the response body.
     """
     del app_notify_dispatcher
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     await _seed_chat_and_task(
-        user_id=authed_user_id, chat_id=chat_id, task_id=task_id
+        user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
 
     sentinel_sse = (
@@ -356,13 +356,13 @@ async def test_live_stream_emits_chat_event_when_batched_with_progress_and_termi
             await session.execute(
                 text("SELECT pg_notify(:channel, :payload)"),
                 {
-                    "channel": f"task_progress:{chat_id}",
+                    "channel": f"task_progress:{conversation_id}",
                     "payload": str(task_id),
                 },
             )
             session.add(
-                ChatEvent(
-                    chat_id=chat_id,
+                ConversationEvent(
+                    conversation_id=conversation_id,
                     task_id=task_id,
                     chunk={"sse": sentinel_sse},
                 ),
@@ -371,7 +371,7 @@ async def test_live_stream_emits_chat_event_when_batched_with_progress_and_termi
             await session.execute(
                 text("SELECT pg_notify(:channel, :payload)"),
                 {
-                    "channel": f"chat_events:{chat_id}",
+                    "channel": f"chat_events:{conversation_id}",
                     "payload": str(task_id),
                 },
             )
@@ -390,7 +390,7 @@ async def test_live_stream_emits_chat_event_when_batched_with_progress_and_termi
 
     producer_task = asyncio.create_task(producer())
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}/events"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}/events"
     )
     await producer_task
 

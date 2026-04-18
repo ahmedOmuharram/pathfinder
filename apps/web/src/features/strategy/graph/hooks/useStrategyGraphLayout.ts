@@ -3,13 +3,18 @@
 import { useState } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import { useReactFlow } from "@xyflow/react";
+import { useQuery } from "@tanstack/react-query";
 import { useEventListener } from "usehooks-ts";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useShallow } from "zustand/react/shallow";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useStrategyHistory } from "@/state/useStrategySelectors";
 import { useNodePositionHistory } from "@/features/strategy/graph/hooks/useNodePositionHistory";
-import { deserializeStrategyToGraph } from "@/lib/strategyGraph";
+import {
+  deserializeStrategyToGraph,
+  layoutStrategyGraph,
+  type StepPositions,
+} from "@/lib/strategyGraph";
 
 interface UseStrategyGraphLayoutOptions {
   strategy: Strategy | null;
@@ -24,10 +29,16 @@ interface UseStrategyGraphLayoutOptions {
   triggerSync: () => void;
 }
 
-/**
- * Layout computation, viewport management, relayout triggers,
- * undo/redo for node positions, and graph deserialization side effect.
- */
+function layoutCacheKey(strategy: Strategy | null): string {
+  if (!strategy) return "empty";
+  return strategy.steps
+    .map(
+      (s) =>
+        `${s.id}:${s.primaryInputStepId ?? ""}:${s.secondaryInputStepId ?? ""}`,
+    )
+    .join("|");
+}
+
 export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
   const {
     strategy,
@@ -46,14 +57,15 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
   const [userHasMoved, setUserHasMoved] = useState(false);
   const { fitView } = useReactFlow();
   const [prevLayoutSeed, setPrevLayoutSeed] = useState(layoutSeed);
-  const [prevStrategyId, setPrevStrategyId] = useState<string | null>(strategy?.id ?? null);
+  const [prevStrategyId, setPrevStrategyId] = useState<string | null>(
+    strategy?.id ?? null,
+  );
 
   const { updateStep, strategy: draftStrategy } = useStrategyStore(
     useShallow((s) => ({ updateStep: s.updateStep, strategy: s.strategy })),
   );
   const { undo, redo, canUndo, canRedo } = useStrategyHistory();
 
-  // --- Node position undo/redo ---
   const {
     pushSnapshot,
     reset: resetNodeHistory,
@@ -68,7 +80,6 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     setSelectedNodeIds([]);
   }
 
-  // --- Undo/redo hotkeys ---
   const handleUndoRedoKeyDown = (event: KeyboardEvent) => {
     const target = event.target as HTMLElement | null;
     if (
@@ -100,7 +111,15 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
   };
   useEventListener("keydown", handleUndoRedoKeyDown);
 
-  const graphKey = `${strategy?.id}|${draftStrategy?.id}|${layoutSeed}`;
+  const cacheKey = layoutCacheKey(strategy);
+  const { data: computedPositions } = useQuery<StepPositions>({
+    queryKey: ["strategy-layout", strategy?.id ?? null, cacheKey],
+    queryFn: () => layoutStrategyGraph(strategy),
+    enabled: strategy !== null && strategy.steps.length > 0,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  const graphKey = `${strategy?.id}|${draftStrategy?.id}|${layoutSeed}|${cacheKey}|${computedPositions ? "ready" : "pending"}`;
   const [prevGraphKey, setPrevGraphKey] = useState(graphKey);
   if (graphKey !== prevGraphKey) {
     const forceRelayout =
@@ -108,27 +127,37 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     setPrevGraphKey(graphKey);
     setPrevLayoutSeed(layoutSeed);
 
-    const { nodes: newNodes, edges: newEdges } = deserializeStrategyToGraph(
-      strategy,
-      (stepId, operator) => {
-        const patch: Partial<Step> = { operator };
-        updateStep(stepId, patch);
-      },
-      handleAddToChat,
-      handleOpenDetails,
-      undefined,
-      {
+    if (computedPositions !== undefined) {
+      const deserializeOpts: Parameters<typeof deserializeStrategyToGraph>[5] = {
+        computedPositions,
         existingPositions: nodePositions,
-        forceRelayout,
-      },
-    );
-    setNodes(newNodes);
-    setEdges(newEdges);
-    if (forceRelayout) {
-      resetNodeHistory(newNodes);
-    }
-    if (!isCompact && !userHasMoved && (forceRelayout || newNodes.length > nodes.length)) {
-      queueMicrotask(() => void fitView({ padding: 0.3, duration: 300 }));
+      };
+      if (forceRelayout) {
+        deserializeOpts.forceRelayout = true;
+      }
+      const { nodes: newNodes, edges: newEdges } = deserializeStrategyToGraph(
+        strategy,
+        (stepId, operator) => {
+          const patch: Partial<Step> = { operator };
+          updateStep(stepId, patch);
+        },
+        handleAddToChat,
+        handleOpenDetails,
+        undefined,
+        deserializeOpts,
+      );
+      setNodes(newNodes);
+      setEdges(newEdges);
+      if (forceRelayout) {
+        resetNodeHistory(newNodes);
+      }
+      if (
+        !isCompact &&
+        !userHasMoved &&
+        (forceRelayout || newNodes.length > nodes.length)
+      ) {
+        queueMicrotask(() => void fitView({ padding: 0.3, duration: 300 }));
+      }
     }
   }
 

@@ -13,10 +13,10 @@ import { useState } from "react";
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import {
-  chatListOptions,
-  dismissedChatsOptions,
-  duplicateChat,
-} from "@/lib/api/chats";
+  conversationListOptions,
+  dismissedConversationsOptions,
+  duplicateConversation,
+} from "@/lib/api/conversations";
 import { toUserMessage } from "@/lib/api/errors";
 
 interface UseDuplicateWorkflowArgs {
@@ -42,15 +42,15 @@ export function useDuplicateWorkflow({
     useState<ConversationItem | null>(null);
   const [isDuplicating, setIsDuplicating] = useState(false);
 
-  const listKey = chatListOptions(siteId).queryKey;
-  const dismissedKey = dismissedChatsOptions(siteId).queryKey;
+  const listKey = conversationListOptions(siteId).queryKey;
+  const dismissedKey = dismissedConversationsOptions(siteId).queryKey;
 
   const confirmDuplicate = async () => {
     if (!duplicateTarget) return;
     setIsDuplicating(true);
     try {
-      const { id: newId } = await duplicateChat(duplicateTarget.id);
-      router.push(`/chat/${newId}`);
+      const { id: newId } = await duplicateConversation(duplicateTarget.id);
+      router.push(`/conversation/${newId}`);
     } catch (err) {
       reportError(toUserMessage(err, "Failed to duplicate conversation."));
     } finally {

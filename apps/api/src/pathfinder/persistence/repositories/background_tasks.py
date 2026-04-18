@@ -30,7 +30,7 @@ class BackgroundTaskRepository:
     async def create(
         self,
         *,
-        chat_id: UUID,
+        conversation_id: UUID,
         user_id: UUID,
         tool_name: str,
         args: dict[str, Any],
@@ -41,7 +41,7 @@ class BackgroundTaskRepository:
             session.add(
                 BackgroundTask(
                     id=task_id,
-                    chat_id=chat_id,
+                    conversation_id=conversation_id,
                     user_id=user_id,
                     tool_name=tool_name,
                     status="pending",
@@ -105,7 +105,7 @@ class BackgroundTaskRepository:
             await session.commit()
 
     async def _notify_terminal(self, *, task_id: UUID) -> None:
-        """Wake the events-SSE listener by NOTIFYing ``chat_events:<chat_id>``.
+        """Wake the events-SSE listener by NOTIFYing ``chat_events:<conversation_id>``.
 
         The SSE endpoint LISTENs on this channel and re-checks the task's
         status after every NOTIFY. Without this wake-up, the stream would
@@ -115,7 +115,7 @@ class BackgroundTaskRepository:
         async with self._session_factory() as session:
             row = (
                 await session.execute(
-                    select(BackgroundTask.chat_id).where(
+                    select(BackgroundTask.conversation_id).where(
                         BackgroundTask.id == task_id
                     )
                 )

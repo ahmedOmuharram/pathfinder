@@ -1,4 +1,5 @@
 import { MoreVertical } from "lucide-react";
+import Link from "next/link";
 
 import {
   DropdownMenu,
@@ -23,7 +24,6 @@ interface ConversationListItemProps {
   onRenameValueChange: (value: string) => void;
   onCommitRename: (item: ConversationItem) => void;
   onCancelRename: () => void;
-  onSelect: (item: ConversationItem) => void;
   onStartRename: (item: ConversationItem) => void;
   onStartDelete: (item: ConversationItem) => void;
   onStartDuplicate: (item: ConversationItem) => void;
@@ -39,7 +39,6 @@ export function ConversationListItem({
   onRenameValueChange,
   onCommitRename,
   onCancelRename,
-  onSelect,
   onStartRename,
   onStartDelete,
   onStartDuplicate,
@@ -72,9 +71,8 @@ export function ConversationListItem({
           autoFocus
         />
       ) : (
-        <button
-          type="button"
-          onClick={() => onSelect(item)}
+        <Link
+          href={`/conversation/${item.id}`}
           className="min-w-0 flex-1 text-left"
         >
           <div className="flex min-w-0 items-center gap-2">
@@ -92,7 +90,7 @@ export function ConversationListItem({
           <div className="text-xs text-muted-foreground">
             {formatSidebarTime(item.updatedAt)}
           </div>
-        </button>
+        </Link>
       )}
 
       {!isRenaming && (

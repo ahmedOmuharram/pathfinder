@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import procrastinate
 
-from pathfinder.ai.chat.checkpointer import to_psycopg_url
+from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 from pathfinder.platform.config import get_settings
 
 

@@ -15,6 +15,7 @@ import {
   type CompactStep,
 } from "@/features/strategy/graph/utils/compactLayout";
 import { VennIcon } from "@/features/strategy/graph/components/OpBadge";
+import { useStepSnapshot } from "@/state/strategy/useStepSnapshot";
 
 // Style helpers
 
@@ -46,6 +47,8 @@ function Arrow() {
 function Pill({ step }: { step: CompactStep }) {
   const border = KIND_BORDER[step.kind] ?? "border-border";
   const countCls = KIND_COUNT[step.kind] ?? "text-muted-foreground";
+  const snapshot = useStepSnapshot(step.id);
+  const liveCount = snapshot.estimatedSize;
 
   return (
     <div
@@ -57,8 +60,8 @@ function Pill({ step }: { step: CompactStep }) {
         {step.displayName}
       </div>
       <div className={`text-xs ${countCls}`}>
-        {typeof step.estimatedSize === "number"
-          ? `${step.estimatedSize.toLocaleString()} ${step.recordType ?? ""}`
+        {typeof liveCount === "number"
+          ? `${liveCount.toLocaleString()} ${step.recordType ?? ""}`
           : "\u2026"}
       </div>
     </div>

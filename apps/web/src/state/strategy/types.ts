@@ -2,6 +2,7 @@
  * Shared types for the strategy store slices.
  */
 
+import type { Patch } from "immer";
 import type {
   GraphSnapshot,
   StrategyMeta,
@@ -10,6 +11,11 @@ import type {
   Step,
   Strategy,
 } from "@pathfinder/shared";
+import type {
+  StepLifecycleSeed,
+  StepMachineEvent,
+  StepMachineSnapshot,
+} from "./stepMachine";
 
 // ---------------------------------------------------------------------------
 // Per-slice state + action interfaces
@@ -35,14 +41,31 @@ export interface DraftSlice {
     name: string;
     recordType: string | null;
   } | null;
-  setStepValidationErrors: (errors: Record<string, string | undefined>) => void;
-  setStepCounts: (counts: Record<string, number | null | undefined>) => void;
   clear: () => void;
 }
 
+export interface LifecycleSlice {
+  /** Per-step XState v5 machine snapshot. Pure reducer, no running actors. */
+  stepLifecycleById: Record<string, StepMachineSnapshot>;
+
+  /** Ensure a lifecycle entry exists for the given step id. No-op if already present. */
+  initStepLifecycle: (stepId: string, seed?: StepLifecycleSeed) => void;
+  /** Dispatch an event to the step's machine. Auto-initializes if missing. */
+  dispatchStepEvent: (stepId: string, event: StepMachineEvent) => void;
+  /** Remove the lifecycle entry for a step id. */
+  removeStepLifecycle: (stepId: string) => void;
+  /** Read-only snapshot accessor. Returns null if no entry exists. */
+  getStepLifecycle: (stepId: string) => StepMachineSnapshot | null;
+
+  /** Apply validation results for a batch of steps (error message or cleared). */
+  applyStepValidationErrors: (errors: Record<string, string | undefined>) => void;
+  /** Apply count results for a batch of steps (number, null, or undefined). */
+  applyStepCounts: (counts: Record<string, number | null | undefined>) => void;
+}
+
 export interface HistorySlice {
-  history: Strategy[];
-  historyIndex: number;
+  undoStack: Patch[][];
+  redoStack: Patch[][];
 
   undo: () => void;
   redo: () => void;
@@ -78,4 +101,8 @@ export interface MetaSlice {
 // Combined store type
 // ---------------------------------------------------------------------------
 
-export type StrategyState = DraftSlice & HistorySlice & ListSlice & MetaSlice;
+export type StrategyState = DraftSlice &
+  HistorySlice &
+  ListSlice &
+  MetaSlice &
+  LifecycleSlice;

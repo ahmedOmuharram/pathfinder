@@ -19,7 +19,7 @@ from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runner import run_durable_task
 from pathfinder.persistence.models import (
     BackgroundTask,
-    Chat,
+    Conversation,
     TaskProgress,
     User,
 )
@@ -29,13 +29,13 @@ from pathfinder.persistence.repositories.background_tasks import (
 from pathfinder.persistence.session import async_session_factory
 
 
-async def _seed_user_chat(user_id: UUID, chat_id: UUID) -> None:
+async def _seed_user_chat(user_id: UUID, conversation_id: UUID) -> None:
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
         session.add(
-            Chat(
-                id=chat_id,
+            Conversation(
+                id=conversation_id,
                 user_id=user_id,
                 site_id="plasmodb",
                 name="",
@@ -110,15 +110,15 @@ async def test_control_tests_impl_emits_progress_and_returns_dict(
     )
 
     user_id = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
-    await _seed_user_chat(user_id, chat_id)
+    await _seed_user_chat(user_id, conversation_id)
 
     async with async_session_factory() as session:
         session.add(
             BackgroundTask(
                 id=task_id,
-                chat_id=chat_id,
+                conversation_id=conversation_id,
                 user_id=user_id,
                 tool_name="run_control_tests_on_step",
                 status="running",
@@ -130,7 +130,7 @@ async def test_control_tests_impl_emits_progress_and_returns_dict(
 
     progress = TaskProgressEmitter(
         task_id=task_id,
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         session_factory=async_session_factory,
     )
     context = object()  # impl uses only site_id via deps.context.site_id? No — fake
@@ -187,12 +187,12 @@ async def test_run_durable_task_wiring_control_tests_end_to_end(
     register_all_tools()
 
     user_id = uuid4()
-    chat_id = uuid4()
-    await _seed_user_chat(user_id, chat_id)
+    conversation_id = uuid4()
+    await _seed_user_chat(user_id, conversation_id)
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         tool_name="run_control_tests_on_step",
         args={
@@ -209,7 +209,7 @@ async def test_run_durable_task_wiring_control_tests_end_to_end(
     await run_durable_task(
         tool_name="run_control_tests_on_step",
         task_id=str(task_id),
-        thread_id=str(chat_id),
+        thread_id=str(conversation_id),
         args={
             "args": [],
             "kwargs": {

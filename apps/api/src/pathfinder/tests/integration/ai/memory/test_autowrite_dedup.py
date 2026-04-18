@@ -24,7 +24,7 @@ async def test_strategy_autowrite_is_idempotent(
     del db_cleaner, patch_app_db_engine
     database_url = os.environ["DATABASE_URL"]
     user_id = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.commit()
@@ -34,7 +34,7 @@ async def test_strategy_autowrite_is_idempotent(
         "steps": [], "connections": [],
     })
     state = PipelineState(
-        chat_id=chat_id, user_id=user_id, site_id="plasmodb",
+        conversation_id=conversation_id, user_id=user_id, site_id="plasmodb",
         mode="strategy", user_prompt="q", active_plan=plan,
     )
 
@@ -63,7 +63,7 @@ async def test_gene_set_autowrite_is_idempotent(
         await session.commit()
 
     state = PipelineState(
-        chat_id=uuid4(), user_id=user_id, site_id="toxodb",
+        conversation_id=uuid4(), user_id=user_id, site_id="toxodb",
         mode="strategy", user_prompt="q",
         created_gene_set_ids=["gs-same-id"],
     )

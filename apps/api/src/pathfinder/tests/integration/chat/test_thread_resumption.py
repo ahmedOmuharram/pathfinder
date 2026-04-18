@@ -22,7 +22,7 @@ from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.domain.strategy.session import StrategySession
-from pathfinder.persistence.models import Chat, User
+from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.config import get_settings
 from pathfinder.services.research.literature_search import LiteratureSearchService
@@ -129,14 +129,14 @@ async def test_second_turn_inherits_state_from_checkpoint(
     del stub_phase_agents, db_cleaner, patch_app_db_engine
     saver = InMemorySaver()
     graph = build_graph(checkpointer=saver)
-    chat_id = uuid4()
+    conversation_id = uuid4()
     user_id = uuid4()
-    config = {"configurable": {"thread_id": str(chat_id)}}
+    config = {"configurable": {"thread_id": str(conversation_id)}}
 
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
-        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.commit()
 
     settings = get_settings()
@@ -153,7 +153,7 @@ async def test_second_turn_inherits_state_from_checkpoint(
         )
 
         initial_state = PipelineState(
-            chat_id=chat_id,
+            conversation_id=conversation_id,
             user_id=user_id,
             site_id="plasmodb",
             mode="strategy",

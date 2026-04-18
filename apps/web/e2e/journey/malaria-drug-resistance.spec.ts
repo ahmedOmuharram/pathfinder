@@ -67,7 +67,7 @@ test.describe("Malaria Drug Resistance Journey", () => {
     await chatPage.expectIdle();
 
     // Verify strategy was persisted via API
-    const strategiesResp = await apiClient.get("/api/v1/strategies");
+    const strategiesResp = await apiClient.get("/api/v1/conversations");
     expect(strategiesResp.ok()).toBeTruthy();
     const strategies = await strategiesResp.json();
     expect(strategies.length).toBeGreaterThan(0);

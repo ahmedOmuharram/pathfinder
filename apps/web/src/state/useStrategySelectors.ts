@@ -51,9 +51,22 @@ export function useStrategyActions() {
       setWdkInfo: s.setWdkInfo,
       setStrategyMeta: s.setStrategyMeta,
       buildPlan: s.buildPlan,
-      setStepValidationErrors: s.setStepValidationErrors,
-      setStepCounts: s.setStepCounts,
+      applyStepValidationErrors: s.applyStepValidationErrors,
+      applyStepCounts: s.applyStepCounts,
       clear: s.clear,
+    })),
+  );
+}
+
+/** Returns step lifecycle accessors + dispatch. */
+export function useStepLifecycleActions() {
+  return useStrategyStore(
+    useShallow((s) => ({
+      initStepLifecycle: s.initStepLifecycle,
+      dispatchStepEvent: s.dispatchStepEvent,
+      removeStepLifecycle: s.removeStepLifecycle,
+      applyStepValidationErrors: s.applyStepValidationErrors,
+      applyStepCounts: s.applyStepCounts,
     })),
   );
 }

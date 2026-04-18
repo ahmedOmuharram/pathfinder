@@ -44,7 +44,7 @@ interface OpenStrategyResponse {
 }
 
 async function openStrategy(context: import("@playwright/test").BrowserContext): Promise<string> {
-  const resp = await context.request.post(`${BASE_URL}/api/v1/strategies/open`, {
+  const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
     data: { siteId: "veupathdb" },
     headers: { "X-Requested-With": "XMLHttpRequest" },
   });
@@ -100,7 +100,7 @@ test.describe("Durable verification TaskCard", () => {
     });
 
     await page.route(
-      `**/api/v1/chats/*/tasks/${TASK_ID}/events`,
+      `**/api/v1/conversations/*/tasks/${TASK_ID}/events`,
       async (route) => {
         const payload = [
           sseFrame({
@@ -129,7 +129,7 @@ test.describe("Durable verification TaskCard", () => {
       },
     );
 
-    await page.goto(`/chat/${strategyId}`);
+    await page.goto(`/conversation/${strategyId}`);
     const composer = page.getByPlaceholder("Ask anything", { exact: false });
     await expect(composer).toBeVisible({ timeout: 30_000 });
     const submit = page.getByRole("button", { name: /Submit/i });

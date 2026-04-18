@@ -2,24 +2,24 @@
 
 from uuid import UUID
 
-from pathfinder.persistence.models import Chat
-from pathfinder.persistence.repositories import ChatRepository
+from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.platform.errors import ErrorCode, ForbiddenError, NotFoundError
 
 
-async def get_chat_or_404(chat_repo: ChatRepository, chat_id: UUID) -> Chat:
-    chat = await chat_repo.get_by_id(chat_id)
-    if not chat:
+async def get_chat_or_404(conv_repo: ConversationRepository, conversation_id: UUID) -> Conversation:
+    conversation = await conv_repo.get_by_id(conversation_id)
+    if not conversation:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
         )
-    return chat
+    return conversation
 
 
-async def get_owned_chat_or_404(
-    chat_repo: ChatRepository, chat_id: UUID, user_id: UUID
-) -> Chat:
-    chat = await get_chat_or_404(chat_repo, chat_id)
-    if chat.user_id != user_id:
+async def get_owned_conversation_or_404(
+    conv_repo: ConversationRepository, conversation_id: UUID, user_id: UUID
+) -> Conversation:
+    conversation = await get_chat_or_404(conv_repo, conversation_id)
+    if conversation.user_id != user_id:
         raise ForbiddenError
-    return chat
+    return conversation

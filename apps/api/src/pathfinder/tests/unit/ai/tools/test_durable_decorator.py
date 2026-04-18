@@ -28,7 +28,7 @@ class _FakeRepo:
     async def create(
         self,
         *,
-        chat_id: UUID,
+        conversation_id: UUID,
         user_id: UUID,
         tool_name: str,
         args: dict[str, Any],
@@ -36,7 +36,7 @@ class _FakeRepo:
     ) -> UUID:
         _FakeRepo.created.append(
             {
-                "chat_id": chat_id,
+                "conversation_id": conversation_id,
                 "user_id": user_id,
                 "tool_name": tool_name,
                 "args": args,
@@ -83,12 +83,12 @@ def _raise_interrupt(payload: dict[str, Any]) -> Any:
     raise _FakeInterruptError(payload)
 
 
-def _fresh_deps(chat_id: UUID | None, user_id: UUID | None) -> AgentDeps:
+def _fresh_deps(conversation_id: UUID | None, user_id: UUID | None) -> AgentDeps:
     return AgentDeps(
         site_id="plasmodb",
         user_id=user_id,
         strategy_session=StrategySession(site_id="plasmodb"),
-        chat_id=chat_id,
+        conversation_id=conversation_id,
     )
 
 
@@ -108,9 +108,9 @@ async def test_durable_tool_submits_job_and_interrupts(
         msg = "agent-side body must not execute"
         raise AssertionError(msg)
 
-    chat_id = uuid4()
+    conversation_id = uuid4()
     user_id = uuid4()
-    ctx = _RunCtx(deps=_fresh_deps(chat_id, user_id))
+    ctx = _RunCtx(deps=_fresh_deps(conversation_id, user_id))
 
     with pytest.raises(_FakeInterruptError) as excinfo:
         await stub_tool(ctx, x=5)
@@ -124,7 +124,7 @@ async def test_durable_tool_submits_job_and_interrupts(
     assert len(_FakeRepo.created) == 1
     created = _FakeRepo.created[0]
     assert created["tool_name"] == "stub_tool"
-    assert created["chat_id"] == chat_id
+    assert created["conversation_id"] == conversation_id
     assert created["user_id"] == user_id
     assert created["estimated_duration_seconds"] == 60
     assert created["args"] == {"args": [], "kwargs": {"x": 5}}
@@ -132,7 +132,7 @@ async def test_durable_tool_submits_job_and_interrupts(
     assert len(_FakeTask.deferred) == 1
     deferred = _FakeTask.deferred[0]
     assert deferred["task_id"] == "00000000-0000-0000-0000-000000000001"
-    assert deferred["thread_id"] == str(chat_id)
+    assert deferred["thread_id"] == str(conversation_id)
     assert deferred["args"] == {"args": [], "kwargs": {"x": 5}}
 
 
@@ -162,7 +162,7 @@ async def test_durable_tool_serializes_pydantic_kwargs_to_json(
         msg = "must not execute"
         raise AssertionError(msg)
 
-    ctx = _RunCtx(deps=_fresh_deps(chat_id=uuid4(), user_id=uuid4()))
+    ctx = _RunCtx(deps=_fresh_deps(conversation_id=uuid4(), user_id=uuid4()))
     target = _SampleTarget(name="x", thresholds=[0.1, 0.05])
 
     with pytest.raises(_FakeInterruptError):
@@ -183,7 +183,7 @@ async def test_durable_tool_serializes_pydantic_kwargs_to_json(
 
 
 @pytest.mark.asyncio
-async def test_durable_tool_raises_when_chat_id_missing(
+async def test_durable_tool_raises_when_conversation_id_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _FakeRepo.created.clear()
@@ -198,8 +198,8 @@ async def test_durable_tool_raises_when_chat_id_missing(
         msg = "agent-side body must not execute"
         raise AssertionError(msg)
 
-    ctx = _RunCtx(deps=_fresh_deps(chat_id=None, user_id=uuid4()))
-    with pytest.raises(RuntimeError, match="chat_id"):
+    ctx = _RunCtx(deps=_fresh_deps(conversation_id=None, user_id=uuid4()))
+    with pytest.raises(RuntimeError, match="conversation_id"):
         await stub_tool(ctx)
 
     assert _FakeRepo.created == []
@@ -222,7 +222,7 @@ async def test_durable_tool_raises_when_user_id_missing(
         msg = "agent-side body must not execute"
         raise AssertionError(msg)
 
-    ctx = _RunCtx(deps=_fresh_deps(chat_id=uuid4(), user_id=None))
+    ctx = _RunCtx(deps=_fresh_deps(conversation_id=uuid4(), user_id=None))
     with pytest.raises(RuntimeError, match="user_id"):
         await stub_tool(ctx)
 

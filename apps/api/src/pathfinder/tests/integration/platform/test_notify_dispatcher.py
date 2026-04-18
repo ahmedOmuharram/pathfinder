@@ -14,7 +14,7 @@ import psycopg
 import psycopg.sql
 import pytest
 
-from pathfinder.ai.chat.checkpointer import to_psycopg_url
+from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 from pathfinder.platform.notify_dispatcher import (
     NotifyDispatcher,
     lifespan_notify_dispatcher,

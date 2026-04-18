@@ -200,8 +200,8 @@ describe("state/useStrategyStore", () => {
     expect(state.strategy?.description).toBe("WDK Desc");
   });
 
-  it("setStepValidationErrors updates validation errors", () => {
-    const { addStep, setStepValidationErrors } = useStrategyStore.getState();
+  it("applyStepValidationErrors records validation errors in the lifecycle machine", () => {
+    const { addStep, applyStepValidationErrors } = useStrategyStore.getState();
     addStep(
       step({
         id: "s1",
@@ -210,15 +210,14 @@ describe("state/useStrategyStore", () => {
         recordType: "gene",
       }),
     );
-    setStepValidationErrors({ s1: "Error message" });
-    const state = useStrategyStore.getState();
-    expect(state.stepsById["s1"]?.validation?.errors?.general?.[0]).toBe(
-      "Error message",
-    );
+    applyStepValidationErrors({ s1: "Error message" });
+    const snapshot = useStrategyStore.getState().getStepLifecycle("s1");
+    expect(snapshot?.value).toBe("invalid");
+    expect(snapshot?.context.validationErrors?.general?.[0]).toBe("Error message");
   });
 
-  it("setStepCounts updates step counts", () => {
-    const { addStep, setStepCounts } = useStrategyStore.getState();
+  it("applyStepCounts records estimatedSize in the lifecycle machine", () => {
+    const { addStep, applyStepCounts } = useStrategyStore.getState();
     addStep(
       step({
         id: "s1",
@@ -227,9 +226,10 @@ describe("state/useStrategyStore", () => {
         recordType: "gene",
       }),
     );
-    setStepCounts({ s1: 42 });
-    const state = useStrategyStore.getState();
-    expect(state.stepsById["s1"]?.estimatedSize).toBe(42);
+    applyStepCounts({ s1: 42 });
+    const snapshot = useStrategyStore.getState().getStepLifecycle("s1");
+    expect(snapshot?.value).toBe("complete");
+    expect(snapshot?.context.estimatedSize).toBe(42);
   });
 
   it("buildPlan returns null for empty strategy", () => {

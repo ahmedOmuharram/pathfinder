@@ -3,7 +3,7 @@ import { test } from "../fixtures/test";
 
 test.describe("Settings / Memory tab", () => {
   test("Memory tab renders four namespace sections", async ({ page }) => {
-    await page.goto("/chat");
+    await page.goto("/conversation");
 
     // Wait for the chat view to settle so the top-bar Settings button is
     // mounted with its onClick wired up.

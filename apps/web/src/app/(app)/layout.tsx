@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 
 import { toast } from "sonner";
@@ -12,8 +13,7 @@ import { LoginModal } from "@/app/components/LoginModal";
 import { SetupRequiredScreen } from "@/app/components/SetupRequiredScreen";
 import { TopBar } from "@/app/components/TopBar";
 import { TopBarActions } from "@/app/components/TopBarActions";
-import { useAuthCheck } from "@/app/hooks/useAuthCheck";
-import { useAuthRefresh } from "@/app/hooks/useAuthRefresh";
+import { useAuthRefresh } from "@/lib/query/hooks/useAuthRefresh";
 import { useModalState } from "@/app/hooks/useModalState";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
 import { useSystemConfig } from "@/app/hooks/useSystemConfig";
@@ -21,6 +21,7 @@ import { EngineModal } from "@/features/engine/components/EngineModal";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
+import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
 import { setQueryErrorHandler } from "@/lib/query/client";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -45,17 +46,16 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const embedded = searchParams.get("embedded") === "true";
   const siteIdParam = searchParams.get("siteId");
 
-  const { selectedSite: storedSelectedSite, switchSite, veupathdbSignedIn } =
-    useSessionStore(
-      useShallow((s) => ({
-        selectedSite: s.selectedSite,
-        switchSite: s.switchSite,
-        veupathdbSignedIn: s.veupathdbSignedIn,
-      })),
-    );
+  const { selectedSite: storedSelectedSite, switchSite } = useSessionStore(
+    useShallow((s) => ({
+      selectedSite: s.selectedSite,
+      switchSite: s.switchSite,
+    })),
+  );
   const selectedSite = siteIdParam ?? storedSelectedSite;
 
-  useAuthCheck();
+  const { data: authStatus } = useSuspenseQuery(authStatusOptions(selectedSite));
+  const veupathdbSignedIn = authStatus.signedIn;
   useAuthRefresh();
   useSiteTheme(selectedSite);
   const { setupRequired, retry: retryConfig } = useSystemConfig();

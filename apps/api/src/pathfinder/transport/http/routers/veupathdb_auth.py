@@ -5,6 +5,9 @@ Pathfinder user (via ``User.external_id = email``) and returns a
 ``pathfinder-auth`` token so the frontend has a stable identity across sessions.
 """
 
+import base64
+import binascii
+import json
 from typing import TypedDict
 from urllib.parse import urlparse
 
@@ -85,11 +88,31 @@ def _pick_redirect_url(candidate: str | None) -> str:
     return allowed[0] if allowed else "http://localhost:3000"
 
 
+def _is_guest_jwt(token: str) -> bool:
+    parts = token.split(".")
+    if len(parts) < 2:
+        return True
+    payload_b64 = parts[1]
+    padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(padded).decode("utf-8")
+        payload = json.loads(raw)
+    except (ValueError, binascii.Error):
+        return True
+    return bool(payload.get("is_guest", False))
+
+
 def _extract_auth_cookie(set_cookie_headers: list[str]) -> str | None:
+    candidates: list[str] = []
     for header in set_cookie_headers:
-        if header.startswith("Authorization="):
-            value = header.split(";", 1)[0].split("=", 1)[1]
-            return value.strip('"')
+        if not header.startswith("Authorization="):
+            continue
+        value = header.split(";", 1)[0].split("=", 1)[1].strip('"')
+        if value:
+            candidates.append(value)
+    for token in candidates:
+        if not _is_guest_jwt(token):
+            return token
     return None
 
 
@@ -212,10 +235,15 @@ async def login_with_password(
         token = _extract_auth_cookie(set_cookie_headers)
 
     if not token:
-        logger.warning("Authorization cookie missing in VEuPathDB login response")
-        raise UnauthorizedError(detail="Login failed")
+        logger.warning(
+            "No non-guest Authorization cookie in VEuPathDB login response "
+            "(credentials likely invalid)",
+        )
+        raise UnauthorizedError(detail="Invalid email or password")
 
     auth_token, _email = await _link_internal_user(user_repo, token, site_id)
+    if not auth_token:
+        raise UnauthorizedError(detail="Invalid email or password")
     return _build_success_response(token, auth_token)
 
 

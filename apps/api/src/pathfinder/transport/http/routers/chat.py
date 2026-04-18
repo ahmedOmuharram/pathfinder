@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from starlette.responses import Response
 
-from pathfinder.ai.chat.dispatcher import ChatRequestBody, dispatch
+from pathfinder.ai.conversation.dispatcher import ChatRequestBody, dispatch
 from pathfinder.transport.http.deps import CurrentUser, DBSession
 
 router = APIRouter(tags=["chat"])

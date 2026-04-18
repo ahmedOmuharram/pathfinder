@@ -6,6 +6,7 @@ import { createStore } from "@/state/middleware";
 import type { StrategyState } from "./types";
 import { createDraftSlice } from "./draftSlice";
 import { createHistorySlice } from "./historySlice";
+import { createLifecycleSlice } from "./lifecycleSlice";
 import { createListSlice } from "./listSlice";
 import { createMetaSlice } from "./metaSlice";
 
@@ -14,6 +15,7 @@ export const useStrategyStore = createStore<StrategyState>(
   (...args) => ({
     ...createDraftSlice(...args),
     ...createHistorySlice(...args),
+    ...createLifecycleSlice(...args),
     ...createListSlice(...args),
     ...createMetaSlice(...args),
   }),

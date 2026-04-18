@@ -7,15 +7,10 @@ beforeEach(() => {
     selectedSiteDisplayName: "VEuPathDB",
     strategyId: null,
     strategyBySite: {},
-    veupathdbSignedIn: false,
-    veupathdbName: null,
     chatIsStreaming: false,
     chatPreviewVersion: 0,
     pendingAskNode: null,
     composerPrefill: null,
-    authRefreshed: false,
-    authStatusKnown: false,
-    authVersion: 0,
   });
 });
 
@@ -65,15 +60,6 @@ describe("state/useSessionStore", () => {
     expect(useSessionStore.getState().strategyId).toBe("s-veu");
   });
 
-  it("setVeupathdbAuth updates auth state", () => {
-    useSessionStore.getState().setVeupathdbAuth(true, "John Doe");
-    expect(useSessionStore.getState().veupathdbSignedIn).toBe(true);
-    expect(useSessionStore.getState().veupathdbName).toBe("John Doe");
-    useSessionStore.getState().setVeupathdbAuth(false);
-    expect(useSessionStore.getState().veupathdbSignedIn).toBe(false);
-    expect(useSessionStore.getState().veupathdbName).toBeNull();
-  });
-
   it("setChatIsStreaming updates streaming state", () => {
     useSessionStore.getState().setChatIsStreaming(true);
     expect(useSessionStore.getState().chatIsStreaming).toBe(true);
@@ -83,15 +69,5 @@ describe("state/useSessionStore", () => {
     const v0 = useSessionStore.getState().chatPreviewVersion;
     useSessionStore.getState().bumpChatPreviewVersion();
     expect(useSessionStore.getState().chatPreviewVersion).toBe(v0 + 1);
-  });
-
-  it("forceSignOut clears auth state", () => {
-    useSessionStore.getState().setVeupathdbAuth(true, "Jane");
-    useSessionStore.getState().setAuthRefreshed(true);
-    useSessionStore.getState().forceSignOut();
-    const s = useSessionStore.getState();
-    expect(s.veupathdbSignedIn).toBe(false);
-    expect(s.veupathdbName).toBeNull();
-    expect(s.authRefreshed).toBe(false);
   });
 });

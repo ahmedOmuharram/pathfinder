@@ -17,7 +17,7 @@ describe("openAndHydrateDraftStrategy", () => {
       createdAt: "t",
       updatedAt: "t",
     };
-    const getStrategy = vi.fn().mockResolvedValue(full);
+    const getConversation = vi.fn().mockResolvedValue(full);
 
     const setStrategyId = vi.fn();
     const addStrategy = vi.fn();
@@ -28,7 +28,7 @@ describe("openAndHydrateDraftStrategy", () => {
     const res = await openAndHydrateDraftStrategy({
       siteId: "plasmodb",
       open,
-      getStrategy,
+      getConversation,
       nowIso,
       setStrategyId,
       addStrategy,
@@ -50,7 +50,7 @@ describe("openAndHydrateDraftStrategy", () => {
       }),
     );
     expect(clearStrategy).toHaveBeenCalled();
-    expect(getStrategy).toHaveBeenCalledWith("s1");
+    expect(getConversation).toHaveBeenCalledWith("s1");
     expect(setStrategy).toHaveBeenCalledWith(full);
     expect(setStrategyMeta).toHaveBeenCalledWith({
       name: "X",
@@ -63,7 +63,7 @@ describe("openAndHydrateDraftStrategy", () => {
     const nowIso = () => "2026-01-01T00:00:00.000Z";
     const open = vi.fn().mockResolvedValue({ strategyId: "s2" });
     const err = new Error("boom");
-    const getStrategy = vi.fn().mockRejectedValue(err);
+    const getConversation = vi.fn().mockRejectedValue(err);
 
     const setStrategyId = vi.fn();
     const addStrategy = vi.fn();
@@ -77,7 +77,7 @@ describe("openAndHydrateDraftStrategy", () => {
       openAndHydrateDraftStrategy({
         siteId: "plasmodb",
         open,
-        getStrategy,
+        getConversation,
         nowIso,
         setStrategyId,
         addStrategy,

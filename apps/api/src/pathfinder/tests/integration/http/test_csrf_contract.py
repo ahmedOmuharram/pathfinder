@@ -79,7 +79,7 @@ async def test_every_state_changing_route_rejects_missing_csrf_header(
     failures: list[str] = []
     for method, path in routes:
         # Use a syntactically plausible path — path-param placeholders like
-        # "{chat_id}" would otherwise 404 at routing time (before the
+        # "{conversation_id}" would otherwise 404 at routing time (before the
         # middleware runs in some ASGI stacks). Substituting a valid UUID
         # keeps the request on the real dispatch path.
         concrete = path

@@ -1,31 +1,31 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useOnClickOutside } from "usehooks-ts";
 import { Columns } from "lucide-react";
+import type { Table } from "@tanstack/react-table";
 import { Button } from "@/lib/components/ui/Button";
-import type { RecordAttribute } from "@/lib/types/wdk";
+import type { WdkRecord, RecordAttribute } from "@/lib/types/wdk";
 
 interface ResultsTableHeaderProps {
   totalCount: number;
+  table: Table<WdkRecord>;
   attributes: RecordAttribute[];
-  visibleColumns: Set<string>;
-  columnsOpen: boolean;
-  onColumnsOpenChange: (open: boolean) => void;
-  onToggleColumn: (name: string) => void;
 }
 
 export function ResultsTableHeader({
   totalCount,
+  table,
   attributes,
-  visibleColumns,
-  columnsOpen,
-  onColumnsOpenChange,
-  onToggleColumn,
 }: ResultsTableHeaderProps) {
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const columnsRef = useRef<HTMLDivElement>(null);
 
   useOnClickOutside(columnsRef as React.RefObject<HTMLElement>, () =>
-    onColumnsOpenChange(false),
+    setColumnsOpen(false),
   );
+
+  const displayNameByName = new Map(attributes.map((a) => [a.name, a.displayName]));
+
+  const hideableColumns = table.getAllLeafColumns().filter((col) => col.getCanHide());
 
   return (
     <div className="flex items-center justify-between gap-3">
@@ -38,7 +38,7 @@ export function ResultsTableHeader({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => onColumnsOpenChange(!columnsOpen)}
+            onClick={() => setColumnsOpen(!columnsOpen)}
           >
             <Columns className="h-3.5 w-3.5" />
             Columns
@@ -47,18 +47,20 @@ export function ResultsTableHeader({
           {columnsOpen && (
             <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-popover p-2 shadow-lg">
               <div className="max-h-60 overflow-y-auto space-y-0.5">
-                {attributes.map((attr) => (
+                {hideableColumns.map((col) => (
                   <label
-                    key={attr.name}
+                    key={col.id}
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent transition-colors"
                   >
                     <input
                       type="checkbox"
-                      checked={visibleColumns.has(attr.name)}
-                      onChange={() => onToggleColumn(attr.name)}
+                      checked={col.getIsVisible()}
+                      onChange={col.getToggleVisibilityHandler()}
                       className="rounded border-border"
                     />
-                    <span className="truncate">{attr.displayName}</span>
+                    <span className="truncate">
+                      {displayNameByName.get(col.id) ?? col.id}
+                    </span>
                   </label>
                 ))}
               </div>

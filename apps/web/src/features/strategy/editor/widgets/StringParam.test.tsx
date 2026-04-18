@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { StringParam } from "./StringParam";
 import type { ParamSpec } from "@pathfinder/shared";
+import type { ParamWidgetProps } from "./types";
 import { WidgetTestForm, WidgetTestFormWithValidation } from "./testUtils";
 
 afterEach(cleanup);
@@ -120,6 +121,50 @@ describe("StringParam (form-aware)", () => {
       </WidgetTestForm>,
     );
     expect(screen.getByRole("textbox").getAttribute("aria-required")).toBeNull();
+  });
+
+  it("renders a controlled input when the field value transitions from undefined to a string", () => {
+    const spec = makeSpec();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { rerender } = render(
+        <StringParam
+          spec={spec}
+          name="test_param"
+          options={[]}
+          vocabTree={null}
+          field={{
+            state: { value: undefined, meta: { errors: [] } },
+            handleChange: () => {},
+            handleBlur: () => {},
+          } as unknown as ParamWidgetProps["field"]}
+        />,
+      );
+
+      rerender(
+        <StringParam
+          spec={spec}
+          name="test_param"
+          options={[]}
+          vocabTree={null}
+          field={{
+            state: { value: "typed", meta: { errors: [] } },
+            handleChange: () => {},
+            handleBlur: () => {},
+          } as unknown as ParamWidgetProps["field"]}
+        />,
+      );
+
+      const warnings = consoleError.mock.calls
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes("uncontrolled input to be controlled"));
+      expect(warnings).toHaveLength(0);
+
+      const input: HTMLInputElement = screen.getByRole("textbox");
+      expect(input.value).toBe("typed");
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("renders with min/max/step for numeric params", () => {

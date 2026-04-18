@@ -3,20 +3,21 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { useAuthRefresh } from "@/lib/query/hooks/useAuthRefresh";
 import {
-  chatListOptions,
-  dismissedChatsOptions,
-  type ChatListItem,
-} from "@/lib/api/chats";
-import { useSessionStore } from "@/state/useSessionStore";
+  conversationListOptions,
+  dismissedConversationsOptions,
+  type ConversationSummary,
+} from "@/lib/api/conversations";
+import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 
 interface UseChatListFetchingArgs {
   siteId: string;
 }
 
 export interface ChatListFetchingResult {
-  chats: ChatListItem[];
-  dismissedChats: ChatListItem[];
+  chats: ConversationSummary[];
+  dismissedChats: ConversationSummary[];
   isLoading: boolean;
   isFetched: boolean;
   isSyncing: boolean;
@@ -27,16 +28,17 @@ export interface ChatListFetchingResult {
 export function useChatListFetching({
   siteId,
 }: UseChatListFetchingArgs): ChatListFetchingResult {
-  const authStatusKnown = useSessionStore((s) => s.authStatusKnown);
-  const authRefreshed = useSessionStore((s) => s.authRefreshed);
+  const { data: authStatus } = useQuery(authStatusOptions(siteId));
+  const { authRefreshed } = useAuthRefresh();
   const queryClient = useQueryClient();
 
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const queryEnabled = authStatusKnown && authRefreshed && siteId !== "";
+  const queryEnabled =
+    authStatus?.signedIn === true && authRefreshed && siteId !== "";
 
-  const listOpts = chatListOptions(siteId);
-  const dismissedOpts = dismissedChatsOptions(siteId);
+  const listOpts = conversationListOptions(siteId);
+  const dismissedOpts = dismissedConversationsOptions(siteId);
 
   const listQuery = useQuery({ ...listOpts, enabled: queryEnabled });
   const dismissedQuery = useQuery({ ...dismissedOpts, enabled: queryEnabled });

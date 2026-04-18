@@ -7,8 +7,11 @@ auto-imported gene set), the chat is marked so re-syncs don't recreate it.
 
 from uuid import UUID
 
-from pathfinder.persistence.models import Chat
-from pathfinder.persistence.repositories import ChatRepository, ChatUpdate
+from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.repositories import (
+    ConversationRepository,
+    ConversationUpdate,
+)
 from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.errors import AppError, InternalError
 from pathfinder.platform.logging import get_logger
@@ -19,7 +22,7 @@ from pathfinder.services.gene_sets.wdk_helpers import GeneSetWdkContext
 logger = get_logger(__name__)
 
 
-def _is_eligible(chat: Chat) -> bool:
+def _is_eligible(conversation: Conversation) -> bool:
     """Check if a chat is eligible for gene set auto-import.
 
     Eligible when:
@@ -28,38 +31,36 @@ def _is_eligible(chat: Chat) -> bool:
     - Does not already have a linked gene set
     """
     return (
-        chat.wdk_strategy_id is not None
-        and not chat.gene_set_auto_imported
-        and chat.gene_set_id is None
+        conversation.wdk_strategy_id is not None
+        and not conversation.gene_set_auto_imported
+        and conversation.gene_set_id is None
     )
 
 
 async def auto_import_gene_sets(
-    chats: list[Chat],
+    conversations: list[Conversation],
     *,
-    chat_repo: ChatRepository,
+    conv_repo: ConversationRepository,
     gene_set_service: GeneSetService,
     site_id: str,
     user_id: UUID,
 ) -> list[GeneSet]:
-    """Create gene sets for eligible chats.
+    """Create gene sets for eligible conversations.
 
-    For each eligible chat (has wdk_strategy_id, not yet imported, no existing
-    gene set), creates a gene set and links it to the chat.
+    For each eligible conversation (has wdk_strategy_id, not yet imported, no
+    existing gene set), creates a gene set and links it to the conversation.
 
     Returns the list of newly created gene sets.
     """
     created: list[GeneSet] = []
 
-    # Track WDK strategy IDs we've already processed in this batch
-    # to prevent concurrent background tasks from creating duplicates.
     seen_wdk_ids: set[int] = set()
 
-    for chat in chats:
-        if not _is_eligible(chat):
+    for conversation in conversations:
+        if not _is_eligible(conversation):
             continue
 
-        wdk_id = chat.wdk_strategy_id
+        wdk_id = conversation.wdk_strategy_id
         if wdk_id is None:
             msg = "wdk_id must not be None (guaranteed by _is_eligible)"
             raise InternalError(detail=msg)
@@ -72,9 +73,9 @@ async def auto_import_gene_sets(
         # concurrent background task or previous partial import).
         existing = gene_set_service.find_by_wdk_strategy(user_id, wdk_id)
         if existing:
-            await chat_repo.update_chat(
-                chat.id,
-                ChatUpdate(
+            await conv_repo.update_conversation(
+                conversation.id,
+                ConversationUpdate(
                     gene_set_id=existing.id,
                     gene_set_id_set=True,
                     gene_set_auto_imported=True,
@@ -85,19 +86,19 @@ async def auto_import_gene_sets(
         try:
             gs = await gene_set_service.create(
                 user_id=user_id,
-                name=chat.name or f"WDK Strategy {wdk_id}",
+                name=conversation.name or f"WDK Strategy {wdk_id}",
                 site_id=site_id,
                 gene_ids=[],
                 source="strategy",
                 wdk=GeneSetWdkContext(
                     wdk_strategy_id=wdk_id,
-                    record_type=chat.record_type,
+                    record_type=conversation.record_type,
                 ),
             )
             await gene_set_service.flush(gs.id)
-            await chat_repo.update_chat(
-                chat.id,
-                ChatUpdate(
+            await conv_repo.update_conversation(
+                conversation.id,
+                ConversationUpdate(
                     gene_set_id=gs.id,
                     gene_set_id_set=True,
                     gene_set_auto_imported=True,
@@ -132,12 +133,12 @@ async def background_auto_import_gene_sets(
     """
     async with async_session_factory() as session:
         try:
-            repo = ChatRepository(session)
-            chats = await repo.list_chats(user_id, site_id)
+            repo = ConversationRepository(session)
+            conversations = await repo.list_conversations(user_id, site_id)
             gene_set_svc = GeneSetService(get_gene_set_store())
             await auto_import_gene_sets(
-                chats,
-                chat_repo=repo,
+                conversations,
+                conv_repo=repo,
                 gene_set_service=gene_set_svc,
                 site_id=site_id,
                 user_id=user_id,

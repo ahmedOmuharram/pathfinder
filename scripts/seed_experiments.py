@@ -8,7 +8,7 @@ Flow:
   1. Creates WDK strategies via POST /api/v1/experiments/create-strategy
   2. Runs experiments via POST /api/v1/experiments/ with mode="import"
      and sourceStrategyId pointing to each created strategy
-  3. Syncs strategies to the local DB (so they appear in the Chat sidebar)
+  3. Syncs strategies to the local DB (so they appear in the Conversation sidebar)
 
 Covers PlasmoDB, ToxoDB, CryptoDB, and TriTrypDB with real gene IDs,
 biologically meaningful search configurations, and multi-step trees
@@ -72,13 +72,13 @@ def _discover_user_id(api_url: str) -> str | None:
 def _sync_strategies_to_sidebar(
     api_url: str, sites: set[str], auth_token: str
 ) -> None:
-    """Call sync-wdk for each site so strategies appear in the Chat sidebar."""
-    print("\nSyncing strategies to local DB (Chat sidebar)...")
+    """Call sync-wdk for each site so strategies appear in the Conversation sidebar."""
+    print("\nSyncing strategies to local DB (Conversation sidebar)...")
     headers = {"Cookie": f"pathfinder-auth={auth_token}"}
     for site in sorted(sites):
         try:
             r = httpx.post(
-                f"{api_url}/api/v1/strategies/sync-wdk",
+                f"{api_url}/api/v1/conversations/sync-wdk",
                 params={"siteId": site},
                 headers=headers,
                 timeout=30,
@@ -634,7 +634,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--user-id",
-        help="Pathfinder user UUID (for syncing strategies to Chat sidebar)",
+        help="Pathfinder user UUID (for syncing strategies to Conversation sidebar)",
     )
     parser.add_argument(
         "--secret-key",
@@ -745,7 +745,7 @@ def main() -> None:
             print(f"  Exception after {elapsed:.1f}s: {exc}\n")
             results.append((seed.name, "exception", None))
 
-    # Sync strategies to the Chat sidebar (requires auth)
+    # Sync strategies to the Conversation sidebar (requires auth)
     if not args.no_sync:
         sites_used = {s.site_id for s in seeds}
         user_id = args.user_id or _discover_user_id(api_url)

@@ -43,7 +43,7 @@ def _build_context(
 
 def _build_state() -> PipelineState:
     return PipelineState(
-        chat_id=uuid4(),
+        conversation_id=uuid4(),
         user_id=uuid4(),
         site_id="plasmodb",
         mode="strategy",
@@ -65,7 +65,7 @@ def test_agent_deps_is_pydantic_and_lists_live_fields() -> None:
         "cancel_event",
         "memory_store",
         "retrieved_memories",
-        "chat_id",
+        "conversation_id",
     }
 
 

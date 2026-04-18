@@ -65,7 +65,7 @@ class ProblemFrame(CamelModel):
 class PipelineState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    chat_id: UUID
+    conversation_id: UUID
     user_id: UUID
     site_id: str
     mode: str

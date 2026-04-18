@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from pathfinder.ai.tools.durable import TaskProgressEmitter
-from pathfinder.persistence.models import BackgroundTask, Chat
+from pathfinder.persistence.models import BackgroundTask, Conversation
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
@@ -17,15 +17,15 @@ from pathfinder.persistence.session import async_session_factory
 
 
 async def _seed_chat_and_task(
-    *, user_id: UUID, chat_id: UUID, task_id: UUID
+    *, user_id: UUID, conversation_id: UUID, task_id: UUID
 ) -> None:
     async with async_session_factory() as session:
-        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.flush()
         session.add(
             BackgroundTask(
                 id=task_id,
-                chat_id=chat_id,
+                conversation_id=conversation_id,
                 user_id=user_id,
                 tool_name="t",
                 status="running",
@@ -68,14 +68,14 @@ async def test_rapid_fire_progress_arrive_in_order_no_duplicates_no_missing(
     each NOTIFY causes a ``WHERE id > :last`` query that fetches the full
     batch of newly-written rows.
     """
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     await _seed_chat_and_task(
-        user_id=authed_user_id, chat_id=chat_id, task_id=task_id
+        user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, chat_id=chat_id, session_factory=async_session_factory
+        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
     )
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
 
@@ -91,7 +91,7 @@ async def test_rapid_fire_progress_arrive_in_order_no_duplicates_no_missing(
 
     producer_task = asyncio.create_task(producer())
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}/events"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}/events"
     )
     await producer_task
 
@@ -115,14 +115,14 @@ async def test_replay_preserves_order_for_presized_batch(
 ) -> None:
     del app_notify_dispatcher
     """Five rows persisted BEFORE connect replay in id order."""
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     await _seed_chat_and_task(
-        user_id=authed_user_id, chat_id=chat_id, task_id=task_id
+        user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, chat_id=chat_id, session_factory=async_session_factory
+        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
     )
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
 
@@ -133,7 +133,7 @@ async def test_replay_preserves_order_for_presized_batch(
     await repo.mark_complete(task_id=task_id)
 
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}/events"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}/events"
     )
     assert resp.status_code == 200
 
@@ -155,14 +155,14 @@ async def test_mixed_replay_then_live_no_duplicate_rows(
 ) -> None:
     del app_notify_dispatcher
     """Some rows exist before connect, more arrive after — no id is seen twice."""
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     await _seed_chat_and_task(
-        user_id=authed_user_id, chat_id=chat_id, task_id=task_id
+        user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, chat_id=chat_id, session_factory=async_session_factory
+        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
     )
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
 
@@ -183,7 +183,7 @@ async def test_mixed_replay_then_live_no_duplicate_rows(
 
     producer_task = asyncio.create_task(producer())
     resp = await authed_client.get(
-        f"/api/v1/chats/{chat_id}/tasks/{task_id}/events"
+        f"/api/v1/conversations/{conversation_id}/tasks/{task_id}/events"
     )
     await producer_task
 

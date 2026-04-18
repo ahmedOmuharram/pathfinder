@@ -1,19 +1,22 @@
-import dagre from "@dagrejs/dagre";
 import type { Edge, Node } from "@xyflow/react";
 import { MarkerType, Position } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { inferStepKind } from "./kind";
+import type { StepPositions } from "./layout";
 
 type ExistingPositions = Map<string, { x: number; y: number }>;
 type DeserializeOptions = {
   /**
-   * When provided, we preserve existing node positions for unchanged nodes.
-   * New nodes (not present in this map) get a dagre-derived position.
+   * Fresh layout positions (ELK). Used for nodes without an existing position
+   * and — when `forceRelayout` is set — for every node.
+   */
+  computedPositions?: StepPositions;
+  /**
+   * User-moved positions preserved across re-renders. Takes precedence over
+   * `computedPositions` unless `forceRelayout` is true.
    */
   existingPositions?: ExistingPositions;
-  /**
-   * If true, ignore existingPositions and re-layout all nodes with dagre.
-   */
+  /** Ignore existing positions and relayout from `computedPositions`. */
   forceRelayout?: boolean;
 };
 
@@ -58,85 +61,35 @@ export function deserializeStrategyToGraph(
   const shouldShowRootOutputs = rootStepIds.length !== 1;
 
   const gridSize = 28;
-  const nodeWidth = 224;
-  const nodeHeight = 112;
   const snap = (value: number) => Math.round(value / gridSize) * gridSize;
 
-  const computeDagrePositions = (): Map<string, { x: number; y: number }> => {
-    const layoutGraph = new dagre.graphlib.Graph();
-    layoutGraph.setDefaultEdgeLabel(() => ({}));
-    layoutGraph.setGraph({
-      rankdir: "LR",
-      nodesep: gridSize * 2,
-      ranksep: gridSize * 4,
-      marginx: gridSize * 2,
-      marginy: gridSize * 2,
-    });
+  const computed: StepPositions =
+    options?.computedPositions ?? new Map<string, { x: number; y: number }>();
+  const existing: ExistingPositions | undefined =
+    options?.forceRelayout === true ? undefined : options?.existingPositions;
 
-    for (const step of strategy.steps) {
-      layoutGraph.setNode(step.id, { width: nodeWidth, height: nodeHeight });
-    }
-
-    for (const step of strategy.steps) {
-      if (step.primaryInputStepId != null && stepMap.has(step.primaryInputStepId)) {
-        layoutGraph.setEdge(step.primaryInputStepId, step.id);
-      }
-      if (step.secondaryInputStepId != null && stepMap.has(step.secondaryInputStepId)) {
-        layoutGraph.setEdge(step.secondaryInputStepId, step.id);
-      }
-    }
-
-    const constraints: Array<{ left: string; right: string }> = [];
-    for (const step of strategy.steps) {
-      if (step.primaryInputStepId != null && step.secondaryInputStepId != null) {
-        constraints.push({
-          left: step.primaryInputStepId,
-          right: step.secondaryInputStepId,
-        });
-      }
-    }
-
-    dagre.layout(layoutGraph, { constraints });
-
-    const positions = new Map<string, { x: number; y: number }>();
-    for (const step of strategy.steps) {
-      const node = layoutGraph.node(step.id);
-      if (!node) continue;
-      positions.set(step.id, {
-        x: node.x - node.width / 2,
-        y: node.y - node.height / 2,
-      });
-    }
-    return positions;
-  };
-
-  const dagrePositions = computeDagrePositions();
-
-  const allPositions = Array.from(dagrePositions.values());
-  if (allPositions.length === 0) {
-    return { nodes: [], edges: [] };
+  // Normalize computed positions so minX/minY respect the gridSize margin.
+  const allComputed = Array.from(computed.values());
+  let offsetX = 0;
+  let offsetY = 0;
+  if (allComputed.length > 0) {
+    const minX = Math.min(...allComputed.map((p) => p.x));
+    const minY = Math.min(...allComputed.map((p) => p.y));
+    offsetX = minX < gridSize * 2 ? gridSize * 2 - minX : 0;
+    offsetY = minY < gridSize * 2 ? gridSize * 2 - minY : 0;
   }
-  const minX = Math.min(...allPositions.map((pos) => pos.x));
-  const minY = Math.min(...allPositions.map((pos) => pos.y));
-  const offsetX = minX < gridSize * 2 ? gridSize * 2 - minX : 0;
-  const offsetY = minY < gridSize * 2 ? gridSize * 2 - minY : 0;
 
-  const existingPositions = options?.existingPositions;
-  const preserveExisting =
-    Boolean(existingPositions) && options?.forceRelayout !== true;
-
-  // If preserving existing positions, translate dagre coords into the existing coordinate frame.
+  // When preserving, anchor the computed frame onto the existing frame using
+  // the first node that appears in both.
   let translateX = 0;
   let translateY = 0;
-  if (preserveExisting && existingPositions) {
+  if (existing) {
     for (const step of strategy.steps) {
-      const existing = existingPositions.get(step.id);
-      const dagrePos = dagrePositions.get(step.id);
-      if (existing && dagrePos) {
-        const dagreX = snap(dagrePos.x + offsetX);
-        const dagreY = snap(dagrePos.y + offsetY);
-        translateX = existing.x - dagreX;
-        translateY = existing.y - dagreY;
+      const ex = existing.get(step.id);
+      const cp = computed.get(step.id);
+      if (ex && cp) {
+        translateX = ex.x - snap(cp.x + offsetX);
+        translateY = ex.y - snap(cp.y + offsetY);
         break;
       }
     }
@@ -144,14 +97,14 @@ export function deserializeStrategyToGraph(
 
   for (const step of strategy.steps) {
     const kind = inferStepKind(step);
-    const existing = preserveExisting ? existingPositions?.get(step.id) : null;
-    const dagrePos = dagrePositions.get(step.id);
+    const ex = existing ? existing.get(step.id) : null;
+    const cp = computed.get(step.id);
     const finalPos =
-      existing ??
-      (dagrePos
+      ex ??
+      (cp
         ? {
-            x: snap(dagrePos.x + offsetX + translateX),
-            y: snap(dagrePos.y + offsetY + translateY),
+            x: snap(cp.x + offsetX + translateX),
+            y: snap(cp.y + offsetY + translateY),
           }
         : undefined);
     if (!finalPos) continue;
@@ -168,10 +121,7 @@ export function deserializeStrategyToGraph(
         onAddToChat,
         onOpenDetails,
         isUnsaved: unsavedStepIds?.has(step.id) ?? false,
-        // UI connection affordances:
-        // - only show root outputs when the graph has multiple roots (i.e. output is "missing")
         showOutputHandle: shouldShowRootOutputs && rootSet.has(step.id),
-        // - only show input slots when they are missing
         showPrimaryInputHandle:
           (kind === "transform" || kind === "combine") &&
           step.primaryInputStepId == null,
@@ -183,7 +133,6 @@ export function deserializeStrategyToGraph(
     });
 
     if (step.primaryInputStepId != null) {
-      // Guard: avoid edges to missing nodes (e.g. after a node delete).
       if (!stepMap.has(step.primaryInputStepId)) continue;
       const hasSecondary = step.secondaryInputStepId != null;
       const primaryEdge: Edge = {

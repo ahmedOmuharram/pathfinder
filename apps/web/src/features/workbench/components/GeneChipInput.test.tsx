@@ -11,8 +11,6 @@ vi.mock("@/state/useSessionStore", () => ({
   useSessionStore: (selector: (s: Record<string, unknown>) => unknown) =>
     selector({
       selectedSite: "PlasmoDB",
-      authStatusKnown: true,
-      veupathdbSignedIn: true,
     }),
 }));
 

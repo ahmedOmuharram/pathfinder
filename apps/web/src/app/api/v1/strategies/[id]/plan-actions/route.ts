@@ -7,7 +7,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await context.params;
-  return proxyJsonRequest(req, `/api/v1/strategies/${id}/plan-actions`, {
+  return proxyJsonRequest(req, `/api/v1/conversations/${id}/plan-actions`, {
     includeBody: true,
   });
 }

@@ -227,13 +227,11 @@ class StrategyGraph:
             parent.primary_input = None
             return sorted(subtree_ids) + self.delete_step_connected(parent.id)
 
-        # Fallback (shouldn't reach here under normal usage).
-        subtree_ids_fb = {s.id for s in walk_step_tree(step)}
-        for sid in subtree_ids_fb:
-            self.steps.pop(sid, None)
-        self.recompute_roots()
-        self.last_step_id = next(iter(self.roots), None)
-        return sorted(subtree_ids_fb)
+        msg = (
+            f"delete_step_connected: unreachable parent_kind {parent_kind!r} "
+            f"for step {step_id!r} with parent {parent.id!r}"
+        )
+        raise RuntimeError(msg)
 
     def _collapse_parent_combine(
         self, step: PlanStepNode, parent: PlanStepNode, slot: str

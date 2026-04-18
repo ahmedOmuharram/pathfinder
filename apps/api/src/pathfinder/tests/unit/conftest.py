@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.persistence.models import User
-from pathfinder.persistence.repositories import ChatRepository
+from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.platform.errors import ErrorCode, ValidationError
 from pathfinder.platform.tool_errors import tool_error
 from pathfinder.platform.types import JSONObject
@@ -26,10 +26,10 @@ async def db_session(
 
 
 @pytest.fixture
-async def chat_repo(
+async def conv_repo(
     db_session: AsyncSession,
-) -> ChatRepository:
-    return ChatRepository(db_session)
+) -> ConversationRepository:
+    return ConversationRepository(db_session)
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ from typing import cast
 
 import pytest
 
-from pathfinder.ai.chat.title_generator import (
+from pathfinder.ai.conversation.title_generator import (
     MAX_TITLE_CHARS,
     MAX_TITLE_WORDS,
     _fallback_title,

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Literal
 
-from pydantic import BaseModel, Field
-from pydantic_ai import Agent
+from pydantic import BaseModel, Field, model_validator
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.models.catalog import ModelEntry, get_smallest_model
@@ -17,77 +18,111 @@ SupervisorTarget = Literal[
     "execution",
     "verification",
     "end",
+    "reject",
+    "question",
 ]
 
 
 class SupervisorDecision(BaseModel):
     to: SupervisorTarget
     reason: str = Field(min_length=1, max_length=280)
+    rejection_message: str | None = Field(default=None, max_length=2000)
+    answer: str | None = Field(default=None, max_length=4000)
+
+    @model_validator(mode="after")
+    def _require_payload_for_special_kinds(self) -> SupervisorDecision:
+        if self.to == "reject":
+            if not self.rejection_message or not self.rejection_message.strip():
+                msg = "rejection_message is required when to='reject'"
+                raise ValueError(msg)
+        if self.to == "question":
+            if not self.answer or not self.answer.strip():
+                msg = "answer is required when to='question'"
+                raise ValueError(msg)
+        return self
+
+
+@dataclass
+class SupervisorDeps:
+    state_block: str
 
 
 _SUPERVISOR_INSTRUCTIONS = """\
-You are the Supervisor for PathFinder's five-phase research pipeline. You \
-do not call tools or talk to the user. You read the current turn state and \
-choose the next node to run: scoping, discovery, planning, execution, \
-verification, or `end` to finish the user's turn.
+You supervise an iterative 5-phase research pipeline:
 
-## The Phases
+  scoping → discovery → planning → execution → verification
 
-- **scoping** — frame the biological problem, ask blocking questions, save \
-a Problem Frame.
-- **discovery** — explore the WDK catalog for candidate searches, \
-parameters, and literature context.
-- **planning** — synthesize discovery findings into a concrete execution \
-plan (searches, operators, parameters).
-- **execution** — apply the plan to the strategy graph via WDK tools.
-- **verification** — inspect results, run controls, summarize outcome.
-- **end** — stop this turn. The server will flush the assistant's prose \
-and wait for the next user message.
+The order is typical, not forced. Any phase may jump to any other phase. \
+Investigations often revisit scoping to refine a frame, go back to \
+discovery when planning reveals gaps, or re-plan after execution \
+surfaces issues. Most complete investigations hit all five phases \
+eventually, in some order.
 
-## Your Decision
+Investigation state persists across turns (Problem Frame, Active Plan, \
+prior phase outputs — delivered to you via message history). Use it.
 
-Pick exactly ONE target and write ONE short sentence explaining why. The \
-`reason` is user-visible (a small chip in the chat) and appears in logs.
+## Actions
 
-You may jump to ANY phase including backward (planning -> discovery, \
-execution -> planning, verification -> execution). There are no forced \
-transitions.
+**Phase routes** — continue the pipeline:
+- `scoping` — frame or refine the biological problem.
+- `discovery` — search the WDK catalog and literature.
+- `planning` — build or update the execution plan.
+- `execution` — apply the plan to the strategy graph.
+- `verification` — inspect results, run controls, report.
 
-## How to Decide (common cases)
+**Turn-level responses** — answer this user message without running a \
+phase. These do NOT end the investigation; the next user message can \
+resume phase work with full state intact.
+- `question` — respond with a direct answer. Appropriate for pure \
+conceptual/definitional asks at any point in the investigation.
+- `reject` — politely decline. Appropriate when the user's message is \
+plainly off-topic for biological research, even mid-investigation.
 
-- The last agent asked a blocking question in its prose -> pick `end` so \
-the user can answer.
-- User just answered a scoping question -> pick `scoping` to fold it into \
-the frame, or `discovery` if the frame is already resolved.
-- Scoping produced a solid Problem Frame and no open blocking questions -> \
-pick `discovery`.
-- The user's intent is so specific that discovery is superfluous -> skip \
-to `planning`.
-- Discovery found concrete candidate searches and parameter choices -> \
-pick `planning`.
-- Planning reveals the catalog findings are insufficient -> go back to \
-`discovery`.
-- A plan has been submitted -> pick `execution`.
-- Execution finished all planned steps successfully -> pick `verification`.
-- Execution's plan is broken fundamentally (wrong searches, not fixable \
-parameters) -> go back to `planning` (or `discovery` if the searches \
-themselves are wrong).
-- Verification passed or the turn's result is ready -> pick `end`.
-- Verification surfaced an execution bug (bad params, wrong filter) -> go \
-back to `execution`.
-- Verification shows the strategy's shape is wrong -> go back to `planning`.
-- User asked a fresh, unrelated question that invalidates the frame -> \
-pick `scoping`.
-- You have already run many phases this turn and nothing new is happening -> \
-pick `end` to avoid loops.
+**Turn termination**:
+- `end` — stop processing this turn. Use when the most recent phase has \
+produced a response the user should read, when waiting for user input, \
+or when you've already run enough phases this turn and no new forward \
+progress is possible.
 
-Prefer `end` when in doubt: users can always reply and the pipeline will \
-re-enter. Forward-progress only when there is concrete new work to do.
+## Choosing
+
+Judge the user's intent from the message and chat state, then pick the \
+action that matches:
+
+- **Phase routes** — the user's message carries research intent: a \
+biological goal, a refinement or correction, an answer to a clarifying \
+question, a request to continue or inspect prior work.
+- **`question`** — the user's message does not carry research intent \
+but is still in-scope conversation: social/meta, conceptual/\
+methodological, tool/UI questions. A direct one-shot reply is enough.
+- **`reject`** — the user's message is out of scope for biological \
+research.
+- **`end`** — the phase that just ran this turn has already produced \
+the response the user should see, or repeated supervisor calls have \
+made no new progress.
+
+Hard constraints:
+
+- Message history and Pipeline State are authoritative for what has \
+already happened. Use them.
+- References to prior work carry research intent — route to a phase, \
+not `question`.
+- `question` and `reject` replace phase output; they can't stack on \
+top of one. If any phase has already run this turn, `question` and \
+`reject` are invalid — pick `end` or another phase route.
+- Each phase runs at most once per turn. If a phase appears in \
+phase_call_counts_this_turn, do not route to it again this turn.
+
+## Response format
+
+Pick one action and write one short sentence in `reason`. For `reject`, \
+fill `rejection_message`. For `question`, fill `answer`. The \
+message/answer and reason are both shown to the user.
 """
 
 _SUPERVISOR_USAGE_LIMITS = UsageLimits(
     request_limit=2,
-    total_tokens_limit=4_000,
+    total_tokens_limit=6_000,
 )
 
 
@@ -97,17 +132,24 @@ def _pydantic_ai_model_id(entry: ModelEntry) -> str:
 
 def build_supervisor_agent(
     provider: ModelProvider | None = None,
-) -> Agent[None, SupervisorDecision]:
+) -> Agent[SupervisorDeps, SupervisorDecision]:
     resolved: ModelProvider = provider or get_settings().default_provider
     entry = get_smallest_model(resolved)
-    return Agent(
+    agent: Agent[SupervisorDeps, SupervisorDecision] = Agent(
         _pydantic_ai_model_id(entry),
+        deps_type=SupervisorDeps,
         output_type=SupervisorDecision,
         instructions=_SUPERVISOR_INSTRUCTIONS,
         retries=2,
         name="supervisor",
         defer_model_check=True,
     )
+
+    @agent.instructions
+    def _pipeline_state(ctx: RunContext[SupervisorDeps]) -> str:
+        return ctx.deps.state_block
+
+    return agent
 
 
 SUPERVISOR_USAGE_LIMITS: UsageLimits = _SUPERVISOR_USAGE_LIMITS

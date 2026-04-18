@@ -5,8 +5,9 @@ import type { Node, NodeProps } from "@xyflow/react";
 import type { Step } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
 import { OpBadge } from "./OpBadge";
-import { AlertTriangle, ExternalLink, MessageSquarePlus } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2, MessageSquarePlus } from "lucide-react";
 import { getZeroResultSuggestions } from "@/features/strategy/validation/zeroResultAdvisor";
+import { useStepSnapshot } from "@/state/strategy/useStepSnapshot";
 
 type StepNodeData = {
   step: Step;
@@ -56,15 +57,18 @@ export function StepNode({ data, selected }: NodeProps<Node<StepNodeData>>) {
   const typeStyle = TYPE_STYLES[kind] ?? defaultStyle;
   const isTransform = kind === "transform";
 
-  const validation = step.validation;
-  const hasValidationError = validation != null && validation.isValid === false;
+  const snapshot = useStepSnapshot(step.id);
+  const estimatedSize = snapshot.estimatedSize;
+  const hasValidationError =
+    snapshot.isInvalid || snapshot.isFailed;
   const validationMessage =
-    validation?.errors?.general?.[0] ??
+    snapshot.validationErrors?.general?.[0] ??
+    snapshot.lastError ??
     (hasValidationError ? "Validation error" : null);
-  const isZeroResults = step.estimatedSize === 0;
+  const isZeroResults = estimatedSize === 0;
   const resultLabel =
     step.recordType != null && step.recordType !== ""
-      ? `${step.recordType}${step.estimatedSize === 1 ? "" : "s"}`
+      ? `${step.recordType}${estimatedSize === 1 ? "" : "s"}`
       : "results";
 
   const transformFrameFill = hasValidationError
@@ -204,12 +208,15 @@ export function StepNode({ data, selected }: NodeProps<Node<StepNodeData>>) {
           </div>
         )}
         {!hasValidationError && (
-          <div className="mt-1 text-xs font-mono text-muted-foreground">
-            {typeof step.estimatedSize === "number"
-              ? `${step.estimatedSize.toLocaleString()} ${resultLabel}`
-              : step.estimatedSize === null
-                ? `? ${resultLabel}`
-                : "Loading..."}
+          <div className="mt-1 flex items-center justify-center gap-1 text-xs font-mono text-muted-foreground">
+            {snapshot.isBusy && (
+              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            )}
+            {typeof estimatedSize === "number"
+              ? `${estimatedSize.toLocaleString()} ${resultLabel}`
+              : snapshot.isBusy
+                ? "Loading..."
+                : `? ${resultLabel}`}
           </div>
         )}
         {isZeroResults && !hasValidationError && (

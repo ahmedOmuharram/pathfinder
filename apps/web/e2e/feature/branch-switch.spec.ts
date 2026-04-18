@@ -23,7 +23,7 @@ async function openStrategy(
   context: import("@playwright/test").BrowserContext,
 ): Promise<string> {
   const resp = await context.request.post(
-    `${BASE_URL}/api/v1/strategies/open`,
+    `${BASE_URL}/api/v1/conversations/open`,
     {
       data: { siteId: "veupathdb" },
       headers: { "X-Requested-With": "XMLHttpRequest" },
@@ -170,7 +170,7 @@ test.describe("Branch Switch", () => {
     });
 
     await page.route(
-      `**/api/v1/chats/*/checkpoints`,
+      `**/api/v1/conversations/*/checkpoints`,
       async (route) => {
         let checkpoints: Array<Record<string, unknown>>;
         switch (checkpointPhase) {
@@ -192,7 +192,7 @@ test.describe("Branch Switch", () => {
       },
     );
 
-    await page.route("**/api/v1/chats/*/fork", async (route) => {
+    await page.route("**/api/v1/conversations/*/fork", async (route) => {
       checkpointPhase = "forked";
       await route.fulfill({
         status: 201,
@@ -201,7 +201,7 @@ test.describe("Branch Switch", () => {
       });
     });
 
-    await page.goto(`/chat/${strategyId}`);
+    await page.goto(`/conversation/${strategyId}`);
     const composer = page.getByPlaceholder("Ask about strategies", {
       exact: false,
     });

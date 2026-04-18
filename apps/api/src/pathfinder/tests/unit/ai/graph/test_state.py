@@ -25,7 +25,7 @@ from pathfinder.ai.graph.state import (
 @pytest.fixture
 def base_state() -> PipelineState:
     return PipelineState(
-        chat_id=uuid4(),
+        conversation_id=uuid4(),
         user_id=uuid4(),
         site_id="plasmodb",
         mode="strategy",
@@ -62,7 +62,7 @@ def test_state_minimum_construction(base_state: PipelineState) -> None:
 def test_state_rejects_unknown_phase_name() -> None:
     with pytest.raises(ValidationError):
         PipelineState(
-            chat_id=uuid4(),
+            conversation_id=uuid4(),
             user_id=uuid4(),
             site_id="plasmodb",
             mode="strategy",

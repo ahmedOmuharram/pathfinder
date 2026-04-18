@@ -7,6 +7,7 @@ adapter that delegates to this module.
 
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from pathfinder.domain.strategy.ast import PlanStepNode
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
@@ -15,10 +16,13 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKDatasetIdListContent,
     WDKRecordInstance,
 )
+from pathfinder.persistence.repositories.conversation import ConversationRepository
+from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.materialization import (
     _materialize_step_tree,
 )
+from pathfinder.services.strategies.wdk_sync import sync_to_chat
 
 logger = get_logger(__name__)
 
@@ -31,6 +35,7 @@ class GoldStrategyResult:
     wdk_strategy_id: int
     root_step_id: int
     gene_ids: list[str]
+    conversation_id: UUID | None = None
 
 
 async def _provision_datasets(
@@ -84,6 +89,7 @@ async def build_gold_strategy(
     record_type: str,
     step_tree: dict[str, Any],
     dataset_gene_ids: dict[str, list[str]] | None = None,
+    user_id: UUID | None = None,
 ) -> GoldStrategyResult:
     """Materialize a gold strategy AST on WDK and fetch all result gene IDs.
 
@@ -120,26 +126,44 @@ async def build_gold_strategy(
 
     gene_ids = await fetch_all_gene_ids(api, root_step_id)
 
+    conversation_id: UUID | None = None
+    if user_id is not None:
+        async with async_session_factory() as db:
+            conversation = await sync_to_chat(
+                wdk_id=wdk_strategy_id,
+                site_id=site_id,
+                api=api,
+                conv_repo=ConversationRepository(db),
+                user_id=user_id,
+            )
+            await db.commit()
+            conversation_id = conversation.id
+        logger.info(
+            "Linked gold strategy to PathFinder chat",
+            gold_id=gold_id,
+            conversation_id=str(conversation_id),
+        )
+
     return GoldStrategyResult(
         gold_id=gold_id,
         wdk_strategy_id=wdk_strategy_id,
         root_step_id=root_step_id,
         gene_ids=gene_ids,
+        conversation_id=conversation_id,
     )
 
 
 async def fetch_strategy_gene_ids(
     *,
     api: Any,
-    chat: Any,
-) -> list[str]:
+    conversation: Any,) -> list[str]:
     """Fetch all gene IDs from a chat's linked WDK strategy.
 
     :param api: StrategyAPI instance for the site.
-    :param chat: ``Chat`` with ``wdk_strategy_id``.
+    :param chat: ``Conversation`` with ``wdk_strategy_id``.
     :returns: List of gene ID strings.
     """
-    strategy = await api.get_strategy(chat.wdk_strategy_id)
+    strategy = await api.get_strategy(conversation.wdk_strategy_id)
     return await fetch_all_gene_ids(api, strategy.root_step_id)
 
 

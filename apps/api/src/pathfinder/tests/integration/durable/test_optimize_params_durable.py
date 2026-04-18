@@ -12,7 +12,7 @@ from pathfinder.jobs.impls.optimize_params_impl import (
 )
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runner import run_durable_task
-from pathfinder.persistence.models import Chat, User
+from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
@@ -48,12 +48,12 @@ async def _fake_run_single_trial(
     }
 
 
-async def _seed_user_chat(user_id: UUID, chat_id: UUID) -> None:
+async def _seed_user_chat(user_id: UUID, conversation_id: UUID) -> None:
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
         session.add(
-            Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name="")
+            Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name="")
         )
         await session.commit()
 
@@ -123,12 +123,12 @@ async def test_run_durable_task_wiring_optimize(
     register_all_tools()
 
     user_id = uuid4()
-    chat_id = uuid4()
-    await _seed_user_chat(user_id, chat_id)
+    conversation_id = uuid4()
+    await _seed_user_chat(user_id, conversation_id)
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         tool_name="optimize_search_parameters",
         args={"args": [], "kwargs": target_kwargs},
@@ -138,7 +138,7 @@ async def test_run_durable_task_wiring_optimize(
     await run_durable_task(
         tool_name="optimize_search_parameters",
         task_id=str(task_id),
-        thread_id=str(chat_id),
+        thread_id=str(conversation_id),
         args={"args": [], "kwargs": target_kwargs},
     )
 

@@ -135,7 +135,7 @@ class Settings(BaseSettings):
     veupathdb_oauth_url: str | None = None
     veupathdb_oauth_client_id: str | None = None
 
-    # Chat provider (set to "mock" for deterministic offline E2E testing)
+    # Conversation provider (set to "mock" for deterministic offline E2E testing)
     chat_provider: str = Field(
         default="",
         validation_alias="PATHFINDER_CHAT_PROVIDER",

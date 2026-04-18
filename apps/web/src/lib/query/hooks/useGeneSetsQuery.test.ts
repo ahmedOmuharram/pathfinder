@@ -11,6 +11,7 @@ import type { GeneSet } from "@pathfinder/shared";
 // ---------------------------------------------------------------------------
 
 const mockListGeneSets = vi.hoisted(() => vi.fn());
+const mockGetAuthStatus = vi.hoisted(() => vi.fn());
 
 vi.mock("@/features/workbench/api/geneSets", () => ({
   listGeneSets: mockListGeneSets,
@@ -20,20 +21,12 @@ vi.mock("@/features/workbench/api/geneSets", () => ({
   }),
 }));
 
-let mockVeupathdbSignedIn: boolean;
-let mockAuthStatusKnown: boolean;
-
-vi.mock("@/state/useSessionStore", () => ({
-  useSessionStore: <T>(
-    selector: (s: {
-      veupathdbSignedIn: boolean;
-      authStatusKnown: boolean;
-    }) => T,
-  ) =>
-    selector({
-      veupathdbSignedIn: mockVeupathdbSignedIn,
-      authStatusKnown: mockAuthStatusKnown,
-    }),
+vi.mock("@/lib/api/veupathdb-auth", () => ({
+  authStatusOptions: (siteId: string) => ({
+    queryKey: ["auth", "status", siteId] as const,
+    queryFn: () => mockGetAuthStatus(siteId),
+    enabled: siteId !== "",
+  }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -76,8 +69,8 @@ describe("useGeneSetsQuery", () => {
   beforeEach(() => {
     vi.resetModules();
     mockListGeneSets.mockReset();
-    mockVeupathdbSignedIn = true;
-    mockAuthStatusKnown = true;
+    mockGetAuthStatus.mockReset();
+    mockGetAuthStatus.mockResolvedValue({ signedIn: true, name: "Tester" });
   });
 
   async function renderGeneSetsQuery(siteId: string) {
@@ -114,14 +107,14 @@ describe("useGeneSetsQuery", () => {
   // -------------------------------------------------------------------------
 
   it("returns undefined when not authenticated", async () => {
-    mockAuthStatusKnown = true;
-    mockVeupathdbSignedIn = false;
+    mockGetAuthStatus.mockResolvedValue({ signedIn: false, name: null });
 
     const { result } = await renderGeneSetsQuery("plasmodb");
 
-    // Query should be disabled — data stays undefined, no fetch
+    await waitFor(() => {
+      expect(result.current.fetchStatus).toBe("idle");
+    });
     expect(result.current.data).toBeUndefined();
-    expect(result.current.fetchStatus).toBe("idle");
     expect(mockListGeneSets).not.toHaveBeenCalled();
   });
 
@@ -148,7 +141,7 @@ describe("useGeneSetsQuery", () => {
 
     const { useGeneSetsQuery } = await import("./useGeneSetsQuery");
     const { useInvalidateGeneSets } = await import("./useInvalidateGeneSets");
-    const { queryClient, Wrapper } = createTestWrapper();
+    const { Wrapper } = createTestWrapper();
 
     const { result } = renderHook(
       () => ({

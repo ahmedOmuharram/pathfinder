@@ -39,7 +39,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=3 \
     CMD node -e "fetch('http://localhost:3000/').then(r => r.ok ? r.text() : Promise.reject(new Error(r.status))).then(() => process.exit(0), () => process.exit(1))"
 
-CMD ["yarn", "next", "dev", "--webpack", "-p", "3000", "-H", "0.0.0.0"]
+CMD ["yarn", "next", "dev", "-p", "3000", "-H", "0.0.0.0"]
 
 # Rebuild the source code only when needed
 FROM base AS builder

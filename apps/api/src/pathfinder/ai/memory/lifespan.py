@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from langgraph.store.postgres.base import PostgresIndexConfig
 
-from pathfinder.ai.chat.checkpointer import to_psycopg_url
+from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 from pathfinder.ai.memory.embedding import EMBEDDING_DIMENSIONS, embed_text
 
 

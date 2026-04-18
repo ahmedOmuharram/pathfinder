@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useEventCallback } from "usehooks-ts";
 import type { Strategy } from "@pathfinder/shared";
-import { pushStrategy } from "@/lib/api/strategies";
+import { pushConversation } from "@/lib/api/conversations";
 import { serializeStrategyPlan } from "@/lib/strategyGraph/serialize";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -48,7 +48,7 @@ export function useAutoSync(args: UseAutoSyncArgs): UseAutoSyncResult {
     syncingRef.current = true;
     setSyncStatus("syncing");
 
-    pushStrategy(draftStrategy.id, {
+    pushConversation(draftStrategy.id, {
       name: draftStrategy.name || "Untitled Strategy",
       siteId,
       plan: planResult.plan,

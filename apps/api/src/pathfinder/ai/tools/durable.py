@@ -3,7 +3,7 @@
 Durable tools dispatch their work to the Procrastinate worker and stream
 progress back to the chat via ``TaskProgressEmitter``. The emitter persists
 rows to ``task_progress`` and publishes a LISTEN/NOTIFY event on
-``task_progress:<chat_id>`` so the dispatcher can resume/flush progress into
+``task_progress:<conversation_id>`` so the dispatcher can resume/flush progress into
 the UI message stream without polling.
 
 ``@durable_tool`` wraps an agent-side tool so calling it submits a
@@ -72,7 +72,7 @@ class TaskProgressEmitter:
     """
 
     task_id: UUID
-    chat_id: UUID
+    conversation_id: UUID
     session_factory: SessionFactory
     batch_size: int = 1
     max_flush_interval_seconds: float = 1.0
@@ -84,13 +84,13 @@ class TaskProgressEmitter:
         """Return a child emitter that tags every update with ``scope``.
 
         The child shares persistence config (session_factory, task_id,
-        chat_id, batch_size) with this emitter but holds its own buffer
+        conversation_id, batch_size) with this emitter but holds its own buffer
         + scope. Each ``update`` on the child merges the scope dict into
         its ``data`` field before persisting.
         """
         child = TaskProgressEmitter(
             task_id=self.task_id,
-            chat_id=self.chat_id,
+            conversation_id=self.conversation_id,
             session_factory=self.session_factory,
             batch_size=self.batch_size,
             max_flush_interval_seconds=self.max_flush_interval_seconds,
@@ -144,7 +144,7 @@ class TaskProgressEmitter:
             await session.execute(
                 text("SELECT pg_notify(:channel, :payload)"),
                 {
-                    "channel": f"task_progress:{self.chat_id}",
+                    "channel": f"task_progress:{self.conversation_id}",
                     "payload": str(self.task_id),
                 },
             )
@@ -189,7 +189,7 @@ def durable_tool(
 
             repo = BackgroundTaskRepository(session_factory=async_session_factory)
             task_id = await repo.create(
-                chat_id=deps.chat_id,
+                conversation_id=deps.conversation_id,
                 user_id=deps.user_id,
                 tool_name=tool_name,
                 args=tool_args,
@@ -204,7 +204,7 @@ def durable_tool(
             )
             await task.defer_async(
                 task_id=str(task_id),
-                thread_id=str(deps.chat_id),
+                thread_id=str(deps.conversation_id),
                 args=tool_args,
             )
 
@@ -230,18 +230,18 @@ def durable_tool(
 class _DurableDeps:
     """AgentDeps subset required for durable dispatch."""
 
-    chat_id: UUID
+    conversation_id: UUID
     user_id: UUID
 
 
 def _require_durable_deps(deps: AgentDeps) -> _DurableDeps:
-    if deps.chat_id is None:
-        msg = "durable_tool requires chat_id on AgentDeps"
+    if deps.conversation_id is None:
+        msg = "durable_tool requires conversation_id on AgentDeps"
         raise RuntimeError(msg)
     if deps.user_id is None:
         msg = "durable_tool requires user_id on AgentDeps"
         raise RuntimeError(msg)
-    return _DurableDeps(chat_id=deps.chat_id, user_id=deps.user_id)
+    return _DurableDeps(conversation_id=deps.conversation_id, user_id=deps.user_id)
 
 
 def _parse_invocation(

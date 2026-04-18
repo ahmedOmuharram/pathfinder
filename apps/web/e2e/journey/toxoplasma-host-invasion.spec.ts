@@ -70,7 +70,7 @@ test.describe("Toxoplasma Host Invasion Journey", () => {
     await chatPage.expectIdle();
 
     // Verify strategy persisted
-    const strategiesResp = await apiClient.get("/api/v1/strategies?siteId=toxodb");
+    const strategiesResp = await apiClient.get("/api/v1/conversations?siteId=toxodb");
     expect(strategiesResp.ok()).toBeTruthy();
 
     // ── Phase 3: Workbench — Gene Sets ───────────────────────────

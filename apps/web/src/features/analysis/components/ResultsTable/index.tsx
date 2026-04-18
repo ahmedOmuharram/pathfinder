@@ -1,10 +1,22 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getPaginationRowModel,
+  getExpandedRowModel,
+  type SortingState,
+  type VisibilityState,
+  type PaginationState,
+  type ExpandedState,
+} from "@tanstack/react-table";
 import { Button } from "@/lib/components/ui/Button";
 import { getAttributes, type EntityRef } from "@/features/analysis/api/stepResults";
 import { useResultsTableRecords } from "@/features/analysis/hooks/useResultsTableRecords";
 import { useResultsTableDetail } from "@/features/analysis/hooks/useResultsTableDetail";
-import type { RecordAttribute } from "@/lib/types/wdk";
+import type { RecordAttribute, WdkRecord } from "@/lib/types/wdk";
+import { buildColumns, getPrimaryKey } from "./ResultsTableColumns";
 import { ResultsTableHeader } from "./ResultsTableHeader";
 import { ResultsTableBody } from "./ResultsTableBody";
 import { PaginationControls } from "./PaginationControls";
@@ -13,19 +25,30 @@ interface ResultsTableProps {
   entityRef: EntityRef;
 }
 
-export function ResultsTable({ entityRef }: ResultsTableProps) {
-  /* ---------- attribute / column state ---------- */
-  const [attributes, setAttributes] = useState<RecordAttribute[]>([]);
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
-  const [columnsOpen, setColumnsOpen] = useState(false);
-  /* ---------- records / pagination ---------- */
-  const recordsState = useResultsTableRecords(entityRef, visibleColumns);
-  const { resetSort, setOffset } = recordsState;
+const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_VISIBLE_COLUMN_COUNT = 6;
 
-  /* ---------- row expansion ---------- */
-  const detailState = useResultsTableDetail(entityRef);
+function initialVisibility(attributes: RecordAttribute[]): VisibilityState {
+  const visibility: VisibilityState = {};
+  attributes.forEach((attr, index) => {
+    visibility[attr.name] = index < DEFAULT_VISIBLE_COLUMN_COUNT;
+  });
+  return visibility;
+}
+
+export function ResultsTable({ entityRef }: ResultsTableProps) {
+  const [attributes, setAttributes] = useState<RecordAttribute[]>([]);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
+  const [expanded, setExpanded] = useState<ExpandedState>({});
+  const [expandedRecordId, setExpandedRecordId] = useState<WdkRecord["id"] | null>(null);
 
   const entityKey = `${entityRef.type}|${entityRef.id}`;
+
   const { data: fetchedAttributes, error: attrQueryError } = useQuery({
     queryKey: ["step-attributes", entityKey] as const,
     queryFn: () => getAttributes(entityRef),
@@ -37,43 +60,85 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
   const [prevEntityKey, setPrevEntityKey] = useState(entityKey);
   if (entityKey !== prevEntityKey && fetchedAttributes) {
     setPrevEntityKey(entityKey);
-    resetSort();
     const displayable = fetchedAttributes.attributes.filter((a) => a.isDisplayable !== false);
     setAttributes(displayable);
-    setVisibleColumns(
-      displayable.length > 0
-        ? new Set(displayable.slice(0, 6).map((a) => a.name))
-        : new Set(),
-    );
+    setSorting([]);
+    setPagination({ pageIndex: 0, pageSize: DEFAULT_PAGE_SIZE });
+    setExpanded({});
+    setExpandedRecordId(null);
+    setColumnVisibility(initialVisibility(displayable));
   }
   if (fetchedAttributes && attributes.length === 0 && prevEntityKey === entityKey) {
     const displayable = fetchedAttributes.attributes.filter((a) => a.isDisplayable !== false);
     if (displayable.length > 0) {
       setAttributes(displayable);
-      setVisibleColumns(new Set(displayable.slice(0, 6).map((a) => a.name)));
+      setColumnVisibility(initialVisibility(displayable));
     }
   }
 
-  /* ---------- handlers ---------- */
-  const toggleColumn = (name: string) => {
-    setVisibleColumns((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) {
-        next.delete(name);
-      } else {
-        next.add(name);
-      }
-      return next;
-    });
-    setOffset(0);
+  const visibleAttributeNames = attributes
+    .filter((a) => columnVisibility[a.name] !== false)
+    .map((a) => a.name);
+
+  const recordsState = useResultsTableRecords({
+    entityRef,
+    attributes: visibleAttributeNames,
+    sorting,
+    pageIndex: pagination.pageIndex,
+    pageSize: pagination.pageSize,
+  });
+
+  const expandedKey =
+    typeof expanded === "object" ? (Object.keys(expanded)[0] ?? null) : null;
+
+  const detailState = useResultsTableDetail({
+    entityRef,
+    expandedKey,
+    recordId: expandedRecordId,
+  });
+
+  const hasClassification = recordsState.records.some((r) => r._classification != null);
+  const columns = buildColumns(attributes, hasClassification);
+
+  const table = useReactTable<WdkRecord>({
+    data: recordsState.records,
+    columns,
+    state: { sorting, columnVisibility, pagination, expanded },
+    onSortingChange: (updater) => {
+      setSorting(updater);
+      setPagination((p) => ({ ...p, pageIndex: 0 }));
+    },
+    onColumnVisibilityChange: (updater) => {
+      setColumnVisibility(updater);
+      setPagination((p) => ({ ...p, pageIndex: 0 }));
+    },
+    onPaginationChange: setPagination,
+    onExpandedChange: setExpanded,
+    getRowId: (row) => getPrimaryKey(row),
+    manualSorting: true,
+    manualPagination: true,
+    manualExpanding: true,
+    rowCount: recordsState.meta?.totalCount ?? 0,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+    enableSortingRemoval: false,
+  });
+
+  const handleExpandRow = (row: WdkRecord, expand: boolean) => {
+    if (!expand) {
+      setExpanded({});
+      setExpandedRecordId(null);
+      return;
+    }
+    const pk = getPrimaryKey(row);
+    setExpanded({ [pk]: true });
+    setExpandedRecordId(row.id);
   };
 
-  /* ---------- derived values ---------- */
   const totalCount = recordsState.meta?.totalCount ?? 0;
-  const orderedColumns = attributes.filter((a) => visibleColumns.has(a.name));
-  const hasClassification = recordsState.records.some((r) => r._classification != null);
 
-  /* ---------- error state ---------- */
   const displayError = attrError ?? recordsState.error;
   if (displayError != null && recordsState.records.length === 0) {
     return (
@@ -93,40 +158,27 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
     );
   }
 
-  /* ---------- render ---------- */
   return (
     <div className="space-y-3">
       <ResultsTableHeader
         totalCount={totalCount}
+        table={table}
         attributes={attributes}
-        visibleColumns={visibleColumns}
-        columnsOpen={columnsOpen}
-        onColumnsOpenChange={setColumnsOpen}
-        onToggleColumn={toggleColumn}
       />
 
       <ResultsTableBody
-        records={recordsState.records}
-        orderedColumns={orderedColumns}
-        hasClassification={hasClassification}
+        table={table}
         loading={recordsState.loading}
-        sortColumn={recordsState.sortColumn}
-        sortDir={recordsState.sortDir}
-        onSort={recordsState.handleSort}
-        expandedKey={detailState.expandedKey}
         detail={detailState.detail}
         detailError={detailState.detailError}
         detailLoading={detailState.detailLoading}
-        onExpandRow={detailState.handleExpandRow}
+        onExpandRow={handleExpandRow}
       />
 
       <PaginationControls
-        offset={recordsState.offset}
-        pageSize={recordsState.pageSize}
+        table={table}
         totalCount={totalCount}
         loading={recordsState.loading}
-        onOffsetChange={recordsState.setOffset}
-        onPageSizeChange={recordsState.setPageSize}
       />
     </div>
   );

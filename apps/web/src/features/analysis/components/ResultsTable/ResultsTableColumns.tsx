@@ -1,9 +1,12 @@
+import type { ColumnDef } from "@tanstack/react-table";
 import type { Classification } from "@pathfinder/shared";
 import { Badge } from "@/lib/components/ui/Badge";
 import { sanitizeHtml } from "@/lib/utils/sanitizeHtml";
-import type { WdkRecord } from "@/lib/types/wdk";
+import type { RecordAttribute, WdkRecord } from "@/lib/types/wdk";
 
 export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+const CLASSIFICATION_COLUMN_ID = "_classification";
 
 const CLASSIFICATION_STYLES: Record<
   Classification,
@@ -88,6 +91,36 @@ export function AttributeValue({ value }: { value: unknown }) {
   if (HTML_TAG_RE.test(str)) return <>{stripHtml(str)}</>;
 
   return <>{str}</>;
+}
+
+export function buildColumns(
+  attributes: RecordAttribute[],
+  includeClassification: boolean,
+): ColumnDef<WdkRecord>[] {
+  const attributeColumns: ColumnDef<WdkRecord>[] = attributes.map((attr) => ({
+    id: attr.name,
+    header: attr.displayName,
+    accessorFn: (row) => row.attributes[attr.name],
+    enableSorting: attr.isSortable !== false,
+    enableHiding: true,
+    cell: (info) => <AttributeValue value={info.getValue()} />,
+  }));
+
+  if (!includeClassification) {
+    return attributeColumns;
+  }
+
+  const classificationColumn: ColumnDef<WdkRecord> = {
+    id: CLASSIFICATION_COLUMN_ID,
+    header: "Class",
+    enableSorting: false,
+    enableHiding: false,
+    cell: (info) => (
+      <ClassificationBadge value={info.row.original._classification ?? null} />
+    ),
+  };
+
+  return [classificationColumn, ...attributeColumns];
 }
 
 export function AttributeValueRich({ value }: { value: unknown }) {

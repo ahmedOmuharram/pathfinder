@@ -8,7 +8,7 @@ from pathfinder.platform.pydantic_base import CamelModel
 
 
 class ForkRequest(CamelModel):
-    """Body for ``POST /chats/{chat_id}/fork``.
+    """Body for ``POST /chats/{conversation_id}/fork``.
 
     ``state_override`` defaults to an empty dict — the absence of overrides
     still produces a fresh checkpoint that becomes a child of

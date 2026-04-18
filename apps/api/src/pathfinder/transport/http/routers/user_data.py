@@ -10,7 +10,7 @@ from fastapi import APIRouter, Query
 
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.user_data import purge_user_data
-from pathfinder.transport.http.deps import ChatRepo, CurrentUser
+from pathfinder.transport.http.deps import ConversationRepo, CurrentUser
 
 router = APIRouter(prefix="/api/v1/user", tags=["user"])
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1/user", tags=["user"])
 @router.delete("/data")
 async def purge_user_data_endpoint(
     user_id: CurrentUser,
-    chat_repo: ChatRepo,
+    conv_repo: ConversationRepo,
     site_id: str | None = Query(None, alias="siteId"),
     *,
     delete_wdk: Annotated[bool, Query(alias="deleteWdk")] = False,
@@ -37,7 +37,7 @@ async def purge_user_data_endpoint(
     Pass ``?siteId=X`` to limit to one site, or omit for everything.
     """
     result = await purge_user_data(
-        session=chat_repo.session,
+        session=conv_repo.session,
         user_id=user_id,
         site_id=site_id,
         delete_wdk=delete_wdk,

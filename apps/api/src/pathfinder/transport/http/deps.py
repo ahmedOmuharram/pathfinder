@@ -8,8 +8,8 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.repositories import (
-    ChatRepository,
     ControlSetRepository,
+    ConversationRepository,
     UserRepository,
 )
 from pathfinder.persistence.repositories.checkpoint_label import (
@@ -36,14 +36,14 @@ async def get_control_set_repo(session: DBSession) -> ControlSetRepository:
     return ControlSetRepository(session)
 
 
-async def get_chat_repo(session: DBSession) -> ChatRepository:
+async def get_chat_repo(session: DBSession) -> ConversationRepository:
     """Get chat repository."""
-    return ChatRepository(session)
+    return ConversationRepository(session)
 
 
 UserRepo = Annotated[UserRepository, Depends(get_user_repo)]
 ControlSetRepo = Annotated[ControlSetRepository, Depends(get_control_set_repo)]
-ChatRepo = Annotated[ChatRepository, Depends(get_chat_repo)]
+ConversationRepo = Annotated[ConversationRepository, Depends(get_chat_repo)]
 
 
 async def get_current_user_with_db_row(

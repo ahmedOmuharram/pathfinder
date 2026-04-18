@@ -12,23 +12,23 @@ after the original request disconnected.
 from __future__ import annotations
 
 import dataclasses
+import json as _json
 from typing import Any
 from uuid import UUID
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
-from pydantic import BaseModel, TypeAdapter, ValidationError
-from shared_py.stream_events import StreamEvent
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import text
 
-from pathfinder.ai.chat.checkpointer import lifespan_checkpointer
+from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.tools.durable import TaskProgressEmitter
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runtime import build_worker_runtime_context
-from pathfinder.persistence.models import ChatEvent
+from pathfinder.persistence.models import ConversationEvent
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
@@ -62,7 +62,7 @@ async def run_durable_task(
 
     progress = TaskProgressEmitter(
         task_id=task_uuid,
-        chat_id=chat_uuid,
+        conversation_id=chat_uuid,
         session_factory=async_session_factory,
     )
 
@@ -71,7 +71,7 @@ async def run_durable_task(
         async with lifespan_memory_store(settings.database_url) as raw_memory:
             mem_store = MemoryStore(store=raw_memory)
             base_context = await build_worker_runtime_context(
-                chat_id=thread_id, task_id=task_id
+                conversation_id=thread_id, task_id=task_id
             )
             context = dataclasses.replace(base_context, memory_store=raw_memory)
             try:
@@ -196,7 +196,7 @@ async def _resume_graph(
             return
 
         base_context = await build_worker_runtime_context(
-            chat_id=thread_id, task_id=str(task_id)
+            conversation_id=thread_id, task_id=str(task_id)
         )
         context = dataclasses.replace(base_context, memory_store=raw_memory)
         async for mode, chunk_payload in graph.astream(
@@ -211,47 +211,42 @@ async def _resume_graph(
             if sse is None:
                 continue
             await _persist_chat_event(
-                chat_id=UUID(thread_id), task_id=task_id, chunk={"sse": sse}
+                conversation_id=UUID(thread_id), task_id=task_id, chunk={"sse": sse}
             )
 
 
-_STREAM_EVENT_ADAPTER: TypeAdapter[StreamEvent] = TypeAdapter(StreamEvent)
-
-
-class _ResumedStreamEnvelope(BaseModel):
-    stream_event: dict[str, Any]
+class _ResumedChunkEnvelope(BaseModel):
+    chunk: dict[str, Any]
 
 
 def _extract_sse(payload: Any) -> str | None:
-    """Re-encode a resumed-graph custom payload as an SSE frame for replay.
+    """Re-encode a resumed-graph custom payload as an AI SDK v6 SSE frame.
 
-    Wave 3.A standardised node writers on the ``{"stream_event": <dict>}``
-    envelope. We validate, coerce back to a typed ``StreamEvent``, and
-    re-serialise as ``event: stream\\ndata: {...}\\n\\n`` so the persisted
-    ``chat_events.chunk`` rows match the live dispatcher's wire format.
+    Node writers emit the ``{"chunk": <v6_chunk_dict>}`` envelope; we
+    re-serialise each chunk as ``data: {json}\\n\\n`` so the persisted
+    ``chat_events.chunk`` rows match the live dispatcher's v6 wire format.
     """
     if not isinstance(payload, dict):
         return None
     try:
-        envelope = _ResumedStreamEnvelope.model_validate(payload)
+        envelope = _ResumedChunkEnvelope.model_validate(payload)
     except ValidationError:
         return None
-    event = _STREAM_EVENT_ADAPTER.validate_python(envelope.stream_event)
-    return f"event: stream\ndata: {event.model_dump_json(by_alias=True)}\n\n"
+    return f"data: {_json.dumps(envelope.chunk, separators=(',', ':'))}\n\n"
 
 
 async def _persist_chat_event(
-    *, chat_id: UUID, task_id: UUID, chunk: dict[str, Any]
+    *, conversation_id: UUID, task_id: UUID, chunk: dict[str, Any]
 ) -> None:
-    """Persist an SSE chunk + NOTIFY listeners on ``chat_events:<chat_id>``."""
+    """Persist an SSE chunk + NOTIFY listeners on ``chat_events:<conversation_id>``."""
     async with async_session_factory() as session:
-        row = ChatEvent(chat_id=chat_id, task_id=task_id, chunk=chunk)
+        row = ConversationEvent(conversation_id=conversation_id, task_id=task_id, chunk=chunk)
         session.add(row)
         await session.flush()
         await session.execute(
             text("SELECT pg_notify(:channel, :payload)"),
             {
-                "channel": f"chat_events:{chat_id}",
+                "channel": f"chat_events:{conversation_id}",
                 "payload": str(task_id),
             },
         )

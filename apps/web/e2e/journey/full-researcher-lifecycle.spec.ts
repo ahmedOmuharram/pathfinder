@@ -67,7 +67,7 @@ test.describe("Full Researcher Lifecycle", () => {
     // Verify strategy exists via API — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const stratResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const stratResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(stratResp.ok()).toBeTruthy();
     const latestStrategy = await stratResp.json();
     expect(latestStrategy.steps.length).toBeGreaterThan(0);

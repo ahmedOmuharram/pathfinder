@@ -13,7 +13,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy import text
 
-from pathfinder.ai.chat.checkpointer import to_psycopg_url
+from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.checkpoint_label import (
     CheckpointLabelRepository,

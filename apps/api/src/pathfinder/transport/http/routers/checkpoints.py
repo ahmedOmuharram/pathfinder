@@ -19,14 +19,14 @@ from pathfinder.transport.http.schemas.checkpoints import (
     ForkResponse,
 )
 
-router = APIRouter(prefix="/api/v1/chats", tags=["checkpoints"])
+router = APIRouter(prefix="/api/v1/conversations", tags=["checkpoints"])
 
 CheckpointSvc = Annotated[CheckpointService, Depends(get_checkpoint_service)]
 
 
-@router.get("/{chat_id}/checkpoints", response_model=list[CheckpointNode])
+@router.get("/{conversation_id}/checkpoints", response_model=list[CheckpointNode])
 async def list_checkpoints(
-    chat_id: UUID,
+    conversation_id: UUID,
     user_id: CurrentUser,
     svc: CheckpointSvc,
 ) -> list[CheckpointNode]:
@@ -35,21 +35,21 @@ async def list_checkpoints(
     Joins the per-user labels sidecar via the authenticated user — labels
     on other users' rows are intentionally invisible.
     """
-    return await svc.list_tree(thread_id=str(chat_id), user_id=user_id)
+    return await svc.list_tree(thread_id=str(conversation_id), user_id=user_id)
 
 
 @router.get(
-    "/{chat_id}/checkpoints/{checkpoint_id}",
+    "/{conversation_id}/checkpoints/{checkpoint_id}",
     response_model=CheckpointSnapshot,
 )
 async def get_checkpoint(
-    chat_id: UUID,
+    conversation_id: UUID,
     checkpoint_id: str,
     svc: CheckpointSvc,
 ) -> CheckpointSnapshot:
     """Materialize a single checkpoint via ``graph.aget_state``."""
     snap = await svc.get_snapshot(
-        thread_id=str(chat_id), checkpoint_id=checkpoint_id
+        thread_id=str(conversation_id), checkpoint_id=checkpoint_id
     )
     if not snap.values and not snap.next and not snap.metadata:
         raise HTTPException(
@@ -60,18 +60,18 @@ async def get_checkpoint(
 
 
 @router.post(
-    "/{chat_id}/fork",
+    "/{conversation_id}/fork",
     response_model=ForkResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def fork_checkpoint(
-    chat_id: UUID,
+    conversation_id: UUID,
     body: ForkRequest,
     svc: CheckpointSvc,
 ) -> ForkResponse:
     """Create a branched checkpoint via ``graph.aupdate_state``."""
     new_id = await svc.fork(
-        thread_id=str(chat_id),
+        thread_id=str(conversation_id),
         from_checkpoint_id=body.from_checkpoint_id,
         state_override=body.state_override,
         as_node=body.as_node,

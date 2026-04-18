@@ -34,7 +34,7 @@ class GUID(TypeDecorator[UUID]):
 
     Uses CHAR(36) and stores UUIDs as strings.
     Returns proper ``UUID`` objects on read so that Python-side comparisons
-    (e.g. ``chat.user_id == some_uuid``) work correctly.
+    (e.g. ``conversation.user_id == some_uuid``) work correctly.
     """
 
     impl = CHAR
@@ -83,7 +83,7 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    chats: Mapped[list[Chat]] = relationship(
+    conversations: Mapped[list[Conversation]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -179,20 +179,14 @@ class GeneSetRow(Base):
     )
 
 
-class Chat(Base):
-    """A chat conversation — identity + sidebar/strategy metadata.
+class Conversation(Base):
+    """A conversation — message thread + strategy plan + WDK linkage on one row."""
 
-    Replaces the legacy ``streams`` + ``stream_projections`` pair (dropped by
-    migration ``i4j5k6l7m8n9``). One row per conversation; metadata lives
-    directly on this table for fast sidebar listing and WDK sync.
-    ``Message`` rows carry the parts-based history (see below).
-    """
-
-    __tablename__ = "chats"
+    __tablename__ = "conversations"
     __table_args__ = (
-        Index("ix_chats_user_site", "user_id", "site_id"),
+        Index("ix_conversations_user_site", "user_id", "site_id"),
         Index(
-            "ix_chats_wdk_strategy_id",
+            "ix_conversations_wdk_strategy_id",
             "wdk_strategy_id",
             unique=True,
             postgresql_where="wdk_strategy_id IS NOT NULL",
@@ -233,7 +227,7 @@ class Chat(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped[User] = relationship(back_populates="chats")
+    user: Mapped[User] = relationship(back_populates="conversations")
 
 
 class Message(Base):
@@ -250,13 +244,17 @@ class Message(Base):
             "role IN ('user', 'assistant', 'system')",
             name="ck_messages_role",
         ),
-        Index("messages_chat_id_created_at_idx", "chat_id", "created_at"),
+        Index(
+            "messages_conversation_id_created_at_idx",
+            "conversation_id",
+            "created_at",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
-    chat_id: Mapped[UUID] = mapped_column(
+    conversation_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("chats.id", ondelete="CASCADE"),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
         nullable=False,
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
@@ -341,9 +339,9 @@ class BackgroundTask(Base):
     id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True
     )
-    chat_id: Mapped[UUID] = mapped_column(
+    conversation_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("chats.id", ondelete="CASCADE"),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
@@ -402,17 +400,17 @@ class TaskProgress(Base):
     )
 
 
-class ChatEvent(Base):
-    """Durable chat stream chunk — enables resume/catchup after reconnect."""
+class ConversationEvent(Base):
+    """Durable conversation stream chunk — enables resume/catchup after reconnect."""
 
-    __tablename__ = "chat_events"
+    __tablename__ = "conversation_events"
 
     id: Mapped[int] = mapped_column(
         Integer, primary_key=True, autoincrement=True
     )
-    chat_id: Mapped[UUID] = mapped_column(
+    conversation_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("chats.id", ondelete="CASCADE"),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )

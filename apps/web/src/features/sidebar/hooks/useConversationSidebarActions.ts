@@ -17,10 +17,10 @@ import {
   type RenameWorkflow,
 } from "@/features/sidebar/hooks/useRenameWorkflow";
 import {
-  chatListOptions,
-  setChatSaved,
-  type ChatListItem,
-} from "@/lib/api/chats";
+  conversationListOptions,
+  setConversationSaved,
+  type ConversationSummary,
+} from "@/lib/api/conversations";
 import { toUserMessage } from "@/lib/api/errors";
 
 interface UseConversationSidebarActionsArgs {
@@ -33,7 +33,6 @@ interface ConversationSidebarActions
     DuplicateWorkflow,
     DeleteWorkflow {
   activeId: string | null;
-  handleSelect: (item: ConversationItem) => void;
   handleNewConversation: () => Promise<void>;
   handleToggleSaved: (item: ConversationItem) => Promise<void>;
 }
@@ -44,8 +43,8 @@ export function useConversationSidebarActions({
 }: UseConversationSidebarActionsArgs): ConversationSidebarActions {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const params = useParams<{ convoId?: string }>();
-  const activeId = params.convoId ?? null;
+  const params = useParams<{ conversationId?: string }>();
+  const activeId = params.conversationId ?? null;
 
   const rename = useRenameWorkflow({ siteId, reportError });
   const duplicate = useDuplicateWorkflow({ siteId, reportError });
@@ -55,21 +54,17 @@ export function useConversationSidebarActions({
     activeChatId: activeId,
   });
 
-  const listKey = chatListOptions(siteId).queryKey;
-
-  const handleSelect = (item: ConversationItem) => {
-    router.push(`/chat/${item.id}`);
-  };
+  const listKey = conversationListOptions(siteId).queryKey;
 
   const handleNewConversation = async (): Promise<void> => {
-    router.push("/chat");
+    router.push("/conversation");
   };
 
   const handleToggleSaved = async (item: ConversationItem): Promise<void> => {
     const nextSaved = !item.isSaved;
     try {
-      const updated = await setChatSaved(item.id, nextSaved);
-      queryClient.setQueryData<ChatListItem[]>(listKey, (old) =>
+      const updated = await setConversationSaved(item.id, nextSaved);
+      queryClient.setQueryData<ConversationSummary[]>(listKey, (old) =>
         (old ?? []).map((c) => (c.id === item.id ? updated : c)),
       );
     } catch (err) {
@@ -86,7 +81,6 @@ export function useConversationSidebarActions({
 
   return {
     activeId,
-    handleSelect,
     handleNewConversation,
     handleToggleSaved,
     ...rename,

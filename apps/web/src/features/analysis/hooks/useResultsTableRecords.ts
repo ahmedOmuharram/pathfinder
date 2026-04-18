@@ -1,72 +1,62 @@
-import { useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import type { WdkRecord, RecordsResponse } from "@/lib/types/wdk";
-import type { WdkSortDir } from "@/features/analysis/constants";
+import type { SortingState } from "@tanstack/react-table";
+import type { RecordsResponse, WdkRecord } from "@/lib/types/wdk";
 import { getRecords, type EntityRef } from "@/features/analysis/api/stepResults";
+
+interface UseResultsTableRecordsArgs {
+  entityRef: EntityRef;
+  attributes: string[];
+  sorting: SortingState;
+  pageIndex: number;
+  pageSize: number;
+}
 
 interface ResultsTableRecordsState {
   records: WdkRecord[];
   meta: RecordsResponse["meta"] | null;
   loading: boolean;
   error: string | null;
-  offset: number;
-  pageSize: number;
-  sortColumn: string | null;
-  sortDir: WdkSortDir;
-  setOffset: (offset: number) => void;
-  setPageSize: (size: number) => void;
-  handleSort: (colName: string) => void;
-  resetSort: () => void;
   refetch: () => void;
 }
 
-export function useResultsTableRecords(
-  entityRef: EntityRef,
-  visibleColumns: Set<string>,
-): ResultsTableRecordsState {
-  const [offset, setOffset] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<WdkSortDir>("ASC");
-
+export function useResultsTableRecords({
+  entityRef,
+  attributes,
+  sorting,
+  pageIndex,
+  pageSize,
+}: UseResultsTableRecordsArgs): ResultsTableRecordsState {
   const queryClient = useQueryClient();
 
-  const attributes = [...visibleColumns];
+  const firstSort = sorting[0];
+  const sortColumn = firstSort?.id ?? null;
+  const sortDir: "ASC" | "DESC" | null = firstSort
+    ? firstSort.desc
+      ? "DESC"
+      : "ASC"
+    : null;
+
+  const offset = pageIndex * pageSize;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["experiments", "records", entityRef.type, entityRef.id, {
-      offset,
-      pageSize,
-      sortColumn,
-      sortDir,
-      attributes,
-    }] as const,
+    queryKey: [
+      "experiments",
+      "records",
+      entityRef.type,
+      entityRef.id,
+      { offset, pageSize, sortColumn, sortDir, attributes },
+    ] as const,
     queryFn: () =>
       getRecords(entityRef, {
         offset,
         limit: pageSize,
-        ...(sortColumn != null ? { sort: sortColumn, dir: sortDir } : {}),
+        ...(sortColumn != null && sortDir != null ? { sort: sortColumn, dir: sortDir } : {}),
         attributes,
       }),
-    enabled: visibleColumns.size > 0,
+    enabled: attributes.length > 0,
     staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
-
-  const handleSort = (colName: string) => {
-    if (sortColumn === colName) {
-      setSortDir((d) => (d === "ASC" ? "DESC" : "ASC"));
-    } else {
-      setSortColumn(colName);
-      setSortDir("ASC");
-    }
-    setOffset(0);
-  };
-
-  const resetSort = () => {
-    setSortColumn(null);
-    setSortDir("ASC");
-  };
 
   const invalidateAndRefetch = () => {
     void queryClient.invalidateQueries({
@@ -79,14 +69,6 @@ export function useResultsTableRecords(
     meta: data?.meta ?? null,
     loading: isLoading,
     error: error != null ? (error instanceof Error ? error.message : String(error)) : null,
-    offset,
-    pageSize,
-    sortColumn,
-    sortDir,
-    setOffset,
-    setPageSize,
-    handleSort,
-    resetSort,
     refetch: invalidateAndRefetch,
   };
 }

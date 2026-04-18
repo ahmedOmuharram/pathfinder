@@ -6,7 +6,7 @@ vi.mock("./http", async (importOriginal) => {
   return { ...actual, requestJson: requestJsonMock };
 });
 
-import { undoTurn } from "./strategies";
+import { undoTurn } from "./conversations";
 
 afterEach(() => {
   requestJsonMock.mockReset();

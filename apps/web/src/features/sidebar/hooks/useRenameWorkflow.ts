@@ -12,10 +12,10 @@ import { useState } from "react";
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import {
-  chatListOptions,
-  dismissedChatsOptions,
-  renameChat,
-} from "@/lib/api/chats";
+  conversationListOptions,
+  dismissedConversationsOptions,
+  renameConversation,
+} from "@/lib/api/conversations";
 import { toUserMessage } from "@/lib/api/errors";
 
 interface UseRenameWorkflowArgs {
@@ -52,12 +52,12 @@ export function useRenameWorkflow({
       return;
     }
     try {
-      await renameChat(item.id, next);
+      await renameConversation(item.id, next);
       void queryClient.invalidateQueries({
-        queryKey: chatListOptions(siteId).queryKey,
+        queryKey: conversationListOptions(siteId).queryKey,
       });
       void queryClient.invalidateQueries({
-        queryKey: dismissedChatsOptions(siteId).queryKey,
+        queryKey: dismissedConversationsOptions(siteId).queryKey,
       });
     } catch (err) {
       reportError(toUserMessage(err, "Failed to rename conversation."));

@@ -36,7 +36,7 @@ test.describe("Auto-Build Pipeline", () => {
     // API: Strategy has a real wdkStrategyId (auto-build ran against real WDK)
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(resp.ok()).toBeTruthy();
     const strategy = await resp.json();
     expect(strategy.wdkStrategyId).toBeTruthy();
@@ -55,7 +55,7 @@ test.describe("Auto-Build Pipeline", () => {
     await chatPage.expectIdle();
 
     const strategyId = chatPage.lastStrategyId;
-    const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     const strategy = await resp.json();
 
     // Steps persisted with real WDK search names and parameters
@@ -112,7 +112,7 @@ test.describe("Auto-Build Pipeline", () => {
     await chatPage.expectIdle();
 
     const strategyId = chatPage.lastStrategyId;
-    const stratResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const stratResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     const strategy = await stratResp.json();
 
     // The strategy should have a result count from WDK
@@ -165,7 +165,7 @@ test.describe("Delegation Auto-Build Pipeline", () => {
 
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(resp.ok()).toBeTruthy();
     const strategy = await resp.json();
 
@@ -228,7 +228,7 @@ test.describe("Planning Artifact Pipeline", () => {
     // Verify the planning artifact data via API
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     // Strategy should exist (plan is populated when the user clicks Apply,
     // not when the artifact is first emitted via tool call).
     expect(resp.ok()).toBeTruthy();
@@ -248,7 +248,7 @@ test.describe("Planning Artifact Pipeline", () => {
 
     // After apply, strategy should have steps with real search names
     const strategyId = chatPage.lastStrategyId;
-    const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     const strategy = await resp.json();
     expect(strategy.steps.length).toBeGreaterThan(0);
     expect(strategy.steps[0].searchName).toBe("GenesByTaxon");
@@ -338,7 +338,7 @@ test.describe("Auto-Build Persistence", () => {
     const strategyId = chatPage.lastStrategyId;
 
     // Verify strategy has real WDK data BEFORE reload.
-    const preResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const preResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     const preBuild = await preResp.json();
     expect(preBuild.wdkStrategyId).toBeTruthy();
     expect(preBuild.steps.length).toBeGreaterThan(0);
@@ -352,7 +352,7 @@ test.describe("Auto-Build Persistence", () => {
     });
 
     // API: wdkStrategyId and steps unchanged after reload.
-    const postResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const postResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     const postBuild = await postResp.json();
     expect(postBuild.wdkStrategyId).toBe(wdkId);
     expect(postBuild.steps.length).toBe(stepCount);

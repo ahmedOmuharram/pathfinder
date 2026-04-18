@@ -17,21 +17,21 @@ from pathfinder.transport.http.schemas.checkpoints import (
     LabelRow,
 )
 
-router = APIRouter(prefix="/api/v1/chats", tags=["labels"])
+router = APIRouter(prefix="/api/v1/conversations", tags=["labels"])
 
 LabelRepo = Annotated[
     CheckpointLabelRepository, Depends(get_checkpoint_label_repo)
 ]
 
 
-@router.get("/{chat_id}/labels", response_model=list[LabelRow])
+@router.get("/{conversation_id}/labels", response_model=list[LabelRow])
 async def list_labels(
-    chat_id: UUID,
+    conversation_id: UUID,
     user_id: CurrentUser,
     repo: LabelRepo,
 ) -> list[LabelRow]:
     rows = await repo.list_for_thread(
-        thread_id=str(chat_id), user_id=user_id
+        thread_id=str(conversation_id), user_id=user_id
     )
     return [
         LabelRow(
@@ -44,18 +44,18 @@ async def list_labels(
 
 
 @router.put(
-    "/{chat_id}/labels/{checkpoint_id}",
+    "/{conversation_id}/labels/{checkpoint_id}",
     response_model=LabelRow,
 )
 async def set_label(
-    chat_id: UUID,
+    conversation_id: UUID,
     checkpoint_id: str,
     body: LabelRequest,
     user_id: CurrentUser,
     repo: LabelRepo,
 ) -> LabelRow:
     row = await repo.set_label(
-        thread_id=str(chat_id),
+        thread_id=str(conversation_id),
         checkpoint_id=checkpoint_id,
         user_id=user_id,
         label=body.label,
@@ -69,17 +69,17 @@ async def set_label(
 
 
 @router.delete(
-    "/{chat_id}/labels/{checkpoint_id}",
+    "/{conversation_id}/labels/{checkpoint_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_label(
-    chat_id: UUID,
+    conversation_id: UUID,
     checkpoint_id: str,
     user_id: CurrentUser,
     repo: LabelRepo,
 ) -> Response:
     await repo.delete_label(
-        thread_id=str(chat_id),
+        thread_id=str(conversation_id),
         checkpoint_id=checkpoint_id,
         user_id=user_id,
     )

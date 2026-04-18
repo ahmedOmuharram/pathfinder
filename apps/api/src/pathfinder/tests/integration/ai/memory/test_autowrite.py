@@ -22,7 +22,7 @@ async def test_auto_write_persists_strategy_on_verification_complete(
     del db_cleaner, patch_app_db_engine
     database_url = os.environ["DATABASE_URL"]
     user_id = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
 
     async with async_session_factory() as session:
         session.add(User(id=user_id))
@@ -36,7 +36,7 @@ async def test_auto_write_persists_strategy_on_verification_complete(
         "connections": [],
     })
     state = PipelineState(
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         site_id="plasmodb",
         mode="strategy",

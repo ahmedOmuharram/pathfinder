@@ -281,3 +281,4 @@ User: "Find P. falciparum kinases expressed in gametocytes"
 
 - Do **not** emit a bare list marker on its own line. Always put item text on the **same line**: `1. Title`.
 - Prefer **bullets with bold headings** over ordered lists unless the user explicitly asks for numbering.
+- For math, **use dollar delimiters**, not brackets: inline math is `$...$`, display math is `$$...$$`. Never use `[ ... ]` or `\[ ... \]` or `\( ... \)` — the renderer only understands dollars. Example: `$F_1 = 2 \cdot \frac{P \cdot R}{P + R}$`.

@@ -702,65 +702,14 @@
         ]
       }
     },
-    "/api/v1/chats/{chat_id}/messages": {
+    "/api/v1/conversations": {
       "get": {
         "tags": [
-          "chat"
-        ],
-        "summary": "List Chat Messages",
-        "description": "Return the chat's persisted messages as AI SDK v6 ``UIMessage[]``.\n\nReturns an empty list if the chat has no messages yet (including when\nthe chat row itself doesn't exist \u2014 clients treat that as \"fresh chat\").",
-        "operationId": "list_chat_messages_api_v1_chats__chat_id__messages_get",
-        "parameters": [
-          {
-            "name": "chat_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Chat Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Ordered list of UIMessages for the chat id (oldest first).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "title": "Response List Chat Messages Api V1 Chats  Chat Id  Messages Get"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed chat id"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/strategies": {
-      "get": {
-        "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "List Strategies",
         "description": "List the user's chats (active, non-dismissed).",
-        "operationId": "list_strategies_api_v1_strategies_get",
+        "operationId": "list_strategies_api_v1_conversations_get",
         "security": [
           {
             "APIKeyCookie": []
@@ -792,9 +741,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/StrategyResponse"
+                    "$ref": "#/components/schemas/ConversationResponse"
                   },
-                  "title": "Response List Strategies Api V1 Strategies Get"
+                  "title": "Response List Strategies Api V1 Conversations Get"
                 }
               }
             }
@@ -813,11 +762,11 @@
       },
       "post": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Create Strategy",
         "description": "Create a new strategy (chat with plan metadata).",
-        "operationId": "create_strategy_api_v1_strategies_post",
+        "operationId": "create_strategy_api_v1_conversations_post",
         "security": [
           {
             "APIKeyCookie": []
@@ -828,7 +777,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateStrategyRequest"
+                "$ref": "#/components/schemas/CreateConversationRequest"
               }
             }
           }
@@ -839,7 +788,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StrategyResponse"
+                  "$ref": "#/components/schemas/ConversationResponse"
                 }
               }
             }
@@ -857,14 +806,14 @@
         }
       }
     },
-    "/api/v1/strategies/dismissed": {
+    "/api/v1/conversations/dismissed": {
       "get": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "List Dismissed Strategies",
         "description": "List the user's dismissed (soft-deleted) chats.",
-        "operationId": "list_dismissed_strategies_api_v1_strategies_dismissed_get",
+        "operationId": "list_dismissed_strategies_api_v1_conversations_dismissed_get",
         "security": [
           {
             "APIKeyCookie": []
@@ -896,9 +845,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/StrategyResponse"
+                    "$ref": "#/components/schemas/ConversationResponse"
                   },
-                  "title": "Response List Dismissed Strategies Api V1 Strategies Dismissed Get"
+                  "title": "Response List Dismissed Strategies Api V1 Conversations Dismissed Get"
                 }
               }
             }
@@ -916,14 +865,14 @@
         }
       }
     },
-    "/api/v1/strategies/{strategyId}": {
+    "/api/v1/conversations/{strategyId}": {
       "get": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Get Strategy",
         "description": "Get a strategy (chat) by ID.",
-        "operationId": "get_strategy_api_v1_strategies__strategyId__get",
+        "operationId": "get_strategy_api_v1_conversations__strategyId__get",
         "security": [
           {
             "APIKeyCookie": []
@@ -947,7 +896,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StrategyResponse"
+                  "$ref": "#/components/schemas/ConversationResponse"
                 }
               }
             }
@@ -966,11 +915,11 @@
       },
       "patch": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Update Strategy",
         "description": "Update strategy metadata (name, plan, wdk link, saved flag).",
-        "operationId": "update_strategy_api_v1_strategies__strategyId__patch",
+        "operationId": "update_strategy_api_v1_conversations__strategyId__patch",
         "security": [
           {
             "APIKeyCookie": []
@@ -993,7 +942,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateStrategyRequest"
+                "$ref": "#/components/schemas/UpdateConversationRequest"
               }
             }
           }
@@ -1004,7 +953,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StrategyResponse"
+                  "$ref": "#/components/schemas/ConversationResponse"
                 }
               }
             }
@@ -1023,11 +972,11 @@
       },
       "delete": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Delete Strategy",
         "description": "Delete a strategy.\n\nFor WDK-linked strategies with ``deleteFromWdk=false`` (default), the\nchat is soft-deleted (dismissed) to prevent WDK sync from re-importing it.\nPass ``deleteFromWdk=true`` to hard-delete from both PathFinder and WDK.\nNon-WDK strategies are always hard-deleted.",
-        "operationId": "delete_strategy_api_v1_strategies__strategyId__delete",
+        "operationId": "delete_strategy_api_v1_conversations__strategyId__delete",
         "security": [
           {
             "APIKeyCookie": []
@@ -1072,14 +1021,14 @@
         }
       }
     },
-    "/api/v1/strategies/{strategyId}/push": {
+    "/api/v1/conversations/{strategyId}/push": {
       "post": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Push Strategy",
         "description": "Push a strategy to WDK: normalize plan, persist locally, sync to WDK.",
-        "operationId": "push_strategy_api_v1_strategies__strategyId__push_post",
+        "operationId": "push_strategy_api_v1_conversations__strategyId__push_post",
         "security": [
           {
             "APIKeyCookie": []
@@ -1102,7 +1051,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PushStrategyRequest"
+                "$ref": "#/components/schemas/PushConversationRequest"
               }
             }
           }
@@ -1113,7 +1062,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StrategyResponse"
+                  "$ref": "#/components/schemas/ConversationResponse"
                 }
               }
             }
@@ -1131,14 +1080,14 @@
         }
       }
     },
-    "/api/v1/strategies/{strategyId}/ast": {
+    "/api/v1/conversations/{strategyId}/ast": {
       "get": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Get Strategy Ast",
         "description": "Return the raw plan AST from a strategy chat.",
-        "operationId": "get_strategy_ast_api_v1_strategies__strategyId__ast_get",
+        "operationId": "get_strategy_ast_api_v1_conversations__strategyId__ast_get",
         "security": [
           {
             "APIKeyCookie": []
@@ -1180,14 +1129,14 @@
         }
       }
     },
-    "/api/v1/strategies/{strategyId}/restore": {
+    "/api/v1/conversations/{strategyId}/restore": {
       "post": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Restore Strategy",
         "description": "Restore a dismissed (soft-deleted) strategy.\n\nClears dismissed_at and resets plan to empty (triggers lazy WDK re-fetch).",
-        "operationId": "restore_strategy_api_v1_strategies__strategyId__restore_post",
+        "operationId": "restore_strategy_api_v1_conversations__strategyId__restore_post",
         "security": [
           {
             "APIKeyCookie": []
@@ -1211,7 +1160,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StrategyResponse"
+                  "$ref": "#/components/schemas/ConversationResponse"
                 }
               }
             }
@@ -1229,14 +1178,14 @@
         }
       }
     },
-    "/api/v1/strategies/step-counts": {
+    "/api/v1/conversations/step-counts": {
       "post": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Compute Step Counts",
         "description": "Compute step counts by executing the plan in WDK.",
-        "operationId": "compute_step_counts_api_v1_strategies_step_counts_post",
+        "operationId": "compute_step_counts_api_v1_conversations_step_counts_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1276,14 +1225,14 @@
         ]
       }
     },
-    "/api/v1/strategies/plan/normalize": {
+    "/api/v1/conversations/plan/normalize": {
       "post": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Normalize Plan",
         "description": "Normalize/coerce plan parameters using backend-owned rules.\n\nThis endpoint exists so the frontend can be a consumer of backend canonicalization\n(and avoid re-implementing CSV/JSON parsing and WDK quirks).",
-        "operationId": "normalize_plan_api_v1_strategies_plan_normalize_post",
+        "operationId": "normalize_plan_api_v1_conversations_plan_normalize_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1318,19 +1267,19 @@
         }
       }
     },
-    "/api/v1/strategies/open": {
+    "/api/v1/conversations/open": {
       "post": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Open Strategy",
         "description": "Open a strategy by local id or WDK strategy id.",
-        "operationId": "open_strategy_api_v1_strategies_open_post",
+        "operationId": "open_strategy_api_v1_conversations_open_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OpenStrategyRequest"
+                "$ref": "#/components/schemas/OpenConversationRequest"
               }
             }
           },
@@ -1342,7 +1291,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OpenStrategyResponse"
+                  "$ref": "#/components/schemas/OpenConversationResponse"
                 }
               }
             }
@@ -1365,14 +1314,14 @@
         ]
       }
     },
-    "/api/v1/strategies/sync-wdk": {
+    "/api/v1/conversations/sync-wdk": {
       "post": {
         "tags": [
-          "strategies"
+          "conversations"
         ],
         "summary": "Sync All Wdk Strategies",
         "description": "Batch-sync all WDK strategies into the chats table and return the full list.",
-        "operationId": "sync_all_wdk_strategies_api_v1_strategies_sync_wdk_post",
+        "operationId": "sync_all_wdk_strategies_api_v1_conversations_sync_wdk_post",
         "security": [
           {
             "APIKeyCookie": []
@@ -1397,9 +1346,150 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/StrategyResponse"
+                    "$ref": "#/components/schemas/ConversationResponse"
                   },
-                  "title": "Response Sync All Wdk Strategies Api V1 Strategies Sync Wdk Post"
+                  "title": "Response Sync All Wdk Strategies Api V1 Conversations Sync Wdk Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/dismiss": {
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Soft-delete a conversation (hide from sidebar).",
+        "operationId": "dismiss_conversation_api_v1_conversations__conversation_id__dismiss_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/duplicate": {
+      "post": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Clone a conversation (new row + copied messages).",
+        "operationId": "duplicate_conversation_api_v1_conversations__conversation_id__duplicate_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDuplicateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/conversations/{conversation_id}/messages": {
+      "get": {
+        "tags": [
+          "conversations"
+        ],
+        "summary": "Ordered UIMessage[] history (oldest first).",
+        "operationId": "list_conversation_messages_api_v1_conversations__conversation_id__messages_get",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response List Conversation Messages Api V1 Conversations  Conversation Id  Messages Get"
                 }
               }
             }
@@ -3235,6 +3325,111 @@
         }
       }
     },
+    "/api/v1/gene-sets/{gene_set_id}/export": {
+      "post": {
+        "tags": [
+          "gene-sets"
+        ],
+        "summary": "Export Gene Set Endpoint",
+        "description": "Export a gene set as CSV or TXT. Returns a short-lived download URL.",
+        "operationId": "export_gene_set_endpoint_api_v1_gene_sets__gene_set_id__export_post",
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "gene_set_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Gene Set Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "csv",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneSetExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/gene-sets/import": {
+      "post": {
+        "tags": [
+          "gene-sets"
+        ],
+        "summary": "Import Gene Set",
+        "description": "Create a gene set from a raw pasted text blob (CSV/TSV/newline list).",
+        "operationId": "import_gene_set_api_v1_gene_sets_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneSetImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneSetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyCookie": []
+          }
+        ]
+      }
+    },
     "/api/v1/gene-sets/operations": {
       "post": {
         "tags": [
@@ -4425,14 +4620,14 @@
         }
       }
     },
-    "/api/v1/chats/{chat_id}/tasks/{task_id}": {
+    "/api/v1/conversations/{conversation_id}/tasks/{task_id}": {
       "get": {
         "tags": [
           "tasks"
         ],
         "summary": "Task Status",
         "description": "Return current status + metadata for a durable task.",
-        "operationId": "task_status_api_v1_chats__chat_id__tasks__task_id__get",
+        "operationId": "task_status_api_v1_conversations__conversation_id__tasks__task_id__get",
         "security": [
           {
             "APIKeyCookie": []
@@ -4440,13 +4635,13 @@
         ],
         "parameters": [
           {
-            "name": "chat_id",
+            "name": "conversation_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Chat Id"
+              "title": "Conversation Id"
             }
           },
           {
@@ -4484,14 +4679,14 @@
         }
       }
     },
-    "/api/v1/chats/{chat_id}/tasks/{task_id}/progress": {
+    "/api/v1/conversations/{conversation_id}/tasks/{task_id}/progress": {
       "get": {
         "tags": [
           "tasks"
         ],
         "summary": "Task Progress History",
         "description": "Return the ordered list of progress rows persisted so far.",
-        "operationId": "task_progress_history_api_v1_chats__chat_id__tasks__task_id__progress_get",
+        "operationId": "task_progress_history_api_v1_conversations__conversation_id__tasks__task_id__progress_get",
         "security": [
           {
             "APIKeyCookie": []
@@ -4499,13 +4694,13 @@
         ],
         "parameters": [
           {
-            "name": "chat_id",
+            "name": "conversation_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Chat Id"
+              "title": "Conversation Id"
             }
           },
           {
@@ -4529,7 +4724,7 @@
                   "items": {
                     "$ref": "#/components/schemas/TaskProgressEvent"
                   },
-                  "title": "Response Task Progress History Api V1 Chats  Chat Id  Tasks  Task Id  Progress Get"
+                  "title": "Response Task Progress History Api V1 Conversations  Conversation Id  Tasks  Task Id  Progress Get"
                 }
               }
             }
@@ -4547,14 +4742,14 @@
         }
       }
     },
-    "/api/v1/chats/{chat_id}/tasks/{task_id}/events": {
+    "/api/v1/conversations/{conversation_id}/tasks/{task_id}/events": {
       "get": {
         "tags": [
           "tasks"
         ],
         "summary": "Task Events",
         "description": "Open an SSE stream for a durable task's progress + resumed graph output.",
-        "operationId": "task_events_api_v1_chats__chat_id__tasks__task_id__events_get",
+        "operationId": "task_events_api_v1_conversations__conversation_id__tasks__task_id__events_get",
         "security": [
           {
             "APIKeyCookie": []
@@ -4562,13 +4757,13 @@
         ],
         "parameters": [
           {
-            "name": "chat_id",
+            "name": "conversation_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Chat Id"
+              "title": "Conversation Id"
             }
           },
           {
@@ -4604,14 +4799,14 @@
         }
       }
     },
-    "/api/v1/chats/{chat_id}/checkpoints": {
+    "/api/v1/conversations/{conversation_id}/checkpoints": {
       "get": {
         "tags": [
           "checkpoints"
         ],
         "summary": "List Checkpoints",
         "description": "Return the full checkpoint tree for a chat thread.\n\nJoins the per-user labels sidecar via the authenticated user \u2014 labels\non other users' rows are intentionally invisible.",
-        "operationId": "list_checkpoints_api_v1_chats__chat_id__checkpoints_get",
+        "operationId": "list_checkpoints_api_v1_conversations__conversation_id__checkpoints_get",
         "security": [
           {
             "APIKeyCookie": []
@@ -4619,13 +4814,13 @@
         ],
         "parameters": [
           {
-            "name": "chat_id",
+            "name": "conversation_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Chat Id"
+              "title": "Conversation Id"
             }
           }
         ],
@@ -4639,7 +4834,7 @@
                   "items": {
                     "$ref": "#/components/schemas/CheckpointNode"
                   },
-                  "title": "Response List Checkpoints Api V1 Chats  Chat Id  Checkpoints Get"
+                  "title": "Response List Checkpoints Api V1 Conversations  Conversation Id  Checkpoints Get"
                 }
               }
             }
@@ -4657,23 +4852,23 @@
         }
       }
     },
-    "/api/v1/chats/{chat_id}/checkpoints/{checkpoint_id}": {
+    "/api/v1/conversations/{conversation_id}/checkpoints/{checkpoint_id}": {
       "get": {
         "tags": [
           "checkpoints"
         ],
         "summary": "Get Checkpoint",
         "description": "Materialize a single checkpoint via ``graph.aget_state``.",
-        "operationId": "get_checkpoint_api_v1_chats__chat_id__checkpoints__checkpoint_id__get",
+        "operationId": "get_checkpoint_api_v1_conversations__conversation_id__checkpoints__checkpoint_id__get",
         "parameters": [
           {
-            "name": "chat_id",
+            "name": "conversation_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Chat Id"
+              "title": "Conversation Id"
             }
           },
           {
@@ -4710,23 +4905,23 @@
         }
       }
     },
-    "/api/v1/chats/{chat_id}/fork": {
+    "/api/v1/conversations/{conversation_id}/fork": {
       "post": {
         "tags": [
           "checkpoints"
         ],
         "summary": "Fork Checkpoint",
         "description": "Create a branched checkpoint via ``graph.aupdate_state``.",
-        "operationId": "fork_checkpoint_api_v1_chats__chat_id__fork_post",
+        "operationId": "fork_checkpoint_api_v1_conversations__conversation_id__fork_post",
         "parameters": [
           {
-            "name": "chat_id",
+            "name": "conversation_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Chat Id"
+              "title": "Conversation Id"
             }
           }
         ],
@@ -4764,13 +4959,13 @@
         }
       }
     },
-    "/api/v1/chats/{chat_id}/labels": {
+    "/api/v1/conversations/{conversation_id}/labels": {
       "get": {
         "tags": [
           "labels"
         ],
         "summary": "List Labels",
-        "operationId": "list_labels_api_v1_chats__chat_id__labels_get",
+        "operationId": "list_labels_api_v1_conversations__conversation_id__labels_get",
         "security": [
           {
             "APIKeyCookie": []
@@ -4778,13 +4973,13 @@
         ],
         "parameters": [
           {
-            "name": "chat_id",
+            "name": "conversation_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Chat Id"
+              "title": "Conversation Id"
             }
           }
         ],
@@ -4798,7 +4993,7 @@
                   "items": {
                     "$ref": "#/components/schemas/LabelRow"
                   },
-                  "title": "Response List Labels Api V1 Chats  Chat Id  Labels Get"
+                  "title": "Response List Labels Api V1 Conversations  Conversation Id  Labels Get"
                 }
               }
             }
@@ -4816,13 +5011,13 @@
         }
       }
     },
-    "/api/v1/chats/{chat_id}/labels/{checkpoint_id}": {
+    "/api/v1/conversations/{conversation_id}/labels/{checkpoint_id}": {
       "put": {
         "tags": [
           "labels"
         ],
         "summary": "Set Label",
-        "operationId": "set_label_api_v1_chats__chat_id__labels__checkpoint_id__put",
+        "operationId": "set_label_api_v1_conversations__conversation_id__labels__checkpoint_id__put",
         "security": [
           {
             "APIKeyCookie": []
@@ -4830,13 +5025,13 @@
         ],
         "parameters": [
           {
-            "name": "chat_id",
+            "name": "conversation_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Chat Id"
+              "title": "Conversation Id"
             }
           },
           {
@@ -4887,7 +5082,7 @@
           "labels"
         ],
         "summary": "Delete Label",
-        "operationId": "delete_label_api_v1_chats__chat_id__labels__checkpoint_id__delete",
+        "operationId": "delete_label_api_v1_conversations__conversation_id__labels__checkpoint_id__delete",
         "security": [
           {
             "APIKeyCookie": []
@@ -4895,13 +5090,13 @@
         ],
         "parameters": [
           {
-            "name": "chat_id",
+            "name": "conversation_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "format": "uuid",
-              "title": "Chat Id"
+              "title": "Conversation Id"
             }
           },
           {
@@ -4917,54 +5112,6 @@
         "responses": {
           "204": {
             "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/dev/login": {
-      "post": {
-        "tags": [
-          "dev"
-        ],
-        "summary": "Dev Login",
-        "description": "Create a test user and return a valid auth token.\n\nOnly available when ``PATHFINDER_CHAT_PROVIDER=mock`` in the test profile.\n\nPass ``?user_id=worker-0`` to create isolated users per Playwright\nworker so parallel tests don't share data.",
-        "operationId": "dev_login_api_v1_dev_login_post",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "User Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
           },
           "422": {
             "description": "Validation Error",
@@ -5253,6 +5400,17 @@
             },
             "type": "array",
             "title": "Geneids"
+          },
+          "conversationId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversationid"
           }
         },
         "type": "object",
@@ -5267,19 +5425,31 @@
       },
       "ChatRequestBody": {
         "properties": {
-          "chatId": {
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "submit-message",
+              "regenerate-message"
+            ],
+            "title": "Trigger",
+            "default": "submit-message"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "default": ""
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/_UIMessage"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "conversationId": {
             "type": "string",
             "format": "uuid",
-            "title": "Chatid"
-          },
-          "userId": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Userid"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
+            "title": "Conversationid"
           },
           "parentCheckpointId": {
             "anyOf": [
@@ -5321,12 +5491,10 @@
         },
         "type": "object",
         "required": [
-          "chatId",
-          "userId",
-          "message"
+          "conversationId"
         ],
         "title": "ChatRequestBody",
-        "description": "Typed body for ``POST /api/v1/chat`` \u2014 surfaces in OpenAPI as-is.\n\nReceives the JSON the frontend sends (camelCase). Auxiliary turn-state\nfields (``user_message_id``, ``site_id``, ``mode``, ``experiment_id``)\ndefault-fill when omitted, so older clients and tests that supply only\nthe chat/user/message trio still validate."
+        "description": "Typed body for ``POST /api/v1/chat`` (AI SDK v6 + PathFinder extras).\n\nThe shape matches ``@ai-sdk/react``'s ``useChat`` submit payload\n(``trigger``, ``id``, ``messages``) with PathFinder-scoped fields\n(``conversationId``, ``parentCheckpointId``, ``siteId``, ``mode``,\n``experimentId``) layered on via ``body`` on the client transport.\nThe authenticated user UUID still comes from the ``pathfinder-auth``\ncookie."
       },
       "CheckpointEvent": {
         "properties": {
@@ -5946,6 +6114,206 @@
         "title": "ControlSetSummaryResponse",
         "description": "Control set summary for listing."
       },
+      "ConversationDuplicateResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "ConversationDuplicateResponse"
+      },
+      "ConversationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "siteId": {
+            "type": "string",
+            "title": "Siteid"
+          },
+          "recordType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recordtype"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/StepResponse"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "rootStepId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rootstepid"
+          },
+          "wdkStrategyId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wdkstrategyid"
+          },
+          "isSaved": {
+            "type": "boolean",
+            "title": "Issaved",
+            "default": false
+          },
+          "pipeline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JSONObject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "stepCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stepcount"
+          },
+          "estimatedSize": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimatedsize"
+          },
+          "wdkUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wdkurl"
+          },
+          "geneSetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Genesetid"
+          },
+          "experimentId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experimentid"
+          },
+          "dismissedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismissedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "siteId",
+          "recordType",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "ConversationResponse"
+      },
       "CreateBatchExperimentRequest": {
         "properties": {
           "base": {
@@ -6066,6 +6434,30 @@
         ],
         "title": "CreateControlSetRequest",
         "description": "Payload for creating a new control set."
+      },
+      "CreateConversationRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "siteId": {
+            "type": "string",
+            "title": "Siteid"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/StrategyPlanPayload-Input"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "siteId",
+          "plan"
+        ],
+        "title": "CreateConversationRequest"
       },
       "CreateExperimentRequest": {
         "properties": {
@@ -6480,31 +6872,6 @@
         ],
         "title": "CreateGeneSetRequest",
         "description": "Create a gene set from IDs, strategy, or upload."
-      },
-      "CreateStrategyRequest": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "siteId": {
-            "type": "string",
-            "title": "Siteid"
-          },
-          "plan": {
-            "$ref": "#/components/schemas/StrategyPlanPayload-Input"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "siteId",
-          "plan"
-        ],
-        "title": "CreateStrategyRequest",
-        "description": "Request to create a strategy."
       },
       "CrossValidationResultResponse": {
         "properties": {
@@ -8327,7 +8694,7 @@
           "fromCheckpointId"
         ],
         "title": "ForkRequest",
-        "description": "Body for ``POST /chats/{chat_id}/fork``.\n\n``state_override`` defaults to an empty dict \u2014 the absence of overrides\nstill produces a fresh checkpoint that becomes a child of\n``from_checkpoint_id``. ``as_node`` is forwarded to\n``graph.aupdate_state(..., as_node=...)`` and decides which node\n\"owns\" the synthetic write."
+        "description": "Body for ``POST /chats/{conversation_id}/fork``.\n\n``state_override`` defaults to an empty dict \u2014 the absence of overrides\nstill produces a fresh checkpoint that becomes a child of\n``from_checkpoint_id``. ``as_node`` is forwarded to\n``graph.aupdate_state(..., as_node=...)`` and decides which node\n\"owns\" the synthetic write."
       },
       "ForkResponse": {
         "properties": {
@@ -8706,6 +9073,57 @@
         ],
         "title": "GeneSetEnrichRequest",
         "description": "Run enrichment on a gene set."
+      },
+      "GeneSetExportResponse": {
+        "properties": {
+          "exportId": {
+            "type": "string",
+            "title": "Exportid"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "contentType": {
+            "type": "string",
+            "title": "Contenttype"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exportId",
+          "filename",
+          "contentType",
+          "url"
+        ],
+        "title": "GeneSetExportResponse"
+      },
+      "GeneSetImportRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "siteId": {
+            "type": "string",
+            "title": "Siteid"
+          },
+          "rawText": {
+            "type": "string",
+            "title": "Rawtext"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "siteId",
+          "rawText"
+        ],
+        "title": "GeneSetImportRequest"
       },
       "GeneSetResponse": {
         "properties": {
@@ -9365,7 +9783,7 @@
             "title": "Autoretrieve",
             "default": true
           },
-          "sourceChatId": {
+          "sourceConversationId": {
             "anyOf": [
               {
                 "type": "string",
@@ -9375,7 +9793,7 @@
                 "type": "null"
               }
             ],
-            "title": "Sourcechatid"
+            "title": "Sourceconversationid"
           },
           "createdAt": {
             "type": "string",
@@ -9655,9 +10073,9 @@
         "title": "NegativeSetVariantResponse",
         "description": "Rank metrics evaluated with an alternative negative control set."
       },
-      "OpenStrategyRequest": {
+      "OpenConversationRequest": {
         "properties": {
-          "strategyId": {
+          "conversationId": {
             "anyOf": [
               {
                 "type": "string",
@@ -9667,7 +10085,7 @@
                 "type": "null"
               }
             ],
-            "title": "Strategyid"
+            "title": "Conversationid"
           },
           "wdkStrategyId": {
             "anyOf": [
@@ -9693,23 +10111,21 @@
           }
         },
         "type": "object",
-        "title": "OpenStrategyRequest",
-        "description": "Request to open a strategy."
+        "title": "OpenConversationRequest"
       },
-      "OpenStrategyResponse": {
+      "OpenConversationResponse": {
         "properties": {
-          "strategyId": {
+          "conversationId": {
             "type": "string",
             "format": "uuid",
-            "title": "Strategyid"
+            "title": "Conversationid"
           }
         },
         "type": "object",
         "required": [
-          "strategyId"
+          "conversationId"
         ],
-        "title": "OpenStrategyResponse",
-        "description": "Open strategy response."
+        "title": "OpenConversationResponse"
       },
       "OperatorComparisonResponse": {
         "properties": {
@@ -11647,7 +12063,7 @@
         "title": "ProviderStatus",
         "description": "Per-provider API-key availability."
       },
-      "PushStrategyRequest": {
+      "PushConversationRequest": {
         "properties": {
           "name": {
             "type": "string",
@@ -11681,8 +12097,7 @@
           "siteId",
           "plan"
         ],
-        "title": "PushStrategyRequest",
-        "description": "Request to push a strategy to WDK (persist + sync)."
+        "title": "PushConversationRequest"
       },
       "RankMetricsResponse": {
         "properties": {
@@ -12476,8 +12891,7 @@
           "siteId",
           "plan"
         ],
-        "title": "StepCountsRequest",
-        "description": "Request to compute step counts from a plan."
+        "title": "StepCountsRequest"
       },
       "StepCountsResponse": {
         "properties": {
@@ -12500,8 +12914,7 @@
         "required": [
           "counts"
         ],
-        "title": "StepCountsResponse",
-        "description": "Step counts keyed by local step ID."
+        "title": "StepCountsResponse"
       },
       "StepEvaluationResponse": {
         "properties": {
@@ -13198,198 +13611,6 @@
         ],
         "title": "StrategyPlanPayload",
         "description": "Canonical typed plan: the serialized graph state.\n\nUsed for API request/response, Redis persistence, and SSE events.\nNOT the AI planning artifact (see domain/strategy/plan.py:StrategyPlan)."
-      },
-      "StrategyResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "siteId": {
-            "type": "string",
-            "title": "Siteid"
-          },
-          "recordType": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Recordtype"
-          },
-          "steps": {
-            "items": {
-              "$ref": "#/components/schemas/StepResponse"
-            },
-            "type": "array",
-            "title": "Steps"
-          },
-          "rootStepId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rootstepid"
-          },
-          "wdkStrategyId": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Wdkstrategyid"
-          },
-          "isSaved": {
-            "type": "boolean",
-            "title": "Issaved",
-            "default": false
-          },
-          "pipeline": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/JSONObject"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "activePlan": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/JSONObject"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Createdat"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updatedat"
-          },
-          "stepCount": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stepcount"
-          },
-          "estimatedSize": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Estimatedsize"
-          },
-          "wdkUrl": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Wdkurl"
-          },
-          "geneSetId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Genesetid"
-          },
-          "experimentId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Experimentid"
-          },
-          "dismissedAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dismissedat"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "siteId",
-          "recordType",
-          "createdAt",
-          "updatedAt"
-        ],
-        "title": "StrategyResponse",
-        "description": "Unified strategy response \u2014 used for both list and detail views.\n\nList views: ``steps`` is ``[]``, ``stepCount``/``estimatedSize`` are populated.\nDetail views: ``steps`` is populated, summary fields may also be set."
       },
       "StreamPartsSchemaIndex": {
         "properties": {
@@ -14195,7 +14416,7 @@
         "title": "TrialProgressDataResponse",
         "description": "Progress data for a single optimization trial."
       },
-      "UpdateStrategyRequest": {
+      "UpdateConversationRequest": {
         "properties": {
           "name": {
             "anyOf": [
@@ -14244,8 +14465,7 @@
           }
         },
         "type": "object",
-        "title": "UpdateStrategyRequest",
-        "description": "Request to update a strategy."
+        "title": "UpdateConversationRequest"
       },
       "UpdatesEvent": {
         "properties": {
@@ -14369,6 +14589,37 @@
         ],
         "title": "ValidationResult",
         "description": "Single validation result with normalized values."
+      },
+      "_UIMessage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "parts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Parts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "role"
+        ],
+        "title": "_UIMessage"
       }
     },
     "securitySchemes": {

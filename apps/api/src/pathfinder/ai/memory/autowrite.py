@@ -14,7 +14,7 @@ from pathfinder.ai.memory.tombstones import (
     TombstoneRepository,
     compute_content_hash,
 )
-from pathfinder.persistence.models import Chat, Message
+from pathfinder.persistence.models import Conversation, Message
 from pathfinder.persistence.session import async_session_factory
 
 PREFERENCE_MIN_SUCCESSES = 3
@@ -75,7 +75,7 @@ def _collect_candidates(
     if state.active_plan is not None:
         candidates.append((
             _build_strategy_value(state),
-            f"strategy:{state.chat_id.hex}",
+            f"strategy:{state.conversation_id.hex}",
         ))
     candidates.extend(
         (_build_gene_set_value(state, gs_id), f"gene_set:{gs_id}")
@@ -91,7 +91,7 @@ def _build_strategy_value(state: PipelineState) -> MemoryValue:
         raise ValueError(msg)
     return MemoryValue(
         kind="strategy",
-        name=f"chat-{state.chat_id.hex[:8]}",
+        name=f"chat-{state.conversation_id.hex[:8]}",
         summary=_summarize_plan(state),
         tags=_plan_tags(state),
         site_id=state.site_id,
@@ -104,7 +104,7 @@ def _build_strategy_value(state: PipelineState) -> MemoryValue:
             ),
             "user_prompt": state.user_prompt,
         },
-        source_chat_id=state.chat_id,
+        source_conversation_id=state.conversation_id,
         created_at=datetime.now(UTC),
     )
 
@@ -113,11 +113,11 @@ def _build_gene_set_value(state: PipelineState, gs_id: str) -> MemoryValue:
     return MemoryValue(
         kind="gene_set",
         name=gs_id,
-        summary=f"Gene set {gs_id} created in chat-{state.chat_id.hex[:8]}",
+        summary=f"Gene set {gs_id} created in chat-{state.conversation_id.hex[:8]}",
         tags=[state.site_id] if state.site_id else [],
         site_id=state.site_id,
         content={"gene_set_id": gs_id},
-        source_chat_id=state.chat_id,
+        source_conversation_id=state.conversation_id,
         created_at=datetime.now(UTC),
     )
 
@@ -130,7 +130,7 @@ def _build_preference_value(state: PipelineState) -> MemoryValue:
         tags=[state.site_id] if state.site_id else [],
         site_id=state.site_id,
         content={"preferred_site": state.site_id},
-        source_chat_id=state.chat_id,
+        source_conversation_id=state.conversation_id,
         created_at=datetime.now(UTC),
     )
 
@@ -155,9 +155,9 @@ async def _check_verifications_threshold(
 ) -> bool:
     inner = (
         select(Message.id)
-        .join(Chat, Message.chat_id == Chat.id)
+        .join(Conversation, Message.conversation_id == Conversation.id)
         .where(
-            Chat.user_id == user_id,
+            Conversation.user_id == user_id,
             Message.role == "assistant",
             Message.metadata_["phase"].as_string() == "verification",
             Message.metadata_["turnCompleted"].as_boolean().is_(True),

@@ -22,7 +22,7 @@ test.describe("Auth", () => {
     await settingsPage.close();
 
     // API postcondition: real endpoints work
-    const strategiesResp = await apiClient.get("/api/v1/strategies");
+    const strategiesResp = await apiClient.get("/api/v1/conversations");
     expect(strategiesResp.ok()).toBeTruthy();
 
     const sitesResp = await apiClient.get("/api/v1/sites");
@@ -58,7 +58,7 @@ test.describe("Auth", () => {
     await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
 
     // API: get strategy count before reload
-    const beforeResp = await apiClient.get("/api/v1/strategies");
+    const beforeResp = await apiClient.get("/api/v1/conversations");
     expect(beforeResp.ok()).toBeTruthy();
     const beforeCount = (await beforeResp.json()).length;
 
@@ -76,7 +76,7 @@ test.describe("Auth", () => {
     await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
 
     // API: Same strategy count — no data loss
-    const afterResp = await apiClient.get("/api/v1/strategies");
+    const afterResp = await apiClient.get("/api/v1/conversations");
     expect(afterResp.ok()).toBeTruthy();
     expect((await afterResp.json()).length).toBe(beforeCount);
   });

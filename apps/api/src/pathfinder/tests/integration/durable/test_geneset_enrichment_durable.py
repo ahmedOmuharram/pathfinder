@@ -15,7 +15,7 @@ from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runner import run_durable_task
 from pathfinder.persistence.models import (
     BackgroundTask,
-    Chat,
+    Conversation,
     GeneSetRow,
     TaskProgress,
     User,
@@ -27,12 +27,12 @@ from pathfinder.persistence.session import async_session_factory
 from pathfinder.services.gene_sets.types import GeneSet
 
 
-async def _seed_user_chat(user_id: UUID, chat_id: UUID) -> None:
+async def _seed_user_chat(user_id: UUID, conversation_id: UUID) -> None:
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
         session.add(
-            Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name="")
+            Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name="")
         )
         await session.commit()
 
@@ -95,17 +95,17 @@ async def test_geneset_enrichment_impl_emits_progress(
     )
 
     user_id = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
     gs_id = uuid4().hex[:12]
-    await _seed_user_chat(user_id, chat_id)
+    await _seed_user_chat(user_id, conversation_id)
     await _seed_gene_set(gs_id, user_id, ["PF3D7_1", "PF3D7_2"])
 
     async with async_session_factory() as session:
         session.add(
             BackgroundTask(
                 id=task_id,
-                chat_id=chat_id,
+                conversation_id=conversation_id,
                 user_id=user_id,
                 tool_name="geneset_enrichment",
                 status="running",
@@ -117,7 +117,7 @@ async def test_geneset_enrichment_impl_emits_progress(
 
     progress = TaskProgressEmitter(
         task_id=task_id,
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         session_factory=async_session_factory,
     )
 
@@ -156,15 +156,15 @@ async def test_geneset_enrichment_impl_missing_gene_set(
 ) -> None:
     del db_cleaner, patch_app_db_engine
     user_id = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
     task_id = uuid4()
-    await _seed_user_chat(user_id, chat_id)
+    await _seed_user_chat(user_id, conversation_id)
 
     async with async_session_factory() as session:
         session.add(
             BackgroundTask(
                 id=task_id,
-                chat_id=chat_id,
+                conversation_id=conversation_id,
                 user_id=user_id,
                 tool_name="geneset_enrichment",
                 status="running",
@@ -176,7 +176,7 @@ async def test_geneset_enrichment_impl_missing_gene_set(
 
     progress = TaskProgressEmitter(
         task_id=task_id,
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         session_factory=async_session_factory,
     )
 
@@ -206,14 +206,14 @@ async def test_run_durable_task_wiring_geneset_enrichment(
     register_all_tools()
 
     user_id = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
     gs_id = uuid4().hex[:12]
-    await _seed_user_chat(user_id, chat_id)
+    await _seed_user_chat(user_id, conversation_id)
     await _seed_gene_set(gs_id, user_id, ["a", "b", "c"])
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         tool_name="geneset_enrichment",
         args={
@@ -226,7 +226,7 @@ async def test_run_durable_task_wiring_geneset_enrichment(
     await run_durable_task(
         tool_name="geneset_enrichment",
         task_id=str(task_id),
-        thread_id=str(chat_id),
+        thread_id=str(conversation_id),
         args={
             "args": [],
             "kwargs": {"gene_set_id": gs_id, "enrichment_types": ["word"]},

@@ -23,8 +23,8 @@ from pathfinder.services.experiment.types import (
     BatchOrganismTarget,
 )
 from pathfinder.transport.http.deps import (
-    ChatRepo,
     ControlSetRepo,
+    ConversationRepo,
     CurrentUser,
 )
 from pathfinder.transport.http.schemas.experiments import (
@@ -159,7 +159,7 @@ async def create_benchmark(
 )
 async def seed_strategies(
     user_id: CurrentUser,
-    chat_repo: ChatRepo,
+    conv_repo: ConversationRepo,
     control_set_repo: ControlSetRepo,
     site_id: str | None = None,
 ) -> StreamingResponse:
@@ -172,7 +172,7 @@ async def seed_strategies(
         try:
             async for event in run_seed(
                 user_id=user_id,
-                chat_repo=chat_repo,
+                conv_repo=conv_repo,
                 control_set_repo=control_set_repo,
                 site_id=site_id,
             ):

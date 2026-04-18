@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from pathfinder.persistence.models import Chat, User
+from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
@@ -17,15 +17,15 @@ async def test_create_mark_transitions(
 ) -> None:
     del db_cleaner, patch_app_db_engine
     user_id = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
     async with async_session_factory() as session:
         session.add(User(id=user_id))
-        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.commit()
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         tool_name="test",
         args={"kwargs": {}},
@@ -61,15 +61,15 @@ async def test_mark_failed(
 ) -> None:
     del db_cleaner, patch_app_db_engine
     user_id = uuid4()
-    chat_id = uuid4()
+    conversation_id = uuid4()
     async with async_session_factory() as session:
         session.add(User(id=user_id))
-        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.commit()
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         tool_name="test",
         args={},

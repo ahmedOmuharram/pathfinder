@@ -11,7 +11,7 @@ from pathfinder.ai.memory.autowrite import auto_write_memories
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.memory.tombstones import TombstoneRepository
-from pathfinder.persistence.models import Chat, Message, User
+from pathfinder.persistence.models import Conversation, Message, User
 from pathfinder.persistence.session import async_session_factory
 
 
@@ -29,13 +29,13 @@ async def test_preferences_autowrite_only_after_three_successes(
         for i in range(3):
             cid = uuid4()
             session.add(
-                Chat(id=cid, user_id=user_id, site_id="plasmodb", name=f"old-{i}")
+                Conversation(id=cid, user_id=user_id, site_id="plasmodb", name=f"old-{i}")
             )
             await session.flush()
             session.add(
                 Message(
                     id=uuid4(),
-                    chat_id=cid,
+                    conversation_id=cid,
                     role="assistant",
                     parts=[],
                     metadata_={
@@ -48,7 +48,7 @@ async def test_preferences_autowrite_only_after_three_successes(
         await session.commit()
 
     state = PipelineState(
-        chat_id=uuid4(),
+        conversation_id=uuid4(),
         user_id=user_id,
         site_id="plasmodb",
         mode="strategy",
@@ -79,13 +79,13 @@ async def test_preferences_not_written_with_fewer_than_three_successes(
         for i in range(2):
             cid = uuid4()
             session.add(
-                Chat(id=cid, user_id=user_id, site_id="plasmodb", name=f"old-{i}")
+                Conversation(id=cid, user_id=user_id, site_id="plasmodb", name=f"old-{i}")
             )
             await session.flush()
             session.add(
                 Message(
                     id=uuid4(),
-                    chat_id=cid,
+                    conversation_id=cid,
                     role="assistant",
                     parts=[],
                     metadata_={
@@ -98,7 +98,7 @@ async def test_preferences_not_written_with_fewer_than_three_successes(
         await session.commit()
 
     state = PipelineState(
-        chat_id=uuid4(),
+        conversation_id=uuid4(),
         user_id=user_id,
         site_id="plasmodb",
         mode="strategy",

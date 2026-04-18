@@ -18,11 +18,11 @@ setup("authenticate via dev-login", async ({ page }) => {
 
   // 3. Clean up stale data from previous test runs so we start fresh.
   const req = page.context().request;
-  const strategiesResp = await req.get(`${baseURL}/api/v1/strategies`);
+  const strategiesResp = await req.get(`${baseURL}/api/v1/conversations`);
   if (strategiesResp.ok()) {
     const strategies = (await strategiesResp.json()) as { id: string }[];
     await Promise.all(
-      strategies.map((s) => req.delete(`${baseURL}/api/v1/strategies/${s.id}`)),
+      strategies.map((s) => req.delete(`${baseURL}/api/v1/conversations/${s.id}`)),
     );
   }
   const geneSetsResp = await req.get(`${baseURL}/api/v1/gene-sets`);

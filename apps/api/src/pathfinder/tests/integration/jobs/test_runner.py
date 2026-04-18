@@ -9,7 +9,7 @@ import pytest
 from pathfinder.ai.tools.durable import TaskProgressEmitter
 from pathfinder.jobs.registry import TOOL_REGISTRY, register_tool
 from pathfinder.jobs.runner import run_durable_task
-from pathfinder.persistence.models import Chat, User
+from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
@@ -24,13 +24,13 @@ def _clean_tool_registry() -> AsyncIterator[None]:
     TOOL_REGISTRY.update(before)
 
 
-async def _ensure_user_and_chat(user_id: UUID, chat_id: UUID) -> None:
+async def _ensure_user_and_chat(user_id: UUID, conversation_id: UUID) -> None:
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
         session.add(
-            Chat(
-                id=chat_id,
+            Conversation(
+                id=conversation_id,
                 user_id=user_id,
                 site_id="plasmodb",
                 name="",
@@ -63,12 +63,12 @@ async def test_runner_executes_tool_and_marks_complete(
     register_tool("test_echo", _echo_impl)
 
     user_id = uuid4()
-    chat_id = uuid4()
-    await _ensure_user_and_chat(user_id, chat_id)
+    conversation_id = uuid4()
+    await _ensure_user_and_chat(user_id, conversation_id)
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         tool_name="test_echo",
         args={"args": [], "kwargs": {"value": 42}},
@@ -78,7 +78,7 @@ async def test_runner_executes_tool_and_marks_complete(
     await run_durable_task(
         tool_name="test_echo",
         task_id=str(task_id),
-        thread_id=str(chat_id),
+        thread_id=str(conversation_id),
         args={"args": [], "kwargs": {"value": 42}},
     )
 
@@ -110,12 +110,12 @@ async def test_runner_marks_failed_on_exception(
     register_tool("test_boom", _boom_impl)
 
     user_id = uuid4()
-    chat_id = uuid4()
-    await _ensure_user_and_chat(user_id, chat_id)
+    conversation_id = uuid4()
+    await _ensure_user_and_chat(user_id, conversation_id)
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         tool_name="test_boom",
         args={"args": [], "kwargs": {}},
@@ -125,7 +125,7 @@ async def test_runner_marks_failed_on_exception(
     await run_durable_task(
         tool_name="test_boom",
         task_id=str(task_id),
-        thread_id=str(chat_id),
+        thread_id=str(conversation_id),
         args={"args": [], "kwargs": {}},
     )
 
@@ -143,12 +143,12 @@ async def test_runner_marks_failed_when_tool_unknown(
     del db_cleaner, patch_app_db_engine
 
     user_id = uuid4()
-    chat_id = uuid4()
-    await _ensure_user_and_chat(user_id, chat_id)
+    conversation_id = uuid4()
+    await _ensure_user_and_chat(user_id, conversation_id)
 
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
     task_id = await repo.create(
-        chat_id=chat_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         tool_name="nonexistent_tool",
         args={"args": [], "kwargs": {}},
@@ -158,7 +158,7 @@ async def test_runner_marks_failed_when_tool_unknown(
     await run_durable_task(
         tool_name="nonexistent_tool",
         task_id=str(task_id),
-        thread_id=str(chat_id),
+        thread_id=str(conversation_id),
         args={"args": [], "kwargs": {}},
     )
 

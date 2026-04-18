@@ -40,7 +40,7 @@ async def get_evaluation_summary(
     """Classification metrics, confusion counts, and sample gene IDs."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Chat has no associated experiment")
+        return WorkbenchError(error="Conversation has no associated experiment")
     if not exp.metrics:
         return WorkbenchError(error="Experiment has no evaluation metrics yet")
 
@@ -68,7 +68,7 @@ async def get_enrichment_results(
     """GO term, pathway, and word enrichment for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Chat has no associated experiment")
+        return WorkbenchError(error="Conversation has no associated experiment")
     if not exp.enrichment_results:
         return WorkbenchError(
             error="No enrichment results available for this experiment"
@@ -86,7 +86,7 @@ async def get_confidence_scores(
     """Cross-validation confidence scores for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Chat has no associated experiment")
+        return WorkbenchError(error="Conversation has no associated experiment")
     if not exp.cross_validation:
         return WorkbenchError(
             error="No cross-validation results available for this experiment"
@@ -101,7 +101,7 @@ async def get_step_contributions(
     """Per-step recall/FPR deltas and verdict for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Chat has no associated experiment")
+        return WorkbenchError(error="Conversation has no associated experiment")
     if not exp.step_analysis:
         return WorkbenchError(
             error="No step analysis available for this experiment"
@@ -119,7 +119,7 @@ async def get_experiment_config(
     """Experiment configuration, status, and WDK strategy/step IDs."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Chat has no associated experiment")
+        return WorkbenchError(error="Conversation has no associated experiment")
 
     return ExperimentConfigResult(
         config=exp.config,
@@ -138,7 +138,7 @@ async def get_ensemble_analysis(
     """Full ensemble step analysis for the current experiment."""
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Chat has no associated experiment")
+        return WorkbenchError(error="Conversation has no associated experiment")
     if not exp.step_analysis:
         return WorkbenchError(
             error="No step analysis available for this experiment"
@@ -167,7 +167,7 @@ async def get_result_gene_lists(
 
     exp = await _get_experiment(ctx)
     if not exp:
-        return WorkbenchError(error="Chat has no associated experiment")
+        return WorkbenchError(error="Conversation has no associated experiment")
 
     gene_list = {
         "tp": exp.true_positive_genes,

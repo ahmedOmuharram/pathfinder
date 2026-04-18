@@ -248,6 +248,14 @@ class ExportService:
         content = json.dumps(data, indent=2, default=str).encode("utf-8")
         return await self._store(content, f"{name_part}.json", "application/json")
 
+    async def export_markdown(self, markdown: str, name: str) -> ExportResult:
+        """Export a markdown string as a .md file."""
+        name_part = _sanitize_filename(name or "export")
+        content = markdown.encode("utf-8")
+        return await self._store(
+            content, f"{name_part}.md", "text/markdown; charset=utf-8",
+        )
+
     async def export_experiment_results(
         self, experiment: Experiment, output_format: Literal["csv", "tsv"]
     ) -> ExportResult:

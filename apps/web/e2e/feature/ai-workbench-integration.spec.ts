@@ -30,7 +30,7 @@ test.describe("AI Workbench Integration", () => {
     // API: Strategy persisted — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(fullResp.ok()).toBeTruthy();
     const full = await fullResp.json();
     expect(full.messages).toBeDefined();
@@ -60,7 +60,7 @@ test.describe("AI Workbench Integration", () => {
     // API: Strategy with steps persisted — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(fullResp.ok()).toBeTruthy();
     const full = await fullResp.json();
     expect(full.steps.length).toBeGreaterThan(0);

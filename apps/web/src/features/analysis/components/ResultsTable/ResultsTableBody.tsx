@@ -1,130 +1,102 @@
 import { ChevronDown, ChevronUp, ArrowUpDown, Loader2 } from "lucide-react";
-import type { WdkSortDir } from "@/features/analysis/constants";
-import type { RecordAttribute, RecordDetail, WdkRecord } from "@/lib/types/wdk";
-import { getPrimaryKey } from "./ResultsTableColumns";
+import { flexRender, type Header, type Table } from "@tanstack/react-table";
+import type { RecordDetail, WdkRecord } from "@/lib/types/wdk";
 import { RecordRow } from "./RecordRow";
 
-/* ------------------------------------------------------------------ */
-/*  Public types                                                       */
-/* ------------------------------------------------------------------ */
-
 interface ResultsTableBodyProps {
-  records: WdkRecord[];
-  orderedColumns: RecordAttribute[];
-  hasClassification: boolean;
+  table: Table<WdkRecord>;
   loading: boolean;
-
-  sortColumn: string | null;
-  sortDir: WdkSortDir;
-  onSort: (colName: string) => void;
-
-  expandedKey: string | null;
   detail: RecordDetail | null;
   detailError: string | null;
   detailLoading: boolean;
-  onExpandRow: (key: string, recordId: WdkRecord["id"]) => void;
+  onExpandRow: (row: WdkRecord, expand: boolean) => void;
 }
 
-/* ------------------------------------------------------------------ */
-/*  ResultsTableBody                                                   */
-/* ------------------------------------------------------------------ */
+function SortIcon({ header }: { header: Header<WdkRecord, unknown> }) {
+  const dir = header.column.getIsSorted();
+  if (dir === "asc") return <ChevronUp className="h-3 w-3" />;
+  if (dir === "desc") return <ChevronDown className="h-3 w-3" />;
+  return <ArrowUpDown className="h-3 w-3 opacity-40" />;
+}
 
 export function ResultsTableBody({
-  records,
-  orderedColumns,
-  hasClassification,
+  table,
   loading,
-  sortColumn,
-  sortDir,
-  onSort,
-  expandedKey,
   detail,
   detailError,
   detailLoading,
   onExpandRow,
 }: ResultsTableBodyProps) {
+  const headerGroups = table.getHeaderGroups();
+  const rows = table.getRowModel().rows;
+  const columnCount = table.getVisibleLeafColumns().length + 1;
+
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-border bg-muted/50">
-            {hasClassification && (
-              <th className="whitespace-nowrap px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Class
-              </th>
-            )}
-            {orderedColumns.map((col) => (
-              <th key={col.name} className="whitespace-nowrap px-4 py-2.5">
-                {col.isSortable !== false ? (
-                  <button
-                    type="button"
-                    onClick={() => onSort(col.name)}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+          {headerGroups.map((headerGroup) => (
+            <tr key={headerGroup.id} className="border-b border-border bg-muted/50">
+              {headerGroup.headers.map((header) => {
+                const canSort = header.column.getCanSort();
+                return (
+                  <th
+                    key={header.id}
+                    className="whitespace-nowrap px-4 py-2.5"
                   >
-                    {col.displayName}
-                    {sortColumn === col.name ? (
-                      sortDir === "ASC" ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" />
-                      )
+                    {canSort ? (
+                      <button
+                        type="button"
+                        onClick={header.column.getToggleSortingHandler()}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        <SortIcon header={header} />
+                      </button>
                     ) : (
-                      <ArrowUpDown className="h-3 w-3 opacity-40" />
+                      <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                      </span>
                     )}
-                  </button>
-                ) : (
-                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    {col.displayName}
-                  </span>
-                )}
-              </th>
-            ))}
-            <th className="w-8 px-2" />
-          </tr>
+                  </th>
+                );
+              })}
+              <th className="w-8 px-2" />
+            </tr>
+          ))}
         </thead>
         <tbody className="divide-y divide-border">
-          {loading && records.length === 0 ? (
+          {loading && rows.length === 0 ? (
             <tr>
-              <td
-                colSpan={orderedColumns.length + (hasClassification ? 1 : 0) + 1}
-                className="py-16 text-center"
-              >
+              <td colSpan={columnCount} className="py-16 text-center">
                 <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
               </td>
             </tr>
-          ) : records.length === 0 ? (
+          ) : rows.length === 0 ? (
             <tr>
               <td
-                colSpan={orderedColumns.length + (hasClassification ? 1 : 0) + 1}
+                colSpan={columnCount}
                 className="py-16 text-center text-sm text-muted-foreground"
               >
                 No records found.
               </td>
             </tr>
           ) : (
-            records.map((record) => {
-              const pk = getPrimaryKey(record);
-              const isExpanded = expandedKey === pk;
-              return (
-                <RecordRow
-                  key={pk}
-                  record={record}
-                  pk={pk}
-                  columns={orderedColumns}
-                  hasClassification={hasClassification}
-                  isExpanded={isExpanded}
-                  detail={isExpanded ? detail : null}
-                  detailError={isExpanded ? detailError : null}
-                  detailLoading={isExpanded && detailLoading}
-                  onToggle={() => onExpandRow(pk, record.id)}
-                />
-              );
-            })
+            rows.map((row) => (
+              <RecordRow
+                key={row.id}
+                row={row}
+                detail={row.getIsExpanded() ? detail : null}
+                detailError={row.getIsExpanded() ? detailError : null}
+                detailLoading={row.getIsExpanded() && detailLoading}
+                onToggle={() => onExpandRow(row.original, !row.getIsExpanded())}
+              />
+            ))
           )}
         </tbody>
       </table>
 
-      {loading && records.length > 0 && (
+      {loading && rows.length > 0 && (
         <div className="flex items-center justify-center border-t border-border bg-muted/30 py-2">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>

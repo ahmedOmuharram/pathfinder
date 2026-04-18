@@ -15,7 +15,7 @@ from pathfinder.jobs.impls import optimize_params_impl
 from pathfinder.jobs.impls.optimize_params_impl import VariantSpec
 from pathfinder.persistence.models import (
     BackgroundTask,
-    Chat,
+    Conversation,
     TaskProgress,
     User,
 )
@@ -40,17 +40,17 @@ class _FakeContext:
 
 
 async def _seed_user_chat_task(
-    user_id: UUID, chat_id: UUID, task_id: UUID
+    user_id: UUID, conversation_id: UUID, task_id: UUID
 ) -> None:
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
-        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.flush()
         session.add(
             BackgroundTask(
                 id=task_id,
-                chat_id=chat_id,
+                conversation_id=conversation_id,
                 user_id=user_id,
                 tool_name="optimize_search_parameters",
                 status="running",
@@ -117,13 +117,13 @@ def run_impl(
         *, variants_count: int, max_parallel: int | None = None
     ) -> dict[str, Any]:
         user_id = uuid4()
-        chat_id = uuid4()
+        conversation_id = uuid4()
         task_id = uuid4()
-        await _seed_user_chat_task(user_id, chat_id, task_id)
+        await _seed_user_chat_task(user_id, conversation_id, task_id)
 
         progress = TaskProgressEmitter(
             task_id=task_id,
-            chat_id=chat_id,
+            conversation_id=conversation_id,
             session_factory=async_session_factory,
         )
         # A categorical with N choices yields N variants in the Cartesian grid.

@@ -8,7 +8,12 @@ import pytest
 from sqlalchemy import func, select
 
 from pathfinder.ai.tools.durable import TaskProgressEmitter
-from pathfinder.persistence.models import BackgroundTask, Chat, TaskProgress, User
+from pathfinder.persistence.models import (
+    BackgroundTask,
+    Conversation,
+    TaskProgress,
+    User,
+)
 from pathfinder.persistence.session import async_session_factory
 
 
@@ -17,20 +22,20 @@ async def test_batched_emitter_flushes_on_batch_full(
     db_cleaner: None, patch_app_db_engine: None,
 ) -> None:
     del db_cleaner, patch_app_db_engine
-    user_id, chat_id, task_id = uuid4(), uuid4(), uuid4()
+    user_id, conversation_id, task_id = uuid4(), uuid4(), uuid4()
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
-        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.flush()
         session.add(BackgroundTask(
-            id=task_id, chat_id=chat_id, user_id=user_id, tool_name="t",
+            id=task_id, conversation_id=conversation_id, user_id=user_id, tool_name="t",
             status="running", args={}, estimated_duration_seconds=30,
         ))
         await session.commit()
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, chat_id=chat_id, session_factory=async_session_factory,
+        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory,
         batch_size=4, max_flush_interval_seconds=99.0,
     )
 
@@ -59,20 +64,20 @@ async def test_aclose_flushes_residual(
     db_cleaner: None, patch_app_db_engine: None,
 ) -> None:
     del db_cleaner, patch_app_db_engine
-    user_id, chat_id, task_id = uuid4(), uuid4(), uuid4()
+    user_id, conversation_id, task_id = uuid4(), uuid4(), uuid4()
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
-        session.add(Chat(id=chat_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
         await session.flush()
         session.add(BackgroundTask(
-            id=task_id, chat_id=chat_id, user_id=user_id, tool_name="t",
+            id=task_id, conversation_id=conversation_id, user_id=user_id, tool_name="t",
             status="running", args={}, estimated_duration_seconds=30,
         ))
         await session.commit()
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, chat_id=chat_id, session_factory=async_session_factory,
+        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory,
         batch_size=8, max_flush_interval_seconds=99.0,
     )
     await emitter.update(percent=0.5, message="only one")

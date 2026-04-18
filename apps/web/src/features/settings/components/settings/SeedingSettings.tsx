@@ -5,8 +5,9 @@
  */
 
 import { useState } from "react";
-import { useSessionStore } from "@/state/useSessionStore";
+import { useQueryClient } from "@tanstack/react-query";
 import { seedExperiments } from "@/lib/api/experiments";
+import { invalidateUserScopedQueries } from "@/lib/query/invalidateUserScoped";
 import Image from "next/image";
 import { Loader2, FlaskConical } from "lucide-react";
 import { SettingsField } from "./SettingsField";
@@ -61,7 +62,7 @@ const SEED_DATABASES = [
 ] as const;
 
 export function SeedingSettings() {
-  const bumpAuthVersion = useSessionStore((s) => s.bumpAuthVersion);
+  const queryClient = useQueryClient();
 
   const [seedingDb, setSeedingDb] = useState<string | null>(null);
   const [seedStatus, setSeedStatus] = useState<string | null>(null);
@@ -75,7 +76,7 @@ export function SeedingSettings() {
       setSeedStatus(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setSeedingDb(null);
-      bumpAuthVersion();
+      invalidateUserScopedQueries(queryClient);
     }
   };
 

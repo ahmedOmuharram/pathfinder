@@ -40,7 +40,7 @@ export class ChatPage {
       .catch(() => "veupathdb");
 
     const strategyCreated = await this.page.context().request.post(
-      `${baseUrl}/api/v1/strategies/open`,
+      `${baseUrl}/api/v1/conversations/open`,
       {
         data: { siteId: selectedSite !== "" ? selectedSite : "veupathdb" },
         headers: { "X-Requested-With": "XMLHttpRequest" },

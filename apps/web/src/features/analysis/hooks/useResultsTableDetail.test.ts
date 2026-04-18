@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import type { RecordDetail, WdkRecord } from "@/lib/types/wdk";
 import { createTestWrapper } from "@/lib/query/testing";
 
@@ -22,16 +22,25 @@ describe("useResultsTableDetail", () => {
     vi.clearAllMocks();
   });
 
-  it("starts with no expanded row", () => {
+  it("does not fetch when expandedKey is null", () => {
     const { Wrapper } = createTestWrapper();
-    const { result } = renderHook(() => useResultsTableDetail(entityRef), { wrapper: Wrapper });
-    expect(result.current.expandedKey).toBeNull();
+    const { result } = renderHook(
+      () =>
+        useResultsTableDetail({
+          entityRef,
+          expandedKey: null,
+          recordId: null,
+        }),
+      { wrapper: Wrapper },
+    );
+
     expect(result.current.detail).toBeNull();
     expect(result.current.detailError).toBeNull();
     expect(result.current.detailLoading).toBe(false);
+    expect(mockGetRecordDetail).not.toHaveBeenCalled();
   });
 
-  it("expands a row and fetches detail", async () => {
+  it("fetches detail when expandedKey and recordId are set", async () => {
     const detail: RecordDetail = {
       displayName: "G1",
       id: [{ name: "source_id", value: "G1" }],
@@ -45,63 +54,38 @@ describe("useResultsTableDetail", () => {
 
     const recordId: WdkRecord["id"] = [{ name: "source_id", value: "G1" }];
     const { Wrapper } = createTestWrapper();
-    const { result } = renderHook(() => useResultsTableDetail(entityRef), { wrapper: Wrapper });
-
-    await act(async () => {
-      result.current.handleExpandRow("row-1", recordId);
-    });
+    const { result } = renderHook(
+      () =>
+        useResultsTableDetail({
+          entityRef,
+          expandedKey: "row-1",
+          recordId,
+        }),
+      { wrapper: Wrapper },
+    );
 
     await waitFor(() => {
       expect(result.current.detailLoading).toBe(false);
     });
 
-    expect(result.current.expandedKey).toBe("row-1");
     expect(result.current.detail).toEqual(detail);
     expect(result.current.detailError).toBeNull();
   });
 
-  it("collapses when clicking the same row", async () => {
-    const detail: RecordDetail = {
-      displayName: "G1",
-      id: [{ name: "source_id", value: "G1" }],
-      recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",
-      attributes: { gene_id: "G1" },
-      attributeNames: { gene_id: "Gene ID" },
-      tables: {},
-      tableErrors: [],
-    };
-    mockGetRecordDetail.mockResolvedValueOnce(detail);
-
-    const recordId: WdkRecord["id"] = [{ name: "source_id", value: "G1" }];
-    const { Wrapper } = createTestWrapper();
-    const { result } = renderHook(() => useResultsTableDetail(entityRef), { wrapper: Wrapper });
-
-    await act(async () => {
-      result.current.handleExpandRow("row-1", recordId);
-    });
-
-    await waitFor(() => {
-      expect(result.current.expandedKey).toBe("row-1");
-    });
-
-    act(() => {
-      result.current.handleExpandRow("row-1", recordId);
-    });
-
-    expect(result.current.expandedKey).toBeNull();
-    expect(result.current.detail).toBeNull();
-  });
-
-  it("shows error when detail fetch fails", async () => {
+  it("reports error when detail fetch fails", async () => {
     mockGetRecordDetail.mockRejectedValueOnce(new Error("server error"));
 
     const recordId: WdkRecord["id"] = [{ name: "source_id", value: "G1" }];
     const { Wrapper } = createTestWrapper();
-    const { result } = renderHook(() => useResultsTableDetail(entityRef), { wrapper: Wrapper });
-
-    await act(async () => {
-      result.current.handleExpandRow("row-1", recordId);
-    });
+    const { result } = renderHook(
+      () =>
+        useResultsTableDetail({
+          entityRef,
+          expandedKey: "row-1",
+          recordId,
+        }),
+      { wrapper: Wrapper },
+    );
 
     await waitFor(() => {
       expect(result.current.detailLoading).toBe(false);

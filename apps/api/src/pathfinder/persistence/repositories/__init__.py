@@ -1,14 +1,14 @@
 """Per-domain repository modules."""
 
-from .chat import ChatRepository, ChatUpdate
 from .control_set import ControlSetRepository
+from .conversation import ConversationRepository, ConversationUpdate
 from .message import MessagesRepository
 from .user import UserRepository
 
 __all__ = [
-    "ChatRepository",
-    "ChatUpdate",
     "ControlSetRepository",
+    "ConversationRepository",
+    "ConversationUpdate",
     "MessagesRepository",
     "UserRepository",
 ]

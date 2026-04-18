@@ -56,7 +56,7 @@ from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
 import pathfinder.persistence.session as session_module
-from pathfinder.ai.chat.checkpointer import to_psycopg_url
+from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.main import create_app
@@ -275,7 +275,7 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
     async with db_engine.begin() as conn:
         await conn.exec_driver_sql(
             "TRUNCATE TABLE "
-            "checkpoint_labels, messages, chats, exports, "
+            "checkpoint_labels, messages, conversations, exports, "
             "experiments, gene_sets, control_sets, users "
             "RESTART IDENTITY CASCADE"
         )

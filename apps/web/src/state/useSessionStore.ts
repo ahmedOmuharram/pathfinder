@@ -21,17 +21,11 @@ interface SessionState {
   strategyId: string | null;
   /** Maps siteId -> last-used strategyId for cross-site restore. */
   strategyBySite: Record<string, string>;
-  veupathdbSignedIn: boolean;
-  veupathdbName: string | null;
   chatIsStreaming: boolean;
 
   chatPreviewVersion: number;
   pendingAskNode: NodeSelection | null;
   composerPrefill: { message: string } | null;
-
-  authRefreshed: boolean;
-  authStatusKnown: boolean;
-  authVersion: number;
 
   // Stream-derived session state (from chat data-* parts)
   problemFrame: ProblemFramePart | null;
@@ -43,16 +37,11 @@ interface SessionState {
   switchSite: (siteId: string) => void;
   setSelectedSiteInfo: (siteId: string, displayName: string) => void;
   setStrategyId: (id: string | null) => void;
-  setVeupathdbAuth: (signedIn: boolean, name?: string | null) => void;
   setChatIsStreaming: (value: boolean) => void;
 
   bumpChatPreviewVersion: () => void;
-  bumpAuthVersion: () => void;
   setPendingAskNode: (payload: NodeSelection | null) => void;
   setComposerPrefill: (payload: { message: string } | null) => void;
-  setAuthRefreshed: (value: boolean) => void;
-  setAuthStatusKnown: (value: boolean) => void;
-  forceSignOut: () => void;
 
   // Stream-derived session setters (from chat data-* parts)
   setProblemFrame: (frame: ProblemFramePart) => void;
@@ -67,16 +56,11 @@ export const useSessionStore = createPersistedStore<SessionState>(
     selectedSiteDisplayName: "VEuPathDB",
     strategyId: null,
     strategyBySite: {},
-    veupathdbSignedIn: false,
-    veupathdbName: null,
     chatIsStreaming: false,
 
     chatPreviewVersion: 0,
     pendingAskNode: null,
     composerPrefill: null,
-    authRefreshed: false,
-    authStatusKnown: false,
-    authVersion: 0,
 
     problemFrame: null,
     lastGeneSet: null,
@@ -124,32 +108,15 @@ export const useSessionStore = createPersistedStore<SessionState>(
       });
     },
 
-    setVeupathdbAuth: (signedIn, name = null) =>
-      set((s) =>
-        s.veupathdbSignedIn === signedIn && s.veupathdbName === name
-          ? s
-          : { veupathdbSignedIn: signedIn, veupathdbName: name },
-      ),
     setChatIsStreaming: (value) =>
       set((s) => (s.chatIsStreaming === value ? s : { chatIsStreaming: value })),
 
     bumpChatPreviewVersion: () =>
       set((s) => ({ chatPreviewVersion: s.chatPreviewVersion + 1 })),
-    bumpAuthVersion: () => set((s) => ({ authVersion: s.authVersion + 1 })),
     setPendingAskNode: (payload) =>
       set((s) => (s.pendingAskNode === payload ? s : { pendingAskNode: payload })),
     setComposerPrefill: (payload) =>
       set((s) => (s.composerPrefill === payload ? s : { composerPrefill: payload })),
-    setAuthRefreshed: (value) =>
-      set((s) => (s.authRefreshed === value ? s : { authRefreshed: value })),
-    setAuthStatusKnown: (value) =>
-      set((s) => (s.authStatusKnown === value ? s : { authStatusKnown: value })),
-    forceSignOut: () =>
-      set({
-        veupathdbSignedIn: false,
-        veupathdbName: null,
-        authRefreshed: false,
-      }),
 
     setProblemFrame: (frame) => set({ problemFrame: frame }),
     recordGeneSet: (geneSet) => set({ lastGeneSet: geneSet }),

@@ -38,7 +38,7 @@ test.describe("User Data Purge", () => {
     await expect(page.getByRole("dialog")).not.toBeVisible({ timeout: 10_000 });
 
     // Verify data exists
-    const beforeStrategies = await apiClient.get("/api/v1/strategies?siteId=plasmodb");
+    const beforeStrategies = await apiClient.get("/api/v1/conversations?siteId=plasmodb");
     expect((await beforeStrategies.json()).length).toBeGreaterThan(0);
     const beforeGeneSets = await apiClient.get("/api/v1/gene-sets?siteId=plasmodb");
     expect((await beforeGeneSets.json()).length).toBeGreaterThan(0);
@@ -52,7 +52,7 @@ test.describe("User Data Purge", () => {
     expect(result.deleted.geneSets).toBeGreaterThan(0);
 
     // Verify data is gone
-    const afterStrategies = await apiClient.get("/api/v1/strategies?siteId=plasmodb");
+    const afterStrategies = await apiClient.get("/api/v1/conversations?siteId=plasmodb");
     expect((await afterStrategies.json()).length).toBe(0);
     const afterGeneSets = await apiClient.get("/api/v1/gene-sets?siteId=plasmodb");
     expect((await afterGeneSets.json()).length).toBe(0);
@@ -77,9 +77,9 @@ test.describe("User Data Purge", () => {
     await chatPage.expectAssistantMessage(/\[mock\]/);
 
     // Verify data on both sites
-    const plasmo = await apiClient.get("/api/v1/strategies?siteId=plasmodb");
+    const plasmo = await apiClient.get("/api/v1/conversations?siteId=plasmodb");
     expect((await plasmo.json()).length).toBeGreaterThan(0);
-    const toxo = await apiClient.get("/api/v1/strategies?siteId=toxodb");
+    const toxo = await apiClient.get("/api/v1/conversations?siteId=toxodb");
     expect((await toxo.json()).length).toBeGreaterThan(0);
 
     // Purge ALL (no siteId)
@@ -90,9 +90,9 @@ test.describe("User Data Purge", () => {
     expect(result.deleted.strategies).toBeGreaterThanOrEqual(2);
 
     // Both sites empty (active list)
-    const afterPlasmo = await apiClient.get("/api/v1/strategies?siteId=plasmodb");
+    const afterPlasmo = await apiClient.get("/api/v1/conversations?siteId=plasmodb");
     expect((await afterPlasmo.json()).length).toBe(0);
-    const afterToxo = await apiClient.get("/api/v1/strategies?siteId=toxodb");
+    const afterToxo = await apiClient.get("/api/v1/conversations?siteId=toxodb");
     expect((await afterToxo.json()).length).toBe(0);
 
     // Sync-wdk should NOT re-import dismissed strategies into the active list.
@@ -100,7 +100,7 @@ test.describe("User Data Purge", () => {
     // must be skipped by the sync — no new active strategies should appear.
     for (const siteId of ["plasmodb", "toxodb"]) {
       const syncResp = await apiClient.post(
-        `/api/v1/strategies/sync-wdk?siteId=${siteId}`,
+        `/api/v1/conversations/sync-wdk?siteId=${siteId}`,
       );
       if (syncResp.ok()) {
         const synced = (await syncResp.json()) as unknown[];
@@ -131,7 +131,7 @@ test.describe("User Data Purge", () => {
     expect(seedBody).toContain("seed_complete");
 
     // Verify: strategies exist
-    const beforeStrategies = await apiClient.get("/api/v1/strategies");
+    const beforeStrategies = await apiClient.get("/api/v1/conversations");
     const beforeList = (await beforeStrategies.json()) as unknown[];
     expect(beforeList.length).toBeGreaterThan(0);
     const strategiesBefore = beforeList.length;
@@ -144,7 +144,7 @@ test.describe("User Data Purge", () => {
     // Verify: strategies exist on multiple sites (not just one)
     let sitesWithStrategies = 0;
     for (const siteId of allSiteIds) {
-      const resp = await apiClient.get(`/api/v1/strategies?siteId=${siteId}`);
+      const resp = await apiClient.get(`/api/v1/conversations?siteId=${siteId}`);
       if (resp.ok() && ((await resp.json()) as unknown[]).length > 0) {
         sitesWithStrategies++;
       }
@@ -170,7 +170,7 @@ test.describe("User Data Purge", () => {
     expect(result.deleted.wdkStrategies).toBeGreaterThan(0);
 
     // Verify: ALL local strategies gone
-    const afterStrategies = await apiClient.get("/api/v1/strategies");
+    const afterStrategies = await apiClient.get("/api/v1/conversations");
     expect(((await afterStrategies.json()) as unknown[]).length).toBe(0);
 
     // Verify: ALL gene sets gone
@@ -178,7 +178,7 @@ test.describe("User Data Purge", () => {
     expect(((await afterGs.json()) as unknown[]).length).toBe(0);
 
     // Verify: dismissed list empty
-    const afterDismissed = await apiClient.get("/api/v1/strategies/dismissed");
+    const afterDismissed = await apiClient.get("/api/v1/conversations/dismissed");
     if (afterDismissed.ok()) {
       expect(((await afterDismissed.json()) as unknown[]).length).toBe(0);
     }
@@ -187,7 +187,7 @@ test.describe("User Data Purge", () => {
     // This catches strategies surviving on WDK after purge.
     for (const siteId of allSiteIds) {
       const syncResp = await apiClient.post(
-        `/api/v1/strategies/sync-wdk?siteId=${siteId}`,
+        `/api/v1/conversations/sync-wdk?siteId=${siteId}`,
       );
       if (syncResp.ok()) {
         const synced = (await syncResp.json()) as unknown[];
@@ -200,7 +200,7 @@ test.describe("User Data Purge", () => {
 
     // Verify per-site: no strategies on any individual site
     for (const siteId of allSiteIds) {
-      const resp = await apiClient.get(`/api/v1/strategies?siteId=${siteId}`);
+      const resp = await apiClient.get(`/api/v1/conversations?siteId=${siteId}`);
       if (resp.ok()) {
         expect(
           ((await resp.json()) as unknown[]).length,
@@ -225,7 +225,7 @@ test.describe("User Data Purge", () => {
 
     // Verify auto-build created real data
     const strategyId = chatPage.lastStrategyId;
-    const stratResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const stratResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     const strategy = await stratResp.json();
     expect(strategy.wdkStrategyId).toBeTruthy();
 
@@ -242,7 +242,7 @@ test.describe("User Data Purge", () => {
     expect(result.deleted.geneSets).toBeGreaterThan(0);
 
     // Verify: strategy hard-deleted (404)
-    const afterStrat = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const afterStrat = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(afterStrat.status()).toBe(404);
 
     // Verify: gene sets gone
@@ -250,7 +250,7 @@ test.describe("User Data Purge", () => {
     expect((await afterGs.json()).length).toBe(0);
 
     // Verify: strategy list empty
-    const afterList = await apiClient.get("/api/v1/strategies");
+    const afterList = await apiClient.get("/api/v1/conversations");
     expect((await afterList.json()).length).toBe(0);
   });
 });

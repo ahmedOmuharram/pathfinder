@@ -15,8 +15,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy import text
 
-from pathfinder.ai.chat.checkpointer import to_psycopg_url
-from pathfinder.persistence.models import Chat, User
+from pathfinder.ai.conversation.checkpointer import to_psycopg_url
+from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.repositories.checkpoint_label import (
     CheckpointLabelRepository,
 )
@@ -102,15 +102,15 @@ async def seeded_chat(
     graph_saver: AsyncPostgresSaver,
 ) -> _SeededChat:
     del app_with_graph
-    chat_id = uuid4()
+    conversation_id = uuid4()
     async with async_session_factory() as session:
         session.add(
-            Chat(id=chat_id, user_id=authed_user_id, site_id="plasmodb", name="")
+            Conversation(id=conversation_id, user_id=authed_user_id, site_id="plasmodb", name="")
         )
         await session.commit()
 
     graph = _build_test_graph(graph_saver)
-    config = {"configurable": {"thread_id": str(chat_id)}}
+    config = {"configurable": {"thread_id": str(conversation_id)}}
     await graph.ainvoke(
         {"counter": 0, "history": [], "user_prompt": "first"}, config=config
     )
@@ -123,7 +123,7 @@ async def seeded_chat(
             "SELECT checkpoint_id FROM checkpoints "
             "WHERE thread_id = %s AND checkpoint_ns = '' "
             "ORDER BY (metadata->>'step')::int ASC",
-            (str(chat_id),),
+            (str(conversation_id),),
         )
         rows = await cursor.fetchall()
     assert len(rows) >= 3
@@ -137,7 +137,7 @@ async def seeded_chat(
         return graph
 
     return _SeededChat(
-        id=chat_id,
+        id=conversation_id,
         root_cp=root_cp,
         mid_cp=mid_cp,
         leaf_cp=leaf_cp,
@@ -166,7 +166,7 @@ async def test_list_checkpoints_returns_tree(
     seeded_chat: _SeededChat,
 ) -> None:
     resp = await authed_app_client.get(
-        f"/api/v1/chats/{seeded_chat.id}/checkpoints"
+        f"/api/v1/conversations/{seeded_chat.id}/checkpoints"
     )
     assert resp.status_code == 200
     nodes = resp.json()
@@ -194,7 +194,7 @@ async def test_list_checkpoints_returns_user_labels(
         pinned=True,
     )
     resp = await authed_app_client.get(
-        f"/api/v1/chats/{seeded_chat.id}/checkpoints"
+        f"/api/v1/conversations/{seeded_chat.id}/checkpoints"
     )
     assert resp.status_code == 200
     nodes = resp.json()
@@ -209,7 +209,7 @@ async def test_get_single_checkpoint(
     seeded_chat: _SeededChat,
 ) -> None:
     resp = await authed_app_client.get(
-        f"/api/v1/chats/{seeded_chat.id}/checkpoints/{seeded_chat.leaf_cp}"
+        f"/api/v1/conversations/{seeded_chat.id}/checkpoints/{seeded_chat.leaf_cp}"
     )
     assert resp.status_code == 200
     snap = resp.json()
@@ -225,7 +225,7 @@ async def test_get_unknown_checkpoint_404(
     seeded_chat: _SeededChat,
 ) -> None:
     resp = await authed_app_client.get(
-        f"/api/v1/chats/{seeded_chat.id}/checkpoints/does-not-exist"
+        f"/api/v1/conversations/{seeded_chat.id}/checkpoints/does-not-exist"
     )
     assert resp.status_code == 404
 
@@ -236,7 +236,7 @@ async def test_fork_endpoint_creates_branch(
     seeded_chat: _SeededChat,
 ) -> None:
     resp = await authed_app_client.post(
-        f"/api/v1/chats/{seeded_chat.id}/fork",
+        f"/api/v1/conversations/{seeded_chat.id}/fork",
         json={
             "fromCheckpointId": seeded_chat.mid_cp,
             "stateOverride": {"user_prompt": "forked"},
@@ -249,7 +249,7 @@ async def test_fork_endpoint_creates_branch(
     assert new_cp != seeded_chat.mid_cp
 
     tree_resp = await authed_app_client.get(
-        f"/api/v1/chats/{seeded_chat.id}/checkpoints"
+        f"/api/v1/conversations/{seeded_chat.id}/checkpoints"
     )
     assert tree_resp.status_code == 200
     forked = next(
@@ -266,7 +266,7 @@ async def test_label_lifecycle(
 ) -> None:
     # PUT a label.
     put_resp = await authed_app_client.put(
-        f"/api/v1/chats/{seeded_chat.id}/labels/{seeded_chat.leaf_cp}",
+        f"/api/v1/conversations/{seeded_chat.id}/labels/{seeded_chat.leaf_cp}",
         json={"label": "draft 2", "pinned": True},
     )
     assert put_resp.status_code == 200
@@ -277,7 +277,7 @@ async def test_label_lifecycle(
 
     # GET lists it back.
     list_resp = await authed_app_client.get(
-        f"/api/v1/chats/{seeded_chat.id}/labels"
+        f"/api/v1/conversations/{seeded_chat.id}/labels"
     )
     assert list_resp.status_code == 200
     labels = list_resp.json()
@@ -285,7 +285,7 @@ async def test_label_lifecycle(
 
     # PUT again to update.
     update_resp = await authed_app_client.put(
-        f"/api/v1/chats/{seeded_chat.id}/labels/{seeded_chat.leaf_cp}",
+        f"/api/v1/conversations/{seeded_chat.id}/labels/{seeded_chat.leaf_cp}",
         json={"label": "draft 3", "pinned": False},
     )
     assert update_resp.status_code == 200
@@ -293,11 +293,11 @@ async def test_label_lifecycle(
 
     # DELETE removes it.
     del_resp = await authed_app_client.delete(
-        f"/api/v1/chats/{seeded_chat.id}/labels/{seeded_chat.leaf_cp}"
+        f"/api/v1/conversations/{seeded_chat.id}/labels/{seeded_chat.leaf_cp}"
     )
     assert del_resp.status_code == 204
     list_resp_2 = await authed_app_client.get(
-        f"/api/v1/chats/{seeded_chat.id}/labels"
+        f"/api/v1/conversations/{seeded_chat.id}/labels"
     )
     assert list_resp_2.json() == []
 
@@ -325,7 +325,7 @@ async def test_labels_are_user_scoped(
     )
 
     resp = await authed_app_client.get(
-        f"/api/v1/chats/{seeded_chat.id}/labels"
+        f"/api/v1/conversations/{seeded_chat.id}/labels"
     )
     assert resp.status_code == 200
     assert resp.json() == []

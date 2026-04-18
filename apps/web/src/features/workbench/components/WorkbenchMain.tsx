@@ -5,7 +5,7 @@ import { useSessionStore } from "@/state/useSessionStore";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { EmptyState } from "@/lib/components/ui/EmptyState";
 import { Layers } from "lucide-react";
-import { ChatView } from "@/features/chat/ChatView";
+import { ChatView } from "@/features/conversation/ChatView";
 import { SOURCE_CONFIG } from "./geneSetSourceConfig";
 import {
   EnrichmentPanel,
@@ -100,7 +100,9 @@ export function WorkbenchMain() {
       {/* Key on activeSetId so all panels remount (reset local state) on gene set switch */}
       <div key={activeSetId} className="mx-auto w-full max-w-5xl space-y-3 p-6">
         <ActiveSetHeader />
-        <ChatView chatId={lastExperiment?.id ?? ""} />
+        {lastExperiment?.id != null && lastExperiment.id !== "" && (
+          <ChatView chatId={lastExperiment.id} allowMissing />
+        )}
         {PANELS.map((Panel, i) => (
           <div
             key={i}

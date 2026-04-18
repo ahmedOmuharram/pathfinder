@@ -1,6 +1,6 @@
-"""Shared helper for simple typed-event SSE streams (not chat).
+"""Shared helper for simple typed-event SSE streams (not conversation).
 
-Used by experiment/sweep/seed progress streams. Chat uses the
+Used by experiment/sweep/seed progress streams. Conversation uses the
 LangGraph stream-event pipeline; don't use this for chat.
 
 The helper wraps any ``AsyncIterator[BaseModel]`` as a Starlette

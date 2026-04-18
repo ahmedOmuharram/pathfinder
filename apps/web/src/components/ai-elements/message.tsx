@@ -12,6 +12,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
+import { normalizeLatex } from "@/lib/markdown/normalizeLatex";
+import { cjk } from "@streamdown/cjk";
+import { code } from "@streamdown/code";
+import { createMathPlugin } from "@streamdown/math";
+import { mermaid } from "@streamdown/mermaid";
 import type { FileUIPart, UIMessage } from "ai";
 import {
   ChevronLeftIcon,
@@ -22,6 +27,9 @@ import {
 import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
 import { Streamdown } from "streamdown";
+
+const math = createMathPlugin({ singleDollarTextMath: true });
+const streamdownPlugins = { cjk, code, math, mermaid };
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
@@ -48,7 +56,7 @@ export const MessageContent = ({
   <div
     className={cn(
       "is-user:dark flex w-fit max-w-full min-w-0 flex-col gap-2 overflow-hidden text-sm",
-      "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
+      "group-[.is-user]:ml-auto group-[.is-user]:rounded-2xl group-[.is-user]:rounded-br-md group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground group-[.is-user]:shadow-[var(--shadow-card)]",
       "group-[.is-assistant]:text-foreground",
       className
     )}
@@ -307,16 +315,26 @@ export const MessageBranchPage = ({
 export type MessageResponseProps = ComponentProps<typeof Streamdown>;
 
 export const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
-    <Streamdown
-      className={cn(
-        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-        className
-      )}
-      {...props}
-    />
-  ),
-  (prevProps, nextProps) => prevProps.children === nextProps.children
+  ({ className, children, ...props }: MessageResponseProps) => {
+    const normalized =
+      typeof children === "string" ? normalizeLatex(children) : (children ?? "");
+    return (
+      <Streamdown
+        className={cn(
+          "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+          className,
+        )}
+        plugins={streamdownPlugins}
+        parseIncompleteMarkdown
+        {...props}
+      >
+        {normalized}
+      </Streamdown>
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.children === nextProps.children &&
+    prevProps.isAnimating === nextProps.isAnimating,
 );
 
 MessageResponse.displayName = "MessageResponse";

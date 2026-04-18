@@ -9,7 +9,44 @@ import type { DevtoolsMutators } from "@/state/middleware";
 import type { StrategyState, DraftSlice } from "./types";
 import { buildStrategy } from "./helpers";
 import { pushHistory } from "./historySlice";
-import { applyStepValidationErrors, applyStepCounts } from "./stepAnnotations";
+import { initialStepSnapshot, type StepMachineSnapshot } from "./stepMachine";
+
+function seedSnapshotForStep(step: Step): StepMachineSnapshot {
+  const wireErrors = step.validation?.errors;
+  const wireValid = step.validation?.isValid;
+  const estimate: number | null =
+    typeof step.estimatedSize === "number" ? step.estimatedSize : null;
+  if (wireValid === false && wireErrors) {
+    return initialStepSnapshot({
+      state: "invalid",
+      context: {
+        validationErrors: {
+          general: wireErrors.general ?? [],
+          byKey: wireErrors.byKey ?? {},
+        },
+        estimatedSize: estimate,
+      },
+    });
+  }
+  if (estimate !== null) {
+    return initialStepSnapshot({
+      state: "complete",
+      context: { estimatedSize: estimate },
+    });
+  }
+  return initialStepSnapshot();
+}
+
+function syncLifecycleForSteps(
+  current: Record<string, StepMachineSnapshot>,
+  stepsById: Record<string, Step>,
+): Record<string, StepMachineSnapshot> {
+  const next: Record<string, StepMachineSnapshot> = {};
+  for (const [id, step] of Object.entries(stepsById)) {
+    next[id] = current[id] ?? seedSnapshotForStep(step);
+  }
+  return next;
+}
 
 // ---------------------------------------------------------------------------
 // Display-name preservation
@@ -62,17 +99,12 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
     set((state) => {
       const existing = state.stepsById[step.id];
 
-      // AI-driven updates often send partial step payloads.
-      // Treat as upsert+patch: only overwrite defined fields.
-      // Object.entries omits absent properties, so the spread below
-      // naturally acts as a patch — only present keys overwrite.
       const updates = Object.fromEntries(Object.entries(step)) as Partial<Step>;
       let nextStep: Step = {
         ...(existing ?? step),
         ...updates,
       };
 
-      // Preserve recordType if incoming omits it.
       if (
         existing?.recordType !== null &&
         existing?.recordType !== undefined &&
@@ -81,7 +113,6 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
         nextStep = { ...nextStep, recordType: existing.recordType };
       }
 
-      // Preserve user-edited displayName.
       if (existing) {
         nextStep = preserveDisplayName(existing, step, nextStep);
       }
@@ -92,10 +123,17 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
 
       nextStep = ensureDisplayName(nextStep, existing);
 
-      const newStepsById = { ...state.stepsById, [step.id]: nextStep };
-      const strategy = buildStrategy(newStepsById, state.strategy);
-      const historyState = pushHistory(state.history, state.historyIndex, strategy);
-      return { stepsById: newStepsById, strategy, ...historyState };
+      const historyState = pushHistory(state, (draft) => {
+        draft.stepsById[step.id] = nextStep;
+        draft.strategy = buildStrategy(draft.stepsById, draft.strategy);
+      });
+      const lifecycleNext = state.stepLifecycleById[step.id]
+        ? state.stepLifecycleById
+        : {
+            ...state.stepLifecycleById,
+            [step.id]: seedSnapshotForStep(nextStep),
+          };
+      return { ...historyState, stepLifecycleById: lifecycleNext };
     });
   },
 
@@ -104,75 +142,84 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
       const existingStep = state.stepsById[stepId];
       if (!existingStep) return state;
 
-      const newStepsById = {
-        ...state.stepsById,
-        [stepId]: { ...existingStep, ...updates },
-      };
-      const strategy = buildStrategy(newStepsById, state.strategy);
-      const historyState = pushHistory(state.history, state.historyIndex, strategy);
-      return { stepsById: newStepsById, strategy, ...historyState };
+      const nextStep: Step = { ...existingStep, ...updates };
+
+      return pushHistory(state, (draft) => {
+        draft.stepsById[stepId] = nextStep;
+        draft.strategy = buildStrategy(draft.stepsById, draft.strategy);
+      });
     });
   },
 
   removeStep: (stepId) => {
     set((state) => {
-      const rest = { ...state.stepsById };
-      delete rest[stepId];
-      const strategy = buildStrategy(rest, state.strategy);
-      const historyState = pushHistory(state.history, state.historyIndex, strategy);
-      return { stepsById: rest, strategy, ...historyState };
+      if (!state.stepsById[stepId]) return state;
+      const historyState = pushHistory(state, (draft) => {
+        delete draft.stepsById[stepId];
+        draft.strategy = buildStrategy(draft.stepsById, draft.strategy);
+      });
+      const lifecycleNext = { ...state.stepLifecycleById };
+      delete lifecycleNext[stepId];
+      return { ...historyState, stepLifecycleById: lifecycleNext };
     });
   },
 
   setStrategy: (strategy) => {
     if (!strategy) {
-      set({ strategy: null, stepsById: {}, history: [], historyIndex: -1 });
+      set({
+        strategy: null,
+        stepsById: {},
+        stepLifecycleById: {},
+        undoStack: [],
+        redoStack: [],
+      });
       return;
     }
-    const existingSteps = get().stepsById;
-    const incomingSteps = strategy.steps ?? [];
-    const mergedSteps = incomingSteps.map((step) => {
-      const existing = existingSteps[step.id];
-      if (!existing) return step;
+    set((state) => {
+      const existingSteps = state.stepsById;
+      const incomingSteps = strategy.steps ?? [];
+      const mergedSteps = incomingSteps.map((step) => {
+        const existing = existingSteps[step.id];
+        if (!existing) return step;
 
-      let nextStep = step;
-      const existingName = existing.displayName;
-      const incomingName = step.displayName;
+        let nextStep = step;
+        const existingName = existing.displayName;
+        const incomingName = step.displayName;
 
-      if (
-        (nextStep.recordType === null || nextStep.recordType === undefined) &&
-        existing.recordType !== null &&
-        existing.recordType !== undefined
-      ) {
-        nextStep = { ...nextStep, recordType: existing.recordType };
+        if (
+          (nextStep.recordType === null || nextStep.recordType === undefined) &&
+          existing.recordType !== null &&
+          existing.recordType !== undefined
+        ) {
+          nextStep = { ...nextStep, recordType: existing.recordType };
+        }
+        if (!incomingName && existingName) {
+          return { ...nextStep, displayName: existingName };
+        }
+        if (existingName && !isFallbackDisplayName(existingName, existing)) {
+          return { ...nextStep, displayName: existingName };
+        }
+        if (incomingName && isFallbackDisplayName(incomingName, step) && existingName) {
+          return { ...nextStep, displayName: existingName };
+        }
+        return nextStep;
+      });
+
+      const nextStepsById: Record<string, Step> = {};
+      for (const step of mergedSteps) {
+        nextStepsById[step.id] = step;
       }
-      if (!incomingName && existingName) {
-        return { ...nextStep, displayName: existingName };
-      }
-      if (existingName && !isFallbackDisplayName(existingName, existing)) {
-        return { ...nextStep, displayName: existingName };
-      }
-      if (incomingName && isFallbackDisplayName(incomingName, step) && existingName) {
-        return { ...nextStep, displayName: existingName };
-      }
-      return nextStep;
-    });
+      const mergedStrategy = { ...strategy, steps: mergedSteps };
 
-    const stepsById: Record<string, Step> = {};
-    for (const step of mergedSteps) {
-      stepsById[step.id] = step;
-    }
-
-    const { history, historyIndex } = get();
-    const newHistory = history.slice(0, historyIndex + 1);
-    const mergedStrategy = { ...strategy, steps: mergedSteps };
-    newHistory.push(mergedStrategy);
-
-    set({
-      strategy: mergedStrategy,
-      stepsById,
-      history: newHistory,
-      historyIndex: newHistory.length - 1,
+      const historyState = pushHistory(state, (draft) => {
+        draft.stepsById = nextStepsById;
+        draft.strategy = mergedStrategy;
+      });
+      const lifecycleNext = syncLifecycleForSteps(
+        state.stepLifecycleById,
+        nextStepsById,
+      );
+      return { ...historyState, stepLifecycleById: lifecycleNext };
     });
   },
 
@@ -213,36 +260,13 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
     return serializeStrategyPlan(state.stepsById, state.strategy);
   },
 
-  setStepValidationErrors: (errors) => {
-    set((state) => {
-      if (!state.strategy) return state;
-      const nextStepsById = applyStepValidationErrors(state.stepsById, errors);
-      if (!nextStepsById) return state;
-      return {
-        stepsById: nextStepsById,
-        strategy: buildStrategy(nextStepsById, state.strategy),
-      };
-    });
-  },
-
-  setStepCounts: (counts) => {
-    set((state) => {
-      if (!state.strategy) return state;
-      const nextStepsById = applyStepCounts(state.stepsById, counts);
-      if (!nextStepsById) return state;
-      return {
-        stepsById: nextStepsById,
-        strategy: buildStrategy(nextStepsById, state.strategy),
-      };
-    });
-  },
-
   clear: () => {
     set({
       strategy: null,
       stepsById: {},
-      history: [],
-      historyIndex: -1,
+      stepLifecycleById: {},
+      undoStack: [],
+      redoStack: [],
     });
   },
 });

@@ -66,7 +66,7 @@ test.describe("Leishmania Virulence Journey", () => {
     await chatPage.expectIdle();
 
     // Verify strategy persisted
-    const strategiesResp = await apiClient.get("/api/v1/strategies");
+    const strategiesResp = await apiClient.get("/api/v1/conversations");
     expect(strategiesResp.ok()).toBeTruthy();
     const strategies = await strategiesResp.json();
     expect(strategies.length).toBeGreaterThan(0);
@@ -131,7 +131,7 @@ test.describe("Leishmania Virulence Journey", () => {
     await chatPage.expectIdle();
 
     // Verify conversation has multiple messages
-    const conversations = await apiClient.get("/api/v1/strategies");
+    const conversations = await apiClient.get("/api/v1/conversations");
     expect(conversations.ok()).toBeTruthy();
   });
 });

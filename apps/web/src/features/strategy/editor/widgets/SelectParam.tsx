@@ -12,7 +12,7 @@ export function SelectParam({ spec, name, options, field }: ParamWidgetProps) {
     return (
       <div>
         <select
-          value={field.state.value as string}
+          value={(field.state.value as string | undefined) ?? ""}
           onChange={(e) => field.handleChange(e.target.value)}
           onBlur={field.handleBlur}
           aria-invalid={hasError ? "true" : undefined}

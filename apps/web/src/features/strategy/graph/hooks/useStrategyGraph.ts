@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { CombineOperator, DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
-import { computeStepCounts } from "@/lib/api/strategies";
+import { computeStepCounts } from "@/lib/api/conversations";
 import { useStepCounts } from "@/features/strategy/services/useStepCounts";
 import { useWdkUrlFallback } from "@/features/strategy/services/useWdkUrlFallback";
 import { useGraphConnections } from "@/features/strategy/graph/hooks/useGraphConnections";
@@ -44,7 +44,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   const updateStep = useStrategyStore((state) => state.updateStep);
   const addStep = useStrategyStore((state) => state.addStep);
   const setStrategyMeta = useStrategyStore((state) => state.setStrategyMeta);
-  const setStepCounts = useStrategyStore((state) => state.setStepCounts);
+  const applyStepCounts = useStrategyStore((state) => state.applyStepCounts);
   const selectedSite = useSessionStore((state) => state.selectedSite);
 
   // --- Auto-sync ---
@@ -126,7 +126,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
       : (graphNodes.planResult?.plan ?? null),
     planHash: graphNodes.graphHasValidationIssues ? null : graphNodes.planHash,
     stepIds: (draftStrategy?.steps ?? strategy?.steps ?? []).map((step) => step.id),
-    setStepCounts,
+    applyStepCounts,
     fetchCounts: computeStepCounts,
   });
 

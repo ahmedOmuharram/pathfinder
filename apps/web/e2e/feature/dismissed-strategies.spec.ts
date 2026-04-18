@@ -32,7 +32,7 @@ async function makeWdkLinked(
   const strategyId = await sidebarPage.firstConversationId();
 
   const uniqueWdkId = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 10000);
-  const patchResp = await apiClient.patch(`/api/v1/strategies/${strategyId}`, {
+  const patchResp = await apiClient.patch(`/api/v1/conversations/${strategyId}`, {
     data: { wdkStrategyId: uniqueWdkId },
   });
   expect(patchResp.ok()).toBeTruthy();
@@ -105,7 +105,7 @@ test.describe("Dismissed Strategies", () => {
     await sidebarPage.expandDismissed();
     await sidebarPage.expectDismissedItemVisible(strategyId);
 
-    const dismissedResp = await apiClient.get("/api/v1/strategies/dismissed");
+    const dismissedResp = await apiClient.get("/api/v1/conversations/dismissed");
     expect(dismissedResp.ok()).toBeTruthy();
     const dismissed = (await dismissedResp.json()) as { id: string }[];
     expect(dismissed.some((d) => d.id === strategyId)).toBeTruthy();
@@ -139,10 +139,10 @@ test.describe("Dismissed Strategies", () => {
     });
     await sidebarPage.expectNoDismissedSection();
 
-    const strategyResp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const strategyResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(strategyResp.ok()).toBeTruthy();
 
-    const dismissedResp = await apiClient.get("/api/v1/strategies/dismissed");
+    const dismissedResp = await apiClient.get("/api/v1/conversations/dismissed");
     expect(dismissedResp.ok()).toBeTruthy();
     const dismissed = (await dismissedResp.json()) as { id: string }[];
     expect(dismissed.some((d) => d.id === strategyId)).toBeFalsy();
@@ -210,7 +210,7 @@ test.describe("Dismissed Strategies — complex flows", () => {
     await sidebarPage.expectNoDismissedSection();
 
     // API confirms fully active.
-    const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(resp.ok()).toBeTruthy();
   });
 
@@ -318,7 +318,7 @@ test.describe("Dismissed Strategies — complex flows", () => {
     await chatPage.expectAssistantMessage(/follow-up after restore/);
 
     // API confirms strategy still exists and is accessible.
-    const resp = await apiClient.get(`/api/v1/strategies/${strategyId}`);
+    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
     expect(resp.ok()).toBeTruthy();
   });
 });

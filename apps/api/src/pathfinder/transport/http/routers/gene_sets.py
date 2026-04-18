@@ -4,8 +4,9 @@ Thin transport layer: parse HTTP request, call service, return HTTP response.
 All business logic lives in ``services.gene_sets.operations``.
 """
 
+import re
 from dataclasses import dataclass
-from typing import Annotated, cast, get_args
+from typing import Annotated, Literal, cast, get_args
 
 from fastapi import APIRouter, Depends, Query, Request
 
@@ -15,8 +16,10 @@ from pathfinder.platform.errors import (
     ValidationError,
 )
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.security import limiter
 from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.services.export import get_export_service
 from pathfinder.services.gene_sets.confidence import (
     GeneClassification,
     compute_gene_confidence,
@@ -178,6 +181,86 @@ async def delete_gene_set(
     except KeyError as exc:
         raise _not_found(exc) from exc
     return {"ok": True}
+
+
+class GeneSetExportResponse(CamelModel):
+    export_id: str
+    filename: str
+    content_type: str
+    url: str
+
+
+class GeneSetImportRequest(CamelModel):
+    name: str
+    site_id: str
+    raw_text: str
+
+
+_ID_SPLIT_RE = re.compile(r"[\s,;\t]+")
+
+
+def _parse_gene_id_blob(raw: str) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for tok in _ID_SPLIT_RE.split(raw):
+        cleaned = tok.strip().strip('"').strip("'")
+        if cleaned == "" or cleaned.lower() == "gene_id":
+            continue
+        if cleaned in seen:
+            continue
+        seen.add(cleaned)
+        out.append(cleaned)
+    return out
+
+
+@router.post("/{gene_set_id}/export")
+@limiter.limit("30/minute")
+async def export_gene_set_endpoint(
+    request: Request,
+    gene_set_id: str,
+    user_id: CurrentUser,
+    fmt: str = Query("csv", alias="format"),
+) -> GeneSetExportResponse:
+    """Export a gene set as CSV or TXT. Returns a short-lived download URL."""
+    del request
+    if fmt not in ("csv", "txt"):
+        msg = "format must be 'csv' or 'txt'"
+        raise ValidationError(title=msg)
+    try:
+        gs = await _svc().get_for_user(user_id, gene_set_id)
+    except KeyError as exc:
+        raise _not_found(exc) from exc
+    svc = get_export_service()
+    result = await svc.export_gene_set(gs, cast("Literal['csv', 'txt']", fmt))
+    return GeneSetExportResponse(
+        export_id=result.export_id,
+        filename=result.filename,
+        content_type=result.content_type,
+        url=result.url,
+    )
+
+
+@router.post("/import", status_code=201)
+@limiter.limit("30/minute")
+async def import_gene_set(
+    request: Request,
+    body: GeneSetImportRequest,
+    user_id: CurrentUser,
+) -> GeneSetResponse:
+    """Create a gene set from a raw pasted text blob (CSV/TSV/newline list)."""
+    del request
+    ids = _parse_gene_id_blob(body.raw_text)
+    if len(ids) == 0:
+        msg = "No gene IDs parsed from input"
+        raise ValidationError(title=msg)
+    gs = await _svc().create(
+        user_id=user_id,
+        name=body.name,
+        site_id=body.site_id,
+        gene_ids=ids,
+        source="paste",
+    )
+    return _to_response(gs)
 
 
 @router.post("/operations")

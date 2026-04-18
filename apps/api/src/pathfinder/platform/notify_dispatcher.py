@@ -44,7 +44,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from pathfinder.ai.chat.checkpointer import to_psycopg_url
+from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)

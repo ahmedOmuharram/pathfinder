@@ -51,7 +51,7 @@ class _SeedRunContext:
     total: int
     semaphore: asyncio.Semaphore
     queue: asyncio.Queue[SeedEvent | None]
-    chat_repo: Any
+    conv_repo: Any
     control_set_repo: Any
     user_id: UUID
 
@@ -95,7 +95,7 @@ async def _process_single_seed(
                 wdk_id=wdk_strategy_id,
                 site_id=seed.site_id,
                 api=api,
-                chat_repo=ctx.chat_repo,
+                conv_repo=ctx.conv_repo,
                 user_id=ctx.user_id,
             )
 
@@ -148,7 +148,7 @@ async def _process_single_seed(
 async def run_seed(
     *,
     user_id: UUID,
-    chat_repo: Any,
+    conv_repo: Any,
     control_set_repo: Any,
     site_id: str | None = None,
 ) -> AsyncIterator[SeedEvent]:
@@ -176,7 +176,7 @@ async def run_seed(
         total=total,
         semaphore=semaphore,
         queue=queue,
-        chat_repo=chat_repo,
+        conv_repo=conv_repo,
         control_set_repo=control_set_repo,
         user_id=user_id,
     )

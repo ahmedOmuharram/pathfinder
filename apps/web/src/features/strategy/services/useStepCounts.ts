@@ -10,7 +10,7 @@ export function useStepCounts(args: {
   plan: StrategyPlan | null;
   planHash: string | null;
   stepIds: string[];
-  setStepCounts: (counts: Record<string, number | null | undefined>) => void;
+  applyStepCounts: (counts: Record<string, number | null | undefined>) => void;
   fetchCounts: (siteId: string, plan: StrategyPlan) => Promise<StepCountsResponse>;
   debounceMs?: number;
 }) {
@@ -19,7 +19,7 @@ export function useStepCounts(args: {
     plan,
     planHash,
     stepIds,
-    setStepCounts,
+    applyStepCounts,
     fetchCounts,
     debounceMs = 650,
   } = args;
@@ -46,7 +46,7 @@ export function useStepCounts(args: {
     for (const stepId of stepIds) {
       next[stepId] = counts[stepId] ?? null;
     }
-    setStepCounts(next);
+    applyStepCounts(next);
   }
 
   const [prevValidKey, setPrevValidKey] = useState(validKey);
@@ -55,7 +55,7 @@ export function useStepCounts(args: {
     if (!planValid && stepIds.length > 0) {
       const next: Record<string, number | null> = {};
       for (const stepId of stepIds) next[stepId] = null;
-      setStepCounts(next);
+      applyStepCounts(next);
     }
   }
 }

@@ -68,3 +68,17 @@ export function authStatusOptions(siteId: string) {
     enabled: siteId !== "",
   });
 }
+
+export function authRefreshOptions(siteId: string) {
+  return queryOptions({
+    queryKey: ["auth", "refresh", siteId] as const,
+    queryFn: async () => {
+      await refreshAuth(siteId);
+      return { refreshed: true };
+    },
+    staleTime: Infinity,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
+}

@@ -74,7 +74,7 @@ test.describe("Fungal Pathogenesis Journey", () => {
     await chatPage.expectIdle();
 
     // Verify strategy persisted
-    const strategiesResp = await apiClient.get("/api/v1/strategies");
+    const strategiesResp = await apiClient.get("/api/v1/conversations");
     expect(strategiesResp.ok()).toBeTruthy();
 
     // ── Phase 3: Workbench — Gene Sets ───────────────────────────
