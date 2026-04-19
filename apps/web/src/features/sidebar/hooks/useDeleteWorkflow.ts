@@ -35,13 +35,13 @@ export interface DeleteWorkflow {
   deleteTarget: ConversationItem | null;
   isDeleting: boolean;
   setDeleteTarget: (item: ConversationItem | null) => void;
-  confirmDelete: () => Promise<void>;
+  confirmDelete: (options?: { cascade?: boolean }) => Promise<void>;
 
-  handleRestore: (chatId: string) => Promise<void>;
+  handleRestore: (conversationId: string) => Promise<void>;
 
   permanentDeleteTarget: string | null;
   setPermanentDeleteTarget: (id: string | null) => void;
-  confirmPermanentDelete: () => Promise<void>;
+  confirmPermanentDelete: (options?: { cascade?: boolean }) => Promise<void>;
 }
 
 export function useDeleteWorkflow({
@@ -61,34 +61,53 @@ export function useDeleteWorkflow({
   const listKey = conversationListOptions(siteId).queryKey;
   const dismissedKey = dismissedConversationsOptions(siteId).queryKey;
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (options: { cascade?: boolean } = {}) => {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
       const target = deleteTarget;
-      // Optimistic: remove from active list, add to dismissed list.
-      queryClient.setQueryData<ConversationSummary[]>(listKey, (old) =>
-        (old ?? []).filter((c) => c.id !== target.id),
-      );
-      queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) => [
-        target.chat,
-        ...(old ?? []).filter((c) => c.id !== target.id),
-      ]);
-      if (activeChatId === target.id) {
-        router.push("/conversation");
-      }
-      try {
-        await dismissConversation(target.id);
-      } catch (err) {
-        // Rollback: put back into active list, remove from dismissed.
-        queryClient.setQueryData<ConversationSummary[]>(listKey, (old) => [
+      const isWdkLinked = target.chat.wdkStrategyId != null;
+      if (isWdkLinked) {
+        // Soft dismiss for WDK-linked chats so sync won't reimport them.
+        queryClient.setQueryData<ConversationSummary[]>(listKey, (old) =>
+          (old ?? []).filter((c) => c.id !== target.id),
+        );
+        queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) => [
           target.chat,
           ...(old ?? []).filter((c) => c.id !== target.id),
         ]);
-        queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) =>
-          (old ?? []).filter((c) => c.id !== target.id),
+        if (activeChatId === target.id) {
+          router.push(`/${siteId}/conversation`);
+        }
+        try {
+          await dismissConversation(target.id);
+        } catch (err) {
+          queryClient.setQueryData<ConversationSummary[]>(listKey, (old) => [
+            target.chat,
+            ...(old ?? []).filter((c) => c.id !== target.id),
+          ]);
+          queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) =>
+            (old ?? []).filter((c) => c.id !== target.id),
+          );
+          reportError(toUserMessage(err, "Failed to dismiss conversation."));
+        } finally {
+          void queryClient.invalidateQueries({ queryKey: listKey });
+          void queryClient.invalidateQueries({ queryKey: dismissedKey });
+        }
+        return;
+      }
+      // Non-WDK chat: hard-delete. With cascade=true, subtree goes; otherwise
+      // direct children climb to this node's parent (repo handles it).
+      if (activeChatId === target.id) {
+        router.push(`/${siteId}/conversation`);
+      }
+      try {
+        await deleteConversation(
+          target.id,
+          options.cascade === true ? { cascade: true } : {},
         );
-        reportError(toUserMessage(err, "Failed to dismiss conversation."));
+      } catch (err) {
+        reportError(toUserMessage(err, "Failed to delete conversation."));
       } finally {
         void queryClient.invalidateQueries({ queryKey: listKey });
         void queryClient.invalidateQueries({ queryKey: dismissedKey });
@@ -99,9 +118,9 @@ export function useDeleteWorkflow({
     }
   };
 
-  const handleRestore = async (chatId: string) => {
+  const handleRestore = async (conversationId: string) => {
     try {
-      await restoreConversation(chatId);
+      await restoreConversation(conversationId);
     } catch (err) {
       reportError(toUserMessage(err, "Failed to restore conversation."));
     } finally {
@@ -110,11 +129,13 @@ export function useDeleteWorkflow({
     }
   };
 
-  const confirmPermanentDelete = async () => {
+  const confirmPermanentDelete = async (
+    options: { cascade?: boolean } = {},
+  ) => {
     if (permanentDeleteTarget === null) return;
     const id = permanentDeleteTarget;
     try {
-      await deleteConversation(id);
+      await deleteConversation(id, options.cascade === true ? { cascade: true } : {});
       queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) =>
         (old ?? []).filter((c) => c.id !== id),
       );
@@ -123,6 +144,7 @@ export function useDeleteWorkflow({
         toUserMessage(err, "Failed to permanently delete conversation."),
       );
     } finally {
+      void queryClient.invalidateQueries({ queryKey: listKey });
       void queryClient.invalidateQueries({ queryKey: dismissedKey });
       setPermanentDeleteTarget(null);
     }

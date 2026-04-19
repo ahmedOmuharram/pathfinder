@@ -13,7 +13,7 @@ from pathfinder.ai.tools.standalone.strategy_build import (
     create_leaf_step,
     transform_step,
 )
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.tool_errors import ToolErrorPayload
@@ -92,7 +92,7 @@ async def test_create_leaf_step_after_discovery(
     graph = session.get_graph(None)
     assert graph is not None
 
-    created_step = PlanStepNode(
+    created_step = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="Genes by Taxon",
         parameters={"organism": "Plasmodium falciparum 3D7"},
@@ -134,12 +134,12 @@ async def test_combine_steps_creates_union(
     graph = session.get_graph(None)
     assert graph is not None
 
-    step_a = PlanStepNode(search_name="GenesByTaxon", display_name="Step A")
-    step_b = PlanStepNode(search_name="GenesByLocation", display_name="Step B")
+    step_a = StrategyStepNode(search_name="GenesByTaxon", display_name="Step A")
+    step_b = StrategyStepNode(search_name="GenesByLocation", display_name="Step B")
     graph.add_step(step_a)
     graph.add_step(step_b)
 
-    combined = PlanStepNode(
+    combined = StrategyStepNode(
         search_name="__combine__",
         display_name="Union of A and B",
         primary_input=step_a,
@@ -177,7 +177,7 @@ async def test_combine_steps_rejects_missing_step() -> None:
     graph = session.get_graph(None)
     assert graph is not None
 
-    step_a = PlanStepNode(search_name="GenesByTaxon", display_name="Step A")
+    step_a = StrategyStepNode(search_name="GenesByTaxon", display_name="Step A")
     graph.add_step(step_a)
 
     result = await combine_steps(
@@ -201,8 +201,8 @@ async def test_combine_steps_rejects_invalid_operator() -> None:
     graph = session.get_graph(None)
     assert graph is not None
 
-    step_a = PlanStepNode(search_name="GenesByTaxon", display_name="Step A")
-    step_b = PlanStepNode(search_name="GenesByLocation", display_name="Step B")
+    step_a = StrategyStepNode(search_name="GenesByTaxon", display_name="Step A")
+    step_b = StrategyStepNode(search_name="GenesByLocation", display_name="Step B")
     graph.add_step(step_a)
     graph.add_step(step_b)
 
@@ -228,7 +228,7 @@ async def test_transform_step_requires_discovery_with_params() -> None:
     graph = session.get_graph(None)
     assert graph is not None
 
-    step = PlanStepNode(search_name="GenesByTaxon", display_name="Source")
+    step = StrategyStepNode(search_name="GenesByTaxon", display_name="Source")
     graph.add_step(step)
 
     result = await transform_step(

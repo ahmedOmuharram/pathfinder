@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.tree import walk_plan_tree
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.platform.errors import AppError, ValidationError
@@ -162,11 +162,11 @@ def validate_sweep_parameter(exp: Experiment, param_name: str) -> None:
     )
 
 
-def _tree_has_parameter(tree: PlanStepNode, param_name: str) -> bool:
+def _tree_has_parameter(tree: StrategyStepNode, param_name: str) -> bool:
     """Check whether any node in a plan step tree contains *param_name*."""
     found = False
 
-    def _check(node: PlanStepNode) -> None:
+    def _check(node: StrategyStepNode) -> None:
         nonlocal found
         if param_name in node.parameters:
             found = True
@@ -270,7 +270,7 @@ async def _run_sweep_point_tree(
 
     tree = exp.config.step_tree.model_copy(deep=True)
 
-    def _inject(node: PlanStepNode) -> None:
+    def _inject(node: StrategyStepNode) -> None:
         if param_name in node.parameters:
             node.parameters[param_name] = value
 

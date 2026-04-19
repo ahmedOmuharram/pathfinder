@@ -78,7 +78,7 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
       });
       await invalidateGeneSets();
       setActiveSet(gs.id);
-      router.push(`/workbench/${gs.id}`);
+      router.push(`/${selectedSite}/workbench/${gs.id}`);
     } catch (err) {
       console.error("Failed to create set from Venn region:", err);
     }
@@ -98,7 +98,7 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
       });
       await invalidateGeneSets();
       setActiveSet(gs.id);
-      router.push(`/workbench/${gs.id}`);
+      router.push(`/${selectedSite}/workbench/${gs.id}`);
       clearSelection();
     } catch (err) {
       console.error("Failed to execute set operation:", err);
@@ -166,7 +166,7 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
                   activeGeneIds={activeGeneIds}
                   onActivate={() => {
                     setActiveSet(gs.id);
-                    router.push(`/workbench/${gs.id}`);
+                    router.push(`/${selectedSite}/workbench/${gs.id}`);
                   }}
                   onToggleSelect={() => toggleSetSelection(gs.id)}
                 />

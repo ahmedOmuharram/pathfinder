@@ -4,9 +4,10 @@ import time
 from dataclasses import dataclass
 
 import optuna
+from pydantic import JsonValue
 
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_tests import IntersectionConfig
 from pathfinder.services.experiment.types import ControlTestResult
 from pathfinder.services.parameter_optimization.builders import (
@@ -40,11 +41,9 @@ from pathfinder.services.parameter_optimization.scoring import (
 
 logger = get_logger(__name__)
 
-
 # ---------------------------------------------------------------------------
 # Trial context (shared immutable config + mutable accumulated state)
 # ---------------------------------------------------------------------------
-
 
 @dataclass
 class TrialContext:
@@ -80,11 +79,9 @@ class TrialContext:
             id_field=self.inp.id_field,
         )
 
-
 # ---------------------------------------------------------------------------
 # Result aggregation
 # ---------------------------------------------------------------------------
-
 
 def aggregate_results(
     ctx: TrialContext,
@@ -104,11 +101,9 @@ def aggregate_results(
         error_message=error_message,
     )
 
-
 # ---------------------------------------------------------------------------
 # Progress emission
 # ---------------------------------------------------------------------------
-
 
 async def emit_trial_result(
     ctx: TrialContext,
@@ -134,11 +129,9 @@ async def emit_trial_result(
         ),
     )
 
-
 # ---------------------------------------------------------------------------
 # Single-trial processing
 # ---------------------------------------------------------------------------
-
 
 @dataclass(frozen=True, slots=True)
 class TrialOutcome:
@@ -149,19 +142,17 @@ class TrialOutcome:
     grid_exhausted: bool
     is_failure: bool
 
-
 @dataclass(frozen=True, slots=True)
 class TrialEvalInput:
     """Inputs for a single trial evaluation (groups the per-trial data)."""
 
     ot: optuna.trial.Trial
-    params: dict[str, JSONValue]
+    params: dict[str, JsonValue]
     wdk_result: ControlTestResult | None
     wdk_error: str
     trial_num: int
     n_positives: int
     n_negatives: int
-
 
 def process_single_trial(
     ctx: TrialContext,
@@ -212,11 +203,9 @@ def process_single_trial(
         is_failure=False,
     )
 
-
 # ---------------------------------------------------------------------------
 # Batch processing
 # ---------------------------------------------------------------------------
-
 
 @dataclass
 class LoopState:
@@ -225,7 +214,6 @@ class LoopState:
     consecutive_failures: int = 0
     trials_since_improvement: int = 0
     abort_result: OptimizationResult | None = None
-
 
 async def handle_failed_outcome(
     ctx: TrialContext,
@@ -258,7 +246,6 @@ async def handle_failed_outcome(
         return True
     return False
 
-
 async def handle_successful_outcome(
     ctx: TrialContext,
     state: LoopState,
@@ -285,18 +272,16 @@ async def handle_successful_outcome(
         trial_num=trial_num,
     )
 
-
 @dataclass(frozen=True, slots=True)
 class BatchInput:
     """Inputs for processing a batch of trials."""
 
     optuna_trials: list[optuna.trial.Trial]
-    batch_params: list[dict[str, JSONValue]]
+    batch_params: list[dict[str, JsonValue]]
     wdk_results: list[tuple[ControlTestResult | None, str] | BaseException]
     trial_idx: int
     n_positives: int
     n_negatives: int
-
 
 async def process_batch(
     ctx: TrialContext,

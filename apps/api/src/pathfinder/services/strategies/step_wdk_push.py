@@ -5,7 +5,7 @@ fails, the step still exists in the local graph and the sync service can
 reconcile later.
 """
 
-from pathfinder.domain.strategy.ast import PlanStepNode, walk_step_tree
+from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
 from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.validation import StepValidation
@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 async def push_step_to_wdk(
     *,
     sync_state: WDKSyncState,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     site_id: str,
     record_type: str,
     search_name: str,
@@ -89,7 +89,7 @@ async def _push_leaf_step(
     api: StrategyAPI,
     search_name: str,
     str_params: dict[str, str],
-    step: PlanStepNode,
+    step: StrategyStepNode,
     record_type: str,
 ) -> int:
     """Push a leaf step to WDK. Returns the WDK step ID."""
@@ -107,7 +107,7 @@ async def _push_leaf_step(
 async def _push_combine_step(
     api: StrategyAPI,
     sync_state: WDKSyncState,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     record_type: str,
     parsed_op: CombineOp | None,
 ) -> int | None:
@@ -174,7 +174,7 @@ async def _push_combine_step(
 async def _push_transform_step(
     api: StrategyAPI,
     sync_state: WDKSyncState,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     search_name: str,
     str_params: dict[str, str],
     record_type: str,
@@ -208,7 +208,7 @@ async def _push_transform_step(
 async def _update_existing_step(
     api: StrategyAPI,
     sync_state: WDKSyncState,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     record_type: str,
 ) -> None:
     """Update an existing WDK step's search-config (parameters + weight)."""

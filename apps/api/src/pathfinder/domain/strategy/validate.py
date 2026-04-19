@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 
 
@@ -53,7 +53,7 @@ class StrategyValidator:
         self.available_searches = available_searches or {}
         self.available_transforms = available_transforms or []
 
-    def validate(self, root: PlanStepNode, record_type: str) -> ValidationResult:
+    def validate(self, root: StrategyStepNode, record_type: str) -> ValidationResult:
         """Validate a strategy tree.
 
         :param root: Root node of the strategy tree.
@@ -83,7 +83,7 @@ class StrategyValidator:
 
     def _validate_combine_node(
         self,
-        node: PlanStepNode,
+        node: StrategyStepNode,
         path: str,
         errors: list[StepValidationIssue],
     ) -> None:
@@ -123,7 +123,7 @@ class StrategyValidator:
 
     def _validate_node(
         self,
-        node: PlanStepNode,
+        node: StrategyStepNode,
         path: str,
         expected_record_type: str,
         errors: list[StepValidationIssue],
@@ -172,7 +172,7 @@ class StrategyValidator:
             )
 
 
-def validate_strategy(root: PlanStepNode, record_type: str) -> ValidationResult:
+def validate_strategy(root: StrategyStepNode, record_type: str) -> ValidationResult:
     """Validate a strategy tree with default validator.
 
     :param root: Root node of the strategy tree.

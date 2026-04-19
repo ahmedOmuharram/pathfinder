@@ -1,15 +1,15 @@
 """Strategy plan validation helpers."""
 
-from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.validate import validate_strategy
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.types import JSONObject
 
 
-def validate_plan_or_raise(plan: JSONObject) -> StrategyPlanPayload:
+def validate_plan_or_raise(plan: JSONObject) -> StrategyAst:
     """Parse and validate a strategy plan, raising typed ValidationError."""
     try:
-        payload = StrategyPlanPayload.model_validate(plan)
+        payload = StrategyAst.model_validate(plan)
     except Exception as exc:
         raise ValidationError(
             title="Invalid plan",

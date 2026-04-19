@@ -140,7 +140,7 @@ export function BenchmarkPanel() {
           ) : (
             <Play className="h-4 w-4" />
           )}
-          {loading ? "Running…" : "Run benchmark"}
+          {loading ? "Running..." : "Run benchmark"}
         </Button>
 
         {loading && progressText !== "" && (

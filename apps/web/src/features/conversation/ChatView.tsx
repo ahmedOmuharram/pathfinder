@@ -1,31 +1,28 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { redirect } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
+import { redirect, useParams } from "next/navigation";
 
-import {
-  conversationDetailOptions,
-  conversationMessagesOptions,
-} from "@/lib/api/conversations";
+import { conversationDetailOptions } from "@/lib/api/conversations";
+import { conversationMessagesOptions } from "@/lib/api/conversationMessages";
 import { Spinner } from "@/components/ui/spinner";
-import { StrategyGraph } from "@/features/strategy/graph/components/StrategyGraph";
 
 import { ChatThread } from "./ChatThread";
-import { BranchSwitcher } from "./branches/BranchSwitcher";
+import { RightRail } from "./rail/RightRail";
 
 export function ChatView({
-  chatId,
+  conversationId,
   allowMissing = false,
 }: {
-  chatId: string;
+  conversationId: string;
   allowMissing?: boolean;
 }) {
-  const [activeBranch] = useQueryState("branch", parseAsString);
+  const params = useParams<{ siteId?: string }>();
+  const siteSegment = params.siteId ?? "";
 
-  const detailQuery = useQuery(conversationDetailOptions(chatId));
+  const detailQuery = useQuery(conversationDetailOptions(conversationId));
   const messagesQuery = useQuery({
-    ...conversationMessagesOptions(chatId),
+    ...conversationMessagesOptions(conversationId),
     enabled: allowMissing || detailQuery.data != null,
   });
 
@@ -34,7 +31,7 @@ export function ChatView({
     detailQuery.isFetched &&
     detailQuery.data === null
   ) {
-    redirect("/conversation");
+    redirect(`/${siteSegment}/conversation`);
   }
 
   if (detailQuery.isPending || messagesQuery.isPending) {
@@ -45,30 +42,22 @@ export function ChatView({
     );
   }
 
-  async function getCheckpointId(): Promise<string | null> {
-    return activeBranch;
-  }
-
-  const strategy = detailQuery.data;
-  const showGraph = strategy != null && strategy.steps.length > 0;
+  const strategy = detailQuery.data ?? null;
+  const siteId = strategy?.siteId ?? "";
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
-        <div className="flex items-center justify-end border-b border-border px-3 py-1.5">
-          <BranchSwitcher chatId={chatId} />
-        </div>
         <ChatThread
-          chatId={chatId}
+          conversationId={conversationId}
           initialMessages={messagesQuery.data ?? []}
-          getCheckpointId={getCheckpointId}
         />
       </div>
-      {showGraph && (
-        <div className="flex min-h-0 w-1/2 shrink-0 flex-col border-l border-border bg-background">
-          <StrategyGraph strategy={strategy} siteId={strategy.siteId} />
-        </div>
-      )}
+      <RightRail
+        conversationId={conversationId}
+        strategy={strategy}
+        siteId={siteId}
+      />
     </div>
   );
 }

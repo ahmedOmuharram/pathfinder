@@ -1,6 +1,6 @@
 """Integration tests for standalone strategy edit tools (delete, update, undo).
 
-Uses real StrategySession, StrategyGraph, and PlanStepNode objects.
+Uses real StrategySession, StrategyGraph, and StrategyStepNode objects.
 Only RunContext is a mock wrapper around real AgentDeps.
 """
 
@@ -16,7 +16,7 @@ from pathfinder.ai.tools.standalone.strategy_edit import (
     undo_last_change,
     update_step,
 )
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.platform.tool_errors import ToolErrorPayload
@@ -54,8 +54,8 @@ def _add_leaf(
     graph: StrategyGraph,
     step_id: str,
     search_name: str = "GenesByTaxon",
-) -> PlanStepNode:
-    step = PlanStepNode(
+) -> StrategyStepNode:
+    step = StrategyStepNode(
         id=step_id,
         search_name=search_name,
         display_name=f"Step: {search_name}",
@@ -67,11 +67,11 @@ def _add_leaf(
 
 def _add_combined(
     graph: StrategyGraph,
-    step_a: PlanStepNode,
-    step_b: PlanStepNode,
+    step_a: StrategyStepNode,
+    step_b: StrategyStepNode,
     operator: CombineOp = CombineOp.INTERSECT,
-) -> PlanStepNode:
-    combine = PlanStepNode(
+) -> StrategyStepNode:
+    combine = StrategyStepNode(
         search_name="__combine__",
         display_name="Intersect",
         primary_input=step_a,

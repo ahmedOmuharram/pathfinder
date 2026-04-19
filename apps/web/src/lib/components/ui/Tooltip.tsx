@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import type { ComponentPropsWithoutRef, ComponentRef, Ref } from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cn } from "@/lib/utils/cn";
 
@@ -13,8 +13,8 @@ function TooltipContent({
   sideOffset = 4,
   ref,
   ...props
-}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
-  ref?: React.Ref<React.ComponentRef<typeof TooltipPrimitive.Content>>;
+}: ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & {
+  ref?: Ref<ComponentRef<typeof TooltipPrimitive.Content>>;
 }) {
   return (
     <TooltipPrimitive.Portal>

@@ -3,9 +3,10 @@
 import asyncio
 from dataclasses import dataclass
 
+from pydantic import JsonValue
+
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.control_tests import (
     IntersectionConfig,
     run_positive_negative_controls,
@@ -21,13 +22,11 @@ logger = get_logger(__name__)
 _PARALLEL_CONCURRENCY = 4
 _CACHE_PRECISION = 5
 
-
 # ---------------------------------------------------------------------------
 # WDK evaluation (cached, semaphore-guarded)
 # ---------------------------------------------------------------------------
 
-
-def _cache_key(params: dict[str, JSONValue]) -> tuple[tuple[str, str], ...]:
+def _cache_key(params: dict[str, JsonValue]) -> tuple[tuple[str, str], ...]:
     """Build a hashable key from optimised params (rounded floats)."""
     items: list[tuple[str, str]] = []
     for k in sorted(params):
@@ -38,7 +37,6 @@ def _cache_key(params: dict[str, JSONValue]) -> tuple[tuple[str, str], ...]:
             items.append((k, str(v)))
     return tuple(items)
 
-
 _CacheKey = tuple[tuple[str, str], ...]
 _CacheValue = tuple[ControlTestResult | None, str]
 _EvalCache = dict[_CacheKey, _CacheValue]
@@ -46,7 +44,6 @@ _EvalCache = dict[_CacheKey, _CacheValue]
 # Per-key locks prevent duplicate WDK calls when multiple trials in the
 # same asyncio.gather batch share identical params.
 _KeyLocks = dict[_CacheKey, asyncio.Lock]
-
 
 @dataclass(frozen=True, slots=True)
 class EvalRequest:
@@ -56,10 +53,9 @@ class EvalRequest:
     positive_controls: list[str] | None
     negative_controls: list[str] | None
 
-
 async def _evaluate_trial(
     request: EvalRequest,
-    optimised_params: dict[str, JSONValue],
+    optimised_params: dict[str, JsonValue],
     sem: asyncio.Semaphore,
     cache: _EvalCache,
     key_locks: _KeyLocks,
@@ -110,11 +106,10 @@ async def _evaluate_trial(
             cache[key] = result_pair
             return result_pair
 
-
 def _unpack_gather_result(
     raw_result: tuple[ControlTestResult | None, str] | BaseException,
     trial_num: int,
-    params: dict[str, JSONValue],
+    params: dict[str, JsonValue],
 ) -> tuple[ControlTestResult | None, str]:
     """Unpack a result from asyncio.gather (may be an exception)."""
     if isinstance(raw_result, BaseException):

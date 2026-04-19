@@ -80,22 +80,6 @@ services:
         - action: rebuild
           path: ./apps/web/tsconfig.json
 
-  db:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-pathfinder}
-    ports:
-      - "${DB_PORT:-5432}:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   # Type codegen: fetches OpenAPI spec from API -> generates TypeScript types.
   codegen:
     profiles: ["dev"]
@@ -111,6 +95,3 @@ services:
              cd /app && corepack enable && yarn install > /dev/null 2>&1 &&
              cd /app && sh scripts/sync-api-types.sh"
     restart: "no"
-
-volumes:
-  postgres_data:

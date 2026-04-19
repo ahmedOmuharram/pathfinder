@@ -7,7 +7,7 @@ Uses typed WDK models for validation instead of manual ``.get()`` chains.
 
 import json
 
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKEnrichmentResponse,
@@ -16,7 +16,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKPathwayEnrichmentRow,
     WDKWordEnrichmentRow,
 )
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.html import parse_result_genes_html
 from pathfinder.services.enrichment.types import (
     EnrichmentAnalysisType,
@@ -53,11 +53,10 @@ _GO_ANALYSIS_TYPES: frozenset[EnrichmentAnalysisType] = frozenset(
     {"go_function", "go_component", "go_process"}
 )
 
-
 def infer_enrichment_type(
     wdk_analysis_name: str,
     params: JSONObject,
-    result: JSONValue,
+    result: JsonValue,
 ) -> EnrichmentAnalysisType:
     """Infer the ``EnrichmentAnalysisType`` from a WDK analysis name.
 
@@ -86,11 +85,9 @@ def infer_enrichment_type(
             ontology = str(ontologies[0])
     return _REVERSE_GO_ONTOLOGY.get(ontology, "go_process")
 
-
 def is_enrichment_analysis(wdk_analysis_name: str) -> bool:
     """Return True if the WDK analysis name is an enrichment plugin."""
     return wdk_analysis_name in ENRICHMENT_ANALYSIS_NAMES
-
 
 def upsert_enrichment_result(
     results: list[EnrichmentResult],
@@ -107,8 +104,7 @@ def upsert_enrichment_result(
             return
     results.append(new)
 
-
-def parse_enrichment_response(result: JSONValue) -> WDKEnrichmentResponse:
+def parse_enrichment_response(result: JsonValue) -> WDKEnrichmentResponse:
     """Validate a raw WDK analysis result into a typed envelope."""
     if not isinstance(result, dict):
         return WDKEnrichmentResponse()
@@ -116,7 +112,6 @@ def parse_enrichment_response(result: JSONValue) -> WDKEnrichmentResponse:
         return WDKEnrichmentResponse.model_validate(result)
     except ValidationError:
         return WDKEnrichmentResponse()
-
 
 def _extract_genes(result_genes: str) -> tuple[int, list[str]]:
     """Extract gene count and IDs from a WDK resultGenes field.
@@ -131,7 +126,6 @@ def _extract_genes(result_genes: str) -> tuple[int, list[str]]:
         return int(float(result_genes)), []
     except ValueError, TypeError:
         return 0, []
-
 
 def _row_to_term(
     row: WDKEnrichmentRowBase,
@@ -159,7 +153,6 @@ def _row_to_term(
             "genes": genes,
         }
     )
-
 
 def parse_enrichment_terms(
     rows: list[JSONObject],
@@ -192,11 +185,10 @@ def parse_enrichment_terms(
             continue
     return terms
 
-
 def parse_enrichment_from_raw(
     wdk_analysis_name: str,
     params: JSONObject,
-    result: JSONValue,
+    result: JsonValue,
 ) -> EnrichmentResult:
     """Parse a raw WDK analysis result into an ``EnrichmentResult``."""
     analysis_type = infer_enrichment_type(wdk_analysis_name, params, result)

@@ -12,29 +12,16 @@ interface ParsedModel {
 }
 
 function parseModelString(raw: string): ParsedModel {
-  if (raw.includes(":")) {
-    const [first, ...rest] = raw.split(":");
-    const provider = (first ?? "").toLowerCase();
-    const model = rest.join(":");
-    if (provider === "openai" || provider === "anthropic") {
-      return { provider, model };
-    }
-    if (provider === "gemini" || provider === "google") {
-      return { provider: "gemini", model };
-    }
-    if (provider === "mistral") {
-      return { provider: "mistral", model };
-    }
-    return { provider: "unknown", model };
+  const [first, ...rest] = raw.split(":");
+  const provider = (first ?? "").toLowerCase();
+  const model = rest.join(":");
+  if (provider === "openai" || provider === "anthropic" || provider === "mistral") {
+    return { provider, model };
   }
-  const lower = raw.toLowerCase();
-  if (lower.startsWith("gpt") || lower.startsWith("o1") || lower.startsWith("o3")) {
-    return { provider: "openai", model: raw };
+  if (provider === "gemini" || provider === "google") {
+    return { provider: "gemini", model };
   }
-  if (lower.startsWith("claude")) return { provider: "anthropic", model: raw };
-  if (lower.startsWith("gemini")) return { provider: "gemini", model: raw };
-  if (lower.startsWith("mistral")) return { provider: "mistral", model: raw };
-  return { provider: "unknown", model: raw };
+  return { provider: "unknown", model };
 }
 
 function providerIcon(provider: ProviderSlug): ReactElement {

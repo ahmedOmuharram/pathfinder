@@ -5,10 +5,12 @@ parameter space (single-step) or adjusting thresholds and boolean
 operators across a strategy tree (multi-step).
 """
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pydantic import JsonValue
+
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.helpers import ControlsContext
 from pathfinder.services.experiment.service.context import PhaseContext
 from pathfinder.services.experiment.service.shared import (
@@ -33,14 +35,12 @@ from pathfinder.services.parameter_optimization import (
 
 logger = get_logger(__name__)
 
-
 def _spec_optimizable(s: OptimizationSpec) -> bool:
     if s.type == "categorical":
         choices = s.choices or []
         valid = [c for c in choices if isinstance(c, str) and c.strip()]
         return len(valid) > 0
     return True
-
 
 async def phase_optimize_parameters(
     pctx: PhaseContext,
@@ -75,7 +75,7 @@ async def phase_optimize_parameters(
         for s in optimizable_specs
     ]
 
-    fixed_params: dict[str, JSONValue] = {
+    fixed_params: dict[str, JsonValue] = {
         k: v
         for k, v in config.parameters.items()
         if k not in optimizable_names and v not in ("", None)
@@ -128,10 +128,9 @@ async def phase_optimize_parameters(
 
     return None, metrics
 
-
 async def phase_optimize_tree_knobs(
     pctx: PhaseContext,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
 ) -> None:
     """Optimize threshold parameters and boolean operators across a strategy tree."""
     config, experiment = pctx.config, pctx.experiment

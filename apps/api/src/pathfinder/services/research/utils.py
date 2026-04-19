@@ -7,17 +7,16 @@ from difflib import SequenceMatcher
 from urllib.parse import parse_qs, unquote, urlparse
 
 import httpx
+from pydantic import JsonValue
 from rapidfuzz import fuzz
 
 from pathfinder.domain.research.citations import LiteratureFilters
 from pathfinder.domain.research.papers import ParsedPaper
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONValue
 
 logger = get_logger(__name__)
 
 _MIN_QUERY_WORD_COUNT = 2
-
 
 @dataclass
 class LiteratureItemContext:
@@ -29,7 +28,6 @@ class LiteratureItemContext:
     doi: str | None
     pmid: str | None
     journal: str | None
-
 
 _MIN_FILTERED_WORD_COUNT = 2
 _MIN_BIGRAM_WORD_COUNT = 2
@@ -44,7 +42,6 @@ BROWSER_USER_AGENT = (
     "Chrome/122.0.0.0 Safari/537.36"
 )
 
-
 def norm_text(value: str | None) -> str:
     """Normalize text for comparison.
 
@@ -53,8 +50,7 @@ def norm_text(value: str | None) -> str:
     """
     return (value or "").strip().lower()
 
-
-def list_str(value: JSONValue) -> list[str]:
+def list_str(value: JsonValue) -> list[str]:
     """Convert a JSON value to a list of strings.
 
     :param value: Value to process.
@@ -63,7 +59,6 @@ def list_str(value: JSONValue) -> list[str]:
     if isinstance(value, list):
         return [str(v) for v in value if v is not None]
     return []
-
 
 def limit_authors(authors: list[str] | None, max_authors: int) -> list[str] | None:
     """Limit the number of authors, appending 'et al.' if truncated.
@@ -84,7 +79,6 @@ def limit_authors(authors: list[str] | None, max_authors: int) -> list[str] | No
     n = int(max_authors)
     return ["et al."] if n <= 0 else [*cleaned[:n], "et al."]
 
-
 def truncate_text(text: str | None, max_chars: int) -> str | None:
     """Truncate text to max_chars, appending ellipsis if truncated.
 
@@ -99,7 +93,6 @@ def truncate_text(text: str | None, max_chars: int) -> str | None:
         return None
     return t if len(t) <= max_chars else t[: max_chars - 1].rstrip() + "…"
 
-
 def strip_tags(text: str) -> str:
     """Remove HTML tags and normalize whitespace.
 
@@ -109,7 +102,6 @@ def strip_tags(text: str) -> str:
     cleaned = re.sub(r"<[^>]+>", " ", text)
     cleaned = html.unescape(cleaned)
     return re.sub(r"\s+", " ", cleaned).strip()
-
 
 def decode_ddg_redirect(href: str) -> str:
     """Decode DuckDuckGo redirect URLs.
@@ -134,7 +126,6 @@ def decode_ddg_redirect(href: str) -> str:
         logger.debug("Failed to decode DDG redirect URL", error=str(exc))
     return result
 
-
 _LOW_VALUE_QUERY_TOKENS = {
     "biography",
     "bio",
@@ -145,7 +136,6 @@ _LOW_VALUE_QUERY_TOKENS = {
     "department",
     "university",
 }
-
 
 def candidate_queries(q: str) -> list[str]:
     """Generate candidate query variations for fallback searches.
@@ -174,7 +164,6 @@ def candidate_queries(q: str) -> list[str]:
         _add(" ".join(words[:2]))
     return cands
 
-
 def looks_blocked(status_code: int, html: str) -> bool:
     """Check if a response looks like it was blocked by rate limiting.
 
@@ -189,7 +178,6 @@ def looks_blocked(status_code: int, html: str) -> bool:
         return True
     return bool("unusual traffic" in h and "result__a" not in h)
 
-
 def norm_for_match(text: str | None) -> str:
     """Normalize text for fuzzy matching.
 
@@ -201,7 +189,6 @@ def norm_for_match(text: str | None) -> str:
     t = text.lower()
     return re.sub(r"\s+", " ", t).strip()
 
-
 def fallback_ratio(a: str, b: str) -> float:
     """Fallback similarity ratio using SequenceMatcher.
 
@@ -212,7 +199,6 @@ def fallback_ratio(a: str, b: str) -> float:
     if not a or not b:
         return 0.0
     return SequenceMatcher(None, a, b).ratio() * 100.0
-
 
 def fuzzy_score(query: str, text: str) -> float:
     """Calculate fuzzy similarity score between query and text.
@@ -231,7 +217,6 @@ def fuzzy_score(query: str, text: str) -> float:
         logger.debug("rapidfuzz unavailable, using fallback ratio", error=str(exc))
         return fallback_ratio(q, t)
 
-
 def rerank_score(query: str, paper: ParsedPaper) -> tuple[float, dict[str, float]]:
     """Calculate reranking score for a literature search result.
 
@@ -247,7 +232,6 @@ def rerank_score(query: str, paper: ParsedPaper) -> tuple[float, dict[str, float
     journal_s = fuzzy_score(query, journal) if journal else 0.0
     score = 0.70 * title_s + 0.28 * abs_s + 0.02 * journal_s
     return score, {"title": title_s, "abstract": abs_s, "journal": journal_s}
-
 
 def passes_filters(item: LiteratureItemContext, filters: LiteratureFilters) -> bool:
     """Check if a literature result passes all filters.
@@ -292,7 +276,6 @@ def passes_filters(item: LiteratureItemContext, filters: LiteratureFilters) -> b
     )
     return year_ok and doi_ok and exact_ok and text_ok
 
-
 def dedupe_key(paper: ParsedPaper) -> str:
     """Generate a deduplication key for a literature result.
 
@@ -305,7 +288,6 @@ def dedupe_key(paper: ParsedPaper) -> str:
         if value and value.strip():
             return f"{prefix}:{value.strip().lower()}"
     return f"title:{norm_text(paper.title)}|year:{paper.year}"
-
 
 _HEAD_LIMIT = 32 * 1024  # 32 KB — more than enough to capture <head>
 
@@ -324,7 +306,6 @@ _META_PATTERNS = [
     ),
 ]
 
-
 def _extract_meta_description(text: str) -> str | None:
     """Try each meta-description pattern and return the first match."""
     for pat in _META_PATTERNS:
@@ -332,7 +313,6 @@ def _extract_meta_description(text: str) -> str | None:
         if m:
             return strip_tags(m.group(1)) or None
     return None
-
 
 def _extract_best_paragraph(text: str) -> str | None:
     """Return the longest non-boilerplate ``<p>`` content."""
@@ -349,9 +329,8 @@ def _extract_best_paragraph(text: str) -> str | None:
             best = txt
     return best
 
-
 async def fetch_page_summary(
-    client: httpx.AsyncClient, url: JSONValue, *, max_chars: int
+    client: httpx.AsyncClient, url: JsonValue, *, max_chars: int
 ) -> str | None:
     """Fetch and extract a text summary from a web page.
 

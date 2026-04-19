@@ -8,8 +8,10 @@ for the LLM while preserving type safety for Python callers.
 
 from enum import Enum
 
+from pydantic import JsonValue
+
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 
 class ToolErrorPayload(CamelModel):
@@ -20,8 +22,7 @@ class ToolErrorPayload(CamelModel):
     message: str
     details: JSONObject | None = None
 
-
-def tool_error(code: str | Enum, message: str, **details: JSONValue) -> ToolErrorPayload:
+def tool_error(code: str | Enum, message: str, **details: JsonValue) -> ToolErrorPayload:
     """Build a standardized tool error payload.
 
     :param code: Error code (string or Enum).

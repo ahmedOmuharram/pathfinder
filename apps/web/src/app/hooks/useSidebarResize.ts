@@ -40,6 +40,7 @@ export function useSidebarResize({
   return {
     layoutRef,
     sidebarWidth,
+    isDragging: dragging,
     startDragging: () => setDragging(true),
   };
 }

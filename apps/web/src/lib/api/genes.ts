@@ -1,15 +1,14 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { GeneSearchResponse, GeneResolveResponse } from "@pathfinder/shared";
+import { geneResolveResponseSchema } from "@pathfinder/shared/generated/zod/geneResolveResponseSchema";
+import { geneSearchResponseSchema } from "@pathfinder/shared/generated/zod/geneSearchResponseSchema";
+import { organismsResponseSchema } from "@pathfinder/shared/generated/zod/organismsResponseSchema";
+
 import { requestJson } from "./http";
-import {
-  GeneResolveResponseSchema,
-  GeneSearchResponseSchema,
-  OrganismListResponseSchema,
-} from "./schemas/gene";
 
 export async function listOrganisms(siteId: string): Promise<string[]> {
   const resp = await requestJson(
-    OrganismListResponseSchema,
+    organismsResponseSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/organisms`,
   );
   return resp.organisms;
@@ -26,7 +25,7 @@ export async function searchGenes(
   if (organism != null && organism !== "") params["organism"] = organism;
   if (offset > 0) params["offset"] = String(offset);
   return (await requestJson(
-    GeneSearchResponseSchema,
+    geneSearchResponseSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/genes/search`,
     { query: params },
   )) as GeneSearchResponse;
@@ -37,7 +36,7 @@ export async function resolveGeneIds(
   geneIds: string[],
 ): Promise<GeneResolveResponse> {
   return (await requestJson(
-    GeneResolveResponseSchema,
+    geneResolveResponseSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/genes/resolve`,
     { method: "POST", body: { geneIds } },
   )) as GeneResolveResponse;

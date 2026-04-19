@@ -9,16 +9,15 @@ serialized as JSON strings.
 import json
 from dataclasses import dataclass
 
+from pydantic import JsonValue
+
 from pathfinder.domain.parameters._value_helpers import (
     ParamKind,
     process_value,
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.types import (
-    JSONObject,
-    JSONValue,
-)
+from pathfinder.platform.types import JSONObject
 
 # WDK wire format wraps these compound kinds with json.dumps().
 _WIRE_JSON_KINDS = frozenset({ParamKind.MULTI_PICK, ParamKind.RANGE, ParamKind.FILTER})
@@ -53,8 +52,8 @@ class ParameterNormalizer:
         return normalized
 
     def _normalize_value(
-        self, spec: ParamSpecNormalized, value: JSONValue
-    ) -> JSONValue:
+        self, spec: ParamSpecNormalized, value: JsonValue
+    ) -> JsonValue:
         result = process_value(spec, value)
 
         # WDK wire format: compound types must be serialized as JSON strings.

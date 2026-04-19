@@ -1,8 +1,8 @@
 """Sites request/response DTOs."""
 
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field, JsonValue, RootModel
 
-from pathfinder.platform.types import JSONArray, JSONObject, JSONValue
+from pathfinder.platform.types import JSONArray, JSONObject
 
 
 class SiteResponse(BaseModel):
@@ -17,7 +17,6 @@ class SiteResponse(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
 class RecordTypeResponse(BaseModel):
     """Record type information."""
 
@@ -26,7 +25,6 @@ class RecordTypeResponse(BaseModel):
     description: str | None = None
 
     model_config = {"populate_by_name": True}
-
 
 class SearchResponse(BaseModel):
     """Search information."""
@@ -38,7 +36,6 @@ class SearchResponse(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
 class DependentParamsRequest(BaseModel):
     """Dependent parameter values request."""
 
@@ -46,7 +43,6 @@ class DependentParamsRequest(BaseModel):
     context_values: JSONObject = Field(default_factory=dict, alias="contextValues")
 
     model_config = {"populate_by_name": True}
-
 
 class SearchDetailsResponse(BaseModel):
     """Search details payload (UI-facing)."""
@@ -60,10 +56,8 @@ class SearchDetailsResponse(BaseModel):
 
     model_config = {"populate_by_name": True, "extra": "allow"}
 
-
 class DependentParamsResponse(RootModel[JSONArray]):
     """Dependent parameter values response."""
-
 
 class SearchValidationRequest(BaseModel):
     """Search parameter validation request."""
@@ -72,14 +66,12 @@ class SearchValidationRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
 class ParamSpecsRequest(BaseModel):
     """Parameter specs request (optionally contextual)."""
 
     context_values: JSONObject = Field(default_factory=dict, alias="contextValues")
 
     model_config = {"populate_by_name": True}
-
 
 class ParamSpecResponse(BaseModel):
     """Normalized parameter spec (UI-friendly)."""
@@ -95,10 +87,10 @@ class ParamSpecResponse(BaseModel):
     min_selected_count: int | None = Field(default=None, alias="minSelectedCount")
     max_selected_count: int | None = Field(default=None, alias="maxSelectedCount")
     count_only_leaves: bool = Field(default=False, alias="countOnlyLeaves")
-    initial_display_value: JSONValue | None = Field(
+    initial_display_value: JsonValue | None = Field(
         default=None, alias="initialDisplayValue"
     )
-    vocabulary: JSONValue | None = None
+    vocabulary: JsonValue | None = None
     min_value: float | None = Field(default=None, alias="min")
     max_value: float | None = Field(default=None, alias="max")
     is_number: bool = Field(default=False, alias="isNumber")

@@ -6,6 +6,8 @@ that all mixin classes depend on.
 
 import json
 
+from pydantic import JsonValue
+
 from pathfinder.domain.parameters.vocab_utils import (
     collect_leaf_terms,
     find_vocab_node,
@@ -20,14 +22,13 @@ from pathfinder.integrations.veupathdb.wdk_models import WDKAnswer
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, ErrorCode, validate_response
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
 _MIN_INDENT_VOCAB_ENTRY_LEN = 2
 _MIN_ENTRY_PARTS_FOR_CODE_STATE = 2
 _MIN_ENTRY_PARTS_FOR_QUANTIFIER = 3
-
 
 def _sort_profile_pattern(pattern: str) -> str:
     """Sort ``%code:Y%code:N%`` entries alphabetically.
@@ -42,7 +43,6 @@ def _sort_profile_pattern(pattern: str) -> str:
         return pattern
     parts = [p.strip() for p in pattern.strip("%").split("%") if p.strip()]
     return f"%{'%'.join(sorted(parts))}%" if parts else pattern
-
 
 def _validate_phyletic_codes(entries: list[str], all_known_codes: set[str]) -> None:
     """Raise ``AppError`` if any entry code is not in the known set."""
@@ -65,7 +65,6 @@ def _validate_phyletic_codes(entries: list[str], all_known_codes: set[str]) -> N
                 f"(e.g. 'pfal' for P. falciparum, 'hsap' for H. sapiens)."
             ),
         )
-
 
 class StrategyAPIBase:
     """Base infrastructure for :class:`StrategyAPI`.
@@ -208,7 +207,7 @@ class StrategyAPIBase:
                     result[spec.name] = json.dumps(expanded)
         return result
 
-    def _parse_param_values(self, raw: str) -> list[JSONValue]:
+    def _parse_param_values(self, raw: str) -> list[JsonValue]:
         """Parse a parameter value string into a list."""
         try:
             values = json.loads(raw) if isinstance(raw, str) else raw
@@ -289,7 +288,7 @@ class StrategyAPIBase:
             logger.debug("Failed to expand profile_pattern groups (non-fatal)")
             return pattern
 
-    async def _fetch_indent_vocab(self, record_type: str) -> list[JSONValue]:
+    async def _fetch_indent_vocab(self, record_type: str) -> list[JsonValue]:
         """Fetch the phyletic_indent_map vocabulary."""
         response = await self.client.get_search_details(
             record_type, "GenesByOrthologPattern", expand_params=True
@@ -325,9 +324,8 @@ class StrategyAPIBase:
             WDKAnswer, result, f"WDK answer response for step {step_id}"
         )
 
-
 def _build_phyletic_tree(
-    indent_vocab: list[JSONValue],
+    indent_vocab: list[JsonValue],
 ) -> tuple[dict[str, list[str]], set[str]]:
     """Build parent->children and leaf sets from the phyletic indent vocabulary."""
     codes_at_depth = [
@@ -350,7 +348,6 @@ def _build_phyletic_tree(
         else:
             leaf_codes.add(code)
     return children_of, leaf_codes
-
 
 def _expand_entries(
     entries: list[str],

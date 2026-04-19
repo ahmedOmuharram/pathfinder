@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from typing import Any
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.helpers import (
     ControlsContext,
@@ -133,7 +133,7 @@ def _enrich_contributions_with_narrative(
 
 async def run_step_analysis(
     ctx: ControlsContext,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     baseline_result: ControlTestResult,
     phases: list[str] | None = None,
     progress_callback: ProgressCallback | None = None,
@@ -141,7 +141,7 @@ async def run_step_analysis(
     """Run all requested step analysis phases.
 
     :param ctx: Shared controls context (site, record type, controls config).
-    :param tree: Strategy tree as a :class:`PlanStepNode`.
+    :param tree: Strategy tree as a :class:`StrategyStepNode`.
     :param baseline_result: Typed control-test result from the initial tree evaluation.
     :param phases: Which phases to run. Defaults to all four.
     :returns: Aggregated :class:`StepAnalysisResult`.

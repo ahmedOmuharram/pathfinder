@@ -275,7 +275,7 @@ async def db_cleaner(db_engine: AsyncEngine) -> AsyncGenerator[None]:
     async with db_engine.begin() as conn:
         await conn.exec_driver_sql(
             "TRUNCATE TABLE "
-            "checkpoint_labels, messages, conversations, exports, "
+            "messages, conversations, exports, "
             "experiments, gene_sets, control_sets, users "
             "RESTART IDENTITY CASCADE"
         )

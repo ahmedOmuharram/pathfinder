@@ -9,7 +9,7 @@ so that domain code (``StrategySession``) can hold and access sync state
 fields without importing service-layer types.
 
 These replace the integration-layer ``WDKSerializedParams`` / ``WdkParamValue``
-so that ``PlanStepNode.parameters`` carries no integration imports.
+so that ``StrategyStepNode.parameters`` carries no integration imports.
 """
 
 from __future__ import annotations

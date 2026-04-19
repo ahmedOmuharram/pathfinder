@@ -1,6 +1,6 @@
-"""Verify that canonicalize_plan_parameters works correctly for push flows.
+"""Verify that canonicalize_strategy_ast_parameters works correctly for push flows.
 
-The push endpoint must run canonicalize_plan_parameters() so that
+The push endpoint must run canonicalize_strategy_ast_parameters() so that
 user-edited parameters (from the graph editor) are validated and
 normalized before reaching WDK.  Without canonicalization, parent-node
 selections on countOnlyLeaves params silently return 0 results.
@@ -9,9 +9,10 @@ selections on countOnlyLeaves params silently return 0 results.
 from collections.abc import Mapping
 
 import pytest
+from pydantic import JsonValue
 
-from pathfinder.domain.strategy.ast import PlanStepNode
-from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearch,
@@ -24,13 +25,11 @@ from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKStringParam,
 )
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.strategies.plan_normalize import (
-    canonicalize_plan_parameters,
+    canonicalize_strategy_ast_parameters,
 )
 
 # -- Fixtures ----------------------------------------------------------------
-
 
 def _make_tree_vocab() -> dict[str, object]:
     """A 2-level tree vocabulary: Plasmodium -> {Pf3D7, PvP01}."""
@@ -48,7 +47,6 @@ def _make_tree_vocab() -> dict[str, object]:
         ],
     }
 
-
 def _make_search_response(
     search_name: str,
     params: list[WDKParameter],
@@ -64,31 +62,28 @@ def _make_search_response(
         validation=StepValidation(),
     )
 
-
 async def _noop_loader(
     _record_type: str,
     _name: str,
-    _params: Mapping[str, JSONValue],
+    _params: Mapping[str, JsonValue],
 ) -> WDKSearchResponse:
     """Placeholder — overridden per test."""
     msg = "Should not be called"
     raise AssertionError(msg)
 
-
 # -- Tests -------------------------------------------------------------------
-
 
 async def test_canonicalize_expands_parent_to_leaves():
     """Parent organism selection must be expanded to leaf descendants.
 
     This is the core bug: if a user selects "Plasmodium" (parent) in a
     countOnlyLeaves=true param, WDK silently returns 0 genes.
-    canonicalize_plan_parameters must expand it to ["Pf3D7", "PvP01"].
+    canonicalize_strategy_ast_parameters must expand it to ["Pf3D7", "PvP01"].
     """
     vocab = _make_tree_vocab()
-    plan = StrategyPlanPayload(
+    plan = StrategyAst(
         record_type="transcript",
-        root=PlanStepNode(
+        root=StrategyStepNode(
             search_name="GenesByTaxon",
             parameters={"organism": ["Plasmodium"]},
             id="step_1",
@@ -96,7 +91,7 @@ async def test_canonicalize_expands_parent_to_leaves():
     )
 
     async def load_details(
-        _rt: str, _name: str, _params: Mapping[str, JSONValue]
+        _rt: str, _name: str, _params: Mapping[str, JsonValue]
     ) -> WDKSearchResponse:
         return _make_search_response(
             "GenesByTaxon",
@@ -111,8 +106,8 @@ async def test_canonicalize_expands_parent_to_leaves():
             ],
         )
 
-    result = await canonicalize_plan_parameters(
-        plan=plan,
+    result = await canonicalize_strategy_ast_parameters(
+        strategy_ast=plan,
         site_id="plasmodb",
         load_search_details=load_details,
     )
@@ -121,12 +116,11 @@ async def test_canonicalize_expands_parent_to_leaves():
     # SerializedParams coerces list → JSON string for WDK compatibility.
     assert result.root.parameters["organism"] == '["Pf3D7", "PvP01"]'
 
-
 async def test_canonicalize_validates_unknown_param():
     """Unknown parameters must raise ValidationError, not pass through."""
-    plan = StrategyPlanPayload(
+    plan = StrategyAst(
         record_type="transcript",
-        root=PlanStepNode(
+        root=StrategyStepNode(
             search_name="GenesByTaxon",
             parameters={"bogus_param": "value"},
             id="step_1",
@@ -134,7 +128,7 @@ async def test_canonicalize_validates_unknown_param():
     )
 
     async def load_details(
-        _rt: str, _name: str, _params: Mapping[str, JSONValue]
+        _rt: str, _name: str, _params: Mapping[str, JsonValue]
     ) -> WDKSearchResponse:
         return _make_search_response(
             "GenesByTaxon",
@@ -149,27 +143,26 @@ async def test_canonicalize_validates_unknown_param():
         )
 
     with pytest.raises(ValidationError, match="Unknown parameter"):
-        await canonicalize_plan_parameters(
-            plan=plan,
+        await canonicalize_strategy_ast_parameters(
+            strategy_ast=plan,
             site_id="plasmodb",
             load_search_details=load_details,
         )
 
-
 async def test_canonicalize_leaves_combine_nodes_untouched():
     """Combine nodes should not be canonicalized (they have no WDK params)."""
-    plan = StrategyPlanPayload(
+    plan = StrategyAst(
         record_type="transcript",
-        root=PlanStepNode(
+        root=StrategyStepNode(
             search_name="BooleanQuestion",
             parameters={"bq_operator": "INTERSECT"},
             operator="INTERSECT",
-            primary_input=PlanStepNode(
+            primary_input=StrategyStepNode(
                 search_name="GenesByTaxon",
                 parameters={"organism": ["Pf3D7"]},
                 id="step_1",
             ),
-            secondary_input=PlanStepNode(
+            secondary_input=StrategyStepNode(
                 search_name="GenesByTextSearch",
                 parameters={"text_expression": "kinase"},
                 id="step_2",
@@ -179,7 +172,7 @@ async def test_canonicalize_leaves_combine_nodes_untouched():
     )
 
     async def load_details(
-        _rt: str, name: str, _params: Mapping[str, JSONValue]
+        _rt: str, name: str, _params: Mapping[str, JsonValue]
     ) -> WDKSearchResponse:
         if name == "GenesByTaxon":
             return _make_search_response(
@@ -204,8 +197,8 @@ async def test_canonicalize_leaves_combine_nodes_untouched():
             ],
         )
 
-    result = await canonicalize_plan_parameters(
-        plan=plan,
+    result = await canonicalize_strategy_ast_parameters(
+        strategy_ast=plan,
         site_id="plasmodb",
         load_search_details=load_details,
     )
@@ -219,12 +212,11 @@ async def test_canonicalize_leaves_combine_nodes_untouched():
     assert result.root.secondary_input is not None
     assert result.root.secondary_input.parameters["text_expression"] == "kinase"
 
-
 async def test_canonicalize_numeric_range_validation():
     """Out-of-range numeric values must be caught."""
-    plan = StrategyPlanPayload(
+    plan = StrategyAst(
         record_type="transcript",
-        root=PlanStepNode(
+        root=StrategyStepNode(
             search_name="GenesByExpression",
             parameters={"fold_change": "999"},
             id="step_1",
@@ -232,7 +224,7 @@ async def test_canonicalize_numeric_range_validation():
     )
 
     async def load_details(
-        _rt: str, _name: str, _params: Mapping[str, JSONValue]
+        _rt: str, _name: str, _params: Mapping[str, JsonValue]
     ) -> WDKSearchResponse:
         return _make_search_response(
             "GenesByExpression",
@@ -247,8 +239,8 @@ async def test_canonicalize_numeric_range_validation():
         )
 
     with pytest.raises(ValidationError, match="exceeds maximum"):
-        await canonicalize_plan_parameters(
-            plan=plan,
+        await canonicalize_strategy_ast_parameters(
+            strategy_ast=plan,
             site_id="plasmodb",
             load_search_details=load_details,
         )

@@ -2,30 +2,42 @@
 
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useChatRuntime as useAssistantUIChatRuntime } from "@assistant-ui/react-ai-sdk";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { getAuthHeaders } from "@/lib/api/http";
+import { conversationListOptions } from "@/lib/api/conversations";
+import { userQuotaQueryKey } from "@/lib/api/quota";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { buildChatRequestBody } from "./buildRequestBody";
 import { createFeedbackAdapter } from "./feedbackAdapter";
 
 interface UseChatRuntimeArgs {
-  chatId: string;
+  conversationId: string;
   initialMessages?: UIMessage[];
-  getCheckpointId?: (threadId: string, parentMessages: UIMessage[]) => Promise<string | null>;
 }
 
 const chatIdsWithRewrittenUrl = new Set<string>();
 
 export function useChatRuntime({
-  chatId,
+  conversationId,
   initialMessages,
-  getCheckpointId,
 }: UseChatRuntimeArgs) {
+  const queryClient = useQueryClient();
   return useAssistantUIChatRuntime({
-    id: chatId,
+    id: conversationId,
     ...(initialMessages !== undefined && { messages: initialMessages }),
     adapters: { feedback: createFeedbackAdapter() },
+    onFinish: () => {
+      const siteId = useSessionStore.getState().selectedSite;
+      void queryClient.invalidateQueries({
+        queryKey: ["conversations", conversationId, "detail"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: conversationListOptions(siteId).queryKey,
+      });
+      void queryClient.invalidateQueries({ queryKey: userQuotaQueryKey });
+    },
     transport: new DefaultChatTransport({
       api: "/api/v1/chat",
       headers: () =>
@@ -34,27 +46,23 @@ export function useChatRuntime({
           contentType: "application/json",
         }),
       prepareSendMessagesRequest: async ({ id, messages, trigger, body }) => {
-        if (
-          !chatIdsWithRewrittenUrl.has(chatId)
-          && typeof window !== "undefined"
-          && !window.location.pathname.startsWith(`/conversation/${chatId}`)
-        ) {
-          chatIdsWithRewrittenUrl.add(chatId);
-          window.history.replaceState(null, "", `/conversation/${chatId}`);
-        }
-        const parentCheckpointId =
-          getCheckpointId !== undefined
-            ? await getCheckpointId(id, messages)
-            : null;
         const siteId = useSessionStore.getState().selectedSite;
+        const conversationPath = `/${siteId}/conversation/${conversationId}`;
+        if (
+          !chatIdsWithRewrittenUrl.has(conversationId)
+          && typeof window !== "undefined"
+          && !window.location.pathname.startsWith(conversationPath)
+        ) {
+          chatIdsWithRewrittenUrl.add(conversationId);
+          window.history.replaceState(null, "", conversationPath);
+        }
         return {
           body: buildChatRequestBody({
-            chatId,
+            conversationId,
             siteId,
             id,
             trigger,
             messages,
-            parentCheckpointId,
             baseBody: body as Record<string, unknown> | undefined,
           }),
         };

@@ -8,11 +8,11 @@ from uuid import uuid4
 
 from pathfinder.domain.strategy.ast import (
     COMBINE_SEARCH_NAME,
-    PlanStepNode,
+    StrategyStepNode,
     walk_step_tree,
 )
 from pathfinder.domain.strategy.ops import CombineOp
-from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload, _HistoryEntry
+from pathfinder.domain.strategy.strategy_ast import StrategyAst, _HistoryEntry
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.platform.logging import get_logger
 
@@ -32,7 +32,7 @@ class StrategyGraph:
         # Set when the first step is created or when importing a WDK strategy.
         self.record_type: str | None = None
         self.description: str | None = None
-        self.steps: dict[str, PlanStepNode] = {}
+        self.steps: dict[str, StrategyStepNode] = {}
         # Current subtree root IDs.  Every step creation updates this set:
         # the new step is added as a root and any inputs it consumes are
         # removed.  A complete strategy has exactly one root.
@@ -40,11 +40,11 @@ class StrategyGraph:
         self.history: list[_HistoryEntry] = []
         self.last_step_id: str | None = None
 
-    def to_plan(
+    def to_strategy_ast(
         self,
         root_step_id: str | None = None,
         sync_state: SyncStateProtocol | None = None,
-    ) -> StrategyPlanPayload | None:
+    ) -> StrategyAst | None:
         """Produce a typed plan payload for API responses and DB persistence."""
         root_id = root_step_id or (
             next(iter(self.roots)) if len(self.roots) == 1 else None
@@ -63,7 +63,7 @@ class StrategyGraph:
             if sync_state.wdk_step_ids:
                 wdk_step_ids = dict(sync_state.wdk_step_ids)
 
-        return StrategyPlanPayload(
+        return StrategyAst(
             record_type=self.record_type or "",
             root=root,
             name=self.name,
@@ -72,7 +72,7 @@ class StrategyGraph:
             wdk_step_ids=wdk_step_ids,
         )
 
-    def add_step(self, step: PlanStepNode) -> str:
+    def add_step(self, step: StrategyStepNode) -> str:
         """Add a step and maintain the subtree-root set.
 
         The new step becomes a root.  If it consumes existing roots as
@@ -99,7 +99,7 @@ class StrategyGraph:
             )
         return step.id
 
-    def find_parent(self, step_id: str) -> tuple[PlanStepNode, str] | None:
+    def find_parent(self, step_id: str) -> tuple[StrategyStepNode, str] | None:
         """Find the parent of a step and which input slot it occupies.
 
         :param step_id: Step ID to look up.
@@ -115,7 +115,7 @@ class StrategyGraph:
 
     def insert_step_with_combine(
         self,
-        new_step: PlanStepNode,
+        new_step: StrategyStepNode,
         combine_with_step_id: str,
         operator: CombineOp,
         combine_display_name: str | None = None,
@@ -145,7 +145,7 @@ class StrategyGraph:
         self.steps[new_step.id] = new_step
 
         # Create the combine node.
-        combine = PlanStepNode(
+        combine = StrategyStepNode(
             search_name=COMBINE_SEARCH_NAME,
             primary_input=target,
             secondary_input=new_step,
@@ -234,7 +234,7 @@ class StrategyGraph:
         raise RuntimeError(msg)
 
     def _collapse_parent_combine(
-        self, step: PlanStepNode, parent: PlanStepNode, slot: str
+        self, step: StrategyStepNode, parent: StrategyStepNode, slot: str
     ) -> list[str]:
         """Collapse a parent combine: keep sibling, delete step subtree + combine."""
         sibling = parent.secondary_input if slot == "primary" else parent.primary_input
@@ -258,7 +258,7 @@ class StrategyGraph:
         return sorted(to_delete)
 
     def _delete_root_step(
-        self, step_id: str, step: PlanStepNode, kind: str
+        self, step_id: str, step: StrategyStepNode, kind: str
     ) -> list[str]:
         """Handle deletion of a root step (no parent)."""
         if kind == "search":
@@ -299,7 +299,7 @@ class StrategyGraph:
         self.last_step_id = None
         return deleted_all
 
-    def get_step(self, step_id: str) -> PlanStepNode | None:
+    def get_step(self, step_id: str) -> StrategyStepNode | None:
         """Get a step by ID.
 
         :param step_id: Step ID.
@@ -338,9 +338,11 @@ class StrategyGraph:
 
     def save_history(self, description: str) -> None:
         """Save current state to history."""
-        plan = self.to_plan()
-        if plan is not None:
-            self.history.append(_HistoryEntry(description=description, plan=plan))
+        ast = self.to_strategy_ast()
+        if ast is not None:
+            self.history.append(
+                _HistoryEntry(description=description, strategy_ast=ast),
+            )
 
     def undo(self) -> bool:
         """Undo to previous state.
@@ -351,7 +353,7 @@ class StrategyGraph:
             return False
         self.history.pop()  # remove current
         previous = self.history[-1]
-        root = previous.plan.root
+        root = previous.strategy_ast.root
         all_steps = walk_step_tree(root)
         self.steps = {s.id: s for s in all_steps}
         self.recompute_roots()

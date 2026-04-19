@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Archive, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  Archive,
+  RefreshCw,
+  RotateCcw,
+  SquarePen,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -21,7 +28,7 @@ import { useConversationSidebarData } from "@/features/sidebar/hooks/useConversa
 import { useConversationSidebarActions } from "@/features/sidebar/hooks/useConversationSidebarActions";
 import { ConversationList } from "@/features/sidebar/components/ConversationList";
 import { DeleteConversationModal } from "@/features/sidebar/components/DeleteConversationModal";
-import { DuplicateConversationModal } from "@/features/sidebar/components/DuplicateConversationModal";
+import { countDescendants } from "@/features/sidebar/lib/conversationTree";
 
 interface ConversationSidebarProps {
   siteId: string;
@@ -43,37 +50,37 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
   });
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 px-3 py-4">
-      <div className="flex items-center justify-between">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="flex h-full min-h-0 flex-col gap-3 px-2 py-3">
+      <div className="flex items-center gap-1 px-1">
+        <div className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Conversations
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            data-testid="conversations-refresh-button"
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            disabled={chatIsStreaming || data.isSyncing}
-            onClick={() => void data.handleManualRefresh()}
-            title="Refresh conversations & strategies"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${data.isSyncing ? "animate-spin" : ""}`}
-            />
-          </Button>
-          <Button
-            data-testid="conversations-new-button"
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={chatIsStreaming}
-            onClick={() => void actions.handleNewConversation()}
-            aria-label="New chat"
-          >
-            New Chat
-          </Button>
-        </div>
+        <Button
+          data-testid="conversations-refresh-button"
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={chatIsStreaming || data.isSyncing}
+          onClick={() => void data.handleManualRefresh()}
+          aria-label="Refresh conversations"
+          title="Refresh conversations & strategies"
+        >
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${data.isSyncing ? "animate-spin" : ""}`}
+          />
+        </Button>
+        <Button
+          data-testid="conversations-new-button"
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={chatIsStreaming}
+          onClick={() => void actions.handleNewConversation()}
+          aria-label="New chat"
+          title="New chat"
+        >
+          <SquarePen className="h-4 w-4" />
+        </Button>
       </div>
 
       <Input
@@ -82,13 +89,13 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
         onChange={(e) => data.setQuery(e.target.value)}
         placeholder="Search conversations..."
         aria-label="Search conversations"
-        className="bg-card"
+        className="h-8 border-transparent bg-muted/40 text-sm shadow-none focus-visible:border-input focus-visible:bg-background"
       />
 
       {(!data.hasInitiallyLoaded || data.isSyncing) && data.filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground animate-fade-in">
           <Spinner className="h-5 w-5" />
-          <p className="text-xs">Loading conversations…</p>
+          <p className="text-xs">Loading conversations...</p>
         </div>
       )}
 
@@ -107,19 +114,18 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
         onCancelRename={actions.cancelRename}
         onStartRename={actions.startRename}
         onStartDelete={actions.setDeleteTarget}
-        onStartDuplicate={actions.setDuplicateTarget}
         onToggleSaved={(item) => void actions.handleToggleSaved(item)}
       />
 
       {data.dismissedConversations.length > 0 && (
-        <>
+        <div className="border-t border-border pt-2">
           <Button
             data-testid="dismissed-toggle"
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => setShowDismissed((prev) => !prev)}
-            className="h-7 justify-start gap-1.5 px-1 text-xs font-normal text-muted-foreground"
+            className="h-7 w-full justify-start gap-1.5 px-1.5 text-[11px] font-normal uppercase tracking-wider text-muted-foreground/70"
           >
             <Archive className="h-3 w-3" />
             <span>Dismissed ({data.dismissedConversations.length})</span>
@@ -128,55 +134,57 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
             </span>
           </Button>
           {showDismissed && (
-            <div className="space-y-0.5 pl-1">
+            <div className="mt-1 space-y-0.5">
               {data.dismissedConversations.map((item) => (
                 <div
                   key={item.id}
                   data-testid="dismissed-item"
                   data-conversation-id={item.id}
-                  className="flex items-center justify-between rounded-md px-2 py-1.5 text-xs text-muted-foreground"
+                  className="group relative rounded-md px-2.5 py-1.5 text-xs text-muted-foreground/80 opacity-80 hover:bg-muted/40"
                 >
-                  <span className="min-w-0 truncate">{item.title}</span>
-                  <div className="ml-2 flex shrink-0 items-center gap-1">
+                  <div className="truncate pr-14 text-sm">{item.title}</div>
+                  <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                     <Button
                       data-testid="dismissed-restore-button"
                       type="button"
                       variant="ghost"
-                      size="xs"
+                      size="icon-xs"
                       onClick={() => void actions.handleRestore(item.id)}
+                      aria-label="Restore conversation"
+                      title="Restore"
                     >
-                      Restore
+                      <RotateCcw className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       data-testid="dismissed-delete-button"
                       type="button"
                       variant="ghost"
-                      size="xs"
+                      size="icon-xs"
                       onClick={() => actions.setPermanentDeleteTarget(item.id)}
+                      aria-label="Delete permanently"
+                      title="Delete permanently"
                       className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
-                      Delete
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
 
       <DeleteConversationModal
         target={actions.deleteTarget}
         isDeleting={actions.isDeleting}
+        descendantCount={
+          actions.deleteTarget
+            ? countDescendants(actions.deleteTarget.id, data.filtered)
+            : 0
+        }
         onClose={() => actions.setDeleteTarget(null)}
-        onConfirmDelete={() => void actions.confirmDelete()}
-      />
-
-      <DuplicateConversationModal
-        target={actions.duplicateTarget}
-        isDuplicating={actions.isDuplicating}
-        onClose={() => actions.setDuplicateTarget(null)}
-        onConfirm={() => void actions.confirmDuplicate()}
+        onConfirmDelete={(opts) => void actions.confirmDelete(opts)}
       />
 
       <Dialog

@@ -24,11 +24,11 @@ interface EngineState {
 }
 
 export const DEFAULT_PHASES: PipelineConfig = {
-  scoping: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
-  discovery: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
-  planning: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
-  execution: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
-  verification: { modelId: "openai/gpt-4.1-mini", reasoningEffort: "medium" },
+  scoping: { modelId: "openai:gpt-4.1-mini", reasoningEffort: "medium" },
+  discovery: { modelId: "openai:gpt-4.1-mini", reasoningEffort: "medium" },
+  planning: { modelId: "openai:gpt-4.1-mini", reasoningEffort: "medium" },
+  execution: { modelId: "openai:gpt-4.1-mini", reasoningEffort: "medium" },
+  verification: { modelId: "openai:gpt-4.1-mini", reasoningEffort: "medium" },
 };
 
 export function normalizePipelineConfig(phases?: Partial<PipelineConfig> | null): PipelineConfig {

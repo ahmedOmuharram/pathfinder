@@ -4,19 +4,16 @@ import { useState } from "react";
 import { Layers, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { requestJson } from "@/lib/api/http";
-import { EnsembleScoreListSchema, EnsembleScoreSchema } from "@/lib/api/schemas/ensemble";
-import type { z } from "zod";
+import { ensembleScoreSchema } from "@pathfinder/shared/generated/zod/ensembleScoreSchema";
+import type { EnsembleScore } from "@pathfinder/shared/generated/types/EnsembleScore";
+import { z } from "zod";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type EnsembleScore = z.infer<typeof EnsembleScoreSchema>;
+const EnsembleScoreListSchema = z.array(ensembleScoreSchema);
 
 // ---------------------------------------------------------------------------
 // Component

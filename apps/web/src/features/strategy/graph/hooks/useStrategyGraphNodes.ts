@@ -9,7 +9,7 @@ import { useSaveValidation } from "@/features/strategy/validation/useSaveValidat
 import {
   getCombineMismatchGroups,
   inferStepKind,
-  serializeStrategyPlan,
+  serializeStrategyAst,
   type CombineMismatchGroup,
 } from "@/lib/strategyGraph";
 
@@ -134,7 +134,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   const warningGroupNodes = computeWarningGroupNodes(nodes, combineMismatchGroups);
 
   const isDraftView = draftStrategy != null && strategy?.id === draftStrategy.id;
-  const planResult = serializeStrategyPlan(stepsById, draftStrategy ?? strategy);
+  const planResult = serializeStrategyAst(stepsById, draftStrategy ?? strategy);
   const planHash = planResult ? JSON.stringify(planResult.plan) : null;
   const graphIdForValidation = draftStrategy?.id ?? strategy?.id ?? null;
   const graphHasValidationIssues = useStrategyStore((state) =>

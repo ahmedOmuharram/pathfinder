@@ -1,11 +1,12 @@
 import type { Experiment } from "@pathfinder/shared";
+import { experimentResponseSchema } from "@pathfinder/shared/generated/zod/experimentResponseSchema";
+
 import { requestBlob, requestJson, requestVoid } from "@/lib/api/http";
-import { ExperimentSchema } from "@/lib/api/schemas/experiment";
 import { RefineResponseSchema } from "@/lib/api/schemas/analysis";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
 export async function getExperiment(experimentId: string): Promise<Experiment> {
-  const raw = await requestJson(ExperimentSchema, `/api/v1/experiments/${experimentId}`);
+  const raw = await requestJson(experimentResponseSchema, `/api/v1/experiments/${experimentId}`);
   return raw as unknown as Experiment;
 }
 
@@ -18,7 +19,7 @@ export async function updateExperimentNotes(
   notes: string,
 ): Promise<Experiment> {
   const raw = await requestJson(
-    ExperimentSchema,
+    experimentResponseSchema,
     `/api/v1/experiments/${experimentId}`,
     { method: "PATCH", body: { notes } },
   );
@@ -61,7 +62,7 @@ export async function refineExperiment(
 
 export async function reEvaluateExperiment(experimentId: string): Promise<Experiment> {
   const raw = await requestJson(
-    ExperimentSchema,
+    experimentResponseSchema,
     `/api/v1/experiments/${experimentId}/re-evaluate`,
     { method: "POST" },
   );

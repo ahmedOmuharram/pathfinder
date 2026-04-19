@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import type { ComponentPropsWithoutRef, ComponentRef, Ref } from "react";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { cn } from "@/lib/utils/cn";
 
@@ -12,8 +12,8 @@ function DropdownMenuContent({
   sideOffset = 4,
   ref,
   ...props
-}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
-  ref?: React.Ref<React.ComponentRef<typeof DropdownMenuPrimitive.Content>>;
+}: ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content> & {
+  ref?: Ref<ComponentRef<typeof DropdownMenuPrimitive.Content>>;
 }) {
   return (
     <DropdownMenuPrimitive.Portal>
@@ -35,9 +35,9 @@ function DropdownMenuItem({
   inset,
   ref,
   ...props
-}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
+}: ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
   inset?: boolean;
-  ref?: React.Ref<React.ComponentRef<typeof DropdownMenuPrimitive.Item>>;
+  ref?: Ref<ComponentRef<typeof DropdownMenuPrimitive.Item>>;
 }) {
   return (
     <DropdownMenuPrimitive.Item

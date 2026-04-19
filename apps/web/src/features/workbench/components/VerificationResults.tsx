@@ -47,10 +47,10 @@ export function VerificationResults({
                 <tr key={g.geneId} className="text-foreground">
                   <td className="py-0.5 pr-2 font-mono">{g.geneId}</td>
                   <td className="truncate py-0.5 pr-2 max-w-[150px]">
-                    {g.product || "\u2014"}
+                    {g.product != null && g.product !== "" ? g.product : "\u2014"}
                   </td>
                   <td className="truncate py-0.5 italic max-w-[120px]">
-                    {g.organism || "\u2014"}
+                    {g.organism != null && g.organism !== "" ? g.organism : "\u2014"}
                   </td>
                 </tr>
               ))}

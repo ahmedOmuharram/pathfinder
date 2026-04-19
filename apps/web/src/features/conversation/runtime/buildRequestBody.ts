@@ -1,22 +1,20 @@
 import type { UIMessage } from "ai";
 
 export interface BuildChatRequestBodyArgs {
-  chatId: string;
+  conversationId: string;
   siteId: string;
   id: string;
   trigger: string;
   messages: UIMessage[];
-  parentCheckpointId: string | null;
   baseBody: Record<string, unknown> | undefined;
 }
 
 export interface ChatRequestBodyShape {
-  chatId: string;
+  conversationId: string;
   siteId: string;
   id: string;
   trigger: string;
   messages: UIMessage[];
-  parentCheckpointId?: string;
   [key: string]: unknown;
 }
 
@@ -32,13 +30,10 @@ export function buildChatRequestBody(
   }
   return {
     ...(args.baseBody ?? {}),
-    chatId: args.chatId,
+    conversationId: args.conversationId,
     siteId: args.siteId,
     id: args.id,
     trigger: args.trigger,
     messages: args.messages,
-    ...(args.parentCheckpointId !== null && {
-      parentCheckpointId: args.parentCheckpointId,
-    }),
   };
 }

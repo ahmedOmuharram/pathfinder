@@ -4,6 +4,7 @@ Each function takes ``RunContext[AgentDeps]`` and mirrors the original
 :class:`StrategyGraphOps` methods exactly.
 """
 
+from pydantic import JsonValue
 from pydantic_ai import RunContext
 
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -15,11 +16,9 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.strategies.schemas import StepResponse
 
 logger = get_logger(__name__)
-
 
 class StrategySummaryResponse(CamelModel):
     """Summary metadata for a strategy graph."""
@@ -27,12 +26,11 @@ class StrategySummaryResponse(CamelModel):
     graph_id: str
     graph_name: str | None = None
     record_type: str | None = None
-    wdk_strategy_id: JSONValue = None
+    wdk_strategy_id: JsonValue = None
     is_built: bool = False
     step_count: int = 0
     description: str | None = None
     steps: list[StepResponse] | None = None
-
 
 async def get_strategy(
     ctx: RunContext[AgentDeps],

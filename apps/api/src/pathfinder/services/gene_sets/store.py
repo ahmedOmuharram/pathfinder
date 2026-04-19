@@ -42,7 +42,7 @@ def _row_from_gene_set(gs: GeneSet) -> dict[str, object]:
 
 
 def _gene_set_from_row(row: GeneSetRow) -> GeneSet:
-    # DB JSON columns return JSONValue; narrow to the concrete types GeneSet expects.
+    # DB JSON columns return JsonValue; narrow to the concrete types GeneSet expects.
     gene_ids = [str(x) for x in row.gene_ids] if row.gene_ids else []
     parent_set_ids = [str(x) for x in row.parent_set_ids] if row.parent_set_ids else []
     parameters = (

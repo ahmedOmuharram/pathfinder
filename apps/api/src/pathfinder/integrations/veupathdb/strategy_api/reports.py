@@ -4,9 +4,11 @@ Provides :class:`ReportsMixin` with methods to run reports, fetch step
 answers and records, and get step counts.
 """
 
+from pydantic import JsonValue
+
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import WDKAnswer, WDKSortSpec
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 
 class ReportsMixin(StrategyAPIBase):
@@ -18,11 +20,11 @@ class ReportsMixin(StrategyAPIBase):
         report_name: str,
         config: JSONObject | None = None,
         user_id: str | None = None,
-    ) -> JSONValue:
+    ) -> JsonValue:
         """Run a report on a step."""
         uid = await self._get_user_id(user_id)
-        # reportConfig is a nested JSONObject, which is valid JSONValue
-        report_config: JSONValue = config or {}
+        # reportConfig is a nested JSONObject, which is valid JsonValue
+        report_config: JsonValue = config or {}
         payload: JSONObject = {"reportConfig": report_config}
         return await self.client.run_step_report(uid, step_id, report_name, payload)
 

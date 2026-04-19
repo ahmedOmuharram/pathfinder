@@ -2,9 +2,10 @@
  * Shared analysis API types and functions -- used by both workbench and analysis features.
  */
 
+import { customEnrichmentResultSchema } from "@pathfinder/shared/generated/zod/customEnrichmentResultSchema";
+
 import { buildUrl, requestJson } from "@/lib/api/http";
 import { streamTypedEvents } from "@/lib/sse/typedEventStream";
-import { CustomEnrichmentResultSchema } from "./schemas/analysis";
 
 // ---------------------------------------------------------------------------
 // Custom Enrichment
@@ -28,7 +29,7 @@ export async function runCustomEnrichment(
   geneIds: string[],
 ): Promise<CustomEnrichmentResult> {
   return (await requestJson(
-    CustomEnrichmentResultSchema,
+    customEnrichmentResultSchema,
     `/api/v1/experiments/${experimentId}/custom-enrich`,
     { method: "POST", body: { geneSetName, geneIds } },
   )) as CustomEnrichmentResult;

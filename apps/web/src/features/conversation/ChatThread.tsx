@@ -19,18 +19,15 @@ import {
 import { useChatRuntime } from "./runtime/useChatRuntime";
 
 export function ChatThread({
-  chatId,
+  conversationId,
   initialMessages,
-  getCheckpointId,
 }: {
-  chatId: string;
+  conversationId: string;
   initialMessages?: UIMessage[];
-  getCheckpointId?: (threadId: string, parentMessages: UIMessage[]) => Promise<string | null>;
 }) {
   const runtime = useChatRuntime({
-    chatId,
+    conversationId,
     ...(initialMessages !== undefined && { initialMessages }),
-    ...(getCheckpointId !== undefined && { getCheckpointId }),
   });
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -48,7 +45,7 @@ export function ChatThread({
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>
-        <Composer />
+        <Composer conversationId={conversationId} />
       </ThreadPrimitive.Root>
     </AssistantRuntimeProvider>
   );

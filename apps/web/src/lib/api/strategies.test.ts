@@ -1,12 +1,14 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 
+import type * as HttpModule from "./http";
+
 const requestJsonMock = vi.hoisted(() => vi.fn());
 vi.mock("./http", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./http")>();
+  const actual = await importOriginal<typeof HttpModule>();
   return { ...actual, requestJson: requestJsonMock };
 });
 
-import { undoTurn } from "./conversations";
+import { undoTurn } from "./conversationUndo";
 
 afterEach(() => {
   requestJsonMock.mockReset();

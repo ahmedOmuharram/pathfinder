@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
-import type { StrategyPlan } from "@pathfinder/shared";
+import type { StrategyAst } from "@pathfinder/shared";
 
 type StepCountsResponse = { counts?: Record<string, number | null> };
 
 export function useStepCounts(args: {
   siteId: string;
-  plan: StrategyPlan | null;
+  plan: StrategyAst | null;
   planHash: string | null;
   stepIds: string[];
   applyStepCounts: (counts: Record<string, number | null | undefined>) => void;
-  fetchCounts: (siteId: string, plan: StrategyPlan) => Promise<StepCountsResponse>;
+  fetchCounts: (siteId: string, plan: StrategyAst) => Promise<StepCountsResponse>;
   debounceMs?: number;
 }) {
   const {

@@ -9,7 +9,7 @@ import re
 from collections.abc import Awaitable, Callable
 
 from pathfinder.domain.search import SearchContext
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.tree import collect_plan_leaves
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
@@ -248,7 +248,7 @@ async def make_record_type_resolver(site_id: str) -> ResolveRecordType:
 
 
 async def resolve_record_type_from_steps(
-    root_step: PlanStepNode,
+    root_step: StrategyStepNode,
     resolver: ResolveRecordType,
 ) -> str | None:
     """Resolve record type from the first resolvable leaf search in a step tree.

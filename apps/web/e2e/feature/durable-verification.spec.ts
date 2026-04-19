@@ -74,7 +74,7 @@ test.describe("Durable verification TaskCard", () => {
         messageId: "11111111-1111-1111-1111-111111111111",
         messageMetadata: {
           phase: "verification",
-          model: "mock/deterministic",
+          model: "mock:deterministic",
           traceId: "mock-trace",
           createdAt: new Date().toISOString(),
         },

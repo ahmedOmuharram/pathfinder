@@ -44,7 +44,7 @@ from pathfinder.ai.tools.standalone._stream_parts import (
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.search import SearchContext
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.plan import (
     PlannedStep,
     PlanStatus,
@@ -98,12 +98,12 @@ async def _fetch_specs_by_search(
     return results
 
 
-def _step_to_node(step: PlannedStep) -> PlanStepNode:
-    """Convert a PlannedStep to a PlanStepNode for the artifact tree."""
+def _step_to_node(step: PlannedStep) -> StrategyStepNode:
+    """Convert a PlannedStep to a StrategyStepNode for the artifact tree."""
     raw_params = {
         k: v.value or "" for k, v in step.parameters.items()
     } if step.parameters else {}
-    return PlanStepNode(
+    return StrategyStepNode(
         search_name=step.search_name,
         display_name=step.display_name,
         parameters=raw_params,
@@ -120,7 +120,7 @@ def _build_proposed_plan(plan: StrategyPlan) -> JSONObject | None:
         return None
 
     step_by_id = {s.id: s for s in plan.steps}
-    node_by_id: dict[str, PlanStepNode] = {}
+    node_by_id: dict[str, StrategyStepNode] = {}
 
     # Build nodes bottom-up: leaves first, then combines.
     for step in plan.steps:

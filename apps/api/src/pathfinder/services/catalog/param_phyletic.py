@@ -2,6 +2,8 @@
 
 from typing import cast
 
+from pydantic import JsonValue
+
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery_service import (
@@ -10,7 +12,7 @@ from pathfinder.integrations.veupathdb.discovery_service import (
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONArray, JSONObject, JSONValue
+from pathfinder.platform.types import JSONArray, JSONObject
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_discovery import fetch_search_details
 from pathfinder.services.wdk.record_types import resolve_record_type
@@ -21,7 +23,6 @@ _MIN_VOCAB_ENTRY_LENGTH = 2
 # Cap phyletic tree matches to keep the tool response concise for the LLM
 # and avoid overwhelming it with hundreds of species/clade entries.
 _MAX_TREE_MATCHES = 20
-
 
 def _extract_phyletic_vocabs(
     specs: dict[str, ParamSpecNormalized],
@@ -36,7 +37,6 @@ def _extract_phyletic_vocabs(
     if indent_spec and isinstance(indent_spec.vocabulary, list):
         indent_map_vocab = indent_spec.vocabulary
     return term_map_vocab, indent_map_vocab
-
 
 def _build_group_codes(indent_map_vocab: JSONArray) -> set[str]:
     """Build set of group codes (non-leaf nodes) from indent map entries."""
@@ -53,7 +53,6 @@ def _build_group_codes(indent_map_vocab: JSONArray) -> set[str]:
                 if next_depth > depth:
                     group_codes.add(code)
     return group_codes
-
 
 def _match_phyletic_entries(
     term_map_vocab: JSONArray,
@@ -88,7 +87,6 @@ def _match_phyletic_entries(
         for code, label, is_leaf in ranked[:_MAX_TREE_MATCHES]
     ]
 
-
 def _rank_by_semantic_similarity(
     query: str,
     candidates: list[tuple[str, str, bool]],
@@ -117,7 +115,6 @@ def _rank_by_semantic_similarity(
             num_candidates=len(candidates),
         )
         return candidates
-
 
 async def lookup_phyletic_codes(
     site_id: str,
@@ -151,7 +148,7 @@ async def lookup_phyletic_codes(
 
         return {
             "query": query,
-            "matches": cast("JSONValue", matches),
+            "matches": cast("JsonValue", matches),
             "total": len(matches),
             "hint": (
                 "Use codes in profile_pattern: %CODE:Y% (include) or %CODE:N% (exclude). "

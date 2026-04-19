@@ -2,7 +2,8 @@
 
 from dataclasses import dataclass
 
-from pathfinder.platform.types import JSONValue
+from pydantic import JsonValue
+
 from pathfinder.services.experiment.types import ControlTestResult
 from pathfinder.services.parameter_optimization.config import (
     OptimizationConfig,
@@ -23,7 +24,6 @@ class TrialMetrics:
     positive_hits: int | None
     negative_hits: int | None
 
-
 def _extract_trial_metrics(wdk_result: ControlTestResult) -> TrialMetrics:
     """Extract recall, FPR, result count, and hit counts from a control-test result."""
     pos = wdk_result.positive
@@ -37,16 +37,14 @@ def _extract_trial_metrics(wdk_result: ControlTestResult) -> TrialMetrics:
         negative_hits=neg.intersection_count if neg else None,
     )
 
-
 # ---------------------------------------------------------------------------
 # Trial builders
 # ---------------------------------------------------------------------------
 
-
 def _build_failed_trial(
     *,
     trial_number: int,
-    params: dict[str, JSONValue],
+    params: dict[str, JsonValue],
     n_positives: int,
     n_negatives: int,
 ) -> TrialResult:
@@ -62,11 +60,10 @@ def _build_failed_trial(
         total_negatives=n_negatives,
     )
 
-
 def _build_successful_trial(
     *,
     trial_number: int,
-    params: dict[str, JSONValue],
+    params: dict[str, JsonValue],
     wdk_result: ControlTestResult,
     cfg: OptimizationConfig,
     n_positives: int,

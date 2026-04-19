@@ -44,7 +44,7 @@ export type ParamDef =
 export type ParamValues = Record<string, string>;
 
 export interface CommandContext {
-  chatId: string;
+  conversationId: string;
   siteId: string;
 }
 

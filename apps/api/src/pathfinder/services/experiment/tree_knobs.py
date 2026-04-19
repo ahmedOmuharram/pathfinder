@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import optuna
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.tree import walk_plan_tree
 from pathfinder.platform.logging import get_logger
@@ -48,7 +48,7 @@ class TreeOptimizationOptions:
 
 async def optimize_tree_knobs(
     ctx: ControlsContext,
-    base_tree: PlanStepNode,
+    base_tree: StrategyStepNode,
     threshold_knobs: list[ThresholdKnob],
     operator_knobs: list[OperatorKnob],
     options: TreeOptimizationOptions | None = None,
@@ -74,10 +74,10 @@ async def optimize_tree_knobs(
     best_trial: TreeOptimizationTrial | None = None
 
     def _apply_knobs(
-        tree: PlanStepNode,
+        tree: StrategyStepNode,
         threshold_vals: dict[str, float],
         operator_vals: dict[str, str],
-    ) -> PlanStepNode:
+    ) -> StrategyStepNode:
         """Return a copy of the tree with knob values applied."""
         modified = tree.model_copy(deep=True)
         _apply_knobs_recursive(modified, threshold_vals, operator_vals)
@@ -165,13 +165,13 @@ async def optimize_tree_knobs(
 
 
 def _apply_knobs_recursive(
-    node: PlanStepNode,
+    node: StrategyStepNode,
     threshold_vals: dict[str, float],
     operator_vals: dict[str, str],
 ) -> None:
     """Recursively apply knob values to a tree in-place."""
 
-    def _apply(n: PlanStepNode) -> None:
+    def _apply(n: StrategyStepNode) -> None:
         nid = n.id
         if nid in operator_vals:
             n.operator = CombineOp(operator_vals[nid])

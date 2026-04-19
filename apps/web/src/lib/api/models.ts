@@ -1,19 +1,13 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { ModelCatalogEntry, ModelProvider, TierName } from "@pathfinder/shared";
-import { requestJson } from "./http";
-import { ModelCatalogResponseSchema } from "./schemas/model";
+import { modelListResponseSchema } from "@pathfinder/shared/generated/zod/modelListResponseSchema";
+import type { ModelListResponse } from "@pathfinder/shared/generated/types/ModelListResponse";
 
-export interface ModelCatalogResponse {
-  models: ModelCatalogEntry[];
-  defaultProvider: ModelProvider;
-  defaultTier: TierName;
-}
+import { requestJson } from "./http";
+
+export type ModelCatalogResponse = ModelListResponse;
 
 export async function listModels(): Promise<ModelCatalogResponse> {
-  return (await requestJson(
-    ModelCatalogResponseSchema,
-    "/api/v1/models",
-  )) as ModelCatalogResponse;
+  return await requestJson(modelListResponseSchema, "/api/v1/models");
 }
 
 export function modelCatalogOptions() {

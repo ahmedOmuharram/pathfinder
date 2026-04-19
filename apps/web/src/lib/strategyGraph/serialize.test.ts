@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { serializeStrategyPlan } from "./serialize";
+import { serializeStrategyAst } from "./serialize";
 import type { Step, Strategy } from "@pathfinder/shared";
 
 /** Minimal Step with required boolean fields defaulted. */
@@ -13,7 +13,7 @@ describe("core/strategyGraph/serialize", () => {
       a: step({ id: "a", displayName: "A", searchName: "q1", recordType: "gene" }),
       b: step({ id: "b", displayName: "B", searchName: "q2", recordType: "gene" }),
     };
-    const res = serializeStrategyPlan(stepsById, {
+    const res = serializeStrategyAst(stepsById, {
       id: "s",
       name: "S",
       siteId: "plasmodb",
@@ -59,7 +59,7 @@ describe("core/strategyGraph/serialize", () => {
       updatedAt: "t",
     };
 
-    const res = serializeStrategyPlan(stepsById, strategy);
+    const res = serializeStrategyAst(stepsById, strategy);
     expect(res?.plan.root.id).toBe("b");
     expect(res?.plan.root.primaryInput?.id).toBe("a");
     // Any params containing the UI-only @@fake@@ sentinel are removed.
@@ -96,13 +96,13 @@ describe("core/strategyGraph/serialize", () => {
       updatedAt: "t",
     };
 
-    const res = serializeStrategyPlan(stepsById, strategy);
+    const res = serializeStrategyAst(stepsById, strategy);
     expect(res?.plan.root.searchName).toBe("__combine__");
     expect(res?.plan.root.operator).toBe("UNION");
 
     const stepC = stepsById["c"]!;
     const broken = { ...stepsById, c: { ...stepC, operator: null } };
-    const res2 = serializeStrategyPlan(broken, strategy);
+    const res2 = serializeStrategyAst(broken, strategy);
     expect(res2).toBeNull();
   });
 });

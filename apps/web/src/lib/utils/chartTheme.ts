@@ -1,5 +1,5 @@
 /**
- * Chart theme utilities – maps CSS custom properties (--chart-1 … --chart-6)
+ * Chart theme utilities – maps CSS custom properties (--chart-1 ... --chart-6)
  * to colour strings that Recharts / SVG props accept directly.
  */
 

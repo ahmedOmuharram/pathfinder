@@ -46,7 +46,7 @@ from pathfinder.ai.tools.standalone.strategy_edit import (
 )
 from pathfinder.ai.tools.standalone.workbench import create_workbench_gene_set
 from pathfinder.domain.research.citations import Citation
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.processing import (
     EnrichedPaper,
@@ -285,7 +285,7 @@ async def test_create_leaf_step_emits_graph_snapshot_and_strategy_update(
     graph = session.get_graph(None)
     assert graph is not None
 
-    new_step = PlanStepNode(
+    new_step = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="Test Step",
         parameters={"organism": "plasmodium"},
@@ -343,12 +343,12 @@ async def test_combine_steps_emits_graph_snapshot_and_strategy_update(
     graph = session.get_graph(None)
     assert graph is not None
 
-    step_a = PlanStepNode(
+    step_a = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="A",
         parameters={"organism": "plasmodb"},
     )
-    step_b = PlanStepNode(
+    step_b = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="B",
         parameters={"organism": "toxodb"},
@@ -356,7 +356,7 @@ async def test_combine_steps_emits_graph_snapshot_and_strategy_update(
     graph.steps[step_a.id] = step_a
     graph.steps[step_b.id] = step_b
 
-    combined = PlanStepNode(
+    combined = StrategyStepNode(
         search_name="__combine__",
         operator=__import__(
             "pathfinder.domain.strategy.ops", fromlist=["CombineOp"]
@@ -402,14 +402,14 @@ async def test_transform_step_emits_graph_snapshot_and_strategy_update(
     graph = session.get_graph(None)
     assert graph is not None
 
-    base_step = PlanStepNode(
+    base_step = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="Base",
         parameters={"organism": "plasmodb"},
     )
     graph.steps[base_step.id] = base_step
 
-    transform = PlanStepNode(
+    transform = StrategyStepNode(
         search_name="GenesByOrthologs",
         display_name="Transformed",
         primary_input=base_step,
@@ -444,7 +444,7 @@ async def test_update_step_emits_graph_snapshot_and_strategy_update():
     graph = session.get_graph(None)
     assert graph is not None
 
-    step = PlanStepNode(
+    step = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="Existing",
         parameters={"organism": "plasmodb"},
@@ -471,12 +471,12 @@ async def test_delete_step_emits_graph_snapshot_and_strategy_update():
     graph = session.get_graph(None)
     assert graph is not None
 
-    step_a = PlanStepNode(
+    step_a = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="A",
         parameters={"organism": "plasmodb"},
     )
-    step_b = PlanStepNode(
+    step_b = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="B",
         parameters={"organism": "toxodb"},
@@ -504,7 +504,7 @@ async def test_rename_strategy_emits_strategy_meta_data_chunk():
 
     graph = session.get_graph(None)
     assert graph is not None
-    step = PlanStepNode(
+    step = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="A",
         parameters={"organism": "plasmodb"},
@@ -540,7 +540,7 @@ async def test_clear_strategy_emits_graph_cleared_data_chunk():
     graph = session.get_graph(None)
     assert graph is not None
     # Add a step so "there's something to clear"
-    step = PlanStepNode(
+    step = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="A",
         parameters={"organism": "plasmodb"},

@@ -65,7 +65,7 @@ describe("ExpandedRowDetail", () => {
   it("shows loading state", () => {
     render(<ExpandedRowDetail {...baseProps} detail={null} loading />);
 
-    expect(screen.getByText("Loading details…")).toBeTruthy();
+    expect(screen.getByText("Loading details...")).toBeTruthy();
   });
 
   it("shows error state", () => {

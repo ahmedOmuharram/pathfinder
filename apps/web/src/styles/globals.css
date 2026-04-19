@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* ══════════════════════════════════════════════════════════════════════════════
    Tailwind 4 CSS-first theme — replaces tailwind.config.ts entirely.
@@ -698,3 +699,4 @@
 .markdown-content ol ol ol {
   list-style-type: lower-roman;
 }
+

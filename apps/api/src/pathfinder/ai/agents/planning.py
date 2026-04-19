@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
-from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
@@ -15,6 +14,7 @@ from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.state import PhaseOutcome
 from pathfinder.ai.tools.toolsets.planning import build_toolset
 from pathfinder.domain.strategy.plan import PlanStatus, StepStatus
 
@@ -68,11 +68,25 @@ existing strategy.
 - Do NOT execute strategy operations — that is the execution agent's job.
 - Do NOT explore the catalog — that was the discovery agent's job. Use \
 the findings you received.
+
+## Output — the PhaseOutcome contract
+
+Return exactly one ``PhaseOutcome``:
+
+- ``prose`` (required, user-facing): a concise summary of the plan and its \
+rationale. This IS the assistant message the user reads.
+- ``reason`` (required, short): one sentence explaining your routing \
+choice.
+- ``disposition``: ``awaiting_user`` when the plan needs user review or \
+you asked a blocking question in ``prose``; ``handoff`` when the plan is \
+ready for execution.
+- ``handoff_to`` (optional): ``execution`` (or ``discovery`` if a gap \
+emerged).
 """
 
-planning_agent: Agent[AgentDeps, str] = Agent(
+planning_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=str,
+    output_type=[PhaseOutcome, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_PLANNING_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -138,7 +152,3 @@ def _replan_context(ctx: RunContext[AgentDeps]) -> str | None:
     return "\n".join(lines)
 
 
-PLANNING_USAGE_LIMITS = UsageLimits(
-    request_limit=200,
-    total_tokens_limit=500_000,
-)

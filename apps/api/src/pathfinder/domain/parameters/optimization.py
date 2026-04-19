@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Literal, Self
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, JsonValue, model_validator
 
 from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat
-from pathfinder.platform.types import JSONValue
 
 
 class VariantSpec(CamelModel):
@@ -18,11 +17,9 @@ class VariantSpec(CamelModel):
     model_config = ConfigDict(frozen=True)
 
     id: str = Field(min_length=1)
-    params: dict[str, JSONValue] = Field(default_factory=dict)
-
+    params: dict[str, JsonValue] = Field(default_factory=dict)
 
 VariantStatus = Literal["success", "failed"]
-
 
 class VariantResult(CamelModel):
     """Outcome of a single variant evaluation in a parallel sweep.
@@ -36,7 +33,7 @@ class VariantResult(CamelModel):
 
     variant_id: str
     status: VariantStatus
-    params: dict[str, JSONValue] = Field(default_factory=dict)
+    params: dict[str, JsonValue] = Field(default_factory=dict)
     score: RoundedFloat | None = None
     recall: RoundedFloat | None = None
     false_positive_rate: RoundedFloat | None = None
@@ -44,7 +41,6 @@ class VariantResult(CamelModel):
     positive_hits: int | None = None
     negative_hits: int | None = None
     error: str | None = None
-
 
 class SweepResult(CamelModel):
     """Top-level output of a parallel parameter sweep.

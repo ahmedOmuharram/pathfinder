@@ -42,7 +42,7 @@ def test_resolve_raises_when_both_are_empty() -> None:
 
 
 def test_resolve_raises_when_both_are_none_and_empty() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="site_id could not be resolved"):
         resolve_site_id(
             chat_site_id=None,
             body_site_id="",
@@ -51,7 +51,7 @@ def test_resolve_raises_when_both_are_none_and_empty() -> None:
 
 
 def test_resolve_treats_whitespace_as_empty() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="site_id could not be resolved"):
         resolve_site_id(
             chat_site_id="   ",
             body_site_id="\t",

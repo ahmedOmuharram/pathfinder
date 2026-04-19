@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.persistence.repositories.control_set import ControlSetCreate
 from pathfinder.platform.errors import sanitize_error_for_client
@@ -78,7 +78,7 @@ async def _process_single_seed(
         try:
             api = get_strategy_api(seed.site_id)
 
-            tree_node = PlanStepNode.model_validate(seed.step_tree)
+            tree_node = StrategyStepNode.model_validate(seed.step_tree)
             root_tree = await _materialize_step_tree(
                 api, tree_node, seed.record_type, site_id=seed.site_id
             )

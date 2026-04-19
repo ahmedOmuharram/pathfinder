@@ -3,7 +3,7 @@
 import re
 
 import httpx
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -12,7 +12,6 @@ from pathfinder.domain.research.citations import (
 )
 from pathfinder.domain.research.papers import ArxivRawEntry, ParsedPaper
 from pathfinder.platform.errors import ExternalServiceError
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
@@ -26,7 +25,7 @@ class ArxivClient(StandardClient):
     _source_name = "arxiv"
     _backoff_base_s = 3.0  # arXiv rate limit is 1 req / 3 seconds
 
-    async def _fetch_raw(self, query: str, *, limit: int) -> list[JSONValue]:
+    async def _fetch_raw(self, query: str, *, limit: int) -> list[JsonValue]:
         url = "http://export.arxiv.org/api/query"
         params = {
             "search_query": f"all:{query}",
@@ -49,7 +48,7 @@ class ArxivClient(StandardClient):
         return [{"_xml": e} for e in entries[:limit]]
 
     def _parse_item(
-        self, raw: JSONValue, *, abstract_max_chars: int
+        self, raw: JsonValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             entry = ArxivRawEntry.model_validate(raw)

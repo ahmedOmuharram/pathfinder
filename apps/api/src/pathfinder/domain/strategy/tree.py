@@ -1,12 +1,12 @@
-"""Typed tree walkers for PlanStepNode strategy trees."""
+"""Typed tree walkers for StrategyStepNode strategy trees."""
 
 from collections.abc import Callable
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 
 
-def walk_plan_tree(root: PlanStepNode, visitor: Callable[[PlanStepNode], None]) -> None:
-    """Pre-order walk of a PlanStepNode AST."""
+def walk_plan_tree(root: StrategyStepNode, visitor: Callable[[StrategyStepNode], None]) -> None:
+    """Pre-order walk of a StrategyStepNode AST."""
     visitor(root)
     if root.primary_input is not None:
         walk_plan_tree(root.primary_input, visitor)
@@ -14,11 +14,11 @@ def walk_plan_tree(root: PlanStepNode, visitor: Callable[[PlanStepNode], None]) 
         walk_plan_tree(root.secondary_input, visitor)
 
 
-def collect_plan_leaves(root: PlanStepNode) -> list[PlanStepNode]:
+def collect_plan_leaves(root: StrategyStepNode) -> list[StrategyStepNode]:
     """Collect leaf AST nodes (no primary or secondary input)."""
-    leaves: list[PlanStepNode] = []
+    leaves: list[StrategyStepNode] = []
 
-    def _visit(node: PlanStepNode) -> None:
+    def _visit(node: StrategyStepNode) -> None:
         if node.primary_input is None and node.secondary_input is None:
             leaves.append(node)
 
@@ -26,11 +26,11 @@ def collect_plan_leaves(root: PlanStepNode) -> list[PlanStepNode]:
     return leaves
 
 
-def collect_plan_combine_nodes(root: PlanStepNode) -> list[PlanStepNode]:
-    """Collect combine (binary) nodes from a PlanStepNode tree."""
-    combines: list[PlanStepNode] = []
+def collect_plan_combine_nodes(root: StrategyStepNode) -> list[StrategyStepNode]:
+    """Collect combine (binary) nodes from a StrategyStepNode tree."""
+    combines: list[StrategyStepNode] = []
 
-    def _visit(node: PlanStepNode) -> None:
+    def _visit(node: StrategyStepNode) -> None:
         if node.primary_input is not None and node.secondary_input is not None:
             combines.append(node)
 
@@ -39,14 +39,14 @@ def collect_plan_combine_nodes(root: PlanStepNode) -> list[PlanStepNode]:
 
 
 def map_plan_tree(
-    root: PlanStepNode,
-    transform: Callable[[PlanStepNode], PlanStepNode],
-) -> PlanStepNode:
+    root: StrategyStepNode,
+    transform: Callable[[StrategyStepNode], StrategyStepNode],
+) -> StrategyStepNode:
     """Bottom-up map: apply *transform* to every node, children first.
 
     The original tree is **not** mutated.
     """
-    updated: dict[str, PlanStepNode | None] = {}
+    updated: dict[str, StrategyStepNode | None] = {}
     if root.primary_input is not None:
         updated["primary_input"] = map_plan_tree(root.primary_input, transform)
     if root.secondary_input is not None:

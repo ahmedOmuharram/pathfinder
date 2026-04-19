@@ -14,10 +14,10 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from shared_py.defaults import DEFAULT_STREAM_NAME
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.models import Conversation
 
 
@@ -37,7 +37,7 @@ class ConversationUpdate:
     wdk_strategy_id_set: bool = False
     is_saved: bool | None = None
     is_saved_set: bool = False
-    plan: StrategyPlanPayload | None = None
+    strategy_ast: StrategyAst | None = None
     step_count: int | None = None
     estimated_size: int | None = None
     estimated_size_set: bool = False
@@ -45,6 +45,8 @@ class ConversationUpdate:
     gene_set_id_set: bool = False
     gene_set_auto_imported: bool | None = None
     pipeline: Any | None = field(default=None)
+    supervisor_model_id: str | None = None
+    supervisor_model_id_set: bool = False
     touch_updated_at: bool = True
 
 
@@ -60,6 +62,7 @@ _FLAGGED_FIELDS: tuple[tuple[str, str], ...] = (
     ("estimated_size_set", "estimated_size"),
     ("gene_set_id_set", "gene_set_id"),
     ("is_saved_set", "is_saved"),
+    ("supervisor_model_id_set", "supervisor_model_id"),
 )
 
 
@@ -74,8 +77,8 @@ def _collect_chat_values(upd: ConversationUpdate) -> dict[str, Any]:
         if val is not None:
             values[attr] = val
 
-    if upd.plan is not None:
-        values["plan"] = upd.plan.model_dump(
+    if upd.strategy_ast is not None:
+        values["strategy_ast"] = upd.strategy_ast.model_dump(
             by_alias=True, exclude_none=True, mode="json"
         )
 
@@ -156,8 +159,49 @@ class ConversationRepository:
         result = await self.session.execute(select(Conversation).where(Conversation.id == conversation_id))
         return result.scalar_one_or_none()
 
-    async def delete(self, conversation_id: UUID) -> None:
-        await self.session.execute(delete(Conversation).where(Conversation.id == conversation_id))
+    async def delete(
+        self, conversation_id: UUID, *, cascade: bool = False,
+    ) -> None:
+        """Delete a conversation.
+
+        Two modes:
+        * ``cascade=False`` (default): delete only this node; promote its
+          direct children to this node's parent, inheriting the fork point
+          so the remaining tree stays meaningful.
+        * ``cascade=True``: delete this node and every descendant. Uses a
+          recursive CTE to find the full subtree in one query.
+        """
+        if cascade:
+            sql = text(
+                """
+                WITH RECURSIVE descendants(id) AS (
+                    SELECT id FROM conversations WHERE id = :id
+                    UNION ALL
+                    SELECT c.id FROM conversations c
+                    JOIN descendants d ON c.parent_conversation_id = d.id
+                )
+                DELETE FROM conversations WHERE id IN (SELECT id FROM descendants)
+                """,
+            )
+            await self.session.execute(sql, {"id": str(conversation_id)})
+            await self.session.flush()
+            return
+
+        deleted = await self.session.scalar(
+            select(Conversation).where(Conversation.id == conversation_id),
+        )
+        if deleted is not None:
+            await self.session.execute(
+                update(Conversation)
+                .where(Conversation.parent_conversation_id == conversation_id)
+                .values(
+                    parent_conversation_id=deleted.parent_conversation_id,
+                    parent_message_id=deleted.parent_message_id,
+                ),
+            )
+        await self.session.execute(
+            delete(Conversation).where(Conversation.id == conversation_id),
+        )
         await self.session.flush()
 
     # ── Strategy metadata reads ──

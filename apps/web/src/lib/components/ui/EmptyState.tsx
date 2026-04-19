@@ -1,11 +1,11 @@
-import * as React from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
 interface EmptyStateProps {
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   heading: string;
   description?: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
   className?: string;
 }
 

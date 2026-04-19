@@ -1,7 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { ControlSet } from "@pathfinder/shared";
+import { controlSetResponseSchema } from "@pathfinder/shared/generated/zod/controlSetResponseSchema";
+import { z } from "zod";
+
 import { requestBlob, requestJson, requestVoid } from "@/lib/api/http";
-import { ControlSetSchema, ControlSetListSchema } from "@/lib/api/schemas/control-set";
+
+const ControlSetListSchema = z.array(controlSetResponseSchema);
 
 export async function listControlSets(siteId: string): Promise<ControlSet[]> {
   return (await requestJson(ControlSetListSchema, "/api/v1/control-sets", {
@@ -19,7 +23,7 @@ export function controlSetsOptions(siteId: string) {
 }
 
 export async function getControlSet(id: string): Promise<ControlSet> {
-  return (await requestJson(ControlSetSchema, `/api/v1/control-sets/${id}`)) as ControlSet;
+  return (await requestJson(controlSetResponseSchema, `/api/v1/control-sets/${id}`)) as ControlSet;
 }
 
 export async function createControlSet(body: {
@@ -33,7 +37,7 @@ export async function createControlSet(body: {
   provenanceNotes?: string;
   isPublic?: boolean;
 }): Promise<ControlSet> {
-  return (await requestJson(ControlSetSchema, "/api/v1/control-sets", {
+  return (await requestJson(controlSetResponseSchema, "/api/v1/control-sets", {
     method: "POST",
     body,
   })) as ControlSet;

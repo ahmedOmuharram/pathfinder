@@ -13,7 +13,7 @@ function extractChatId(pathname: string): string | null {
 }
 
 export interface ChatResolution {
-  chatId: string;
+  conversationId: string;
   allowMissing: boolean;
 }
 
@@ -25,9 +25,9 @@ export function computeChatResolution({
   generatedChatId: string;
 }): ChatResolution {
   const chatIdFromUrl = extractChatId(pathname);
-  const chatId = chatIdFromUrl ?? generatedChatId;
-  const allowMissing = chatId === generatedChatId;
-  return { chatId, allowMissing };
+  const conversationId = chatIdFromUrl ?? generatedChatId;
+  const allowMissing = conversationId === generatedChatId;
+  return { conversationId, allowMissing };
 }
 
 export function ChatShell() {
@@ -44,10 +44,10 @@ export function ChatShell() {
     setGeneratedChatId(crypto.randomUUID());
   }
 
-  const { chatId, allowMissing } = computeChatResolution({
+  const { conversationId, allowMissing } = computeChatResolution({
     pathname,
     generatedChatId,
   });
 
-  return <ChatView chatId={chatId} allowMissing={allowMissing} />;
+  return <ChatView conversationId={conversationId} allowMissing={allowMissing} />;
 }

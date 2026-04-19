@@ -5,9 +5,10 @@ from dataclasses import dataclass
 from itertools import product
 from typing import cast
 
+from pydantic import JsonValue
+
 from pathfinder.domain.parameters.optimization import VariantResult, VariantSpec
 from pathfinder.platform.errors import AppError
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.control_tests import (
     IntersectionConfig,
     run_positive_negative_controls,
@@ -30,8 +31,7 @@ from pathfinder.services.parameter_optimization.scoring import _compute_score
 # a useful coarse grid without exploding the Cartesian product.
 _DEFAULT_NUMERIC_LEVELS = 5
 
-ProgressFn = Callable[[float, str, dict[str, JSONValue] | None], Awaitable[None]]
-
+ProgressFn = Callable[[float, str, dict[str, JsonValue] | None], Awaitable[None]]
 
 @dataclass(frozen=True, slots=True)
 class SweepTarget:
@@ -40,8 +40,7 @@ class SweepTarget:
     site_id: str
     record_type: str
     search_name: str
-    fixed_parameters: dict[str, JSONValue]
-
+    fixed_parameters: dict[str, JsonValue]
 
 @dataclass(frozen=True, slots=True)
 class SweepControls:
@@ -50,23 +49,22 @@ class SweepControls:
     controls_search_name: str
     controls_param_name: str
     controls_value_format: ControlValueFormat
-    controls_extra_parameters: dict[str, JSONValue]
+    controls_extra_parameters: dict[str, JsonValue]
     positive_controls: list[str] | None
     negative_controls: list[str] | None
     id_field: str | None
 
-
-def _enumerate_spec_values(spec: ParameterSpec) -> list[JSONValue]:
+def _enumerate_spec_values(spec: ParameterSpec) -> list[JsonValue]:
     """Materialise a ParameterSpec into a list of concrete values."""
     if spec.param_type == "categorical":
         choices = spec.choices or []
-        return cast("list[JSONValue]", list(choices))
+        return cast("list[JsonValue]", list(choices))
 
     if spec.param_type == "integer":
         lo = int(spec.min_value if spec.min_value is not None else 0)
         hi = int(spec.max_value if spec.max_value is not None else 10)
         step = int(spec.step) if spec.step else max(1, (hi - lo) // 10)
-        return cast("list[JSONValue]", list(range(lo, hi + 1, step)))
+        return cast("list[JsonValue]", list(range(lo, hi + 1, step)))
 
     # numeric
     lo_f = spec.min_value if spec.min_value is not None else 0.0
@@ -77,17 +75,16 @@ def _enumerate_spec_values(spec: ParameterSpec) -> list[JSONValue]:
         while v <= hi_f:
             values.append(v)
             v += spec.step
-        return cast("list[JSONValue]", values or [lo_f])
+        return cast("list[JsonValue]", values or [lo_f])
     n = _DEFAULT_NUMERIC_LEVELS
     if n <= 1:
-        return cast("list[JSONValue]", [lo_f])
+        return cast("list[JsonValue]", [lo_f])
     step_size = (hi_f - lo_f) / (n - 1)
-    return cast("list[JSONValue]", [lo_f + i * step_size for i in range(n)])
-
+    return cast("list[JsonValue]", [lo_f + i * step_size for i in range(n)])
 
 def enumerate_variants(
     parameter_space: list[ParameterSpec],
-    fixed_parameters: dict[str, JSONValue],
+    fixed_parameters: dict[str, JsonValue],
 ) -> list[VariantSpec]:
     """Build the Cartesian product of the parameter grid.
 
@@ -108,10 +105,9 @@ def enumerate_variants(
     variants: list[VariantSpec] = []
     for idx, combo in enumerate(product(*value_lists)):
         sweep_values = dict(zip(names, combo, strict=True))
-        params: dict[str, JSONValue] = {**clean_fixed, **sweep_values}
+        params: dict[str, JsonValue] = {**clean_fixed, **sweep_values}
         variants.append(VariantSpec(id=f"v{idx}", params=params))
     return variants
-
 
 async def _evaluate_variant_wdk(
     variant: VariantSpec,
@@ -144,7 +140,6 @@ async def _evaluate_variant_wdk(
     except AppError as exc:
         return None, str(exc)
     return wdk_result, ""
-
 
 async def run_trial(
     variant: VariantSpec,

@@ -6,7 +6,7 @@ service catalog.
 """
 
 from pathfinder.ai.tools.standalone._validation_helpers import get_graph
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
@@ -16,7 +16,7 @@ from pathfinder.services.wdk.record_types import resolve_record_type
 logger = get_logger(__name__)
 
 
-def infer_record_type(session: StrategySession, step: PlanStepNode) -> str | None:
+def infer_record_type(session: StrategySession, step: StrategyStepNode) -> str | None:
     # Plan steps no longer store record_type; prefer graph-level context when available.
     graph = get_graph(session, None)
     return graph.record_type if graph else None

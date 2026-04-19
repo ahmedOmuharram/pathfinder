@@ -4,7 +4,7 @@ Creates, persists, and cleans up WDK strategies from experiment configs,
 including step tree materialization for multi-step and import modes.
 """
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import (
     DEFAULT_COMBINE_OPERATOR,
     ColocationParams,
@@ -33,12 +33,12 @@ logger = get_logger(__name__)
 
 async def _materialize_step_tree(
     api: StrategyAPI,
-    node: PlanStepNode,
+    node: StrategyStepNode,
     record_type: str,
     *,
     site_id: str = "",
 ) -> WDKStepTree:
-    """Recursively create WDK steps from a :class:`PlanStepNode`.
+    """Recursively create WDK steps from a :class:`StrategyStepNode`.
 
     Walks the tree bottom-up: leaf search nodes are created first,
     then combine/transform nodes reference them.
@@ -126,7 +126,7 @@ async def _persist_experiment_strategy(
     config: ExperimentConfig,
     experiment_id: str,
     *,
-    override_tree: PlanStepNode | None = None,
+    override_tree: StrategyStepNode | None = None,
 ) -> JSONObject:
     """Create a persisted WDK strategy for result exploration.
 

@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import cast
 
 import httpx
+from pydantic import JsonValue
 from tenacity import (
     RetryError,
     retry,
@@ -23,12 +24,11 @@ from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.metrics import wdk_request_duration_s, wdk_requests
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
 _HTTP_SERVER_ERROR = 500
-
 
 def _inject_auth_cookie(request: httpx.Request, auth_token: str) -> None:
     """Append an ``Authorization`` cookie to a built request.
@@ -43,7 +43,6 @@ def _inject_auth_cookie(request: httpx.Request, auth_token: str) -> None:
         request.headers["cookie"] = f"{existing}; {auth_cookie}"
     else:
         request.headers["cookie"] = auth_cookie
-
 
 def _convert_params_for_httpx(
     params: JSONObject | None,
@@ -81,7 +80,6 @@ def _convert_params_for_httpx(
             # Convert other types to string
             result[k] = str(v)
     return result
-
 
 class HTTPClient:
     """Low-level HTTP transport for VEuPathDB WDK REST services."""
@@ -174,7 +172,7 @@ class HTTPClient:
         path: str,
         params: JSONObject | None = None,
         json: object = None,
-    ) -> JSONValue:
+    ) -> JsonValue:
         """Single HTTP request attempt (tenacity handles retries)."""
         client = await self._get_client()
         auth_token = (
@@ -221,7 +219,7 @@ class HTTPClient:
             result = response.json()
             if result is None:
                 return None
-            return cast("JSONValue", result)
+            return cast("JsonValue", result)
         except httpx.HTTPStatusError as e:
             allow = e.response.headers.get("allow") or e.response.headers.get("Allow")
             log_fn = (
@@ -260,7 +258,7 @@ class HTTPClient:
         path: str,
         params: JSONObject | None = None,
         json: object = None,
-    ) -> JSONValue:
+    ) -> JsonValue:
         """Make HTTP request with retry logic (converts RetryError to WDKError)."""
         start = time.monotonic()
         auth_token = (
@@ -317,7 +315,7 @@ class HTTPClient:
             wdk_request_duration_s.record(time.monotonic() - start, metric_attrs)
             return result
 
-    async def get(self, path: str, params: JSONObject | None = None) -> JSONValue:
+    async def get(self, path: str, params: JSONObject | None = None) -> JsonValue:
         """GET request."""
         return await self._request("GET", path, params=params)
 
@@ -326,18 +324,18 @@ class HTTPClient:
         path: str,
         json: object = None,
         params: JSONObject | None = None,
-    ) -> JSONValue:
+    ) -> JsonValue:
         """POST request."""
         return await self._request("POST", path, params=params, json=json)
 
-    async def patch(self, path: str, json: object = None) -> JSONValue:
+    async def patch(self, path: str, json: object = None) -> JsonValue:
         """PATCH request."""
         return await self._request("PATCH", path, json=json)
 
-    async def put(self, path: str, json: object = None) -> JSONValue:
+    async def put(self, path: str, json: object = None) -> JsonValue:
         """PUT request."""
         return await self._request("PUT", path, json=json)
 
-    async def delete(self, path: str) -> JSONValue:
+    async def delete(self, path: str) -> JsonValue:
         """DELETE request."""
         return await self._request("DELETE", path)

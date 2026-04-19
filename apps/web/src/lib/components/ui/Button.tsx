@@ -1,4 +1,4 @@
-import * as React from "react";
+import type { ButtonHTMLAttributes, Ref } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -35,10 +35,10 @@ const buttonVariants = cva(
 
 interface ButtonProps
   extends
-    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   loading?: boolean;
-  ref?: React.Ref<HTMLButtonElement>;
+  ref?: Ref<HTMLButtonElement>;
 }
 
 function Button({ className, variant, size, loading, disabled, children, ref, ...props }: ButtonProps) {

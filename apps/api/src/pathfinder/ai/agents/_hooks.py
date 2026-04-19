@@ -32,8 +32,11 @@ from pathfinder.ai.tools.standalone._stream_parts import (
     graph_snapshot_chunk,
     strategy_link_chunk,
 )
+from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.types import SyncStateProtocol
+from pathfinder.persistence.repositories import ConversationRepository
+from pathfinder.persistence.repositories.conversation import ConversationUpdate
 from pathfinder.platform.errors import AppError, sanitize_error_for_client
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
@@ -194,6 +197,7 @@ async def _auto_build(
     }
 
     await _maybe_create_gene_set(deps, sync_result, build_data, graph)
+    await _persist_strategy_ast_to_conversation(deps, graph, sync_result)
 
     # Build data-part chunks replacing the old strategy_link + graph_snapshot
     # SSE events. The wdk_strategy_id is an int returned by WDK, not a
@@ -211,6 +215,47 @@ async def _auto_build(
     chunks.append(graph_snapshot_chunk(deps.strategy_session, graph))
 
     return build_data, chunks
+
+
+async def _persist_strategy_ast_to_conversation(
+    deps: AgentDeps,
+    graph: StrategyGraph,
+    sync_result: SyncResult,
+) -> None:
+    """Serialize the current strategy graph into ``conversations.strategy_ast``.
+
+    Without this, a turn can successfully build a strategy on WDK but leave
+    ``conversations.strategy_ast`` / ``wdk_strategy_id`` empty — so the
+    ``StrategyGraph`` panel in the chat view renders nothing even though the
+    WDK link works. This write closes that gap at the same moment we know the
+    WDK identity of every step.
+    """
+    if deps.conversation_id is None or deps.db_session_factory is None:
+        return
+    sync_state = deps.strategy_session.sync_state
+    ast = graph.to_strategy_ast(sync_state=sync_state)
+    if ast is None:
+        return
+    try:
+        async with deps.db_session_factory() as session:
+            repo = ConversationRepository(session)
+            await repo.update_conversation(
+                deps.conversation_id,
+                ConversationUpdate(
+                    strategy_ast=ast,
+                    record_type=ast.record_type or None,
+                    wdk_strategy_id=sync_result.wdk_strategy_id,
+                    wdk_strategy_id_set=True,
+                    step_count=len(walk_step_tree(ast.root)),
+                ),
+            )
+            await session.commit()
+    except (AppError, OSError, RuntimeError) as exc:
+        logger.warning(
+            "Failed to persist strategy AST to conversation",
+            conversation_id=str(deps.conversation_id),
+            error=str(exc),
+        )
 
 
 async def _maybe_create_gene_set(

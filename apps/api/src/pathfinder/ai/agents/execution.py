@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
-from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.agents._hooks import apply_auto_build_hook
 from pathfinder.ai.agents._instructions import (
@@ -15,6 +14,7 @@ from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.state import PhaseOutcome
 from pathfinder.ai.tools.toolsets.execution import build_toolset
 
 _EXECUTION_INSTRUCTIONS = """\
@@ -60,6 +60,20 @@ or "What next?" while execution is already running.
 - If you emit text during execution, keep it brief and factual: report only \
 what completed, what failed, or which exact step is blocked. Do not narrate \
 hypothetical next actions.
+
+## Output — the PhaseOutcome contract
+
+Return exactly one ``PhaseOutcome``:
+
+- ``prose`` (required, user-facing): brief and factual. Report what \
+completed, what failed, or which exact step is blocked. This IS the \
+assistant message the user reads.
+- ``reason`` (required, short): one sentence explaining your routing \
+choice.
+- ``disposition``: ``awaiting_user`` when execution cannot proceed without \
+user input; ``handoff`` when the plan executed and the strategy is built.
+- ``handoff_to`` (optional): ``verification`` or ``planning`` (if a step \
+failed and needs replanning).
 """
 
 _execution_hooks: Hooks[AgentDeps] = Hooks(
@@ -67,9 +81,9 @@ _execution_hooks: Hooks[AgentDeps] = Hooks(
     tool_execute=repetition_guard_hook,
 )
 
-execution_agent: Agent[AgentDeps, str] = Agent(
+execution_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=str,
+    output_type=[PhaseOutcome, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_EXECUTION_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -101,7 +115,3 @@ def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_user_memories(ctx)
 
 
-EXECUTION_USAGE_LIMITS = UsageLimits(
-    request_limit=200,
-    total_tokens_limit=500_000,
-)

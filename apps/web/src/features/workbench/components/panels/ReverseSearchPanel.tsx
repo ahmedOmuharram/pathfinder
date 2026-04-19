@@ -4,18 +4,17 @@ import { useState } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { Button } from "@/lib/components/ui/Button";
 import { requestJson } from "@/lib/api/http";
-import { ReverseSearchResultListSchema, ReverseSearchResultSchema } from "@/lib/api/schemas/reverse-search";
-import type { z } from "zod";
+import { reverseSearchResultItemSchema } from "@pathfinder/shared/generated/zod/reverseSearchResultItemSchema";
+import type { ReverseSearchResultItem } from "@pathfinder/shared/generated/types/ReverseSearchResultItem";
+import { z } from "zod";
 import { useSessionStore } from "@/state/useSessionStore";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { GeneChipInput } from "../GeneChipInput";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
+const ReverseSearchResultListSchema = z.array(reverseSearchResultItemSchema);
 
-type ReverseSearchResult = z.infer<typeof ReverseSearchResultSchema>;
+type ReverseSearchResult = ReverseSearchResultItem;
 
 // ---------------------------------------------------------------------------
 // Helpers

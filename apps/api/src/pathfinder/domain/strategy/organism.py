@@ -2,14 +2,14 @@
 
 from collections.abc import Mapping
 
+from pydantic import JsonValue
+
 from pathfinder.domain.parameters._decode_values import decode_values
-from pathfinder.domain.strategy.ast import PlanStepNode
-from pathfinder.platform.types import JSONValue
+from pathfinder.domain.strategy.ast import StrategyStepNode
 
 _ORGANISM_PARAMS = ("organism", "text_search_organism")
 
-
-def _parse_organisms(params: Mapping[str, JSONValue]) -> set[str] | None:
+def _parse_organisms(params: Mapping[str, JsonValue]) -> set[str] | None:
     """Extract organism names from step parameters, or None if absent."""
     for key in _ORGANISM_PARAMS:
         raw = params.get(key)
@@ -19,8 +19,7 @@ def _parse_organisms(params: Mapping[str, JSONValue]) -> set[str] | None:
                 return {str(v) for v in vals}
     return None
 
-
-def extract_output_organisms(step: PlanStepNode) -> set[str] | None:
+def extract_output_organisms(step: StrategyStepNode) -> set[str] | None:
     """Return the organism scope of a step's output, or None if unknown.
 
     GenesByOrthologs changes the scope to its target organism.

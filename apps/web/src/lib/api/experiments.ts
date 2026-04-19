@@ -4,9 +4,13 @@
 
 import { queryOptions } from "@tanstack/react-query";
 import type { ExperimentSummary } from "@pathfinder/shared";
+import { experimentSummaryResponseSchema } from "@pathfinder/shared/generated/zod/experimentSummaryResponseSchema";
+import { z } from "zod";
+
 import { buildUrl, requestJson } from "@/lib/api/http";
 import { streamTypedEvents } from "@/lib/sse/typedEventStream";
-import { ExperimentSummaryListSchema } from "./schemas/experiment";
+
+const ExperimentSummaryListSchema = z.array(experimentSummaryResponseSchema);
 
 /** List experiments, optionally filtered by site. */
 export async function listExperiments(

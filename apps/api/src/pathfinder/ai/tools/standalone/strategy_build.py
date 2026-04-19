@@ -26,7 +26,7 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     graph_not_found,
     validation_error_payload,
 )
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SerializedParams
@@ -43,7 +43,7 @@ from pathfinder.services.strategies.sync_state import ensure_sync_state
 
 
 def _step_added_return(
-    session: StrategySession, graph: StrategyGraph, step: PlanStepNode
+    session: StrategySession, graph: StrategyGraph, step: StrategyStepNode
 ) -> ToolReturn[StepOkResponse]:
     """Wrap a step-added response in ``ToolReturn`` with snapshot + patch chunks."""
     return ToolReturn(

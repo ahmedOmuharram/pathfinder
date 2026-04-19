@@ -1,10 +1,10 @@
-import type { CombineOperator, PlanStepNode, StrategyPlan } from "@pathfinder/shared";
+import type { CombineOperator, StrategyStepNode, StrategyAst } from "@pathfinder/shared";
 import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Step, Strategy } from "@pathfinder/shared";
 import type { StepParameters } from "./types";
 
 export type SerializedStrategyPlan = {
-  plan: StrategyPlan;
+  plan: StrategyAst;
   name: string;
   recordType: string | null;
 };
@@ -20,7 +20,7 @@ function sanitizeParametersForPlan(params: StepParameters): StepParameters {
   return next;
 }
 
-export function serializeStrategyPlan(
+export function serializeStrategyAst(
   stepsById: Record<string, Step>,
   strategy: Strategy | null,
 ): SerializedStrategyPlan | null {
@@ -40,7 +40,7 @@ export function serializeStrategyPlan(
   if (rootSteps.length !== 1) return null;
   const rootStep = rootSteps[0]!;
 
-  const buildNode = (stepId: string): PlanStepNode | null => {
+  const buildNode = (stepId: string): StrategyStepNode | null => {
     const step = stepsById[stepId];
     if (!step) return null;
 
@@ -57,7 +57,7 @@ export function serializeStrategyPlan(
           : null;
     if (resolvedSearchName == null) return null;
 
-    const node: PlanStepNode = {
+    const node: StrategyStepNode = {
       id: step.id,
       searchName: resolvedSearchName,
       displayName: step.displayName ?? "",

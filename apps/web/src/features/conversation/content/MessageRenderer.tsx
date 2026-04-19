@@ -11,6 +11,8 @@ import {
   type ThreadMessage,
   type ToolCallMessagePartComponent,
 } from "@assistant-ui/react";
+import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
+import remarkGfm from "remark-gfm";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import type { DataPartKind } from "@pathfinder/shared";
 import type { ToolUIPart } from "ai";
@@ -23,6 +25,8 @@ import {
   ThumbsUp,
   X,
 } from "lucide-react";
+
+import { BranchMessageAction } from "./BranchMessageAction";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 
@@ -31,7 +35,6 @@ import {
   MessageAction,
   MessageActions,
   MessageContent,
-  MessageResponse,
 } from "@/components/ai-elements/message";
 import {
   Reasoning,
@@ -53,8 +56,13 @@ import { dataPartComponents } from "./contentComponents";
 
 const DATA_PREFIX = "data-" as const;
 
-const Text: TextMessagePartComponent = ({ text }) => (
-  <MessageResponse>{text}</MessageResponse>
+const markdownRemarkPlugins = [remarkGfm];
+
+const Text: TextMessagePartComponent = () => (
+  <MarkdownTextPrimitive
+    remarkPlugins={markdownRemarkPlugins}
+    className="prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+  />
 );
 
 const ReasoningPart: ReasoningMessagePartComponent = ({ text, status }) => (
@@ -243,6 +251,7 @@ export function AssistantMessage() {
                 <ThumbsDown />
               </MessageAction>
             </ActionBarPrimitive.FeedbackNegative>
+            <BranchMessageAction />
           </MessageActions>
         </ActionBarPrimitive.Root>
       </Message>

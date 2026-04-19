@@ -2,9 +2,9 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.types import (
     ControlValueFormat,
     EnrichmentAnalysisType,
@@ -25,7 +25,6 @@ class ThresholdKnobRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
 class OperatorKnobRequest(BaseModel):
     """A boolean-operator knob for tree optimization."""
 
@@ -33,7 +32,6 @@ class OperatorKnobRequest(BaseModel):
     options: list[str] = Field(default_factory=lambda: ["INTERSECT", "UNION", "MINUS"])
 
     model_config = {"populate_by_name": True}
-
 
 class OptimizationSpecRequest(BaseModel):
     """Describes a single parameter to optimise."""
@@ -44,7 +42,6 @@ class OptimizationSpecRequest(BaseModel):
     max: float | None = None
     step: float | None = None
     choices: list[str] | None = None
-
 
 class CreateExperimentRequest(BaseModel):
     """Request to create and run an experiment.
@@ -57,7 +54,7 @@ class CreateExperimentRequest(BaseModel):
     mode: ExperimentMode = Field(default="single")
     search_name: str = Field(default="", alias="searchName")
     parameters: JSONObject = Field(default_factory=dict)
-    step_tree: JSONValue = Field(default=None, alias="stepTree")
+    step_tree: JsonValue = Field(default=None, alias="stepTree")
     source_strategy_id: str | None = Field(default=None, alias="sourceStrategyId")
     optimization_target_step: str | None = Field(
         default=None, alias="optimizationTargetStep"
@@ -112,7 +109,6 @@ class CreateExperimentRequest(BaseModel):
     target_gene_ids: list[str] | None = Field(default=None, alias="targetGeneIds")
     model_config = {"populate_by_name": True}
 
-
 class BatchOrganismTargetRequest(BaseModel):
     """Per-organism override for a cross-organism batch experiment."""
 
@@ -121,7 +117,6 @@ class BatchOrganismTargetRequest(BaseModel):
     negative_controls: list[str] | None = Field(default=None, alias="negativeControls")
 
     model_config = {"populate_by_name": True}
-
 
 class CreateBatchExperimentRequest(BaseModel):
     """Request to run the same search across multiple organisms."""
@@ -134,7 +129,6 @@ class CreateBatchExperimentRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
 class RunCrossValidationRequest(BaseModel):
     """Request to run cross-validation on an existing experiment."""
 
@@ -142,14 +136,12 @@ class RunCrossValidationRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
 class RunEnrichmentRequest(BaseModel):
     """Request to run enrichment on an existing experiment."""
 
     enrichment_types: list[EnrichmentAnalysisType] = Field(alias="enrichmentTypes")
 
     model_config = {"populate_by_name": True}
-
 
 class ThresholdSweepRequest(BaseModel):
     """Request to sweep a parameter across a range (numeric) or set of values (categorical)."""
@@ -165,7 +157,6 @@ class ThresholdSweepRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
 class RefineRequest(BaseModel):
     """Request to refine an experiment's strategy."""
 
@@ -178,6 +169,14 @@ class RefineRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class RefineResponse(BaseModel):
+    """Response from refine_experiment."""
+
+    success: bool
+    new_step_id: int | None = Field(default=None, alias="newStepId")
+
+    model_config = {"populate_by_name": True}
+
 class CustomEnrichRequest(BaseModel):
     """Request to run a custom gene-set enrichment test."""
 
@@ -185,7 +184,6 @@ class CustomEnrichRequest(BaseModel):
     gene_ids: list[str] = Field(alias="geneIds", min_length=1)
 
     model_config = {"populate_by_name": True}
-
 
 class BenchmarkControlSet(BaseModel):
     """A single control set within a benchmark suite."""
@@ -198,7 +196,6 @@ class BenchmarkControlSet(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
 class CreateBenchmarkRequest(BaseModel):
     """Request to run a benchmark suite across multiple control sets."""
 
@@ -207,14 +204,12 @@ class CreateBenchmarkRequest(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-
 class OverlapRequest(BaseModel):
     """Request to compute pairwise gene set overlap between experiments."""
 
     experiment_ids: list[str] = Field(alias="experimentIds", min_length=2)
 
     model_config = {"populate_by_name": True}
-
 
 class EnrichmentCompareRequest(BaseModel):
     """Request to compare enrichment results across experiments."""

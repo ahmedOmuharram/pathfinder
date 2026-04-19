@@ -16,7 +16,7 @@ from pathfinder.ai.tools.standalone.strategy_build import (
     combine_steps,
     create_leaf_step,
 )
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.plan import (
     PlannedStep,
@@ -87,7 +87,7 @@ async def test_create_leaf_step_with_empty_parameters(
     graph = session.get_graph(None)
     assert graph is not None
 
-    created_step = PlanStepNode(
+    created_step = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="Genes by Taxon",
         parameters={},
@@ -135,10 +135,10 @@ async def test_combine_steps_with_same_step_twice(
     graph = session.get_graph(None)
     assert graph is not None
 
-    step = PlanStepNode(search_name="GenesByTaxon", display_name="Step A")
+    step = StrategyStepNode(search_name="GenesByTaxon", display_name="Step A")
     graph.add_step(step)
 
-    combined = PlanStepNode(
+    combined = StrategyStepNode(
         search_name="__combine__",
         display_name="Self-union",
         primary_input=step,
@@ -315,7 +315,7 @@ def test_graph_add_step_updates_roots() -> None:
     """Adding a step should update the graph's roots set correctly."""
     graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
 
-    leaf = PlanStepNode(search_name="GenesByTaxon", display_name="Leaf")
+    leaf = StrategyStepNode(search_name="GenesByTaxon", display_name="Leaf")
     graph.add_step(leaf)
 
     assert leaf.id in graph.roots

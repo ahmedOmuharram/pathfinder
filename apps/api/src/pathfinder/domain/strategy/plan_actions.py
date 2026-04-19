@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
@@ -15,25 +15,21 @@ from pathfinder.domain.strategy.plan import (
 )
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONValue
 
 PlanActionType = Literal["approve", "reject", "suggest_changes"]
-
 
 class PlanParameterEdit(CamelModel):
     """A structured parameter edit collected from the plan UI."""
 
     step_id: str
     param_name: str
-    new_value: JSONValue
-
+    new_value: JsonValue
 
 class PlanQuestionAnswer(CamelModel):
     """A structured answer collected from the plan UI."""
 
     question_id: str
-    answer: JSONValue
-
+    answer: JsonValue
 
 class PlanActionContext(CamelModel):
     """Structured plan-action context carried through the backend."""
@@ -48,7 +44,6 @@ class PlanActionContext(CamelModel):
     presented_at: datetime | None = None
     approved_at: datetime | None = None
     approval_wait_ms: int | None = None
-
 
 def _refresh_step_statuses(plan: StrategyPlan) -> None:
     """Recompute step readiness after user answers/edits are applied."""
@@ -93,7 +88,6 @@ def _refresh_step_statuses(plan: StrategyPlan) -> None:
             continue
 
         step.status = StepStatus.READY
-
 
 def apply_plan_approval(
     plan: StrategyPlan,

@@ -1,7 +1,7 @@
 """Crossref API client."""
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -10,7 +10,6 @@ from pathfinder.domain.research.citations import (
 )
 from pathfinder.domain.research.papers import CrossRefRawWork, ParsedPaper
 from pathfinder.platform.errors import ExternalServiceError
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.research.clients._base import StandardClient
 
 
@@ -18,8 +17,7 @@ class _CrossrefMessage(BaseModel):
     """Inner ``message`` envelope in a Crossref API response."""
 
     model_config = ConfigDict(extra="ignore")
-    items: list[JSONValue] = Field(default_factory=list)
-
+    items: list[JsonValue] = Field(default_factory=list)
 
 class _CrossrefResponse(BaseModel):
     """Top-level envelope for the Crossref ``/works`` response."""
@@ -27,13 +25,12 @@ class _CrossrefResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     message: _CrossrefMessage = Field(default_factory=_CrossrefMessage)
 
-
 class CrossrefClient(StandardClient):
     """Client for Crossref API."""
 
     _source_name = "crossref"
 
-    async def _fetch_raw(self, query: str, *, limit: int) -> list[JSONValue]:
+    async def _fetch_raw(self, query: str, *, limit: int) -> list[JsonValue]:
         url = "https://api.crossref.org/works"
         params = {"query": query, "rows": str(limit)}
         headers = {"User-Agent": "pathfinder-planner/1.0 (mailto:unknown@example.com)"}
@@ -55,7 +52,7 @@ class CrossrefClient(StandardClient):
         return list(items)
 
     def _parse_item(
-        self, raw: JSONValue, *, abstract_max_chars: int
+        self, raw: JsonValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             parsed = CrossRefRawWork.model_validate(raw).to_parsed_paper()

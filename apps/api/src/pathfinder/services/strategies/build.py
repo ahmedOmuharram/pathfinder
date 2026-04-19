@@ -7,7 +7,7 @@ respectively. This module retains root resolution and result count helpers.
 from dataclasses import dataclass
 from typing import Protocol
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -68,12 +68,12 @@ class RootResolutionError(Exception):
 def resolve_root_step(
     graph: StrategyGraph,
     explicit_root_step_id: str | None,
-) -> PlanStepNode:
+) -> StrategyStepNode:
     """Resolve the root step from the graph.
 
     :param graph: Strategy graph.
     :param explicit_root_step_id: Optional explicit root step ID override.
-    :returns: The resolved root PlanStepNode.
+    :returns: The resolved root StrategyStepNode.
     :raises RootResolutionError: When root cannot be determined.
     """
 

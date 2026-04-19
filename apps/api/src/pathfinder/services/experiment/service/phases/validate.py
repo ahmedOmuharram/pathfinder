@@ -5,7 +5,7 @@ These phases run late in the experiment lifecycle to assess result
 reliability and add biological context.
 """
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
@@ -70,7 +70,7 @@ async def phase_robustness(
 
 async def phase_cross_validate(
     pctx: PhaseContext,
-    final_tree: PlanStepNode | None,
+    final_tree: StrategyStepNode | None,
 ) -> None:
     """Run k-fold cross-validation (tree or single-step)."""
     config, experiment = pctx.config, pctx.experiment

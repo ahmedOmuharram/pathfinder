@@ -1,19 +1,23 @@
 """SQLAlchemy ORM models."""
 
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, ClassVar
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -82,8 +86,17 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    monthly_cost_limit_usd: Mapped[float | None] = mapped_column(
+        Float, nullable=True
+    )
+    supervisor_model_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
 
     conversations: Mapped[list[Conversation]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    monthly_usage: Mapped[list["MonthlyUsage"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -180,7 +193,7 @@ class GeneSetRow(Base):
 
 
 class Conversation(Base):
-    """A conversation — message thread + strategy plan + WDK linkage on one row."""
+    """A conversation — message thread + built strategy AST + WDK linkage on one row."""
 
     __tablename__ = "conversations"
     __table_args__ = (
@@ -206,7 +219,7 @@ class Conversation(Base):
     is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
     pipeline: Mapped[JSONObject | None] = mapped_column(JSON, nullable=True)
     step_count: Mapped[int] = mapped_column(Integer, default=0)
-    plan: Mapped[JSONObject] = mapped_column(JSON, default=dict)
+    strategy_ast: Mapped[JSONObject] = mapped_column(JSON, default=dict)
     estimated_size: Mapped[int | None] = mapped_column(nullable=True)
     gene_set_id: Mapped[str | None] = mapped_column(
         String(50), ForeignKey("gene_sets.id", ondelete="SET NULL"), nullable=True
@@ -219,6 +232,19 @@ class Conversation(Base):
     )
     dismissed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    supervisor_model_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    parent_conversation_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    parent_message_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -428,37 +454,39 @@ class ConversationEvent(Base):
     )
 
 
-class CheckpointLabel(Base):
-    """Per-user label + pin sidecar for a LangGraph checkpoint.
+class MonthlyUsage(Base):
+    """Per-user, per-month accumulated token + cost usage.
 
-    The composite PK ``(thread_id, checkpoint_id, user_id)`` ties one row to
-    a single checkpoint snapshot owned by a single user — different users
-    can label the same checkpoint independently. The columns mirror the
-    Phase-0 nuke migration; keep the two definitions in lockstep.
+    ``period_start`` is always the first-of-month UTC date; the quota
+    rolls over when a new month begins. Accumulation is an UPSERT keyed on
+    ``(user_id, period_start)``.
     """
 
-    __tablename__ = "checkpoint_labels"
+    __tablename__ = "monthly_usage"
 
-    thread_id: Mapped[str] = mapped_column(Text, primary_key=True)
-    checkpoint_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True
+        GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    label: Mapped[str | None] = mapped_column(Text, nullable=True)
-    pinned: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=text("false")
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    total_cost_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, server_default=text("0")
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
+    total_tokens: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("0")
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
+        onupdate=func.now(),
         nullable=False,
     )
 
+    user: Mapped[User] = relationship(back_populates="monthly_usage")
+
     __table_args__ = (
-        Index("checkpoint_labels_thread_idx", "thread_id"),
+        UniqueConstraint(
+            "user_id", "period_start", name="monthly_usage_user_period_key"
+        ),
+        Index("monthly_usage_user_idx", "user_id"),
     )

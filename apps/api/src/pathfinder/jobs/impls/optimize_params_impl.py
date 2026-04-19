@@ -4,6 +4,8 @@ import asyncio
 from typing import Any, cast
 from uuid import UUID
 
+from pydantic import JsonValue
+
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.tools.durable import TaskProgressEmitter
@@ -20,7 +22,7 @@ from pathfinder.domain.parameters.optimization import (
     VariantSpec,
 )
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.types import (
     ControlValueFormat,
     OptimizationObjective,
@@ -39,7 +41,6 @@ logger = get_logger(__name__)
 # matches the WDK-friendly batch size used elsewhere and keeps a sweep of
 # typical 5-15 variants from oversubscribing the upstream service.
 _DEFAULT_MAX_PARALLEL = 5
-
 
 async def run_single_trial(
     variant: VariantSpec,
@@ -60,7 +61,7 @@ async def run_single_trial(
     del context
 
     async def _on_progress(
-        pct: float, msg: str, data: dict[str, JSONValue] | None
+        pct: float, msg: str, data: dict[str, JsonValue] | None
     ) -> None:
         await progress.update(percent=pct, message=msg, data=data)
 
@@ -72,7 +73,6 @@ async def run_single_trial(
         progress_callback=_on_progress,
     )
     return result.model_dump(by_alias=True, mode="json")
-
 
 async def optimize_search_parameters_impl(
     *,
@@ -122,7 +122,7 @@ async def optimize_search_parameters_impl(
         site_id=context.site_id,
         record_type=target_m.record_type,
         search_name=target_m.search_name,
-        fixed_parameters=cast("dict[str, JSONValue]", fixed_parameters),
+        fixed_parameters=cast("dict[str, JsonValue]", fixed_parameters),
     )
     sweep_controls = SweepControls(
         controls_search_name=controls_m.controls_search_name,
@@ -131,7 +131,7 @@ async def optimize_search_parameters_impl(
             "ControlValueFormat", controls_m.controls_value_format
         ),
         controls_extra_parameters=cast(
-            "dict[str, JSONValue]", controls_extra_parameters
+            "dict[str, JsonValue]", controls_extra_parameters
         ),
         positive_controls=controls_m.positive_controls or None,
         negative_controls=controls_m.negative_controls or None,
@@ -145,7 +145,7 @@ async def optimize_search_parameters_impl(
     )
 
     variants = enumerate_variants(
-        specs, cast("dict[str, JSONValue]", fixed_parameters)
+        specs, cast("dict[str, JsonValue]", fixed_parameters)
     )
 
     await progress.update(

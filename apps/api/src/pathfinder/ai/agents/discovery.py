@@ -3,7 +3,6 @@ from __future__ import annotations
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
-from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.agents._hooks import apply_discovery_hook
 from pathfinder.ai.agents._instructions import (
@@ -16,6 +15,7 @@ from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.state import PhaseOutcome
 from pathfinder.ai.tools.toolsets.discovery import build_toolset
 from pathfinder.domain.strategy.plan import PlanStatus, StepStatus
 
@@ -70,9 +70,24 @@ can express the user's constraints.
 - When multiple searches could work, note the trade-offs for the planner.
 - Do NOT create or modify strategies — that is the execution agent's job.
 - Do NOT create plans — that is the planning agent's job.
-- If you need the user to answer a blocking question, ask it in your prose. \
-The supervisor will end the turn.
+- If you need the user to answer a blocking question, ask it in your prose \
+and pick ``disposition="awaiting_user"``. The pipeline will halt.
 - Summarize your findings clearly so the planning agent can act on them.
+
+## Output — the PhaseOutcome contract
+
+Return exactly one ``PhaseOutcome``:
+
+- ``prose`` (required, user-facing): a concise summary of candidate \
+searches, parameter trade-offs, and caveats. Written as the assistant \
+message that appears in the chat thread.
+- ``reason`` (required, short): one sentence explaining your routing \
+choice.
+- ``disposition``: ``awaiting_user`` when you asked the user to decide \
+something the catalog can't resolve; ``handoff`` when you surfaced enough \
+searches to move on.
+- ``handoff_to`` (optional): hint ``planning`` or ``scoping`` (to revisit \
+the frame).
 """
 
 _discovery_hooks: Hooks[AgentDeps] = Hooks(
@@ -80,9 +95,9 @@ _discovery_hooks: Hooks[AgentDeps] = Hooks(
     tool_execute=repetition_guard_hook,
 )
 
-discovery_agent: Agent[AgentDeps, str] = Agent(
+discovery_agent: Agent[AgentDeps, PhaseOutcome] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=str,
+    output_type=PhaseOutcome,
     deps_type=AgentDeps,
     instructions=_DISCOVERY_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -157,7 +172,3 @@ def _rediscovery_context(ctx: RunContext[AgentDeps]) -> str | None:
     return "\n".join(lines)
 
 
-DISCOVERY_USAGE_LIMITS = UsageLimits(
-    request_limit=200,
-    total_tokens_limit=500_000,
-)

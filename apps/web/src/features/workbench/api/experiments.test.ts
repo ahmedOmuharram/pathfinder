@@ -421,7 +421,7 @@ describe("reEvaluateExperiment", () => {
 
     const result = await reEvaluateExperiment("exp-1");
 
-    expect((result as unknown as typeof updated).metrics?.f1Score).toBe(0.92);
+    expect((result as unknown as typeof updated).metrics.f1Score).toBe(0.92);
   });
 
   it("propagates errors", async () => {

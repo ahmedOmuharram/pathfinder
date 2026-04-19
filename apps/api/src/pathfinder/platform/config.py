@@ -90,29 +90,9 @@ class Settings(BaseSettings):
     # Database
     database_url: str = Field(default="", repr=False)
 
-    # OpenAI
     openai_api_key: str = Field(default="", repr=False)
-    openai_model: str = "gpt-4.1"
-    openai_temperature: float = 0.0
-    openai_top_p: float = 1.0
-    openai_hyperparams: dict[str, object] = Field(
-        default_factory=dict,
-        description="Extra OpenAI chat-completions params passed through to the engine.",
-    )
-
-    # Anthropic
     anthropic_api_key: str = Field(default="", repr=False)
-    anthropic_model: str = "claude-sonnet-4-6"
-    anthropic_temperature: float = 0.0
-    anthropic_top_p: float = 1.0
-    anthropic_hyperparams: dict[str, object] = Field(default_factory=dict)
-
-    # Google
     gemini_api_key: str = Field(default="", repr=False)
-    gemini_model: str = "gemini-2.5-pro"
-    gemini_temperature: float = 0.0
-    gemini_top_p: float = 1.0
-    gemini_hyperparams: dict[str, object] = Field(default_factory=dict)
 
     # Ollama (local models via OpenAI-compatible API)
     ollama_base_url: str = ""
@@ -167,6 +147,12 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
     cors_origin_regex: str | None = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+
+    # Per-user monthly usage quota (USD). Per-user override lives on `users.monthly_cost_limit_usd`.
+    user_monthly_cost_limit_usd: float = Field(
+        default=20.0,
+        validation_alias="PATHFINDER_USER_MONTHLY_COST_LIMIT_USD",
+    )
 
     @computed_field
     def is_development(self) -> bool:

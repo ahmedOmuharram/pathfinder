@@ -38,9 +38,9 @@ from pathfinder.ai.graph.stream_events import (
     background_task_started_event,
     conversation_title_event,
 )
-from pathfinder.domain.strategy.plan_payload import (
+from pathfinder.domain.strategy.strategy_ast import (
     PersistedStrategyGraph,
-    StrategyPlanPayload,
+    StrategyAst,
 )
 from pathfinder.persistence.models import Conversation
 from pathfinder.persistence.repositories import (
@@ -75,10 +75,9 @@ class ChatRequestBody(CamelModel):
 
     The shape matches ``@ai-sdk/react``'s ``useChat`` submit payload
     (``trigger``, ``id``, ``messages``) with PathFinder-scoped fields
-    (``conversationId``, ``parentCheckpointId``, ``siteId``, ``mode``,
-    ``experimentId``) layered on via ``body`` on the client transport.
-    The authenticated user UUID still comes from the ``pathfinder-auth``
-    cookie.
+    (``conversationId``, ``siteId``, ``mode``, ``experimentId``) layered on
+    via ``body`` on the client transport. The authenticated user UUID still
+    comes from the ``pathfinder-auth`` cookie.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -88,7 +87,6 @@ class ChatRequestBody(CamelModel):
     messages: list[_UIMessage] = Field(default_factory=list)
 
     conversation_id: UUID
-    parent_checkpoint_id: str | None = None
     site_id: str = ""
     mode: str = "strategy"
     experiment_id: str | None = None
@@ -242,10 +240,10 @@ def _build_runtime_context(
     persisted: PersistedStrategyGraph | None = None
     experiment_id: str | None = None
     if conversation is not None:
-        plan_payload: StrategyPlanPayload | None = None
-        if conversation.plan and "root" in conversation.plan:
+        plan_payload: StrategyAst | None = None
+        if conversation.strategy_ast and "root" in conversation.strategy_ast:
             try:
-                plan_payload = StrategyPlanPayload.model_validate(conversation.plan)
+                plan_payload = StrategyAst.model_validate(conversation.strategy_ast)
             except (ValueError, KeyError, TypeError):
                 plan_payload = None
         persisted = PersistedStrategyGraph(
@@ -272,7 +270,9 @@ def _build_runtime_context(
     )
 
 
-def _build_turn_input(incoming: ChatRequestBody, user_id: UUID) -> dict[str, Any]:
+def _build_turn_input(
+    incoming: ChatRequestBody, user_id: UUID, *, turn_message_id: UUID,
+) -> dict[str, Any]:
     user_message_id = incoming.last_user_message_id
     user_text = incoming.last_user_text
     state = PipelineState(
@@ -285,6 +285,7 @@ def _build_turn_input(incoming: ChatRequestBody, user_id: UUID) -> dict[str, Any
         user_parts=[{"type": "text", "text": user_text}],
         turn_trace_id=str(uuid4()),
         turn_created_at=datetime.now(UTC).isoformat(),
+        turn_message_id=turn_message_id,
     )
     turn_meta = state.model_dump()
     turn_meta["supervisor_call_count"] = 0
@@ -292,7 +293,9 @@ def _build_turn_input(incoming: ChatRequestBody, user_id: UUID) -> dict[str, Any
     turn_meta["current_phase"] = None
     turn_meta["last_routing_reason"] = None
     turn_meta["last_assistant_prose"] = ""
+    turn_meta["last_phase_outcome"] = None
     turn_meta["last_verification_message_id"] = None
+    turn_meta["turn_message_parts"] = []
     return turn_meta
 
 
@@ -373,8 +376,6 @@ def _interrupt_chunks(payload: object) -> Iterator[dict[str, Any]]:
 
 def _build_thread_config(incoming: ChatRequestBody) -> RunnableConfig:
     configurable: dict[str, Any] = {"thread_id": str(incoming.conversation_id)}
-    if incoming.parent_checkpoint_id:
-        configurable["checkpoint_id"] = incoming.parent_checkpoint_id
     return {
         "configurable": configurable,
         "metadata": {
@@ -391,16 +392,14 @@ async def _iter_graph_chunks(
     compiled_graph: Any,
     runtime_context: Context,
     title_task: asyncio.Task[str] | None,
+    turn_message_id: UUID,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Yield v6 chunk dicts for one graph turn.
-
-    Consumes LangGraph's ``custom`` mode for chunks emitted by phase nodes,
-    plus ``updates`` to pick off ``__interrupt__`` batches (durable-tool
-    approvals) and turn them into ``data-background-task-started`` chunks.
-    """
+    """Yield v6 chunk dicts for one graph turn."""
     thread_config = _build_thread_config(incoming)
     title_emitted = False
-    graph_input = _build_turn_input(incoming, user_id)
+    graph_input = _build_turn_input(
+        incoming, user_id, turn_message_id=turn_message_id,
+    )
 
     async for mode, payload in compiled_graph.astream(
         graph_input,
@@ -449,7 +448,8 @@ async def _event_source(
     saw_interrupt = False
     encountered_error = False
 
-    start_chunk = StartChunk(message_id=str(uuid4()))
+    turn_message_id = uuid4()
+    start_chunk = StartChunk(message_id=str(turn_message_id))
     yield _encode_chunk_dict(
         start_chunk.model_dump(by_alias=True, mode="json", exclude_none=True),
     )
@@ -461,6 +461,7 @@ async def _event_source(
             compiled_graph=compiled_graph,
             runtime_context=runtime_context,
             title_task=title_task,
+            turn_message_id=turn_message_id,
         ):
             if chunk.get("type") == "data-background-task-started":
                 saw_interrupt = True

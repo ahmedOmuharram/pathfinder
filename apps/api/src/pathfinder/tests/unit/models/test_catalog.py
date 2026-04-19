@@ -54,12 +54,12 @@ def test_get_smallest_model_raises_for_unknown_provider() -> None:
 
 
 def test_openai_smallest_is_gpt_4_1_nano() -> None:
-    assert get_smallest_model("openai").id == "openai/gpt-4.1-nano"
+    assert get_smallest_model("openai").id == "openai:gpt-4.1-nano"
 
 
 def test_anthropic_smallest_is_haiku() -> None:
-    assert get_smallest_model("anthropic").id == "anthropic/claude-haiku-4-5"
+    assert get_smallest_model("anthropic").id == "anthropic:claude-haiku-4-5"
 
 
 def test_google_smallest_is_gemini_2_5_flash() -> None:
-    assert get_smallest_model("google").id == "google/gemini-2.5-flash"
+    assert get_smallest_model("google").id == "google:gemini-2.5-flash"

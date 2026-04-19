@@ -9,7 +9,7 @@ Threshold sweep orchestration lives in ``sweep_service.py``.
 
 from opentelemetry import trace
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import DataParsingError
 from pathfinder.platform.langfuse.scoring import emit_evaluation_scores
 from pathfinder.platform.logging import get_logger
@@ -44,8 +44,8 @@ async def re_evaluate(exp: Experiment) -> JSONObject:
     ctx = ControlsContext.from_config(exp.config)
     if exp.config.is_tree_mode:
         step_tree = exp.config.step_tree
-        if not isinstance(step_tree, PlanStepNode):
-            msg = "step_tree must be a PlanStepNode in tree mode"
+        if not isinstance(step_tree, StrategyStepNode):
+            msg = "step_tree must be a StrategyStepNode in tree mode"
             raise DataParsingError(msg)
 
         result = await run_controls_against_tree(ctx, step_tree)

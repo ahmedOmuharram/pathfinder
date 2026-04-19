@@ -404,5 +404,5 @@ def get_mock_model() -> FunctionModel:
     return FunctionModel(
         _mock_function,
         stream_function=_mock_stream_function,
-        model_name="mock/deterministic",
+        model_name="mock:deterministic",
     )

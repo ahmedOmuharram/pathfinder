@@ -2,7 +2,7 @@
 
 import asyncio
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.helpers import (
@@ -35,7 +35,7 @@ _RECALL_HARMFUL_IMPROVEMENT = 0.02
 
 async def analyze_contributions(
     ctx: ControlsContext,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     baseline_metrics: ControlTestResult,
     progress_callback: ProgressCallback | None = None,
 ) -> list[StepContribution]:
@@ -63,7 +63,7 @@ async def analyze_contributions(
     results: list[StepContribution] = []
     sem = asyncio.Semaphore(3)
 
-    async def _ablate_leaf(leaf: PlanStepNode, idx: int) -> StepContribution | None:
+    async def _ablate_leaf(leaf: StrategyStepNode, idx: int) -> StepContribution | None:
         lid = _node_id(leaf)
         search_name = leaf.search_name
         display = leaf.display_name or search_name

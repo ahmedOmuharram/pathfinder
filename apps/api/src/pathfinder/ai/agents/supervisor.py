@@ -5,9 +5,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.usage import UsageLimits
 
-from pathfinder.ai.models.catalog import ModelEntry, get_smallest_model
+from pathfinder.ai.models.catalog import (
+    ModelEntry,
+    get_model_entry,
+    get_smallest_model,
+)
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.types import ModelProvider
 
@@ -31,14 +34,16 @@ class SupervisorDecision(BaseModel):
 
     @model_validator(mode="after")
     def _require_payload_for_special_kinds(self) -> SupervisorDecision:
-        if self.to == "reject":
-            if not self.rejection_message or not self.rejection_message.strip():
-                msg = "rejection_message is required when to='reject'"
-                raise ValueError(msg)
-        if self.to == "question":
-            if not self.answer or not self.answer.strip():
-                msg = "answer is required when to='question'"
-                raise ValueError(msg)
+        if self.to == "reject" and (
+            not self.rejection_message or not self.rejection_message.strip()
+        ):
+            msg = "rejection_message is required when to='reject'"
+            raise ValueError(msg)
+        if self.to == "question" and (
+            not self.answer or not self.answer.strip()
+        ):
+            msg = "answer is required when to='question'"
+            raise ValueError(msg)
         return self
 
 
@@ -79,15 +84,33 @@ conceptual/definitional asks at any point in the investigation.
 plainly off-topic for biological research, even mid-investigation.
 
 **Turn termination**:
-- `end` — stop processing this turn. Use when the most recent phase has \
-produced a response the user should read, when waiting for user input, \
-or when you've already run enough phases this turn and no new forward \
-progress is possible.
+- `end` — stop processing this turn. Appropriate when the most recent \
+phase has produced output the user should read and no further phase \
+work is warranted without user input.
 
-## Choosing
+## The `last_phase_prose_to_user` gate
 
-Judge the user's intent from the message and chat state, then pick the \
-action that matches:
+The pipeline state includes `last_phase_prose_to_user` — the prose the \
+most recent phase wrote to the user on this turn. READ IT. The phase \
+agent is the voice of the assistant; its prose tells you what the \
+assistant is signalling:
+
+- The prose asks a question (literal "?", "Do you want…", "Shall I…", \
+"Could you clarify…"), offers explicit options ("Let me know if you'd \
+like me to… or…"), or otherwise hands the turn back to the user → pick \
+`end`. Running another phase would talk over the user's expected reply.
+- The prose is a terminal status update ("strategy built: 152 genes. \
+Link above.") with no solicitation of user input → pick `end` if \
+verification already ran, else continue the pipeline.
+- The prose is a neutral mid-process log ("found 3 candidate searches, \
+proceeding to planning") → continue the pipeline.
+
+This is YOUR primary halt signal. Do not talk yourself past a phase's \
+explicit hand-off to the user by rationalising that its questions are \
+"not really blocking" or "just clarifying". If the phase is talking to \
+the user, the user gets to reply next.
+
+## Choosing (when no halt signal)
 
 - **Phase routes** — the user's message carries research intent: a \
 biological goal, a refinement or correction, an answer to a clarifying \
@@ -97,9 +120,6 @@ but is still in-scope conversation: social/meta, conceptual/\
 methodological, tool/UI questions. A direct one-shot reply is enough.
 - **`reject`** — the user's message is out of scope for biological \
 research.
-- **`end`** — the phase that just ran this turn has already produced \
-the response the user should see, or repeated supervisor calls have \
-made no new progress.
 
 Hard constraints:
 
@@ -111,7 +131,8 @@ not `question`.
 top of one. If any phase has already run this turn, `question` and \
 `reject` are invalid — pick `end` or another phase route.
 - Each phase runs at most once per turn. If a phase appears in \
-phase_call_counts_this_turn, do not route to it again this turn.
+phase_call_counts_this_turn, do not route to it again this turn — pick \
+`end` or a different phase.
 
 ## Response format
 
@@ -120,23 +141,30 @@ fill `rejection_message`. For `question`, fill `answer`. The \
 message/answer and reason are both shown to the user.
 """
 
-_SUPERVISOR_USAGE_LIMITS = UsageLimits(
-    request_limit=2,
-    total_tokens_limit=6_000,
-)
+def _resolve_supervisor_entry(
+    model_id: str | None, provider: ModelProvider | None,
+) -> ModelEntry:
+    """Pick the supervisor's model entry.
 
-
-def _pydantic_ai_model_id(entry: ModelEntry) -> str:
-    return f"{entry.provider}:{entry.model}"
+    Precedence: explicit catalog id → explicit provider's smallest → configured
+    default provider's smallest.
+    """
+    if model_id is not None:
+        entry = get_model_entry(model_id)
+        if entry is not None:
+            return entry
+    resolved_provider: ModelProvider = provider or get_settings().default_provider
+    return get_smallest_model(resolved_provider)
 
 
 def build_supervisor_agent(
     provider: ModelProvider | None = None,
+    *,
+    model_id: str | None = None,
 ) -> Agent[SupervisorDeps, SupervisorDecision]:
-    resolved: ModelProvider = provider or get_settings().default_provider
-    entry = get_smallest_model(resolved)
+    entry = _resolve_supervisor_entry(model_id, provider)
     agent: Agent[SupervisorDeps, SupervisorDecision] = Agent(
-        _pydantic_ai_model_id(entry),
+        entry.id,
         deps_type=SupervisorDeps,
         output_type=SupervisorDecision,
         instructions=_SUPERVISOR_INSTRUCTIONS,
@@ -152,4 +180,3 @@ def build_supervisor_agent(
     return agent
 
 
-SUPERVISOR_USAGE_LIMITS: UsageLimits = _SUPERVISOR_USAGE_LIMITS

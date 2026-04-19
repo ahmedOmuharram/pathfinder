@@ -7,15 +7,17 @@ binary combines, and the top-level search-name resolution + dispatch.
 
 from typing import cast
 
+from pydantic import JsonValue
+
 from pathfinder.domain.parameters.specs import find_input_step_param
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
 from pathfinder.domain.strategy.organism import extract_output_organisms
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.integrations.veupathdb.factory import get_wdk_client
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_validation import ValidationCallbacks
 from pathfinder.services.strategies.input_resolution import StepInputs
@@ -64,7 +66,6 @@ async def _validate_leaf_or_transform(
     # produce meaningless results.
     return _validate_fold_change_samples(search_name, parameters)
 
-
 def _validate_fold_change_samples(
     search_name: str,
     parameters: JSONObject,
@@ -85,7 +86,6 @@ def _validate_fold_change_samples(
             comp=comp,
         )
     return None
-
 
 async def _validate_transform_input_param(
     rt: str,
@@ -141,15 +141,14 @@ async def _validate_transform_input_param(
             f"current step.",
             recordType=rt,
             searchName=search_name,
-            allowedInputTypes=cast("JSONValue", allowed),
+            allowedInputTypes=cast("JsonValue", allowed),
         )
     return None
 
-
 def _validate_cross_organism_intersect(
     graph: StrategyGraph,
-    primary_input: PlanStepNode,
-    secondary_input: PlanStepNode,
+    primary_input: StrategyStepNode,
+    secondary_input: StrategyStepNode,
 ) -> ToolErrorPayload | None:
     """Guard: INTERSECT between different organisms always returns 0."""
     primary_orgs = extract_output_organisms(primary_input)
@@ -169,11 +168,10 @@ def _validate_cross_organism_intersect(
             "Apply organism-specific filters BEFORE any ortholog "
             "transform, not after.",
             graphId=graph.id,
-            primaryOrganisms=cast("JSONValue", sorted(primary_orgs)),
-            secondaryOrganisms=cast("JSONValue", sorted(secondary_orgs)),
+            primaryOrganisms=cast("JsonValue", sorted(primary_orgs)),
+            secondaryOrganisms=cast("JsonValue", sorted(secondary_orgs)),
         )
     return None
-
 
 def _resolve_search_name(
     graph: StrategyGraph,
@@ -192,7 +190,6 @@ def _resolve_search_name(
         "search_name is required for leaf and transform steps.",
         graphId=graph.id,
     )
-
 
 async def _validate_step_by_kind(
     *,
@@ -219,7 +216,6 @@ async def _validate_step_by_kind(
         if parsed_op == CombineOp.INTERSECT and inputs.primary and inputs.secondary
         else None
     )
-
 
 async def resolve_search_name_and_validate(
     *,

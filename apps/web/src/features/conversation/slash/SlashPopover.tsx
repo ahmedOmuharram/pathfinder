@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useEventListener } from "usehooks-ts";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -16,6 +16,16 @@ export interface SlashPopoverProps {
   onDismiss: () => void;
 }
 
+function filterCommands(commands: Command[], query: string): Command[] {
+  const lower = query.toLowerCase();
+  if (lower === "") return commands;
+  return commands.filter((c) => {
+    if (c.name.toLowerCase().startsWith(lower)) return true;
+    const aliases = c.aliases ?? [];
+    return aliases.some((a) => a.toLowerCase().startsWith(lower));
+  });
+}
+
 export function SlashPopover({
   open,
   query,
@@ -23,55 +33,51 @@ export function SlashPopover({
   onSelect,
   onDismiss,
 }: SlashPopoverProps) {
-  const filtered = useMemo(() => {
-    const lower = query.toLowerCase();
-    if (lower === "") return commands;
-    return commands.filter((c) => {
-      if (c.name.toLowerCase().startsWith(lower)) return true;
-      return c.aliases?.some((a) =>
-        a.toLowerCase().startsWith(lower),
-      ) ?? false;
-    });
-  }, [query, commands]);
+  const filtered = filterCommands(commands, query);
 
   const [activeIdx, setActiveIdx] = useState(0);
+  const [filterKey, setFilterKey] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // Render-time reset: when the filtered set changes identity we restart at 0
+  // instead of firing an effect after paint.
+  const nextFilterKey = `${query}|${filtered.length}`;
+  if (filterKey !== nextFilterKey) {
+    setFilterKey(nextFilterKey);
     setActiveIdx(0);
-  }, [query, filtered.length]);
+  }
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const el = listRef.current;
-    if (el === null) return undefined;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setActiveIdx((i) =>
-          filtered.length === 0 ? 0 : (i + 1) % filtered.length,
-        );
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setActiveIdx((i) =>
-          filtered.length === 0
-            ? 0
-            : (i - 1 + filtered.length) % filtered.length,
-        );
-      } else if (e.key === "Enter" || e.key === "Tab") {
-        const cmd = filtered[activeIdx];
-        if (cmd !== undefined) {
-          e.preventDefault();
-          onSelect(cmd);
-        }
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        onDismiss();
+  useEventListener("keydown", (event) => {
+    if (!open) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIdx((i) =>
+        filtered.length === 0 ? 0 : (i + 1) % filtered.length,
+      );
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIdx((i) =>
+        filtered.length === 0
+          ? 0
+          : (i - 1 + filtered.length) % filtered.length,
+      );
+      return;
+    }
+    if (event.key === "Enter" || event.key === "Tab") {
+      const cmd = filtered[activeIdx];
+      if (cmd !== undefined) {
+        event.preventDefault();
+        onSelect(cmd);
       }
-    };
-    window.addEventListener("keydown", handler, true);
-    return () => window.removeEventListener("keydown", handler, true);
-  }, [open, filtered, activeIdx, onSelect, onDismiss]);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onDismiss();
+    }
+  });
 
   return (
     <AnimatePresence>
@@ -105,7 +111,7 @@ export function SlashPopover({
               )}
             >
               <span className="text-muted-foreground">
-                {cmd.icon as ReactNode}
+                {cmd.icon}
               </span>
               <span className="font-mono text-[12px] font-medium">
                 /{cmd.name}

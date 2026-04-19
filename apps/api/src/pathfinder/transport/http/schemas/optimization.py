@@ -1,15 +1,13 @@
 """Optimization event/response models shared by chat and SSE schemas."""
 
-from pydantic import BaseModel, Field
-
-from pathfinder.platform.types import JSONValue
+from pydantic import BaseModel, Field, JsonValue
 
 
 class OptimizationTrialData(BaseModel):
     """A single optimization trial result."""
 
     trial_number: int = Field(alias="trialNumber")
-    parameters: dict[str, JSONValue] = Field(default_factory=dict)
+    parameters: dict[str, JsonValue] = Field(default_factory=dict)
     score: float = 0.0
     recall: float | None = None
     false_positive_rate: float | None = Field(default=None, alias="falsePositiveRate")
@@ -20,7 +18,6 @@ class OptimizationTrialData(BaseModel):
     total_negatives: int | None = Field(default=None, alias="totalNegatives")
 
     model_config = {"populate_by_name": True}
-
 
 class OptimizationParameterSpecData(BaseModel):
     """Specification for one optimization parameter."""
@@ -33,7 +30,6 @@ class OptimizationParameterSpecData(BaseModel):
     choices: list[str] | None = None
 
     model_config = {"populate_by_name": True}
-
 
 class OptimizationProgressEventData(BaseModel):
     """Payload for ``optimization_progress`` SSE events."""

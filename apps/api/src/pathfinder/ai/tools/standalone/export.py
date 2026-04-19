@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
+from pydantic import JsonValue
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import FileChunk
@@ -20,7 +21,7 @@ from pathfinder.ai.tools.standalone._export_models import (
 )
 from pathfinder.platform.errors import ErrorCode
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.export import get_export_service
 from pathfinder.services.gene_sets.store import get_gene_set_store
 
@@ -41,7 +42,6 @@ async def _available_gene_sets(
         ).model_dump(by_alias=True, exclude_none=True, mode="json")
         for gs in sets[:10]
     ]
-
 
 async def export_gene_set(
     ctx: RunContext[AgentDeps],
@@ -68,7 +68,7 @@ async def export_gene_set(
     store = get_gene_set_store()
     gs = await store.aget(gene_set_id)
     if gs is None:
-        available: list[JSONValue] = list(
+        available: list[JsonValue] = list(
             await _available_gene_sets(deps.site_id, deps.user_id)
         )
         return tool_error(

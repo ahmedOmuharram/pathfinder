@@ -2,8 +2,10 @@
 
 from typing import cast
 
+from pydantic import JsonValue
+
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.service import EnrichmentService
 from pathfinder.services.enrichment.types import EnrichmentAnalysisType
 from pathfinder.services.export import get_export_service
@@ -12,7 +14,6 @@ from pathfinder.services.gene_sets.types import GeneSet
 logger = get_logger(__name__)
 
 _PVALUE_SIGNIFICANCE_THRESHOLD = 0.05
-
 
 async def run_enrichment_for_gene_set(
     gene_set: GeneSet,
@@ -27,7 +28,7 @@ async def run_enrichment_for_gene_set(
     Returns a summary dict with enrichment results, download links, and errors.
     """
     params: JSONObject | None = (
-        {k: cast("JSONValue", v) for k, v in gene_set.parameters.items()}
+        {k: cast("JsonValue", v) for k, v in gene_set.parameters.items()}
         if gene_set.parameters is not None
         else None
     )
@@ -72,8 +73,8 @@ async def run_enrichment_for_gene_set(
         except (OSError, ValueError, TypeError) as export_err:
             logger.warning("Enrichment export failed", error=str(export_err))
 
-    summary["enrichmentResults"] = cast("JSONValue", serialized)
+    summary["enrichmentResults"] = cast("JsonValue", serialized)
     if errors:
-        summary["errors"] = cast("JSONValue", errors)
+        summary["errors"] = cast("JsonValue", errors)
 
     return summary

@@ -101,7 +101,7 @@ export function WorkbenchMain() {
       <div key={activeSetId} className="mx-auto w-full max-w-5xl space-y-3 p-6">
         <ActiveSetHeader />
         {lastExperiment?.id != null && lastExperiment.id !== "" && (
-          <ChatView chatId={lastExperiment.id} allowMissing />
+          <ChatView conversationId={lastExperiment.id} allowMissing />
         )}
         {PANELS.map((Panel, i) => (
           <div

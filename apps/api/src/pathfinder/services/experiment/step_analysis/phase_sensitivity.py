@@ -5,7 +5,7 @@ import math
 from typing import TypedDict
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.tree import (
     collect_plan_leaves,
     map_plan_tree,
@@ -121,7 +121,7 @@ async def _fetch_search_specs(
 async def _discover_numeric_params(
     site_id: str,
     record_type: str,
-    leaf: PlanStepNode,
+    leaf: StrategyStepNode,
 ) -> list[_NumericParamSpec]:
     """Discover numeric parameters on a leaf from WDK metadata."""
     search_name = leaf.search_name
@@ -319,11 +319,11 @@ def _prepare_sweep_range(
 async def _collect_sweep_specs(
     site_id: str,
     record_type: str,
-    leaves: list[PlanStepNode],
-) -> list[tuple[PlanStepNode, _NumericParamSpec, list[_NumericParamSpec]]]:
+    leaves: list[StrategyStepNode],
+) -> list[tuple[StrategyStepNode, _NumericParamSpec, list[_NumericParamSpec]]]:
     """Collect deduplicated (leaf, spec, all_params) tuples for sweeping."""
     seen: set[str] = set()
-    result: list[tuple[PlanStepNode, _NumericParamSpec, list[_NumericParamSpec]]] = []
+    result: list[tuple[StrategyStepNode, _NumericParamSpec, list[_NumericParamSpec]]] = []
     for leaf in leaves:
         search_name = leaf.search_name
         params = await _discover_numeric_params(site_id, record_type, leaf)
@@ -345,14 +345,14 @@ async def _eval_sweep_value(
     val: float,
     lid: str,
     pname: str,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     sem: asyncio.Semaphore,
     ctx: ControlsContext,
 ) -> ParameterSweepPoint | None:
     """Evaluate a single parameter value by running controls against a patched tree."""
     patched_params: JSONObject | None = None
 
-    def _patch_node(node: PlanStepNode) -> None:
+    def _patch_node(node: StrategyStepNode) -> None:
         nonlocal patched_params
         if node.id == lid:
             patched_params = dict(node.parameters)
@@ -361,7 +361,7 @@ async def _eval_sweep_value(
     walk_plan_tree(tree, _patch_node)
 
     # Build a modified tree with the patched parameters using model_copy
-    def _apply_patch(node: PlanStepNode) -> PlanStepNode:
+    def _apply_patch(node: StrategyStepNode) -> StrategyStepNode:
         if node.id == lid and patched_params is not None:
             return node.model_copy(update={"parameters": patched_params})
         return node
@@ -398,7 +398,7 @@ async def _eval_sweep_value(
 
 async def sweep_parameters(
     ctx: ControlsContext,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     progress_callback: ProgressCallback | None = None,
 ) -> list[ParameterSensitivity]:
     """Sweep numeric params on each leaf across their WDK-declared range.
@@ -407,7 +407,7 @@ async def sweep_parameters(
     searches across leaves, and only recommends changes when the
     improvement is meaningful.
 
-    :param tree: Strategy tree as a :class:`PlanStepNode`.
+    :param tree: Strategy tree as a :class:`StrategyStepNode`.
     :returns: One :class:`ParameterSensitivity` per numeric param.
     """
     leaves = collect_plan_leaves(tree)

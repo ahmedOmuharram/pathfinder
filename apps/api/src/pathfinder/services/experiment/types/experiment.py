@@ -2,7 +2,7 @@
 
 from pydantic import Field
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.integrations.veupathdb.wdk_models import WDKSortDirection
 from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat2
 from pathfinder.platform.types import JSONObject
@@ -64,7 +64,7 @@ class ExperimentConfig(CamelModel):
     optimization_objective: OptimizationObjective = "balanced_accuracy"
     parameter_display_values: dict[str, str] | None = None
     mode: ExperimentMode = "single"
-    step_tree: PlanStepNode | None = None
+    step_tree: StrategyStepNode | None = None
     source_strategy_id: str | None = None
     optimization_target_step: str | None = None
     enable_step_analysis: bool = False

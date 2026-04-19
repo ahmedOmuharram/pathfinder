@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import { useHover } from "usehooks-ts";
 import { AlertCircle, Check, X } from "lucide-react";
 import type { ResolvedGene } from "@pathfinder/shared";
 
@@ -48,26 +47,18 @@ function GeneHoverCard({ gene, pos }: { gene: ResolvedGene; pos: { top: number; 
 }
 
 export function GeneChip({ geneId, status, resolvedGene, onRemove }: GeneChipProps) {
-  const chipRef = useRef<HTMLSpanElement>(null);
-  const isHovered = useHover(chipRef as React.RefObject<HTMLElement>);
-  const [hoverPos, setHoverPos] = useState({ top: 0, left: 0 });
-
-  const showHover = isHovered && resolvedGene != null;
-
-  if (showHover && chipRef.current) {
-    const rect = chipRef.current.getBoundingClientRect();
-    const nextPos = { top: rect.bottom + 4, left: rect.left };
-    if (nextPos.top !== hoverPos.top || nextPos.left !== hoverPos.left) {
-      setHoverPos(nextPos);
-    }
-  }
+  const [hoverPos, setHoverPos] = useState<{ top: number; left: number } | null>(null);
 
   return (
     <>
       <span
-        ref={chipRef}
         data-gene-chip
         data-status={status}
+        onMouseEnter={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          setHoverPos({ top: rect.bottom + 4, left: rect.left });
+        }}
+        onMouseLeave={() => setHoverPos(null)}
         className={`animate-chip-in inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] leading-tight ${statusClasses[status]}`}
       >
         {statusIcon[status]}
@@ -81,7 +72,7 @@ export function GeneChip({ geneId, status, resolvedGene, onRemove }: GeneChipPro
           <X className="h-2.5 w-2.5" />
         </button>
       </span>
-      {showHover && resolvedGene != null && (
+      {hoverPos !== null && resolvedGene != null && (
         <GeneHoverCard gene={resolvedGene} pos={hoverPos} />
       )}
     </>

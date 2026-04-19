@@ -1,11 +1,13 @@
 "use client";
 
-import { ThreadPrimitive } from "@assistant-ui/react";
+import { AuiIf, ThreadPrimitive } from "@assistant-ui/react";
 import { motion } from "motion/react";
+import { Settings2, X } from "lucide-react";
 
 import suggestedQuestions from "@/features/conversation/data/suggestedQuestions.json";
 import { cn } from "@/lib/utils/cn";
 import { useSessionStore } from "@/state/useSessionStore";
+import { useSettingsStore } from "@/state/useSettingsStore";
 
 type SuggestionsBySite = Record<string, readonly string[] | undefined>;
 
@@ -26,12 +28,14 @@ const suggestionEase = [0.22, 1, 0.36, 1] as const;
 export function ChatEmptyState() {
   const siteId = useSessionStore((s) => s.selectedSite);
   const displayName = useSessionStore((s) => s.selectedSiteDisplayName);
+  const hintDismissed = useSettingsStore((s) => s.firstRunHintDismissed);
+  const dismissHint = useSettingsStore((s) => s.dismissFirstRunHint);
   const suggestions = suggestionsForSite(siteId);
   const greeting = greetingForHour(new Date().getHours());
 
   return (
-    <ThreadPrimitive.Empty>
-      <div className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
+    <AuiIf condition={(s) => s.thread.isEmpty}>
+      <div className="flex min-h-[60vh] flex-1 flex-col items-center justify-center px-6 py-10 text-center">
         <motion.h1
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -49,6 +53,29 @@ export function ChatEmptyState() {
           Build and refine multi-step {displayName} search strategies with guided
           parameter selection and validation.
         </motion.p>
+
+        {!hintDismissed && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: suggestionEase, delay: 0.2 }}
+            className="mt-6 flex max-w-md items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs text-muted-foreground"
+          >
+            <Settings2 className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            <div className="flex-1">
+              Running on the default provider + orchestrator. Tweak models,
+              tiers, and the orchestrator in <span className="font-medium text-foreground">Settings → AI Engine</span>.
+            </div>
+            <button
+              type="button"
+              onClick={dismissHint}
+              aria-label="Dismiss hint"
+              className="shrink-0 rounded p-0.5 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </motion.div>
+        )}
 
         {suggestions.length > 0 && (
           <div
@@ -90,6 +117,7 @@ export function ChatEmptyState() {
           </div>
         )}
       </div>
-    </ThreadPrimitive.Empty>
+    </AuiIf>
   );
 }
+

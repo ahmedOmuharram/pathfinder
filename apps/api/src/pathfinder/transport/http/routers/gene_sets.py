@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Annotated, Literal, cast, get_args
 
 from fastapi import APIRouter, Depends, Query, Request
+from pydantic import JsonValue
 
 from pathfinder.platform.errors import (
     InternalError,
@@ -18,7 +19,7 @@ from pathfinder.platform.errors import (
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.security import limiter
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.export import get_export_service
 from pathfinder.services.gene_sets.confidence import (
     GeneClassification,
@@ -57,11 +58,9 @@ from pathfinder.transport.http.schemas.steps import RecordDetailRequest
 router = APIRouter(prefix="/api/v1/gene-sets", tags=["gene-sets"])
 logger = get_logger(__name__)
 
-
 # ---------------------------------------------------------------------------
 # Query parameter groups
 # ---------------------------------------------------------------------------
-
 
 @dataclass
 class RecordQueryParams:
@@ -75,15 +74,12 @@ class RecordQueryParams:
     filter_attribute: str | None = Query(None, alias="filterAttribute")
     filter_value: str | None = Query(None, alias="filterValue")
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-
 def _svc() -> GeneSetService:
     return GeneSetService(get_gene_set_store())
-
 
 def _to_response(gs: GeneSet) -> GeneSetResponse:
     valid_ops = get_args(SetOperation)
@@ -108,19 +104,15 @@ def _to_response(gs: GeneSet) -> GeneSetResponse:
         step_count=gs.step_count,
     )
 
-
 def _not_found(exc: KeyError) -> NotFoundError:
     return NotFoundError(title=str(exc))
-
 
 def _no_strategy(exc: ValueError) -> NotFoundError:
     return NotFoundError(title="No WDK strategy", detail=str(exc))
 
-
 # ---------------------------------------------------------------------------
 # CRUD endpoints
 # ---------------------------------------------------------------------------
-
 
 @router.post("", status_code=201)
 @limiter.limit("30/minute")
@@ -146,7 +138,6 @@ async def create_gene_set(
     )
     return _to_response(gs)
 
-
 @router.get("")
 async def list_gene_sets(
     user_id: CurrentUser,
@@ -155,7 +146,6 @@ async def list_gene_sets(
     """List all gene sets for the current user, optionally filtered by site."""
     sets = await _svc().list_for_user(user_id, site_id=site_id)
     return [_to_response(gs) for gs in sets]
-
 
 @router.get("/{gene_set_id}")
 async def get_gene_set(
@@ -169,7 +159,6 @@ async def get_gene_set(
         raise _not_found(exc) from exc
     return _to_response(gs)
 
-
 @router.delete("/{gene_set_id}")
 async def delete_gene_set(
     gene_set_id: str,
@@ -182,22 +171,18 @@ async def delete_gene_set(
         raise _not_found(exc) from exc
     return {"ok": True}
 
-
 class GeneSetExportResponse(CamelModel):
     export_id: str
     filename: str
     content_type: str
     url: str
 
-
 class GeneSetImportRequest(CamelModel):
     name: str
     site_id: str
     raw_text: str
 
-
 _ID_SPLIT_RE = re.compile(r"[\s,;\t]+")
-
 
 def _parse_gene_id_blob(raw: str) -> list[str]:
     seen: set[str] = set()
@@ -211,7 +196,6 @@ def _parse_gene_id_blob(raw: str) -> list[str]:
         seen.add(cleaned)
         out.append(cleaned)
     return out
-
 
 @router.post("/{gene_set_id}/export")
 @limiter.limit("30/minute")
@@ -239,7 +223,6 @@ async def export_gene_set_endpoint(
         url=result.url,
     )
 
-
 @router.post("/import", status_code=201)
 @limiter.limit("30/minute")
 async def import_gene_set(
@@ -262,7 +245,6 @@ async def import_gene_set(
     )
     return _to_response(gs)
 
-
 @router.post("/operations")
 async def set_operations(
     request: SetOperationRequest,
@@ -283,11 +265,9 @@ async def set_operations(
         raise ValidationError(title="Invalid operation", detail=str(exc)) from exc
     return _to_response(gs)
 
-
 # ---------------------------------------------------------------------------
 # Reverse search
 # ---------------------------------------------------------------------------
-
 
 @router.post("/reverse-search")
 async def reverse_search(
@@ -324,11 +304,9 @@ async def reverse_search(
         for r in ranked
     ]
 
-
 # ---------------------------------------------------------------------------
 # Ensemble scoring
 # ---------------------------------------------------------------------------
-
 
 @router.post("/ensemble")
 async def ensemble_scoring(
@@ -347,11 +325,9 @@ async def ensemble_scoring(
 
     return compute_ensemble_scores(gene_sets, body.positive_controls)
 
-
 # ---------------------------------------------------------------------------
 # Enrichment
 # ---------------------------------------------------------------------------
-
 
 @router.post("/{gene_set_id}/enrich")
 async def enrich_gene_set(
@@ -372,11 +348,9 @@ async def enrich_gene_set(
         ) from exc
     return [r.model_dump(by_alias=True) for r in results]
 
-
 # ---------------------------------------------------------------------------
 # Result browsing endpoints (attributes, records, distributions)
 # ---------------------------------------------------------------------------
-
 
 @router.get("/{gene_set_id}/results/attributes")
 async def get_gene_set_attributes(
@@ -391,7 +365,6 @@ async def get_gene_set_attributes(
     except ValueError as exc:
         raise _no_strategy(exc) from exc
     return await svc.get_attributes()
-
 
 @router.get("/{gene_set_id}/results/records")
 async def get_gene_set_records(
@@ -420,21 +393,21 @@ async def get_gene_set_records(
             direction=params.sort_dir,
             attributes=attr_list,
         )
-        filtered: list[JSONValue] = []
+        filtered: list[JsonValue] = []
         for rec in answer.records:
             val = rec.attributes.get(params.filter_attribute)
             if val == params.filter_value:
                 filtered.append(rec.model_dump(by_alias=True))
         page = filtered[params.offset : params.offset + params.limit]
         return {
-            "records": cast("JSONValue", page),
+            "records": cast("JsonValue", page),
             "meta": {
                 "totalCount": len(filtered),
                 "displayTotalCount": len(filtered),
                 "responseCount": len(page),
                 "pagination": {"offset": params.offset, "numRecords": params.limit},
-                "attributes": cast("JSONValue", attr_list or []),
-                "tables": cast("JSONValue", []),
+                "attributes": cast("JsonValue", attr_list or []),
+                "tables": cast("JsonValue", []),
             },
         }
 
@@ -452,7 +425,6 @@ async def get_gene_set_records(
         "meta": meta,
     }
 
-
 @router.get("/{gene_set_id}/results/distributions/{attribute_name}")
 async def get_gene_set_distribution(
     gene_set_id: str,
@@ -468,7 +440,6 @@ async def get_gene_set_distribution(
         raise _no_strategy(exc) from exc
     dist = await svc.get_distribution(attribute_name)
     return dist.model_dump(by_alias=True)
-
 
 @router.post("/{gene_set_id}/results/record")
 async def get_gene_set_record_detail(
@@ -491,11 +462,9 @@ async def get_gene_set_record_detail(
     ]
     return await svc.get_record_detail(pk_parts, gs.site_id)
 
-
 # ---------------------------------------------------------------------------
 # Confidence scoring
 # ---------------------------------------------------------------------------
-
 
 @router.post("/confidence")
 async def gene_confidence(

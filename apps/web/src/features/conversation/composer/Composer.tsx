@@ -2,9 +2,10 @@
 
 import {
   ComposerPrimitive,
-  useComposer,
-  useComposerRuntime,
+  useAui,
+  useAuiState,
 } from "@assistant-ui/react";
+import { useQuery } from "@tanstack/react-query";
 import { Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -14,11 +15,56 @@ import { SlashPopover } from "@/features/conversation/slash/SlashPopover";
 import { commands, findCommand } from "@/features/conversation/slash/registry";
 import type { Command, CommandResult } from "@/features/conversation/slash/types";
 import { parseSlashInput } from "@/features/conversation/slash/parser";
+import { conversationDetailOptions } from "@/lib/api/conversations";
 import { useSessionStore } from "@/state/useSessionStore";
 
-export function Composer() {
-  const runtime = useComposerRuntime();
-  const text = useComposer((s) => s.text);
+import { OrchestratorPill } from "./OrchestratorPill";
+
+const tokensCompact = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const costFmt = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const costSubCentFmt = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+});
+
+function formatCost(cost: number): string {
+  if (cost <= 0) return costFmt.format(0);
+  if (cost < 0.01) return costSubCentFmt.format(cost);
+  return costFmt.format(cost);
+}
+
+function ConversationUsageFooter({ conversationId }: { conversationId: string }) {
+  const { data } = useQuery(conversationDetailOptions(conversationId));
+  const tokens = data?.totalTokens ?? 0;
+  const cost = Number(data?.totalCostUsd ?? 0);
+  const showUsage = tokens > 0 || cost > 0;
+  return (
+    <div className="flex items-center gap-2 px-1 pt-1">
+      <OrchestratorPill conversationId={conversationId} />
+      {showUsage && (
+        <span className="text-[11px] text-muted-foreground">
+          {tokensCompact.format(tokens)} tokens · {formatCost(cost)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function Composer({ conversationId }: { conversationId: string }) {
+  const aui = useAui();
+  const text = useAuiState((s) => s.composer.text);
   const siteId = useSessionStore((s) => s.selectedSite);
 
   const [pendingCommand, setPendingCommand] = useState<Command | null>(null);
@@ -34,17 +80,17 @@ export function Composer() {
   }
 
   async function runCommand(command: Command, values: Record<string, string>) {
-    const chatId = chatIdFromLocation();
-    if (chatId === null) {
+    const conversationId = chatIdFromLocation();
+    if (conversationId === null) {
       toast.error("Slash commands require an active chat.");
       return;
     }
-    const ctx = { chatId, siteId };
+    const ctx = { conversationId, siteId };
 
     if (command.kind === "llm-prefill") {
-      runtime.setText(command.prompt(values, ctx));
+      aui.composer().setText(command.prompt(values, ctx));
       if (command.autoSubmit === true) {
-        runtime.send();
+        aui.composer().send();
       }
       setPendingCommand(null);
       return;
@@ -52,11 +98,11 @@ export function Composer() {
 
     try {
       const result: CommandResult = await command.run(values, ctx);
-      runtime.setText("");
+      aui.composer().setText("");
       setPendingCommand(null);
       handleResult(result);
     } catch (err) {
-      runtime.setText("");
+      aui.composer().setText("");
       setPendingCommand(null);
       const msg = err instanceof Error ? err.message : "Command failed";
       toast.error(msg);
@@ -83,8 +129,8 @@ export function Composer() {
       return;
     }
     if (result.kind === "prefill") {
-      runtime.setText(result.text);
-      if (result.submit === true) runtime.send();
+      aui.composer().setText(result.text);
+      if (result.submit === true) aui.composer().send();
     }
   }
 
@@ -97,7 +143,7 @@ export function Composer() {
   }
 
   function dismissPopover() {
-    runtime.setText("");
+    aui.composer().setText("");
   }
 
   const exactMatch =
@@ -109,7 +155,7 @@ export function Composer() {
       && parsed.rest === "";
 
   return (
-    <ComposerPrimitive.Root className="relative flex flex-col gap-2 border-t bg-card px-4 py-3">
+    <ComposerPrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col gap-1 border-t bg-card px-4 pb-2 pt-3">
       <SlashPopover
         open={showPopover}
         query={parsed?.token ?? ""}
@@ -121,7 +167,7 @@ export function Composer() {
         open={pendingCommand !== null}
         command={pendingCommand}
         ctx={{
-          chatId: chatIdFromLocation() ?? "",
+          conversationId: chatIdFromLocation() ?? "",
           siteId,
         }}
         onComplete={(values) => {
@@ -129,22 +175,16 @@ export function Composer() {
         }}
         onCancel={() => {
           setPendingCommand(null);
-          runtime.setText("");
+          aui.composer().setText("");
         }}
       />
       <div className="focus-within:shadow-[var(--shadow-composer-focus)] flex flex-col gap-2 rounded-lg border bg-background shadow-[var(--shadow-composer)] transition-shadow">
         <ComposerPrimitive.Input
-          placeholder="Ask about strategies, genes, or data… (try /help)"
+          placeholder="Ask about strategies, genes, or data... (try /help)"
           className="w-full resize-none bg-transparent p-3 text-sm outline-none"
           autoFocus
           onKeyDown={(e) => {
-            if (
-              e.key === "Enter"
-              && !e.shiftKey
-              && wantsDirectRun
-              && exactMatch !== null
-              && exactMatch !== undefined
-            ) {
+            if (e.key === "Enter" && !e.shiftKey && wantsDirectRun) {
               e.preventDefault();
               selectCommand(exactMatch);
             }
@@ -159,6 +199,7 @@ export function Composer() {
           </ComposerPrimitive.Send>
         </div>
       </div>
+      <ConversationUsageFooter conversationId={conversationId} />
     </ComposerPrimitive.Root>
   );
 }

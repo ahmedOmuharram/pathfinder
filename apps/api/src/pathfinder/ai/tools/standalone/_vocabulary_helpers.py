@@ -5,7 +5,7 @@ vocabularies, extracting display options from vocabulary trees,
 filtering search lists, and expanding leaf values.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from pathfinder.domain.parameters.vocab_utils import (
     BROAD_VALUE_FIELDS,
@@ -15,12 +15,11 @@ from pathfinder.domain.parameters.vocab_utils import (
     get_node_value,
     normalize_vocab_key,
 )
-from pathfinder.platform.types import JSONArray, JSONObject, JSONValue
+from pathfinder.platform.types import JSONArray, JSONObject
 
 # ---------------------------------------------------------------------------
 # Private parsing models (replace isinstance/dict.get chains per CLAUDE.md)
 # ---------------------------------------------------------------------------
-
 
 class _SearchEntry(BaseModel):
     """Parse a WDK search entry from the JSON API."""
@@ -30,13 +29,11 @@ class _SearchEntry(BaseModel):
     url_segment: str = Field(default="", alias="urlSegment")
     display_name: str = Field(default="", alias="displayName")
 
-
 class _VocabNodeData(BaseModel):
     """The ``data`` sub-object of a WDK vocabulary tree node."""
 
     model_config = ConfigDict(extra="ignore")
     display: str | None = None
-
 
 class _VocabNode(BaseModel):
     """A single node in a WDK vocabulary tree."""
@@ -45,7 +42,6 @@ class _VocabNode(BaseModel):
     data: _VocabNodeData = Field(default_factory=_VocabNodeData)
     children: list["_VocabNode"] = Field(default_factory=list)
 
-
 class _VocabEntry(BaseModel):
     """A flattened vocabulary entry (output of ``flatten_vocab``)."""
 
@@ -53,11 +49,9 @@ class _VocabEntry(BaseModel):
     display: str | None = None
     value: str | None = None
 
-
 # ---------------------------------------------------------------------------
 # Search filtering
 # ---------------------------------------------------------------------------
-
 
 def filter_search_options(
     searches: JSONArray, query: str, limit: int = 20
@@ -76,11 +70,9 @@ def filter_search_options(
             break
     return results
 
-
 # ---------------------------------------------------------------------------
 # Vocabulary extraction and matching
 # ---------------------------------------------------------------------------
-
 
 def extract_vocab_options(
     vocabulary: JSONObject, limit: int = 50
@@ -100,9 +92,8 @@ def extract_vocab_options(
         walk(_VocabNode.model_validate(vocabulary))
     return options
 
-
 def match_vocab_value(
-    vocabulary: JSONObject | JSONArray, value: JSONValue
+    vocabulary: JSONObject | JSONArray, value: JsonValue
 ) -> str:
     target = "" if value is None else str(value)
     if not target or not vocabulary:
@@ -114,7 +105,6 @@ def match_vocab_value(
         if exact is not None
         else match_vocab_normalized(entries, target)
     )
-
 
 def match_vocab_exact(
     entries: list[dict[str, str | None]], target: str
@@ -128,7 +118,6 @@ def match_vocab_exact(
             return entry.value or target
     return None
 
-
 def match_vocab_normalized(
     entries: list[dict[str, str | None]], target: str
 ) -> str:
@@ -141,7 +130,6 @@ def match_vocab_normalized(
         if entry.value and normalize_vocab_key(entry.value) == normalized_target:
             return entry.value
     return target
-
 
 def expand_leaf_values(
     vocabulary: JSONObject,

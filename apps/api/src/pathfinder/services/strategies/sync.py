@@ -10,8 +10,10 @@ counts.
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
+from pydantic import JsonValue
+
 from pathfinder.domain.strategy.ast import (
-    PlanStepNode,
+    StrategyStepNode,
     walk_step_tree,
 )
 from pathfinder.domain.strategy.session import StrategyGraph
@@ -25,7 +27,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.errors import AppError, StrategyCompilationError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.searches import (
     make_record_type_resolver,
     resolve_record_type_from_steps,
@@ -35,11 +37,9 @@ from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)
 
-
 # ---------------------------------------------------------------------------
 # Protocols -- I/O boundaries the sync service depends on
 # ---------------------------------------------------------------------------
-
 
 @runtime_checkable
 class StepDecoratorAPI(Protocol):
@@ -49,7 +49,7 @@ class StepDecoratorAPI(Protocol):
         self,
         step_id: int,
         filter_name: str,
-        value: JSONValue,
+        value: JsonValue,
         *,
         disabled: bool = False,
     ) -> None: ...
@@ -64,8 +64,7 @@ class StepDecoratorAPI(Protocol):
 
     async def run_step_report(
         self, step_id: int, report_name: str, config: JSONObject | None = None
-    ) -> JSONValue: ...
-
+    ) -> JsonValue: ...
 
 class StrategySyncAPI(StepDecoratorAPI, Protocol):
     """I/O boundary for strategy sync operations.
@@ -92,7 +91,6 @@ class StrategySyncAPI(StepDecoratorAPI, Protocol):
 
     async def get_strategy(self, strategy_id: int) -> WDKStrategyDetails: ...
 
-
 class SiteInfoLike(Protocol):
     """Protocol for site metadata needed by the sync service."""
 
@@ -100,11 +98,9 @@ class SiteInfoLike(Protocol):
         self, strategy_id: int, root_step_id: int | None = None
     ) -> str: ...
 
-
 # ---------------------------------------------------------------------------
 # Result type
 # ---------------------------------------------------------------------------
-
 
 @dataclass
 class SyncResult:
@@ -118,19 +114,17 @@ class SyncResult:
     zero_step_ids: list[str]
     step_count: int
 
-
 # ---------------------------------------------------------------------------
 # Step tree construction
 # ---------------------------------------------------------------------------
 
-
 def build_step_tree_from_graph(
-    root: PlanStepNode,
+    root: StrategyStepNode,
     wdk_step_ids: dict[str, int],
 ) -> WDKStepTree:
     """Build a WDKStepTree from graph topology and WDK step IDs.
 
-    Recursively walks a ``PlanStepNode`` tree and replaces local step IDs
+    Recursively walks a ``StrategyStepNode`` tree and replaces local step IDs
     with WDK step IDs.
 
     :raises StrategyCompilationError: If any step in the tree lacks a WDK step ID.
@@ -154,11 +148,9 @@ def build_step_tree_from_graph(
         secondary_input=secondary,
     )
 
-
 # ---------------------------------------------------------------------------
 # Tree comparison
 # ---------------------------------------------------------------------------
-
 
 def _trees_equal(a: WDKStepTree | None, b: WDKStepTree | None) -> bool:
     """Check structural equality of two WDKStepTree objects."""
@@ -170,11 +162,9 @@ def _trees_equal(a: WDKStepTree | None, b: WDKStepTree | None) -> bool:
         a.secondary_input, b.secondary_input
     )
 
-
 # ---------------------------------------------------------------------------
 # Count and validation extraction
 # ---------------------------------------------------------------------------
-
 
 def _extract_counts_and_validations(
     strategy_info: WDKStrategyDetails,
@@ -209,14 +199,12 @@ def _extract_counts_and_validations(
 
     return counts, validations, root_count
 
-
 # ---------------------------------------------------------------------------
 # Step decorations
 # ---------------------------------------------------------------------------
 
-
 async def _apply_decorations(
-    root_step: PlanStepNode,
+    root_step: StrategyStepNode,
     wdk_step_ids: dict[str, int],
     api: StepDecoratorAPI,
 ) -> None:
@@ -250,11 +238,9 @@ async def _apply_decorations(
                 config=report.config,
             )
 
-
 # ---------------------------------------------------------------------------
 # Create-or-update strategy on WDK
 # ---------------------------------------------------------------------------
-
 
 async def _create_or_update_wdk_strategy(
     api: StrategySyncAPI,
@@ -303,11 +289,9 @@ async def _create_or_update_wdk_strategy(
     )
     return wdk_strategy_id
 
-
 # ---------------------------------------------------------------------------
 # Fetch counts and apply decorations
 # ---------------------------------------------------------------------------
-
 
 async def _fetch_strategy_state(
     api: StrategySyncAPI,
@@ -330,11 +314,9 @@ async def _fetch_strategy_state(
         )
         return counts, validations, root_count, strategy_info.root_step_id
 
-
 # ---------------------------------------------------------------------------
 # Main sync function
 # ---------------------------------------------------------------------------
-
 
 async def sync_strategy(
     *,
@@ -401,8 +383,7 @@ async def sync_strategy(
         step_count=len(all_steps),
     )
 
-
-def _validate_graph(root_step: PlanStepNode, record_type: str | None) -> None:
+def _validate_graph(root_step: StrategyStepNode, record_type: str | None) -> None:
     """Validate the strategy structure if a record type is available."""
     if not record_type:
         return
@@ -414,9 +395,8 @@ def _validate_graph(root_step: PlanStepNode, record_type: str | None) -> None:
         msg = f"Strategy validation failed: {errors}"
         raise StrategyCompilationError(msg)
 
-
 async def _maybe_apply_decorations(
-    root_step: PlanStepNode,
+    root_step: StrategyStepNode,
     wdk_step_ids: dict[str, int],
     api: StepDecoratorAPI,
 ) -> None:
@@ -432,11 +412,9 @@ async def _maybe_apply_decorations(
     except AppError as e:
         logger.warning("Step decoration failed (non-fatal)", error=str(e))
 
-
 # ---------------------------------------------------------------------------
 # Convenience entry point (resolves integrations internally)
 # ---------------------------------------------------------------------------
-
 
 async def sync_strategy_for_site(
     *,

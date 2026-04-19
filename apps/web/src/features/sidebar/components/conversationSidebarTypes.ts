@@ -9,6 +9,8 @@ export interface ConversationItem {
   isSaved: boolean;
   stepCount: number;
   experimentId: string | null;
+  parentConversationId: string | null;
+  parentMessageId: string | null;
   /** Full backend payload — kept so downstream handlers can inspect server state. */
   chat: ConversationSummary;
 }
@@ -23,6 +25,8 @@ export function chatToConversationItem(chat: ConversationSummary): ConversationI
     isSaved: chat.isSaved,
     stepCount: chat.stepCount,
     experimentId: chat.experimentId,
+    parentConversationId: chat.parentConversationId ?? null,
+    parentMessageId: chat.parentMessageId ?? null,
     chat,
   };
 }

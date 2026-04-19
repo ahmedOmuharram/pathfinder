@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import uuid4
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.helpers import ProgressCallback
@@ -101,7 +101,7 @@ async def run_experiment(
         # Phase 1: Control-test evaluation + metrics + gene enrichment
         result, metrics = await phase_evaluate(pctx)
 
-        plan_tree: PlanStepNode | None = (
+        plan_tree: StrategyStepNode | None = (
             config.step_tree if config.is_tree_mode else None
         )
 

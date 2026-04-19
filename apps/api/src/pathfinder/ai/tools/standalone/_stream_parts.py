@@ -39,7 +39,7 @@ from shared_py.stream_parts.strategy import (
 
 from pathfinder.ai.graph.state import ProblemFrame
 from pathfinder.ai.tools.standalone._graph_helpers import build_step_response
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.platform.pydantic_base import CamelModel
@@ -181,7 +181,7 @@ def graph_cleared_chunk(*, reason: str | None = None) -> DataChunk:
 
 def _step_payload(
     graph: StrategyGraph,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     sync_state: SyncStateProtocol | None,
 ) -> dict[str, object]:
     """Serialize a step to the wire shape used in a StrategyPatch.step field.
@@ -196,7 +196,7 @@ def _step_payload(
 
 def strategy_patch_chunk(
     graph: StrategyGraph,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     *,
     operation: StrategyOperation,
     sync_state: SyncStateProtocol | None,

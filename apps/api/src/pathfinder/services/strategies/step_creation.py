@@ -7,7 +7,7 @@ client, discovery service) are injected via callbacks or explicit parameters.
 
 from dataclasses import dataclass
 
-from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
+from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp, parse_op
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.validation import StepValidation
@@ -74,13 +74,13 @@ class StepSpec:
 class StepCreationResult:
     """Result of step creation: either a successfully added step or an error payload."""
 
-    step: PlanStepNode | None
+    step: StrategyStepNode | None
     step_id: str | None
     error: ToolErrorPayload | None
     wdk_step_id: int | None = None
     wdk_validation: StepValidation | None = None
     wdk_push_error: str | None = None
-    combine_step: PlanStepNode | None = None
+    combine_step: StrategyStepNode | None = None
     combine_step_id: str | None = None
     combine_wdk_step_id: int | None = None
     combine_wdk_push_error: str | None = None
@@ -164,12 +164,12 @@ def _resolve_inputs_from_spec(
 def _add_step_to_graph(
     *,
     graph: StrategyGraph,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     search_name: str,
     spec: StepSpec,
     needs_combine: bool,
     combine_with_step_id: str | None,
-) -> tuple[str | None, PlanStepNode | None, str | None]:
+) -> tuple[str | None, StrategyStepNode | None, str | None]:
     """Insert *step* into the graph, returning (step_id, combine_step, combine_id).
 
     Returns ``(None, None, None)`` when *combine_with_step_id* is set but
@@ -268,7 +268,7 @@ async def create_step(
         return _error_result(step_error)
 
     # Build the step node.
-    step = PlanStepNode(
+    step = StrategyStepNode(
         search_name=search_name,
         parameters=parameters,
         primary_input=primary_input,

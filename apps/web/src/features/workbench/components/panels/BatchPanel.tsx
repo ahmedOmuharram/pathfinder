@@ -144,7 +144,7 @@ export function BatchPanel() {
           ) : (
             <Play className="h-4 w-4" />
           )}
-          {loading ? "Running…" : `Run ${parsedTargets.length} experiments`}
+          {loading ? "Running..." : `Run ${parsedTargets.length} experiments`}
         </Button>
 
         {loading && progressText !== "" && (

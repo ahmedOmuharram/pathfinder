@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from uuid import UUID
 
 from pathfinder.domain.strategy.ast import walk_step_tree
-from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import WDKStrategySummary
 from pathfinder.persistence.models import Conversation
@@ -43,7 +43,7 @@ class WdkChatSpec:
 
     wdk_id: int
     name: str
-    plan: StrategyPlanPayload
+    strategy_ast: StrategyAst
     record_type: str | None
     is_saved: bool
     step_count: int = field(default=0)
@@ -58,22 +58,22 @@ def plan_needs_detail_fetch(conversation: Conversation) -> bool:
     """
     if conversation.wdk_strategy_id is None:
         return False
-    plan = conversation.plan
-    if not plan:
+    ast = conversation.strategy_ast
+    if not ast:
         return True
-    return "root" not in plan
+    return "root" not in ast
 
 
 async def fetch_and_convert(
     api: StrategyAPI,
     wdk_id: int,
-) -> tuple[StrategyPlanPayload, bool]:
+) -> tuple[StrategyAst, bool]:
     """Fetch a WDK strategy and convert to internal plan payload.
 
     Normalizes parameters best-effort (failures are logged and swallowed).
     Step counts and WDK step ID mappings are stored on the payload directly.
 
-    :returns: Tuple of (StrategyPlanPayload, is_saved).
+    :returns: Tuple of (StrategyAst, is_saved).
     """
     wdk_strategy = await api.get_strategy(wdk_id)
 
@@ -113,7 +113,7 @@ async def sync_to_chat(
         spec=WdkChatSpec(
             wdk_id=wdk_id,
             name=name,
-            plan=payload,
+            strategy_ast=payload,
             record_type=payload.record_type,
             is_saved=is_saved,
             step_count=len(walk_step_tree(payload.root)),
@@ -135,7 +135,7 @@ async def upsert_chat(
             existing.id,
             ConversationUpdate(
                 name=spec.name,
-                plan=spec.plan,
+                strategy_ast=spec.strategy_ast,
                 record_type=spec.record_type,
                 wdk_strategy_id=spec.wdk_id,
                 wdk_strategy_id_set=True,
@@ -154,7 +154,7 @@ async def upsert_chat(
         await conv_repo.update_conversation(
             created.id,
             ConversationUpdate(
-                plan=spec.plan,
+                strategy_ast=spec.strategy_ast,
                 record_type=spec.record_type,
                 wdk_strategy_id=spec.wdk_id,
                 wdk_strategy_id_set=True,
@@ -260,7 +260,7 @@ async def lazy_fetch_wdk_detail(
         await conv_repo.update_conversation(
             conversation.id,
             ConversationUpdate(
-                plan=payload,
+                strategy_ast=payload,
                 record_type=payload.record_type,
                 step_count=len(walk_step_tree(payload.root)),
                 is_saved=is_saved,

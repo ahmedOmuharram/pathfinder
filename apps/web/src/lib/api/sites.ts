@@ -6,21 +6,23 @@ import type {
   SearchValidationResponse,
   VEuPathDBSite,
 } from "@pathfinder/shared";
-import { requestJson } from "./http";
-import {
-  VEuPathDBSiteListSchema,
-  ParamSpecListSchema,
-  RecordTypeListSchema,
-  SearchListSchema,
-  SearchValidationResponseSchema,
-} from "./schemas/site";
+import { paramSpecResponseSchema } from "@pathfinder/shared/generated/zod/paramSpecResponseSchema";
+import { recordTypeResponseSchema } from "@pathfinder/shared/generated/zod/recordTypeResponseSchema";
+import { searchResponseSchema } from "@pathfinder/shared/generated/zod/searchResponseSchema";
+import { siteResponseSchema } from "@pathfinder/shared/generated/zod/siteResponseSchema";
+import { validationResponseSchema } from "@pathfinder/shared/generated/zod/validationResponseSchema";
+import { z } from "zod";
+
 import type { StepParameters } from "@/lib/strategyGraph/types";
+import { requestJson } from "./http";
+
+const SiteListSchema = z.array(siteResponseSchema);
+const RecordTypeListSchema = z.array(recordTypeResponseSchema);
+const SearchListSchema = z.array(searchResponseSchema);
+const ParamSpecListSchema = z.array(paramSpecResponseSchema);
 
 export async function listSites(): Promise<VEuPathDBSite[]> {
-  return (await requestJson(
-    VEuPathDBSiteListSchema,
-    "/api/v1/sites",
-  )) as VEuPathDBSite[];
+  return (await requestJson(SiteListSchema, "/api/v1/sites")) as VEuPathDBSite[];
 }
 
 export async function getRecordTypes(siteId: string): Promise<RecordType[]> {
@@ -52,10 +54,7 @@ export async function getParamSpecs(
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches/${encodeURIComponent(
       recordType,
     )}/${encodeURIComponent(searchName)}/param-specs`,
-    {
-      method: "POST",
-      body: { contextValues },
-    },
+    { method: "POST", body: { contextValues } },
   )) as ParamSpec[];
 }
 
@@ -71,10 +70,7 @@ export async function refreshDependentParams(
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches/${encodeURIComponent(
       recordType,
     )}/${encodeURIComponent(searchName)}/refreshed-dependent-params`,
-    {
-      method: "POST",
-      body: { parameterName, contextValues },
-    },
+    { method: "POST", body: { parameterName, contextValues } },
   )) as ParamSpec[];
 }
 
@@ -85,7 +81,7 @@ export async function validateSearchParams(
   contextValues: StepParameters = {},
 ): Promise<SearchValidationResponse> {
   return (await requestJson(
-    SearchValidationResponseSchema,
+    validationResponseSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches/${encodeURIComponent(
       recordType,
     )}/${encodeURIComponent(searchName)}/validate`,

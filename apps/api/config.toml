@@ -4,36 +4,15 @@ api_port = 8000
 api_debug = false
 api_docs_enabled = true
 
-# Database
-#
-# Default to PostgreSQL for local dev to match Docker/production behavior.
 database_url = "postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder"
 
-# OpenAI
-openai_model = "gpt-4.1"
-openai_temperature = 0.0
-openai_top_p = 1.0
-# Unified model defaults (applies to both planning and execution modes)
-default_model_id = "openai/gpt-4.1"
-default_reasoning_effort = "medium"
-
-# Sub-kani orchestration
-subkani_model = "gpt-4.1-mini"
-subkani_temperature = 0.0
-subkani_top_p = 1.0
-subkani_max_concurrency = 6
-subkani_timeout_seconds = 120
-
-# VEuPathDB
 veupathdb_default_site = "veupathdb"
 veupathdb_cache_ttl = 3600
 veupathdb_oauth_url = ""
 veupathdb_oauth_client_id = ""
 
-# Logging
 log_level = "INFO"
 log_format = "json"
 
-# CORS
 cors_origins = ["http://localhost:3000"]
 cors_origin_regex = "^https?://(localhost|127\\.0\\.0\\.1)(:\\d+)?$"

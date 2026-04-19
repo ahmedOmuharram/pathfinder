@@ -1,7 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
+import { authStatusResponseSchema } from "@pathfinder/shared/generated/zod/authStatusResponseSchema";
+import { authSuccessResponseSchema } from "@pathfinder/shared/generated/zod/authSuccessResponseSchema";
+
 import { AppError } from "@/lib/errors/AppError";
 import { requestJson } from "./http";
-import { AuthStatusResponseSchema, AuthSuccessResponseSchema } from "./schemas/auth";
 
 // VEuPathDB auth bridge
 
@@ -11,7 +13,7 @@ export async function getVeupathdbAuthStatus(siteId: string): Promise<{
   email?: string | null;
 }> {
   const raw = await requestJson(
-    AuthStatusResponseSchema,
+    authStatusResponseSchema,
     `/api/v1/veupathdb/auth/status`,
     { query: { siteId } },
   );
@@ -31,7 +33,7 @@ export async function loginVeupathdb(
     throw new AppError("Email and password are required.", "INVARIANT_VIOLATION");
   }
   return await requestJson(
-    AuthSuccessResponseSchema,
+    authSuccessResponseSchema,
     `/api/v1/veupathdb/auth/login`,
     {
       method: "POST",
@@ -43,7 +45,7 @@ export async function loginVeupathdb(
 
 export async function logoutVeupathdb(siteId: string): Promise<{ success: boolean }> {
   return await requestJson(
-    AuthSuccessResponseSchema,
+    authSuccessResponseSchema,
     `/api/v1/veupathdb/auth/logout`,
     { method: "POST", query: { siteId } },
   );
@@ -55,7 +57,7 @@ export async function logoutVeupathdb(siteId: string): Promise<{ success: boolea
  */
 export async function refreshAuth(siteId: string): Promise<{ success: boolean }> {
   return await requestJson(
-    AuthSuccessResponseSchema,
+    authSuccessResponseSchema,
     `/api/v1/veupathdb/auth/refresh`,
     { method: "POST", query: { siteId } },
   );

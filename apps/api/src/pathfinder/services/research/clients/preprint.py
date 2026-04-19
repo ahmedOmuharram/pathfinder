@@ -5,7 +5,7 @@ import re
 from typing import Literal
 
 import httpx
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -15,7 +15,6 @@ from pathfinder.domain.research.citations import (
 from pathfinder.domain.research.papers import ParsedPaper, PreprintRawResult
 from pathfinder.platform.errors import ExternalServiceError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.research.clients._base import (
     BaseClient,
     SearchResponse,
@@ -33,7 +32,6 @@ logger = get_logger(__name__)
 _MAX_RETRIES = 3
 _BACKOFF_BASE_S = 2.0
 
-
 async def _safe_fetch_summary(
     client: httpx.AsyncClient, url: str | None, max_chars: int
 ) -> str | None:
@@ -42,7 +40,6 @@ async def _safe_fetch_summary(
         return await fetch_page_summary(client, url, max_chars=max_chars)
     except (httpx.HTTPError, ValueError, TypeError, UnicodeDecodeError, OSError):
         return None
-
 
 class PreprintClient(BaseClient):
     """Client for preprint site searches via DuckDuckGo.
@@ -67,7 +64,7 @@ class PreprintClient(BaseClient):
     ) -> SearchResponse:
         """Search preprint sites using DuckDuckGo with retry on 429."""
         last_exc: Exception | None = None
-        raw_items: list[JSONValue] = []
+        raw_items: list[JsonValue] = []
         for attempt in range(_MAX_RETRIES):
             try:
                 raw_items = await self._fetch_raw(query, site=site, limit=limit)
@@ -117,7 +114,7 @@ class PreprintClient(BaseClient):
 
     # -- fetch -------------------------------------------------------------
 
-    async def _fetch_raw(self, query: str, *, site: str, limit: int) -> list[JSONValue]:
+    async def _fetch_raw(self, query: str, *, site: str, limit: int) -> list[JsonValue]:
         ddg_url = "https://duckduckgo.com/html/"
         params = {"q": f"site:{site} {query}"}
         headers = {"User-Agent": "pathfinder-planner/1.0"}
@@ -132,7 +129,7 @@ class PreprintClient(BaseClient):
             service = "DuckDuckGo (preprint search)"
             raise ExternalServiceError(service, str(exc)) from exc
 
-        items: list[JSONValue] = []
+        items: list[JsonValue] = []
         for m in re.finditer(
             r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
             html,
@@ -151,7 +148,7 @@ class PreprintClient(BaseClient):
     # -- parse -------------------------------------------------------------
 
     def _parse_item(
-        self, raw: JSONValue, *, abstract_max_chars: int
+        self, raw: JsonValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             result = PreprintRawResult.model_validate(raw)

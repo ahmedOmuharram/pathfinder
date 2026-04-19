@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol, cast
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.normalize import ParameterNormalizer
@@ -23,7 +23,7 @@ from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 
 from .param_formatting import format_param_info_typed
@@ -35,7 +35,6 @@ from .param_resolution import (
 
 logger = get_logger(__name__)
 
-
 class _ValidationErrorEntry(BaseModel):
     """Single error entry from WDK validation responses."""
 
@@ -45,13 +44,11 @@ class _ValidationErrorEntry(BaseModel):
     message: str | None = None
     detail: str | None = None
 
-
 class ValidationErrors(CamelModel):
     """Structured validation errors by category."""
 
     general: list[str] = Field(default_factory=list)
     by_key: dict[str, list[str]] = Field(default_factory=dict)
-
 
 class ValidationResult(CamelModel):
     """Single validation result with normalized values."""
@@ -60,12 +57,10 @@ class ValidationResult(CamelModel):
     normalized_context_values: JSONObject = Field(default_factory=dict)
     errors: ValidationErrors = Field(default_factory=ValidationErrors)
 
-
 class ValidationResponse(CamelModel):
     """Top-level validation response wrapper."""
 
     validation: ValidationResult
-
 
 class ResolveRecordTypeFn(Protocol):
     """Protocol for resolve_record_type_for_search callbacks."""
@@ -79,7 +74,6 @@ class ResolveRecordTypeFn(Protocol):
         allow_fallback: bool = ...,
     ) -> str | None: ...
 
-
 @dataclass(frozen=True)
 class ValidationCallbacks:
     """Caller-provided callbacks for parameter validation.
@@ -92,8 +86,6 @@ class ValidationCallbacks:
     resolve_record_type_for_search: ResolveRecordTypeFn
     find_record_type_hint: Callable[[str, str | None], Awaitable[str | None]]
     validation_error_payload: Callable[[ValidationError], ToolErrorPayload] | None = None
-
-
 
 async def validate_search_params(
     ctx: SearchContext,
@@ -177,7 +169,6 @@ async def validate_search_params(
         )
     )
 
-
 async def _resolve_search_details(
     ctx: SearchContext,
     *,
@@ -227,13 +218,12 @@ async def _resolve_search_details(
                 {
                     "context": {
                         "recordType": resolved_record_type,
-                        "availableSearches": cast("JSONValue", available),
+                        "availableSearches": cast("JsonValue", available),
                         "recordTypeHint": hint_record_type,
                     }
                 }
             ],
         ) from exc
-
 
 async def _collect_available_search_names(
     discovery: DiscoveryService, site_id: str, resolved_record_type: str
@@ -241,7 +231,6 @@ async def _collect_available_search_names(
     """Collect available search names for a record type (for error context)."""
     searches = await discovery.get_searches(site_id, resolved_record_type)
     return [s.url_segment for s in searches]
-
 
 async def _find_search_record_type_hint(
     discovery: DiscoveryService, ctx: SearchContext
@@ -264,7 +253,6 @@ async def _find_search_record_type_hint(
             error=str(hint_exc),
         )
     return None
-
 
 async def validate_parameters(
     ctx: SearchContext,
@@ -313,7 +301,7 @@ async def validate_parameters(
     extra_params = [key for key in parameters if key not in param_names]
     if extra_params:
         full_param_spec = format_param_info_typed(response.search_data.parameters or [])
-        serialized_spec: JSONValue = [
+        serialized_spec: JsonValue = [
             p.model_dump(by_alias=True, mode="json", exclude_none=True)
             for p in full_param_spec
         ]
@@ -324,7 +312,7 @@ async def validate_parameters(
                     "context": {
                         "recordType": resolved_record_type,
                         "searchName": ctx.search_name,
-                        "unknown": cast("JSONValue", extra_params),
+                        "unknown": cast("JsonValue", extra_params),
                         "parameters": serialized_spec,
                     }
                 }
@@ -345,7 +333,7 @@ async def validate_parameters(
                     "context": {
                         "recordType": resolved_record_type,
                         "searchName": ctx.search_name,
-                        "missing": cast("JSONValue", missing),
+                        "missing": cast("JsonValue", missing),
                         "parameters": serialized_spec,
                     }
                 }

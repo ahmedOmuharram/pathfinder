@@ -14,7 +14,7 @@ export function useGeneSetExport() {
 
     // If the strategy already has an associated gene set, just navigate.
     if (s.geneSetId !== undefined && s.geneSetId !== null) {
-      router.push(`/workbench/${s.geneSetId}`);
+      router.push(`/${s.siteId}/workbench/${s.geneSetId}`);
       return;
     }
 
@@ -47,7 +47,7 @@ export function useGeneSetExport() {
       }
       const geneSet = await createGeneSetFromStrategy(args);
       await invalidateGeneSets();
-      router.push(`/workbench/${geneSet.id}`);
+      router.push(`/${s.siteId}/workbench/${geneSet.id}`);
     } catch (err) {
       console.error("Failed to open strategy in workbench:", err);
     } finally {

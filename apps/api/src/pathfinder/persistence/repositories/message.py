@@ -1,3 +1,4 @@
+from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
 
@@ -42,6 +43,33 @@ class MessagesRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def sum_usage_for_conversation(
+        self, conversation_id: UUID,
+    ) -> tuple[int, Decimal]:
+        """Sum ``metadata.usage.{totalTokens,costUsd}`` across all messages."""
+        stmt = select(Message.metadata_).where(
+            Message.conversation_id == conversation_id,
+        )
+        result = await self.session.execute(stmt)
+        total_tokens = 0
+        total_cost = Decimal(0)
+        for (meta,) in result.all():
+            if not isinstance(meta, dict):
+                continue
+            usage = meta.get("usage")
+            if not isinstance(usage, dict):
+                continue
+            raw_tokens = usage.get("totalTokens")
+            if isinstance(raw_tokens, int):
+                total_tokens += raw_tokens
+            raw_cost = usage.get("costUsd")
+            if isinstance(raw_cost, (str, int, float)):
+                try:
+                    total_cost += Decimal(str(raw_cost))
+                except InvalidOperation:
+                    continue
+        return total_tokens, total_cost
 
     async def mark_turn_completed(self, message_id: UUID) -> None:
         """Flag an assistant message as the verification-complete row of its turn.

@@ -41,5 +41,5 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             think,
             search_memory,
             remember,
-        ],
+    ],
     )

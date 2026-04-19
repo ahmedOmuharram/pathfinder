@@ -4,13 +4,14 @@ from dataclasses import dataclass
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import JsonValue
 
 from pathfinder.platform.errors import (
     NotFoundError,
     ValidationError,
 )
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.classification import classify_records
 from pathfinder.services.experiment.refine import (
     apply_transform,
@@ -24,18 +25,25 @@ from pathfinder.services.wdk import (
 )
 from pathfinder.services.wdk.step_results import StepResultsService
 from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
-from pathfinder.transport.http.schemas.experiments import RefineRequest
+from pathfinder.transport.http.schemas.experiments import RefineRequest, RefineResponse
+from pathfinder.transport.http.schemas.step_results import (
+    AttributesResponse,
+    ClassifiedRecord,
+    DistributionResponse,
+    RecordDetailResponse,
+    RecordsMeta,
+    RecordsPagination,
+    RecordsResponse,
+)
 from pathfinder.transport.http.schemas.steps import RecordDetailRequest
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
-
 # ---------------------------------------------------------------------------
 # Query parameter groups
 # ---------------------------------------------------------------------------
-
 
 @dataclass
 class RecordQueryParams:
@@ -49,11 +57,9 @@ class RecordQueryParams:
     filter_attribute: str | None = Query(None, alias="filterAttribute")
     filter_value: str | None = Query(None, alias="filterValue")
 
-
 # ---------------------------------------------------------------------------
 # Route handlers
 # ---------------------------------------------------------------------------
-
 
 def _require_step(exp: ExperimentDep) -> StepResultsService:
     """Create a StepResultsService, raising 404 if no WDK step."""
@@ -64,18 +70,16 @@ def _require_step(exp: ExperimentDep) -> StepResultsService:
         api, step_id=exp.wdk_step_id, record_type=exp.config.record_type
     )
 
-
-@router.get("/{experiment_id}/results/attributes")
+@router.get("/{experiment_id}/results/attributes", response_model=AttributesResponse)
 async def get_experiment_attributes(
-    exp: ExperimentDep, user_id: CurrentUser
-) -> JSONObject:
+    exp: ExperimentDep, user_id: CurrentUser,
+) -> AttributesResponse:
     """Get available attributes for an experiment's record type."""
     api = get_strategy_api(exp.config.site_id)
     svc = StepResultsService(
-        api, step_id=exp.wdk_step_id or 0, record_type=exp.config.record_type
+        api, step_id=exp.wdk_step_id or 0, record_type=exp.config.record_type,
     )
     return await svc.get_attributes()
-
 
 @router.get("/{experiment_id}/results/records")
 async def get_experiment_records(
@@ -120,14 +124,14 @@ async def get_experiment_records(
         )
         page = classified[params.offset : params.offset + params.limit]
         return {
-            "records": cast("JSONValue", page),
+            "records": cast("JsonValue", page),
             "meta": {
                 "totalCount": len(classified),
                 "displayTotalCount": len(classified),
                 "responseCount": len(page),
                 "pagination": {"offset": params.offset, "numRecords": params.limit},
-                "attributes": cast("JSONValue", attr_list or []),
-                "tables": cast("JSONValue", []),
+                "attributes": cast("JsonValue", attr_list or []),
+                "tables": cast("JsonValue", []),
             },
         }
 
@@ -149,10 +153,9 @@ async def get_experiment_records(
     meta = answer.meta.model_dump(by_alias=True)
     meta["pagination"] = {"offset": params.offset, "numRecords": params.limit}
     return {
-        "records": cast("JSONValue", classified),
+        "records": cast("JsonValue", classified),
         "meta": meta,
     }
-
 
 @router.post("/{experiment_id}/results/record")
 async def get_experiment_record_detail(
@@ -171,7 +174,6 @@ async def get_experiment_record_detail(
     )
     return await svc.get_record_detail(pk_parts, exp.config.site_id)
 
-
 @router.get("/{experiment_id}/results/distributions/{attribute_name}")
 async def get_experiment_distribution(
     exp: ExperimentDep,
@@ -183,13 +185,12 @@ async def get_experiment_distribution(
     dist = await svc.get_distribution(attribute_name)
     return dist.model_dump(by_alias=True)
 
-
-@router.post("/{experiment_id}/refine")
+@router.post("/{experiment_id}/refine", response_model=RefineResponse)
 async def refine_experiment(
     exp: ExperimentDep,
     request: RefineRequest,
     user_id: CurrentUser,
-) -> JSONObject:
+) -> RefineResponse:
     """Add a step to the experiment's strategy (combine, transform, etc.)."""
     api = get_strategy_api(exp.config.site_id)
     store = get_experiment_store()
@@ -205,7 +206,7 @@ async def refine_experiment(
             operator=request.operator,
             store=store,
         )
-        return {"success": True, "newStepId": result.new_step_id}
+        return RefineResponse(success=True, new_step_id=result.new_step_id)
 
     if request.action == "transform":
         result = await apply_transform(
@@ -215,7 +216,7 @@ async def refine_experiment(
             parameters=params,
             store=store,
         )
-        return {"success": True, "newStepId": result.new_step_id}
+        return RefineResponse(success=True, new_step_id=result.new_step_id)
 
     raise ValidationError(
         title=f"Unknown refine action: {request.action}",

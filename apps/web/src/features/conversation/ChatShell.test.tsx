@@ -14,7 +14,7 @@ describe("ChatShell.computeChatResolution", () => {
       pathname: "/conversation",
       generatedChatId: "gen-1",
     });
-    expect(r.chatId).toBe("gen-1");
+    expect(r.conversationId).toBe("gen-1");
     expect(r.allowMissing).toBe(true);
   });
 
@@ -23,7 +23,7 @@ describe("ChatShell.computeChatResolution", () => {
       pathname: "/conversation/gen-1",
       generatedChatId: "gen-1",
     });
-    expect(r.chatId).toBe("gen-1");
+    expect(r.conversationId).toBe("gen-1");
     expect(r.allowMissing).toBe(true);
   });
 
@@ -32,7 +32,7 @@ describe("ChatShell.computeChatResolution", () => {
       pathname: "/conversation/existing-id",
       generatedChatId: "gen-1",
     });
-    expect(r.chatId).toBe("existing-id");
+    expect(r.conversationId).toBe("existing-id");
     expect(r.allowMissing).toBe(false);
   });
 
@@ -50,11 +50,12 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     vi.resetModules();
   });
 
-  it("ChatView does not invoke redirect() when chatId matches the generated id but detail 404s", async () => {
+  it("ChatView does not invoke redirect() when conversationId matches the generated id but detail 404s", async () => {
     const redirectSpy = vi.fn();
     vi.doMock("next/navigation", () => ({
       redirect: redirectSpy,
       usePathname: () => "/conversation/gen-xyz",
+      useParams: () => ({ conversationId: "/conversation/gen-xyz".split("/").pop() }),
     }));
     vi.doMock("@tanstack/react-query", async () => {
       const actual = await vi.importActual<ReactQueryExports>(
@@ -85,7 +86,7 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     const { ChatView } = await import("./ChatView");
     const { render } = await import("@testing-library/react");
 
-    render(<ChatView chatId="gen-xyz" allowMissing={true} />);
+    render(<ChatView conversationId="gen-xyz" allowMissing={true} />);
 
     expect(redirectSpy).not.toHaveBeenCalled();
   });
@@ -95,6 +96,7 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     vi.doMock("next/navigation", () => ({
       redirect: vi.fn(),
       usePathname: () => "/conversation/with-steps",
+      useParams: () => ({ conversationId: "/conversation/with-steps".split("/").pop() }),
     }));
     vi.doMock("@tanstack/react-query", async () => {
       const actual = await vi.importActual<ReactQueryExports>(
@@ -142,7 +144,7 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     const { render } = await import("@testing-library/react");
 
     const { getByTestId } = render(
-      <ChatView chatId="with-steps" allowMissing={false} />,
+      <ChatView conversationId="with-steps" allowMissing={false} />,
     );
 
     expect(getByTestId("strategy-graph")).toBeTruthy();
@@ -159,6 +161,7 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     vi.doMock("next/navigation", () => ({
       redirect: vi.fn(),
       usePathname: () => "/conversation/no-steps",
+      useParams: () => ({ conversationId: "/conversation/no-steps".split("/").pop() }),
     }));
     vi.doMock("@tanstack/react-query", async () => {
       const actual = await vi.importActual<ReactQueryExports>(
@@ -206,18 +209,19 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     const { render } = await import("@testing-library/react");
 
     const { queryByTestId } = render(
-      <ChatView chatId="no-steps" allowMissing={false} />,
+      <ChatView conversationId="no-steps" allowMissing={false} />,
     );
 
     expect(queryByTestId("strategy-graph")).toBeNull();
     expect(strategyGraphSpy).not.toHaveBeenCalled();
   });
 
-  it("ChatView does invoke redirect() when chatId is an unknown id (not client-generated)", async () => {
+  it("ChatView does invoke redirect() when conversationId is an unknown id (not client-generated)", async () => {
     const redirectSpy = vi.fn();
     vi.doMock("next/navigation", () => ({
       redirect: redirectSpy,
       usePathname: () => "/conversation/stranger",
+      useParams: () => ({ conversationId: "/conversation/stranger".split("/").pop() }),
     }));
     vi.doMock("@tanstack/react-query", async () => {
       const actual = await vi.importActual<ReactQueryExports>(
@@ -248,7 +252,7 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     const { ChatView } = await import("./ChatView");
     const { render } = await import("@testing-library/react");
 
-    render(<ChatView chatId="stranger" allowMissing={false} />);
+    render(<ChatView conversationId="stranger" allowMissing={false} />);
 
     expect(redirectSpy).toHaveBeenCalledWith("/conversation");
   });

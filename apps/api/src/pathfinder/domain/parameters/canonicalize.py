@@ -18,6 +18,8 @@ can consume stable shapes without re-implementing coercion.
 from dataclasses import dataclass
 from typing import cast
 
+from pydantic import JsonValue
+
 from pathfinder.domain.parameters._value_helpers import (
     ParamKind,
     process_value,
@@ -30,11 +32,7 @@ from pathfinder.domain.parameters.vocab_utils import (
     get_vocab_children,
 )
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.types import (
-    JSONArray,
-    JSONObject,
-    JSONValue,
-)
+from pathfinder.platform.types import JSONArray, JSONObject
 
 FAKE_ALL_SENTINEL = "@@fake@@"
 
@@ -62,8 +60,8 @@ class ParameterCanonicalizer:
         return canonical
 
     def _canonicalize_value(
-        self, spec: ParamSpecNormalized, value: JSONValue
-    ) -> JSONValue:
+        self, spec: ParamSpecNormalized, value: JsonValue
+    ) -> JsonValue:
         # Reject FAKE_ALL_SENTINEL at top level
         if value == FAKE_ALL_SENTINEL:
             raise ValidationError(
@@ -88,7 +86,7 @@ class ParameterCanonicalizer:
         # Canonicalizer-specific post-processing: leaf enforcement
         if result.kind is ParamKind.MULTI_PICK and isinstance(result.value, list):
             values = cast("list[str]", result.value)
-            return cast("JSONValue", self._enforce_leaf_values(spec, values))
+            return cast("JsonValue", self._enforce_leaf_values(spec, values))
 
         if (
             result.kind is ParamKind.SINGLE_PICK

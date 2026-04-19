@@ -5,7 +5,10 @@
  */
 
 import { useShallow } from "zustand/react/shallow";
-import { useSettingsStore } from "@/state/useSettingsStore";
+import {
+  resetAllPersistedSettings,
+  useSettingsStore,
+} from "@/state/useSettingsStore";
 import { SettingsField } from "./SettingsField";
 
 export function AdvancedSettings() {
@@ -16,7 +19,6 @@ export function AdvancedSettings() {
     setShowTokenUsage,
     deleteFromWdk,
     setDeleteFromWdk,
-    resetToDefaults,
   } = useSettingsStore(
     useShallow((s) => ({
       showRawToolCalls: s.showRawToolCalls,
@@ -25,9 +27,17 @@ export function AdvancedSettings() {
       setShowTokenUsage: s.setShowTokenUsage,
       deleteFromWdk: s.deleteFromWdk,
       setDeleteFromWdk: s.setDeleteFromWdk,
-      resetToDefaults: s.resetToDefaults,
     })),
   );
+
+  function handleResetAll() {
+    const confirmed = window.confirm(
+      "Reset all local settings? This clears your engine, sidebar, and app preferences and reloads the page.",
+    );
+    if (!confirmed) return;
+    resetAllPersistedSettings();
+    window.location.reload();
+  }
 
   return (
     <div className="space-y-5">
@@ -75,14 +85,19 @@ export function AdvancedSettings() {
         </label>
       </SettingsField>
 
-      <div className="border-t border-border pt-4">
+      <div className="space-y-2 border-t border-border pt-4">
         <button
           type="button"
-          onClick={resetToDefaults}
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted"
+          onClick={handleResetAll}
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
         >
-          Reset all settings to defaults
+          Reset all local settings
         </button>
+        <p className="text-[11px] text-muted-foreground">
+          Clears engine, sidebar, and app preferences stored in this browser.
+          Your server-side preferences (orchestrator model, quota) are
+          unaffected.
+        </p>
       </div>
     </div>
   );

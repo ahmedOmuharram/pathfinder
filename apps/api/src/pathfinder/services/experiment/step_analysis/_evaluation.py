@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -45,7 +45,7 @@ _MAX_CONTROL_IDS_FOR_ANSWER = 500
 async def _eval_control_set(
     api: StrategyAPI,
     ctx: ControlsContext,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     control_ids: list[str],
     label: str,
 ) -> JSONObject:
@@ -138,9 +138,9 @@ async def _eval_control_set(
 
 async def run_controls_against_tree(
     ctx: ControlsContext,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
 ) -> ControlTestResult:
-    """Materialise a ``PlanStepNode`` tree, intersect with controls, return metrics.
+    """Materialise a ``StrategyStepNode`` tree, intersect with controls, return metrics.
 
     Creates a temporary WDK strategy containing the full tree, adds an
     intersection step with each control set on top of the root, queries the

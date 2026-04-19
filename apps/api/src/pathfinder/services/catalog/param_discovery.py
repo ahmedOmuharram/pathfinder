@@ -7,6 +7,8 @@ fetch fails.
 
 from typing import Any, cast
 
+from pydantic import JsonValue
+
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKRecordType,
@@ -17,7 +19,7 @@ from pathfinder.platform.errors import (
     ErrorCode,
 )
 from pathfinder.platform.errors import ValidationError as CoreValidationError
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 
 async def fetch_search_details(
@@ -45,7 +47,6 @@ async def fetch_search_details(
         )
     else:
         return response, ctx.record_type
-
 
 async def _fallback_scan_record_types(
     discovery: Any,
@@ -82,7 +83,7 @@ async def _fallback_scan_record_types(
             "code": ErrorCode.SEARCH_NOT_FOUND.value,
             "recordType": resolved_record_type,
             "searchName": ctx.search_name,
-            "availableSearches": cast("JSONValue", available_searches),
+            "availableSearches": cast("JsonValue", available_searches),
             "details": str(original_error),
         }
         raise CoreValidationError(

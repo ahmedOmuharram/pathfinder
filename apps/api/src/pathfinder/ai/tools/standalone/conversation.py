@@ -58,7 +58,7 @@ async def rename_strategy(
             name=new_name,
             record_type=graph.record_type or "",
             description=graph.description,
-            plan=graph.to_plan(sync_state=session.sync_state),
+            plan=graph.to_strategy_ast(sync_state=session.sync_state),
         ),
         metadata=[strategy_meta_chunk(graph)],
     )

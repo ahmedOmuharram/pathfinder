@@ -26,6 +26,11 @@ from pathfinder.services.wdk.helpers import (
     merge_analysis_params,
     order_primary_key,
 )
+from pathfinder.transport.http.schemas.step_results import (
+    AttributesResponse,
+    RecordAttribute,
+    RecordDetailResponse,
+)
 
 logger = get_logger(__name__)
 
@@ -48,14 +53,15 @@ class StepResultsService:
         self._step_id = step_id
         self._record_type = record_type
 
-    async def get_attributes(self) -> JSONObject:
+    async def get_attributes(self) -> AttributesResponse:
         """Get available attributes for the record type."""
         info = await self._api.get_record_type_info(self._record_type)
         attrs = info.attributes or list((info.attributes_map or {}).values())
-        return {
-            "attributes": build_attribute_list(attrs),
-            "recordType": self._record_type,
-        }
+        raw = build_attribute_list(attrs)
+        return AttributesResponse(
+            attributes=[RecordAttribute.model_validate(a) for a in raw],
+            record_type=self._record_type,
+        )
 
     async def get_records(
         self,
@@ -141,14 +147,8 @@ class StepResultsService:
         self,
         primary_key: list[dict[str, str]],
         site_id: str,
-    ) -> JSONObject:
-        """Get a single record's full details by primary key.
-
-        Fetches record type info to reorder PK parts and to extract
-        a capped set of ``isInReport`` attribute names.  WDK interprets
-        ``"attributes": []`` as "return zero attributes", so we must
-        always pass explicit names.
-        """
+    ) -> RecordDetailResponse:
+        """Get a single record's full details by primary key."""
         pk_parts = primary_key
         detail_attrs: list[str] = []
         display_names: dict[str, str] = {}
@@ -179,6 +179,12 @@ class StepResultsService:
             primary_key=pk_parts,
             attributes=detail_attrs or None,
         )
-        result = record_instance.model_dump(by_alias=True)
-        result["attributeNames"] = display_names
-        return result
+        return RecordDetailResponse(
+            display_name=record_instance.display_name,
+            id=record_instance.id,
+            record_class_name=record_instance.record_class_name,
+            attributes=record_instance.attributes,
+            attribute_names=display_names,
+            tables=record_instance.tables,
+            table_errors=record_instance.table_errors,
+        )

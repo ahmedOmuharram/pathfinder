@@ -67,8 +67,7 @@ export function isUpstream(
 export function isValidGraphConnection(connection: Connection, indices: GraphIndices) {
   const sourceId = connection.source;
   const targetId = connection.target;
-  if (sourceId == null || sourceId === "" || targetId == null || targetId === "")
-    return false;
+  if (sourceId === "" || targetId === "") return false;
   if (sourceId === targetId) return false;
 
   const sourceStep = indices.stepsById.get(sourceId);
@@ -116,8 +115,8 @@ export function getConnectionEffect(
   indices: GraphIndices,
 ): ConnectionEffect {
   if (!isValidGraphConnection(connection, indices)) return { type: "noop" };
-  const sourceId = connection.source!;
-  const targetId = connection.target!;
+  const sourceId = connection.source;
+  const targetId = connection.target;
 
   if (connection.targetHandle === "left") {
     return { type: "patch", targetId, patch: { primaryInputStepId: sourceId } };

@@ -8,7 +8,7 @@ from pathfinder.ai.agents._hooks import (
 )
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
@@ -75,7 +75,7 @@ def test_slim_graph_result_replaces_verbose_json() -> None:
     graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
     graph.record_type = "transcript"
 
-    step = PlanStepNode(
+    step = StrategyStepNode(
         search_name="GenesByTaxon",
         display_name="Genes by Taxon",
         parameters={"organism": "Plasmodium falciparum 3D7"},

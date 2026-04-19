@@ -312,7 +312,7 @@ describe("ConfidencePanel", () => {
     render(<ConfidencePanel />);
 
     await waitFor(() => {
-      expect(screen.getByText("Computing scores…")).toBeTruthy();
+      expect(screen.getByText("Computing scores...")).toBeTruthy();
     });
   });
 

@@ -1,15 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
+import { tierListResponseSchema } from "@pathfinder/shared/generated/zod/tierListResponseSchema";
+import type { TierListResponse } from "@pathfinder/shared/generated/types/TierListResponse";
+
 import { requestJson } from "./http";
-import {
-  TierListResponseSchema,
-  type TierListResponse,
-} from "./schemas/tiers";
 
 export async function listTiers(): Promise<TierListResponse> {
-  return await requestJson(
-    TierListResponseSchema,
-    "/api/v1/tiers",
-  );
+  return await requestJson(tierListResponseSchema, "/api/v1/tiers");
 }
 
 export function tierPresetsOptions() {

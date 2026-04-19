@@ -59,7 +59,7 @@ export function OrthologTransformModal(props: {
               Transform tool
             </Label>
             {isLoading ? (
-              <div className="text-sm text-muted-foreground">Loading…</div>
+              <div className="text-sm text-muted-foreground">Loading...</div>
             ) : searches.length === 0 ? (
               <div className="text-sm text-muted-foreground">
                 {error ?? "No ortholog transforms found for this record type."}

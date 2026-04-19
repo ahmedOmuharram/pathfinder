@@ -3,7 +3,7 @@
 import contextlib
 
 import pydantic
-from pydantic import TypeAdapter
+from pydantic import JsonValue, TypeAdapter
 
 from pathfinder.integrations.veupathdb._helpers import _validate_list
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -16,14 +16,13 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import validate_response
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
 _SEARCH_ADAPTER: TypeAdapter[WDKSearch] = TypeAdapter(WDKSearch)
 _RECORD_TYPE_ADAPTER: TypeAdapter[WDKRecordType] = TypeAdapter(WDKRecordType)
 _PARAMETER_ADAPTER: TypeAdapter[WDKParameter] = TypeAdapter(WDKParameter)
-
 
 class SearchEndpoints:
     """Mixin providing search and record-type WDK endpoints.
@@ -32,7 +31,7 @@ class SearchEndpoints:
     ``get`` and ``post`` methods.
     """
 
-    async def get(self, path: str, params: JSONObject | None = None) -> JSONValue:
+    async def get(self, path: str, params: JSONObject | None = None) -> JsonValue:
         """Provided by HTTPClient at runtime."""
         raise NotImplementedError  # pragma: no cover
 
@@ -41,7 +40,7 @@ class SearchEndpoints:
         path: str,
         json: object = None,
         params: JSONObject | None = None,
-    ) -> JSONValue:
+    ) -> JsonValue:
         """Provided by HTTPClient at runtime."""
         raise NotImplementedError  # pragma: no cover
 

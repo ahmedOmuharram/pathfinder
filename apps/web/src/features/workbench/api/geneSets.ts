@@ -4,9 +4,15 @@
 
 import { queryOptions } from "@tanstack/react-query";
 import type { EnrichmentResult, GeneSet } from "@pathfinder/shared";
+import { geneSetResponseSchema } from "@pathfinder/shared/generated/zod/geneSetResponseSchema";
+import { z } from "zod";
+
 import { requestJson, requestVoid } from "@/lib/api/http";
-import { GeneSetSchema, GeneSetListSchema } from "@/lib/api/schemas/gene-set";
-import { EnrichmentResultListSchema } from "@/lib/api/schemas/analysis";
+import { enrichmentResultResponseSchema } from "@pathfinder/shared/generated/zod/enrichmentResultResponseSchema";
+
+const EnrichmentResultListSchema = z.array(enrichmentResultResponseSchema);
+
+const GeneSetListSchema = z.array(geneSetResponseSchema);
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
 // ---------------------------------------------------------------------------
@@ -38,7 +44,7 @@ export interface SetOperationRequest {
 
 /** Create a new gene set. */
 export function createGeneSet(req: CreateGeneSetRequest): Promise<GeneSet> {
-  return requestJson(GeneSetSchema, "/api/v1/gene-sets", {
+  return requestJson(geneSetResponseSchema, "/api/v1/gene-sets", {
     method: "POST",
     body: req,
   }) as Promise<GeneSet>;
@@ -60,7 +66,7 @@ export function deleteGeneSet(id: string): Promise<void> {
 
 /** Perform a set operation (intersect, union, minus) across gene sets. */
 export function performSetOperation(req: SetOperationRequest): Promise<GeneSet> {
-  return requestJson(GeneSetSchema, "/api/v1/gene-sets/operations", {
+  return requestJson(geneSetResponseSchema, "/api/v1/gene-sets/operations", {
     method: "POST",
     body: req,
   }) as Promise<GeneSet>;

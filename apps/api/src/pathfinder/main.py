@@ -47,7 +47,6 @@ from pathfinder.services.catalog.semantic_index import warm_up_model
 from pathfinder.transport.http.routers import (
     _stream_parts_schemas,
     chat,
-    checkpoints,
     control_sets,
     conversations,
     dev,
@@ -58,7 +57,7 @@ from pathfinder.transport.http.routers import (
     gene_sets,
     health,
     internal,
-    labels,
+    me,
     memories,
     models,
     sites,
@@ -273,9 +272,8 @@ def create_app() -> FastAPI:
     app.include_router(user_data.router)
     app.include_router(evaluation.router)
     app.include_router(memories.router)
+    app.include_router(me.router)
     app.include_router(tasks.router)
-    app.include_router(checkpoints.router)
-    app.include_router(labels.router)
 
     # Dev-only routes (e2e / local dev with mock chat provider).
     if settings.chat_provider.strip().lower() == "mock":

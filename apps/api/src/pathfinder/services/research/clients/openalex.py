@@ -1,7 +1,7 @@
 """OpenAlex API client."""
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -10,7 +10,6 @@ from pathfinder.domain.research.citations import (
 )
 from pathfinder.domain.research.papers import OpenAlexRawWork, ParsedPaper
 from pathfinder.platform.errors import ExternalServiceError
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
@@ -22,15 +21,14 @@ class _OAResponse(BaseModel):
     """Envelope for the OpenAlex ``/works`` search response."""
 
     model_config = ConfigDict(extra="ignore")
-    results: list[JSONValue] = Field(default_factory=list)
-
+    results: list[JsonValue] = Field(default_factory=list)
 
 class OpenAlexClient(StandardClient):
     """Client for OpenAlex API."""
 
     _source_name = "openalex"
 
-    async def _fetch_raw(self, query: str, *, limit: int) -> list[JSONValue]:
+    async def _fetch_raw(self, query: str, *, limit: int) -> list[JsonValue]:
         url = "https://api.openalex.org/works"
         params = {"search": query, "per-page": str(limit)}
         try:
@@ -51,7 +49,7 @@ class OpenAlexClient(StandardClient):
         return list(items)
 
     def _parse_item(
-        self, raw: JSONValue, *, abstract_max_chars: int
+        self, raw: JsonValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             parsed = OpenAlexRawWork.model_validate(raw).to_parsed_paper()

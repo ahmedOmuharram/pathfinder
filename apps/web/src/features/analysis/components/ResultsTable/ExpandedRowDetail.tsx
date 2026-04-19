@@ -43,7 +43,7 @@ export function ExpandedRowDetail({
       {loading ? (
         <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading details…
+          Loading details...
         </div>
       ) : error != null ? (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3">

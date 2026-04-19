@@ -5,7 +5,14 @@ from __future__ import annotations
 from typing import cast
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    TypeAdapter,
+    ValidationError,
+)
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.strategy.plan import (
@@ -21,7 +28,7 @@ from pathfinder.domain.strategy.plan import (
 )
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONArray, JSONObject, JSONValue
+from pathfinder.platform.types import JSONArray, JSONObject
 
 
 class PlannedStepInput(BaseModel):
@@ -35,9 +42,8 @@ class PlannedStepInput(BaseModel):
     record_type: str = "transcript"
     rationale: str = ""
     step_type: StepType = StepType.LEAF
-    parameters: dict[str, JSONValue] = Field(default_factory=dict)
+    parameters: dict[str, JsonValue] = Field(default_factory=dict)
     operator: str | None = None
-
 
 class PlannedConnectionInput(BaseModel):
     """Input model for a planned connection from the LLM."""
@@ -46,7 +52,6 @@ class PlannedConnectionInput(BaseModel):
     to_step: str
     input_type: str = "primary"
     operator: str | None = None
-
 
 class UserQuestionInput(BaseModel):
     """Input model for a user question from the LLM."""
@@ -57,13 +62,11 @@ class UserQuestionInput(BaseModel):
     related_param: str | None = None
     options: list[DecisionOptionInput] | None = None
 
-
 class ConnectionRef(BaseModel):
     """Reference to a connection for removal."""
 
     from_step: str
     to_step: str
-
 
 class StepPatch(BaseModel):
     """Patch to apply to an existing planned step."""
@@ -71,10 +74,9 @@ class StepPatch(BaseModel):
     step_id: str
     search_name: str | None = None
     display_name: str | None = None
-    parameters: dict[str, JSONValue] | None = None
+    parameters: dict[str, JsonValue] | None = None
     rationale: str | None = None
     operator: str | None = None
-
 
 class PlanCreatedResponse(CamelModel):
     """Acknowledgment that a plan was created.
@@ -88,7 +90,6 @@ class PlanCreatedResponse(CamelModel):
     step_count: int
     planning_artifact: JSONObject | None = None
 
-
 class DecisionOptionInput(BaseModel):
     """Input model for a decision option."""
 
@@ -97,7 +98,6 @@ class DecisionOptionInput(BaseModel):
     pros: list[str] = Field(default_factory=list)
     cons: list[str] = Field(default_factory=list)
     recommended: bool = False
-
 
 class DecisionOption(CamelModel):
     """A decision option."""
@@ -108,7 +108,6 @@ class DecisionOption(CamelModel):
     cons: list[str] = Field(default_factory=list)
     recommended: bool = False
 
-
 class DecisionResponse(CamelModel):
     """Response containing a decision for the user."""
 
@@ -117,7 +116,6 @@ class DecisionResponse(CamelModel):
     options: list[DecisionOption] = Field(default_factory=list)
     context: str = ""
     recommendation: str | None = None
-
 
 def _convert_step(
     s: PlannedStepInput,
@@ -146,10 +144,9 @@ def _convert_step(
         operator=s.operator,
     )
 
-
 def _build_param(
     name: str,
-    value: JSONValue,
+    value: JsonValue,
     spec: ParamSpecNormalized | None,
 ) -> PlannedParameter:
     """Build a PlannedParameter, enriching from the WDK spec.
@@ -181,10 +178,9 @@ def _build_param(
         options=_extract_vocab_values(spec.vocabulary),
     )
 
-
-def _build_constraints(spec: ParamSpecNormalized) -> dict[str, JSONValue] | None:
+def _build_constraints(spec: ParamSpecNormalized) -> dict[str, JsonValue] | None:
     """Build a constraints dict from WDK spec metadata."""
-    constraints: dict[str, JSONValue] = {}
+    constraints: dict[str, JsonValue] = {}
     if spec.display_type:
         constraints["displayType"] = spec.display_type
     if spec.is_number:
@@ -203,7 +199,6 @@ def _build_constraints(spec: ParamSpecNormalized) -> dict[str, JSONValue] | None
         constraints["maxLength"] = spec.max_length
     return constraints or None
 
-
 class _VocabItem(BaseModel):
     """WDK vocabulary list entry shape: ``{"value": str, "display": ..., ...}``.
 
@@ -214,11 +209,9 @@ class _VocabItem(BaseModel):
     model_config = ConfigDict(extra="ignore")
     value: str
 
-
 _VOCAB_ADAPTER: TypeAdapter[list[_VocabItem | str]] = TypeAdapter(
     list[_VocabItem | str]
 )
-
 
 def _extract_vocab_values(
     vocabulary: JSONObject | JSONArray | None,
@@ -238,7 +231,6 @@ def _extract_vocab_values(
     values = [entry if isinstance(entry, str) else entry.value for entry in items]
     return values or None
 
-
 def _convert_connection(c: PlannedConnectionInput) -> PlannedConnection:
     """Convert an input connection to a domain PlannedConnection."""
     return PlannedConnection(
@@ -247,7 +239,6 @@ def _convert_connection(c: PlannedConnectionInput) -> PlannedConnection:
         input_type=c.input_type,
         operator=c.operator,
     )
-
 
 def _convert_question(q: UserQuestionInput) -> UserQuestion:
     """Convert an input question to a domain UserQuestion.
@@ -279,7 +270,6 @@ def _convert_question(q: UserQuestionInput) -> UserQuestion:
         options=options,
     )
 
-
 def _validate_plan_topology(
     steps: list[PlannedStepInput],
     connections: list[PlannedConnectionInput],
@@ -299,7 +289,6 @@ def _validate_plan_topology(
             )
     return None
 
-
 def _validate_domain_topology(plan: StrategyPlan) -> ToolErrorPayload | None:
     """Validate topology of a domain StrategyPlan."""
     step_ids = {s.id for s in plan.steps}
@@ -315,7 +304,6 @@ def _validate_domain_topology(plan: StrategyPlan) -> ToolErrorPayload | None:
                 f"Connection references non-existent step: {conn.to_step}",
             )
     return None
-
 
 def _validate_domain_parameters(
     plan: StrategyPlan,
@@ -336,10 +324,9 @@ def _validate_domain_parameters(
                     "PARAMETER_ERROR",
                     f"Step '{step.display_name}' has unset required parameters: {', '.join(missing)}",
                     stepId=step.id,
-                    missingParams=cast("list[JSONValue]", missing),
+                    missingParams=cast("list[JsonValue]", missing),
                 )
     return None
-
 
 def _apply_step_patches(
     plan: StrategyPlan,

@@ -81,7 +81,7 @@ def _supervisor_stub(decisions: list[SupervisorDecision]) -> Agent[None, Supervi
         }
 
     return Agent(
-        FunctionModel(_fn, stream_function=_stream, model_name="mock/supervisor"),
+        FunctionModel(_fn, stream_function=_stream, model_name="mock:supervisor"),
         output_type=SupervisorDecision,
         instructions="return decision",
         name="mock-supervisor",
@@ -115,7 +115,7 @@ def stub_phase_agents(
     decisions = _full_supervisor_decisions() + _full_supervisor_decisions()
     sup = _supervisor_stub(decisions)
     monkeypatch.setattr(
-        nodes_module, "build_supervisor_agent", lambda provider=None: sup,
+        nodes_module, "build_supervisor_agent", lambda provider=None, *, model_id=None: sup,
     )
     return stubs
 

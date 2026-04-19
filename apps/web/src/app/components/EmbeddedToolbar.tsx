@@ -3,22 +3,26 @@
 import { Layers, MessageCircle, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
 import { Button } from "@/lib/components/ui/Button";
+import { chatRoot, workbenchRoot } from "@/lib/routes";
 
 interface EmbeddedToolbarProps {
+  siteId: string;
   onOpenSettings: () => void;
 }
 
-export function EmbeddedToolbar({ onOpenSettings }: EmbeddedToolbarProps) {
+export function EmbeddedToolbar({ siteId, onOpenSettings }: EmbeddedToolbarProps) {
   const pathname = usePathname();
-  const chatActive = pathname === "/conversation" || pathname.startsWith("/conversation/") || pathname.startsWith("/conversation/");
+  const chatActive =
+    pathname.startsWith(`/${siteId}/conversation`);
   const workbenchActive =
-    pathname === "/workbench" || pathname.startsWith("/workbench/");
+    pathname.startsWith(`/${siteId}/workbench`);
 
   return (
     <div className="flex items-center justify-end gap-1 border-b border-border bg-background px-3 py-1">
       <Link
-        href="/conversation"
+        href={chatRoot(siteId)}
         aria-label="Go to Chat"
         aria-current={chatActive ? "page" : undefined}
         className={
@@ -31,7 +35,7 @@ export function EmbeddedToolbar({ onOpenSettings }: EmbeddedToolbarProps) {
         Chat
       </Link>
       <Link
-        href="/workbench"
+        href={workbenchRoot(siteId)}
         aria-label="Go to Workbench"
         aria-current={workbenchActive ? "page" : undefined}
         className={

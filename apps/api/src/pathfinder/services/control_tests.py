@@ -6,6 +6,8 @@ positive controls are returned and known negative controls are excluded.
 
 from dataclasses import dataclass, field
 
+from pydantic import JsonValue
+
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
@@ -21,7 +23,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.searches import find_record_type_for_search
 from pathfinder.services.control_helpers import (
     _encode_id_list,
@@ -51,7 +53,6 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
-
 
 @dataclass
 class IntersectionConfig:
@@ -135,14 +136,12 @@ class IntersectionConfig:
             id_field=id_field,
         )
 
-
 def _find_param_type(params: list[WDKParameter], param_name: str) -> str | None:
     """Find the type of a named parameter in a WDK parameters list."""
     for p in params:
         if p.name == param_name:
             return p.type
     return None
-
 
 async def resolve_controls_param_type(
     api: StrategyAPI,
@@ -174,7 +173,6 @@ async def resolve_controls_param_type(
             error=str(exc),
         )
     return None
-
 
 async def _run_intersection_control(
     config: IntersectionConfig,
@@ -291,9 +289,9 @@ async def _run_intersection_control(
                 answer.records, preferred_key=config.id_field
             )
 
-        # Convert list[str] to JSONValue-compatible types
-        intersection_ids_sample: JSONValue = list(ids_found[:50])
-        intersection_ids: JSONValue = (
+        # Convert list[str] to JsonValue-compatible types
+        intersection_ids_sample: JsonValue = list(ids_found[:50])
+        intersection_ids: JsonValue = (
             list(ids_found) if len(controls_ids) <= fetch_ids_limit else None
         )
         return {
@@ -306,7 +304,6 @@ async def _run_intersection_control(
         }
     finally:
         await delete_temp_strategy(api, temp_strategy_id)
-
 
 async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
     """Best-effort cleanup of leaked internal control-test strategies.
@@ -323,7 +320,6 @@ async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
         )
         return
     await cleanup_internal_control_test_strategies(api, strategies)
-
 
 def _extract_intersection_data(
     payload: JSONObject,
@@ -342,7 +338,6 @@ def _extract_intersection_data(
     if isinstance(ids_value, list):
         id_set = {str(x) for x in ids_value if x is not None}
     return count, id_set, isinstance(ids_value, list)
-
 
 async def run_positive_negative_controls(
     config: IntersectionConfig,

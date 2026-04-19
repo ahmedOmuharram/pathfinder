@@ -2,6 +2,8 @@
 
 import asyncio
 
+from pydantic import JsonValue
+
 from pathfinder.domain.research.citations import (
     Citation,
     ensure_unique_citation_tags,
@@ -10,7 +12,6 @@ from pathfinder.domain.research.papers import ParsedPaper
 from pathfinder.platform.errors import ExternalServiceError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONValue
 
 logger = get_logger(__name__)
 
@@ -19,7 +20,6 @@ API_USER_AGENT = "pathfinder-planner/1.0"
 _DEFAULT_MAX_RETRIES = 3
 _DEFAULT_BACKOFF_BASE_S = 1.0
 
-
 class SearchResponse(CamelModel):
     """Standard response from a literature search client."""
 
@@ -27,7 +27,6 @@ class SearchResponse(CamelModel):
     source: str
     results: list[ParsedPaper]
     citations: list[Citation]
-
 
 class BaseClient:
     """Common initialisation for all literature API clients."""
@@ -39,7 +38,7 @@ class BaseClient:
 
     def _build_results(
         self,
-        raw_items: list[JSONValue],
+        raw_items: list[JsonValue],
         *,
         abstract_max_chars: int,
     ) -> tuple[list[ParsedPaper], list[Citation]]:
@@ -61,7 +60,7 @@ class BaseClient:
 
     def _parse_item(
         self,
-        raw: JSONValue,
+        raw: JsonValue,
         *,
         abstract_max_chars: int,
     ) -> tuple[ParsedPaper, Citation] | None:
@@ -70,7 +69,6 @@ class BaseClient:
         Return ``None`` to skip the item.  Subclasses **must** override.
         """
         raise NotImplementedError
-
 
 class StandardClient(BaseClient):
     """Client with the standard fetch-parse-build search pattern.
@@ -102,7 +100,7 @@ class StandardClient(BaseClient):
 
     async def _fetch_with_retry(
         self, query: str, *, limit: int
-    ) -> list[JSONValue]:
+    ) -> list[JsonValue]:
         """Call ``_fetch_raw`` with retry on 429 and transient errors."""
         last_exc: Exception | None = None
         for attempt in range(self._max_retries):
@@ -137,9 +135,8 @@ class StandardClient(BaseClient):
                 raise
         raise ExternalServiceError(self._source_name, str(last_exc))
 
-    async def _fetch_raw(self, query: str, *, limit: int) -> list[JSONValue]:
+    async def _fetch_raw(self, query: str, *, limit: int) -> list[JsonValue]:
         raise NotImplementedError
-
 
 def build_response(
     *,

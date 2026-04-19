@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from pathfinder.ai.context.extractors import extract_tool_summary
 from pathfinder.ai.context.models import ToolCallRecord, TurnSummary
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.plan import PlannedStep, StepType, StrategyPlan
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.types import SyncStateProtocol
@@ -283,7 +283,7 @@ def _collect_plan_steps(node: _PlanNode) -> list[_PlanNode]:
 _MAX_PARAM_VAL_LEN = 40
 
 
-def _render_step_header(step_id: str, step: PlanStepNode) -> list[str]:
+def _render_step_header(step_id: str, step: StrategyStepNode) -> list[str]:
     """Render the header parts for a single step."""
     kind = step.infer_kind()
     parts: list[str] = [f"{step_id}:"]
@@ -338,7 +338,7 @@ def _render_step_suffix(
     return ""
 
 
-def _render_step_params(step: PlanStepNode) -> str:
+def _render_step_params(step: StrategyStepNode) -> str:
     """Render parameters as a compact indented line."""
     if not step.parameters:
         return ""

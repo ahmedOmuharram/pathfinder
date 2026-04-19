@@ -5,13 +5,13 @@ responses and context payloads for AI tool results.
 """
 
 from pathfinder.ai.tools.standalone._validation_helpers import (
-    ContextPlanPayload,
+    ContextStrategyAstPayload,
     GraphEdge,
     GraphSnapshotContent,
     StepOkResponse,
     is_placeholder_name,
 )
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.explain import explain_operation
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
@@ -26,7 +26,7 @@ from pathfinder.services.strategies.schemas import StepResponse
 
 def derive_strategy_name(
     record_type: str | None,
-    root_step: PlanStepNode,
+    root_step: StrategyStepNode,
 ) -> str:
     base = None
     kind = root_step.infer_kind()
@@ -47,7 +47,7 @@ def derive_strategy_name(
 
 def derive_strategy_description(
     record_type: str | None,
-    root_step: PlanStepNode,
+    root_step: StrategyStepNode,
 ) -> str:
     kind = root_step.infer_kind()
     if kind == "search":
@@ -77,10 +77,10 @@ def derive_strategy_description(
 
 def build_step_response(
     graph: StrategyGraph | None,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     sync_state: SyncStateProtocol | None = None,
 ) -> StepResponse:
-    """Build a StepResponse from a PlanStepNode + graph/sync enrichment."""
+    """Build a StepResponse from a StrategyStepNode + graph/sync enrichment."""
     wdk_step_id: int | None = None
     validation: StepValidation | None = None
     estimated_size: int | None = None
@@ -124,7 +124,7 @@ def build_step_response(
 
 def serialize_step(
     graph: StrategyGraph,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     sync_state: SyncStateProtocol | None = None,
 ) -> StepResponse:
     """Serialize a step for AI tool responses."""
@@ -149,7 +149,7 @@ def build_graph_snapshot(
     session: StrategySession, graph: StrategyGraph
 ) -> GraphSnapshotContent:
     sync_state = session.sync_state
-    ctx = build_context_plan(session, graph)
+    ctx = build_context_strategy_ast(session, graph)
     roots = find_root_step_ids(graph)
 
     steps: list[JSONObject] = [
@@ -177,13 +177,13 @@ def build_graph_snapshot(
         root_step_id=roots[0] if len(roots) == 1 else None,
         steps=steps,
         edges=edges,
-        plan=ctx.plan if ctx else None,
+        strategy_ast=ctx.strategy_ast if ctx else None,
     )
 
 
-def build_context_plan(
+def build_context_strategy_ast(
     session: StrategySession, graph: StrategyGraph
-) -> ContextPlanPayload | None:
+) -> ContextStrategyAstPayload | None:
     # Prefer the single subtree root from graph.roots; fall back to
     # last_step_id when roots is ambiguous or not yet populated.
     if len(graph.roots) == 1:
@@ -207,16 +207,15 @@ def build_context_plan(
     graph.name = name or graph.name
     graph.description = description
     sync_state = session.sync_state
-    plan = graph.to_plan(root_id, sync_state=sync_state)
-    if not plan:
+    strategy_ast = graph.to_strategy_ast(root_id, sync_state=sync_state)
+    if not strategy_ast:
         return None
-    # Ensure description is on the plan payload
     if description:
-        plan.description = description
-    return ContextPlanPayload(
+        strategy_ast.description = description
+    return ContextStrategyAstPayload(
         graph_id=graph.id,
         graph_name=graph.name,
-        plan=plan,
+        strategy_ast=strategy_ast,
         record_type=record_type,
         name=name,
         description=description,
@@ -229,7 +228,7 @@ def build_context_plan(
 
 
 def step_ok_response(
-    session: StrategySession, graph: StrategyGraph, step: PlanStepNode
+    session: StrategySession, graph: StrategyGraph, step: StrategyStepNode
 ) -> StepOkResponse:
     """Serialize a step as an ``ok=True`` response with a full graph snapshot.
 
@@ -237,7 +236,7 @@ def step_ok_response(
     mutations: serialize the step, mark ok, wrap with graph context.
     """
     sync_state = session.sync_state
-    ctx = build_context_plan(session, graph)
+    ctx = build_context_strategy_ast(session, graph)
     return StepOkResponse(
         step=serialize_step(graph, step, sync_state),
         graph_id=ctx.graph_id if ctx else graph.id,
@@ -245,15 +244,15 @@ def step_ok_response(
         record_type=ctx.record_type if ctx else None,
         name=ctx.name if ctx else graph.name,
         description=ctx.description if ctx else None,
-        plan=ctx.plan if ctx else None,
+        strategy_ast=ctx.strategy_ast if ctx else None,
         graph_snapshot=build_graph_snapshot(session, graph),
     )
 
 
-def with_plan_payload(
+def with_strategy_ast_payload(
     session: StrategySession, graph: StrategyGraph, payload: JSONObject
 ) -> JSONObject:
-    plan_payload = build_context_plan(session, graph)
+    plan_payload = build_context_strategy_ast(session, graph)
     if plan_payload:
         payload.update(plan_payload.model_dump(by_alias=True, exclude_none=True))
     else:
@@ -265,7 +264,7 @@ def with_plan_payload(
 def with_full_graph(
     session: StrategySession, graph: StrategyGraph, payload: JSONObject
 ) -> JSONObject:
-    response = with_plan_payload(session, graph, payload)
+    response = with_strategy_ast_payload(session, graph, payload)
     response["graphSnapshot"] = build_graph_snapshot(session, graph).model_dump(
         by_alias=True, exclude_none=True, mode="json"
     )

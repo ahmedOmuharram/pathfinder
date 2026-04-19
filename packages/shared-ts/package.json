@@ -1,6 +1,6 @@
 {
   "name": "@pathfinder/shared",
-  "version": "0.1.0-alpha",
+  "version": "0.2.0-alpha.1",
   "description": "Shared TypeScript types for Pathfinder",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -11,6 +11,9 @@
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit"
   },
+  "peerDependencies": {
+    "zod": "^4.3.6"
+  },
   "devDependencies": {
     "@kubb/cli": "^4.37.2",
     "@kubb/core": "^4.37.2",
@@ -20,7 +23,8 @@
     "@kubb/plugin-zod": "^4.37.2",
     "@kubb/react-fabric": "^0.14.0",
     "@types/node": "^25.3.5",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "zod": "^4.3.6"
   },
   "exports": {
     ".": "./src/index.ts",

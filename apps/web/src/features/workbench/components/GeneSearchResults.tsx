@@ -29,31 +29,35 @@ function GeneDetailPopover({
       onMouseLeave={onMouseLeave}
     >
       <p className="text-xs font-semibold text-foreground">
-        {gene.displayName || gene.geneId}
+        {gene.displayName !== "" && gene.displayName != null
+          ? gene.displayName
+          : gene.geneId}
       </p>
       <p className="text-[10px] text-muted-foreground">{gene.geneId}</p>
       <dl className="mt-2 space-y-1 text-[10px]">
         <div>
           <dt className="font-medium text-muted-foreground">Product</dt>
-          <dd className="text-foreground">{gene.product || "\u2014"}</dd>
+          <dd className="text-foreground">
+            {gene.product !== "" && gene.product != null ? gene.product : "\u2014"}
+          </dd>
         </div>
         <div>
           <dt className="font-medium text-muted-foreground">Organism</dt>
           <dd className="italic text-foreground">{gene.organism}</dd>
         </div>
-        {gene.geneName && (
+        {gene.geneName !== "" && gene.geneName != null && (
           <div>
             <dt className="font-medium text-muted-foreground">Gene name</dt>
             <dd className="text-foreground">{gene.geneName}</dd>
           </div>
         )}
-        {gene.geneType && (
+        {gene.geneType !== "" && gene.geneType != null && (
           <div>
             <dt className="font-medium text-muted-foreground">Type</dt>
             <dd className="text-foreground">{gene.geneType}</dd>
           </div>
         )}
-        {gene.location && (
+        {gene.location !== "" && gene.location != null && (
           <div>
             <dt className="font-medium text-muted-foreground">Location</dt>
             <dd className="text-foreground">{gene.location}</dd>
@@ -96,7 +100,11 @@ function GeneRow({
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium text-foreground">
-          {gene.displayName || gene.product || gene.geneId}
+          {gene.displayName !== "" && gene.displayName != null
+            ? gene.displayName
+            : gene.product !== "" && gene.product != null
+              ? gene.product
+              : gene.geneId}
         </p>
         <p className="truncate text-[10px] text-muted-foreground">{gene.geneId}</p>
         <p className="truncate text-[10px] italic text-muted-foreground/70">

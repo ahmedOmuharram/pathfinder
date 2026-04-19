@@ -1,12 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
+import { systemConfigResponseSchema } from "@pathfinder/shared/generated/zod/systemConfigResponseSchema";
+import type { SystemConfigResponse } from "@pathfinder/shared/generated/types/SystemConfigResponse";
+
 import { requestJson } from "./http";
-import {
-  SystemConfigResponseSchema,
-  type SystemConfigResponse,
-} from "./schemas/health";
 
 export async function getSystemConfig(): Promise<SystemConfigResponse> {
-  return await requestJson(SystemConfigResponseSchema, "/health/config");
+  return await requestJson(systemConfigResponseSchema, "/health/config");
 }
 
 export function systemConfigOptions() {

@@ -2,7 +2,8 @@
 
 from typing import TypedDict
 
-from pathfinder.platform.types import JSONValue
+from pydantic import JsonValue
+
 from pathfinder.services.experiment.types import Experiment
 
 
@@ -12,10 +13,9 @@ class EnrichmentRow(TypedDict):
     termKey: str
     termName: str
     analysisType: str
-    scores: dict[str, JSONValue]
+    scores: dict[str, JsonValue]
     maxScore: float
     experimentCount: int
-
 
 class EnrichmentCompareResult(TypedDict):
     """Return shape of :func:`compare_enrichment_across`."""
@@ -24,7 +24,6 @@ class EnrichmentCompareResult(TypedDict):
     experimentLabels: dict[str, str]
     rows: list[EnrichmentRow]
     totalTerms: int
-
 
 def compare_enrichment_across(
     experiments: list[Experiment],
@@ -65,7 +64,7 @@ def compare_enrichment_across(
     ):
         name, a_type = term_meta[key]
         scores_map = term_scores[key]
-        scores_for_row: dict[str, JSONValue] = {
+        scores_for_row: dict[str, JsonValue] = {
             eid: round(scores_map[eid], 4) if eid in scores_map else None
             for eid in experiment_ids
         }

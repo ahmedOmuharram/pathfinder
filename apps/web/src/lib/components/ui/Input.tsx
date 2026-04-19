@@ -1,9 +1,9 @@
-import * as React from "react";
+import type { InputHTMLAttributes, Ref } from "react";
 import { cn } from "@/lib/utils/cn";
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: boolean;
-  ref?: React.Ref<HTMLInputElement>;
+  ref?: Ref<HTMLInputElement>;
 }
 
 function Input({ className, type, error, ref, ...props }: InputProps) {

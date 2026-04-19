@@ -7,8 +7,12 @@ import type {
   EnrichmentResult,
   GeneConfidenceScore,
 } from "@pathfinder/shared";
+import { geneConfidenceScoreResponseSchema } from "@pathfinder/shared/generated/zod/geneConfidenceScoreResponseSchema";
+import { z } from "zod";
+
 import { requestJson } from "@/lib/api/http";
-import { GeneConfidenceScoreListSchema } from "@/lib/api/schemas/confidence";
+
+const GeneConfidenceScoreListSchema = z.array(geneConfidenceScoreResponseSchema);
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
 import { useWorkbenchStore } from "@/state/useWorkbenchStore";
 
@@ -112,7 +116,7 @@ export function ConfidencePanel() {
       {loading && (
         <div className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Computing scores…
+          Computing scores...
         </div>
       )}
 

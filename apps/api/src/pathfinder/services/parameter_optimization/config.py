@@ -8,14 +8,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 from pathfinder.platform.pydantic_base import (
     CamelModel,
     RoundedFloat,
     RoundedFloat2,
 )
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.helpers import ProgressCallback
 from pathfinder.services.experiment.types import (
     ControlValueFormat,
@@ -25,12 +25,10 @@ from pathfinder.services.experiment.types import (
 
 __all__ = ["ProgressCallback"]  # re-exported for parameter_optimization consumers
 
-
 CancelCheck = Callable[[], bool]
 """Returns True when the optimisation should stop early."""
 
 OptimizationMethod = Literal["bayesian", "grid", "random"]
-
 
 class ParameterSpec(BaseModel):
     """Describes a single parameter to optimise.
@@ -78,7 +76,6 @@ class ParameterSpec(BaseModel):
             raise ValueError(msg)
         return self
 
-
 @dataclass(slots=True)
 class OptimizationConfig:
     budget: int = 30
@@ -94,7 +91,6 @@ class OptimizationConfig:
     A small value (e.g. 0.1) acts as a tiebreaker; higher values make
     the optimiser strongly prefer tighter results."""
 
-
 class TrialResult(CamelModel):
     """A single optimization trial result.
 
@@ -105,7 +101,7 @@ class TrialResult(CamelModel):
     model_config = ConfigDict(frozen=True)
 
     trial_number: int
-    parameters: dict[str, JSONValue]
+    parameters: dict[str, JsonValue]
     score: RoundedFloat
     recall: RoundedFloat | None
     false_positive_rate: RoundedFloat | None
@@ -114,7 +110,6 @@ class TrialResult(CamelModel):
     negative_hits: int | None = None
     total_positives: int | None = None
     total_negatives: int | None = None
-
 
 @dataclass
 class OptimizationInput:
@@ -126,13 +121,12 @@ class OptimizationInput:
     parameter_space: list[ParameterSpec]
     controls_search_name: str
     controls_param_name: str
-    fixed_parameters: dict[str, JSONValue] = field(default_factory=dict)
+    fixed_parameters: dict[str, JsonValue] = field(default_factory=dict)
     positive_controls: list[str] | None = None
     negative_controls: list[str] | None = None
     controls_value_format: ControlValueFormat = "newline"
     controls_extra_parameters: JSONObject | None = None
     id_field: str | None = None
-
 
 class OptimizationResult(CamelModel):
     """Full optimization result.

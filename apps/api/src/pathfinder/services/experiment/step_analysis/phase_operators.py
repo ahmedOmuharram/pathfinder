@@ -2,7 +2,7 @@
 
 import asyncio
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
@@ -36,12 +36,12 @@ logger = get_logger(__name__)
 
 async def compare_operators(
     ctx: ControlsContext,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     progress_callback: ProgressCallback | None = None,
 ) -> list[OperatorComparison]:
     """For each combine node, evaluate INTERSECT, UNION, MINUS and recommend.
 
-    :param tree: Strategy tree as a :class:`PlanStepNode`.
+    :param tree: Strategy tree as a :class:`StrategyStepNode`.
     :returns: One :class:`OperatorComparison` per combine node.
     """
     combine_nodes = _collect_combine_nodes(tree)
@@ -72,7 +72,7 @@ async def compare_operators(
 
         async def _try_operator(
             op: CombineOp,
-            _cnode: PlanStepNode = cnode,
+            _cnode: StrategyStepNode = cnode,
             _cid: str = cid,
         ) -> OperatorVariant | None:
             subtree = _build_subtree_with_operator(_cnode, op)

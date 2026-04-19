@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from pydantic import ConfigDict
 
 from pathfinder.ai.models.catalog import ModelEntry, get_model_catalog
+from pathfinder.ai.pricing import lookup_per_mtok_prices
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import ModelProvider, TierName
@@ -44,20 +45,35 @@ def _provider_enabled(provider: ModelProvider) -> bool:
     return bool(key_map.get(provider, ""))
 
 
+def _build_response_entry(entry: ModelEntry) -> ModelCatalogEntryResponse:
+    """Overlay live genai-prices on the catalog entry, falling back to catalog values."""
+    live = lookup_per_mtok_prices(entry.provider, entry.model_name)
+    payload = entry.model_dump()
+    if live.input_ is not None:
+        payload["input_price"] = live.input_
+    if live.cached_input is not None:
+        payload["cached_input_price"] = live.cached_input
+    if live.output is not None:
+        payload["output_price"] = live.output
+    return ModelCatalogEntryResponse(
+        **payload, enabled=_provider_enabled(entry.provider),
+    )
+
+
 @router.get("/models")
 async def list_models() -> ModelListResponse:
     """Return available models grouped by provider.
 
-    Models whose provider has no API key are returned with ``enabled: false``
-    so the frontend can render them as disabled in the picker.
+    Prices overlay live ``genai_prices`` snapshot data when available; the
+    catalog's hardcoded values act as a fallback for models the upstream
+    library doesn't yet track. Models whose provider has no API key are
+    returned with ``enabled: false`` so the frontend can render them as
+    disabled in the picker.
     """
     settings = get_settings()
     is_mock = settings.chat_provider.strip().lower() == "mock"
     models = [
-        ModelCatalogEntryResponse(
-            **m.model_dump(),
-            enabled=_provider_enabled(m.provider),
-        )
+        _build_response_entry(m)
         for m in get_model_catalog()
         if is_mock or m.provider != "mock"
     ]

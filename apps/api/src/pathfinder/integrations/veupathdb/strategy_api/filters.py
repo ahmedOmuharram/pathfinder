@@ -8,9 +8,10 @@ Filters are managed by reading/patching the step's ``answerSpec.viewFilters``
 array through the step resource itself.
 """
 
+from pydantic import JsonValue
+
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import WDKFilterValue
-from pathfinder.platform.types import JSONValue
 
 
 class FilterMixin(StrategyAPIBase):
@@ -30,7 +31,7 @@ class FilterMixin(StrategyAPIBase):
         self,
         step_id: int,
         filter_name: str,
-        value: JSONValue,
+        value: JsonValue,
         *,
         disabled: bool = False,
         user_id: str | None = None,

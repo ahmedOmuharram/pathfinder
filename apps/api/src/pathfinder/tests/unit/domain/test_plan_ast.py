@@ -1,13 +1,13 @@
-"""Tests for plan_ast helpers — derive_plan_steps_json."""
+"""Tests for plan_ast helpers — derive_strategy_steps_json."""
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.ast_helpers import derive_strategy_steps_json
 from pathfinder.domain.strategy.ops import CombineOp
-from pathfinder.domain.strategy.plan_ast import derive_plan_steps_json
-from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 
 
-def _leaf(search_name: str = "GenesByTaxon", display_name: str | None = "Taxon") -> PlanStepNode:
-    return PlanStepNode(
+def _leaf(search_name: str = "GenesByTaxon", display_name: str | None = "Taxon") -> StrategyStepNode:
+    return StrategyStepNode(
         search_name=search_name,
         display_name=display_name,
         parameters={"organism": "Plasmodium falciparum 3D7"},
@@ -15,14 +15,14 @@ def _leaf(search_name: str = "GenesByTaxon", display_name: str | None = "Taxon")
     )
 
 
-def _payload(root: PlanStepNode) -> StrategyPlanPayload:
-    return StrategyPlanPayload(record_type="transcript", root=root)
+def _payload(root: StrategyStepNode) -> StrategyAst:
+    return StrategyAst(record_type="transcript", root=root)
 
 
 class TestDerivePlanStepsJson:
     def test_single_leaf(self) -> None:
         payload = _payload(_leaf())
-        result = derive_plan_steps_json(payload)
+        result = derive_strategy_steps_json(payload)
 
         assert len(result) == 1
         step = result[0]
@@ -33,19 +33,19 @@ class TestDerivePlanStepsJson:
         assert step["operator"] is None
 
     def test_combine_node(self) -> None:
-        left = PlanStepNode(
+        left = StrategyStepNode(
             search_name="GenesByTaxon",
             display_name="Taxon",
             parameters={},
             id="step_left01",
         )
-        right = PlanStepNode(
+        right = StrategyStepNode(
             search_name="GenesByLocation",
             display_name="Location",
             parameters={},
             id="step_right1",
         )
-        combine = PlanStepNode(
+        combine = StrategyStepNode(
             search_name="__combine__",
             display_name=None,
             primary_input=left,
@@ -55,7 +55,7 @@ class TestDerivePlanStepsJson:
             id="step_comb01",
         )
         payload = _payload(combine)
-        result = derive_plan_steps_json(payload)
+        result = derive_strategy_steps_json(payload)
 
         # walk_step_tree visits primary, secondary, then current
         assert len(result) == 3
@@ -69,7 +69,7 @@ class TestDerivePlanStepsJson:
 
     def test_transform_node(self) -> None:
         leaf = _leaf()
-        transform = PlanStepNode(
+        transform = StrategyStepNode(
             search_name="GenesByOrthologPattern",
             display_name="Ortholog",
             primary_input=leaf,
@@ -77,7 +77,7 @@ class TestDerivePlanStepsJson:
             id="step_xfrm01",
         )
         payload = _payload(transform)
-        result = derive_plan_steps_json(payload)
+        result = derive_strategy_steps_json(payload)
 
         assert len(result) == 2
         assert result[0]["id"] == "step_leaf01"
@@ -87,13 +87,13 @@ class TestDerivePlanStepsJson:
         assert result[1]["operator"] is None
 
     def test_null_display_name(self) -> None:
-        leaf = PlanStepNode(
+        leaf = StrategyStepNode(
             search_name="GenesByTaxon",
             display_name=None,
             parameters={},
             id="step_noname1",
         )
         payload = _payload(leaf)
-        result = derive_plan_steps_json(payload)
+        result = derive_strategy_steps_json(payload)
 
         assert result[0]["displayName"] is None

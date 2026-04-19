@@ -25,7 +25,7 @@ describe("Composer", () => {
   it("renders an input and send button", () => {
     render(
       <StubRuntimeProvider>
-        <Composer />
+        <Composer conversationId="test-conversation" />
       </StubRuntimeProvider>,
     );
     expect(

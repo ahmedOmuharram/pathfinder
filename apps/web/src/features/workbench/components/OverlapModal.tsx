@@ -188,7 +188,7 @@ export function OverlapModal({ open, onClose, sets }: OverlapModalProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  if (clickedRegion && clickedRegion.geneIds.length > 0) {
+                  if (clickedRegion.geneIds.length > 0) {
                     createMutation.mutate(clickedRegion);
                   }
                 }}

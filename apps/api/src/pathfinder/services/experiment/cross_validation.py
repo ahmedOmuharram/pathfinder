@@ -12,7 +12,7 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
@@ -257,7 +257,7 @@ async def _run_kfold(
 
 async def run_cross_validation(
     ctx: ControlsContext,
-    tree: PlanStepNode | None,
+    tree: StrategyStepNode | None,
     search_name: str | None,
     parameters: JSONObject | None,
     options: CrossValidationOptions | None = None,

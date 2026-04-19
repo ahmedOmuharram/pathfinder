@@ -4,7 +4,7 @@ import asyncio
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, Request
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.repositories import (
@@ -12,13 +12,9 @@ from pathfinder.persistence.repositories import (
     ConversationRepository,
     UserRepository,
 )
-from pathfinder.persistence.repositories.checkpoint_label import (
-    CheckpointLabelRepository,
-)
-from pathfinder.persistence.session import async_session_factory, get_db_session
+from pathfinder.persistence.session import get_db_session
 from pathfinder.platform.errors import ForbiddenError, NotFoundError
 from pathfinder.platform.security import get_current_user
-from pathfinder.services.checkpoints import CheckpointService, GraphLike
 from pathfinder.services.experiment.store import get_experiment_store
 from pathfinder.services.experiment.types import Experiment
 
@@ -95,25 +91,3 @@ async def get_experiments_owned_by_user(
     return experiments
 
 
-def get_checkpoint_label_repo() -> CheckpointLabelRepository:
-    """Sidecar repository for per-user checkpoint labels."""
-    return CheckpointLabelRepository(session_factory=async_session_factory)
-
-
-def get_checkpoint_service(request: Request) -> CheckpointService:
-    """Build a ``CheckpointService`` against the app's compiled graph.
-
-    The service's ``graph_factory`` returns the already-compiled graph that
-    was wired with the long-lived ``AsyncPostgresSaver`` during the
-    application lifespan. Reusing the compiled graph avoids re-creating
-    psycopg connections on every checkpoint request.
-    """
-    compiled_graph: GraphLike = request.app.state.compiled_graph
-
-    def _factory() -> GraphLike:
-        return compiled_graph
-
-    return CheckpointService(
-        session_factory=async_session_factory,
-        graph_factory=_factory,
-    )

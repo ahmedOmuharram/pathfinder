@@ -4,7 +4,7 @@ Pure conversion functions (no I/O except ``normalize_synced_parameters`` which
 fetches param specs from WDK).
 
 Public API:
-- ``build_snapshot_from_wdk`` -- WDKStrategyDetails -> StrategyPlanPayload (with step_counts and wdk_step_ids)
+- ``build_snapshot_from_wdk`` -- WDKStrategyDetails -> StrategyAst (with step_counts and wdk_step_ids)
 - ``normalize_synced_parameters`` -- enrich plan nodes with normalized param values
 """
 
@@ -12,11 +12,11 @@ from pydantic import TypeAdapter
 
 from pathfinder.domain.parameters.normalize import ParameterNormalizer
 from pathfinder.domain.strategy.ast import (
-    PlanStepNode,
+    StrategyStepNode,
     walk_step_tree,
 )
 from pathfinder.domain.strategy.ops import parse_op
-from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.types import SerializedParams
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -49,8 +49,8 @@ def _build_node(
     tree_node: WDKStepTree,
     steps: dict[str, WDKStep],
     record_type: str,
-) -> PlanStepNode:
-    """Recursively build a ``PlanStepNode`` tree from typed WDK models."""
+) -> StrategyStepNode:
+    """Recursively build a ``StrategyStepNode`` tree from typed WDK models."""
     step_id = tree_node.step_id
     step = steps.get(str(step_id))
     if step is None:
@@ -74,7 +74,7 @@ def _build_node(
                 f"searchConfig.parameters (keys: {list(parameters.keys())})"
             )
             raise DataParsingError(msg)
-        return PlanStepNode(
+        return StrategyStepNode(
             search_name=search_name,
             operator=parse_op(raw_operator),
             primary_input=left,
@@ -84,14 +84,14 @@ def _build_node(
         )
     if tree_node.primary_input:
         input_node = _build_node(tree_node.primary_input, steps, record_type)
-        return PlanStepNode(
+        return StrategyStepNode(
             search_name=search_name,
             primary_input=input_node,
             parameters=parameters,
             display_name=display_name,
             id=str(step_id),
         )
-    return PlanStepNode(
+    return StrategyStepNode(
         search_name=search_name,
         parameters=parameters,
         display_name=display_name,
@@ -100,7 +100,7 @@ def _build_node(
 
 
 def _extract_wdk_metadata(
-    root: PlanStepNode,
+    root: StrategyStepNode,
     wdk_steps: dict[str, WDKStep],
 ) -> tuple[dict[str, int], dict[str, int]]:
     """Extract step_counts and wdk_step_ids from plan tree matched against WDK steps."""
@@ -122,8 +122,8 @@ def _extract_wdk_metadata(
 
 def build_snapshot_from_wdk(
     wdk_strategy: WDKStrategyDetails,
-) -> StrategyPlanPayload:
-    """Convert a typed WDK strategy into a StrategyPlanPayload with enrichment metadata.
+) -> StrategyAst:
+    """Convert a typed WDK strategy into a StrategyAst with enrichment metadata.
 
     Step counts and WDK step ID mappings are stored directly on the payload's
     ``step_counts`` and ``wdk_step_ids`` fields.
@@ -137,7 +137,7 @@ def build_snapshot_from_wdk(
     root = _build_node(wdk_strategy.step_tree, wdk_strategy.steps, record_type)
 
     step_counts, wdk_step_ids = _extract_wdk_metadata(root, wdk_strategy.steps)
-    return StrategyPlanPayload(
+    return StrategyAst(
         record_type=record_type,
         root=root,
         name=wdk_strategy.name or None,
@@ -191,7 +191,7 @@ async def _load_search_spec(
 
 
 async def normalize_synced_parameters(
-    payload: StrategyPlanPayload,
+    payload: StrategyAst,
     api: StrategyAPI,
 ) -> None:
     """Normalize parameters from WDK response using param specs.

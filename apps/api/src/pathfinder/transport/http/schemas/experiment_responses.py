@@ -7,9 +7,9 @@ auto-generated as TypeScript types.
 All field aliases use camelCase to match the existing ``to_json`` codec output.
 """
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.types import EnrichmentAnalysisType
 from pathfinder.services.experiment.types.core import (
     ControlValueFormat,
@@ -23,11 +23,9 @@ from pathfinder.transport.http.schemas.optimization import OptimizationTrialData
 
 _MODEL_CONFIG = ConfigDict(populate_by_name=True, from_attributes=True)
 
-
 # ---------------------------------------------------------------------------
 # metrics.py
 # ---------------------------------------------------------------------------
-
 
 class ConfusionMatrixResponse(BaseModel):
     """2x2 confusion matrix counts."""
@@ -38,7 +36,6 @@ class ConfusionMatrixResponse(BaseModel):
     false_negatives: int = Field(alias="falseNegatives")
 
     model_config = _MODEL_CONFIG
-
 
 class ExperimentMetricsResponse(BaseModel):
     """Full classification metrics derived from a confusion matrix."""
@@ -62,7 +59,6 @@ class ExperimentMetricsResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class GeneInfoResponse(BaseModel):
     """Minimal gene metadata."""
 
@@ -72,7 +68,6 @@ class GeneInfoResponse(BaseModel):
     product: str | None = None
 
     model_config = _MODEL_CONFIG
-
 
 class FoldMetricsResponse(BaseModel):
     """Metrics for a single cross-validation fold."""
@@ -88,7 +83,6 @@ class FoldMetricsResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class CrossValidationResultResponse(BaseModel):
     """Aggregated cross-validation result."""
 
@@ -101,11 +95,9 @@ class CrossValidationResultResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 # ---------------------------------------------------------------------------
 # enrichment.py
 # ---------------------------------------------------------------------------
-
 
 class EnrichmentTermResponse(BaseModel):
     """Single enriched term from WDK analysis."""
@@ -123,7 +115,6 @@ class EnrichmentTermResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class EnrichmentResultResponse(BaseModel):
     """Results for a single enrichment analysis type."""
 
@@ -135,11 +126,9 @@ class EnrichmentResultResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 # ---------------------------------------------------------------------------
 # rank.py
 # ---------------------------------------------------------------------------
-
 
 class RankMetricsResponse(BaseModel):
     """Rank-based evaluation metrics computed over an ordered result list."""
@@ -157,7 +146,6 @@ class RankMetricsResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class ConfidenceIntervalResponse(BaseModel):
     """Bootstrap confidence interval for a single metric."""
 
@@ -168,7 +156,6 @@ class ConfidenceIntervalResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class NegativeSetVariantResponse(BaseModel):
     """Rank metrics evaluated with an alternative negative control set."""
 
@@ -177,7 +164,6 @@ class NegativeSetVariantResponse(BaseModel):
     negative_count: int = Field(default=0, alias="negativeCount")
 
     model_config = _MODEL_CONFIG
-
 
 class BootstrapResultResponse(BaseModel):
     """Robustness assessment via bootstrap resampling."""
@@ -196,11 +182,9 @@ class BootstrapResultResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 # ---------------------------------------------------------------------------
 # step_analysis.py
 # ---------------------------------------------------------------------------
-
 
 class StepEvaluationResponse(BaseModel):
     """Per-leaf-step evaluation against controls."""
@@ -227,7 +211,6 @@ class StepEvaluationResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class OperatorVariantResponse(BaseModel):
     """Metrics for one boolean operator at a combine node."""
 
@@ -240,7 +223,6 @@ class OperatorVariantResponse(BaseModel):
     f1_score: float = Field(alias="f1Score")
 
     model_config = _MODEL_CONFIG
-
 
 class OperatorComparisonResponse(BaseModel):
     """Comparison of operators at a single combine node."""
@@ -255,7 +237,6 @@ class OperatorComparisonResponse(BaseModel):
     )
 
     model_config = _MODEL_CONFIG
-
 
 class StepContributionResponse(BaseModel):
     """Ablation analysis for one leaf step."""
@@ -274,7 +255,6 @@ class StepContributionResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class ParameterSweepPointResponse(BaseModel):
     """One data point in a parameter sensitivity sweep."""
 
@@ -287,7 +267,6 @@ class ParameterSweepPointResponse(BaseModel):
     f1: float
 
     model_config = _MODEL_CONFIG
-
 
 class ParameterSensitivityResponse(BaseModel):
     """Sensitivity sweep for one numeric parameter on one leaf step."""
@@ -302,7 +281,6 @@ class ParameterSensitivityResponse(BaseModel):
     recommendation: str = ""
 
     model_config = _MODEL_CONFIG
-
 
 class StepAnalysisResultResponse(BaseModel):
     """Container for all deterministic step analysis results."""
@@ -322,11 +300,9 @@ class StepAnalysisResultResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 # ---------------------------------------------------------------------------
 # optimization.py
 # ---------------------------------------------------------------------------
-
 
 class OptimizationSpecResponse(BaseModel):
     """Describes a single parameter to optimise."""
@@ -340,7 +316,6 @@ class OptimizationSpecResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class ThresholdKnobResponse(BaseModel):
     """A numeric parameter on a leaf step that can be tuned."""
 
@@ -352,7 +327,6 @@ class ThresholdKnobResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class OperatorKnobResponse(BaseModel):
     """A combine-node operator that can be switched during optimization."""
 
@@ -360,7 +334,6 @@ class OperatorKnobResponse(BaseModel):
     options: list[str] = Field(default_factory=lambda: ["INTERSECT", "UNION", "MINUS"])
 
     model_config = _MODEL_CONFIG
-
 
 class TreeOptimizationTrialResponse(BaseModel):
     """One trial during tree-knob optimization."""
@@ -372,7 +345,6 @@ class TreeOptimizationTrialResponse(BaseModel):
     list_size: int = Field(default=0, alias="listSize")
 
     model_config = _MODEL_CONFIG
-
 
 class TreeOptimizationResultResponse(BaseModel):
     """Result of multi-step tree-knob optimization."""
@@ -388,11 +360,9 @@ class TreeOptimizationResultResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 # ---------------------------------------------------------------------------
 # experiment.py — ExperimentConfig and Experiment
 # ---------------------------------------------------------------------------
-
 
 class ExperimentConfigResponse(BaseModel):
     """Full configuration for an experiment run."""
@@ -426,7 +396,7 @@ class ExperimentConfigResponse(BaseModel):
         default=None, alias="parameterDisplayValues"
     )
     mode: ExperimentMode = "single"
-    step_tree: JSONValue = Field(default=None, alias="stepTree")
+    step_tree: JsonValue = Field(default=None, alias="stepTree")
     source_strategy_id: str | None = Field(default=None, alias="sourceStrategyId")
     optimization_target_step: str | None = Field(
         default=None, alias="optimizationTargetStep"
@@ -453,7 +423,6 @@ class ExperimentConfigResponse(BaseModel):
     target_gene_ids: list[str] | None = Field(default=None, alias="targetGeneIds")
 
     model_config = _MODEL_CONFIG
-
 
 class ExperimentResponse(BaseModel):
     """Full experiment with config and results."""
@@ -506,7 +475,6 @@ class ExperimentResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 class ExperimentSummaryResponse(BaseModel):
     """Lightweight experiment summary for list views."""
 
@@ -530,11 +498,9 @@ class ExperimentSummaryResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 # ---------------------------------------------------------------------------
 # Progress data models
 # ---------------------------------------------------------------------------
-
 
 class TrialProgressDataResponse(BaseModel):
     """Progress data for a single optimization trial."""
@@ -546,10 +512,9 @@ class TrialProgressDataResponse(BaseModel):
     recall: float | None = None
     false_positive_rate: float | None = Field(default=None, alias="falsePositiveRate")
     estimated_size: int | None = Field(default=None, alias="estimatedSize")
-    parameters: dict[str, JSONValue] | None = None
+    parameters: dict[str, JsonValue] | None = None
 
     model_config = _MODEL_CONFIG
-
 
 class StepAnalysisProgressDataResponse(BaseModel):
     """Progress data for step analysis."""
@@ -562,7 +527,6 @@ class StepAnalysisProgressDataResponse(BaseModel):
     message: str | None = None
 
     model_config = _MODEL_CONFIG
-
 
 class ExperimentProgressDataResponse(BaseModel):
     """Progress data for experiment execution."""
@@ -577,7 +541,6 @@ class ExperimentProgressDataResponse(BaseModel):
     )
 
     model_config = _MODEL_CONFIG
-
 
 class OptimizationResultResponse(BaseModel):
     """Complete optimization result."""
@@ -597,11 +560,9 @@ class OptimizationResultResponse(BaseModel):
 
     model_config = _MODEL_CONFIG
 
-
 # ---------------------------------------------------------------------------
 # Control set summary
 # ---------------------------------------------------------------------------
-
 
 class ControlSetSummaryResponse(BaseModel):
     """Control set summary for listing."""

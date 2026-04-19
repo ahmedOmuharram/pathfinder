@@ -227,7 +227,7 @@ export function EvaluatePanel() {
           ) : (
             <Play className="h-4 w-4" />
           )}
-          {loading ? "Running…" : "Run evaluation"}
+          {loading ? "Running..." : "Run evaluation"}
         </Button>
 
         {loading && progressText !== "" && (

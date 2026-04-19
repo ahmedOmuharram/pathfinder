@@ -66,7 +66,7 @@ export function coerceParametersForSpecs(
 ): StepParameters {
   const next: StepParameters = { ...params };
   for (const spec of specs) {
-    if (spec.name == null || spec.name === "") continue;
+    if (spec.name === "") continue;
     const rawValue = params[spec.name];
     if (isMultiParam(spec)) {
       next[spec.name] = coerceMultiValue(rawValue, options);

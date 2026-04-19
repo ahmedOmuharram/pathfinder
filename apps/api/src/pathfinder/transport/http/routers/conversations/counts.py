@@ -18,7 +18,7 @@ async def compute_step_counts(
 ) -> StepCountsResponse:
     """Compute step counts by executing the plan in WDK."""
     del user_id  # reserved for future authz
-    plan = request.plan.model_dump(exclude_none=True)
+    plan = request.strategy_ast.model_dump(exclude_none=True)
     payload = validate_plan_or_raise(plan)
 
     try:

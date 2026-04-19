@@ -1,34 +1,40 @@
 import type { EnrichmentAnalysisType } from "@pathfinder/shared";
-import { requestJson } from "@/lib/api/http";
-import {
-  CrossValidationResultSchema,
-  EnrichmentResultListSchema,
-  OverlapResultSchema,
-  EnrichmentCompareResultSchema,
-} from "@/lib/api/schemas/analysis";
-import type { z } from "zod";
+import { crossValidationResultResponseSchema } from "@pathfinder/shared/generated/zod/crossValidationResultResponseSchema";
+import { enrichmentCompareResultSchema } from "@pathfinder/shared/generated/zod/enrichmentCompareResultSchema";
+import { enrichmentResultResponseSchema } from "@pathfinder/shared/generated/zod/enrichmentResultResponseSchema";
+import { overlapResultSchema } from "@pathfinder/shared/generated/zod/overlapResultSchema";
+import type { CrossValidationResultResponse } from "@pathfinder/shared/generated/types/CrossValidationResultResponse";
+import type { EnrichmentCompareResult } from "@pathfinder/shared/generated/types/EnrichmentCompareResult";
+import type { EnrichmentResultResponse } from "@pathfinder/shared/generated/types/EnrichmentResultResponse";
+import type { OverlapResult } from "@pathfinder/shared/generated/types/OverlapResult";
+import { z } from "zod";
 
-export type OverlapResult = z.infer<typeof OverlapResultSchema>;
-export type EnrichmentCompareResult = z.infer<typeof EnrichmentCompareResultSchema>;
+import { requestJson } from "@/lib/api/http";
+
+const EnrichmentResultListSchema = z.array(enrichmentResultResponseSchema);
+
+export type { OverlapResult, EnrichmentCompareResult };
 
 export async function runCrossValidation(
   experimentId: string,
   kFolds: number,
-): Promise<z.infer<typeof CrossValidationResultSchema>> {
-  return await requestJson(CrossValidationResultSchema, `/api/v1/experiments/${experimentId}/cross-validate`, {
-    method: "POST",
-    body: { kFolds },
-  });
+): Promise<CrossValidationResultResponse> {
+  return await requestJson(
+    crossValidationResultResponseSchema,
+    `/api/v1/experiments/${experimentId}/cross-validate`,
+    { method: "POST", body: { kFolds } },
+  );
 }
 
 export async function runEnrichment(
   experimentId: string,
   enrichmentTypes: EnrichmentAnalysisType[],
-): Promise<z.infer<typeof EnrichmentResultListSchema>> {
-  return await requestJson(EnrichmentResultListSchema, `/api/v1/experiments/${experimentId}/enrich`, {
-    method: "POST",
-    body: { enrichmentTypes },
-  });
+): Promise<EnrichmentResultResponse[]> {
+  return await requestJson(
+    EnrichmentResultListSchema,
+    `/api/v1/experiments/${experimentId}/enrich`,
+    { method: "POST", body: { enrichmentTypes } },
+  );
 }
 
 export async function computeOverlap(
@@ -38,7 +44,7 @@ export async function computeOverlap(
   const query: Record<string, string> = {};
   if (opts?.orthologAware === true) query["orthologAware"] = "true";
   const hasQuery = Object.keys(query).length > 0;
-  return await requestJson(OverlapResultSchema, "/api/v1/experiments/overlap", {
+  return await requestJson(overlapResultSchema, "/api/v1/experiments/overlap", {
     method: "POST",
     body: { experimentIds },
     ...(hasQuery ? { query } : {}),
@@ -50,7 +56,7 @@ export async function compareEnrichment(
   analysisType?: string,
 ): Promise<EnrichmentCompareResult> {
   return await requestJson(
-    EnrichmentCompareResultSchema,
+    enrichmentCompareResultSchema,
     "/api/v1/experiments/enrichment-compare",
     {
       method: "POST",

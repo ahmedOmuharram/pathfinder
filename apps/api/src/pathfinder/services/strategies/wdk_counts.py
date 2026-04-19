@@ -14,11 +14,11 @@ import json
 from cachetools import LRUCache
 
 from pathfinder.domain.strategy.ast import (
-    PlanStepNode,
+    StrategyStepNode,
     walk_step_tree,
 )
 from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
-from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.integrations.veupathdb.client import (
     VEuPathDBClient,
 )
@@ -39,7 +39,7 @@ logger = get_logger(__name__)
 _STEP_COUNTS_CACHE: LRUCache[str, dict[str, int | None]] = LRUCache(maxsize=20)
 
 
-def plan_cache_key(site_id: str, payload: StrategyPlanPayload) -> str:
+def plan_cache_key(site_id: str, payload: StrategyAst) -> str:
     serialized = json.dumps(
         payload.model_dump(by_alias=True, exclude_none=True, mode="json"),
         sort_keys=True,
@@ -79,13 +79,13 @@ async def _count_via_anonymous_report(
         return answer.meta.total_count
 
 
-def is_leaf_only_plan(root: PlanStepNode) -> bool:
+def is_leaf_only_plan(root: StrategyStepNode) -> bool:
     """Check if all steps in the plan tree are leaf (search) steps."""
     return all(step.infer_kind() == "search" for step in walk_step_tree(root))
 
 
 async def compute_step_counts_for_plan(
-    payload: StrategyPlanPayload,
+    payload: StrategyAst,
     site_id: str,
 ) -> dict[str, int | None]:
     """Compute per-step result counts for a strategy plan.
@@ -122,7 +122,7 @@ async def compute_step_counts_for_plan(
 
 async def _compute_leaf_counts_parallel(
     client: VEuPathDBClient,
-    root: PlanStepNode,
+    root: StrategyStepNode,
     record_type: str,
 ) -> dict[str, int | None]:
     """Compute counts for all leaf steps in parallel using anonymous reports."""
@@ -143,7 +143,7 @@ async def _compute_leaf_counts_parallel(
 
 async def _create_combine_wdk_step(
     api: StrategyAPI,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     record_type: str,
     primary_wdk_id: int,
     secondary_wdk_id: int,
@@ -177,7 +177,7 @@ async def _create_combine_wdk_step(
 
 async def _create_wdk_step(
     api: StrategyAPI,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     record_type: str,
     wdk_step_ids: dict[str, int],
 ) -> int | None:
@@ -227,7 +227,7 @@ async def _create_wdk_step(
 async def _read_counts_from_strategy(
     api: StrategyAPI,
     strategy_id: int,
-    all_steps: list[PlanStepNode],
+    all_steps: list[StrategyStepNode],
     wdk_step_ids: dict[str, int],
     counts: dict[str, int | None],
 ) -> None:
@@ -247,7 +247,7 @@ async def _read_counts_from_strategy(
 
 async def _compute_counts_via_temp_strategy(
     api: StrategyAPI,
-    payload: StrategyPlanPayload,
+    payload: StrategyAst,
     site_id: str,
 ) -> dict[str, int | None]:
     """Compute counts by creating steps, a temporary strategy, and reading counts.

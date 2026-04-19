@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories import ConversationRepository
@@ -51,7 +51,7 @@ def make_step_graph(graph_id: str = "g1", site_id: str = "plasmodb") -> Strategy
     return StrategyGraph(graph_id, "test", site_id)
 
 
-def populate_graph(graph: StrategyGraph, *steps: PlanStepNode) -> None:
+def populate_graph(graph: StrategyGraph, *steps: StrategyStepNode) -> None:
     """Add steps to graph bypassing single-root invariant for test setup."""
     for step in steps:
         graph.steps[step.id] = step

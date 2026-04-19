@@ -1,55 +1,23 @@
-"""Common type aliases for the codebase."""
-
 from typing import Literal
 
 from pydantic import JsonValue
 
-# JSON types: Python's standard representation for JSON objects/arrays
-# JSON keys are always strings, values can be any JSON-serializable type
-type JSONValue = JsonValue
-"""Type alias for JSON values."""
-
-type JSONObject = dict[str, JSONValue]
-"""Type alias for JSON objects (dictionaries with string keys)."""
-
-type JSONArray = list[JSONValue]
-"""Type alias for JSON arrays."""
-
-# ── Model types ──────────────────────────────────────────────────────
-# Shared Literal types for LLM provider and reasoning effort.
-# Defined here (platform layer) so both AI and service layers can use
-# them without creating a circular dependency.
+type JSONObject = dict[str, JsonValue]
+type JSONArray = list[JsonValue]
 
 ModelProvider = Literal["openai", "anthropic", "google", "ollama", "mock"]
-"""Supported LLM provider identifiers."""
-
 ReasoningEffort = Literal["none", "low", "medium", "high"]
-"""Reasoning effort level for models that support it."""
-
 TierName = Literal["quality", "balanced", "fast"]
-"""Preset tier names for pipeline model selection."""
 
 
-def as_json_object(value: JSONValue) -> JSONObject:
-    """Type guard: assert that a JSONValue is a JSONObject.
-
-    :param value: Value to check.
-    :returns: Same value as JSONObject.
-    :raises TypeError: If value is not a dict.
-    """
+def as_json_object(value: JsonValue) -> JSONObject:
     if not isinstance(value, dict):
         msg = f"Expected dict, got {type(value)}"
         raise TypeError(msg)
     return value
 
 
-def as_json_array(value: JSONValue) -> JSONArray:
-    """Type guard: assert that a JSONValue is a JSONArray.
-
-    :param value: Value to check.
-    :returns: Same value as JSONArray.
-    :raises TypeError: If value is not a list.
-    """
+def as_json_array(value: JsonValue) -> JSONArray:
     if not isinstance(value, list):
         msg = f"Expected list, got {type(value)}"
         raise TypeError(msg)

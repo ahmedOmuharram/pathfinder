@@ -1,8 +1,6 @@
 """Core models for cross-turn context management."""
 
-from pydantic import BaseModel
-
-from pathfinder.platform.types import JSONValue
+from pydantic import BaseModel, JsonValue
 
 
 class ToolCallRecord(BaseModel):
@@ -10,10 +8,9 @@ class ToolCallRecord(BaseModel):
 
     id: str
     name: str
-    arguments: dict[str, JSONValue]
+    arguments: dict[str, JsonValue]
     result: str
     is_error: bool = False
-
 
 class TurnSummary(BaseModel):
     """Compressed representation of one turn's tool activity."""

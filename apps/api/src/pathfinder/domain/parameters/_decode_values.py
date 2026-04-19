@@ -4,15 +4,14 @@ import csv
 from typing import cast
 
 import json5
+from pydantic import JsonValue
 
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONValue
 
 logger = get_logger(__name__)
 
-
-def decode_values(value: JSONValue, name: str) -> list[JSONValue]:
+def decode_values(value: JsonValue, name: str) -> list[JsonValue]:
     if value is None:
         return []
     if isinstance(value, dict):
@@ -27,8 +26,7 @@ def decode_values(value: JSONValue, name: str) -> list[JSONValue]:
         return _decode_string_value(value)
     return [value]
 
-
-def _decode_string_value(value: str) -> list[JSONValue]:
+def _decode_string_value(value: str) -> list[JsonValue]:
     stripped = value.strip()
     if not stripped:
         return []
@@ -42,12 +40,11 @@ def _decode_string_value(value: str) -> list[JSONValue]:
         return [item for item in row if item is not None and str(item).strip()]
     return [stripped]
 
-
-def parse_json5_value(raw: str) -> JSONValue | None:
+def parse_json5_value(raw: str) -> JsonValue | None:
     try:
         # json5.loads returns Any, but we know it's JSON-serializable
         result = json5.loads(raw)
-        return cast("JSONValue", result)
+        return cast("JsonValue", result)
     except (ValueError, TypeError) as exc:
         logger.debug("Failed to parse JSON5 value", error=str(exc))
         return None

@@ -7,10 +7,10 @@ WDK source). Single-pick params use a plain string value.
 
 import json
 
-from pathfinder.platform.types import JSONValue
+from pydantic import JsonValue
 
 
-def normalize_param_value(value: JSONValue) -> str:
+def normalize_param_value(value: JsonValue) -> str:
     """Convert a JSON parameter value to the string format WDK expects.
 
     :param value: Raw parameter value (str, int, float, bool, list, dict, or None).

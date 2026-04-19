@@ -5,7 +5,7 @@ These phases run early in the experiment lifecycle to establish baseline
 metrics and persist WDK artifacts.
 """
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
@@ -79,7 +79,7 @@ async def phase_evaluate(
 
 async def phase_step_analysis(
     pctx: PhaseContext,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     baseline_result: ControlTestResult,
 ) -> None:
     """Run step-decomposition analysis for multi-step experiments."""
@@ -112,7 +112,7 @@ async def phase_step_analysis(
 
 async def phase_persist_strategy(
     pctx: PhaseContext,
-    final_tree: PlanStepNode | None,
+    final_tree: StrategyStepNode | None,
 ) -> None:
     """Create a persisted WDK strategy for result exploration (best-effort)."""
     config, experiment = pctx.config, pctx.experiment

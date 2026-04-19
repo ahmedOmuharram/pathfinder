@@ -1,8 +1,8 @@
 """Optuna sampler creation and parameter suggestion for optimization."""
 
 import optuna
+from pydantic import JsonValue
 
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.parameter_optimization.config import (
     OptimizationConfig,
     ParameterSpec,
@@ -42,13 +42,12 @@ def _create_sampler(
     # "bayesian" or any unrecognised method → TPE
     return optuna.samplers.TPESampler(seed=42), budget
 
-
 def _suggest_trial_params(
     trial: optuna.trial.Trial,
     parameter_space: list[ParameterSpec],
-) -> dict[str, JSONValue]:
+) -> dict[str, JsonValue]:
     """Suggest parameter values for one Optuna trial."""
-    params: dict[str, JSONValue] = {}
+    params: dict[str, JsonValue] = {}
     for spec in parameter_space:
         if spec.param_type == "numeric":
             params[spec.name] = trial.suggest_float(

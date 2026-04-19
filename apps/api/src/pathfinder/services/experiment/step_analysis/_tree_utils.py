@@ -1,6 +1,6 @@
 """Tree traversal and manipulation helpers for step analysis."""
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.tree import (
     collect_plan_combine_nodes,
@@ -8,17 +8,17 @@ from pathfinder.domain.strategy.tree import (
 )
 
 
-def _collect_leaves(tree: PlanStepNode) -> list[PlanStepNode]:
+def _collect_leaves(tree: StrategyStepNode) -> list[StrategyStepNode]:
     """Return all leaf (search) nodes from the tree."""
     return collect_plan_leaves(tree)
 
 
-def _collect_combine_nodes(tree: PlanStepNode) -> list[PlanStepNode]:
+def _collect_combine_nodes(tree: StrategyStepNode) -> list[StrategyStepNode]:
     """Return all combine (binary) nodes from the tree."""
     return collect_plan_combine_nodes(tree)
 
 
-def _node_id(node: PlanStepNode) -> str:
+def _node_id(node: StrategyStepNode) -> str:
     """Return the node's unique identifier."""
     return node.id
 
@@ -27,11 +27,11 @@ def _node_id(node: PlanStepNode) -> str:
 
 
 def _prune_combine(
-    node: PlanStepNode,
-    pi: PlanStepNode,
-    si: PlanStepNode,
+    node: StrategyStepNode,
+    pi: StrategyStepNode,
+    si: StrategyStepNode,
     target_leaf_id: str,
-) -> PlanStepNode | None:
+) -> StrategyStepNode | None:
     """Prune *target_leaf_id* from a combine node."""
     if pi.id == target_leaf_id:
         return si
@@ -46,7 +46,7 @@ def _prune_combine(
     if replacement_si is None:
         return replacement_pi
 
-    updates: dict[str, PlanStepNode] = {}
+    updates: dict[str, StrategyStepNode] = {}
     if replacement_pi is not pi:
         updates["primary_input"] = replacement_pi
     if replacement_si is not si:
@@ -57,10 +57,10 @@ def _prune_combine(
 
 
 def _prune_unary(
-    node: PlanStepNode,
-    pi: PlanStepNode,
+    node: StrategyStepNode,
+    pi: StrategyStepNode,
     target_leaf_id: str,
-) -> PlanStepNode | None:
+) -> StrategyStepNode | None:
     """Prune *target_leaf_id* from a unary (transform) node."""
     if pi.id == target_leaf_id:
         return None
@@ -72,7 +72,7 @@ def _prune_unary(
     return node
 
 
-def _prune_node(node: PlanStepNode, target_leaf_id: str) -> PlanStepNode | None:
+def _prune_node(node: StrategyStepNode, target_leaf_id: str) -> StrategyStepNode | None:
     """Recursively prune *target_leaf_id*, returning the replacement node.
 
     Returns ``None`` when the entire subtree collapses.
@@ -93,9 +93,9 @@ def _prune_node(node: PlanStepNode, target_leaf_id: str) -> PlanStepNode | None:
 
 
 def _remove_leaf_from_tree(
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     target_leaf_id: str,
-) -> PlanStepNode | None:
+) -> StrategyStepNode | None:
     """Build a tree with *target_leaf_id* pruned out.
 
     When a leaf is removed its parent combine node is replaced by the
@@ -109,9 +109,9 @@ def _remove_leaf_from_tree(
 
 
 def _extract_leaf_branch(
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     leaf_id: str,
-) -> PlanStepNode | None:
+) -> StrategyStepNode | None:
     """Extract the subtree that includes *leaf_id* and its ancestor transforms.
 
     Walks from the root toward *leaf_id*.  At combine nodes the function
@@ -147,8 +147,8 @@ def _extract_leaf_branch(
 
 
 def _build_subtree_with_operator(
-    combine_node: PlanStepNode,
+    combine_node: StrategyStepNode,
     operator: CombineOp,
-) -> PlanStepNode:
+) -> StrategyStepNode:
     """Clone a combine node's subtree with a different operator."""
     return combine_node.model_copy(update={"operator": operator})

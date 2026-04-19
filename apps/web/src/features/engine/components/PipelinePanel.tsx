@@ -2,6 +2,7 @@ import type { ModelCatalogEntry, ModelProvider, PipelinePhase, TierName } from "
 import { useShallow } from "zustand/react/shallow";
 import { normalizePipelineConfig, useEngineStore } from "@/state/useEngineStore";
 import { PhaseCard } from "./PhaseCard";
+import { OrchestratorSelect } from "./OrchestratorSelect";
 import { ChevronDown } from "lucide-react";
 
 const PHASES: PipelinePhase[] = ["scoping", "discovery", "planning", "execution", "verification"];
@@ -84,6 +85,10 @@ export function PipelinePanel({
           {tier === "custom" && <option value="custom">Custom</option>}
         </select>
       </div>
+
+      <div className="h-px bg-border" />
+
+      <OrchestratorSelect models={models} />
 
       <div className="h-px bg-border" />
 

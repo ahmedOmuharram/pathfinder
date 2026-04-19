@@ -8,7 +8,7 @@ can appear in multiple tree positions (matching WDK's native behaviour).
 
 from dataclasses import dataclass
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import ErrorCode
 from pathfinder.platform.logging import get_logger
@@ -22,8 +22,8 @@ logger = get_logger(__name__)
 class StepInputs:
     """Resolved step input nodes, operator, and parameters for validation."""
 
-    primary: PlanStepNode | None
-    secondary: PlanStepNode | None
+    primary: StrategyStepNode | None
+    secondary: StrategyStepNode | None
     operator: str | None
     params: JSONObject | None = None
 
@@ -31,7 +31,7 @@ class StepInputs:
 def _validate_primary_input(
     graph: StrategyGraph,
     primary_input_step_id: str | None,
-) -> tuple[PlanStepNode | None, ToolErrorPayload | None]:
+) -> tuple[StrategyStepNode | None, ToolErrorPayload | None]:
     """Resolve primary input step, returning (step, error_or_none)."""
     if not primary_input_step_id:
         return None, None
@@ -48,7 +48,7 @@ def _validate_primary_input(
 
 def _check_secondary_preconditions(
     graph: StrategyGraph,
-    primary_input: PlanStepNode | None,
+    primary_input: StrategyStepNode | None,
     operator: str | None,
 ) -> ToolErrorPayload | None:
     """Check preconditions for secondary input: primary present and operator provided."""
@@ -69,10 +69,10 @@ def _check_secondary_preconditions(
 
 def _validate_secondary_input(
     graph: StrategyGraph,
-    primary_input: PlanStepNode | None,
+    primary_input: StrategyStepNode | None,
     secondary_input_step_id: str | None,
     operator: str | None,
-) -> tuple[PlanStepNode | None, ToolErrorPayload | None]:
+) -> tuple[StrategyStepNode | None, ToolErrorPayload | None]:
     """Resolve secondary input step and validate preconditions, returning (step, error_or_none)."""
     if not secondary_input_step_id:
         return None, None
@@ -93,7 +93,7 @@ def _validate_inputs(
     primary_input_step_id: str | None,
     secondary_input_step_id: str | None,
     operator: str | None,
-) -> tuple[PlanStepNode | None, PlanStepNode | None, ToolErrorPayload | None]:
+) -> tuple[StrategyStepNode | None, StrategyStepNode | None, ToolErrorPayload | None]:
     """Validate and resolve input step references.
 
     :returns: (primary_input, secondary_input, error_or_none).
@@ -113,9 +113,9 @@ def _validate_inputs(
 
 
 def _duplicate_subtree(
-    step: PlanStepNode,
+    step: StrategyStepNode,
     graph: StrategyGraph,
-) -> PlanStepNode:
+) -> StrategyStepNode:
     """Deep-clone a step and its entire input subtree with fresh IDs.
 
     All cloned nodes are registered in ``graph.steps``.  The clone root
@@ -132,7 +132,7 @@ def _duplicate_subtree(
         if step.secondary_input
         else None
     )
-    clone = PlanStepNode(
+    clone = StrategyStepNode(
         search_name=step.search_name,
         parameters=dict(step.parameters),
         primary_input=cloned_primary,
@@ -152,7 +152,7 @@ def validate_inputs_and_roots(
     primary_input_step_id: str | None,
     secondary_input_step_id: str | None,
     operator: str | None,
-) -> tuple[PlanStepNode | None, PlanStepNode | None, ToolErrorPayload | None]:
+) -> tuple[StrategyStepNode | None, StrategyStepNode | None, ToolErrorPayload | None]:
     """Resolve input steps and validate root status.
 
     When a referenced step is already consumed (not a subtree root),

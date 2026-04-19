@@ -3,7 +3,7 @@
  *
  * Generated API types come from Kubb (packages/shared-ts/src/generated/).
  * Hand-written types below cover domain concepts that don't live in OpenAPI
- * (combine-operator enum, VEuPathDB site catalog, StrategyPlan AST).
+ * (combine-operator enum, VEuPathDB site catalog, StrategyAst).
  */
 
 import type {
@@ -248,7 +248,11 @@ export interface StepReport {
   config?: Record<string, unknown>;
 }
 
-export interface BasePlanNode {
+/**
+ * Strategy AST — the built/executed strategy's step tree (NOT the planning
+ * artifact from the planning agent; see `PlanArtifact` for that).
+ */
+export interface BaseStrategyNode {
   id?: string;
   displayName?: string;
   filters?: StepFilter[];
@@ -256,19 +260,19 @@ export interface BasePlanNode {
   reports?: StepReport[];
 }
 
-export interface PlanStepNode extends BasePlanNode {
+export interface StrategyStepNode extends BaseStrategyNode {
   searchName: string;
   parameters?: Record<string, unknown>;
-  primaryInput?: PlanStepNode;
-  secondaryInput?: PlanStepNode;
+  primaryInput?: StrategyStepNode;
+  secondaryInput?: StrategyStepNode;
   operator?: CombineOperator;
   colocationParams?: ColocationParams;
   wdkWeight?: number | null;
 }
 
-export interface StrategyPlan {
+export interface StrategyAst {
   recordType: string;
-  root: PlanStepNode;
+  root: StrategyStepNode;
   name?: string | null;
   description?: string | null;
   metadata?: Record<string, unknown> | null;

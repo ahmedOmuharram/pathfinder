@@ -30,6 +30,7 @@ def upgrade() -> None:
     op.execute("DROP TABLE IF EXISTS store CASCADE")
     op.execute("DROP TABLE IF EXISTS store_migrations CASCADE")
     op.execute("DROP TABLE IF EXISTS store_vectors CASCADE")
+    op.execute("DROP TABLE IF EXISTS vector_migrations CASCADE")
 
     op.execute("DROP TABLE IF EXISTS checkpoint_labels CASCADE")
     op.execute("DROP TABLE IF EXISTS chat_events CASCADE")

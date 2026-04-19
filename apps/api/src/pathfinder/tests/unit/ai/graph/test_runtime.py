@@ -66,6 +66,7 @@ def test_agent_deps_is_pydantic_and_lists_live_fields() -> None:
         "memory_store",
         "retrieved_memories",
         "conversation_id",
+        "db_session_factory",
     }
 
 

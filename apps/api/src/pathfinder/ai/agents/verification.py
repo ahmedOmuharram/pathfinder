@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.capabilities import Thinking
 from pydantic_ai.tools import RunContext
-from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
@@ -13,6 +12,7 @@ from pathfinder.ai.agents._instructions import (
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.state import PhaseOutcome
 from pathfinder.ai.tools.toolsets.verification import build_toolset
 
 _VERIFICATION_INSTRUCTIONS = """\
@@ -68,11 +68,28 @@ opener.
 - Do NOT ask follow-up questions such as "Would you like to..." or \
 "Anything else?" at the end of verification. The chat shell already waits \
 for the user's next instruction.
+
+## Output — the PhaseOutcome contract
+
+Return exactly one ``PhaseOutcome``:
+
+- ``prose`` (required, user-facing): a concise completion summary — what \
+was checked, what passed, and anything suspicious. This IS the assistant \
+message the user reads.
+- ``reason`` (required, short): one sentence explaining your routing \
+choice.
+- ``disposition``: ``done`` when verification passed and the \
+investigation is complete; ``handoff`` when something you surfaced needs \
+another phase.
+- ``handoff_to`` (optional): ``execution`` (fix a step), ``planning`` \
+(rework), or ``discovery`` (replace a search).
 """
 
-verification_agent: Agent[AgentDeps, str] = Agent(
+verification_agent: Agent[
+    AgentDeps, PhaseOutcome | DeferredToolRequests,
+] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=str,
+    output_type=[PhaseOutcome, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_VERIFICATION_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -99,7 +116,3 @@ def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_user_memories(ctx)
 
 
-VERIFICATION_USAGE_LIMITS = UsageLimits(
-    request_limit=200,
-    total_tokens_limit=500_000,
-)

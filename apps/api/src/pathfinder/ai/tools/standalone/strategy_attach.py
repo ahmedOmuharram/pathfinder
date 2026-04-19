@@ -6,6 +6,7 @@ Each function takes ``RunContext[AgentDeps]`` and mirrors the original
 
 from __future__ import annotations
 
+from pydantic import JsonValue
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
@@ -20,18 +21,18 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     get_graph_and_step,
 )
 from pathfinder.domain.strategy.ast import (
-    PlanStepNode,
     StepAnalysis,
     StepFilter,
     StepReport,
+    StrategyStepNode,
 )
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.platform.tool_errors import ToolErrorPayload
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 
 def _step_updated_return(
-    session: StrategySession, graph: StrategyGraph, step: PlanStepNode
+    session: StrategySession, graph: StrategyGraph, step: StrategyStepNode
 ) -> ToolReturn[StepOkResponse]:
     """Wrap an attachment-mutation success into a ToolReturn with chunks."""
     return ToolReturn(
@@ -46,12 +47,11 @@ def _step_updated_return(
         ],
     )
 
-
 async def add_step_filter(
     ctx: RunContext[AgentDeps],
     step_id: str,
     filter_name: str,
-    value: JSONValue,
+    value: JsonValue,
     *,
     disabled: bool = False,
     graph_id: str | None = None,
@@ -81,7 +81,6 @@ async def add_step_filter(
     step.filters = existing
 
     return _step_updated_return(session, graph, step)
-
 
 async def add_step_analysis(
     ctx: RunContext[AgentDeps],
@@ -121,7 +120,6 @@ async def add_step_analysis(
     )
 
     return _step_updated_return(session, graph, step)
-
 
 async def add_step_report(
     ctx: RunContext[AgentDeps],

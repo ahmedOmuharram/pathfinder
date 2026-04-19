@@ -2,19 +2,17 @@ import type {
   ConversationResponse,
   PlanArtifact,
   Strategy,
-  StrategyPlan,
+  StrategyAst,
 } from "@pathfinder/shared";
+import { conversationResponseSchema } from "@pathfinder/shared/generated/zod/conversationResponseSchema";
+import { openConversationResponseSchema } from "@pathfinder/shared/generated/zod/openConversationResponseSchema";
+import { stepCountsResponseSchema } from "@pathfinder/shared/generated/zod/stepCountsResponseSchema";
 import { queryOptions } from "@tanstack/react-query";
-import type { UIMessage } from "ai";
 import { z } from "zod";
 
-import {
-  OpenStrategyResponseSchema,
-  StepCountsResponseSchema,
-  StrategyListItemListSchema,
-  StrategySchema,
-} from "./schemas/strategy";
 import { APIError, requestJson, requestVoid } from "./http";
+
+const conversationListSchema = z.array(conversationResponseSchema);
 
 function withDefaults(
   s: Partial<Strategy> & {
@@ -41,26 +39,18 @@ const ConversationSummarySchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   recordType: z.string().nullable(),
+  parentConversationId: z.uuid().nullable().optional(),
+  parentMessageId: z.uuid().nullable().optional(),
 });
 
 export type ConversationSummary = z.infer<typeof ConversationSummarySchema>;
 
-const ConversationSummaryListSchema = z.array(ConversationSummarySchema);
-
-const ConversationDuplicateResponseSchema = z.object({
-  id: z.uuid(),
-  name: z.string(),
-});
-
-export type ConversationDuplicateResponse = z.infer<
-  typeof ConversationDuplicateResponseSchema
->;
 
 export async function listConversations(
   siteId?: string | null,
 ): Promise<ConversationSummary[]> {
   const raw = await requestJson(
-    StrategyListItemListSchema,
+    conversationListSchema,
     "/api/v1/conversations",
     siteId != null && siteId !== "" ? { query: { siteId } } : {},
   );
@@ -71,7 +61,7 @@ export async function listDismissedConversations(
   siteId?: string | null,
 ): Promise<ConversationSummary[]> {
   const raw = await requestJson(
-    StrategyListItemListSchema,
+    conversationListSchema,
     "/api/v1/conversations/dismissed",
     siteId != null && siteId !== "" ? { query: { siteId } } : {},
   );
@@ -83,7 +73,7 @@ export async function getConversation(
 ): Promise<Strategy | null> {
   try {
     const raw = await requestJson(
-      StrategySchema,
+      conversationResponseSchema,
       `/api/v1/conversations/${conversationId}`,
     );
     return withDefaults(raw as Parameters<typeof withDefaults>[0]);
@@ -116,38 +106,6 @@ export function dismissedConversationsOptions(siteId: string) {
   });
 }
 
-const UIMessagePartSchema = z.looseObject({
-  type: z.string(),
-});
-
-const PersistedUIMessageSchema = z.object({
-  id: z.string(),
-  role: z.enum(["system", "user", "assistant"]),
-  parts: z.array(UIMessagePartSchema),
-  metadata: z.unknown().optional(),
-});
-
-const PersistedMessageListSchema = z.array(PersistedUIMessageSchema);
-
-export async function listConversationMessages(
-  conversationId: string,
-): Promise<UIMessage[]> {
-  const rows = await requestJson(
-    PersistedMessageListSchema,
-    `/api/v1/conversations/${conversationId}/messages`,
-  );
-  return rows as unknown as UIMessage[];
-}
-
-export function conversationMessagesOptions(conversationId: string) {
-  return queryOptions({
-    queryKey: ["conversations", conversationId, "messages"] as const,
-    queryFn: () => listConversationMessages(conversationId),
-    staleTime: Infinity,
-    gcTime: Infinity,
-  });
-}
-
 export async function renameConversation(
   conversationId: string,
   name: string,
@@ -172,6 +130,28 @@ export async function setConversationSaved(
   return raw;
 }
 
+export async function setConversationSupervisorModel(
+  conversationId: string,
+  supervisorModelId: string | null,
+): Promise<void> {
+  await requestVoid(`/api/v1/conversations/${conversationId}`, {
+    method: "PATCH",
+    body: { supervisorModelId },
+  });
+}
+
+export async function forkConversation(
+  sourceConversationId: string,
+  fromMessageId: string,
+): Promise<ConversationSummary> {
+  const raw = await requestJson(
+    ConversationSummarySchema,
+    `/api/v1/conversations/${sourceConversationId}/fork`,
+    { method: "POST", body: { fromMessageId } },
+  );
+  return raw;
+}
+
 export async function dismissConversation(
   conversationId: string,
 ): Promise<void> {
@@ -190,31 +170,25 @@ export async function restoreConversation(
 
 export async function deleteConversation(
   conversationId: string,
-  deleteFromWdk?: boolean,
+  options: { deleteFromWdk?: boolean; cascade?: boolean } = {},
 ): Promise<void> {
+  const query: Record<string, string> = {};
+  if (options.deleteFromWdk === true) query["deleteFromWdk"] = "true";
+  if (options.cascade === true) query["cascade"] = "true";
   await requestVoid(
     `/api/v1/conversations/${conversationId}`,
-    deleteFromWdk === true
-      ? { method: "DELETE", query: { deleteFromWdk: "true" } }
+    Object.keys(query).length > 0
+      ? { method: "DELETE", query }
       : { method: "DELETE" },
   );
 }
 
-export async function duplicateConversation(
-  conversationId: string,
-): Promise<ConversationDuplicateResponse> {
-  return await requestJson(
-    ConversationDuplicateResponseSchema,
-    `/api/v1/conversations/${conversationId}/duplicate`,
-    { method: "POST" },
-  );
-}
 
 export async function syncWdkConversations(
   siteId: string,
 ): Promise<Strategy[]> {
   const raw = await requestJson(
-    StrategyListItemListSchema,
+    conversationListSchema,
     "/api/v1/conversations/sync-wdk",
     { method: "POST", query: { siteId } },
   );
@@ -227,19 +201,19 @@ export async function openConversation(payload: {
   wdkStrategyId?: number;
 }): Promise<{ conversationId: string }> {
   const raw = await requestJson(
-    OpenStrategyResponseSchema,
+    openConversationResponseSchema,
     "/api/v1/conversations/open",
     { method: "POST", body: payload },
   );
-  return raw as unknown as { conversationId: string };
+  return raw;
 }
 
 export async function createConversation(args: {
   name: string;
   siteId: string;
-  plan: StrategyPlan;
+  strategyAst: StrategyAst;
 }): Promise<Strategy> {
-  const raw = await requestJson(StrategySchema, "/api/v1/conversations", {
+  const raw = await requestJson(conversationResponseSchema, "/api/v1/conversations", {
     method: "POST",
     body: args,
   });
@@ -250,13 +224,13 @@ export async function updateConversation(
   conversationId: string,
   args: {
     name?: string;
-    plan?: StrategyPlan | PlanArtifact;
+    strategyAst?: StrategyAst | PlanArtifact;
     wdkStrategyId?: number | null;
     isSaved?: boolean;
   },
 ): Promise<Strategy> {
   const raw = await requestJson(
-    StrategySchema,
+    conversationResponseSchema,
     `/api/v1/conversations/${conversationId}`,
     { method: "PATCH", body: args },
   );
@@ -268,12 +242,12 @@ export async function pushConversation(
   args: {
     name: string;
     siteId: string;
-    plan: StrategyPlan;
+    strategyAst: StrategyAst;
     description?: string | null;
   },
 ): Promise<Strategy> {
   const raw = await requestJson(
-    StrategySchema,
+    conversationResponseSchema,
     `/api/v1/conversations/${conversationId}/push`,
     { method: "POST", body: args },
   );
@@ -282,42 +256,12 @@ export async function pushConversation(
 
 export async function computeStepCounts(
   siteId: string,
-  plan: StrategyPlan,
+  strategyAst: StrategyAst,
 ): Promise<{ counts: Record<string, number | null> }> {
   return await requestJson(
-    StepCountsResponseSchema,
+    stepCountsResponseSchema,
     "/api/v1/conversations/step-counts",
-    { method: "POST", body: { siteId, plan } },
-  );
-}
-
-export interface UndoTurnResponse {
-  messageCount: number;
-  strategy: Record<string, unknown> | null;
-  wdkStrategyId: number | null;
-}
-
-const UndoTurnResponseSchema = z.object({
-  messageCount: z.number(),
-  strategy: z.record(z.string(), z.unknown()).nullable(),
-  wdkStrategyId: z.number().nullable(),
-});
-
-export async function undoTurn(
-  streamId: string,
-  entryId: string,
-  traceId?: string | null,
-): Promise<UndoTurnResponse> {
-  return await requestJson(
-    UndoTurnResponseSchema,
-    `/api/v1/chat/${streamId}/undo`,
-    {
-      method: "POST",
-      body: {
-        entryId,
-        ...(traceId != null && traceId !== "" ? { traceId } : {}),
-      },
-    },
+    { method: "POST", body: { siteId, strategyAst } },
   );
 }
 

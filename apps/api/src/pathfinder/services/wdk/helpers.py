@@ -7,12 +7,14 @@ parameters. Previously duplicated across multiple router modules.
 
 from collections.abc import Sequence
 
+from pydantic import JsonValue
+
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKAttributeField,
     WDKRecordInstance,
 )
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -45,11 +47,9 @@ _SCORE_ATTRIBUTE_KEYWORDS = {
     "confidence",
 }
 
-
 # ---------------------------------------------------------------------------
 # Attribute classification
 # ---------------------------------------------------------------------------
-
 
 def is_sortable(attr_type: str | None) -> bool:
     """Return ``True`` if a WDK attribute type supports numeric sorting."""
@@ -57,17 +57,14 @@ def is_sortable(attr_type: str | None) -> bool:
         return False
     return attr_type.lower() in _SORTABLE_WDK_TYPES
 
-
 def is_suggested_score(name: str) -> bool:
     """Heuristic: flag well-known score attributes as suggested for ranking."""
     lower = name.lower()
     return any(kw in lower for kw in _SCORE_ATTRIBUTE_KEYWORDS)
 
-
 # ---------------------------------------------------------------------------
 # Primary key extraction
 # ---------------------------------------------------------------------------
-
 
 def extract_pk(record: WDKRecordInstance) -> str | None:
     """Extract primary key string from a WDK record.
@@ -80,7 +77,6 @@ def extract_pk(record: WDKRecordInstance) -> str | None:
     first = record.id[0]
     val = first.get("value", "")
     return val.strip() or None
-
 
 def extract_record_ids(
     records: list[WDKRecordInstance],
@@ -105,11 +101,9 @@ def extract_record_ids(
             ids.append(extracted)
     return ids
 
-
 # ---------------------------------------------------------------------------
 # Primary key ordering
 # ---------------------------------------------------------------------------
-
 
 def order_primary_key(
     pk_parts: list[dict[str, str]],
@@ -136,19 +130,17 @@ def order_primary_key(
         ordered.append({"name": col, "value": value})
     return ordered
 
-
 # ---------------------------------------------------------------------------
 # Attribute list building
 # ---------------------------------------------------------------------------
 
-
-def build_attribute_list(attrs: list[WDKAttributeField]) -> list[JSONValue]:
+def build_attribute_list(attrs: list[WDKAttributeField]) -> list[JsonValue]:
     """Build a normalized attribute list from WDK attribute fields.
 
     Each entry includes: ``name``, ``displayName``, ``help``, ``type``,
     ``isDisplayable``, ``isSortable``, ``isSuggested``.
     """
-    attributes: list[JSONValue] = []
+    attributes: list[JsonValue] = []
     for field in attrs:
         sortable = is_sortable(field.type)
         attributes.append(
@@ -164,11 +156,9 @@ def build_attribute_list(attrs: list[WDKAttributeField]) -> list[JSONValue]:
         )
     return attributes
 
-
 # ---------------------------------------------------------------------------
 # Detail attribute extraction
 # ---------------------------------------------------------------------------
-
 
 def extract_detail_attributes(
     attrs: list[WDKAttributeField],
@@ -190,11 +180,9 @@ def extract_detail_attributes(
             break
     return names, display_names
 
-
 # ---------------------------------------------------------------------------
 # Analysis parameter merging
 # ---------------------------------------------------------------------------
-
 
 def merge_analysis_params(
     wdk_params: Sequence[WDKParameter],

@@ -4,7 +4,7 @@
 
 import type { Step } from "@pathfinder/shared";
 import type { StateCreator } from "zustand";
-import { serializeStrategyPlan, isFallbackDisplayName } from "@/lib/strategyGraph";
+import { serializeStrategyAst, isFallbackDisplayName } from "@/lib/strategyGraph";
 import type { DevtoolsMutators } from "@/state/middleware";
 import type { StrategyState, DraftSlice } from "./types";
 import { buildStrategy } from "./helpers";
@@ -61,11 +61,11 @@ function syncLifecycleForSteps(
  */
 function preserveDisplayName(existing: Step, incoming: Step, merged: Step): Step {
   const existingName = existing.displayName;
-  if (!existingName) return merged;
+  if (existingName == null || existingName === "") return merged;
 
   const incomingName = incoming.displayName;
   const keepExisting =
-    !incomingName ||
+    incomingName == null || incomingName === "" ||
     !isFallbackDisplayName(existingName, existing) ||
     isFallbackDisplayName(incomingName, incoming);
 
@@ -77,11 +77,14 @@ function preserveDisplayName(existing: Step, incoming: Step, merged: Step): Step
 
 /** Ensure a step always has a displayName. */
 function ensureDisplayName(step: Step, existing: Step | undefined): Step {
-  if (step.displayName) return step;
-  return {
-    ...step,
-    displayName: existing?.displayName ?? step.searchName ?? "Untitled step",
-  };
+  if (step.displayName != null && step.displayName !== "") return step;
+  const existingName = existing?.displayName;
+  const fallbackName = existingName != null && existingName !== ""
+    ? existingName
+    : step.searchName != null && step.searchName !== ""
+      ? step.searchName
+      : "Untitled step";
+  return { ...step, displayName: fallbackName };
 }
 
 // ---------------------------------------------------------------------------
@@ -177,7 +180,7 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
     }
     set((state) => {
       const existingSteps = state.stepsById;
-      const incomingSteps = strategy.steps ?? [];
+      const incomingSteps = strategy.steps;
       const mergedSteps = incomingSteps.map((step) => {
         const existing = existingSteps[step.id];
         if (!existing) return step;
@@ -185,6 +188,8 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
         let nextStep = step;
         const existingName = existing.displayName;
         const incomingName = step.displayName;
+        const hasExisting = existingName != null && existingName !== "";
+        const hasIncoming = incomingName != null && incomingName !== "";
 
         if (
           (nextStep.recordType === null || nextStep.recordType === undefined) &&
@@ -193,13 +198,17 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
         ) {
           nextStep = { ...nextStep, recordType: existing.recordType };
         }
-        if (!incomingName && existingName) {
+        if (!hasIncoming && hasExisting) {
           return { ...nextStep, displayName: existingName };
         }
-        if (existingName && !isFallbackDisplayName(existingName, existing)) {
+        if (hasExisting && !isFallbackDisplayName(existingName, existing)) {
           return { ...nextStep, displayName: existingName };
         }
-        if (incomingName && isFallbackDisplayName(incomingName, step) && existingName) {
+        if (
+          hasIncoming
+          && isFallbackDisplayName(incomingName, step)
+          && hasExisting
+        ) {
           return { ...nextStep, displayName: existingName };
         }
         return nextStep;
@@ -257,7 +266,7 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
 
   buildPlan: () => {
     const state = get();
-    return serializeStrategyPlan(state.stepsById, state.strategy);
+    return serializeStrategyAst(state.stepsById, state.strategy);
   },
 
   clear: () => {

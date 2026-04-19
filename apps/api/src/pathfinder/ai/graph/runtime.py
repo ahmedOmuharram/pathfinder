@@ -72,6 +72,7 @@ class AgentDeps(BaseModel):
     memory_store: SkipValidation[AsyncPostgresStore] | None = None
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
     conversation_id: UUID | None = None
+    db_session_factory: SkipValidation[DBSessionFactory] | None = None
 
 
 def build_node_deps(
@@ -98,6 +99,7 @@ def build_node_deps(
         memory_store=context.memory_store,
         retrieved_memories=memories or [],
         conversation_id=state.conversation_id,
+        db_session_factory=context.db_session_factory,
     )
 
 

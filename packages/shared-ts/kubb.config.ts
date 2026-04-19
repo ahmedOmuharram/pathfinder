@@ -8,9 +8,6 @@ export default defineConfig({
   root: ".",
   input: { path: "../spec/openapi.json" },
   output: { path: "./src/generated", clean: true },
-  hooks: {
-    done: ["node ./scripts/post-generate.mjs"],
-  },
   plugins: [
     pluginOas({ validate: true, generators: [] }),
     pluginTs({

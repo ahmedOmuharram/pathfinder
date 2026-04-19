@@ -14,7 +14,7 @@ from pathfinder.ai.agents._hooks import (
 )
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, PlanStepNode
+from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.services.strategies.sync_state import WDKSyncState
@@ -228,7 +228,7 @@ class TestSlimGraphResult:
     def test_slim_leaf_step(self) -> None:
         """Leaf step with search_name and display_name produces a slim one-liner."""
         graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
-        step = PlanStepNode(
+        step = StrategyStepNode(
             search_name="GenesByTaxon",
             display_name="P. falciparum genes",
             parameters={"organism": "Plasmodium falciparum 3D7"},
@@ -256,13 +256,13 @@ class TestSlimGraphResult:
         """Combine step with operator and two inputs."""
         graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
 
-        step_a = PlanStepNode(search_name="GenesByTaxon", display_name="A")
+        step_a = StrategyStepNode(search_name="GenesByTaxon", display_name="A")
         graph.add_step(step_a)
 
-        step_b = PlanStepNode(search_name="GenesByGoTerm", display_name="B")
+        step_b = StrategyStepNode(search_name="GenesByGoTerm", display_name="B")
         graph.add_step(step_b)
 
-        combine_step = PlanStepNode(
+        combine_step = StrategyStepNode(
             search_name=COMBINE_SEARCH_NAME,
             display_name="A intersect B",
             primary_input=step_a,
@@ -295,10 +295,10 @@ class TestSlimGraphResult:
         """Transform step with only primary input."""
         graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
 
-        base_step = PlanStepNode(search_name="GenesByTaxon", display_name="Base")
+        base_step = StrategyStepNode(search_name="GenesByTaxon", display_name="Base")
         graph.add_step(base_step)
 
-        transform = PlanStepNode(
+        transform = StrategyStepNode(
             search_name="GenesByOrthologPattern",
             display_name="Orthologs",
             primary_input=base_step,
@@ -353,7 +353,7 @@ class TestSlimGraphResult:
     def test_slim_step_without_count_omits_gene_count(self) -> None:
         """When sync_state has no entry for the step, the slim omits gene count."""
         graph = StrategyGraph(graph_id="g1", name="Test", site_id="plasmodb")
-        step = PlanStepNode(
+        step = StrategyStepNode(
             search_name="GenesByTaxon",
             display_name="Test Step",
         )

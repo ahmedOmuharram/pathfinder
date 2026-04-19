@@ -1,6 +1,6 @@
 """Analysis, step-filter, and report endpoint methods for VEuPathDBClient."""
 
-from pydantic import TypeAdapter
+from pydantic import JsonValue, TypeAdapter
 
 from pathfinder.integrations.veupathdb._helpers import _validate_list
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -14,7 +14,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.errors import validate_response
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -23,7 +23,6 @@ _ANALYSIS_CONFIG_ADAPTER: TypeAdapter[WDKStepAnalysisConfig] = TypeAdapter(
     WDKStepAnalysisConfig
 )
 
-
 class AnalysisEndpoints:
     """Mixin providing analysis, step-filter, and report WDK endpoints.
 
@@ -31,7 +30,7 @@ class AnalysisEndpoints:
     ``get``, ``post``, and ``put`` methods.
     """
 
-    async def get(self, path: str, params: JSONObject | None = None) -> JSONValue:
+    async def get(self, path: str, params: JSONObject | None = None) -> JsonValue:
         """Provided by HTTPClient at runtime."""
         raise NotImplementedError  # pragma: no cover
 
@@ -40,11 +39,11 @@ class AnalysisEndpoints:
         path: str,
         json: object = None,
         params: JSONObject | None = None,
-    ) -> JSONValue:
+    ) -> JsonValue:
         """Provided by HTTPClient at runtime."""
         raise NotImplementedError  # pragma: no cover
 
-    async def put(self, path: str, json: object = None) -> JSONValue:
+    async def put(self, path: str, json: object = None) -> JsonValue:
         """Provided by HTTPClient at runtime."""
         raise NotImplementedError  # pragma: no cover
 
@@ -66,7 +65,7 @@ class AnalysisEndpoints:
 
     async def update_step_view_filters(
         self, user_id: str, step_id: int, filters: list[WDKFilterValue]
-    ) -> JSONValue:
+    ) -> JsonValue:
         """Update a step's viewFilters via PUT on the search-config endpoint.
 
         WDK's JSON schemas don't expose ``viewFilters`` for direct
@@ -179,7 +178,7 @@ class AnalysisEndpoints:
         step_id: int,
         report_name: str,
         payload: JSONObject | None = None,
-    ) -> JSONValue:
+    ) -> JsonValue:
         """Run a report on a step."""
         return await self.post(
             f"/users/{user_id}/steps/{step_id}/reports/{report_name}",

@@ -117,7 +117,7 @@ function serializeConfig(config: ExperimentConfig): SerializedExperimentConfig {
   return {
     siteId: config.siteId,
     recordType: config.recordType,
-    mode: (config as SerializedExperimentConfig).mode ?? "single",
+    mode: (config as SerializedExperimentConfig).mode,
     searchName: config.searchName,
     parameters: config.parameters as StepParameters | undefined,
     positiveControls: config.positiveControls,

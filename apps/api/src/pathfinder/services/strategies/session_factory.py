@@ -3,8 +3,8 @@
 from shared_py.defaults import DEFAULT_STREAM_NAME
 
 from pathfinder.domain.strategy.ast import walk_step_tree
-from pathfinder.domain.strategy.plan_payload import PersistedStrategyGraph
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
+from pathfinder.domain.strategy.strategy_ast import PersistedStrategyGraph
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
@@ -20,10 +20,10 @@ def _restore_wdk_state(
     if persisted.wdk_strategy_id is not None:
         sync_state.wdk_strategy_id = persisted.wdk_strategy_id
 
-    if persisted.plan is None:
+    if persisted.strategy_ast is None:
         return sync_state
 
-    payload = persisted.plan
+    payload = persisted.strategy_ast
     if payload.wdk_step_ids:
         for sid, wdk_step_id in payload.wdk_step_ids.items():
             if sid in graph.steps:
@@ -53,8 +53,8 @@ def build_strategy_session(
         name = strategy_graph.name or DEFAULT_STREAM_NAME
 
         graph = StrategyGraph(graph_id, name, site_id)
-        if strategy_graph.plan is not None:
-            payload = strategy_graph.plan
+        if strategy_graph.strategy_ast is not None:
+            payload = strategy_graph.strategy_ast
             try:
                 graph.record_type = payload.record_type
                 graph.name = payload.name or name

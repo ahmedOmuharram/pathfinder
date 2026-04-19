@@ -1,11 +1,12 @@
 """Conversation request/response DTOs — unified chat + strategy shape."""
 
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from pathfinder.domain.strategy.plan_payload import StrategyPlanPayload
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.schemas import (
     StepResponse,
@@ -14,7 +15,7 @@ from pathfinder.services.strategies.schemas import (
 
 class StepCountsRequest(BaseModel):
     site_id: str = Field(alias="siteId")
-    plan: StrategyPlanPayload
+    strategy_ast: StrategyAst = Field(alias="strategyAst")
 
     model_config = {"populate_by_name": True}
 
@@ -51,6 +52,12 @@ class ConversationSummaryResponse(BaseModel):
     dismissed_at: datetime | None = Field(default=None, alias="dismissedAt")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
+    parent_conversation_id: UUID | None = Field(
+        default=None, alias="parentConversationId",
+    )
+    parent_message_id: UUID | None = Field(
+        default=None, alias="parentMessageId",
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -75,6 +82,19 @@ class ConversationResponse(BaseModel):
     gene_set_id: str | None = Field(default=None, alias="geneSetId")
     experiment_id: str | None = Field(default=None, alias="experimentId")
     dismissed_at: datetime | None = Field(default=None, alias="dismissedAt")
+    total_tokens: int = Field(default=0, alias="totalTokens")
+    total_cost_usd: Decimal = Field(
+        default_factory=lambda: Decimal(0), alias="totalCostUsd",
+    )
+    supervisor_model_id: str | None = Field(
+        default=None, alias="supervisorModelId",
+    )
+    parent_conversation_id: UUID | None = Field(
+        default=None, alias="parentConversationId",
+    )
+    parent_message_id: UUID | None = Field(
+        default=None, alias="parentMessageId",
+    )
 
     model_config = {"populate_by_name": True}
 
@@ -82,16 +102,17 @@ class ConversationResponse(BaseModel):
 class CreateConversationRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     site_id: str = Field(alias="siteId")
-    plan: StrategyPlanPayload
+    strategy_ast: StrategyAst = Field(alias="strategyAst")
 
     model_config = {"populate_by_name": True}
 
 
 class UpdateConversationRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    plan: StrategyPlanPayload | None = None
+    strategy_ast: StrategyAst | None = Field(default=None, alias="strategyAst")
     wdk_strategy_id: int | None = Field(default=None, alias="wdkStrategyId")
     is_saved: bool | None = Field(default=None, alias="isSaved")
+    supervisor_model_id: str | None = Field(default=None, alias="supervisorModelId")
 
     model_config = {"populate_by_name": True}
 
@@ -99,7 +120,7 @@ class UpdateConversationRequest(BaseModel):
 class PushConversationRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     site_id: str = Field(alias="siteId")
-    plan: StrategyPlanPayload
+    strategy_ast: StrategyAst = Field(alias="strategyAst")
     description: str | None = Field(default=None, max_length=2000)
 
     model_config = {"populate_by_name": True}
@@ -117,5 +138,11 @@ class ConversationPatchBody(BaseModel):
 class ConversationDuplicateResponse(BaseModel):
     id: UUID
     name: str
+
+    model_config = {"populate_by_name": True}
+
+
+class ForkConversationRequest(BaseModel):
+    from_message_id: UUID = Field(alias="fromMessageId")
 
     model_config = {"populate_by_name": True}

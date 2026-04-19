@@ -2,7 +2,7 @@
 
 import asyncio
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
@@ -32,7 +32,7 @@ logger = get_logger(__name__)
 
 async def evaluate_steps(
     ctx: ControlsContext,
-    tree: PlanStepNode,
+    tree: StrategyStepNode,
     progress_callback: ProgressCallback | None = None,
 ) -> list[StepEvaluation]:
     """Evaluate each leaf step against controls, preserving ancestor transforms.
@@ -41,7 +41,7 @@ async def evaluate_steps(
     (e.g. ``GenesByOrthologs``) so that cross-organism searches are
     converted before being compared against controls.
 
-    :param tree: Strategy tree as a :class:`PlanStepNode`.
+    :param tree: Strategy tree as a :class:`StrategyStepNode`.
     :returns: One :class:`StepEvaluation` per leaf.
     """
     leaves = _collect_leaves(tree)
@@ -51,7 +51,7 @@ async def evaluate_steps(
     results: list[StepEvaluation] = []
     sem = asyncio.Semaphore(3)
 
-    async def _eval_leaf(leaf: PlanStepNode, idx: int) -> StepEvaluation | None:
+    async def _eval_leaf(leaf: StrategyStepNode, idx: int) -> StepEvaluation | None:
         search_name = leaf.search_name
         if not search_name or search_name.startswith("__"):
             return None

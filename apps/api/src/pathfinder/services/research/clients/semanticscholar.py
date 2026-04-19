@@ -1,7 +1,7 @@
 """Semantic Scholar API client."""
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -11,7 +11,6 @@ from pathfinder.domain.research.citations import (
 from pathfinder.domain.research.papers import ParsedPaper, SemanticScholarRawPaper
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.errors import ExternalServiceError
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
@@ -23,15 +22,14 @@ class _S2Response(BaseModel):
     """Envelope for the Semantic Scholar ``/paper/search`` response."""
 
     model_config = ConfigDict(extra="ignore")
-    data: list[JSONValue] = Field(default_factory=list)
-
+    data: list[JsonValue] = Field(default_factory=list)
 
 class SemanticScholarClient(StandardClient):
     """Client for Semantic Scholar API."""
 
     _source_name = "semanticscholar"
 
-    async def _fetch_raw(self, query: str, *, limit: int) -> list[JSONValue]:
+    async def _fetch_raw(self, query: str, *, limit: int) -> list[JsonValue]:
         url = "https://api.semanticscholar.org/graph/v1/paper/search"
         params = {
             "query": query,
@@ -61,7 +59,7 @@ class SemanticScholarClient(StandardClient):
         return list(items)
 
     def _parse_item(
-        self, raw: JSONValue, *, abstract_max_chars: int
+        self, raw: JsonValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             parsed = SemanticScholarRawPaper.model_validate(raw).to_parsed_paper()

@@ -17,8 +17,9 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from langgraph.checkpoint.memory import InMemorySaver
@@ -122,7 +123,7 @@ def _supervisor_stub(
         }
 
     agent: Agent[Any, SupervisorDecision] = Agent(
-        FunctionModel(_fn, stream_function=_stream, model_name="mock/supervisor"),
+        FunctionModel(_fn, stream_function=_stream, model_name="mock:supervisor"),
         output_type=SupervisorDecision,
         instructions="pick one action",
         name="mock-supervisor",
@@ -157,14 +158,94 @@ def _chunk_types(events: list[dict[str, Any]]) -> list[str]:
     return out
 
 
-@pytest.mark.asyncio
-async def test_multi_turn_full_pipeline_with_questions_and_rejects(
-    db_cleaner: None,
-    patch_app_db_engine: None,
-) -> None:
-    del db_cleaner, patch_app_db_engine
+async def _seed_conversation(conversation_id: UUID, user_id: UUID) -> None:
+    async with async_session_factory() as session:
+        session.add(User(id=user_id))
+        await session.flush()
+        session.add(
+            Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""),
+        )
+        await session.commit()
 
-    phase_stubs = {
+
+def _make_context(user_id: UUID, memory_store: Any) -> Context:
+    return Context(
+        site_id="plasmodb",
+        user_id=user_id,
+        strategy_session=StrategySession(site_id="plasmodb"),
+        db_session_factory=async_session_factory,
+        web_search_service=WebSearchService(),
+        literature_search_service=LiteratureSearchService(),
+        cancel_event=asyncio.Event(),
+        memory_store=memory_store,
+    )
+
+
+def _assert_final_turn(state: dict[str, Any], captured_history_lens: list[int]) -> None:
+    assert captured_history_lens, "supervisor was never invoked"
+    assert captured_history_lens[-1] >= len(captured_history_lens) * 0
+    history_texts = [
+        "".join(p.content for p in m.parts if isinstance(p, TextPart))
+        for m in state["message_history"]
+        if isinstance(m, ModelResponse)
+    ]
+    joined = "\n".join(history_texts)
+    for needle in (
+        "F1 is the harmonic mean",
+        "PathFinder is for biological research only",
+        "Problem frame updated",
+        "Found candidate searches",
+        "842 genes",
+    ):
+        assert needle in joined
+    assert state["current_phase"] is None
+    assert any(
+        any(
+            isinstance(p, UserPromptPart) and p.content == "summarize what you did"
+            for p in m.parts
+        )
+        for m in state["message_history"]
+        if isinstance(m, ModelRequest)
+    )
+
+
+@dataclass
+class _Harness:
+    graph: Any
+    context: Context
+    config: dict[str, Any]
+    conversation_id: UUID
+    user_id: UUID
+
+    async def turn(
+        self, prompt: str, *, is_first: bool,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        if is_first:
+            initial = PipelineState(
+                conversation_id=self.conversation_id,
+                user_id=self.user_id,
+                site_id="plasmodb",
+                mode="strategy",
+                user_message_id=uuid4(),
+                user_prompt=prompt,
+                user_parts=[{"type": "text", "text": prompt}],
+                turn_trace_id=str(uuid4()),
+                turn_created_at="2026-04-17T00:00:00+00:00",
+            )
+            turn_input: dict[str, Any] = initial.model_dump()
+        else:
+            turn_input = _run_turn_input(prompt)
+        events = [
+            ev async for ev in self.graph.astream(
+                turn_input, config=self.config, context=self.context, stream_mode=["custom"],
+            )
+        ]
+        snap = await self.graph.aget_state(self.config)
+        return snap.values, events
+
+
+def _make_phase_stubs() -> dict[str, Agent[AgentDeps, str]]:
+    return {
         "scoping": _phase_text_agent(
             "scoping",
             [
@@ -196,7 +277,9 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
         ),
     }
 
-    decisions: list[SupervisorDecision] = [
+
+def _make_decisions() -> list[SupervisorDecision]:
+    return [
         SupervisorDecision(
             to="question", reason="greeting", answer="Hi! What would you like to research?",
         ),
@@ -226,32 +309,25 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
         ),
     ]
 
-    sup_agent, captured_history_lens = _supervisor_stub(decisions)
+
+@pytest.mark.asyncio
+async def test_multi_turn_full_pipeline_with_questions_and_rejects(
+    db_cleaner: None,
+    patch_app_db_engine: None,
+) -> None:
+    del db_cleaner, patch_app_db_engine
+
+    phase_stubs = _make_phase_stubs()
+    sup_agent, captured_history_lens = _supervisor_stub(_make_decisions())
 
     conversation_id = uuid4()
     user_id = uuid4()
     config = {"configurable": {"thread_id": str(conversation_id)}}
-
-    async with async_session_factory() as session:
-        session.add(User(id=user_id))
-        await session.flush()
-        session.add(
-            Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""),
-        )
-        await session.commit()
+    await _seed_conversation(conversation_id, user_id)
 
     settings = get_settings()
     async with lifespan_memory_store(settings.database_url) as memory_store:
-        context = Context(
-            site_id="plasmodb",
-            user_id=user_id,
-            strategy_session=StrategySession(site_id="plasmodb"),
-            db_session_factory=async_session_factory,
-            web_search_service=WebSearchService(),
-            literature_search_service=LiteratureSearchService(),
-            cancel_event=asyncio.Event(),
-            memory_store=memory_store,
-        )
+        context = _make_context(user_id, memory_store)
 
         with pytest.MonkeyPatch.context() as mp:
             mp.setattr(agents_module, "PHASE_AGENTS", phase_stubs)
@@ -259,44 +335,18 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
             mp.setattr(
                 nodes_module,
                 "build_supervisor_agent",
-                lambda provider=None: sup_agent,
+                lambda provider=None, *, model_id=None: sup_agent,
+            )
+            harness = _Harness(
+                graph=build_graph(checkpointer=InMemorySaver()),
+                context=context,
+                config=config,
+                conversation_id=conversation_id,
+                user_id=user_id,
             )
 
-            saver = InMemorySaver()
-            graph = build_graph(checkpointer=saver)
-
-            async def run_turn(
-                prompt: str, *, is_first: bool,
-            ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-                events: list[dict[str, Any]] = []
-                turn_input: dict[str, Any]
-                if is_first:
-                    initial = PipelineState(
-                        conversation_id=conversation_id,
-                        user_id=user_id,
-                        site_id="plasmodb",
-                        mode="strategy",
-                        user_message_id=uuid4(),
-                        user_prompt=prompt,
-                        user_parts=[{"type": "text", "text": prompt}],
-                        turn_trace_id=str(uuid4()),
-                        turn_created_at="2026-04-17T00:00:00+00:00",
-                    )
-                    turn_input = initial.model_dump()
-                else:
-                    turn_input = _run_turn_input(prompt)
-                async for ev in graph.astream(
-                    turn_input,
-                    config=config,
-                    context=context,
-                    stream_mode=["custom"],
-                ):
-                    events.append(ev)
-                snap = await graph.aget_state(config)
-                return snap.values, events
-
             # Turn 1: greeting → question
-            state_1, events_1 = await run_turn("hi", is_first=True)
+            state_1, events_1 = await harness.turn("hi", is_first=True)
             types_1 = _chunk_types([e[1] if isinstance(e, tuple) else e for e in events_1])
             assert "data-supervisor-decision" in types_1
             assert "data-turn-qa" in types_1
@@ -307,7 +357,7 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
             )
 
             # Turn 2: conceptual question → another question (prior history must persist)
-            state_2, events_2 = await run_turn(
+            state_2, events_2 = await harness.turn(
                 "what is F1?", is_first=False,
             )
             types_2 = _chunk_types([e[1] if isinstance(e, tuple) else e for e in events_2])
@@ -328,7 +378,7 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
             assert "what is F1?" in user_texts
 
             # Turn 3: off-topic → reject (history must still persist)
-            state_3, events_3 = await run_turn(
+            state_3, events_3 = await harness.turn(
                 "help me write python", is_first=False,
             )
             types_3 = _chunk_types([e[1] if isinstance(e, tuple) else e for e in events_3])
@@ -336,7 +386,7 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
             assert len(state_3["message_history"]) == 6
 
             # Turn 4: research goal → scoping runs → supervisor ends
-            state_4, events_4 = await run_turn(
+            state_4, events_4 = await harness.turn(
                 "find P. falciparum kinases in gametocytes", is_first=False,
             )
             types_4 = _chunk_types([e[1] if isinstance(e, tuple) else e for e in events_4])
@@ -351,7 +401,7 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
             assert state_4["current_phase"] == "scoping"
 
             # Turn 5: user answers → full pipeline progression
-            state_5, events_5 = await run_turn(
+            state_5, events_5 = await harness.turn(
                 "yes include both curated and computational",
                 is_first=False,
             )
@@ -364,36 +414,7 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
             assert state_5["current_phase"] == "verification"
 
             # Turn 6: follow-up question uses the whole conversation history
-            state_6, _ = await run_turn(
+            state_6, _ = await harness.turn(
                 "summarize what you did", is_first=False,
             )
-            types_6 = _chunk_types([])
-            del types_6
-            # Supervisor should have been given a substantial history by now
-            assert captured_history_lens, "supervisor was never invoked"
-            assert captured_history_lens[-1] >= len(captured_history_lens) * 0
-
-            # The last turn's supervisor call should see every prior phase's
-            # assistant text plus the user-supervisor exchanges.
-            history_texts_after_6 = [
-                "".join(p.content for p in m.parts if isinstance(p, TextPart))
-                for m in state_6["message_history"]
-                if isinstance(m, ModelResponse)
-            ]
-            joined = "\n".join(history_texts_after_6)
-            assert "F1 is the harmonic mean" in joined
-            assert "PathFinder is for biological research only" in joined
-            assert "Problem frame updated" in joined
-            assert "Found candidate searches" in joined
-            assert "842 genes" in joined
-
-            assert state_6["current_phase"] is None
-            assert any(
-                any(
-                    isinstance(p, UserPromptPart)
-                    and p.content == "summarize what you did"
-                    for p in m.parts
-                )
-                for m in state_6["message_history"]
-                if isinstance(m, ModelRequest)
-            )
+            _assert_final_turn(state_6, captured_history_lens)

@@ -2,16 +2,15 @@
 
 import contextlib
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from pathfinder.platform.errors import WDKError
-from pathfinder.platform.types import JSONValue
 
 
-def _validate_list[T](raw: JSONValue, adapter: TypeAdapter[T]) -> list[T]:
+def _validate_list[T](raw: JsonValue, adapter: TypeAdapter[T]) -> list[T]:
     """Validate a JSON array into a typed list, skipping invalid items.
 
-    Single ``isinstance(raw, list)`` guard is unavoidable since ``JSONValue``
+    Single ``isinstance(raw, list)`` guard is unavoidable since ``JsonValue``
     is a union.  Invalid items are silently skipped so one bad WDK entry
     does not crash the entire list.
     """

@@ -1,7 +1,7 @@
 """Europe PMC API client."""
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from pathfinder.domain.research.citations import (
     Citation,
@@ -10,7 +10,6 @@ from pathfinder.domain.research.citations import (
 )
 from pathfinder.domain.research.papers import EuropePmcRawResult, ParsedPaper
 from pathfinder.platform.errors import ExternalServiceError
-from pathfinder.platform.types import JSONValue
 from pathfinder.services.research.clients._base import (
     API_USER_AGENT,
     StandardClient,
@@ -22,8 +21,7 @@ class _EpmcResultList(BaseModel):
     """Inner ``resultList`` envelope in an Europe PMC response."""
 
     model_config = ConfigDict(extra="ignore")
-    result: list[JSONValue] = Field(default_factory=list)
-
+    result: list[JsonValue] = Field(default_factory=list)
 
 class _EpmcResponse(BaseModel):
     """Top-level envelope for the Europe PMC search response."""
@@ -33,13 +31,12 @@ class _EpmcResponse(BaseModel):
         alias="resultList", default_factory=_EpmcResultList
     )
 
-
 class EuropePmcClient(StandardClient):
     """Client for Europe PMC API."""
 
     _source_name = "europepmc"
 
-    async def _fetch_raw(self, query: str, *, limit: int) -> list[JSONValue]:
+    async def _fetch_raw(self, query: str, *, limit: int) -> list[JsonValue]:
         url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
         params = {
             "query": query,
@@ -65,7 +62,7 @@ class EuropePmcClient(StandardClient):
         return list(hits)
 
     def _parse_item(
-        self, raw: JSONValue, *, abstract_max_chars: int
+        self, raw: JsonValue, *, abstract_max_chars: int
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             parsed = EuropePmcRawResult.model_validate(raw).to_parsed_paper()

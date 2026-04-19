@@ -3,7 +3,6 @@ from __future__ import annotations
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import Thinking
 from pydantic_ai.tools import RunContext
-from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
@@ -14,6 +13,7 @@ from pathfinder.ai.agents._instructions import (
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.state import PhaseOutcome
 from pathfinder.ai.tools.toolsets.scoping import build_toolset
 
 _SCOPING_INSTRUCTIONS = """\
@@ -43,31 +43,38 @@ editing or extending an existing strategy.
 your turn — it captures the authoritative problem statement that downstream \
 phases read.
 
-## Output
+## Output — the PhaseOutcome contract
 
-End your turn with concise prose describing what you did (assumptions, \
-blocking questions, or the framed problem statement). A supervisor will read \
-your prose and decide whether to continue to discovery, skip straight to \
-planning, or end the turn to wait for the user. You do not route; you write.
+You return exactly one ``PhaseOutcome`` object. Four fields, each for a \
+distinct audience:
 
-NEVER skip the prose. A reply that is only tool calls with no visible text \
-is a failure — the user sees a blank assistant message.
+- ``prose`` (required, user-facing): the assistant message rendered in \
+the chat thread. Write it as if you are addressing the user directly. \
+Include your framing, assumptions, and any clarifying questions. This IS \
+what the user sees — make it clear and complete. Do not skip it.
+- ``reason`` (required, short): one sentence explaining your routing \
+choice. Shown on the orchestrator card.
+- ``disposition``: pick ``awaiting_user`` when your ``prose`` asked the \
+user blocking clarifying questions — the pipeline will halt and wait for \
+their reply. Pick ``handoff`` when the problem frame is clear enough to \
+proceed.
+- ``handoff_to`` (optional): only meaningful for ``handoff`` — hint the \
+next phase (usually ``discovery``, occasionally ``planning``).
 
 ## Boundaries
 
 - Do NOT use WDK catalog searches, WDK parameter tools, strategy-editing \
 tools, or plan tools in this phase.
 - Do NOT create, submit, approve, or execute a plan.
-- If the request is clear enough, state the problem frame and let the \
-supervisor advance.
-- If it is not clear enough, ask the blocking questions in your prose. The \
-supervisor will end the turn and the user's next reply will re-enter scoping \
-with the saved frame.
+- If the request is clear enough, state the problem frame and pick \
+``handoff``.
+- If it is not clear enough, ask the blocking questions in your prose and \
+pick ``awaiting_user``.
 """
 
-scoping_agent: Agent[AgentDeps, str] = Agent(
+scoping_agent: Agent[AgentDeps, PhaseOutcome] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=str,
+    output_type=PhaseOutcome,
     deps_type=AgentDeps,
     instructions=_SCOPING_INSTRUCTIONS,
     toolsets=[build_toolset()],
@@ -99,7 +106,3 @@ def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_user_memories(ctx)
 
 
-SCOPING_USAGE_LIMITS = UsageLimits(
-    request_limit=25,
-    total_tokens_limit=250_000,
-)

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKDatasetConfigIdList,
@@ -103,7 +103,7 @@ async def build_gold_strategy(
 
     await _provision_datasets(api, step_tree, dataset_gene_ids)
 
-    tree_node = PlanStepNode.model_validate(step_tree)
+    tree_node = StrategyStepNode.model_validate(step_tree)
     root_tree = await _materialize_step_tree(
         api, tree_node, record_type, site_id=site_id
     )

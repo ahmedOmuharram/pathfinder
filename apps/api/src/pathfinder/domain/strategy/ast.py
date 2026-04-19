@@ -2,21 +2,19 @@
 
 from uuid import uuid4
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import Field, JsonValue, ValidationError, model_validator
 
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
 from pathfinder.domain.strategy.types import SerializedParams
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 # Sentinel search names for non-search nodes in the step graph.
 COMBINE_SEARCH_NAME = "__combine__"
 
-
 def generate_step_id() -> str:
     """Generate a unique step ID."""
     return f"step_{uuid4().hex[:8]}"
-
 
 class StepFilter(CamelModel):
     """Filter applied to a step's result.
@@ -25,12 +23,12 @@ class StepFilter(CamelModel):
     """
 
     name: str
-    value: JSONValue = None
+    value: JsonValue = None
     disabled: bool = False
 
     @model_validator(mode="before")
     @classmethod
-    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+    def _coerce(cls, data: JsonValue) -> dict[str, JsonValue]:
         if not isinstance(data, dict):
             msg = "StepFilter requires a dict"
             raise TypeError(msg)
@@ -53,7 +51,6 @@ class StepFilter(CamelModel):
                 continue
         return result
 
-
 class StepAnalysis(CamelModel):
     """Analysis configuration for a step.
 
@@ -66,11 +63,11 @@ class StepAnalysis(CamelModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+    def _coerce(cls, data: JsonValue) -> dict[str, JsonValue]:
         if not isinstance(data, dict):
             msg = "StepAnalysis requires a dict"
             raise TypeError(msg)
-        result: dict[str, JSONValue] = dict(data)
+        result: dict[str, JsonValue] = dict(data)
         # Accept both camelCase alias and snake_case field name
         at = result.get("analysisType") or result.get("analysis_type")
         if not isinstance(at, str) or not at:
@@ -99,7 +96,6 @@ class StepAnalysis(CamelModel):
                 continue
         return result
 
-
 class StepReport(CamelModel):
     """Report request attached to a step.
 
@@ -111,11 +107,11 @@ class StepReport(CamelModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _coerce(cls, data: JSONValue) -> dict[str, JSONValue]:
+    def _coerce(cls, data: JsonValue) -> dict[str, JsonValue]:
         if not isinstance(data, dict):
             msg = "StepReport requires a dict"
             raise TypeError(msg)
-        result: dict[str, JSONValue] = dict(data)
+        result: dict[str, JsonValue] = dict(data)
         # Coerce non-dict config to empty dict
         if not isinstance(result.get("config"), dict):
             result["config"] = {}
@@ -134,8 +130,7 @@ class StepReport(CamelModel):
                 continue
         return result
 
-
-class PlanStepNode(CamelModel):
+class StrategyStepNode(CamelModel):
     """Recursive strategy node.
 
     Kind is inferred from structure:
@@ -151,7 +146,7 @@ class PlanStepNode(CamelModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _default_combine_search_name(cls, data: JSONValue) -> JSONValue:
+    def _default_combine_search_name(cls, data: JsonValue) -> JsonValue:
         """Inject ``__combine__`` for combine nodes missing ``searchName``."""
         if not isinstance(data, dict):
             return data
@@ -166,8 +161,8 @@ class PlanStepNode(CamelModel):
     search_name: str
     parameters: SerializedParams = Field(default_factory=dict)
 
-    primary_input: PlanStepNode | None = None
-    secondary_input: PlanStepNode | None = None
+    primary_input: StrategyStepNode | None = None
+    secondary_input: StrategyStepNode | None = None
     operator: CombineOp | None = None
     colocation_params: ColocationParams | None = None
     display_name: str | None = None
@@ -178,7 +173,7 @@ class PlanStepNode(CamelModel):
     id: str = Field(default_factory=generate_step_id)
 
     @model_validator(mode="after")
-    def _validate_structure(self) -> PlanStepNode:
+    def _validate_structure(self) -> StrategyStepNode:
         if self.secondary_input is not None and self.primary_input is None:
             msg = "secondaryInput requires primaryInput"
             raise ValueError(msg)
@@ -202,16 +197,15 @@ class PlanStepNode(CamelModel):
             return "transform"
         return "search"
 
-
-def walk_step_tree(root: PlanStepNode) -> list[PlanStepNode]:
-    """Depth-first traversal of a PlanStepNode tree.
+def walk_step_tree(root: StrategyStepNode) -> list[StrategyStepNode]:
+    """Depth-first traversal of a StrategyStepNode tree.
 
     Visits primary_input before secondary_input, appends current node last.
     Visits primary_input before secondary_input, appends current node last.
     """
-    steps: list[PlanStepNode] = []
+    steps: list[StrategyStepNode] = []
 
-    def visit(node: PlanStepNode) -> None:
+    def visit(node: StrategyStepNode) -> None:
         if node.primary_input is not None:
             visit(node.primary_input)
         if node.secondary_input is not None:

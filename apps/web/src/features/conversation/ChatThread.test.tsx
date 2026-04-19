@@ -14,7 +14,7 @@ describe("ChatThread", () => {
       http.post("http://localhost:3000/api/v1/chat", () => new Response(null)),
     );
 
-    render(<ChatThread chatId="c1" />);
+    render(<ChatThread conversationId="c1" />);
 
     expect(screen.getByPlaceholderText(/ask about strategies/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /send/i })).toBeInTheDocument();

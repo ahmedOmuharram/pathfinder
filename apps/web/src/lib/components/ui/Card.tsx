@@ -1,7 +1,7 @@
-import * as React from "react";
+import type { HTMLAttributes, Ref } from "react";
 import { cn } from "@/lib/utils/cn";
 
-function Card({ className, ref, ...props }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDivElement> }) {
+function Card({ className, ref, ...props }: HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivElement> }) {
   return (
     <div
       ref={ref}

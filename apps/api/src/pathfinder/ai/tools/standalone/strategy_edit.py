@@ -32,7 +32,7 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     validation_error_payload,
 )
 from pathfinder.domain.search import SearchContext
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SerializedParams
@@ -81,7 +81,7 @@ def _make_callbacks(site_id: str) -> ValidationCallbacks:
 async def _validate_and_set_params(
     site_id: str,
     graph: StrategyGraph,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     parameters: JSONObject,
 ) -> ToolErrorPayload | None:
     """Validate and set parameters on a step. Returns error or None."""
@@ -105,7 +105,7 @@ async def _validate_and_set_params(
 
 
 def _validate_and_set_operator(
-    step: PlanStepNode,
+    step: StrategyStepNode,
     step_id: str,
     operator: str,
 ) -> ToolErrorPayload | None:
@@ -131,7 +131,7 @@ async def _apply_step_updates(
     site_id: str,
     graph: StrategyGraph,
     sync_state: WDKSyncState,
-    step: PlanStepNode,
+    step: StrategyStepNode,
     search_name: str | None,
     parameters: Mapping[str, str] | JSONObject | None,
     operator: str | None,
@@ -199,13 +199,13 @@ def _get_plan_step(
     session: StrategySession,
     graph_id: str | None,
     step_id: str,
-) -> tuple[StrategyGraph, PlanStepNode] | ToolErrorPayload:
-    """Resolve graph + step and assert step is a PlanStepNode."""
+) -> tuple[StrategyGraph, StrategyStepNode] | ToolErrorPayload:
+    """Resolve graph + step and assert step is a StrategyStepNode."""
     result = get_graph_and_step(session, graph_id, step_id)
     if isinstance(result, ToolErrorPayload):
         return result
     graph, step = result
-    if not isinstance(step, PlanStepNode):
+    if not isinstance(step, StrategyStepNode):
         return tool_error(
             ErrorCode.VALIDATION_ERROR,
             "Unsupported step object.",

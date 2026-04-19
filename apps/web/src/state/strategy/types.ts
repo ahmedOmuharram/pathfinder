@@ -7,7 +7,7 @@ import type {
   GraphSnapshot,
   StrategyMeta,
   StrategyPatch,
-  StrategyPlan,
+  StrategyAst,
   Step,
   Strategy,
 } from "@pathfinder/shared";
@@ -37,7 +37,7 @@ export interface DraftSlice {
   ) => void;
   setStrategyMeta: (updates: Partial<Strategy>) => void;
   buildPlan: () => {
-    plan: StrategyPlan;
+    plan: StrategyAst;
     name: string;
     recordType: string | null;
   } | null;

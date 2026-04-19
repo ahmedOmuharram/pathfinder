@@ -791,23 +791,25 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - APIKeyCookie: []
-  /api/v1/conversations/plan/normalize:
+  /api/v1/conversations/strategy-ast/normalize:
     post:
       tags:
       - conversations
-      summary: Normalize Plan
-      description: 'Normalize/coerce plan parameters using backend-owned rules.
+      summary: Normalize Strategy Ast
+      description: 'Normalize/coerce strategy AST parameters using backend-owned rules.
 
 
-        This endpoint exists so the frontend can be a consumer of backend canonicalization
+        This endpoint exists so the frontend can be a consumer of backend
 
-        (and avoid re-implementing CSV/JSON parsing and WDK quirks).'
-      operationId: normalize_plan_api_v1_conversations_plan_normalize_post
+        canonicalization (and avoid re-implementing CSV/JSON parsing and WDK
+
+        quirks).'
+      operationId: normalize_strategy_ast_api_v1_conversations_strategy_ast_normalize_post
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PlanNormalizeRequest'
+              $ref: '#/components/schemas/StrategyAstNormalizeRequest'
         required: true
       responses:
         '200':
@@ -815,7 +817,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlanNormalizeResponse'
+                $ref: '#/components/schemas/StrategyAstNormalizeResponse'
         '422':
           description: Validation Error
           content:
@@ -4139,13 +4141,13 @@ components:
         siteId:
           type: string
           title: Siteid
-        plan:
-          $ref: '#/components/schemas/StrategyPlanPayload-Input'
+        strategyAst:
+          $ref: '#/components/schemas/StrategyAst-Input'
       type: object
       required:
       - name
       - siteId
-      - plan
+      - strategyAst
       title: CreateConversationRequest
     CreateExperimentRequest:
       properties:
@@ -7367,184 +7369,6 @@ components:
       - rationale
       title: PlanArtifact
       description: A proposed plan (not yet applied).
-    PlanNormalizeRequest:
-      properties:
-        siteId:
-          type: string
-          title: Siteid
-        plan:
-          $ref: '#/components/schemas/StrategyPlanPayload-Input'
-      type: object
-      required:
-      - siteId
-      - plan
-      title: PlanNormalizeRequest
-    PlanNormalizeResponse:
-      properties:
-        plan:
-          $ref: '#/components/schemas/StrategyPlanPayload-Output'
-        warnings:
-          anyOf:
-          - $ref: '#/components/schemas/JSONArray'
-          - type: 'null'
-      type: object
-      required:
-      - plan
-      title: PlanNormalizeResponse
-    PlanStepNode-Input:
-      properties:
-        searchName:
-          type: string
-          title: Searchname
-        parameters:
-          additionalProperties:
-            type: string
-          type: object
-          title: Parameters
-        primaryInput:
-          anyOf:
-          - $ref: '#/components/schemas/PlanStepNode-Input'
-          - type: 'null'
-        secondaryInput:
-          anyOf:
-          - $ref: '#/components/schemas/PlanStepNode-Input'
-          - type: 'null'
-        operator:
-          anyOf:
-          - $ref: '#/components/schemas/CombineOp'
-          - type: 'null'
-        colocationParams:
-          anyOf:
-          - $ref: '#/components/schemas/ColocationParams'
-          - type: 'null'
-        displayName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Displayname
-        filters:
-          items:
-            $ref: '#/components/schemas/StepFilter'
-          type: array
-          title: Filters
-        analyses:
-          items:
-            $ref: '#/components/schemas/StepAnalysis-Input'
-          type: array
-          title: Analyses
-        reports:
-          items:
-            $ref: '#/components/schemas/StepReport-Input'
-          type: array
-          title: Reports
-        wdkWeight:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Wdkweight
-        id:
-          type: string
-          title: Id
-      type: object
-      required:
-      - searchName
-      title: PlanStepNode
-      description: 'Recursive strategy node.
-
-
-        Kind is inferred from structure:
-
-        - combine: primary_input and secondary_input
-
-        - transform: primary_input only
-
-        - search: no inputs
-
-
-        ``parameters`` accepts ``JSONObject`` (LLM''s natural output).
-
-        ``SerializedParams`` coerces each value to ``str`` via Pydantic
-
-        validation, producing WDK-compatible ``dict[str, str]``
-
-        (``Record<string, ParameterValue>``).'
-    PlanStepNode-Output:
-      properties:
-        searchName:
-          type: string
-          title: Searchname
-        parameters:
-          additionalProperties:
-            type: string
-          type: object
-          title: Parameters
-        primaryInput:
-          anyOf:
-          - $ref: '#/components/schemas/PlanStepNode-Output'
-          - type: 'null'
-        secondaryInput:
-          anyOf:
-          - $ref: '#/components/schemas/PlanStepNode-Output'
-          - type: 'null'
-        operator:
-          anyOf:
-          - $ref: '#/components/schemas/CombineOp'
-          - type: 'null'
-        colocationParams:
-          anyOf:
-          - $ref: '#/components/schemas/ColocationParams'
-          - type: 'null'
-        displayName:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Displayname
-        filters:
-          items:
-            $ref: '#/components/schemas/StepFilter'
-          type: array
-          title: Filters
-        analyses:
-          items:
-            $ref: '#/components/schemas/StepAnalysis-Output'
-          type: array
-          title: Analyses
-        reports:
-          items:
-            $ref: '#/components/schemas/StepReport-Output'
-          type: array
-          title: Reports
-        wdkWeight:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Wdkweight
-        id:
-          type: string
-          title: Id
-      type: object
-      required:
-      - searchName
-      title: PlanStepNode
-      description: 'Recursive strategy node.
-
-
-        Kind is inferred from structure:
-
-        - combine: primary_input and secondary_input
-
-        - transform: primary_input only
-
-        - search: no inputs
-
-
-        ``parameters`` accepts ``JSONObject`` (LLM''s natural output).
-
-        ``SerializedParams`` coerces each value to ``str`` via Pydantic
-
-        validation, producing WDK-compatible ``dict[str, str]``
-
-        (``Record<string, ParameterValue>``).'
     PlanUpdate:
       properties:
         planId:
@@ -7769,8 +7593,8 @@ components:
         siteId:
           type: string
           title: Siteid
-        plan:
-          $ref: '#/components/schemas/StrategyPlanPayload-Input'
+        strategyAst:
+          $ref: '#/components/schemas/StrategyAst-Input'
         description:
           anyOf:
           - type: string
@@ -7781,7 +7605,7 @@ components:
       required:
       - name
       - siteId
-      - plan
+      - strategyAst
       title: PushConversationRequest
     RankMetricsResponse:
       properties:
@@ -8328,12 +8152,12 @@ components:
         siteId:
           type: string
           title: Siteid
-        plan:
-          $ref: '#/components/schemas/StrategyPlanPayload-Input'
+        strategyAst:
+          $ref: '#/components/schemas/StrategyAst-Input'
       type: object
       required:
       - siteId
-      - plan
+      - strategyAst
       title: StepCountsRequest
     StepCountsResponse:
       properties:
@@ -8598,6 +8422,126 @@ components:
       type: object
       title: StepValidationErrors
       description: Validation error details for a step.
+    StrategyAst-Input:
+      properties:
+        recordType:
+          type: string
+          title: Recordtype
+        root:
+          $ref: '#/components/schemas/StrategyStepNode-Input'
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/JSONObject'
+          - type: 'null'
+        stepCounts:
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Stepcounts
+        wdkStepIds:
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Wdkstepids
+        stepValidations:
+          anyOf:
+          - additionalProperties:
+              $ref: '#/components/schemas/StepValidation'
+            type: object
+          - type: 'null'
+          title: Stepvalidations
+      type: object
+      required:
+      - recordType
+      - root
+      title: StrategyAst
+      description: Serialized strategy graph state used at every persistence boundary.
+    StrategyAst-Output:
+      properties:
+        recordType:
+          type: string
+          title: Recordtype
+        root:
+          $ref: '#/components/schemas/StrategyStepNode-Output'
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        metadata:
+          anyOf:
+          - $ref: '#/components/schemas/JSONObject'
+          - type: 'null'
+        stepCounts:
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Stepcounts
+        wdkStepIds:
+          anyOf:
+          - additionalProperties:
+              type: integer
+            type: object
+          - type: 'null'
+          title: Wdkstepids
+        stepValidations:
+          anyOf:
+          - additionalProperties:
+              $ref: '#/components/schemas/StepValidation'
+            type: object
+          - type: 'null'
+          title: Stepvalidations
+      type: object
+      required:
+      - recordType
+      - root
+      title: StrategyAst
+      description: Serialized strategy graph state used at every persistence boundary.
+    StrategyAstNormalizeRequest:
+      properties:
+        siteId:
+          type: string
+          title: Siteid
+        strategyAst:
+          $ref: '#/components/schemas/StrategyAst-Input'
+      type: object
+      required:
+      - siteId
+      - strategyAst
+      title: StrategyAstNormalizeRequest
+    StrategyAstNormalizeResponse:
+      properties:
+        strategyAst:
+          $ref: '#/components/schemas/StrategyAst-Output'
+        warnings:
+          anyOf:
+          - $ref: '#/components/schemas/JSONArray'
+          - type: 'null'
+      type: object
+      required:
+      - strategyAst
+      title: StrategyAstNormalizeResponse
     StrategyLink:
       properties:
         strategyId:
@@ -8676,112 +8620,160 @@ components:
       - operation
       title: StrategyPatch
       description: A partial update to a strategy, emitted by strategy-mutating tools.
-    StrategyPlanPayload-Input:
+    StrategyStepNode-Input:
       properties:
-        recordType:
+        searchName:
           type: string
-          title: Recordtype
-        root:
-          $ref: '#/components/schemas/PlanStepNode-Input'
-        name:
+          title: Searchname
+        parameters:
+          additionalProperties:
+            type: string
+          type: object
+          title: Parameters
+        primaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/StrategyStepNode-Input'
+          - type: 'null'
+        secondaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/StrategyStepNode-Input'
+          - type: 'null'
+        operator:
+          anyOf:
+          - $ref: '#/components/schemas/CombineOp'
+          - type: 'null'
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/ColocationParams'
+          - type: 'null'
+        displayName:
           anyOf:
           - type: string
           - type: 'null'
-          title: Name
-        description:
+          title: Displayname
+        filters:
+          items:
+            $ref: '#/components/schemas/StepFilter'
+          type: array
+          title: Filters
+        analyses:
+          items:
+            $ref: '#/components/schemas/StepAnalysis-Input'
+          type: array
+          title: Analyses
+        reports:
+          items:
+            $ref: '#/components/schemas/StepReport-Input'
+          type: array
+          title: Reports
+        wdkWeight:
           anyOf:
-          - type: string
+          - type: integer
           - type: 'null'
-          title: Description
-        metadata:
-          anyOf:
-          - $ref: '#/components/schemas/JSONObject'
-          - type: 'null'
-        stepCounts:
-          anyOf:
-          - additionalProperties:
-              type: integer
-            type: object
-          - type: 'null'
-          title: Stepcounts
-        wdkStepIds:
-          anyOf:
-          - additionalProperties:
-              type: integer
-            type: object
-          - type: 'null'
-          title: Wdkstepids
-        stepValidations:
-          anyOf:
-          - additionalProperties:
-              $ref: '#/components/schemas/StepValidation'
-            type: object
-          - type: 'null'
-          title: Stepvalidations
+          title: Wdkweight
+        id:
+          type: string
+          title: Id
       type: object
       required:
-      - recordType
-      - root
-      title: StrategyPlanPayload
-      description: 'Canonical typed plan: the serialized graph state.
+      - searchName
+      title: StrategyStepNode
+      description: 'Recursive strategy node.
 
 
-        Used for API request/response, Redis persistence, and SSE events.
+        Kind is inferred from structure:
 
-        NOT the AI planning artifact (see domain/strategy/plan.py:StrategyPlan).'
-    StrategyPlanPayload-Output:
+        - combine: primary_input and secondary_input
+
+        - transform: primary_input only
+
+        - search: no inputs
+
+
+        ``parameters`` accepts ``JSONObject`` (LLM''s natural output).
+
+        ``SerializedParams`` coerces each value to ``str`` via Pydantic
+
+        validation, producing WDK-compatible ``dict[str, str]``
+
+        (``Record<string, ParameterValue>``).'
+    StrategyStepNode-Output:
       properties:
-        recordType:
+        searchName:
           type: string
-          title: Recordtype
-        root:
-          $ref: '#/components/schemas/PlanStepNode-Output'
-        name:
+          title: Searchname
+        parameters:
+          additionalProperties:
+            type: string
+          type: object
+          title: Parameters
+        primaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/StrategyStepNode-Output'
+          - type: 'null'
+        secondaryInput:
+          anyOf:
+          - $ref: '#/components/schemas/StrategyStepNode-Output'
+          - type: 'null'
+        operator:
+          anyOf:
+          - $ref: '#/components/schemas/CombineOp'
+          - type: 'null'
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/ColocationParams'
+          - type: 'null'
+        displayName:
           anyOf:
           - type: string
           - type: 'null'
-          title: Name
-        description:
+          title: Displayname
+        filters:
+          items:
+            $ref: '#/components/schemas/StepFilter'
+          type: array
+          title: Filters
+        analyses:
+          items:
+            $ref: '#/components/schemas/StepAnalysis-Output'
+          type: array
+          title: Analyses
+        reports:
+          items:
+            $ref: '#/components/schemas/StepReport-Output'
+          type: array
+          title: Reports
+        wdkWeight:
           anyOf:
-          - type: string
+          - type: integer
           - type: 'null'
-          title: Description
-        metadata:
-          anyOf:
-          - $ref: '#/components/schemas/JSONObject'
-          - type: 'null'
-        stepCounts:
-          anyOf:
-          - additionalProperties:
-              type: integer
-            type: object
-          - type: 'null'
-          title: Stepcounts
-        wdkStepIds:
-          anyOf:
-          - additionalProperties:
-              type: integer
-            type: object
-          - type: 'null'
-          title: Wdkstepids
-        stepValidations:
-          anyOf:
-          - additionalProperties:
-              $ref: '#/components/schemas/StepValidation'
-            type: object
-          - type: 'null'
-          title: Stepvalidations
+          title: Wdkweight
+        id:
+          type: string
+          title: Id
       type: object
       required:
-      - recordType
-      - root
-      title: StrategyPlanPayload
-      description: 'Canonical typed plan: the serialized graph state.
+      - searchName
+      title: StrategyStepNode
+      description: 'Recursive strategy node.
 
 
-        Used for API request/response, Redis persistence, and SSE events.
+        Kind is inferred from structure:
 
-        NOT the AI planning artifact (see domain/strategy/plan.py:StrategyPlan).'
+        - combine: primary_input and secondary_input
+
+        - transform: primary_input only
+
+        - search: no inputs
+
+
+        ``parameters`` accepts ``JSONObject`` (LLM''s natural output).
+
+        ``SerializedParams`` coerces each value to ``str`` via Pydantic
+
+        validation, producing WDK-compatible ``dict[str, str]``
+
+        (``Record<string, ParameterValue>``).'
     StreamPartsSchemaIndex:
       properties:
         graph_snapshot:
@@ -9265,9 +9257,9 @@ components:
             minLength: 1
           - type: 'null'
           title: Name
-        plan:
+        strategyAst:
           anyOf:
-          - $ref: '#/components/schemas/StrategyPlanPayload-Input'
+          - $ref: '#/components/schemas/StrategyAst-Input'
           - type: 'null'
         wdkStrategyId:
           anyOf:

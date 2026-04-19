@@ -9,6 +9,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pathfinder.ai.graph.nodes import (
     discovery_node,
     execution_node,
+    finalize_turn_node,
     planning_node,
     scoping_node,
     supervisor_node,
@@ -30,6 +31,7 @@ def build_graph(
     graph.add_node("planning", planning_node)
     graph.add_node("execution", execution_node)
     graph.add_node("verification", verification_node)
+    graph.add_node("finalize_turn", finalize_turn_node)
 
     graph.add_edge(START, "supervisor")
 

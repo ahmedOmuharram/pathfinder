@@ -8,9 +8,10 @@ optional YAML file pointed to by ``OLLAMA_MODELS_CONFIG``.
 """
 
 from functools import lru_cache
+from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from pathfinder.platform.config import _REPO_ROOT
 from pathfinder.platform.pydantic_base import CamelModel
@@ -25,32 +26,39 @@ __all__ = [
 
 
 class ModelEntry(CamelModel):
-    """A single model in the catalog."""
+    """Catalog entry. ``id`` (``"provider:model"``) drives ``provider`` + ``model_name``."""
 
     model_config = ConfigDict(frozen=True)
 
-    id: str  # e.g. "openai/gpt-5"
-    name: str  # human-readable display name
+    id: str
+    name: str
     provider: ModelProvider
-    model: str  # provider-native model ID (e.g. "gpt-5")
+    model_name: str
     description: str = ""
     supports_reasoning: bool = False
-    context_size: int = 0  # known context window; 0 = use engine default
-    default_reasoning_budget: int = 0  # default reasoning token budget
-    input_price: float = 0.0  # USD per 1M input tokens
-    cached_input_price: float = 0.0  # USD per 1M cached input tokens
-    output_price: float = 0.0  # USD per 1M output tokens
-    is_provider_smallest: bool = False  # exactly one per provider; used for title gen
+    context_size: int = 0
+    default_reasoning_budget: int = 0
+    input_price: float = 0.0
+    cached_input_price: float = 0.0
+    output_price: float = 0.0
+    is_provider_smallest: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _split_id(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("id"), str) and ":" in data["id"]:
+            provider, model_name = data["id"].split(":", 1)
+            data.setdefault("provider", provider)
+            data.setdefault("model_name", model_name)
+        return data
 
 
 # Cloud models — always present.
 _CLOUD_MODELS: tuple[ModelEntry, ...] = (
     # OpenAI
     ModelEntry(
-        id="openai/gpt-4.1",
+        id="openai:gpt-4.1",
         name="GPT-4.1",
-        provider="openai",
-        model="gpt-4.1",
         description="Default workhorse — 1M context",
         context_size=1_047_576,
         input_price=2.00,
@@ -58,10 +66,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=8.00,
     ),
     ModelEntry(
-        id="openai/gpt-4.1-mini",
+        id="openai:gpt-4.1-mini",
         name="GPT-4.1 Mini",
-        provider="openai",
-        model="gpt-4.1-mini",
         description="Fast and cheap with full context",
         context_size=1_047_576,
         input_price=0.20,
@@ -69,10 +75,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=0.80,
     ),
     ModelEntry(
-        id="openai/gpt-4.1-nano",
+        id="openai:gpt-4.1-nano",
         name="GPT-4.1 Nano",
-        provider="openai",
-        model="gpt-4.1-nano",
         description="Ultra-cheap for simple tasks",
         context_size=1_047_576,
         input_price=0.05,
@@ -81,10 +85,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         is_provider_smallest=True,
     ),
     ModelEntry(
-        id="openai/gpt-5",
+        id="openai:gpt-5",
         name="GPT-5",
-        provider="openai",
-        model="gpt-5",
         description="Smartest OpenAI model",
         supports_reasoning=True,
         context_size=400_000,
@@ -93,10 +95,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=10.00,
     ),
     ModelEntry(
-        id="openai/gpt-5-mini",
+        id="openai:gpt-5-mini",
         name="GPT-5 Mini",
-        provider="openai",
-        model="gpt-5-mini",
         description="Smart and budget-friendly",
         supports_reasoning=True,
         context_size=400_000,
@@ -105,10 +105,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=1.00,
     ),
     ModelEntry(
-        id="openai/gpt-5-nano",
+        id="openai:gpt-5-nano",
         name="GPT-5 Nano",
-        provider="openai",
-        model="gpt-5-nano",
         description="Ultra-cheap, smaller context",
         supports_reasoning=True,
         context_size=400_000,
@@ -117,10 +115,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=0.40,
     ),
     ModelEntry(
-        id="openai/gpt-5.4",
+        id="openai:gpt-5.4",
         name="GPT-5.4",
-        provider="openai",
-        model="gpt-5.4",
         description="Latest flagship — 1.1M context",
         supports_reasoning=True,
         context_size=1_100_000,
@@ -129,10 +125,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=15.00,
     ),
     ModelEntry(
-        id="openai/gpt-5.4-mini",
+        id="openai:gpt-5.4-mini",
         name="GPT-5.4 Mini",
-        provider="openai",
-        model="gpt-5.4-mini",
         description="Fast and cheap with flagship context",
         supports_reasoning=True,
         context_size=1_100_000,
@@ -141,10 +135,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=2.00,
     ),
     ModelEntry(
-        id="openai/gpt-5.4-nano",
+        id="openai:gpt-5.4-nano",
         name="GPT-5.4 Nano",
-        provider="openai",
-        model="gpt-5.4-nano",
         description="Ultra-cheap with flagship context",
         supports_reasoning=True,
         context_size=1_100_000,
@@ -153,10 +145,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=0.40,
     ),
     ModelEntry(
-        id="openai/o3",
+        id="openai:o3",
         name="o3",
-        provider="openai",
-        model="o3",
         description="Reasoning-focused",
         supports_reasoning=True,
         context_size=200_000,
@@ -165,10 +155,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=8.00,
     ),
     ModelEntry(
-        id="openai/o4-mini",
+        id="openai:o4-mini",
         name="o4 Mini",
-        provider="openai",
-        model="o4-mini",
         description="Cheap reasoning",
         supports_reasoning=True,
         context_size=200_000,
@@ -178,10 +166,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
     ),
     # Anthropic
     ModelEntry(
-        id="anthropic/claude-opus-4-6",
+        id="anthropic:claude-opus-4-6",
         name="Claude Opus 4.6",
-        provider="anthropic",
-        model="claude-opus-4-6",
         description="Most capable Anthropic model",
         supports_reasoning=True,
         context_size=1_000_000,
@@ -191,10 +177,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=25.00,
     ),
     ModelEntry(
-        id="anthropic/claude-sonnet-4-6",
+        id="anthropic:claude-sonnet-4-6",
         name="Claude Sonnet 4.6",
-        provider="anthropic",
-        model="claude-sonnet-4-6",
         description="Balanced speed and intelligence",
         supports_reasoning=True,
         context_size=1_000_000,
@@ -204,10 +188,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=15.00,
     ),
     ModelEntry(
-        id="anthropic/claude-haiku-4-5",
+        id="anthropic:claude-haiku-4-5",
         name="Claude Haiku 4.5",
-        provider="anthropic",
-        model="claude-haiku-4-5-20251001",
         description="Fastest Anthropic model",
         supports_reasoning=True,
         context_size=200_000,
@@ -219,10 +201,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
     ),
     # Google
     ModelEntry(
-        id="google/gemini-2.5-pro",
+        id="google:gemini-2.5-pro",
         name="Gemini 2.5 Pro",
-        provider="google",
-        model="gemini-2.5-pro",
         description="Best Google — deep reasoning",
         supports_reasoning=True,
         context_size=1_048_576,
@@ -232,10 +212,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=10.00,
     ),
     ModelEntry(
-        id="google/gemini-3.1-pro",
+        id="google:gemini-3.1-pro",
         name="Gemini 3.1 Pro",
-        provider="google",
-        model="gemini-3.1-pro-preview",
         description="Latest Google flagship",
         supports_reasoning=True,
         context_size=1_000_000,
@@ -245,10 +223,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=12.00,
     ),
     ModelEntry(
-        id="google/gemini-3-flash",
+        id="google:gemini-3-flash",
         name="Gemini 3 Flash",
-        provider="google",
-        model="gemini-3-flash",
         description="Fast and capable",
         supports_reasoning=True,
         context_size=1_000_000,
@@ -258,10 +234,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=3.00,
     ),
     ModelEntry(
-        id="google/gemini-2.5-flash",
+        id="google:gemini-2.5-flash",
         name="Gemini 2.5 Flash",
-        provider="google",
-        model="gemini-2.5-flash",
         description="Budget reasoning model",
         supports_reasoning=True,
         context_size=1_048_576,
@@ -273,10 +247,8 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
     ),
     # Mock (deterministic E2E testing)
     ModelEntry(
-        id="mock/deterministic",
+        id="mock:deterministic",
         name="Mock (deterministic)",
-        provider="mock",
-        model="deterministic",
         description="Deterministic mock for E2E testing — no LLM calls",
         context_size=128_000,
         is_provider_smallest=True,
@@ -335,14 +307,10 @@ def _load_ollama_models() -> tuple[ModelEntry, ...]:
         display = item.name or item.model
         entries.append(
             ModelEntry(
-                id=f"ollama/{item.model}",
+                id=f"ollama:{item.model}",
                 name=f"{display} (local)",
-                provider="ollama",
-                model=item.model,
                 supports_reasoning=item.thinking,
                 context_size=item.context_size,
-                # First ollama entry in the YAML is treated as the smallest
-                # (title-generation) model for the local provider.
                 is_provider_smallest=not entries,
             )
         )

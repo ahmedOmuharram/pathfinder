@@ -32,6 +32,8 @@ function makeItem(
     isSaved: partial.isSaved ?? false,
     stepCount: 0,
     experimentId: null,
+    parentConversationId: null,
+    parentMessageId: null,
     chat,
   };
 }

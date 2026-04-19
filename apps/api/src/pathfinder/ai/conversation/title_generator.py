@@ -19,7 +19,7 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.usage import UsageLimits
 
-from pathfinder.ai.models.catalog import ModelEntry, get_smallest_model
+from pathfinder.ai.models.catalog import get_smallest_model
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.types import ModelProvider
 
@@ -85,11 +85,6 @@ def _trim_title(raw: str) -> str:
     return title
 
 
-def _pydantic_ai_model_id(entry: ModelEntry) -> str:
-    """Build the pydantic-ai `provider:model` string for an Agent."""
-    return f"{entry.provider}:{entry.model}"
-
-
 async def generate_conversation_title(
     first_user_message: str,
     provider: ModelProvider | None = None,
@@ -113,7 +108,7 @@ async def generate_conversation_title(
         return _fallback_title(first_user_message)
 
     agent: Agent[None, str] = Agent(
-        _pydantic_ai_model_id(entry),
+        entry.id,
         output_type=str,
         instructions=_TITLE_INSTRUCTIONS,
         retries=1,

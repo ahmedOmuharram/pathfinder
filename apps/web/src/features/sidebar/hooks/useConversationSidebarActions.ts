@@ -9,10 +9,6 @@ import {
   type DeleteWorkflow,
 } from "@/features/sidebar/hooks/useDeleteWorkflow";
 import {
-  useDuplicateWorkflow,
-  type DuplicateWorkflow,
-} from "@/features/sidebar/hooks/useDuplicateWorkflow";
-import {
   useRenameWorkflow,
   type RenameWorkflow,
 } from "@/features/sidebar/hooks/useRenameWorkflow";
@@ -30,7 +26,6 @@ interface UseConversationSidebarActionsArgs {
 
 interface ConversationSidebarActions
   extends RenameWorkflow,
-    DuplicateWorkflow,
     DeleteWorkflow {
   activeId: string | null;
   handleNewConversation: () => Promise<void>;
@@ -44,10 +39,12 @@ export function useConversationSidebarActions({
   const queryClient = useQueryClient();
   const router = useRouter();
   const params = useParams<{ conversationId?: string }>();
-  const activeId = params.conversationId ?? null;
+  const liveActiveId = typeof window === "undefined"
+    ? null
+    : window.location.pathname.match(/\/conversation\/([^/?#]+)/)?.[1] ?? null;
+  const activeId = params.conversationId ?? liveActiveId;
 
   const rename = useRenameWorkflow({ siteId, reportError });
-  const duplicate = useDuplicateWorkflow({ siteId, reportError });
   const deleteWorkflow = useDeleteWorkflow({
     siteId,
     reportError,
@@ -57,7 +54,7 @@ export function useConversationSidebarActions({
   const listKey = conversationListOptions(siteId).queryKey;
 
   const handleNewConversation = async (): Promise<void> => {
-    router.push("/conversation");
+    router.push(`/${siteId}/conversation`);
   };
 
   const handleToggleSaved = async (item: ConversationItem): Promise<void> => {
@@ -85,6 +82,5 @@ export function useConversationSidebarActions({
     handleToggleSaved,
     ...rename,
     ...deleteWorkflow,
-    ...duplicate,
   };
 }

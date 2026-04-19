@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useEventCallback } from "usehooks-ts";
 import type { Strategy } from "@pathfinder/shared";
 import { pushConversation } from "@/lib/api/conversations";
-import { serializeStrategyPlan } from "@/lib/strategyGraph/serialize";
+import { serializeStrategyAst } from "@/lib/strategyGraph/serialize";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useSessionStore } from "@/state/useSessionStore";
 
@@ -39,7 +39,7 @@ export function useAutoSync(args: UseAutoSyncArgs): UseAutoSyncResult {
     const draftStrategy = useStrategyStore.getState().strategy;
     if (!draftStrategy) return;
 
-    const planResult = serializeStrategyPlan(
+    const planResult = serializeStrategyAst(
       Object.fromEntries(draftStrategy.steps.map((s) => [s.id, s])),
       draftStrategy,
     );
@@ -51,7 +51,7 @@ export function useAutoSync(args: UseAutoSyncArgs): UseAutoSyncResult {
     pushConversation(draftStrategy.id, {
       name: draftStrategy.name || "Untitled Strategy",
       siteId,
-      plan: planResult.plan,
+      strategyAst: planResult.plan,
       description: draftStrategy.description ?? null,
     })
       .then((updated) => {

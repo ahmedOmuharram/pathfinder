@@ -17,8 +17,8 @@ export function matchCommandName(
 ): boolean {
   const lower = token.toLowerCase();
   if (candidate.name.toLowerCase() === lower) return true;
-  if (candidate.aliases?.some((a) => a.toLowerCase() === lower)) return true;
-  return false;
+  const aliases = candidate.aliases ?? [];
+  return aliases.some((a) => a.toLowerCase() === lower);
 }
 
 export function fuzzyPrefix(
@@ -27,8 +27,6 @@ export function fuzzyPrefix(
 ): boolean {
   const lower = token.toLowerCase();
   if (candidate.name.toLowerCase().startsWith(lower)) return true;
-  if (candidate.aliases?.some((a) => a.toLowerCase().startsWith(lower))) {
-    return true;
-  }
-  return false;
+  const aliases = candidate.aliases ?? [];
+  return aliases.some((a) => a.toLowerCase().startsWith(lower));
 }

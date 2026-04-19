@@ -7,7 +7,7 @@ Import from here instead of redefining in each test module.
 from dataclasses import dataclass
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.strategy.ast import PlanStepNode
+from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 
 
@@ -30,7 +30,7 @@ class ParamSpecConfig:
 
 
 # ---------------------------------------------------------------------------
-# PlanStepNode builders -- used in test_graph_integrity, test_graph_ops,
+# StrategyStepNode builders -- used in test_graph_integrity, test_graph_ops,
 # test_strategy_session
 # ---------------------------------------------------------------------------
 
@@ -40,9 +40,9 @@ def make_leaf(
     name: str = "GenesByTextSearch",
     display: str | None = None,
     parameters: dict | None = None,
-) -> PlanStepNode:
-    """Create a leaf (search) PlanStepNode."""
-    return PlanStepNode(
+) -> StrategyStepNode:
+    """Create a leaf (search) StrategyStepNode."""
+    return StrategyStepNode(
         search_name=name,
         parameters=parameters if parameters is not None else {},
         display_name=display,
@@ -52,12 +52,12 @@ def make_leaf(
 
 def make_combine(
     step_id: str,
-    left: PlanStepNode,
-    right: PlanStepNode,
+    left: StrategyStepNode,
+    right: StrategyStepNode,
     operator: CombineOp = CombineOp.INTERSECT,
-) -> PlanStepNode:
-    """Create a combine (boolean) PlanStepNode."""
-    return PlanStepNode(
+) -> StrategyStepNode:
+    """Create a combine (boolean) StrategyStepNode."""
+    return StrategyStepNode(
         search_name="BooleanQuestion",
         parameters={},
         primary_input=left,
@@ -69,12 +69,12 @@ def make_combine(
 
 def make_transform(
     step_id: str,
-    input_step: PlanStepNode,
+    input_step: StrategyStepNode,
     name: str = "GenesByOrthologs",
     parameters: dict | None = None,
-) -> PlanStepNode:
-    """Create a transform (unary) PlanStepNode."""
-    return PlanStepNode(
+) -> StrategyStepNode:
+    """Create a transform (unary) StrategyStepNode."""
+    return StrategyStepNode(
         search_name=name,
         parameters=parameters if parameters is not None else {"organism": "Pf3D7"},
         primary_input=input_step,

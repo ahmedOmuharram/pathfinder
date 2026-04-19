@@ -1,6 +1,6 @@
 {
   "name": "pathfinder-web",
-  "version": "0.1.0-alpha",
+  "version": "0.2.0-alpha.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -79,6 +79,7 @@
     "react-virtuoso": "^4.18.4",
     "reaviz": "^16.1.2",
     "recharts": "^3.8.1",
+    "remark-gfm": "^4.0.1",
     "shiki": "^4.0.2",
     "sonner": "^2.0.7",
     "streamdown": "^2.5.0",
@@ -97,6 +98,7 @@
     "@kubb/core": "^4.37.2",
     "@playwright/test": "^1.58.2",
     "@redux-devtools/extension": "^4.0.0",
+    "@tailwindcss/typography": "^0.5.19",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

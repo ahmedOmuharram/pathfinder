@@ -13,16 +13,15 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import ConfigDict, Discriminator, Field, TypeAdapter
+from pydantic import ConfigDict, Discriminator, Field, JsonValue, TypeAdapter
 from pydantic.alias_generators import to_camel
 
 from pathfinder.domain.strategy.types import ParamValue
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject, JSONValue
+from pathfinder.platform.types import JSONObject
 
 _wdk_param_adapter: TypeAdapter[dict[str, ParamValue]] = TypeAdapter(dict[str, ParamValue])
-
 
 def encode_wdk_params(params: JSONObject | None) -> dict[str, str]:
     """Encode a parameter dict to WDK's ``Record<string, string>``.
@@ -31,7 +30,6 @@ def encode_wdk_params(params: JSONObject | None) -> dict[str, str]:
     """
     filtered = {k: v for k, v in (params or {}).items() if v is not None}
     return _wdk_param_adapter.validate_python(filtered)
-
 
 class WDKModel(CamelModel):
     """Base for all WDK REST API response models."""
@@ -43,14 +41,12 @@ class WDKModel(CamelModel):
         frozen=True,
     )
 
-
 class WDKFilterValue(WDKModel):
     """A single filter entry in SearchConfig."""
 
     name: str
-    value: JSONValue = None
+    value: JsonValue = None
     disabled: bool = False
-
 
 class WDKSearchConfig(WDKModel):
     """Search configuration: parameters + filters + weight.
@@ -74,10 +70,8 @@ class WDKSearchConfig(WDKModel):
     column_filters: JSONObject | None = None
     wdk_weight: int = 0
 
-
 # StepValidation and StepValidationErrors are defined in
 # pathfinder.domain.strategy.validation — imported above.
-
 
 class WDKStepTree(WDKModel):
     """Recursive step tree structure."""
@@ -86,13 +80,11 @@ class WDKStepTree(WDKModel):
     primary_input: WDKStepTree | None = None
     secondary_input: WDKStepTree | None = None
 
-
 class WDKDisplayPreferences(WDKModel):
     """Step display preferences (column selection, sorting)."""
 
     column_selection: list[str] | None = None
     sort_columns: list[JSONObject] | None = None
-
 
 class WDKStep(WDKModel):
     """A WDK step (search execution unit)."""
@@ -120,7 +112,6 @@ class WDKStep(WDKModel):
     created_time: str = ""
     last_run_time: str = ""
 
-
 class WDKStrategySummary(WDKModel):
     """Strategy summary (from list endpoint)."""
 
@@ -146,14 +137,12 @@ class WDKStrategySummary(WDKModel):
     leaf_and_transform_step_count: int = 0
     validation: StepValidation | None = None
 
-
 class WDKStrategyDetails(WDKStrategySummary):
     """Full strategy details (from detail endpoint)."""
 
     step_tree: WDKStepTree
     steps: dict[str, WDKStep] = Field(default_factory=dict)
     validation: StepValidation | None = Field(default_factory=StepValidation)
-
 
 class WDKIdentifier(WDKModel):
     """Generic WDK ``{"id": <int>}`` response.
@@ -163,16 +152,13 @@ class WDKIdentifier(WDKModel):
 
     id: int
 
-
 WDKSortDirection = Literal["ASC", "DESC"]
-
 
 class WDKSortSpec(WDKModel):
     """Sorting specification (matches monorepo AttributeSortingSpec)."""
 
     attribute_name: str
     direction: WDKSortDirection = "ASC"
-
 
 class WDKReporter(WDKModel):
     """WDK report format definition (matches wdk-client Reporter)."""
@@ -183,7 +169,6 @@ class WDKReporter(WDKModel):
     description: str = ""
     is_in_report: bool = False
     scopes: list[str] = Field(default_factory=list)
-
 
 class WDKAttributeField(WDKModel):
     """WDK attribute field metadata (matches wdk-client AttributeField).
@@ -203,7 +188,6 @@ class WDKAttributeField(WDKModel):
     formats: list[WDKReporter] = Field(default_factory=list)
     properties: dict[str, list[str]] = Field(default_factory=dict)
 
-
 class WDKParameterGroup(WDKModel):
     """Parameter group metadata."""
 
@@ -213,7 +197,6 @@ class WDKParameterGroup(WDKModel):
     is_visible: bool = True
     display_type: str = ""
     parameters: list[str] = Field(default_factory=list)
-
 
 class WDKSearch(WDKModel):
     """WDK search/question definition."""
@@ -247,13 +230,11 @@ class WDKSearch(WDKModel):
     help: str | None = None
     search_visible_help: str | None = None
 
-
 class WDKSearchResponse(WDKModel):
     """Envelope for single-search detail endpoint."""
 
     search_data: WDKSearch
     validation: StepValidation
-
 
 class WDKRecordType(WDKModel):
     """WDK record type metadata.
@@ -280,7 +261,6 @@ class WDKRecordType(WDKModel):
     attributes: list[WDKAttributeField] | None = None
     attributes_map: dict[str, WDKAttributeField] | None = None
 
-
 class WDKAnswerMeta(WDKModel):
     """Answer/report metadata with counts."""
 
@@ -293,24 +273,21 @@ class WDKAnswerMeta(WDKModel):
     attributes: list[str] = Field(default_factory=list)
     tables: list[str] = Field(default_factory=list)
 
-
 class WDKRecordInstance(WDKModel):
     """A single record from a WDK answer/report."""
 
     display_name: str = ""
     id: list[dict[str, str]] = Field(default_factory=list)
     record_class_name: str = ""
-    attributes: dict[str, JSONValue] = Field(default_factory=dict)
-    tables: dict[str, JSONValue] = Field(default_factory=dict)
+    attributes: dict[str, JsonValue] = Field(default_factory=dict)
+    tables: dict[str, JsonValue] = Field(default_factory=dict)
     table_errors: list[str] = Field(default_factory=list)
-
 
 class WDKAnswer(WDKModel):
     """WDK answer/report response."""
 
     meta: WDKAnswerMeta
     records: list[WDKRecordInstance] = Field(default_factory=list)
-
 
 class WDKStepAnalysisType(WDKModel):
     """Step analysis type definition (from ``GET .../step-analyses/types``)."""
@@ -325,7 +302,6 @@ class WDKStepAnalysisType(WDKModel):
     groups: list[WDKParameterGroup] = Field(default_factory=list)
     parameters: list[WDKParameter] | None = None
 
-
 class WDKStepAnalysisTypeResponse(WDKModel):
     """Envelope for the single analysis-type detail endpoint.
 
@@ -336,7 +312,6 @@ class WDKStepAnalysisTypeResponse(WDKModel):
 
     search_data: WDKStepAnalysisType
     validation: StepValidation
-
 
 WDKAnalysisStatus = Literal[
     "CREATED",
@@ -352,7 +327,6 @@ WDKAnalysisStatus = Literal[
     "UNKNOWN",
 ]
 
-
 class WDKStepAnalysisConfig(WDKModel):
     """Step analysis instance configuration."""
 
@@ -367,12 +341,10 @@ class WDKStepAnalysisConfig(WDKModel):
     parameters: dict[str, str] = Field(default_factory=dict)
     validation: StepValidation | None = None
 
-
 class WDKAnalysisStatusResponse(WDKModel):
     """Response from GET .../analyses/{id}/result/status."""
 
     status: WDKAnalysisStatus
-
 
 class WDKHistogramBin(WDKModel):
     """Single bin in a column distribution histogram."""
@@ -381,7 +353,6 @@ class WDKHistogramBin(WDKModel):
     bin_start: str = ""
     bin_end: str = ""
     bin_label: str = ""
-
 
 class WDKHistogramStatistics(WDKModel):
     """Statistics summary for a column distribution."""
@@ -395,19 +366,16 @@ class WDKHistogramStatistics(WDKModel):
     num_distinct_entity_records: int = 0
     num_missing_cases: int = 0
 
-
 class WDKColumnDistribution(WDKModel):
     """Response from POST .../columns/{col}/reports/byValue."""
 
     histogram: list[WDKHistogramBin] = Field(default_factory=list)
     statistics: WDKHistogramStatistics = Field(default_factory=WDKHistogramStatistics)
 
-
 class WDKTemporaryResult(WDKModel):
     """Response from POST /temporary-results."""
 
     id: str
-
 
 class WDKUserInfo(WDKModel):
     """WDK user profile (from ``GET /users/current``)."""
@@ -417,23 +385,19 @@ class WDKUserInfo(WDKModel):
     is_guest: bool = True
     properties: dict[str, str] = Field(default_factory=dict)
 
-
 # ---------------------------------------------------------------------------
 # WDKDatasetConfig — discriminated union (5 source types)
 # ---------------------------------------------------------------------------
-
 
 class WDKDatasetIdListContent(WDKModel):
     """Content for ``sourceType: "idList"``."""
 
     ids: list[str]
 
-
 class WDKDatasetBasketContent(WDKModel):
     """Content for ``sourceType: "basket"``."""
 
     basket_name: str
-
 
 class WDKDatasetFileContent(WDKModel):
     """Content for ``sourceType: "file"``."""
@@ -443,12 +407,10 @@ class WDKDatasetFileContent(WDKModel):
     search_name: str
     parameter_name: str
 
-
 class WDKDatasetStrategyContent(WDKModel):
     """Content for ``sourceType: "strategy"``."""
 
     strategy_id: int
-
 
 class WDKDatasetUrlContent(WDKModel):
     """Content for ``sourceType: "url"``."""
@@ -458,13 +420,11 @@ class WDKDatasetUrlContent(WDKModel):
     search_name: str
     parameter_name: str
 
-
 class WDKDatasetConfigIdList(WDKModel):
     """Dataset config with id-list source."""
 
     source_type: Literal["idList"]
     source_content: WDKDatasetIdListContent
-
 
 class WDKDatasetConfigBasket(WDKModel):
     """Dataset config with basket source."""
@@ -472,13 +432,11 @@ class WDKDatasetConfigBasket(WDKModel):
     source_type: Literal["basket"]
     source_content: WDKDatasetBasketContent
 
-
 class WDKDatasetConfigFile(WDKModel):
     """Dataset config with file source."""
 
     source_type: Literal["file"]
     source_content: WDKDatasetFileContent
-
 
 class WDKDatasetConfigStrategy(WDKModel):
     """Dataset config with strategy source."""
@@ -486,13 +444,11 @@ class WDKDatasetConfigStrategy(WDKModel):
     source_type: Literal["strategy"]
     source_content: WDKDatasetStrategyContent
 
-
 class WDKDatasetConfigUrl(WDKModel):
     """Dataset config with URL source."""
 
     source_type: Literal["url"]
     source_content: WDKDatasetUrlContent
-
 
 WDKDatasetConfig = Annotated[
     WDKDatasetConfigIdList
@@ -504,11 +460,9 @@ WDKDatasetConfig = Annotated[
 ]
 """Discriminated union of WDK dataset config source types."""
 
-
 # ---------------------------------------------------------------------------
 # Enrichment response models (step-analysis plugin output)
 # ---------------------------------------------------------------------------
-
 
 class WDKEnrichmentRowBase(WDKModel):
     """Shared statistical fields across GO, Pathway, and Word enrichment plugins.
@@ -528,13 +482,11 @@ class WDKEnrichmentRowBase(WDKModel):
     benjamini: str = "1"
     bonferroni: str = "1"
 
-
 class WDKGoEnrichmentRow(WDKEnrichmentRowBase):
     """A single row from the GO enrichment plugin."""
 
     go_id: str
     go_term: str
-
 
 class WDKPathwayEnrichmentRow(WDKEnrichmentRowBase):
     """A single row from the pathway enrichment plugin."""
@@ -542,7 +494,6 @@ class WDKPathwayEnrichmentRow(WDKEnrichmentRowBase):
     pathway_id: str
     pathway_name: str
     pathway_source: str = ""
-
 
 class WDKWordEnrichmentRow(WDKEnrichmentRowBase):
     """Word enrichment result row (WordEnrichmentPlugin.java).
@@ -553,7 +504,6 @@ class WDKWordEnrichmentRow(WDKEnrichmentRowBase):
 
     word: str
     pathway_name: str = ""
-
 
 class WDKEnrichmentResponse(WDKModel):
     """Envelope returned by ``GET .../analyses/{id}/result``.
@@ -567,11 +517,9 @@ class WDKEnrichmentResponse(WDKModel):
     download_path: str = ""
     pvalue_cutoff: str = ""
 
-
 # ---------------------------------------------------------------------------
 # Request models (mutable — NOT frozen)
 # ---------------------------------------------------------------------------
-
 
 class PatchStepSpec(CamelModel):
     """Fields for updating an existing step. Matches monorepo's PatchStepSpec."""
@@ -587,7 +535,6 @@ class PatchStepSpec(CamelModel):
     expanded_name: str | None = None
     display_preferences: WDKDisplayPreferences | None = None
 
-
 class NewStepSpec(PatchStepSpec):
     """Full spec for creating a new step. Matches monorepo's NewStepSpec.
 
@@ -597,7 +544,6 @@ class NewStepSpec(PatchStepSpec):
 
     search_name: str
     search_config: WDKSearchConfig
-
 
 # Resolve forward reference: WDKSearch.parameters uses WDKParameter
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter  # noqa: E402, I001

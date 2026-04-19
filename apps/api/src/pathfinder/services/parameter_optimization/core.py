@@ -10,9 +10,10 @@ import time
 from typing import cast
 
 import optuna
+from pydantic import JsonValue
 
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONArray, JSONValue
+from pathfinder.platform.types import JSONArray
 from pathfinder.services.parameter_optimization.batch import TrialContext
 from pathfinder.services.parameter_optimization.callbacks import (
     OptimizationCompletedEvent,
@@ -36,7 +37,6 @@ logger = get_logger(__name__)
 
 # Silence optuna's internal logging (we emit our own progress events).
 optuna.logging.set_verbosity(optuna.logging.WARNING)
-
 
 async def optimize_search_parameters(
     inp: OptimizationInput,
@@ -62,7 +62,7 @@ async def optimize_search_parameters(
             "minValue": p.min_value,
             "maxValue": p.max_value,
             "logScale": p.log_scale,
-            "choices": cast("JSONValue", p.choices),
+            "choices": cast("JsonValue", p.choices),
         }
         for p in inp.parameter_space
     ]

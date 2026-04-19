@@ -10,12 +10,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
 
+from pathfinder.ai.models.catalog import get_model_entry
 from pathfinder.domain.strategy.ast import walk_step_tree
-from pathfinder.domain.strategy.plan_payload import (
+from pathfinder.domain.strategy.strategy_ast import (
     PersistedStrategyGraph,
-    StrategyPlanPayload,
+    StrategyAst,
 )
 from pathfinder.persistence.repositories import ConversationUpdate
+from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
@@ -24,8 +26,12 @@ from pathfinder.platform.errors import (
 )
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.conversations.fork import (
+    ForkError,
+    fork_conversation,
+)
 from pathfinder.services.strategies.plan_normalize import (
-    canonicalize_plan_parameters,
+    canonicalize_strategy_ast_parameters,
 )
 from pathfinder.services.strategies.plan_validation import validate_plan_or_raise
 from pathfinder.services.strategies.session_factory import build_strategy_session
@@ -37,13 +43,16 @@ from pathfinder.services.strategies.wdk_sync import (
     sync_is_saved_to_wdk,
 )
 from pathfinder.services.wdk import get_strategy_api
-from pathfinder.transport.http.deps import ConversationRepo, CurrentUser
+from pathfinder.transport.http.deps import ConversationRepo, CurrentUser, DBSession
 from pathfinder.transport.http.routers._authz import get_owned_conversation_or_404
 from pathfinder.transport.http.schemas import (
     ConversationResponse,
     CreateConversationRequest,
     PushConversationRequest,
     UpdateConversationRequest,
+)
+from pathfinder.transport.http.schemas.conversations import (
+    ForkConversationRequest,
 )
 
 from ._shared import (
@@ -84,7 +93,7 @@ async def create_strategy(
     user_id: CurrentUser,
 ) -> ConversationResponse:
     """Create a new strategy (chat with plan metadata)."""
-    plan_in = request.plan.model_dump(exclude_none=True)
+    plan_in = request.strategy_ast.model_dump(exclude_none=True)
     payload = validate_plan_or_raise(plan_in)
 
     conversation = await conv_repo.create(
@@ -95,7 +104,7 @@ async def create_strategy(
     await conv_repo.update_conversation(
         conversation.id,
         ConversationUpdate(
-            plan=payload,
+            strategy_ast=payload,
             record_type=payload.record_type,
             step_count=len(walk_step_tree(payload.root)),
         ),
@@ -113,6 +122,7 @@ async def create_strategy(
 async def get_strategy(
     strategyId: UUID,
     conv_repo: ConversationRepo,
+    session: DBSession,
     user_id: CurrentUser,
 ) -> ConversationResponse:
     """Get a strategy (chat) by ID."""
@@ -123,10 +133,16 @@ async def get_strategy(
     # during sync-wdk to avoid the N+1 problem).
     conversation = await lazy_fetch_wdk_detail(conversation=conversation, conv_repo=conv_repo)
 
-    # Interactive plan artifacts now stream through the chat pipeline as
-    # ``data-plan-artifact`` parts and are held in ``usePlanStore`` on the
-    # client, so there is no server-side plan restoration path.
-    return build_conversation_response(conversation)
+    messages_repo = MessagesRepository(session)
+    total_tokens, total_cost = await messages_repo.sum_usage_for_conversation(
+        conversation.id,
+    )
+
+    return build_conversation_response(
+        conversation,
+        total_tokens=total_tokens,
+        total_cost_usd=total_cost,
+    )
 
 
 @router.patch("/{strategyId:uuid}", response_model=ConversationResponse)
@@ -139,28 +155,40 @@ async def update_strategy(
     """Update strategy metadata (name, plan, wdk link, saved flag)."""
     await get_owned_conversation_or_404(conv_repo, strategyId, user_id)
 
-    payload: StrategyPlanPayload | None = None
+    payload: StrategyAst | None = None
     record_type: str | None = None
-    if request.plan:
-        plan_in = request.plan.model_dump(exclude_none=True)
+    if request.strategy_ast:
+        plan_in = request.strategy_ast.model_dump(exclude_none=True)
         payload = validate_plan_or_raise(plan_in)
         record_type = payload.record_type
 
     fields_set: set[str] = getattr(request, "model_fields_set", set())
     wdk_strategy_id_set = "wdk_strategy_id" in fields_set
     is_saved_set = "is_saved" in fields_set
+    supervisor_model_id_set = "supervisor_model_id" in fields_set
+    if (
+        supervisor_model_id_set
+        and request.supervisor_model_id is not None
+        and get_model_entry(request.supervisor_model_id) is None
+    ):
+        raise ValidationError(
+            title="Unknown supervisor model",
+            detail=f"Unknown supervisor_model_id: {request.supervisor_model_id}",
+        )
 
     await conv_repo.update_conversation(
         strategyId,
         ConversationUpdate(
             name=request.name,
-            plan=payload,
+            strategy_ast=payload,
             record_type=record_type,
             wdk_strategy_id=request.wdk_strategy_id,
             wdk_strategy_id_set=wdk_strategy_id_set,
             is_saved=request.is_saved,
             is_saved_set=is_saved_set,
             step_count=len(walk_step_tree(payload.root)) if payload else None,
+            supervisor_model_id=request.supervisor_model_id,
+            supervisor_model_id_set=supervisor_model_id_set,
         ),
     )
 
@@ -176,6 +204,31 @@ async def update_strategy(
     return build_conversation_response(updated)
 
 
+@router.post("/{strategyId:uuid}/fork", response_model=ConversationResponse)
+async def fork_strategy(
+    strategyId: UUID,
+    request: ForkConversationRequest,
+    conv_repo: ConversationRepo,
+    session: DBSession,
+    user_id: CurrentUser,
+) -> ConversationResponse:
+    """Branch a conversation at a chosen assistant message into a new chat."""
+    await get_owned_conversation_or_404(conv_repo, strategyId, user_id)
+    try:
+        fork = await fork_conversation(
+            session,
+            source_conversation_id=strategyId,
+            from_message_id=request.from_message_id,
+            user_id=user_id,
+        )
+    except ForkError as exc:
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title=str(exc),
+        ) from exc
+    await session.commit()
+    return build_conversation_summary(fork, site_id=fork.site_id)
+
+
 @router.post("/{strategyId:uuid}/push", response_model=ConversationResponse)
 async def push_strategy(
     strategyId: UUID,
@@ -186,18 +239,18 @@ async def push_strategy(
     """Push a strategy to WDK: normalize plan, persist locally, sync to WDK."""
     conversation = await get_owned_conversation_or_404(conv_repo, strategyId, user_id)
 
-    plan_in = request.plan.model_dump(exclude_none=True)
+    plan_in = request.strategy_ast.model_dump(exclude_none=True)
     payload = validate_plan_or_raise(plan_in)
 
-    payload = await canonicalize_plan_parameters(
-        plan=payload, site_id=request.site_id,
+    payload = await canonicalize_strategy_ast_parameters(
+        strategy_ast=payload, site_id=request.site_id,
     )
 
     # Preserve WDK sync state from existing chat — old values fill
     # in where the new payload has None; new values always take precedence.
     sync_fields = {"wdk_step_ids", "step_counts", "step_validations"}
-    if conversation.plan:
-        old = StrategyPlanPayload.model_validate(conversation.plan)
+    if conversation.strategy_ast:
+        old = StrategyAst.model_validate(conversation.strategy_ast)
         preserved = old.model_dump(include=sync_fields, exclude_none=True)
         current = payload.model_dump(include=sync_fields, exclude_none=True)
         merged = {**preserved, **current}
@@ -208,7 +261,7 @@ async def push_strategy(
         strategyId,
         ConversationUpdate(
             name=request.name,
-            plan=payload,
+            strategy_ast=payload,
             record_type=payload.record_type,
             step_count=len(walk_step_tree(payload.root)),
         ),
@@ -218,7 +271,7 @@ async def push_strategy(
     strategy_graph_persisted = PersistedStrategyGraph(
         id=str(strategyId),
         name=request.name,
-        plan=payload,
+        strategy_ast=payload,
         wdk_strategy_id=wdk_strategy_id,
     )
     session = build_strategy_session(
@@ -268,6 +321,7 @@ async def delete_strategy(
     user_id: CurrentUser,
     *,
     delete_from_wdk: Annotated[bool, Query(alias="deleteFromWdk")] = False,
+    cascade: Annotated[bool, Query()] = False,
 ) -> Response:
     """Delete a strategy.
 
@@ -275,6 +329,10 @@ async def delete_strategy(
     chat is soft-deleted (dismissed) to prevent WDK sync from re-importing it.
     Pass ``deleteFromWdk=true`` to hard-delete from both PathFinder and WDK.
     Non-WDK strategies are always hard-deleted.
+
+    With ``cascade=true`` on hard-delete, the whole fork subtree goes; with
+    ``cascade=false`` (default), direct children climb up to this node's
+    parent so the tree stays connected.
     """
     conversation = await get_owned_conversation_or_404(conv_repo, strategyId, user_id)
 
@@ -293,7 +351,7 @@ async def delete_strategy(
                     wdk_strategy_id=conversation.wdk_strategy_id,
                     error=str(e),
                 )
-        await conv_repo.delete(strategyId)
+        await conv_repo.delete(strategyId, cascade=cascade)
 
     return Response(status_code=204)
 
@@ -306,12 +364,12 @@ async def get_strategy_ast(
 ) -> JSONObject:
     """Return the raw plan AST from a strategy chat."""
     conversation = await get_owned_conversation_or_404(conv_repo, strategyId, user_id)
-    if not conversation.plan:
+    if not conversation.strategy_ast:
         raise NotFoundError(
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="Strategy has no plan AST",
         )
-    return conversation.plan
+    return conversation.strategy_ast
 
 
 @router.post("/{strategyId:uuid}/restore", response_model=ConversationResponse)
