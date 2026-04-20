@@ -36,7 +36,7 @@ async def system_config() -> SystemConfigResponse:
     screen before asking users to log in.
     """
     settings = get_settings()
-    is_mock = settings.chat_provider.strip().lower() == "mock"
+    is_mock = settings.pathfinder_chat_provider.strip().lower() == "mock"
     providers = ProviderStatus(
         openai=bool(settings.openai_api_key),
         anthropic=bool(settings.anthropic_api_key),
@@ -44,7 +44,7 @@ async def system_config() -> SystemConfigResponse:
         ollama=bool(settings.ollama_base_url),
     )
     return SystemConfigResponse(
-        chat_provider=settings.chat_provider,
+        chat_provider=settings.pathfinder_chat_provider,
         llm_configured=is_mock
         or providers.openai
         or providers.anthropic

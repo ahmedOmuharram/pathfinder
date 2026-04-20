@@ -76,7 +76,6 @@ class Settings(BaseSettings):
         case_sensitive=False,
         env_ignore_empty=True,
         extra="ignore",
-        populate_by_name=True,
     )
 
     # API
@@ -116,10 +115,7 @@ class Settings(BaseSettings):
     veupathdb_oauth_client_id: str | None = None
 
     # Conversation provider (set to "mock" for deterministic offline E2E testing)
-    chat_provider: str = Field(
-        default="",
-        validation_alias="PATHFINDER_CHAT_PROVIDER",
-    )
+    pathfinder_chat_provider: str = ""
 
     # Logging
     log_level: str = "INFO"
@@ -149,10 +145,7 @@ class Settings(BaseSettings):
     cors_origin_regex: str | None = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 
     # Per-user monthly usage quota (USD). Per-user override lives on `users.monthly_cost_limit_usd`.
-    user_monthly_cost_limit_usd: float = Field(
-        default=20.0,
-        validation_alias="PATHFINDER_USER_MONTHLY_COST_LIMIT_USD",
-    )
+    pathfinder_user_monthly_cost_limit_usd: float = 20.0
 
     @computed_field
     def is_development(self) -> bool:
@@ -207,23 +200,23 @@ class Settings(BaseSettings):
             raise ValueError(msg)
 
     def _validate_chat_provider(self) -> None:
-        chat_provider = self.chat_provider.strip().lower()
-        if not chat_provider:
+        provider = self.pathfinder_chat_provider.strip().lower()
+        if not provider:
             msg = (
                 "PATHFINDER_CHAT_PROVIDER must be set explicitly to "
                 "'default' or 'mock'."
             )
             raise ValueError(msg)
-        if chat_provider not in _ALLOWED_CHAT_PROVIDERS:
+        if provider not in _ALLOWED_CHAT_PROVIDERS:
             allowed = ", ".join(sorted(_ALLOWED_CHAT_PROVIDERS))
             msg = f"PATHFINDER_CHAT_PROVIDER must be one of: {allowed}."
             raise ValueError(msg)
-        self.chat_provider = chat_provider
+        self.pathfinder_chat_provider = provider
 
-        if chat_provider == "mock" and self.api_env != "test":
+        if provider == "mock" and self.api_env != "test":
             msg = "PATHFINDER_CHAT_PROVIDER=mock is only allowed when API_ENV=test."
             raise ValueError(msg)
-        if chat_provider != "mock" and not self.has_llm_configuration:
+        if provider != "mock" and not self.has_llm_configuration:
             msg = (
                 "PathFinder requires a configured model backend. Set at least one of "
                 "OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or OLLAMA_BASE_URL, "

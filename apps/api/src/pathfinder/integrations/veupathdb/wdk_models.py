@@ -13,30 +13,26 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import ConfigDict, Discriminator, Field, JsonValue, TypeAdapter
+from pydantic import ConfigDict, Discriminator, Field, JsonValue
 from pydantic.alias_generators import to_camel
 
-from pathfinder.domain.strategy.types import ParamValue
 from pathfinder.domain.strategy.validation import StepValidation
+from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 
-_wdk_param_adapter: TypeAdapter[dict[str, ParamValue]] = TypeAdapter(dict[str, ParamValue])
 
 def encode_wdk_params(params: JSONObject | None) -> dict[str, str]:
-    """Encode a parameter dict to WDK's ``Record<string, string>``.
-
-    Drops None values, coerces remaining values to strings via ``ParamValue``.
-    """
-    filtered = {k: v for k, v in (params or {}).items() if v is not None}
-    return _wdk_param_adapter.validate_python(filtered)
+    """Encode a parameter dict to WDK's ``Record<string, string>``, dropping ``None``."""
+    if params is None:
+        return {}
+    return encode_params({k: v for k, v in params.items() if v is not None})
 
 class WDKModel(CamelModel):
     """Base for all WDK REST API response models."""
 
     model_config = ConfigDict(
         alias_generator=to_camel,
-        populate_by_name=True,
         extra="ignore",
         frozen=True,
     )
@@ -58,7 +54,6 @@ class WDKSearchConfig(WDKModel):
 
     model_config = ConfigDict(
         alias_generator=to_camel,
-        populate_by_name=True,
         extra="ignore",
         frozen=True,
         coerce_numbers_to_str=True,
@@ -273,11 +268,18 @@ class WDKAnswerMeta(WDKModel):
     attributes: list[str] = Field(default_factory=list)
     tables: list[str] = Field(default_factory=list)
 
+class WDKRecordIdPart(WDKModel):
+    """One (name, value) segment of a WDK record's composite primary key."""
+
+    name: str
+    value: str
+
+
 class WDKRecordInstance(WDKModel):
     """A single record from a WDK answer/report."""
 
     display_name: str = ""
-    id: list[dict[str, str]] = Field(default_factory=list)
+    id: list[WDKRecordIdPart] = Field(default_factory=list)
     record_class_name: str = ""
     attributes: dict[str, JsonValue] = Field(default_factory=dict)
     tables: dict[str, JsonValue] = Field(default_factory=dict)
@@ -526,7 +528,6 @@ class PatchStepSpec(CamelModel):
 
     model_config = ConfigDict(
         alias_generator=to_camel,
-        populate_by_name=True,
         extra="ignore",
     )
 

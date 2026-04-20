@@ -2,8 +2,9 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import Field, JsonValue
 
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.types import (
     ControlValueFormat,
@@ -14,26 +15,24 @@ from pathfinder.services.experiment.types import (
 from pathfinder.services.wdk import WDKSortDirection
 
 
-class ThresholdKnobRequest(BaseModel):
+class ThresholdKnobRequest(CamelModel):
     """A numeric parameter knob for tree optimization."""
 
-    step_id: str = Field(alias="stepId")
-    param_name: str = Field(alias="paramName")
-    min_val: float = Field(alias="minVal", default=0)
-    max_val: float = Field(alias="maxVal", default=1)
-    step_size: float | None = Field(alias="stepSize", default=None)
+    step_id: str
+    param_name: str
+    min_val: float = Field(default=0)
+    max_val: float = Field(default=1)
+    step_size: float | None = Field(default=None)
 
-    model_config = {"populate_by_name": True}
 
-class OperatorKnobRequest(BaseModel):
+class OperatorKnobRequest(CamelModel):
     """A boolean-operator knob for tree optimization."""
 
-    combine_node_id: str = Field(alias="combineNodeId")
+    combine_node_id: str
     options: list[str] = Field(default_factory=lambda: ["INTERSECT", "UNION", "MINUS"])
 
-    model_config = {"populate_by_name": True}
 
-class OptimizationSpecRequest(BaseModel):
+class OptimizationSpecRequest(CamelModel):
     """Describes a single parameter to optimise."""
 
     name: str
@@ -43,178 +42,136 @@ class OptimizationSpecRequest(BaseModel):
     step: float | None = None
     choices: list[str] | None = None
 
-class CreateExperimentRequest(BaseModel):
+class CreateExperimentRequest(CamelModel):
     """Request to create and run an experiment.
 
     Supports three modes: ``single`` (default), ``multi-step``, and ``import``.
     """
 
-    site_id: str = Field(alias="siteId")
-    record_type: str = Field(alias="recordType")
+    site_id: str
+    record_type: str
     mode: ExperimentMode = Field(default="single")
-    search_name: str = Field(default="", alias="searchName")
+    search_name: str = Field(default="")
     parameters: JSONObject = Field(default_factory=dict)
-    step_tree: JsonValue = Field(default=None, alias="stepTree")
-    source_strategy_id: str | None = Field(default=None, alias="sourceStrategyId")
-    optimization_target_step: str | None = Field(
-        default=None, alias="optimizationTargetStep"
-    )
-    positive_controls: list[str] = Field(alias="positiveControls")
-    negative_controls: list[str] = Field(alias="negativeControls")
-    controls_search_name: str = Field(alias="controlsSearchName")
-    controls_param_name: str = Field(alias="controlsParamName")
-    controls_value_format: ControlValueFormat = Field(
-        default="newline", alias="controlsValueFormat"
-    )
-    enable_cross_validation: bool = Field(default=False, alias="enableCrossValidation")
-    k_folds: int = Field(default=5, alias="kFolds", ge=2, le=10)
-    enrichment_types: list[EnrichmentAnalysisType] = Field(
-        default_factory=list, alias="enrichmentTypes"
-    )
+    step_tree: JsonValue = Field(default=None)
+    source_strategy_id: str | None = Field(default=None)
+    optimization_target_step: str | None = Field(default=None)
+    positive_controls: list[str]
+    negative_controls: list[str]
+    controls_search_name: str
+    controls_param_name: str
+    controls_value_format: ControlValueFormat = Field(default="newline")
+    enable_cross_validation: bool = Field(default=False)
+    k_folds: int = Field(default=5, ge=2, le=10)
+    enrichment_types: list[EnrichmentAnalysisType] = Field(default_factory=list)
     name: str = Field(default="Untitled Experiment", max_length=200)
     description: str = Field(default="", max_length=2000)
-    optimization_specs: list[OptimizationSpecRequest] | None = Field(
-        default=None, alias="optimizationSpecs"
-    )
-    optimization_budget: int = Field(
-        default=30, alias="optimizationBudget", ge=5, le=200
-    )
-    optimization_objective: OptimizationObjective | None = Field(
-        default=None, alias="optimizationObjective"
-    )
-    parameter_display_values: JSONObject | None = Field(
-        default=None, alias="parameterDisplayValues"
-    )
-    enable_step_analysis: bool = Field(default=False, alias="enableStepAnalysis")
-    step_analysis_phases: list[str] | None = Field(
-        default=None, alias="stepAnalysisPhases"
-    )
-    control_set_id: str | None = Field(default=None, alias="controlSetId")
-    threshold_knobs: list[ThresholdKnobRequest] | None = Field(
-        default=None, alias="thresholdKnobs"
-    )
-    operator_knobs: list[OperatorKnobRequest] | None = Field(
-        default=None, alias="operatorKnobs"
-    )
-    tree_optimization_objective: str = Field(
-        default="precision_at_50", alias="treeOptimizationObjective"
-    )
-    tree_optimization_budget: int = Field(
-        default=50, alias="treeOptimizationBudget", ge=5, le=200
-    )
-    max_list_size: int | None = Field(default=None, alias="maxListSize")
-    sort_attribute: str | None = Field(default=None, alias="sortAttribute")
-    sort_direction: WDKSortDirection = Field(default="ASC", alias="sortDirection")
-    parent_experiment_id: str | None = Field(default=None, alias="parentExperimentId")
-    target_gene_ids: list[str] | None = Field(default=None, alias="targetGeneIds")
-    model_config = {"populate_by_name": True}
+    optimization_specs: list[OptimizationSpecRequest] | None = Field(default=None)
+    optimization_budget: int = Field(default=30, ge=5, le=200)
+    optimization_objective: OptimizationObjective | None = Field(default=None)
+    parameter_display_values: JSONObject | None = Field(default=None)
+    enable_step_analysis: bool = Field(default=False)
+    step_analysis_phases: list[str] | None = Field(default=None)
+    control_set_id: str | None = Field(default=None)
+    threshold_knobs: list[ThresholdKnobRequest] | None = Field(default=None)
+    operator_knobs: list[OperatorKnobRequest] | None = Field(default=None)
+    tree_optimization_objective: str = Field(default="precision_at_50")
+    tree_optimization_budget: int = Field(default=50, ge=5, le=200)
+    max_list_size: int | None = Field(default=None)
+    sort_attribute: str | None = Field(default=None)
+    sort_direction: WDKSortDirection = Field(default="ASC")
+    parent_experiment_id: str | None = Field(default=None)
+    target_gene_ids: list[str] | None = Field(default=None)
 
-class BatchOrganismTargetRequest(BaseModel):
+class BatchOrganismTargetRequest(CamelModel):
     """Per-organism override for a cross-organism batch experiment."""
 
     organism: str
-    positive_controls: list[str] | None = Field(default=None, alias="positiveControls")
-    negative_controls: list[str] | None = Field(default=None, alias="negativeControls")
+    positive_controls: list[str] | None = Field(default=None)
+    negative_controls: list[str] | None = Field(default=None)
 
-    model_config = {"populate_by_name": True}
 
-class CreateBatchExperimentRequest(BaseModel):
+class CreateBatchExperimentRequest(CamelModel):
     """Request to run the same search across multiple organisms."""
 
     base: CreateExperimentRequest
-    organism_param_name: str = Field(alias="organismParamName")
-    target_organisms: list[BatchOrganismTargetRequest] = Field(
-        alias="targetOrganisms", min_length=1
-    )
+    organism_param_name: str
+    target_organisms: list[BatchOrganismTargetRequest] = Field(min_length=1)
 
-    model_config = {"populate_by_name": True}
 
-class RunCrossValidationRequest(BaseModel):
+class RunCrossValidationRequest(CamelModel):
     """Request to run cross-validation on an existing experiment."""
 
-    k_folds: int = Field(default=5, alias="kFolds", ge=2, le=10)
+    k_folds: int = Field(default=5, ge=2, le=10)
 
-    model_config = {"populate_by_name": True}
 
-class RunEnrichmentRequest(BaseModel):
+class RunEnrichmentRequest(CamelModel):
     """Request to run enrichment on an existing experiment."""
 
-    enrichment_types: list[EnrichmentAnalysisType] = Field(alias="enrichmentTypes")
+    enrichment_types: list[EnrichmentAnalysisType]
 
-    model_config = {"populate_by_name": True}
 
-class ThresholdSweepRequest(BaseModel):
+class ThresholdSweepRequest(CamelModel):
     """Request to sweep a parameter across a range (numeric) or set of values (categorical)."""
 
-    parameter_name: str = Field(alias="parameterName")
-    sweep_type: Literal["numeric", "categorical"] = Field(
-        default="numeric", alias="sweepType"
-    )
-    min_value: float | None = Field(default=None, alias="minValue")
-    max_value: float | None = Field(default=None, alias="maxValue")
+    parameter_name: str
+    sweep_type: Literal["numeric", "categorical"] = Field(default="numeric")
+    min: float | None = None
+    max: float | None = None
     steps: int = Field(default=10, ge=3, le=50)
     values: list[str] | None = Field(default=None)
 
-    model_config = {"populate_by_name": True}
 
-class RefineRequest(BaseModel):
+class RefineRequest(CamelModel):
     """Request to refine an experiment's strategy."""
 
     action: Literal["combine", "transform"]
-    search_name: str = Field(default="", alias="searchName")
+    search_name: str = Field(default="")
     parameters: JSONObject = Field(default_factory=dict)
     operator: str = Field(default="INTERSECT")
-    transform_name: str = Field(default="", alias="transformName")
-
-    model_config = {"populate_by_name": True}
+    transform_name: str = Field(default="")
 
 
-class RefineResponse(BaseModel):
+class RefineResponse(CamelModel):
     """Response from refine_experiment."""
 
     success: bool
-    new_step_id: int | None = Field(default=None, alias="newStepId")
+    new_step_id: int | None = Field(default=None)
 
-    model_config = {"populate_by_name": True}
 
-class CustomEnrichRequest(BaseModel):
+class CustomEnrichRequest(CamelModel):
     """Request to run a custom gene-set enrichment test."""
 
-    gene_set_name: str = Field(alias="geneSetName", min_length=1)
-    gene_ids: list[str] = Field(alias="geneIds", min_length=1)
+    gene_set_name: str = Field(min_length=1)
+    gene_ids: list[str] = Field(min_length=1)
 
-    model_config = {"populate_by_name": True}
 
-class BenchmarkControlSet(BaseModel):
+class BenchmarkControlSet(CamelModel):
     """A single control set within a benchmark suite."""
 
     label: str = Field(min_length=1)
-    positive_controls: list[str] = Field(alias="positiveControls")
-    negative_controls: list[str] = Field(alias="negativeControls")
-    control_set_id: str | None = Field(default=None, alias="controlSetId")
-    is_primary: bool = Field(default=False, alias="isPrimary")
+    positive_controls: list[str]
+    negative_controls: list[str]
+    control_set_id: str | None = Field(default=None)
+    is_primary: bool = Field(default=False)
 
-    model_config = {"populate_by_name": True}
 
-class CreateBenchmarkRequest(BaseModel):
+class CreateBenchmarkRequest(CamelModel):
     """Request to run a benchmark suite across multiple control sets."""
 
     base: CreateExperimentRequest
-    control_sets: list[BenchmarkControlSet] = Field(alias="controlSets", min_length=1)
+    control_sets: list[BenchmarkControlSet] = Field(min_length=1)
 
-    model_config = {"populate_by_name": True}
 
-class OverlapRequest(BaseModel):
+class OverlapRequest(CamelModel):
     """Request to compute pairwise gene set overlap between experiments."""
 
-    experiment_ids: list[str] = Field(alias="experimentIds", min_length=2)
+    experiment_ids: list[str] = Field(min_length=2)
 
-    model_config = {"populate_by_name": True}
 
-class EnrichmentCompareRequest(BaseModel):
+class EnrichmentCompareRequest(CamelModel):
     """Request to compare enrichment results across experiments."""
 
-    experiment_ids: list[str] = Field(alias="experimentIds", min_length=2)
-    analysis_type: str | None = Field(default=None, alias="analysisType")
+    experiment_ids: list[str] = Field(min_length=2)
+    analysis_type: str | None = Field(default=None)
 
-    model_config = {"populate_by_name": True}

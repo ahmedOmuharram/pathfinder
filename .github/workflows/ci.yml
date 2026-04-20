@@ -41,6 +41,10 @@ jobs:
         working-directory: apps/api
         run: uv run mypy .
 
+      - name: Run pyright
+        working-directory: apps/api
+        run: uv run pyright src/pathfinder
+
       - name: Check OpenAPI spec is up to date
         working-directory: apps/api
         run: uv run python -m pathfinder.devtools.openapi check

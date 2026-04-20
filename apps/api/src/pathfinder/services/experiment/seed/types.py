@@ -61,7 +61,7 @@ class SeedStrategyComplete(CamelModel):
     current: int
     total: int
     name: str
-    wdk_strategy_id: str = Field(alias="wdkStrategyId")
+    wdk_strategy_id: int
     elapsed: float
     message: str
 
@@ -85,8 +85,8 @@ class SeedComplete(CamelModel):
 
     type: Literal["seed_complete"] = "seed_complete"
     total: int = 0
-    strategies_created: int = Field(default=0, alias="strategiesCreated")
-    control_sets_created: int = Field(default=0, alias="controlSetsCreated")
+    strategies_created: int = Field(default=0)
+    control_sets_created: int = Field(default=0)
     failed: int = 0
     message: str
     error: str | None = None

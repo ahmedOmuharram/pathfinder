@@ -8,7 +8,8 @@ import {
   getCoreRowModel,
   getExpandedRowModel,
 } from "@tanstack/react-table";
-import type { RecordAttribute, WdkRecord } from "@/lib/types/wdk";
+import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordAttribute";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import { RecordRow } from "./RecordRow";
 import { buildColumns, getPrimaryKey } from "./ResultsTableColumns";
 
@@ -25,13 +26,17 @@ const attributes: RecordAttribute[] = [
   { name: "product", displayName: "Product", help: null, type: null, isDisplayable: true, isSortable: false, isSuggested: false },
 ];
 
-const defaultRecord: WdkRecord = {
+const defaultRecord: ClassifiedRecord = {
+  displayName: "PF3D7_1234",
   id: [{ name: "source_id", value: "PF3D7_1234" }],
+  recordClassName: "transcript",
   attributes: { gene_id: "PF3D7_1234", product: "kinase" },
+  tables: {},
+  tableErrors: [],
 };
 
 interface HarnessProps {
-  record?: WdkRecord;
+  record?: ClassifiedRecord;
   includeClassification?: boolean;
   isExpanded?: boolean;
   onToggle?: () => void;
@@ -45,7 +50,7 @@ function Harness({
 }: HarnessProps) {
   const tableColumns = buildColumns(attributes, includeClassification);
   const rowId = getPrimaryKey(record);
-  const table = useReactTable<WdkRecord>({
+  const table = useReactTable<ClassifiedRecord>({
     data: [record],
     columns: tableColumns,
     getRowId: (row) => getPrimaryKey(row),
@@ -97,9 +102,9 @@ describe("RecordRow", () => {
   });
 
   it("shows classification badge when the classification column is present", () => {
-    const classifiedRecord: WdkRecord = {
+    const classifiedRecord: ClassifiedRecord = {
       ...defaultRecord,
-      _classification: "TP" as const,
+      classification: "TP" as const,
     };
     render(<Harness record={classifiedRecord} includeClassification />);
     expect(screen.getByText("True Positive")).toBeTruthy();

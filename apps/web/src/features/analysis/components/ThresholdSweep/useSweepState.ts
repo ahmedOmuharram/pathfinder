@@ -127,8 +127,8 @@ export function useSweepState(experiment: Experiment) {
       request = {
         sweepType: "numeric",
         parameterName: paramName,
-        minValue: mn,
-        maxValue: mx,
+        min: mn,
+        max: mx,
         steps: Math.max(3, Math.min(50, st)),
       };
     } else {

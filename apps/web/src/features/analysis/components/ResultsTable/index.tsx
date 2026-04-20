@@ -15,7 +15,8 @@ import { Button } from "@/lib/components/ui/Button";
 import { getAttributes, type EntityRef } from "@/features/analysis/api/stepResults";
 import { useResultsTableRecords } from "@/features/analysis/hooks/useResultsTableRecords";
 import { useResultsTableDetail } from "@/features/analysis/hooks/useResultsTableDetail";
-import type { RecordAttribute, WdkRecord } from "@/lib/types/wdk";
+import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordAttribute";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import { buildColumns, getPrimaryKey } from "./ResultsTableColumns";
 import { ResultsTableHeader } from "./ResultsTableHeader";
 import { ResultsTableBody } from "./ResultsTableBody";
@@ -45,7 +46,7 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
     pageSize: DEFAULT_PAGE_SIZE,
   });
   const [expanded, setExpanded] = useState<ExpandedState>({});
-  const [expandedRecordId, setExpandedRecordId] = useState<WdkRecord["id"] | null>(null);
+  const [expandedRecordId, setExpandedRecordId] = useState<ClassifiedRecord["id"] | null>(null);
 
   const entityKey = `${entityRef.type}|${entityRef.id}`;
 
@@ -97,10 +98,10 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
     recordId: expandedRecordId,
   });
 
-  const hasClassification = recordsState.records.some((r) => r._classification != null);
+  const hasClassification = recordsState.records.some((r) => r.classification != null);
   const columns = buildColumns(attributes, hasClassification);
 
-  const table = useReactTable<WdkRecord>({
+  const table = useReactTable<ClassifiedRecord>({
     data: recordsState.records,
     columns,
     state: { sorting, columnVisibility, pagination, expanded },
@@ -126,7 +127,7 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
     enableSortingRemoval: false,
   });
 
-  const handleExpandRow = (row: WdkRecord, expand: boolean) => {
+  const handleExpandRow = (row: ClassifiedRecord, expand: boolean) => {
     if (!expand) {
       setExpanded({});
       setExpandedRecordId(null);

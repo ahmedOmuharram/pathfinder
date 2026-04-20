@@ -1,5 +1,5 @@
 import { BarChart3, Loader2, RefreshCw } from "lucide-react";
-import type { RecordAttribute } from "@/lib/types/wdk";
+import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordAttribute";
 
 interface AttributeSelectorProps {
   attributes: RecordAttribute[];

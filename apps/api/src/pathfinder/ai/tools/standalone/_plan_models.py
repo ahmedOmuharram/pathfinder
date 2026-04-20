@@ -34,7 +34,7 @@ from pathfinder.platform.types import JSONArray, JSONObject
 class PlannedStepInput(BaseModel):
     """Input model for a planned step from the LLM."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict()
 
     id: str = Field(default_factory=lambda: f"step_{uuid4().hex[:8]}")
     search_name: str
@@ -128,10 +128,10 @@ def _convert_step(
     metadata (param_type, description, depends_on, required) is used
     instead of the default ``"string"`` placeholder.
     """
-    params: dict[str, PlannedParameter] = {}
-    for name, value in s.parameters.items():
-        spec = param_specs.get(name) if param_specs else None
-        params[name] = _build_param(name, value, spec)
+    params: list[PlannedParameter] = [
+        _build_param(name, value, param_specs.get(name) if param_specs else None)
+        for name, value in s.parameters.items()
+    ]
     return PlannedStep(
         id=s.id,
         search_name=s.search_name,
@@ -185,10 +185,10 @@ def _build_constraints(spec: ParamSpecNormalized) -> dict[str, JsonValue] | None
         constraints["displayType"] = spec.display_type
     if spec.is_number:
         constraints["isNumber"] = True
-    if spec.min_value is not None:
-        constraints["minValue"] = spec.min_value
-    if spec.max_value is not None:
-        constraints["maxValue"] = spec.max_value
+    if spec.min is not None:
+        constraints["min"] = spec.min
+    if spec.max is not None:
+        constraints["max"] = spec.max
     if spec.increment is not None:
         constraints["increment"] = spec.increment
     if spec.min_selected_count is not None:
@@ -316,7 +316,7 @@ def _validate_domain_parameters(
             continue
         if step.step_type == StepType.LEAF:
             missing = [
-                name for name, param in step.parameters.items()
+                param.name for param in step.parameters
                 if param.required and param.status != ParamStatus.SET
             ]
             if missing:
@@ -362,10 +362,13 @@ def _apply_step_patches(
                 else None
             )
             for name, value in patch.parameters.items():
-                if name in step.parameters:
-                    step.parameters[name].value = value
-                    step.parameters[name].status = ParamStatus.SET
+                existing = next(
+                    (p for p in step.parameters if p.name == name), None,
+                )
+                if existing is not None:
+                    existing.value = value
+                    existing.status = ParamStatus.SET
                 else:
                     spec = param_specs.get(name) if param_specs else None
-                    step.parameters[name] = _build_param(name, value, spec)
+                    step.parameters.append(_build_param(name, value, spec))
     return None

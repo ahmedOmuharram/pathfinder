@@ -178,7 +178,7 @@ def _apply_knobs_recursive(
         for key, val in threshold_vals.items():
             step_id, param_name = key.split(":", 1)
             if nid == step_id:
-                n.parameters[param_name] = str(val)
+                n.parameters[param_name] = val
 
     walk_plan_tree(node, _apply)
 

@@ -4,7 +4,7 @@
 import { afterEach, describe, it, expect } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { ExpandedRowDetail } from "./ExpandedRowDetail";
-import type { RecordDetail } from "@/lib/types/wdk";
+import type { RecordDetailResponse } from "@pathfinder/shared/generated/types/RecordDetailResponse";
 
 describe("ExpandedRowDetail", () => {
   afterEach(cleanup);
@@ -17,7 +17,7 @@ describe("ExpandedRowDetail", () => {
   };
 
   it("renders attribute values using display names from attributeNames", () => {
-    const detail: RecordDetail = {
+    const detail: RecordDetailResponse = {
       displayName: "PF3D7_0102600",
       id: [{ name: "source_id", value: "PF3D7_0102600" }],
       recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",
@@ -44,7 +44,7 @@ describe("ExpandedRowDetail", () => {
   });
 
   it("falls back to raw field name when attributeNames has no match", () => {
-    const detail: RecordDetail = {
+    const detail: RecordDetailResponse = {
       displayName: "PF3D7_0102600",
       id: [{ name: "source_id", value: "PF3D7_0102600" }],
       recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",
@@ -75,7 +75,7 @@ describe("ExpandedRowDetail", () => {
   });
 
   it("shows fallback when detail has no attributes", () => {
-    const detail: RecordDetail = {
+    const detail: RecordDetailResponse = {
       displayName: "PF3D7_0102600",
       id: [{ name: "source_id", value: "PF3D7_0102600" }],
       recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",

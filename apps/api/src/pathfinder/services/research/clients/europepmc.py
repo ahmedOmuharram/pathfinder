@@ -27,9 +27,7 @@ class _EpmcResponse(BaseModel):
     """Top-level envelope for the Europe PMC search response."""
 
     model_config = ConfigDict(extra="ignore")
-    result_list: _EpmcResultList = Field(
-        alias="resultList", default_factory=_EpmcResultList
-    )
+    result_list: _EpmcResultList = Field(default_factory=_EpmcResultList)
 
 class EuropePmcClient(StandardClient):
     """Client for Europe PMC API."""

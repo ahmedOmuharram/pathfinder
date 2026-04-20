@@ -8,8 +8,6 @@ Public API:
 - ``normalize_synced_parameters`` -- enrich plan nodes with normalized param values
 """
 
-from pydantic import TypeAdapter
-
 from pathfinder.domain.parameters.normalize import ParameterNormalizer
 from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
@@ -17,8 +15,12 @@ from pathfinder.domain.strategy.ast import (
 )
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.domain.strategy.types import SerializedParams
+from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
+from pathfinder.integrations.veupathdb.value_decoding import (
+    decode_params,
+    encode_params,
+)
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearch,
     WDKStep,
@@ -27,10 +29,8 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.errors import AppError, DataParsingError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 
-_params_adapter: TypeAdapter[SerializedParams] = TypeAdapter(SerializedParams)
 logger = get_logger(__name__)
 
 
@@ -61,13 +61,14 @@ def _build_node(
         raise DataParsingError(msg)
 
     search_name = step.search_name
-    parameters: JSONObject = dict(step.search_config.parameters)
+    wire_parameters = step.search_config.parameters
+    parameters: DecodedParams = decode_params(wire_parameters)
     display_name = step.custom_name or step.display_name or None
 
     if tree_node.primary_input and tree_node.secondary_input:
         left = _build_node(tree_node.primary_input, steps, record_type)
         right = _build_node(tree_node.secondary_input, steps, record_type)
-        raw_operator = _extract_operator(step.search_config.parameters)
+        raw_operator = _extract_operator(wire_parameters)
         if raw_operator is None:
             msg = (
                 f"Combine step {step_id} has no boolean operator in "
@@ -211,7 +212,7 @@ async def normalize_synced_parameters(
 
         cache_key = (record_type, search_name)
         if cache_key not in spec_cache:
-            encoded_context = dict(step.parameters or {})
+            encoded_context = encode_params(step.parameters)
             spec_cache[cache_key] = await _load_search_spec(
                 api, record_type, search_name, encoded_context
             )
@@ -222,8 +223,7 @@ async def normalize_synced_parameters(
             continue
         try:
             normalizer = ParameterNormalizer(specs)
-            params_obj: JSONObject = dict(step.parameters or {})
-            normalized = normalizer.normalize(params_obj)
+            normalized = normalizer.normalize(step.parameters)
         except AppError as exc:
             logger.warning(
                 "Failed to normalize synced parameters",
@@ -234,4 +234,4 @@ async def normalize_synced_parameters(
             )
             continue
 
-        step.parameters = _params_adapter.validate_python(normalized)
+        step.parameters = normalized

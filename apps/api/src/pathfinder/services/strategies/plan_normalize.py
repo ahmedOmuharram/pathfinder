@@ -8,20 +8,18 @@ import hashlib
 import json
 from collections.abc import Awaitable, Callable, Mapping
 
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.domain.strategy.types import SerializedParams
+from pathfinder.domain.strategy.types import DecodedParams
+from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
 from pathfinder.platform.errors import ValidationError, WDKError
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
-from pathfinder.services.wdk import encode_wdk_params, get_strategy_api
-
-_params_adapter: TypeAdapter[SerializedParams] = TypeAdapter(SerializedParams)
+from pathfinder.services.wdk import get_strategy_api
 
 """Callback that loads WDK search details for a (record_type, search_name)
 pair, returning a fully validated ``WDKSearchResponse``."""
@@ -42,8 +40,7 @@ async def make_search_detail_loader(site_id: str) -> LoadSearchDetails:
     async def _load(
         record_type: str, name: str, params: Mapping[str, JsonValue],
     ) -> WDKSearchResponse:
-        params_dict = dict(params) if isinstance(params, Mapping) else {}
-        context = encode_wdk_params(params_dict)
+        context = encode_params(dict(params))
         try:
             return await api.client.get_search_details_with_params(
                 record_type, name, context=context, expand_params=True,
@@ -55,7 +52,7 @@ async def make_search_detail_loader(site_id: str) -> LoadSearchDetails:
 
     return _load
 
-def _strip_combine_bq_keys(params: JSONObject) -> None:
+def _strip_combine_bq_keys(params: DecodedParams) -> None:
     """Remove WDK boolean-question parameter keys from a combine node's params dict."""
     for k in list(params.keys()):
         key = str(k)
@@ -68,7 +65,7 @@ async def _load_and_cache_spec(
     record_type: str,
     name: str,
     site_id: str,
-    params: JSONObject,
+    params: DecodedParams,
 ) -> dict[str, ParamSpecNormalized]:
     """Load search spec into cache if not already present, then return it."""
     ctx_raw = json.dumps(params, sort_keys=True, default=str)
@@ -117,7 +114,7 @@ async def canonicalize_strategy_ast_parameters(
 
     async def canonicalize_node(node: StrategyStepNode) -> None:
         name = node.search_name
-        params: JSONObject = dict(node.parameters)
+        params: DecodedParams = dict(node.parameters)
 
         is_combine = (
             (node.primary_input is not None and node.secondary_input is not None)
@@ -126,15 +123,13 @@ async def canonicalize_strategy_ast_parameters(
 
         if is_combine:
             _strip_combine_bq_keys(params)
-            node.parameters = _params_adapter.validate_python(params)
+            node.parameters = params
         else:
             spec_map = await _load_and_cache_spec(
                 specs_cache, load_search_details, record_type, name, site_id, params
             )
             canonicalizer = ParameterCanonicalizer(spec_map)
-            node.parameters = _params_adapter.validate_python(
-                canonicalizer.canonicalize(params)
-            )
+            node.parameters = canonicalizer.canonicalize(params)
 
         if node.primary_input is not None:
             await canonicalize_node(node.primary_input)

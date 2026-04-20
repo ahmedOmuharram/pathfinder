@@ -1,136 +1,116 @@
 """HTTP request/response schemas for gene sets."""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.types import EnrichmentAnalysisType
 from pathfinder.services.gene_sets.types import GeneSetSource
 from pathfinder.services.gene_sets.wdk_helpers import SetOperation
 
 
-class CreateGeneSetRequest(BaseModel):
+class CreateGeneSetRequest(CamelModel):
     """Create a gene set from IDs, strategy, or upload."""
 
     name: str = Field(min_length=1, max_length=200)
-    site_id: str = Field(alias="siteId")
-    gene_ids: list[str] = Field(alias="geneIds")
+    site_id: str
+    gene_ids: list[str]
     source: GeneSetSource = "paste"
-    wdk_strategy_id: int | None = Field(None, alias="wdkStrategyId")
-    wdk_step_id: int | None = Field(None, alias="wdkStepId")
-    search_name: str | None = Field(None, alias="searchName")
-    record_type: str | None = Field(None, alias="recordType")
+    wdk_strategy_id: int | None = Field(None)
+    wdk_step_id: int | None = Field(None)
+    search_name: str | None = Field(None)
+    record_type: str | None = Field(None)
     parameters: dict[str, str] | None = None
 
-    model_config = {"populate_by_name": True}
 
-
-class GeneSetResponse(BaseModel):
+class GeneSetResponse(CamelModel):
     """Gene set response DTO."""
 
     id: str
     name: str
-    site_id: str = Field(alias="siteId")
-    gene_ids: list[str] = Field(alias="geneIds")
+    site_id: str
+    gene_ids: list[str]
     source: GeneSetSource
-    gene_count: int = Field(alias="geneCount")
-    wdk_strategy_id: int | None = Field(None, alias="wdkStrategyId")
-    wdk_step_id: int | None = Field(None, alias="wdkStepId")
-    search_name: str | None = Field(None, alias="searchName")
-    record_type: str | None = Field(None, alias="recordType")
+    gene_count: int
+    wdk_strategy_id: int | None = Field(None)
+    wdk_step_id: int | None = Field(None)
+    search_name: str | None = Field(None)
+    record_type: str | None = Field(None)
     parameters: dict[str, str] | None = None
-    parent_set_ids: list[str] = Field(default_factory=list, alias="parentSetIds")
+    parent_set_ids: list[str] = Field(default_factory=list)
     operation: SetOperation | None = None
-    created_at: str = Field(alias="createdAt")
-    step_count: int = Field(1, alias="stepCount")
-
-    model_config = {"populate_by_name": True}
+    created_at: str
+    step_count: int = Field(1)
 
 
-class SetOperationRequest(BaseModel):
+class SetOperationRequest(CamelModel):
     """Perform set operations between two gene sets."""
 
-    set_a_id: str = Field(alias="setAId")
-    set_b_id: str = Field(alias="setBId")
+    set_a_id: str
+    set_b_id: str
     operation: SetOperation
     name: str = Field(min_length=1, max_length=200)
 
-    model_config = {"populate_by_name": True}
 
-
-class GeneSetEnrichRequest(BaseModel):
+class GeneSetEnrichRequest(CamelModel):
     """Run enrichment on a gene set."""
 
-    enrichment_types: list[EnrichmentAnalysisType] = Field(alias="enrichmentTypes")
-
-    model_config = {"populate_by_name": True}
+    enrichment_types: list[EnrichmentAnalysisType]
 
 
-class EnsembleScoringRequest(BaseModel):
+class EnsembleScoringRequest(CamelModel):
     """Compute ensemble frequency scores across multiple gene sets."""
 
-    gene_set_ids: list[str] = Field(alias="geneSetIds", min_length=2)
-    positive_controls: list[str] | None = Field(None, alias="positiveControls")
-
-    model_config = {"populate_by_name": True}
+    gene_set_ids: list[str] = Field(min_length=2)
+    positive_controls: list[str] | None = Field(None)
 
 
-class ReverseSearchRequest(BaseModel):
+class ReverseSearchRequest(CamelModel):
     """Rank user's gene sets by recall of given positive genes."""
 
-    positive_gene_ids: list[str] = Field(alias="positiveGeneIds", min_length=1)
-    negative_gene_ids: list[str] | None = Field(None, alias="negativeGeneIds")
-    site_id: str = Field(alias="siteId")
-
-    model_config = {"populate_by_name": True}
+    positive_gene_ids: list[str] = Field(min_length=1)
+    negative_gene_ids: list[str] | None = Field(None)
+    site_id: str
 
 
-class ReverseSearchResultItem(BaseModel):
+class ReverseSearchResultItem(CamelModel):
     """A single ranked gene set in reverse search results."""
 
-    gene_set_id: str = Field(alias="geneSetId")
+    gene_set_id: str
     name: str
-    search_name: str | None = Field(None, alias="searchName")
+    search_name: str | None = Field(None)
     recall: float
     precision: float
     f1: float
-    estimated_size: int = Field(alias="estimatedSize")
-    overlap_count: int = Field(alias="overlapCount")
-
-    model_config = {"populate_by_name": True}
+    estimated_size: int
+    overlap_count: int
 
 
-class RunGeneSetAnalysisRequest(BaseModel):
+class RunGeneSetAnalysisRequest(CamelModel):
     """Run a WDK step analysis on a gene set."""
 
-    analysis_name: str = Field(alias="analysisName", min_length=1)
+    analysis_name: str = Field(min_length=1)
     parameters: JSONObject = Field(default_factory=dict)
 
-    model_config = {"populate_by_name": True}
 
-
-class GeneConfidenceRequest(BaseModel):
+class GeneConfidenceRequest(CamelModel):
     """Compute per-gene confidence scores from classification data."""
 
-    tp_ids: list[str] = Field(alias="tpIds")
-    fp_ids: list[str] = Field(alias="fpIds")
-    fn_ids: list[str] = Field(alias="fnIds")
-    tn_ids: list[str] = Field(alias="tnIds")
-    ensemble_scores: dict[str, float] | None = Field(None, alias="ensembleScores")
-    enrichment_gene_counts: dict[str, int] | None = Field(
-        None, alias="enrichmentGeneCounts"
-    )
-    max_enrichment_terms: int = Field(1, alias="maxEnrichmentTerms", ge=1)
-
-    model_config = {"populate_by_name": True}
+    tp_ids: list[str]
+    fp_ids: list[str]
+    fn_ids: list[str]
+    tn_ids: list[str]
+    ensemble_scores: dict[str, float] | None = Field(None)
+    enrichment_gene_counts: dict[str, int] | None = Field(None)
+    max_enrichment_terms: int = Field(1, ge=1)
 
 
-class GeneConfidenceScoreResponse(BaseModel):
+class GeneConfidenceScoreResponse(CamelModel):
     """Single gene confidence score in the response."""
 
-    gene_id: str = Field(alias="geneId")
-    composite_score: float = Field(alias="compositeScore")
-    classification_score: float = Field(alias="classificationScore")
-    ensemble_score: float = Field(alias="ensembleScore")
-    enrichment_score: float = Field(alias="enrichmentScore")
+    gene_id: str
+    composite_score: float
+    classification_score: float
+    ensemble_score: float
+    enrichment_score: float
 
-    model_config = {"populate_by_name": True}

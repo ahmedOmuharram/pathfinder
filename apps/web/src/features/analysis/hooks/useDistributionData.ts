@@ -1,5 +1,5 @@
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
-import type { DistributionResponse } from "@/lib/types/wdk";
+import type { DistributionResponse } from "@pathfinder/shared/generated/types/DistributionResponse";
 import {
   distributionOptions,
   getDistribution,
@@ -10,11 +10,11 @@ import { APIError } from "@/lib/api/http";
 
 export function parseDistribution(raw: DistributionResponse): DistributionEntry[] {
   const isNumericBinned = raw.histogram[0]?.binStart !== "";
-  const parsed = raw.histogram
-    .filter((bin) => bin.value > 0)
+  const parsed: DistributionEntry[] = raw.histogram
+    .filter((bin) => (bin.value ?? 0) > 0)
     .map((bin) => ({
-      value: bin.binLabel || bin.binStart,
-      count: bin.value,
+      value: bin.binLabel || bin.binStart || "",
+      count: bin.value ?? 0,
     }));
   return isNumericBinned ? parsed : parsed.sort((a, b) => b.count - a.count);
 }

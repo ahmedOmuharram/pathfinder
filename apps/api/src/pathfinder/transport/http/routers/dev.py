@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/v1/dev", tags=["dev"])
 
 
 def _is_mock_provider() -> bool:
-    return get_settings().chat_provider.strip().lower() == "mock"
+    return get_settings().pathfinder_chat_provider.strip().lower() == "mock"
 
 
 @router.post("/login")

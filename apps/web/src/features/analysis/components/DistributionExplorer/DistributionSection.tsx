@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 import type { EntityRef } from "@/features/analysis/api/stepResults";
-import type { RecordAttribute } from "@/lib/types/wdk";
+import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordAttribute";
 import { useDistributionData } from "@/features/analysis/hooks/useDistributionData";
 import { useDistributionModal } from "@/features/analysis/hooks/useDistributionModal";
 import { AttributeSelector } from "./AttributeSelector";

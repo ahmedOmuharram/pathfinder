@@ -66,9 +66,9 @@ async def phase_optimize_parameters(
     opt_param_space = [
         ParameterSpec(
             name=s.name,
-            param_type=s.type,
-            min_value=s.min,
-            max_value=s.max,
+            type=s.type,
+            min=s.min,
+            max=s.max,
             step=s.step,
             choices=s.choices,
         )

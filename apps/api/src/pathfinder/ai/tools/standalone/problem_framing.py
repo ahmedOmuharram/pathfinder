@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pydantic import Field
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
@@ -11,7 +10,7 @@ from pathfinder.platform.pydantic_base import CamelModel
 
 
 class ProblemFrameResponse(CamelModel):
-    problem_frame: ProblemFrame = Field(alias="problemFrame")
+    problem_frame: ProblemFrame
 
 
 async def set_problem_frame(
@@ -29,6 +28,6 @@ async def set_problem_frame(
     normalized = frame.model_copy(update={"confidence": confidence})
     ctx.deps.problem_frame = normalized
     return ToolReturn(
-        return_value=ProblemFrameResponse(problemFrame=normalized),
+        return_value=ProblemFrameResponse(problem_frame=normalized),
         metadata=[problem_frame_chunk(normalized, site_id=ctx.deps.site_id)],
     )

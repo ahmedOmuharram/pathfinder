@@ -8,18 +8,18 @@ reconcile later.
 from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
 from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
 from pathfinder.domain.strategy.session import StrategyGraph
+from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
+from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     PatchStepSpec,
     WDKSearchConfig,
-    encode_wdk_params,
 )
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
 logger = get_logger(__name__)
@@ -32,7 +32,7 @@ async def push_step_to_wdk(
     site_id: str,
     record_type: str,
     search_name: str,
-    parameters: JSONObject,
+    parameters: DecodedParams,
 ) -> tuple[int | None, StepValidation | None, str | None]:
     """Push a newly created step to WDK and store its ID on sync_state.
 
@@ -46,7 +46,7 @@ async def push_step_to_wdk(
     wdk_step_id: int | None = None
     wdk_validation: StepValidation | None = None
     push_error: str | None = None
-    str_params: dict[str, str] = encode_wdk_params(parameters)
+    str_params: dict[str, str] = encode_params(parameters)
     try:
         api = get_strategy_api(site_id)
         is_binary = step.primary_input is not None and step.secondary_input is not None
@@ -219,7 +219,7 @@ async def _update_existing_step(
     # and don't change.
     if kind == "combine":
         return
-    str_params: dict[str, str] = dict(step.parameters)
+    str_params: dict[str, str] = encode_params(step.parameters)
 
     try:
         await api.update_step_search_config(
@@ -278,7 +278,7 @@ async def push_all_steps_to_wdk(
             site_id=site_id,
             record_type=graph.record_type or "transcript",
             search_name=step.search_name,
-            parameters=dict(step.parameters),
+            parameters=step.parameters,
         )
         if wdk_step_id is None:
             failed.append(step.id)

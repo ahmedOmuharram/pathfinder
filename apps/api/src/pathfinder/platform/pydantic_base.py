@@ -38,16 +38,14 @@ def _clamp_finite(v: object) -> object:
 
 
 class CamelModel(BaseModel):
-    """Base model with camelCase JSON aliases.
+    """Base model with camelCase JSON aliases. snake_case kwargs only in Python.
 
-    Serialization:  ``model.model_dump(by_alias=True, exclude_none=True, mode="json")``
-    Deserialization: ``Model.model_validate(data)``
+    Do NOT set per-field ``Field(alias=...)`` on CamelModel subclasses — the
+    class-level ``alias_generator`` covers it and keeps pyright happy. Explicit
+    ``alias=`` forces pyright to require camelCase kwargs, breaking the invariant.
     """
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-    )
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
 RoundedFloat = Annotated[

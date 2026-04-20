@@ -17,7 +17,7 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _filter_vocab,
     _resolve_record_type,
 )
-from pathfinder.domain.strategy.types import SerializedParams
+from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
@@ -103,7 +103,7 @@ async def get_parameter_options(
     search_name: str,
     param_name: str,
     record_type: str | None = None,
-    context_values: SerializedParams | None = None,
+    context_values: DecodedParams | None = None,
     query: str | None = None,
 ) -> ParameterInfo | ToolErrorPayload:
     """Get detailed parameter info including vocabulary/allowed values.

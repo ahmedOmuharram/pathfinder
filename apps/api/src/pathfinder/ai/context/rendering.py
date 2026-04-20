@@ -115,14 +115,14 @@ _MAX_PLAN_PARAM_LEN = 60
 class _PlanNode(BaseModel):
     """Parse a recursive plan tree node from the projection JSON."""
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config = ConfigDict(extra="ignore")
 
-    search_name: str = Field(default="?", alias="searchName")
-    display_name: str = Field(default="", alias="displayName")
+    search_name: str = Field(default="?")
+    display_name: str = Field(default="")
     parameters: JSONObject = Field(default_factory=dict)
     operator: str = Field(default="?")
-    primary_input: "_PlanNode | None" = Field(default=None, alias="primaryInput")
-    secondary_input: "_PlanNode | None" = Field(default=None, alias="secondaryInput")
+    primary_input: "_PlanNode | None" = Field(default=None)
+    secondary_input: "_PlanNode | None" = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -215,8 +215,8 @@ def _render_interactive_plan_step_call(
         )
 
     params = {
-        name: parameter.value
-        for name, parameter in step.parameters.items()
+        parameter.name: parameter.value
+        for parameter in step.parameters
         if parameter.value is not None
     }
     param_dict_str = _format_params_dict(params)

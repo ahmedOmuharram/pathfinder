@@ -65,7 +65,7 @@ class SemanticScholarRawPaper(BaseModel):
     typed sub-models — no isinstance chains needed.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config = ConfigDict(extra="ignore")
 
     title: str = ""
     year: int | None = None
@@ -73,7 +73,7 @@ class SemanticScholarRawPaper(BaseModel):
     abstract: str | None = None
     authors: list[_S2Author] = Field(default_factory=list)
     journal: _S2Journal | None = None
-    external_ids: _S2ExternalIds | None = Field(None, alias="externalIds")
+    external_ids: _S2ExternalIds | None = Field(None)
 
     def to_parsed_paper(self) -> ParsedPaper:
         """Convert to the shared normalized ParsedPaper model."""
@@ -121,7 +121,7 @@ class OpenAlexRawWork(BaseModel):
     nested authorships, and host_venue journal extraction via typed sub-models.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config = ConfigDict(extra="ignore")
 
     title: str = ""
     publication_year: int | None = None
@@ -212,7 +212,7 @@ class CrossRefRawWork(BaseModel):
     container-title) are parsed via typed sub-models.
     """
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+    model_config = ConfigDict(extra="ignore")
 
     title: list[str] = Field(default_factory=list)
     doi: str | None = Field(None, alias="DOI")
@@ -254,16 +254,16 @@ class EuropePmcRawResult(BaseModel):
     """
 
     model_config = ConfigDict(
-        extra="ignore", populate_by_name=True, coerce_numbers_to_str=False
+        extra="ignore", coerce_numbers_to_str=False
     )
 
     title: str = ""
-    pub_year: int | None = Field(None, alias="pubYear")
+    pub_year: int | None = Field(None)
     doi: str | None = None
     pmid: str | None = None
-    author_string: str | None = Field(None, alias="authorString")
-    journal_title: str | None = Field(None, alias="journalTitle")
-    abstract_text: str | None = Field(None, alias="abstractText")
+    author_string: str | None = Field(None)
+    journal_title: str | None = Field(None)
+    abstract_text: str | None = Field(None)
 
     def to_parsed_paper(self) -> ParsedPaper:
         """Convert to the shared normalized ParsedPaper model."""

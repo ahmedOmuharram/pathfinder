@@ -105,7 +105,7 @@ async def _process_single_seed(
                     current=idx,
                     total=ctx.total,
                     name=seed.name,
-                    wdkStrategyId=wdk_strategy_id,
+                    wdk_strategy_id=wdk_strategy_id,
                     elapsed=round(elapsed_strategy, 1),
                     message=f"[{idx}/{ctx.total}] Strategy created: {seed.name}",
                 )
@@ -211,8 +211,8 @@ async def run_seed(
 
     yield SeedComplete(
         total=total,
-        strategiesCreated=strategies_ok,
-        controlSetsCreated=control_sets_ok,
+        strategies_created=strategies_ok,
+        control_sets_created=control_sets_ok,
         failed=total - strategies_ok,
         message=(
             f"Seeding complete: {strategies_ok}/{total} strategies, "

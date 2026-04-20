@@ -3,7 +3,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import type { RecordDetail, WdkRecord } from "@/lib/types/wdk";
+import type { RecordDetailResponse } from "@pathfinder/shared/generated/types/RecordDetailResponse";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import { createTestWrapper } from "@/lib/query/testing";
 
 const mockGetRecordDetail = vi.fn();
@@ -41,7 +42,7 @@ describe("useResultsTableDetail", () => {
   });
 
   it("fetches detail when expandedKey and recordId are set", async () => {
-    const detail: RecordDetail = {
+    const detail: RecordDetailResponse = {
       displayName: "G1",
       id: [{ name: "source_id", value: "G1" }],
       recordClassName: "TranscriptRecordClasses.TranscriptRecordClass",
@@ -52,7 +53,7 @@ describe("useResultsTableDetail", () => {
     };
     mockGetRecordDetail.mockResolvedValueOnce(detail);
 
-    const recordId: WdkRecord["id"] = [{ name: "source_id", value: "G1" }];
+    const recordId: ClassifiedRecord["id"] = [{ name: "source_id", value: "G1" }];
     const { Wrapper } = createTestWrapper();
     const { result } = renderHook(
       () =>
@@ -75,7 +76,7 @@ describe("useResultsTableDetail", () => {
   it("reports error when detail fetch fails", async () => {
     mockGetRecordDetail.mockRejectedValueOnce(new Error("server error"));
 
-    const recordId: WdkRecord["id"] = [{ name: "source_id", value: "G1" }];
+    const recordId: ClassifiedRecord["id"] = [{ name: "source_id", value: "G1" }];
     const { Wrapper } = createTestWrapper();
     const { result } = renderHook(
       () =>

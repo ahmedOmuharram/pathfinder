@@ -49,5 +49,11 @@ export function ChatShell() {
     generatedChatId,
   });
 
-  return <ChatView conversationId={conversationId} allowMissing={allowMissing} />;
+  return (
+    <ChatView
+      key={conversationId}
+      conversationId={conversationId}
+      allowMissing={allowMissing}
+    />
+  );
 }

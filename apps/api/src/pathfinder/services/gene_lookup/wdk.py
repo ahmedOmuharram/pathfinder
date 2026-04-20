@@ -61,10 +61,8 @@ def _parse_wdk_record(rec: WDKRecordInstance) -> GeneResult | None:
     rec_attrs = rec.attributes
     gene_id = ""
     for elem in rec.id:
-        name = elem.get("name", "")
-        val = elem.get("value", "")
-        if name in ("gene_source_id", "source_id", "gene") and val.strip():
-            gene_id = val.strip()
+        if elem.name in ("gene_source_id", "source_id", "gene") and elem.value.strip():
+            gene_id = elem.value.strip()
             break
 
     if not gene_id:

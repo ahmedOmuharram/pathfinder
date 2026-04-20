@@ -11,7 +11,7 @@ from pathfinder.ai.tools.standalone._experiment_models import (
     SearchControlTestResult,
     StepControlTestResult,
 )
-from pathfinder.domain.strategy.types import SerializedParams
+from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
@@ -97,7 +97,7 @@ async def run_control_tests_on_step(
 async def run_control_tests_on_search(
     ctx: RunContext[AgentDeps],
     target_search_name: str,
-    target_parameters: SerializedParams,
+    target_parameters: DecodedParams,
     positive_controls: list[str] | None = None,
     negative_controls: list[str] | None = None,
     record_type: str = "transcript",

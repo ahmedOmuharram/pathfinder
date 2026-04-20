@@ -29,7 +29,6 @@ class WDKBaseParameter(WDKModel):
     name: str
     display_name: str = ""
     help: str | None = None
-    type: str
     is_visible: bool = True
     group: str = ""
     is_read_only: bool = False
@@ -40,7 +39,6 @@ class WDKBaseParameter(WDKModel):
     initial_display_value: str | None = None
     properties: dict[str, list[str]] = Field(default_factory=dict)
 
-    # -- Subtype fields with safe defaults for uniform access ----------------
     vocabulary: JSONObject | JSONArray | None = None
     count_only_leaves: bool = False
     display_type: str = ""

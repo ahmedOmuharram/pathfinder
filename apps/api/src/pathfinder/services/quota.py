@@ -55,7 +55,7 @@ def next_period_start(now: datetime | None = None) -> datetime:
 
 async def _effective_limit_usd(session: AsyncSession, user_id: UUID) -> Decimal:
     settings = get_settings()
-    default = Decimal(str(settings.user_monthly_cost_limit_usd))
+    default = Decimal(str(settings.pathfinder_user_monthly_cost_limit_usd))
     override = await session.scalar(
         select(User.monthly_cost_limit_usd).where(User.id == user_id)
     )

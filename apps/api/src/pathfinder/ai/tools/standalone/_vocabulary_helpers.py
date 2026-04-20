@@ -26,8 +26,8 @@ class _SearchEntry(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
     name: str = ""
-    url_segment: str = Field(default="", alias="urlSegment")
-    display_name: str = Field(default="", alias="displayName")
+    url_segment: str = Field(default="")
+    display_name: str = Field(default="")
 
 class _VocabNodeData(BaseModel):
     """The ``data`` sub-object of a WDK vocabulary tree node."""

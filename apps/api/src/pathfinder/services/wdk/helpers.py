@@ -74,9 +74,7 @@ def extract_pk(record: WDKRecordInstance) -> str | None:
     """
     if not record.id:
         return None
-    first = record.id[0]
-    val = first.get("value", "")
-    return val.strip() or None
+    return record.id[0].value.strip() or None
 
 def extract_record_ids(
     records: list[WDKRecordInstance],

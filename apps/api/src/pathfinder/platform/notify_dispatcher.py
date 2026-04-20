@@ -36,6 +36,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
 import psycopg
+import psycopg.rows
 import psycopg.sql
 from tenacity import (
     AsyncRetrying,

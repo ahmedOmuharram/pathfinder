@@ -3,32 +3,35 @@
 import { useAuiState } from "@assistant-ui/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { GitBranch } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { MessageAction } from "@/components/ai-elements/message";
 import { forkConversation } from "@/lib/api/conversations";
 
+const ROUTE_RE = /^\/([^/]+)\/conversation\/([^/?#]+)/;
+
 export function BranchMessageAction() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const params = useParams<{ siteId?: string; conversationId?: string }>();
+  const pathname = usePathname();
+  const match = pathname.match(ROUTE_RE);
+  const siteId = match?.[1] ?? null;
+  const conversationId = match?.[2] ?? null;
   const messageId = useAuiState((s) => s.message.id);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const conversationId = params.conversationId;
-      const siteId = params.siteId;
-      if (conversationId == null || conversationId === "" || siteId == null || siteId === "") {
+      if (conversationId == null || siteId == null) {
         throw new Error("Missing conversation or site context");
       }
       return forkConversation(conversationId, messageId);
     },
     onSuccess: (fork) => {
       void queryClient.invalidateQueries({
-        queryKey: ["conversations", "list", params.siteId],
+        queryKey: ["conversations", "list", siteId],
       });
-      router.push(`/${params.siteId}/conversation/${fork.id}`);
+      router.push(`/${siteId}/conversation/${fork.id}`);
     },
     onError: (err) => {
       toast.error(

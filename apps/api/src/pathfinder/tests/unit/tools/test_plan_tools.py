@@ -31,6 +31,7 @@ from pathfinder.ai.tools.standalone.plan import (
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
+    PlannedParameter,
     PlanStatus,
     StepType,
     StrategyPlan,
@@ -150,8 +151,8 @@ def _stub_fetch_specs_by_search(monkeypatch: pytest.MonkeyPatch) -> None:
             name="num_genes",
             param_type="number",
             is_number=True,
-            min_value=1.0,
-            max_value=10000.0,
+            min=1.0,
+            max=10000.0,
             help="Number of genes to return",
         ),
     }
@@ -265,23 +266,22 @@ async def test_submit_plan_validates_parameters() -> None:
     )
     assert isinstance(_unwrap(create_result), PlanCreatedResponse)
 
-    # Manually mark a required parameter as NEEDS_DISCOVERY to trigger validation
     plan = deps.agent_state.active_plan
     assert plan is not None
-    plan.steps[0].parameters["organism"] = plan.steps[0].parameters.get(
-        "organism",
-        # Add a required param that is not set
-        __import__(
-            "pathfinder.domain.strategy.plan", fromlist=["PlannedParameter"]
-        ).PlannedParameter(
-            name="organism",
-            display_name="Organism",
-            param_type="string",
-            value=None,
-            status=ParamStatus.NEEDS_DISCOVERY,
-            required=True,
-        ),
+    existing = next(
+        (p for p in plan.steps[0].parameters if p.name == "organism"), None,
     )
+    if existing is None:
+        plan.steps[0].parameters.append(
+            PlannedParameter(
+                name="organism",
+                display_name="Organism",
+                param_type="string",
+                value=None,
+                status=ParamStatus.NEEDS_DISCOVERY,
+                required=True,
+            ),
+        )
 
     submit_result = await submit_plan(ctx)
 
@@ -418,8 +418,9 @@ async def test_update_plan_applies_step_patches() -> None:
     # Verify the parameter was actually changed
     patched_step = payload.steps[0]
     assert patched_step.id == "step_a"
-    assert patched_step.parameters["organism"].value == '["Plasmodium vivax"]'
-    assert patched_step.parameters["organism"].status == ParamStatus.SET
+    organism = next(p for p in patched_step.parameters if p.name == "organism")
+    assert organism.value == '["Plasmodium vivax"]'
+    assert organism.status == ParamStatus.SET
 
 
 @pytest.mark.asyncio
@@ -539,7 +540,7 @@ def test_convert_step_uses_real_param_type_from_specs() -> None:
 
     result = _convert_step(step_input, param_specs=specs)
 
-    param = result.parameters["organism"]
+    param = next(p for p in result.parameters if p.name == "organism")
     assert param.param_type == "multi-pick-vocabulary"
     assert param.description == "Select one or more organisms"
     assert param.depends_on == ["geneBooleanFilter"]
@@ -573,26 +574,25 @@ def test_convert_step_populates_constraints_and_options_from_spec() -> None:
             name="num_genes",
             param_type="number",
             is_number=True,
-            min_value=1.0,
-            max_value=10000.0,
+            min=1.0,
+            max=10000.0,
             increment=1.0,
         ),
     }
 
     result = _convert_step(step_input, param_specs=specs)
+    by_name = {p.name: p for p in result.parameters}
 
-    # Vocabulary param should have options extracted.
-    org = result.parameters["organism"]
+    org = by_name["organism"]
     assert org.options == ["pfal", "pvivax"]
     assert org.constraints is not None
     assert org.constraints["displayType"] == "treeBox"
 
-    # Number param should have numeric constraints.
-    num = result.parameters["num_genes"]
+    num = by_name["num_genes"]
     assert num.constraints is not None
     assert num.constraints["isNumber"] is True
-    assert num.constraints["minValue"] == 1.0
-    assert num.constraints["maxValue"] == 10000.0
+    assert num.constraints["min"] == 1.0
+    assert num.constraints["max"] == 10000.0
     assert num.constraints["increment"] == 1.0
 
 
@@ -626,8 +626,8 @@ def test_apply_step_patches_uses_specs_for_new_params() -> None:
                 name="num_genes",
                 param_type="number",
                 is_number=True,
-                min_value=1.0,
-                max_value=1000.0,
+                min=1.0,
+                max=1000.0,
                 help="Number of genes to return",
             ),
         },
@@ -636,6 +636,8 @@ def test_apply_step_patches_uses_specs_for_new_params() -> None:
     patches = [StepPatch(step_id="step_a", parameters={"num_genes": "100"})]
     _apply_step_patches(plan, patches, specs_by_search=specs)
 
-    param = plan.steps[0].parameters["num_genes"]
+    param = next(
+        p for p in plan.steps[0].parameters if p.name == "num_genes"
+    )
     assert param.param_type == "number"
     assert param.description == "Number of genes to return"

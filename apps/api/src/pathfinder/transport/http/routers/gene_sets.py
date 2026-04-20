@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from typing import Annotated, Literal, cast, get_args
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import JsonValue
 
 from pathfinder.platform.errors import (
     InternalError,
@@ -52,6 +51,15 @@ from pathfinder.transport.http.schemas.gene_sets import (
     ReverseSearchRequest,
     ReverseSearchResultItem,
     SetOperationRequest,
+)
+from pathfinder.transport.http.schemas.step_results import (
+    AttributesResponse,
+    ClassifiedRecord,
+    DistributionResponse,
+    RecordDetailResponse,
+    RecordsMeta,
+    RecordsPagination,
+    RecordsResponse,
 )
 from pathfinder.transport.http.schemas.steps import RecordDetailRequest
 
@@ -352,11 +360,11 @@ async def enrich_gene_set(
 # Result browsing endpoints (attributes, records, distributions)
 # ---------------------------------------------------------------------------
 
-@router.get("/{gene_set_id}/results/attributes")
+@router.get("/{gene_set_id}/results/attributes", response_model=AttributesResponse)
 async def get_gene_set_attributes(
     gene_set_id: str,
     user_id: CurrentUser,
-) -> JSONObject:
+) -> AttributesResponse:
     """Get available attributes for a gene set's record type."""
     try:
         svc = await _svc().get_step_results_service(user_id, gene_set_id)
@@ -366,12 +374,12 @@ async def get_gene_set_attributes(
         raise _no_strategy(exc) from exc
     return await svc.get_attributes()
 
-@router.get("/{gene_set_id}/results/records")
+@router.get("/{gene_set_id}/results/records", response_model=RecordsResponse)
 async def get_gene_set_records(
     gene_set_id: str,
     user_id: CurrentUser,
     params: Annotated[RecordQueryParams, Depends()],
-) -> JSONObject:
+) -> RecordsResponse:
     """Get paginated result records for a gene set."""
     try:
         svc = await _svc().get_step_results_service(user_id, gene_set_id)
@@ -384,7 +392,6 @@ async def get_gene_set_records(
     if params.attributes:
         attr_list = [a.strip() for a in params.attributes.split(",") if a.strip()]
 
-    # When filtering, fetch all records for the step and filter server-side.
     if params.filter_attribute and params.filter_value is not None:
         answer = await svc.get_records(
             offset=0,
@@ -393,23 +400,33 @@ async def get_gene_set_records(
             direction=params.sort_dir,
             attributes=attr_list,
         )
-        filtered: list[JsonValue] = []
-        for rec in answer.records:
-            val = rec.attributes.get(params.filter_attribute)
-            if val == params.filter_value:
-                filtered.append(rec.model_dump(by_alias=True))
+        filtered = [
+            rec
+            for rec in answer.records
+            if rec.attributes.get(params.filter_attribute) == params.filter_value
+        ]
         page = filtered[params.offset : params.offset + params.limit]
-        return {
-            "records": cast("JsonValue", page),
-            "meta": {
-                "totalCount": len(filtered),
-                "displayTotalCount": len(filtered),
-                "responseCount": len(page),
-                "pagination": {"offset": params.offset, "numRecords": params.limit},
-                "attributes": cast("JsonValue", attr_list or []),
-                "tables": cast("JsonValue", []),
-            },
-        }
+        return RecordsResponse(
+            records=[
+                ClassifiedRecord(
+                    display_name=r.display_name,
+                    id=r.id,
+                    record_class_name=r.record_class_name,
+                    attributes=r.attributes,
+                    tables=r.tables,
+                    table_errors=r.table_errors,
+                )
+                for r in page
+            ],
+            meta=RecordsMeta(
+                total_count=len(filtered),
+                display_total_count=len(filtered),
+                response_count=len(page),
+                pagination=RecordsPagination(offset=params.offset, num_records=params.limit),
+                attributes=attr_list or [],
+                tables=[],
+            ),
+        )
 
     answer = await svc.get_records(
         offset=params.offset,
@@ -418,19 +435,37 @@ async def get_gene_set_records(
         direction=params.sort_dir,
         attributes=attr_list,
     )
-    meta = answer.meta.model_dump(by_alias=True)
-    meta["pagination"] = {"offset": params.offset, "numRecords": params.limit}
-    return {
-        "records": [r.model_dump(by_alias=True) for r in answer.records],
-        "meta": meta,
-    }
+    return RecordsResponse(
+        records=[
+            ClassifiedRecord(
+                display_name=r.display_name,
+                id=r.id,
+                record_class_name=r.record_class_name,
+                attributes=r.attributes,
+                tables=r.tables,
+                table_errors=r.table_errors,
+            )
+            for r in answer.records
+        ],
+        meta=RecordsMeta(
+            total_count=answer.meta.total_count,
+            display_total_count=answer.meta.display_total_count,
+            response_count=answer.meta.response_count,
+            pagination=RecordsPagination(offset=params.offset, num_records=params.limit),
+            attributes=answer.meta.attributes,
+            tables=answer.meta.tables,
+        ),
+    )
 
-@router.get("/{gene_set_id}/results/distributions/{attribute_name}")
+@router.get(
+    "/{gene_set_id}/results/distributions/{attribute_name}",
+    response_model=DistributionResponse,
+)
 async def get_gene_set_distribution(
     gene_set_id: str,
     attribute_name: str,
     user_id: CurrentUser,
-) -> JSONObject:
+) -> DistributionResponse:
     """Get distribution data for an attribute using the byValue column reporter."""
     try:
         svc = await _svc().get_step_results_service(user_id, gene_set_id)
@@ -439,14 +474,14 @@ async def get_gene_set_distribution(
     except ValueError as exc:
         raise _no_strategy(exc) from exc
     dist = await svc.get_distribution(attribute_name)
-    return dist.model_dump(by_alias=True)
+    return DistributionResponse(histogram=dist.histogram, statistics=dist.statistics)
 
-@router.post("/{gene_set_id}/results/record")
+@router.post("/{gene_set_id}/results/record", response_model=RecordDetailResponse)
 async def get_gene_set_record_detail(
     gene_set_id: str,
     body: RecordDetailRequest,
     user_id: CurrentUser,
-) -> JSONObject:
+) -> RecordDetailResponse:
     """Get a single record's full details by primary key."""
     service = _svc()
     try:

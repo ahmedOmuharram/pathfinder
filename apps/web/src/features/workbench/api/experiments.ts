@@ -1,8 +1,8 @@
 import type { Experiment } from "@pathfinder/shared";
 import { experimentResponseSchema } from "@pathfinder/shared/generated/zod/experimentResponseSchema";
+import { refineResponseSchema } from "@pathfinder/shared/generated/zod/refineResponseSchema";
 
 import { requestBlob, requestJson, requestVoid } from "@/lib/api/http";
-import { RefineResponseSchema } from "@/lib/api/schemas/analysis";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
 export async function getExperiment(experimentId: string): Promise<Experiment> {
@@ -53,7 +53,7 @@ export async function refineExperiment(
   config: RefineConfig,
 ): Promise<{ success: boolean; newStepId?: number }> {
   const raw = await requestJson(
-    RefineResponseSchema,
+    refineResponseSchema,
     `/api/v1/experiments/${experimentId}/refine`,
     { method: "POST", body: { action, ...config } },
   );

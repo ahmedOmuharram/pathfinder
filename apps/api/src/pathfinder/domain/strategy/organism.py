@@ -4,17 +4,18 @@ from collections.abc import Mapping
 
 from pydantic import JsonValue
 
-from pathfinder.domain.parameters._decode_values import decode_values
+from pathfinder.domain.parameters.value_utils import ensure_list
 from pathfinder.domain.strategy.ast import StrategyStepNode
 
 _ORGANISM_PARAMS = ("organism", "text_search_organism")
+
 
 def _parse_organisms(params: Mapping[str, JsonValue]) -> set[str] | None:
     """Extract organism names from step parameters, or None if absent."""
     for key in _ORGANISM_PARAMS:
         raw = params.get(key)
         if raw is not None:
-            vals = decode_values(raw, key)
+            vals = ensure_list(raw, key)
             if vals:
                 return {str(v) for v in vals}
     return None

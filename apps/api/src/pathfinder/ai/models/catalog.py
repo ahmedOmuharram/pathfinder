@@ -26,14 +26,17 @@ __all__ = [
 
 
 class ModelEntry(CamelModel):
-    """Catalog entry. ``id`` (``"provider:model"``) drives ``provider`` + ``model_name``."""
+    """Catalog entry.
+
+    Construct via :meth:`entry` — it splits the ``"provider:model"`` id
+    into the required ``provider`` and ``model_name`` wire fields so the
+    frontend treats them as non-optional.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     id: str
     name: str
-    provider: ModelProvider
-    model_name: str
     description: str = ""
     supports_reasoning: bool = False
     context_size: int = 0
@@ -42,21 +45,28 @@ class ModelEntry(CamelModel):
     cached_input_price: float = 0.0
     output_price: float = 0.0
     is_provider_smallest: bool = False
+    provider: ModelProvider
+    model_name: str
 
     @model_validator(mode="before")
     @classmethod
-    def _split_id(cls, data: Any) -> Any:
+    def _derive_from_id(cls, data: Any) -> Any:
         if isinstance(data, dict) and isinstance(data.get("id"), str) and ":" in data["id"]:
             provider, model_name = data["id"].split(":", 1)
             data.setdefault("provider", provider)
             data.setdefault("model_name", model_name)
         return data
 
+    @classmethod
+    def entry(cls, **kwargs: Any) -> "ModelEntry":
+        """Build a ModelEntry from kwargs, routing through the validator."""
+        return cls.model_validate(kwargs)
+
 
 # Cloud models — always present.
 _CLOUD_MODELS: tuple[ModelEntry, ...] = (
     # OpenAI
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:gpt-4.1",
         name="GPT-4.1",
         description="Default workhorse — 1M context",
@@ -65,7 +75,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.50,
         output_price=8.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:gpt-4.1-mini",
         name="GPT-4.1 Mini",
         description="Fast and cheap with full context",
@@ -74,7 +84,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.10,
         output_price=0.80,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:gpt-4.1-nano",
         name="GPT-4.1 Nano",
         description="Ultra-cheap for simple tasks",
@@ -84,7 +94,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=0.20,
         is_provider_smallest=True,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:gpt-5",
         name="GPT-5",
         description="Smartest OpenAI model",
@@ -94,7 +104,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.125,
         output_price=10.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:gpt-5-mini",
         name="GPT-5 Mini",
         description="Smart and budget-friendly",
@@ -104,7 +114,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.025,
         output_price=1.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:gpt-5-nano",
         name="GPT-5 Nano",
         description="Ultra-cheap, smaller context",
@@ -114,7 +124,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.005,
         output_price=0.40,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:gpt-5.4",
         name="GPT-5.4",
         description="Latest flagship — 1.1M context",
@@ -124,7 +134,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.25,
         output_price=15.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:gpt-5.4-mini",
         name="GPT-5.4 Mini",
         description="Fast and cheap with flagship context",
@@ -134,7 +144,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.025,
         output_price=2.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:gpt-5.4-nano",
         name="GPT-5.4 Nano",
         description="Ultra-cheap with flagship context",
@@ -144,7 +154,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.005,
         output_price=0.40,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:o3",
         name="o3",
         description="Reasoning-focused",
@@ -154,7 +164,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.50,
         output_price=8.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="openai:o4-mini",
         name="o4 Mini",
         description="Cheap reasoning",
@@ -165,7 +175,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         output_price=4.40,
     ),
     # Anthropic
-    ModelEntry(
+    ModelEntry.entry(
         id="anthropic:claude-opus-4-6",
         name="Claude Opus 4.6",
         description="Most capable Anthropic model",
@@ -176,7 +186,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.50,
         output_price=25.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="anthropic:claude-sonnet-4-6",
         name="Claude Sonnet 4.6",
         description="Balanced speed and intelligence",
@@ -187,7 +197,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.30,
         output_price=15.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="anthropic:claude-haiku-4-5",
         name="Claude Haiku 4.5",
         description="Fastest Anthropic model",
@@ -200,7 +210,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         is_provider_smallest=True,
     ),
     # Google
-    ModelEntry(
+    ModelEntry.entry(
         id="google:gemini-2.5-pro",
         name="Gemini 2.5 Pro",
         description="Best Google — deep reasoning",
@@ -211,7 +221,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.125,
         output_price=10.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="google:gemini-3.1-pro",
         name="Gemini 3.1 Pro",
         description="Latest Google flagship",
@@ -222,7 +232,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.20,
         output_price=12.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="google:gemini-3-flash",
         name="Gemini 3 Flash",
         description="Fast and capable",
@@ -233,7 +243,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         cached_input_price=0.05,
         output_price=3.00,
     ),
-    ModelEntry(
+    ModelEntry.entry(
         id="google:gemini-2.5-flash",
         name="Gemini 2.5 Flash",
         description="Budget reasoning model",
@@ -246,7 +256,7 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
         is_provider_smallest=True,
     ),
     # Mock (deterministic E2E testing)
-    ModelEntry(
+    ModelEntry.entry(
         id="mock:deterministic",
         name="Mock (deterministic)",
         description="Deterministic mock for E2E testing — no LLM calls",
@@ -306,7 +316,7 @@ def _load_ollama_models() -> tuple[ModelEntry, ...]:
             continue
         display = item.name or item.model
         entries.append(
-            ModelEntry(
+            ModelEntry.entry(
                 id=f"ollama:{item.model}",
                 name=f"{display} (local)",
                 supports_reasoning=item.thinking,

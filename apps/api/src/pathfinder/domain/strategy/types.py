@@ -1,85 +1,29 @@
 """Domain-native parameter value types and protocols.
 
-Defines ``ParamValue`` and ``SerializedParams`` — Pydantic-aware annotated
-types that coerce arbitrary JSON values to ``str`` using pydantic-core union
-schemas (no isinstance dispatch in user code).
+Two shapes:
 
-Also defines ``SyncStateProtocol`` — a structural protocol for WDK sync state
-so that domain code (``StrategySession``) can hold and access sync state
-fields without importing service-layer types.
+* ``DecodedParams = dict[str, JsonValue]`` — in-memory domain format. Values
+  keep their natural JSON types (scalars, lists, numbers, booleans).
+  Everything inside the domain/services layer uses this.
+* ``WireParams = dict[str, str]`` — WDK over-the-wire format. Matches
+  WDK's own ``SearchConfig.parameters: Record<string, ParameterValue>``
+  where ``ParameterValue = string``. Only produced at integration write
+  boundaries; only consumed at integration read boundaries.
 
-These replace the integration-layer ``WDKSerializedParams`` / ``WdkParamValue``
-so that ``StrategyStepNode.parameters`` carries no integration imports.
+Encoding/decoding between the two lives in
+``pathfinder.integrations.veupathdb.value_decoding``.
 """
 
 from __future__ import annotations
 
-import json
-from typing import Annotated, Any, Protocol
+from typing import Protocol
 
-from pydantic import BeforeValidator, GetCoreSchemaHandler
-from pydantic_core import CoreSchema, core_schema
+from pydantic import JsonValue
 
 from pathfinder.domain.strategy.validation import StepValidation
 
-
-def _json_encode(v: object) -> str:
-    """JSON-serialize a non-string value."""
-    return json.dumps(v, ensure_ascii=False)
-
-
-class _ParamValueSchema:
-    """Pydantic-core custom type: coerces any JSON value to str.
-
-    Uses pydantic-core union schema: strings pass through via
-    ``str_schema()``, all other types fall through to ``_json_encode``
-    which produces their JSON representation.
-    """
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls, source_type: Any, handler: GetCoreSchemaHandler,
-    ) -> CoreSchema:
-        return core_schema.union_schema([
-            core_schema.str_schema(),
-            core_schema.no_info_plain_validator_function(_json_encode),
-        ])
-
-
-ParamValue = Annotated[str, _ParamValueSchema]
-"""Single parameter value: str passthrough, non-str → json.dumps."""
-
-
-def _parse_json_dict(v: object) -> dict[str, object] | object:
-    """Parse double-serialized JSON dicts from LLMs.
-
-    Only accepts dicts from parsed JSON (not arrays or scalars).
-    Non-string input or non-dict parse results pass through unchanged.
-    """
-    if not isinstance(v, str):
-        return v
-    try:
-        parsed = json.loads(v)
-    except (json.JSONDecodeError, ValueError):
-        return v
-    return parsed if isinstance(parsed, dict) else v
-
-
-SerializedParams = Annotated[
-    dict[str, ParamValue],
-    BeforeValidator(lambda v: v if v is not None else {}),
-    BeforeValidator(_parse_json_dict),
-]
-"""dict[str, str] with automatic coercion from JSON values.
-
-Handles: None → {}, double-serialized JSON strings → dict,
-per-value coercion (int/float/bool/list/dict → JSON string).
-"""
-
-
-# ---------------------------------------------------------------------------
-# Sync state protocol
-# ---------------------------------------------------------------------------
+DecodedParams = dict[str, JsonValue]
+WireParams = dict[str, str]
 
 
 class SyncStateProtocol(Protocol):

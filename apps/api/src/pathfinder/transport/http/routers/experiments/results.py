@@ -1,17 +1,15 @@
 """Results endpoints: records, record detail, attributes, distributions, refine."""
 
 from dataclasses import dataclass
-from typing import Annotated, cast
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import JsonValue
 
 from pathfinder.platform.errors import (
     NotFoundError,
     ValidationError,
 )
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.classification import classify_records
 from pathfinder.services.experiment.refine import (
     apply_transform,
@@ -81,16 +79,13 @@ async def get_experiment_attributes(
     )
     return await svc.get_attributes()
 
-@router.get("/{experiment_id}/results/records")
+@router.get("/{experiment_id}/results/records", response_model=RecordsResponse)
 async def get_experiment_records(
     exp: ExperimentDep,
     user_id: CurrentUser,
     params: Annotated[RecordQueryParams, Depends()],
-) -> JSONObject:
-    """Get paginated result records for an experiment.
-
-    Requires a persisted WDK strategy (``wdkStepId`` must be set).
-    """
+) -> RecordsResponse:
+    """Get paginated result records for an experiment."""
     if not exp.wdk_step_id or not exp.wdk_strategy_id:
         raise NotFoundError(
             title="No WDK strategy",
@@ -101,6 +96,11 @@ async def get_experiment_records(
     attr_list: list[str] | None = None
     if params.attributes:
         attr_list = [a.strip() for a in params.attributes.split(",") if a.strip()]
+
+    tp_ids = {g.id for g in exp.true_positive_genes}
+    fp_ids = {g.id for g in exp.false_positive_genes}
+    fn_ids = {g.id for g in exp.false_negative_genes}
+    tn_ids = {g.id for g in exp.true_negative_genes}
 
     if params.filter_attribute and params.filter_value is not None:
         answer = await svc.get_records(
@@ -115,25 +115,21 @@ async def get_experiment_records(
             for rec in answer.records
             if rec.attributes.get(params.filter_attribute) == params.filter_value
         ]
-        classified = classify_records(
-            filtered_records,
-            tp_ids={g.id for g in exp.true_positive_genes},
-            fp_ids={g.id for g in exp.false_positive_genes},
-            fn_ids={g.id for g in exp.false_negative_genes},
-            tn_ids={g.id for g in exp.true_negative_genes},
+        classified_dicts = classify_records(
+            filtered_records, tp_ids=tp_ids, fp_ids=fp_ids, fn_ids=fn_ids, tn_ids=tn_ids,
         )
-        page = classified[params.offset : params.offset + params.limit]
-        return {
-            "records": cast("JsonValue", page),
-            "meta": {
-                "totalCount": len(classified),
-                "displayTotalCount": len(classified),
-                "responseCount": len(page),
-                "pagination": {"offset": params.offset, "numRecords": params.limit},
-                "attributes": cast("JsonValue", attr_list or []),
-                "tables": cast("JsonValue", []),
-            },
-        }
+        page = classified_dicts[params.offset : params.offset + params.limit]
+        return RecordsResponse(
+            records=[ClassifiedRecord.model_validate(r) for r in page],
+            meta=RecordsMeta(
+                total_count=len(classified_dicts),
+                display_total_count=len(classified_dicts),
+                response_count=len(page),
+                pagination=RecordsPagination(offset=params.offset, num_records=params.limit),
+                attributes=attr_list or [],
+                tables=[],
+            ),
+        )
 
     answer = await svc.get_records(
         offset=params.offset,
@@ -142,27 +138,27 @@ async def get_experiment_records(
         direction=params.sort_dir,
         attributes=attr_list,
     )
-    classified = classify_records(
-        answer.records,
-        tp_ids={g.id for g in exp.true_positive_genes},
-        fp_ids={g.id for g in exp.false_positive_genes},
-        fn_ids={g.id for g in exp.false_negative_genes},
-        tn_ids={g.id for g in exp.true_negative_genes},
+    classified_dicts = classify_records(
+        answer.records, tp_ids=tp_ids, fp_ids=fp_ids, fn_ids=fn_ids, tn_ids=tn_ids,
+    )
+    return RecordsResponse(
+        records=[ClassifiedRecord.model_validate(r) for r in classified_dicts],
+        meta=RecordsMeta(
+            total_count=answer.meta.total_count,
+            display_total_count=answer.meta.display_total_count,
+            response_count=answer.meta.response_count,
+            pagination=RecordsPagination(offset=params.offset, num_records=params.limit),
+            attributes=answer.meta.attributes,
+            tables=answer.meta.tables,
+        ),
     )
 
-    meta = answer.meta.model_dump(by_alias=True)
-    meta["pagination"] = {"offset": params.offset, "numRecords": params.limit}
-    return {
-        "records": cast("JsonValue", classified),
-        "meta": meta,
-    }
-
-@router.post("/{experiment_id}/results/record")
+@router.post("/{experiment_id}/results/record", response_model=RecordDetailResponse)
 async def get_experiment_record_detail(
     exp: ExperimentDep,
     body: RecordDetailRequest,
     user_id: CurrentUser,
-) -> JSONObject:
+) -> RecordDetailResponse:
     """Get a single record's full details by primary key."""
     pk_parts: list[dict[str, str]] = [
         {"name": part.name, "value": part.value} for part in body.primary_key
@@ -170,20 +166,23 @@ async def get_experiment_record_detail(
 
     api = get_strategy_api(exp.config.site_id)
     svc = StepResultsService(
-        api, step_id=exp.wdk_step_id or 0, record_type=exp.config.record_type
+        api, step_id=exp.wdk_step_id or 0, record_type=exp.config.record_type,
     )
     return await svc.get_record_detail(pk_parts, exp.config.site_id)
 
-@router.get("/{experiment_id}/results/distributions/{attribute_name}")
+@router.get(
+    "/{experiment_id}/results/distributions/{attribute_name}",
+    response_model=DistributionResponse,
+)
 async def get_experiment_distribution(
     exp: ExperimentDep,
     attribute_name: str,
     user_id: CurrentUser,
-) -> JSONObject:
+) -> DistributionResponse:
     """Get distribution data for an attribute using the byValue column reporter."""
     svc = _require_step(exp)
     dist = await svc.get_distribution(attribute_name)
-    return dist.model_dump(by_alias=True)
+    return DistributionResponse(histogram=dist.histogram, statistics=dist.statistics)
 
 @router.post("/{experiment_id}/refine", response_model=RefineResponse)
 async def refine_experiment(

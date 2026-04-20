@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createSuspenseWrapper } from "@/lib/query/testing";
 import { APIError } from "@/lib/api/http";
-import type { DistributionResponse } from "@/lib/types/wdk";
+import type { DistributionResponse } from "@pathfinder/shared/generated/types/DistributionResponse";
 
 const mockGetDistribution = vi.hoisted(() => vi.fn());
 

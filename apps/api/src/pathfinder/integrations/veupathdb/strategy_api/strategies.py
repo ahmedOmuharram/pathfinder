@@ -5,7 +5,7 @@ and delete WDK strategies.
 """
 
 import pydantic
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from pathfinder.integrations.veupathdb._helpers import _validate_list
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
@@ -36,7 +36,7 @@ class _DuplicatedStepTreeResponse(BaseModel):
     """
 
     model_config = ConfigDict(extra="ignore")
-    step_tree: WDKStepTree = Field(alias="stepTree")
+    step_tree: WDKStepTree
 
 
 class StrategiesMixin(StrategyAPIBase):

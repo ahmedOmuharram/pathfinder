@@ -14,12 +14,13 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import ConfigDict, Field, JsonValue
 
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import veupathdb_auth_token_ctx
 from pathfinder.platform.errors import UnauthorizedError, ValidationError
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.security import (
     create_user_token,
     get_optional_user,
@@ -36,22 +37,22 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/veupathdb/auth", tags=["veupathdb-auth"])
 
-class LoginPayload(BaseModel):
+class LoginPayload(CamelModel):
     email: str
     password: str
 
-class _WDKUserProperties(BaseModel):
+class _WDKUserProperties(CamelModel):
     """Properties nested inside a WDK ``/users/current`` response."""
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
-    first_name: str | None = Field(default=None, alias="firstName")
-    last_name: str | None = Field(default=None, alias="lastName")
+    model_config = ConfigDict(extra="ignore")
+    first_name: str | None = Field(default=None)
+    last_name: str | None = Field(default=None)
 
-class _WDKUserResponse(BaseModel):
+class _WDKUserResponse(CamelModel):
     """Typed parse of WDK ``/users/current`` — replaces isinstance chains."""
 
-    model_config = ConfigDict(extra="ignore", populate_by_name=True)
-    is_guest: bool = Field(default=True, alias="isGuest")
+    model_config = ConfigDict(extra="ignore")
+    is_guest: bool = Field(default=True)
     email: str | None = None
     properties: _WDKUserProperties = Field(default_factory=_WDKUserProperties)
 
@@ -309,7 +310,7 @@ async def auth_status(
     doesn't create a VEuPathDB session, so we skip the real WDK call.
     """
     settings = get_settings()
-    if settings.chat_provider.strip().lower() == "mock":
+    if settings.pathfinder_chat_provider.strip().lower() == "mock":
         cookie_token = request.cookies.get("pathfinder-auth")
         mock_user_id = await get_optional_user(request, cookie_token)
         if mock_user_id is not None:

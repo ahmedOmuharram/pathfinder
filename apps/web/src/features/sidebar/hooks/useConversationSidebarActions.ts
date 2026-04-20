@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
 import {
@@ -38,11 +38,9 @@ export function useConversationSidebarActions({
 }: UseConversationSidebarActionsArgs): ConversationSidebarActions {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const params = useParams<{ conversationId?: string }>();
-  const liveActiveId = typeof window === "undefined"
-    ? null
-    : window.location.pathname.match(/\/conversation\/([^/?#]+)/)?.[1] ?? null;
-  const activeId = params.conversationId ?? liveActiveId;
+  const pathname = usePathname();
+  const activeId =
+    pathname.match(/\/conversation\/([^/?#]+)/)?.[1] ?? null;
 
   const rename = useRenameWorkflow({ siteId, reportError });
   const deleteWorkflow = useDeleteWorkflow({

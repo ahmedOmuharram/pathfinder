@@ -1,10 +1,10 @@
 import { Loader2, X } from "lucide-react";
-import type { RecordDetail } from "@/lib/types/wdk";
+import type { RecordDetailResponse } from "@pathfinder/shared/generated/types/RecordDetailResponse";
 import { AttributeValueRich } from "./ResultsTableColumns";
 
 interface ExpandedRowDetailProps {
   pk: string;
-  detail: RecordDetail | null;
+  detail: RecordDetailResponse | null;
   error: string | null;
   loading: boolean;
   onClose: () => void;

@@ -37,8 +37,8 @@ async def threshold_sweep(
     sweep_values = compute_sweep_values(
         sweep_type=request.sweep_type,
         values=request.values,
-        min_value=request.min_value,
-        max_value=request.max_value,
+        lo=request.min,
+        hi=request.max,
         steps=request.steps,
     )
 

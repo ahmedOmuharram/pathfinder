@@ -19,8 +19,8 @@ class ParamSpecNormalized:
     vocabulary: JSONObject | JSONArray | None = None
     count_only_leaves: bool = False
     is_number: bool = False
-    min_value: float | None = None
-    max_value: float | None = None
+    min: float | None = None
+    max: float | None = None
     increment: float | None = None
     max_length: int | None = None
     display_type: str = ""

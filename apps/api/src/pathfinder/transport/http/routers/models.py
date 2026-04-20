@@ -71,7 +71,7 @@ async def list_models() -> ModelListResponse:
     disabled in the picker.
     """
     settings = get_settings()
-    is_mock = settings.chat_provider.strip().lower() == "mock"
+    is_mock = settings.pathfinder_chat_provider.strip().lower() == "mock"
     models = [
         _build_response_entry(m)
         for m in get_model_catalog()

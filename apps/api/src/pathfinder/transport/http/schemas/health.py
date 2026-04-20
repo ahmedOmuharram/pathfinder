@@ -2,12 +2,13 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.readiness import ReadinessState
 
 
-class HealthResponse(BaseModel):
+class HealthResponse(CamelModel):
     """Health check response."""
 
     status: str
@@ -15,7 +16,7 @@ class HealthResponse(BaseModel):
     timestamp: datetime
 
 
-class ReadinessResponse(BaseModel):
+class ReadinessResponse(CamelModel):
     """Readiness check response, including per-subsystem detail."""
 
     status: str
@@ -25,10 +26,9 @@ class ReadinessResponse(BaseModel):
     not_ready: list[str] = Field(default_factory=list)
 
 
-class ProviderStatus(BaseModel):
+class ProviderStatus(CamelModel):
     """Per-provider API-key availability."""
 
-    model_config = {"populate_by_name": True}
 
     openai: bool
     anthropic: bool
@@ -36,11 +36,10 @@ class ProviderStatus(BaseModel):
     ollama: bool
 
 
-class SystemConfigResponse(BaseModel):
+class SystemConfigResponse(CamelModel):
     """System configuration status (unauthenticated)."""
 
-    model_config = {"populate_by_name": True}
 
-    chat_provider: str = Field(alias="chatProvider")
-    llm_configured: bool = Field(alias="llmConfigured")
+    chat_provider: str
+    llm_configured: bool
     providers: ProviderStatus

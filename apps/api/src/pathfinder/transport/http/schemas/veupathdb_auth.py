@@ -1,15 +1,15 @@
 """VEuPathDB auth request/response DTOs."""
 
-from pydantic import BaseModel
+from pathfinder.platform.pydantic_base import CamelModel
 
 
-class AuthSuccessResponse(BaseModel):
+class AuthSuccessResponse(CamelModel):
     """Success response. Auth token is set via httpOnly cookie only."""
 
     success: bool
 
 
-class AuthStatusResponse(BaseModel):
+class AuthStatusResponse(CamelModel):
     """Current auth status response."""
 
     signedIn: bool

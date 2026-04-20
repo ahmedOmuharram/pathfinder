@@ -11,9 +11,10 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.eval import (
     build_gold_strategy,
     fetch_strategy_gene_ids,
@@ -25,29 +26,23 @@ router = APIRouter(prefix="/api/v1/eval", tags=["eval"])
 logger = get_logger(__name__)
 
 
-class BuildGoldRequest(BaseModel):
+class BuildGoldRequest(CamelModel):
     """Request to materialize a gold strategy AST on WDK and return gene IDs."""
 
-    gold_id: str = Field(alias="goldId")
-    site_id: str = Field(alias="siteId")
-    record_type: str = Field(default="gene", alias="recordType")
-    step_tree: dict[str, Any] = Field(alias="stepTree")
-    dataset_gene_ids: dict[str, list[str]] | None = Field(
-        default=None, alias="datasetGeneIds"
-    )
-
-    model_config = {"populate_by_name": True}
+    gold_id: str
+    site_id: str
+    record_type: str = Field(default="gene")
+    step_tree: dict[str, Any]
+    dataset_gene_ids: dict[str, list[str]] | None = Field(default=None)
 
 
-class BuildGoldResponse(BaseModel):
-    gold_id: str = Field(alias="goldId")
-    wdk_strategy_id: int = Field(alias="wdkStrategyId")
-    root_step_id: int = Field(alias="rootStepId")
-    estimated_size: int = Field(alias="estimatedSize")
-    gene_ids: list[str] = Field(alias="geneIds")
-    conversation_id: str | None = Field(default=None, alias="conversationId")
-
-    model_config = {"populate_by_name": True}
+class BuildGoldResponse(CamelModel):
+    gold_id: str
+    wdk_strategy_id: int
+    root_step_id: int
+    estimated_size: int
+    gene_ids: list[str]
+    conversation_id: str | None = Field(default=None)
 
 
 @router.post("/build-gold", response_model=BuildGoldResponse)
@@ -74,13 +69,11 @@ async def build_gold_strategy_endpoint(
     )
 
 
-class FetchGeneIdsRequest(BaseModel):
+class FetchGeneIdsRequest(CamelModel):
     """Fetch gene IDs from an existing PathFinder strategy."""
 
-    strategy_id: str = Field(alias="strategyId")
-    site_id: str = Field(alias="siteId")
-
-    model_config = {"populate_by_name": True}
+    strategy_id: str
+    site_id: str
 
 
 @router.post("/strategy-gene-ids")

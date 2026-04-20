@@ -6,7 +6,7 @@
  * naming conventions to identify non-distributable columns.
  */
 
-import type { RecordAttribute } from "@/lib/types/wdk";
+import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordAttribute";
 
 /** Exact attribute names to exclude. */
 const BLOCKED_NAMES = new Set([

@@ -4,7 +4,6 @@ Each function takes ``RunContext[AgentDeps]`` and mirrors the original
 mixin-based tools exactly.
 """
 
-from typing import cast
 
 from pydantic import BaseModel
 from pydantic_ai import RunContext
@@ -29,9 +28,8 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.domain.strategy.types import SerializedParams
+from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_validation import ValidationCallbacks
 from pathfinder.services.strategies.step_creation import (
     ColocationStepSpec,
@@ -118,7 +116,7 @@ def _make_callbacks(site_id: str) -> ValidationCallbacks:
 async def create_leaf_step(
     ctx: RunContext[AgentDeps],
     search_name: str,
-    parameters: SerializedParams,
+    parameters: DecodedParams,
     display_name: str = "",
     record_type: str | None = None,
     *,
@@ -284,7 +282,7 @@ async def transform_step(
     ctx: RunContext[AgentDeps],
     input_step_id: str,
     transform_name: str,
-    parameters: SerializedParams | None = None,
+    parameters: DecodedParams | None = None,
     display_name: str | None = None,
     *,
     graph_id: str | None = None,
@@ -331,7 +329,7 @@ async def transform_step(
 
     spec = StepSpec(
         search_name=transform_name,
-        parameters=cast("JSONObject | None", parameters),
+        parameters=parameters,
         primary_input_step_id=input_step_id,
         display_name=display_name,
     )

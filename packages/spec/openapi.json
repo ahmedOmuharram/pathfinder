@@ -429,22 +429,21 @@
                 }
             }
         },
-        "/api/v1/sites/{siteId}/organisms": {
+        "/api/v1/sites/{site_id}/organisms": {
             "get": {
                 "tags": [
                     "sites"
                 ],
                 "summary": "Get Organisms",
-                "description": "Return all available organism names for a site via site-search.",
-                "operationId": "get_organisms_api_v1_sites__siteId__organisms_get",
+                "operationId": "get_organisms_api_v1_sites__site_id__organisms_get",
                 "parameters": [
                     {
-                        "name": "siteId",
+                        "name": "site_id",
                         "in": "path",
                         "required": true,
                         "schema": {
                             "type": "string",
-                            "title": "Siteid"
+                            "title": "Site Id"
                         }
                     }
                 ],
@@ -472,22 +471,21 @@
                 }
             }
         },
-        "/api/v1/sites/{siteId}/genes/search": {
+        "/api/v1/sites/{site_id}/genes/search": {
             "get": {
                 "tags": [
                     "sites"
                 ],
                 "summary": "Search Genes",
-                "description": "Search genes by text using multi-strategy gene lookup.",
-                "operationId": "search_genes_api_v1_sites__siteId__genes_search_get",
+                "operationId": "search_genes_api_v1_sites__site_id__genes_search_get",
                 "parameters": [
                     {
-                        "name": "siteId",
+                        "name": "site_id",
                         "in": "path",
                         "required": true,
                         "schema": {
                             "type": "string",
-                            "title": "Siteid"
+                            "title": "Site Id"
                         }
                     },
                     {
@@ -561,22 +559,21 @@
                 }
             }
         },
-        "/api/v1/sites/{siteId}/genes/resolve": {
+        "/api/v1/sites/{site_id}/genes/resolve": {
             "post": {
                 "tags": [
                     "sites"
                 ],
                 "summary": "Resolve Genes",
-                "description": "Resolve gene IDs to full records via WDK standard reporter.",
-                "operationId": "resolve_genes_api_v1_sites__siteId__genes_resolve_post",
+                "operationId": "resolve_genes_api_v1_sites__site_id__genes_resolve_post",
                 "parameters": [
                     {
-                        "name": "siteId",
+                        "name": "site_id",
                         "in": "path",
                         "required": true,
                         "schema": {
                             "type": "string",
-                            "title": "Siteid"
+                            "title": "Site Id"
                         }
                     }
                 ],
@@ -2436,7 +2433,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/JSONObject"
+                                    "$ref": "#/components/schemas/AttributesResponse"
                                 }
                             }
                         }
@@ -2460,7 +2457,7 @@
                     "experiments"
                 ],
                 "summary": "Get Experiment Records",
-                "description": "Get paginated result records for an experiment.\n\nRequires a persisted WDK strategy (``wdkStepId`` must be set).",
+                "description": "Get paginated result records for an experiment.",
                 "operationId": "get_experiment_records_api_v1_experiments__experiment_id__results_records_get",
                 "security": [
                     {
@@ -2585,7 +2582,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/JSONObject"
+                                    "$ref": "#/components/schemas/RecordsResponse"
                                 }
                             }
                         }
@@ -2643,7 +2640,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/JSONObject"
+                                    "$ref": "#/components/schemas/RecordDetailResponse"
                                 }
                             }
                         }
@@ -2700,7 +2697,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/JSONObject"
+                                    "$ref": "#/components/schemas/DistributionResponse"
                                 }
                             }
                         }
@@ -2758,7 +2755,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/JSONObject"
+                                    "$ref": "#/components/schemas/RefineResponse"
                                 }
                             }
                         }
@@ -3740,7 +3737,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/JSONObject"
+                                    "$ref": "#/components/schemas/AttributesResponse"
                                 }
                             }
                         }
@@ -3889,7 +3886,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/JSONObject"
+                                    "$ref": "#/components/schemas/RecordsResponse"
                                 }
                             }
                         }
@@ -3946,7 +3943,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/JSONObject"
+                                    "$ref": "#/components/schemas/DistributionResponse"
                                 }
                             }
                         }
@@ -4004,7 +4001,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/JSONObject"
+                                    "$ref": "#/components/schemas/RecordDetailResponse"
                                 }
                             }
                         }
@@ -4967,6 +4964,27 @@
     },
     "components": {
         "schemas": {
+            "AttributesResponse": {
+                "properties": {
+                    "attributes": {
+                        "items": {
+                            "$ref": "#/components/schemas/RecordAttribute"
+                        },
+                        "type": "array",
+                        "title": "Attributes"
+                    },
+                    "recordType": {
+                        "type": "string",
+                        "title": "Recordtype"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "attributes",
+                    "recordType"
+                ],
+                "title": "AttributesResponse"
+            },
             "AuthStatusResponse": {
                 "properties": {
                     "signedIn": {
@@ -5419,6 +5437,74 @@
                     "question"
                 ],
                 "title": "ClarificationQuestion"
+            },
+            "ClassifiedRecord": {
+                "properties": {
+                    "displayName": {
+                        "type": "string",
+                        "title": "Displayname"
+                    },
+                    "id": {
+                        "items": {
+                            "$ref": "#/components/schemas/WDKRecordIdPart"
+                        },
+                        "type": "array",
+                        "title": "Id"
+                    },
+                    "recordClassName": {
+                        "type": "string",
+                        "title": "Recordclassname"
+                    },
+                    "attributes": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/JsonValue"
+                        },
+                        "type": "object",
+                        "title": "Attributes"
+                    },
+                    "tables": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/JsonValue"
+                        },
+                        "type": "object",
+                        "title": "Tables"
+                    },
+                    "tableErrors": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Tableerrors"
+                    },
+                    "classification": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "TP",
+                                    "FP",
+                                    "FN",
+                                    "TN"
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Classification"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "displayName",
+                    "id",
+                    "recordClassName",
+                    "attributes",
+                    "tables",
+                    "tableErrors"
+                ],
+                "title": "ClassifiedRecord",
+                "description": "WDK record plus optional TP/FP/FN/TN tag from experiment classification."
             },
             "ColocationParams": {
                 "properties": {
@@ -6822,6 +6908,26 @@
                 "title": "DependentParamsRequest",
                 "description": "Dependent parameter values request."
             },
+            "DistributionResponse": {
+                "properties": {
+                    "histogram": {
+                        "items": {
+                            "$ref": "#/components/schemas/WDKHistogramBin"
+                        },
+                        "type": "array",
+                        "title": "Histogram"
+                    },
+                    "statistics": {
+                        "$ref": "#/components/schemas/WDKHistogramStatistics"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "histogram",
+                    "statistics"
+                ],
+                "title": "DistributionResponse"
+            },
             "DoneEvent": {
                 "properties": {
                     "type": {
@@ -7849,7 +7955,7 @@
                             }
                         ]
                     },
-                    "experiment_summary": {
+                    "experimentSummary": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ExperimentSummaryResponse"
@@ -7859,7 +7965,7 @@
                             }
                         ]
                     },
-                    "experiment_config": {
+                    "experimentConfig": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ExperimentConfigResponse"
@@ -7869,7 +7975,7 @@
                             }
                         ]
                     },
-                    "confusion_matrix": {
+                    "confusionMatrix": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ConfusionMatrixResponse"
@@ -7879,7 +7985,7 @@
                             }
                         ]
                     },
-                    "experiment_metrics": {
+                    "experimentMetrics": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ExperimentMetricsResponse"
@@ -7889,7 +7995,7 @@
                             }
                         ]
                     },
-                    "gene_info": {
+                    "geneInfo": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/GeneInfoResponse"
@@ -7899,7 +8005,7 @@
                             }
                         ]
                     },
-                    "fold_metrics": {
+                    "foldMetrics": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/FoldMetricsResponse"
@@ -7909,7 +8015,7 @@
                             }
                         ]
                     },
-                    "cross_validation_result": {
+                    "crossValidationResult": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/CrossValidationResultResponse"
@@ -7919,7 +8025,7 @@
                             }
                         ]
                     },
-                    "enrichment_term": {
+                    "enrichmentTerm": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/EnrichmentTermResponse"
@@ -7929,7 +8035,7 @@
                             }
                         ]
                     },
-                    "enrichment_result": {
+                    "enrichmentResult": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/EnrichmentResultResponse"
@@ -7939,7 +8045,7 @@
                             }
                         ]
                     },
-                    "rank_metrics": {
+                    "rankMetrics": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/RankMetricsResponse"
@@ -7949,7 +8055,7 @@
                             }
                         ]
                     },
-                    "confidence_interval": {
+                    "confidenceInterval": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ConfidenceIntervalResponse"
@@ -7959,7 +8065,7 @@
                             }
                         ]
                     },
-                    "negative_set_variant": {
+                    "negativeSetVariant": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/NegativeSetVariantResponse"
@@ -7969,7 +8075,7 @@
                             }
                         ]
                     },
-                    "bootstrap_result": {
+                    "bootstrapResult": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/BootstrapResultResponse"
@@ -7979,7 +8085,7 @@
                             }
                         ]
                     },
-                    "step_evaluation": {
+                    "stepEvaluation": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/StepEvaluationResponse"
@@ -7989,7 +8095,7 @@
                             }
                         ]
                     },
-                    "operator_variant": {
+                    "operatorVariant": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/OperatorVariantResponse"
@@ -7999,7 +8105,7 @@
                             }
                         ]
                     },
-                    "operator_comparison": {
+                    "operatorComparison": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/OperatorComparisonResponse"
@@ -8009,7 +8115,7 @@
                             }
                         ]
                     },
-                    "step_contribution": {
+                    "stepContribution": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/StepContributionResponse"
@@ -8019,7 +8125,7 @@
                             }
                         ]
                     },
-                    "parameter_sweep_point": {
+                    "parameterSweepPoint": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ParameterSweepPointResponse"
@@ -8029,7 +8135,7 @@
                             }
                         ]
                     },
-                    "parameter_sensitivity": {
+                    "parameterSensitivity": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ParameterSensitivityResponse"
@@ -8039,7 +8145,7 @@
                             }
                         ]
                     },
-                    "step_analysis_result": {
+                    "stepAnalysisResult": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/StepAnalysisResultResponse"
@@ -8049,7 +8155,7 @@
                             }
                         ]
                     },
-                    "optimization_spec": {
+                    "optimizationSpec": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/OptimizationSpecResponse"
@@ -8059,7 +8165,7 @@
                             }
                         ]
                     },
-                    "threshold_knob": {
+                    "thresholdKnob": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ThresholdKnobResponse"
@@ -8069,7 +8175,7 @@
                             }
                         ]
                     },
-                    "operator_knob": {
+                    "operatorKnob": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/OperatorKnobResponse"
@@ -8079,7 +8185,7 @@
                             }
                         ]
                     },
-                    "tree_optimization_trial": {
+                    "treeOptimizationTrial": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/TreeOptimizationTrialResponse"
@@ -8089,7 +8195,7 @@
                             }
                         ]
                     },
-                    "tree_optimization_result": {
+                    "treeOptimizationResult": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/TreeOptimizationResultResponse"
@@ -8099,7 +8205,7 @@
                             }
                         ]
                     },
-                    "trial_progress_data": {
+                    "trialProgressData": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/TrialProgressDataResponse"
@@ -8109,7 +8215,7 @@
                             }
                         ]
                     },
-                    "step_analysis_progress_data": {
+                    "stepAnalysisProgressData": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/StepAnalysisProgressDataResponse"
@@ -8119,7 +8225,7 @@
                             }
                         ]
                     },
-                    "experiment_progress_data": {
+                    "experimentProgressData": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ExperimentProgressDataResponse"
@@ -8129,7 +8235,7 @@
                             }
                         ]
                     },
-                    "optimization_result": {
+                    "optimizationResult": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/OptimizationResultResponse"
@@ -8139,7 +8245,7 @@
                             }
                         ]
                     },
-                    "control_set_summary": {
+                    "controlSetSummary": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ControlSetSummaryResponse"
@@ -8149,7 +8255,7 @@
                             }
                         ]
                     },
-                    "optimization_progress": {
+                    "optimizationProgress": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/OptimizationProgressEventData"
@@ -8159,7 +8265,7 @@
                             }
                         ]
                     },
-                    "optimization_trial": {
+                    "optimizationTrial": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/OptimizationTrialData"
@@ -8169,7 +8275,7 @@
                             }
                         ]
                     },
-                    "optimization_parameter_spec": {
+                    "optimizationParameterSpec": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/OptimizationParameterSpecData"
@@ -8628,8 +8734,7 @@
                 "required": [
                     "geneIds"
                 ],
-                "title": "GeneResolveRequest",
-                "description": "Request body for gene ID resolution."
+                "title": "GeneResolveRequest"
             },
             "GeneResolveResponse": {
                 "properties": {
@@ -8653,8 +8758,7 @@
                     "resolved",
                     "unresolved"
                 ],
-                "title": "GeneResolveResponse",
-                "description": "Gene ID resolution response."
+                "title": "GeneResolveResponse"
             },
             "GeneSearchResponse": {
                 "properties": {
@@ -8674,8 +8778,7 @@
                             "type": "string"
                         },
                         "type": "array",
-                        "title": "Suggestedorganisms",
-                        "default": []
+                        "title": "Suggestedorganisms"
                     }
                 },
                 "type": "object",
@@ -8683,8 +8786,7 @@
                     "results",
                     "totalCount"
                 ],
-                "title": "GeneSearchResponse",
-                "description": "Paginated gene search response."
+                "title": "GeneSearchResponse"
             },
             "GeneSearchResultResponse": {
                 "properties": {
@@ -8727,16 +8829,14 @@
                             "type": "string"
                         },
                         "type": "array",
-                        "title": "Matchedfields",
-                        "default": []
+                        "title": "Matchedfields"
                     }
                 },
                 "type": "object",
                 "required": [
                     "geneId"
                 ],
-                "title": "GeneSearchResultResponse",
-                "description": "A single gene result from site-search."
+                "title": "GeneSearchResultResponse"
             },
             "GeneSet": {
                 "properties": {
@@ -9604,21 +9704,6 @@
                         "type": "string",
                         "title": "Name"
                     },
-                    "provider": {
-                        "type": "string",
-                        "enum": [
-                            "openai",
-                            "anthropic",
-                            "google",
-                            "ollama",
-                            "mock"
-                        ],
-                        "title": "Provider"
-                    },
-                    "modelName": {
-                        "type": "string",
-                        "title": "Modelname"
-                    },
                     "description": {
                         "type": "string",
                         "title": "Description",
@@ -9658,6 +9743,21 @@
                         "type": "boolean",
                         "title": "Isprovidersmallest",
                         "default": false
+                    },
+                    "provider": {
+                        "type": "string",
+                        "enum": [
+                            "openai",
+                            "anthropic",
+                            "google",
+                            "ollama",
+                            "mock"
+                        ],
+                        "title": "Provider"
+                    },
+                    "modelName": {
+                        "type": "string",
+                        "title": "Modelname"
                     },
                     "enabled": {
                         "type": "boolean",
@@ -9930,7 +10030,7 @@
                         "type": "string",
                         "title": "Type"
                     },
-                    "minValue": {
+                    "min": {
                         "anyOf": [
                             {
                                 "type": "number"
@@ -9939,9 +10039,9 @@
                                 "type": "null"
                             }
                         ],
-                        "title": "Minvalue"
+                        "title": "Min"
                     },
-                    "maxValue": {
+                    "max": {
                         "anyOf": [
                             {
                                 "type": "number"
@@ -9950,7 +10050,7 @@
                                 "type": "null"
                             }
                         ],
-                        "title": "Maxvalue"
+                        "title": "Max"
                     },
                     "logScale": {
                         "anyOf": [
@@ -10537,8 +10637,7 @@
                 "required": [
                     "organisms"
                 ],
-                "title": "OrganismsResponse",
-                "description": "Available organisms for a site."
+                "title": "OrganismsResponse"
             },
             "OverlapRequest": {
                 "properties": {
@@ -11629,12 +11728,12 @@
                     "readiness": {
                         "$ref": "#/components/schemas/ReadinessState"
                     },
-                    "not_ready": {
+                    "notReady": {
                         "items": {
                             "type": "string"
                         },
                         "type": "array",
-                        "title": "Not Ready"
+                        "title": "Notready"
                     }
                 },
                 "type": "object",
@@ -11673,6 +11772,63 @@
                 "title": "ReadinessState",
                 "description": "Aggregate readiness for the whole API process."
             },
+            "RecordAttribute": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "displayName": {
+                        "type": "string",
+                        "title": "Displayname"
+                    },
+                    "help": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Help"
+                    },
+                    "type": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Type"
+                    },
+                    "isDisplayable": {
+                        "type": "boolean",
+                        "title": "Isdisplayable"
+                    },
+                    "isSortable": {
+                        "type": "boolean",
+                        "title": "Issortable"
+                    },
+                    "isSuggested": {
+                        "type": "boolean",
+                        "title": "Issuggested"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "displayName",
+                    "help",
+                    "type",
+                    "isDisplayable",
+                    "isSortable",
+                    "isSuggested"
+                ],
+                "title": "RecordAttribute"
+            },
             "RecordDetailRequest": {
                 "properties": {
                     "primaryKey": {
@@ -11690,6 +11846,64 @@
                 ],
                 "title": "RecordDetailRequest",
                 "description": "Request to fetch a single record by primary key."
+            },
+            "RecordDetailResponse": {
+                "properties": {
+                    "displayName": {
+                        "type": "string",
+                        "title": "Displayname"
+                    },
+                    "id": {
+                        "items": {
+                            "$ref": "#/components/schemas/WDKRecordIdPart"
+                        },
+                        "type": "array",
+                        "title": "Id"
+                    },
+                    "recordClassName": {
+                        "type": "string",
+                        "title": "Recordclassname"
+                    },
+                    "attributes": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/JsonValue"
+                        },
+                        "type": "object",
+                        "title": "Attributes"
+                    },
+                    "attributeNames": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "type": "object",
+                        "title": "Attributenames"
+                    },
+                    "tables": {
+                        "additionalProperties": {
+                            "$ref": "#/components/schemas/JsonValue"
+                        },
+                        "type": "object",
+                        "title": "Tables"
+                    },
+                    "tableErrors": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Tableerrors"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "displayName",
+                    "id",
+                    "recordClassName",
+                    "attributes",
+                    "attributeNames",
+                    "tables",
+                    "tableErrors"
+                ],
+                "title": "RecordDetailResponse"
             },
             "RecordTypeResponse": {
                 "properties": {
@@ -11720,6 +11934,87 @@
                 ],
                 "title": "RecordTypeResponse",
                 "description": "Record type information."
+            },
+            "RecordsMeta": {
+                "properties": {
+                    "totalCount": {
+                        "type": "integer",
+                        "title": "Totalcount"
+                    },
+                    "displayTotalCount": {
+                        "type": "integer",
+                        "title": "Displaytotalcount"
+                    },
+                    "responseCount": {
+                        "type": "integer",
+                        "title": "Responsecount"
+                    },
+                    "pagination": {
+                        "$ref": "#/components/schemas/RecordsPagination"
+                    },
+                    "attributes": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Attributes"
+                    },
+                    "tables": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Tables"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "totalCount",
+                    "displayTotalCount",
+                    "responseCount",
+                    "pagination",
+                    "attributes",
+                    "tables"
+                ],
+                "title": "RecordsMeta"
+            },
+            "RecordsPagination": {
+                "properties": {
+                    "offset": {
+                        "type": "integer",
+                        "title": "Offset"
+                    },
+                    "numRecords": {
+                        "type": "integer",
+                        "title": "Numrecords"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "offset",
+                    "numRecords"
+                ],
+                "title": "RecordsPagination"
+            },
+            "RecordsResponse": {
+                "properties": {
+                    "records": {
+                        "items": {
+                            "$ref": "#/components/schemas/ClassifiedRecord"
+                        },
+                        "type": "array",
+                        "title": "Records"
+                    },
+                    "meta": {
+                        "$ref": "#/components/schemas/RecordsMeta"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "records",
+                    "meta"
+                ],
+                "title": "RecordsResponse"
             },
             "RefineRequest": {
                 "properties": {
@@ -11756,6 +12051,31 @@
                 ],
                 "title": "RefineRequest",
                 "description": "Request to refine an experiment's strategy."
+            },
+            "RefineResponse": {
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "title": "Success"
+                    },
+                    "newStepId": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Newstepid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "success"
+                ],
+                "title": "RefineResponse",
+                "description": "Response from refine_experiment."
             },
             "ResearchNote": {
                 "properties": {
@@ -11838,8 +12158,7 @@
                 "required": [
                     "geneId"
                 ],
-                "title": "ResolvedGeneResponse",
-                "description": "A resolved gene record."
+                "title": "ResolvedGeneResponse"
             },
             "ReverseSearchRequest": {
                 "properties": {
@@ -12554,12 +12873,16 @@
                     "parameters": {
                         "anyOf": [
                             {
-                                "$ref": "#/components/schemas/JSONObject"
+                                "additionalProperties": {
+                                    "$ref": "#/components/schemas/JsonValue"
+                                },
+                                "type": "object"
                             },
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "title": "Parameters"
                     },
                     "operator": {
                         "anyOf": [
@@ -13104,7 +13427,7 @@
                     },
                     "parameters": {
                         "additionalProperties": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/JsonValue"
                         },
                         "type": "object",
                         "title": "Parameters"
@@ -13202,7 +13525,7 @@
                     "searchName"
                 ],
                 "title": "StrategyStepNode",
-                "description": "Recursive strategy node.\n\nKind is inferred from structure:\n- combine: primary_input and secondary_input\n- transform: primary_input only\n- search: no inputs\n\n``parameters`` accepts ``JSONObject`` (LLM's natural output).\n``SerializedParams`` coerces each value to ``str`` via Pydantic\nvalidation, producing WDK-compatible ``dict[str, str]``\n(``Record<string, ParameterValue>``)."
+                "description": "Recursive strategy node.\n\nKind is inferred from structure:\n- combine: primary_input and secondary_input\n- transform: primary_input only\n- search: no inputs\n\n``parameters`` holds decoded JSON-typed values\n(``DecodedParams = dict[str, JsonValue]``). Encoding to WDK wire\nformat happens at integration boundaries via\n``integrations.veupathdb.value_decoding.encode_params``."
             },
             "StrategyStepNode-Output": {
                 "properties": {
@@ -13212,7 +13535,7 @@
                     },
                     "parameters": {
                         "additionalProperties": {
-                            "type": "string"
+                            "$ref": "#/components/schemas/JsonValue"
                         },
                         "type": "object",
                         "title": "Parameters"
@@ -13310,11 +13633,11 @@
                     "searchName"
                 ],
                 "title": "StrategyStepNode",
-                "description": "Recursive strategy node.\n\nKind is inferred from structure:\n- combine: primary_input and secondary_input\n- transform: primary_input only\n- search: no inputs\n\n``parameters`` accepts ``JSONObject`` (LLM's natural output).\n``SerializedParams`` coerces each value to ``str`` via Pydantic\nvalidation, producing WDK-compatible ``dict[str, str]``\n(``Record<string, ParameterValue>``)."
+                "description": "Recursive strategy node.\n\nKind is inferred from structure:\n- combine: primary_input and secondary_input\n- transform: primary_input only\n- search: no inputs\n\n``parameters`` holds decoded JSON-typed values\n(``DecodedParams = dict[str, JsonValue]``). Encoding to WDK wire\nformat happens at integration boundaries via\n``integrations.veupathdb.value_decoding.encode_params``."
             },
             "StreamPartsSchemaIndex": {
                 "properties": {
-                    "graph_snapshot": {
+                    "graphSnapshot": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/GraphSnapshot"
@@ -13324,7 +13647,7 @@
                             }
                         ]
                     },
-                    "graph_plan": {
+                    "graphPlan": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/GraphPlan"
@@ -13334,7 +13657,7 @@
                             }
                         ]
                     },
-                    "graph_cleared": {
+                    "graphCleared": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/GraphCleared"
@@ -13344,7 +13667,7 @@
                             }
                         ]
                     },
-                    "strategy_patch": {
+                    "strategyPatch": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/StrategyPatch"
@@ -13354,7 +13677,7 @@
                             }
                         ]
                     },
-                    "strategy_meta": {
+                    "strategyMeta": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/StrategyMeta"
@@ -13364,7 +13687,7 @@
                             }
                         ]
                     },
-                    "strategy_link": {
+                    "strategyLink": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/StrategyLink"
@@ -13374,7 +13697,7 @@
                             }
                         ]
                     },
-                    "plan_artifact": {
+                    "planArtifact": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/PlanArtifact"
@@ -13384,7 +13707,7 @@
                             }
                         ]
                     },
-                    "plan_update": {
+                    "planUpdate": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/PlanUpdate"
@@ -13394,7 +13717,7 @@
                             }
                         ]
                     },
-                    "decision_presented": {
+                    "decisionPresented": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/DecisionPresented"
@@ -13404,7 +13727,7 @@
                             }
                         ]
                     },
-                    "problem_frame": {
+                    "problemFrame": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/ProblemFrame"
@@ -13414,7 +13737,7 @@
                             }
                         ]
                     },
-                    "gene_set": {
+                    "geneSet": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/GeneSet"
@@ -13424,7 +13747,7 @@
                             }
                         ]
                     },
-                    "optimization_snapshot": {
+                    "optimizationSnapshot": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/OptimizationSnapshot"
@@ -13434,7 +13757,7 @@
                             }
                         ]
                     },
-                    "phase_change": {
+                    "phaseChange": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/PhaseChange"
@@ -13444,7 +13767,7 @@
                             }
                         ]
                     },
-                    "background_task_started": {
+                    "backgroundTaskStarted": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/BackgroundTaskStarted"
@@ -13454,7 +13777,7 @@
                             }
                         ]
                     },
-                    "task_progress": {
+                    "taskProgress": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/TaskProgress"
@@ -13464,7 +13787,7 @@
                             }
                         ]
                     },
-                    "task_completed": {
+                    "taskCompleted": {
                         "anyOf": [
                             {
                                 "$ref": "#/components/schemas/TaskCompleted"
@@ -13806,7 +14129,7 @@
                         "title": "Sweeptype",
                         "default": "numeric"
                     },
-                    "minValue": {
+                    "min": {
                         "anyOf": [
                             {
                                 "type": "number"
@@ -13815,9 +14138,9 @@
                                 "type": "null"
                             }
                         ],
-                        "title": "Minvalue"
+                        "title": "Min"
                     },
-                    "maxValue": {
+                    "max": {
                         "anyOf": [
                             {
                                 "type": "number"
@@ -13826,7 +14149,7 @@
                                 "type": "null"
                             }
                         ],
-                        "title": "Maxvalue"
+                        "title": "Max"
                     },
                     "steps": {
                         "type": "integer",
@@ -14335,6 +14658,117 @@
                 ],
                 "title": "ValidationResult",
                 "description": "Single validation result with normalized values."
+            },
+            "WDKHistogramBin": {
+                "properties": {
+                    "value": {
+                        "type": "integer",
+                        "title": "Value",
+                        "default": 0
+                    },
+                    "binStart": {
+                        "type": "string",
+                        "title": "Binstart",
+                        "default": ""
+                    },
+                    "binEnd": {
+                        "type": "string",
+                        "title": "Binend",
+                        "default": ""
+                    },
+                    "binLabel": {
+                        "type": "string",
+                        "title": "Binlabel",
+                        "default": ""
+                    }
+                },
+                "type": "object",
+                "title": "WDKHistogramBin",
+                "description": "Single bin in a column distribution histogram."
+            },
+            "WDKHistogramStatistics": {
+                "properties": {
+                    "subsetSize": {
+                        "type": "integer",
+                        "title": "Subsetsize",
+                        "default": 0
+                    },
+                    "subsetMin": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Subsetmin"
+                    },
+                    "subsetMax": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Subsetmax"
+                    },
+                    "subsetMean": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Subsetmean"
+                    },
+                    "numVarValues": {
+                        "type": "integer",
+                        "title": "Numvarvalues",
+                        "default": 0
+                    },
+                    "numDistinctValues": {
+                        "type": "integer",
+                        "title": "Numdistinctvalues",
+                        "default": 0
+                    },
+                    "numDistinctEntityRecords": {
+                        "type": "integer",
+                        "title": "Numdistinctentityrecords",
+                        "default": 0
+                    },
+                    "numMissingCases": {
+                        "type": "integer",
+                        "title": "Nummissingcases",
+                        "default": 0
+                    }
+                },
+                "type": "object",
+                "title": "WDKHistogramStatistics",
+                "description": "Statistics summary for a column distribution."
+            },
+            "WDKRecordIdPart": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "value": {
+                        "type": "string",
+                        "title": "Value"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "value"
+                ],
+                "title": "WDKRecordIdPart",
+                "description": "One (name, value) segment of a WDK record's composite primary key."
             },
             "_UIMessage": {
                 "properties": {

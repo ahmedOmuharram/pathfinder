@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import ConfigDict, Field, JsonValue, model_validator
 
 from pathfinder.platform.pydantic_base import (
     CamelModel,
@@ -30,46 +30,27 @@ CancelCheck = Callable[[], bool]
 
 OptimizationMethod = Literal["bayesian", "grid", "random"]
 
-class ParameterSpec(BaseModel):
-    """Describes a single parameter to optimise.
+class ParameterSpec(CamelModel):
+    """Describes a single parameter to optimise. Field names match WDK wire."""
 
-    Accepts both JSON aliases (``type``, ``min``, ``max``, ``logScale``)
-    and Python field names (``param_type``, ``min_value``, ``max_value``,
-    ``log_scale``) so the same model works for LLM JSON input and
-    programmatic construction.
-    """
-
-    model_config = ConfigDict(frozen=True, populate_by_name=True)
+    model_config = ConfigDict(frozen=True)
 
     name: str = Field(min_length=1)
     param_type: ParameterType = Field(alias="type")
-    # numeric / integer
-    min_value: float | None = Field(None, alias="min")
-    max_value: float | None = Field(None, alias="max")
-    log_scale: bool = Field(default=False, alias="logScale")
+    min: float | None = None
+    max: float | None = None
+    log_scale: bool = False
     step: float | None = None
-    # categorical
     choices: list[str] | None = None
 
     @model_validator(mode="after")
     def _validate_constraints(self) -> Self:
-        """Validate logical consistency of fields.
-
-        Only checks constraints that would be *logically wrong* regardless of
-        context (min >= max, step <= 0).  The stricter "min/max required for
-        numeric" rule is enforced by :func:`_parse_parameter_space` during LLM
-        JSON parsing, since internal code may construct specs with ``None``
-        bounds and rely on runtime defaults.
-        """
         if (
-            self.min_value is not None
-            and self.max_value is not None
-            and self.min_value >= self.max_value
+            self.min is not None
+            and self.max is not None
+            and self.min >= self.max
         ):
-            msg = (
-                f"'min' ({self.min_value}) must be strictly less than "
-                f"'max' ({self.max_value})"
-            )
+            msg = f"'min' ({self.min}) must be strictly less than 'max' ({self.max})"
             raise ValueError(msg)
         if self.step is not None and self.step <= 0:
             msg = f"'step' must be positive, got {self.step}"

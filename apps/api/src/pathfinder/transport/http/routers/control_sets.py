@@ -3,12 +3,13 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from pathfinder.persistence.models import ControlSet
 from pathfinder.persistence.repositories.control_set import ControlSetCreate
 from pathfinder.platform.errors import NotFoundError
 from pathfinder.platform.errors import ValidationError as CoreValidationError
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.transport.http.deps import ControlSetRepo, CurrentUser
 
 router = APIRouter(prefix="/api/v1/control-sets", tags=["control-sets"])
@@ -19,40 +20,36 @@ router = APIRouter(prefix="/api/v1/control-sets", tags=["control-sets"])
 # ---------------------------------------------------------------------------
 
 
-class CreateControlSetRequest(BaseModel):
+class CreateControlSetRequest(CamelModel):
     """Payload for creating a new control set."""
 
     name: str
-    site_id: str = Field(alias="siteId")
-    record_type: str = Field(alias="recordType")
-    positive_ids: list[str] = Field(alias="positiveIds", default_factory=list)
-    negative_ids: list[str] = Field(alias="negativeIds", default_factory=list)
+    site_id: str
+    record_type: str
+    positive_ids: list[str] = Field(default_factory=list)
+    negative_ids: list[str] = Field(default_factory=list)
     source: str | None = None
     tags: list[str] = Field(default_factory=list)
-    provenance_notes: str | None = Field(None, alias="provenanceNotes")
-    is_public: bool = Field(default=False, alias="isPublic")
-
-    model_config = {"populate_by_name": True}
+    provenance_notes: str | None = Field(None)
+    is_public: bool = Field(default=False)
 
 
-class ControlSetResponse(BaseModel):
+class ControlSetResponse(CamelModel):
     """Serialized control set returned to the client."""
 
     id: str
     name: str
-    site_id: str = Field(alias="siteId")
-    record_type: str = Field(alias="recordType")
-    positive_ids: list[str] = Field(alias="positiveIds")
-    negative_ids: list[str] = Field(alias="negativeIds")
+    site_id: str
+    record_type: str
+    positive_ids: list[str]
+    negative_ids: list[str]
     source: str | None = None
     tags: list[str]
-    provenance_notes: str | None = Field(None, alias="provenanceNotes")
+    provenance_notes: str | None = Field(None)
     version: int
-    is_public: bool = Field(alias="isPublic")
-    user_id: str | None = Field(None, alias="userId")
-    created_at: str = Field(alias="createdAt")
-
-    model_config = {"populate_by_name": True}
+    is_public: bool
+    user_id: str | None = Field(None)
+    created_at: str
 
 
 def _serialize(cs: ControlSet) -> ControlSetResponse:

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
-import type { RecordsResponse, WdkRecord } from "@/lib/types/wdk";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
+import type { RecordsResponse } from "@pathfinder/shared/generated/types/RecordsResponse";
 import { getRecords, type EntityRef } from "@/features/analysis/api/stepResults";
 
 interface UseResultsTableRecordsArgs {
@@ -12,7 +13,7 @@ interface UseResultsTableRecordsArgs {
 }
 
 interface ResultsTableRecordsState {
-  records: WdkRecord[];
+  records: ClassifiedRecord[];
   meta: RecordsResponse["meta"] | null;
   loading: boolean;
   error: string | null;

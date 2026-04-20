@@ -17,20 +17,7 @@ def classify_records(
     fn_ids: set[str],
     tn_ids: set[str],
 ) -> list[JSONObject]:
-    """Add ``_classification`` field to records based on gene ID membership.
-
-    For each record, extracts the primary key and checks membership in
-    the four gene-set categories.  WDK transcript IDs may include a
-    version suffix (e.g. ``"PF3D7_0100100.1"``); the function also
-    checks the base ID with the suffix stripped.
-
-    :param records: WDK answer records.
-    :param tp_ids: True-positive gene IDs.
-    :param fp_ids: False-positive gene IDs.
-    :param fn_ids: False-negative gene IDs.
-    :param tn_ids: True-negative gene IDs.
-    :returns: New list of records, each with a ``_classification`` field.
-    """
+    """Add a ``classification`` field to records based on gene ID membership."""
     classified: list[JSONObject] = []
     for rec in records:
         gene_id = extract_pk(rec)
@@ -38,8 +25,8 @@ def classify_records(
         classified.append(
             {
                 **rec.model_dump(by_alias=True),
-                "_classification": classification,
-            }
+                "classification": classification,
+            },
         )
     return classified
 

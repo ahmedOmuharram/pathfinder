@@ -4,7 +4,6 @@ Each function takes ``RunContext[AgentDeps]`` and mirrors the original
 :class:`StrategyEditOps` methods exactly.
 """
 
-from collections.abc import Mapping
 from typing import cast
 
 from pydantic_ai import RunContext
@@ -35,7 +34,8 @@ from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.domain.strategy.types import SerializedParams
+from pathfinder.domain.strategy.types import DecodedParams
+from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.platform.errors import AppError, ErrorCode, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
@@ -82,12 +82,11 @@ async def _validate_and_set_params(
     site_id: str,
     graph: StrategyGraph,
     step: StrategyStepNode,
-    parameters: JSONObject,
+    parameters: DecodedParams,
 ) -> ToolErrorPayload | None:
     """Validate and set parameters on a step. Returns error or None."""
-    wdk_params = cast("dict[str, str]", parameters)
     if step.secondary_input is not None:
-        step.parameters = wdk_params
+        step.parameters = parameters
         return None
     record_type = graph.record_type or "transcript"
     try:
@@ -100,7 +99,7 @@ async def _validate_and_set_params(
         return validation_error_payload(
             exc, recordType=record_type, searchName=step.search_name
         )
-    step.parameters = wdk_params
+    step.parameters = parameters
     return None
 
 
@@ -133,7 +132,7 @@ async def _apply_step_updates(
     sync_state: WDKSyncState,
     step: StrategyStepNode,
     search_name: str | None,
-    parameters: Mapping[str, str] | JSONObject | None,
+    parameters: DecodedParams | None,
     operator: str | None,
     display_name: str | None,
 ) -> ToolErrorPayload | None:
@@ -145,8 +144,7 @@ async def _apply_step_updates(
         substantive_change = True
 
     if parameters is not None:
-        params_dict: JSONObject = dict(parameters)
-        error = await _validate_and_set_params(site_id, graph, step, params_dict)
+        error = await _validate_and_set_params(site_id, graph, step, parameters)
         if error is not None:
             return error
         substantive_change = True
@@ -167,13 +165,7 @@ async def _apply_step_updates(
                 api = get_strategy_api(graph.site_id)
                 await api.update_step_search_config(
                     wdk_step_id,
-                    WDKSearchConfig(
-                        parameters={
-                            k: str(v)
-                            for k, v in step.parameters.items()
-                            if v is not None
-                        },
-                    ),
+                    WDKSearchConfig(parameters=encode_params(step.parameters)),
                     record_type=graph.record_type or "transcript",
                     search_name=step.search_name,
                 )
@@ -218,7 +210,7 @@ async def update_step(
     ctx: RunContext[AgentDeps],
     step_id: str,
     search_name: str | None = None,
-    parameters: SerializedParams | None = None,
+    parameters: DecodedParams | None = None,
     operator: str | None = None,
     display_name: str | None = None,
     graph_id: str | None = None,

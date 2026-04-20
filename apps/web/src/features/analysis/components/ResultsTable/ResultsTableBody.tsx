@@ -1,18 +1,19 @@
 import { ChevronDown, ChevronUp, ArrowUpDown, Loader2 } from "lucide-react";
 import { flexRender, type Header, type Table } from "@tanstack/react-table";
-import type { RecordDetail, WdkRecord } from "@/lib/types/wdk";
+import type { RecordDetailResponse } from "@pathfinder/shared/generated/types/RecordDetailResponse";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import { RecordRow } from "./RecordRow";
 
 interface ResultsTableBodyProps {
-  table: Table<WdkRecord>;
+  table: Table<ClassifiedRecord>;
   loading: boolean;
-  detail: RecordDetail | null;
+  detail: RecordDetailResponse | null;
   detailError: string | null;
   detailLoading: boolean;
-  onExpandRow: (row: WdkRecord, expand: boolean) => void;
+  onExpandRow: (row: ClassifiedRecord, expand: boolean) => void;
 }
 
-function SortIcon({ header }: { header: Header<WdkRecord, unknown> }) {
+function SortIcon({ header }: { header: Header<ClassifiedRecord, unknown> }) {
   const dir = header.column.getIsSorted();
   if (dir === "asc") return <ChevronUp className="h-3 w-3" />;
   if (dir === "desc") return <ChevronDown className="h-3 w-3" />;

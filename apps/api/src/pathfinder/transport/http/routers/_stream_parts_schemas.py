@@ -7,7 +7,6 @@ $ref from their parent schemas and do not need explicit entries.
 """
 
 from fastapi import APIRouter
-from pydantic import BaseModel
 from shared_py.stream_parts.background_task import (
     BackgroundTaskStarted,
     TaskCompleted,
@@ -33,10 +32,12 @@ from shared_py.stream_parts.strategy import (
     StrategyPatch,
 )
 
+from pathfinder.platform.pydantic_base import CamelModel
+
 router = APIRouter(prefix="/api/v1/internal/stream-parts", tags=["internal"])
 
 
-class StreamPartsSchemaIndex(BaseModel):
+class StreamPartsSchemaIndex(CamelModel):
     """Index of stream-part payload schemas. Never called — exists for OpenAPI generation."""
 
     graph_snapshot: GraphSnapshot | None = None

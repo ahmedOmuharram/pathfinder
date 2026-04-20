@@ -121,7 +121,7 @@ class PlannedStep(CamelModel):
     rationale: str = ""
     step_type: StepType
     status: StepStatus
-    parameters: dict[str, PlannedParameter] = Field(default_factory=dict)
+    parameters: list[PlannedParameter] = Field(default_factory=list)
     operator: str | None = None
     expected_count: int | None = None
     actual_count: int | None = None

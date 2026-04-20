@@ -5,7 +5,7 @@ from uuid import uuid4
 from pydantic import Field, JsonValue, ValidationError, model_validator
 
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
-from pathfinder.domain.strategy.types import SerializedParams
+from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 
@@ -138,10 +138,10 @@ class StrategyStepNode(CamelModel):
     - transform: primary_input only
     - search: no inputs
 
-    ``parameters`` accepts ``JSONObject`` (LLM's natural output).
-    ``SerializedParams`` coerces each value to ``str`` via Pydantic
-    validation, producing WDK-compatible ``dict[str, str]``
-    (``Record<string, ParameterValue>``).
+    ``parameters`` holds decoded JSON-typed values
+    (``DecodedParams = dict[str, JsonValue]``). Encoding to WDK wire
+    format happens at integration boundaries via
+    ``integrations.veupathdb.value_decoding.encode_params``.
     """
 
     @model_validator(mode="before")
@@ -159,7 +159,7 @@ class StrategyStepNode(CamelModel):
         return data
 
     search_name: str
-    parameters: SerializedParams = Field(default_factory=dict)
+    parameters: DecodedParams = Field(default_factory=dict)
 
     primary_input: StrategyStepNode | None = None
     secondary_input: StrategyStepNode | None = None

@@ -11,6 +11,7 @@ from pathfinder.domain.strategy.ops import (
 )
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
+from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     PatchStepSpec,
@@ -62,7 +63,7 @@ async def _materialize_step_tree(
         )
 
     search_name = node.search_name
-    parameters = node.parameters
+    wire_parameters = encode_params(node.parameters)
     display_name = node.display_name or search_name
 
     if primary_tree is not None and secondary_tree is not None:
@@ -102,7 +103,7 @@ async def _materialize_step_tree(
         step = await api.create_transform_step(
             NewStepSpec(
                 search_name=search_name,
-                search_config=WDKSearchConfig(parameters=parameters),
+                search_config=WDKSearchConfig(parameters=wire_parameters),
                 custom_name=display_name,
             ),
             input_step_id=primary_tree.step_id,
@@ -113,7 +114,7 @@ async def _materialize_step_tree(
     step = await api.create_step(
         NewStepSpec(
             search_name=search_name,
-            search_config=WDKSearchConfig(parameters=parameters),
+            search_config=WDKSearchConfig(parameters=wire_parameters),
             custom_name=display_name,
         ),
         record_type=record_type,
@@ -157,8 +158,8 @@ async def _persist_experiment_strategy(
         step_payload = await api.create_step(
             NewStepSpec(
                 search_name=config.search_name,
-                search_config=WDKSearchConfig(
-                    parameters=config.parameters or {},
+                search_config=WDKSearchConfig.model_validate(
+                    {"parameters": config.parameters or {}},
                 ),
                 custom_name=f"Experiment: {config.name}",
             ),

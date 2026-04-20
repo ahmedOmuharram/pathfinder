@@ -4,7 +4,8 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { cleanup, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import type { Table } from "@tanstack/react-table";
-import type { RecordAttribute, WdkRecord } from "@/lib/types/wdk";
+import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordAttribute";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import { createTestWrapper } from "@/lib/query/testing";
 
 const mockGetAttributes = vi.fn();
@@ -23,7 +24,7 @@ vi.mock("./ResultsTableHeader", () => ({
     table,
   }: {
     totalCount: number;
-    table: Table<WdkRecord>;
+    table: Table<ClassifiedRecord>;
   }) => {
     const visibleIds = table
       .getAllLeafColumns()
@@ -54,9 +55,9 @@ vi.mock("./ResultsTableBody", () => ({
     loading,
     onExpandRow,
   }: {
-    table: Table<WdkRecord>;
+    table: Table<ClassifiedRecord>;
     loading: boolean;
-    onExpandRow: (row: WdkRecord, expand: boolean) => void;
+    onExpandRow: (row: ClassifiedRecord, expand: boolean) => void;
   }) => {
     const rows = table.getRowModel().rows;
     const sortingKey = table.getState().sorting.map((s) => `${s.id}:${s.desc ? "d" : "a"}`).join("|");
@@ -94,7 +95,7 @@ vi.mock("./PaginationControls", () => ({
     table,
   }: {
     totalCount: number;
-    table: Table<WdkRecord>;
+    table: Table<ClassifiedRecord>;
   }) => (
     <div data-testid="pagination" data-page-index={table.getState().pagination.pageIndex}>
       <span data-testid="pagination-total">total={totalCount}</span>

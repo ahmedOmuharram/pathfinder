@@ -63,7 +63,7 @@ def _refresh_step_statuses(plan: StrategyPlan) -> None:
 
         has_needs_discovery = any(
             parameter.status == ParamStatus.NEEDS_DISCOVERY
-            for parameter in step.parameters.values()
+            for parameter in step.parameters
         )
         if has_needs_discovery:
             step.status = StepStatus.NEEDS_DISCOVERY
@@ -81,7 +81,7 @@ def _refresh_step_statuses(plan: StrategyPlan) -> None:
                 parameter.value is None
                 or parameter.status == ParamStatus.NEEDS_USER_INPUT
             )
-            for parameter in step.parameters.values()
+            for parameter in step.parameters
         )
         if unanswered_for_step or has_unset_required_param:
             step.status = StepStatus.NEEDS_USER_INPUT
@@ -115,7 +115,9 @@ def apply_plan_approval(
                 title="Invalid plan parameter edit",
                 detail=f"Unknown step '{edit.step_id}'.",
             )
-        parameter = step.parameters.get(edit.param_name)
+        parameter = next(
+            (p for p in step.parameters if p.name == edit.param_name), None,
+        )
         if parameter is None:
             raise ValidationError(
                 title="Invalid plan parameter edit",

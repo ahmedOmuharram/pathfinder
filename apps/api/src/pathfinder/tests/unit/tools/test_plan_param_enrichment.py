@@ -87,8 +87,8 @@ def test_build_param_preserves_constraints_for_numeric() -> None:
         param_type="number",
         display_type="",
         is_number=True,
-        min_value=0.0,
-        max_value=100.0,
+        min=0.0,
+        max=100.0,
         increment=0.5,
     )
 
@@ -98,8 +98,8 @@ def test_build_param_preserves_constraints_for_numeric() -> None:
     assert planned.constraints is not None
     # Exact WDK field names.
     assert planned.constraints["isNumber"] is True
-    assert planned.constraints["minValue"] == 0.0
-    assert planned.constraints["maxValue"] == 100.0
+    assert planned.constraints["min"] == 0.0
+    assert planned.constraints["max"] == 100.0
     assert planned.constraints["increment"] == 0.5
     # displayType is empty string → skipped by _build_constraints.
     assert "displayType" not in planned.constraints
@@ -195,8 +195,8 @@ def test_convert_step_with_param_specs_enriches_all_params() -> None:
             param_type="number",
             display_type="",
             is_number=True,
-            min_value=0.0,
-            max_value=100.0,
+            min=0.0,
+            max=100.0,
             increment=0.1,
         ),
         "tissue": ParamSpecNormalized(
@@ -209,11 +209,11 @@ def test_convert_step_with_param_specs_enriches_all_params() -> None:
     }
 
     converted = _convert_step(step_input, param_specs=specs)
+    by_name = {p.name: p for p in converted.parameters}
 
-    assert set(converted.parameters.keys()) == {"organism", "min_expression", "tissue"}
+    assert set(by_name.keys()) == {"organism", "min_expression", "tissue"}
 
-    # Organism — TreeBox, vocabulary, dependent params.
-    organism = converted.parameters["organism"]
+    organism = by_name["organism"]
     assert organism.param_type == "treebox-enum-param"
     assert organism.options == ["pfal", "pvivax"]
     assert organism.constraints is not None
@@ -223,21 +223,17 @@ def test_convert_step_with_param_specs_enriches_all_params() -> None:
     assert organism.required is True
     assert organism.status == ParamStatus.SET
 
-    # Numeric param — isNumber + bounds.
-    min_expr = converted.parameters["min_expression"]
+    min_expr = by_name["min_expression"]
     assert min_expr.param_type == "number"
     assert min_expr.constraints is not None
     assert min_expr.constraints["isNumber"] is True
-    assert min_expr.constraints["minValue"] == 0.0
-    assert min_expr.constraints["maxValue"] == 100.0
+    assert min_expr.constraints["min"] == 0.0
+    assert min_expr.constraints["max"] == 100.0
     assert min_expr.constraints["increment"] == 0.1
-    # No displayType means no "displayType" key.
     assert "displayType" not in min_expr.constraints
-    # No vocabulary → options must be None.
     assert min_expr.options is None
 
-    # String param with max_length — constraints carry maxLength.
-    tissue = converted.parameters["tissue"]
+    tissue = by_name["tissue"]
     assert tissue.param_type == "string-param"
     assert tissue.constraints is not None
     assert tissue.constraints["maxLength"] == 64

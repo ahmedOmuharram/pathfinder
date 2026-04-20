@@ -103,7 +103,7 @@ def build_step_response(
         display_name=step.display_name or step.search_name,
         search_name=step.search_name,
         record_type=record_type,
-        parameters=dict(step.parameters) if step.parameters else None,
+        parameters=step.parameters or None,
         operator=step.operator.value if step.operator else None,
         colocation_params=step.colocation_params,
         primary_input_step_id=step.primary_input.id if step.primary_input else None,

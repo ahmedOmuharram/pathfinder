@@ -6,9 +6,9 @@ from pathfinder.domain.strategy.ast import (
     StepReport,
 )
 from pathfinder.domain.strategy.ops import ColocationParams
+from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 
 
 class StepResponse(CamelModel):
@@ -19,7 +19,7 @@ class StepResponse(CamelModel):
     display_name: str | None = None
     search_name: str | None = None
     record_type: str | None = None
-    parameters: JSONObject | None = None
+    parameters: DecodedParams | None = None
     operator: str | None = None
     colocation_params: ColocationParams | None = None
     primary_input_step_id: str | None = None

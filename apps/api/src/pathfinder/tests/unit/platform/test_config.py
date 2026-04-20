@@ -8,7 +8,7 @@ def make_settings(**overrides: object) -> Settings:
         "api_env": "test",
         "api_secret_key": "pathfinder-test-secret-key-1234567890",
         "database_url": "postgresql+asyncpg://postgres:postgres@db:5432/pathfinder",
-        "chat_provider": "mock",
+        "pathfinder_chat_provider": "mock",
         "openai_api_key": "",
         "anthropic_api_key": "",
         "gemini_api_key": "",
@@ -26,17 +26,17 @@ def test_mock_provider_is_rejected_outside_development() -> None:
         ValueError,
         match="PATHFINDER_CHAT_PROVIDER=mock is only allowed",
     ):
-        make_settings(api_env="production", chat_provider="mock")
+        make_settings(api_env="production", pathfinder_chat_provider="mock")
 
 
 def test_non_mock_mode_requires_real_model_backend() -> None:
     with pytest.raises(ValueError, match="configured model backend"):
-        make_settings(chat_provider="default")
+        make_settings(pathfinder_chat_provider="default")
 
 
 def test_ollama_configuration_counts_as_model_backend() -> None:
     settings = make_settings(
-        chat_provider="default",
+        pathfinder_chat_provider="default",
         ollama_base_url="http://ollama:11434/v1",
     )
     assert settings.has_llm_configuration is True
@@ -71,7 +71,7 @@ def test_empty_env_value_is_ignored_for_complex_settings(
         api_env="test",
         api_secret_key="pathfinder-test-secret-key-1234567890",
         database_url="postgresql+asyncpg://postgres:postgres@db:5432/pathfinder",
-        chat_provider="mock",
+        pathfinder_chat_provider="mock",
         openai_api_key="",
         anthropic_api_key="",
         gemini_api_key="",
@@ -84,9 +84,9 @@ def test_empty_env_value_is_ignored_for_complex_settings(
     assert settings.cors_origins == ["http://localhost:3000"]
 
 
-def test_chat_provider_must_be_explicit() -> None:
+def test_pathfinder_chat_provider_must_be_explicit() -> None:
     with pytest.raises(
         ValueError,
         match="PATHFINDER_CHAT_PROVIDER must be set explicitly",
     ):
-        make_settings(chat_provider="")
+        make_settings(pathfinder_chat_provider="")

@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 class OptimizationTarget(BaseModel):
     """Target search to optimize."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict()
 
     site_id: str = ""
     record_type: str = "transcript"
@@ -28,7 +28,7 @@ class OptimizationTarget(BaseModel):
 class OptimizationControls(BaseModel):
     """Control sets for scoring optimization trials."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict()
 
     positive_controls: list[str] = Field(default_factory=list)
     negative_controls: list[str] = Field(default_factory=list)

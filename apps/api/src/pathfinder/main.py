@@ -276,7 +276,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks.router)
 
     # Dev-only routes (e2e / local dev with mock chat provider).
-    if settings.chat_provider.strip().lower() == "mock":
+    if settings.pathfinder_chat_provider.strip().lower() == "mock":
         app.include_router(dev.router)
 
     return app

@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { WdkRecord } from "@/lib/types/wdk";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import { getRecords, type EntityRef } from "@/features/analysis/api/stepResults";
 
 interface DistributionModalState {
   modalValue: string | null;
-  modalRecords: WdkRecord[];
+  modalRecords: ClassifiedRecord[];
   loadingModal: boolean;
   handleBarClick: (value: string) => void;
   closeModal: () => void;

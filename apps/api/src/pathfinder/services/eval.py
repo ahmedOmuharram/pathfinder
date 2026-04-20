@@ -202,10 +202,8 @@ async def fetch_all_gene_ids(
 def extract_gene_id(record: WDKRecordInstance) -> str | None:
     """Extract gene ID from a WDK record's primary key."""
     for part in record.id:
-        name = part.get("name", "")
-        value = part.get("value", "")
-        if name in ("source_id", "gene_source_id") and value:
-            return str(value)
+        if part.name in ("source_id", "gene_source_id") and part.value:
+            return part.value
     if record.id:
-        return str(record.id[0].get("value", "")) or None
+        return record.id[0].value or None
     return None

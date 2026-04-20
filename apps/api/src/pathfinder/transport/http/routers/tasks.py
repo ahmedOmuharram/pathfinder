@@ -32,7 +32,6 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 from shared_py.stream_events import CustomEvent, DoneEvent, StreamEvent
 from sqlalchemy import select
 from starlette.responses import StreamingResponse
@@ -44,6 +43,7 @@ from pathfinder.persistence.models import (
 )
 from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.notify_dispatcher import NotifyDispatcher
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.security import get_current_user
 from pathfinder.transport.http.schemas.tasks import (
     TaskProgressEvent,
@@ -65,7 +65,7 @@ def _encode_event(event: StreamEvent) -> str:
     )
 
 
-class _Cursor(BaseModel):
+class _Cursor(CamelModel):
     """Monotonic cursor across ``task_progress`` + ``chat_events``.
 
     We track the largest id seen on each channel so that after every NOTIFY we
@@ -199,7 +199,7 @@ def _completed_chunk(
     )
 
 
-class _ChatEventChunk(BaseModel):
+class _ChatEventChunk(CamelModel):
     """Shape persisted in ``chat_events.chunk`` by ``jobs/runner._persist_chat_event``.
 
     Validating on read catches any schema drift — if a different producer

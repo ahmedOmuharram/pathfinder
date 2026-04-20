@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncGenerator
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID, uuid4
@@ -12,6 +13,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, AgentRunResultEvent
 from pydantic_ai.messages import (
+    AgentStreamEvent,
     ModelMessage,
     ModelRequest,
     ModelResponse,
@@ -64,6 +66,7 @@ from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.memory.tombstones import TombstoneRepository
 from pathfinder.persistence.repositories import MessagesRepository
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services import quota as quota_service
 from pathfinder.services import user_preferences as prefs_service
 
@@ -82,34 +85,26 @@ def model_id(agent: Agent[Any, Any]) -> str:
         return ""
     if isinstance(model, str):
         return model
-    return model.model_name
+    return model.model_id
 
 
 def _is_final_result_tool(name: str) -> bool:
     return name == "final_result" or name.startswith("final_result_")
 
 
-def _to_camel(s: str) -> str:
-    parts = s.split("_")
-    return parts[0] + "".join(p.capitalize() for p in parts[1:])
-
-
-class _PersistedTextPart(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
+class _PersistedTextPart(CamelModel):
     type: Literal["text"] = "text"
     text: str
     state: Literal["done"] = "done"
 
 
-class _PersistedReasoningPart(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
+class _PersistedReasoningPart(CamelModel):
     type: Literal["reasoning"] = "reasoning"
     text: str
     state: Literal["done"] = "done"
 
 
-class _PersistedToolCallPart(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
+class _PersistedToolCallPart(CamelModel):
     type: str
     tool_call_id: str
     state: Literal["input-available", "output-available", "output-error"] = (
@@ -392,7 +387,7 @@ async def _run_phase_node(
     capture = _PhaseRunCapture()
     emitter = PhaseStreamEmitter(message_id=str(phase_message_id))
 
-    async def _agent_events() -> Any:
+    async def _agent_events() -> AsyncGenerator[AgentStreamEvent | AgentRunResultEvent[Any]]:
         """Forward agent events, capturing the terminal run result."""
         async for event in agent.run_stream_events(
             state.user_prompt,

@@ -77,8 +77,8 @@ def _build_param_spec(
     if not (spec.is_number or spec.param_type == "number"):
         return None
 
-    min_val = spec.min_value
-    max_val = spec.max_value
+    min_val = spec.min
+    max_val = spec.max
     current = _safe_float(node_params.get(spec.name))
     initial = _safe_float(spec.initial_display_value)
     ref = current if current is not None else initial

@@ -2,23 +2,24 @@
 
 from typing import Literal
 
-from pydantic import ConfigDict, Field, JsonValue
+from pydantic import JsonValue
 
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKHistogramBin,
     WDKHistogramStatistics,
+    WDKRecordIdPart,
 )
 from pathfinder.platform.pydantic_base import CamelModel
 
 
 class RecordAttribute(CamelModel):
     name: str
-    display_name: str = ""
-    help: str | None = None
-    type: str | None = None
-    is_displayable: bool = True
-    is_sortable: bool = False
-    is_suggested: bool = False
+    display_name: str
+    help: str | None
+    type: str | None
+    is_displayable: bool
+    is_sortable: bool
+    is_suggested: bool
 
 
 class AttributesResponse(CamelModel):
@@ -29,17 +30,13 @@ class AttributesResponse(CamelModel):
 class ClassifiedRecord(CamelModel):
     """WDK record plus optional TP/FP/FN/TN tag from experiment classification."""
 
-    model_config = ConfigDict(populate_by_name=True)
-
-    display_name: str = ""
-    id: list[dict[str, str]] = Field(default_factory=list)
-    record_class_name: str = ""
-    attributes: dict[str, JsonValue] = Field(default_factory=dict)
-    tables: dict[str, JsonValue] = Field(default_factory=dict)
-    table_errors: list[str] = Field(default_factory=list)
-    classification: Literal["TP", "FP", "FN", "TN"] | None = Field(
-        default=None, alias="_classification",
-    )
+    display_name: str
+    id: list[WDKRecordIdPart]
+    record_class_name: str
+    attributes: dict[str, JsonValue]
+    tables: dict[str, JsonValue]
+    table_errors: list[str]
+    classification: Literal["TP", "FP", "FN", "TN"] | None = None
 
 
 class RecordsPagination(CamelModel):
@@ -62,13 +59,13 @@ class RecordsResponse(CamelModel):
 
 
 class RecordDetailResponse(CamelModel):
-    display_name: str = ""
-    id: list[dict[str, str]] = Field(default_factory=list)
-    record_class_name: str = ""
-    attributes: dict[str, JsonValue] = Field(default_factory=dict)
-    attribute_names: dict[str, str] = Field(default_factory=dict)
-    tables: dict[str, JsonValue] = Field(default_factory=dict)
-    table_errors: list[str] = Field(default_factory=list)
+    display_name: str
+    id: list[WDKRecordIdPart]
+    record_class_name: str
+    attributes: dict[str, JsonValue]
+    attribute_names: dict[str, str]
+    tables: dict[str, JsonValue]
+    table_errors: list[str]
 
 
 class DistributionResponse(CamelModel):

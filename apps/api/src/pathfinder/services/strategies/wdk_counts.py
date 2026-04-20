@@ -19,11 +19,13 @@ from pathfinder.domain.strategy.ast import (
 )
 from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
+from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.integrations.veupathdb.client import (
     VEuPathDBClient,
 )
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
+from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     WDKSearchConfig,
@@ -53,7 +55,7 @@ async def _count_via_anonymous_report(
     client: VEuPathDBClient,
     record_type: str,
     search_name: str,
-    parameters: dict[str, str],
+    parameters: DecodedParams,
 ) -> int | None:
     """Get result count for a single search using the anonymous report endpoint.
 
@@ -61,7 +63,7 @@ async def _count_via_anonymous_report(
     with ``numRecords: 0`` returns only ``meta.totalCount`` -- no step or
     strategy creation needed. Returns ``None`` on failure.
     """
-    config = WDKSearchConfig(parameters=parameters)
+    config = WDKSearchConfig(parameters=encode_params(parameters))
     report_config: JSONObject = {"pagination": {"offset": 0, "numRecords": 0}}
     try:
         answer = await client.run_search_report(
@@ -183,7 +185,7 @@ async def _create_wdk_step(
 ) -> int | None:
     """Create a single WDK step and return its WDK ID, or None on failure."""
     kind = step.infer_kind()
-    params = step.parameters
+    params = encode_params(step.parameters)
     try:
         if kind == "search":
             result = await api.create_step(

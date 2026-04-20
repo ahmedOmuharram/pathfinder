@@ -18,6 +18,7 @@ from pathfinder.integrations.veupathdb.strategy_api.helpers import (
     CURRENT_USER,
     resolve_wdk_user_id,
 )
+from pathfinder.integrations.veupathdb.value_decoding import decode_values
 from pathfinder.integrations.veupathdb.wdk_models import WDKAnswer
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, ErrorCode, validate_response
@@ -194,8 +195,7 @@ class StrategyAPIBase:
                 continue
             expanded = self._expand_single_tree_param(vocab, result[spec.name])
             if expanded is not None:
-                original_raw = result[spec.name]
-                original_values = self._parse_param_values(original_raw)
+                original_values = decode_values(result[spec.name], spec.name)
                 if expanded != [str(v) for v in original_values]:
                     logger.info(
                         "Expanded tree param to leaves",
@@ -207,19 +207,11 @@ class StrategyAPIBase:
                     result[spec.name] = json.dumps(expanded)
         return result
 
-    def _parse_param_values(self, raw: str) -> list[JsonValue]:
-        """Parse a parameter value string into a list."""
-        try:
-            values = json.loads(raw) if isinstance(raw, str) else raw
-        except json.JSONDecodeError:
-            values = [raw] if raw else []
-        return values if isinstance(values, list) else []
-
     def _expand_single_tree_param(
         self, vocab: JSONObject, raw_value: str
     ) -> list[str] | None:
         """Expand a single tree param value to leaf terms."""
-        values = self._parse_param_values(raw_value)
+        values = decode_values(raw_value, "tree-param")
         if not values:
             return None
 

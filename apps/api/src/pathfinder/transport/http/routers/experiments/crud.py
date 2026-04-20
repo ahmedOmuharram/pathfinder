@@ -1,8 +1,9 @@
 """CRUD endpoints for experiments: list, get, update, delete."""
 
 from fastapi import APIRouter, Response
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.materialization import (
     cleanup_experiment_strategy,
@@ -20,12 +21,10 @@ router = APIRouter()
 # -- Non-parametric routes (must be defined before /{experiment_id}) ----------
 
 
-class PatchExperimentRequest(BaseModel):
+class PatchExperimentRequest(CamelModel):
     """Request body for PATCH /experiments/{experiment_id}."""
 
     notes: str | None = Field(default=None, max_length=5000)
-
-    model_config = {"populate_by_name": True}
 
 
 # -- Parametric routes -------------------------------------------------------

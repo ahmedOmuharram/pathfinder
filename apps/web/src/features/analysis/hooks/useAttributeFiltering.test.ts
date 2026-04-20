@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { createSuspenseWrapper } from "@/lib/query/testing";
-import type { RecordAttribute } from "@/lib/types/wdk";
+import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordAttribute";
 
 // ---------------------------------------------------------------------------
 // Mock the stepResults API module

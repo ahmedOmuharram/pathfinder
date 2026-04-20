@@ -1,18 +1,19 @@
 """Step request/response DTOs."""
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from pathfinder.platform.pydantic_base import CamelModel
 
 
-class PrimaryKeyPart(BaseModel):
+class PrimaryKeyPart(CamelModel):
     """A single part of a composite WDK primary key."""
 
     name: str
     value: str
 
 
-class RecordDetailRequest(BaseModel):
+class RecordDetailRequest(CamelModel):
     """Request to fetch a single record by primary key."""
 
-    primary_key: list[PrimaryKeyPart] = Field(alias="primaryKey", min_length=1)
+    primary_key: list[PrimaryKeyPart] = Field(min_length=1)
 
-    model_config = {"populate_by_name": True}

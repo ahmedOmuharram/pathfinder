@@ -25,11 +25,11 @@ def _create_sampler(
             if p.param_type == "categorical" and p.choices:
                 grid[p.name] = list(p.choices)
             elif p.param_type == "integer":
-                lo, hi = int(p.min_value or 0), int(p.max_value or 10)
+                lo, hi = int(p.min or 0), int(p.max or 10)
                 st = int(p.step) if p.step else max(1, (hi - lo) // 10)
                 grid[p.name] = list(range(lo, hi + 1, st))
             else:  # numeric
-                lo_f, hi_f = p.min_value or 0.0, p.max_value or 1.0
+                lo_f, hi_f = p.min or 0.0, p.max or 1.0
                 n_levels = min(10, budget)
                 step_size = (hi_f - lo_f) / max(n_levels - 1, 1)
                 grid[p.name] = [lo_f + i * step_size for i in range(n_levels)]
@@ -52,15 +52,15 @@ def _suggest_trial_params(
         if spec.param_type == "numeric":
             params[spec.name] = trial.suggest_float(
                 spec.name,
-                spec.min_value or 0.0,
-                spec.max_value or 1.0,
+                spec.min or 0.0,
+                spec.max or 1.0,
                 log=spec.log_scale,
             )
         elif spec.param_type == "integer":
             params[spec.name] = trial.suggest_int(
                 spec.name,
-                int(spec.min_value or 0),
-                int(spec.max_value or 100),
+                int(spec.min or 0),
+                int(spec.max or 100),
                 step=int(spec.step) if spec.step else 1,
             )
         elif spec.param_type == "categorical":

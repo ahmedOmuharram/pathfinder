@@ -5,8 +5,7 @@ REQUIRED/OPTIONAL/HIDDEN split used by the ``get_search_overview`` tool.
 Hidden and phyletic structural params are excluded entirely.
 """
 
-from pydantic import ConfigDict, Field
-from pydantic.alias_generators import to_camel
+from pydantic import Field, JsonValue
 
 from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKBaseParameter,
@@ -21,20 +20,14 @@ _PHYLETIC_STRUCTURAL_PARAMS = frozenset({"phyletic_indent_map", "phyletic_term_m
 class ParamOverviewEntry(CamelModel):
     """One parameter in a search overview."""
 
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        coerce_numbers_to_str=True,
-    )
-
     name: str
     display_name: str
     type: str
     description: str
     has_vocabulary: bool
-    default: str | None = None
-    min: str | None = None
-    max: str | None = None
+    default: JsonValue | None = None
+    min: float | None = None
+    max: float | None = None
     vocab_summary: str | None = None
     controls_vocab_of: list[str] | None = None
 
@@ -109,22 +102,20 @@ def _has_vocabulary(param: WDKBaseParameter) -> bool:
 
 def _format_param_overview(
     param: WDKParameter,
-    depends_on: dict[str, list[str]],
     controls: dict[str, list[str]],
 ) -> ParamOverviewEntry:
     """Format one WDK parameter into a typed overview entry."""
-    base: WDKBaseParameter = param
     return ParamOverviewEntry(
-        name=base.name,
-        display_name=base.display_name or base.name,
-        type=base.type,
-        description=base.help or "",
-        has_vocabulary=_has_vocabulary(base),
-        default=base.initial_display_value,
-        min=base.min,
-        max=base.max,
-        vocab_summary=_vocab_summary(base),
-        controls_vocab_of=controls.get(base.name),
+        name=param.name,
+        display_name=param.display_name or param.name,
+        type=param.type,
+        description=param.help or "",
+        has_vocabulary=_has_vocabulary(param),
+        default=param.initial_display_value,
+        min=param.min,
+        max=param.max,
+        vocab_summary=_vocab_summary(param),
+        controls_vocab_of=controls.get(param.name),
     )
 
 
@@ -182,7 +173,7 @@ def format_search_overview(
         if base.name in _PHYLETIC_STRUCTURAL_PARAMS:
             continue
 
-        entry = _format_param_overview(param, depends_on, controls)
+        entry = _format_param_overview(param, controls)
 
         if _is_required(base):
             required.append(entry)

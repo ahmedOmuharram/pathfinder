@@ -9,8 +9,6 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Literal
 
-from pydantic import Field
-
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.tree import walk_plan_tree
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
@@ -72,8 +70,8 @@ class SweepPointEvent(CamelModel):
 
     type: Literal["sweep_point"] = "sweep_point"
     point: SweepPoint
-    completed_count: int = Field(alias="completedCount")
-    total_count: int = Field(alias="totalCount")
+    completed_count: int
+    total_count: int
 
 
 class SweepCompleteEvent(CamelModel):
@@ -81,7 +79,7 @@ class SweepCompleteEvent(CamelModel):
 
     type: Literal["sweep_complete"] = "sweep_complete"
     parameter: str
-    sweep_type: Literal["numeric", "categorical"] = Field(alias="sweepType")
+    sweep_type: Literal["numeric", "categorical"]
     points: list[SweepPoint]
 
 
@@ -110,20 +108,11 @@ def compute_sweep_values(
     *,
     sweep_type: str,
     values: list[str] | None,
-    min_value: float | None,
-    max_value: float | None,
+    lo: float | None,
+    hi: float | None,
     steps: int,
 ) -> list[str]:
-    """Compute the list of parameter values for a sweep.
-
-    :param sweep_type: ``"numeric"`` or ``"categorical"``.
-    :param values: Explicit values for categorical sweeps.
-    :param min_value: Range start for numeric sweeps.
-    :param max_value: Range end for numeric sweeps.
-    :param steps: Number of evenly-spaced points for numeric sweeps.
-    :returns: List of stringified sweep values.
-    :raises ValidationError: On invalid inputs.
-    """
+    """Compute the list of parameter values for a sweep."""
     if sweep_type == "categorical":
         if not values or len(values) == 0:
             raise ValidationError(
@@ -132,13 +121,14 @@ def compute_sweep_values(
             )
         return values
 
-    if min_value is None or max_value is None:
+    if lo is None or hi is None:
         raise ValidationError(
             title="Missing range",
-            detail="Numeric sweep requires 'minValue' and 'maxValue'.",
+            detail="Numeric sweep requires 'min' and 'max'.",
         )
-    step_size = (max_value - min_value) / max(steps - 1, 1)
-    return [str(min_value + i * step_size) for i in range(steps)]
+    denom = steps - 1 if steps > 1 else 1
+    step_size = (hi - lo) / denom
+    return [str(lo + i * step_size) for i in range(steps)]
 
 
 def validate_sweep_parameter(exp: Experiment, param_name: str) -> None:
@@ -344,8 +334,8 @@ async def generate_sweep_events(
                 all_points.append(point)
                 yield SweepPointEvent(
                     point=point,
-                    completedCount=completed_count,
-                    totalCount=total_points,
+                    completed_count=completed_count,
+                    total_count=total_points,
                 )
 
     except TimeoutError:
@@ -374,6 +364,6 @@ async def generate_sweep_events(
 
     yield SweepCompleteEvent(
         parameter=param_name,
-        sweepType=sweep_type,
+        sweep_type=sweep_type,
         points=all_points,
     )

@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import type { WdkRecord } from "@/lib/types/wdk";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 
 const mockGetRecords = vi.fn();
 
@@ -30,8 +30,15 @@ describe("useDistributionModal", () => {
   });
 
   it("handleBarClick sets modalValue and fetches records", async () => {
-    const records: WdkRecord[] = [
-      { id: [{ name: "source_id", value: "G1" }], attributes: { gene_id: "G1" } },
+    const records: ClassifiedRecord[] = [
+      {
+        displayName: "G1",
+        id: [{ name: "source_id", value: "G1" }],
+        recordClassName: "transcript",
+        attributes: { gene_id: "G1" },
+        tables: {},
+        tableErrors: [],
+      },
     ];
     mockGetRecords.mockResolvedValueOnce({ records, meta: {} });
 

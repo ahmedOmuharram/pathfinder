@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import type { RecordAttribute } from "@/lib/types/wdk";
+import type { RecordAttribute } from "@pathfinder/shared/generated/types/RecordAttribute";
 import { attributesOptions, type EntityRef } from "@/features/analysis/api/stepResults";
 import { isDistributableAttr } from "@/features/analysis/components/DistributionExplorer/attributeFilters";
 

@@ -1,11 +1,11 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Table } from "@tanstack/react-table";
 import { Button } from "@/lib/components/ui/Button";
-import type { WdkRecord } from "@/lib/types/wdk";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import { PAGE_SIZE_OPTIONS } from "./ResultsTableColumns";
 
 interface PaginationControlsProps {
-  table: Table<WdkRecord>;
+  table: Table<ClassifiedRecord>;
   totalCount: number;
   loading: boolean;
 }

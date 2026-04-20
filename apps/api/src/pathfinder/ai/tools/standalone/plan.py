@@ -100,13 +100,10 @@ async def _fetch_specs_by_search(
 
 def _step_to_node(step: PlannedStep) -> StrategyStepNode:
     """Convert a PlannedStep to a StrategyStepNode for the artifact tree."""
-    raw_params = {
-        k: v.value or "" for k, v in step.parameters.items()
-    } if step.parameters else {}
     return StrategyStepNode(
         search_name=step.search_name,
         display_name=step.display_name,
-        parameters=raw_params,
+        parameters={p.name: p.value for p in step.parameters},
     )
 
 
@@ -216,9 +213,7 @@ def _planned_steps_for_stream(plan: StrategyPlan) -> list[StreamPlannedStep]:
             order=i,
             search_name=step.search_name,
             rationale=step.rationale or None,
-            parameters={
-                name: param.value for name, param in step.parameters.items()
-            },
+            parameters={param.name: param.value for param in step.parameters},
         )
         for i, step in enumerate(plan.steps)
     ]
@@ -556,22 +551,12 @@ async def present_decision(
         recommendation=recommendation,
     )
 
-    options_payload: list[dict[str, object]] = [
-        {
-            "label": opt.label,
-            "description": opt.description,
-            "pros": list(opt.pros),
-            "cons": list(opt.cons),
-            "recommended": opt.recommended,
-        }
-        for opt in response.options
-    ]
     return ToolReturn(
         return_value=response,
         metadata=[
             decision_presented_chunk(
                 decision_type=decision_id,
-                options=options_payload,
+                options=response.options,
                 rationale=response.context or recommendation,
             ),
         ],

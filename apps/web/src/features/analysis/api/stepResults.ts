@@ -1,26 +1,10 @@
-/**
- * Unified step result browsing API.
- *
- * Provides a single set of functions for attributes, records, distributions,
- * analyses, and strategy access — used identically for both experiments and
- * gene sets via the `EntityRef` discriminated union.
- */
-
 import { queryOptions } from "@tanstack/react-query";
-import type { z } from "zod";
-import { requestJson } from "@/lib/api/http";
-import {
-  AttributesResponseSchema,
-  type RecordAttributeSchema,
-  RecordsResponseSchema,
-  RecordDetailSchema,
-  DistributionResponseSchema,
-} from "@/lib/api/schemas/step-results";
+import { attributesResponseSchema } from "@pathfinder/shared/generated/zod/attributesResponseSchema";
+import { distributionResponseSchema } from "@pathfinder/shared/generated/zod/distributionResponseSchema";
+import { recordDetailResponseSchema } from "@pathfinder/shared/generated/zod/recordDetailResponseSchema";
+import { recordsResponseSchema } from "@pathfinder/shared/generated/zod/recordsResponseSchema";
 
-export type RecordAttribute = z.infer<typeof RecordAttributeSchema>;
-export type RecordsResponse = z.infer<typeof RecordsResponseSchema>;
-export type RecordDetail = z.infer<typeof RecordDetailSchema>;
-export type DistributionResponse = z.infer<typeof DistributionResponseSchema>;
+import { requestJson } from "@/lib/api/http";
 
 export type EntityRef =
   | { type: "experiment"; id: string }
@@ -33,7 +17,7 @@ function basePath(ref: EntityRef): string {
 }
 
 export function getAttributes(ref: EntityRef) {
-  return requestJson(AttributesResponseSchema, `${basePath(ref)}/results/attributes`);
+  return requestJson(attributesResponseSchema, `${basePath(ref)}/results/attributes`);
 }
 
 export function getRecords(
@@ -58,7 +42,7 @@ export function getRecords(
   if (opts?.filterAttribute != null && opts.filterAttribute !== "")
     query["filterAttribute"] = opts.filterAttribute;
   if (opts?.filterValue != null) query["filterValue"] = opts.filterValue;
-  return requestJson(RecordsResponseSchema, `${basePath(ref)}/results/records`, {
+  return requestJson(recordsResponseSchema, `${basePath(ref)}/results/records`, {
     query,
   });
 }
@@ -67,7 +51,7 @@ export function getRecordDetail(
   ref: EntityRef,
   primaryKey: { name: string; value: string }[],
 ) {
-  return requestJson(RecordDetailSchema, `${basePath(ref)}/results/record`, {
+  return requestJson(recordDetailResponseSchema, `${basePath(ref)}/results/record`, {
     method: "POST",
     body: { primaryKey },
   });
@@ -75,7 +59,7 @@ export function getRecordDetail(
 
 export function getDistribution(ref: EntityRef, attributeName: string) {
   return requestJson(
-    DistributionResponseSchema,
+    distributionResponseSchema,
     `${basePath(ref)}/results/distributions/${encodeURIComponent(attributeName)}`,
   );
 }

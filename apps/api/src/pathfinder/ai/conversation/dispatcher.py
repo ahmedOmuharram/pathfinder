@@ -249,7 +249,7 @@ def _build_runtime_context(
         persisted = PersistedStrategyGraph(
             id=str(conversation.id),
             name=conversation.name,
-            plan=plan_payload,
+            strategy_ast=plan_payload,
             wdk_strategy_id=conversation.wdk_strategy_id,
         )
         experiment_id = conversation.experiment_id

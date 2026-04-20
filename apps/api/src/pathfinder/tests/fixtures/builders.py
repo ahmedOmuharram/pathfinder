@@ -23,8 +23,8 @@ class ParamSpecConfig:
     vocabulary: dict | list | None = None
     count_only_leaves: bool = False
     is_number: bool = False
-    min_value: float | None = None
-    max_value: float | None = None
+    min: float | None = None
+    max: float | None = None
     increment: float | None = None
     max_length: int | None = None
 
@@ -100,8 +100,8 @@ def make_param_spec(cfg: ParamSpecConfig | None = None) -> ParamSpecNormalized:
         vocabulary=c.vocabulary,
         count_only_leaves=c.count_only_leaves,
         is_number=c.is_number,
-        min_value=c.min_value,
-        max_value=c.max_value,
+        min=c.min,
+        max=c.max,
         increment=c.increment,
         max_length=c.max_length,
     )

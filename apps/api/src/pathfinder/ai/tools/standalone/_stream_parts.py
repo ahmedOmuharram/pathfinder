@@ -16,6 +16,7 @@ here.
 
 from __future__ import annotations
 
+from pydantic import JsonValue
 from pydantic_ai.ui.vercel_ai.response_types import (
     DataChunk,
     SourceUrlChunk,
@@ -39,6 +40,7 @@ from shared_py.stream_parts.strategy import (
 
 from pathfinder.ai.graph.state import ProblemFrame
 from pathfinder.ai.tools.standalone._graph_helpers import build_step_response
+from pathfinder.ai.tools.standalone._plan_models import DecisionOption
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
@@ -324,13 +326,16 @@ def plan_artifact_chunk(
 def decision_presented_chunk(
     *,
     decision_type: str,
-    options: list[dict[str, object]],
+    options: list[DecisionOption],
     rationale: str | None = None,
 ) -> DataChunk:
     """Build the ``data-decision-presented`` DataChunk for a branching decision."""
+    options_dicts: list[dict[str, JsonValue]] = [
+        opt.model_dump(by_alias=True, mode="json") for opt in options
+    ]
     payload = DecisionPresented(
         decision_type=decision_type,
-        options=options,
+        options=options_dicts,
         rationale=rationale,
     )
     return DataChunk(

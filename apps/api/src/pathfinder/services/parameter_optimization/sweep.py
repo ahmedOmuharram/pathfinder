@@ -61,14 +61,14 @@ def _enumerate_spec_values(spec: ParameterSpec) -> list[JsonValue]:
         return cast("list[JsonValue]", list(choices))
 
     if spec.param_type == "integer":
-        lo = int(spec.min_value if spec.min_value is not None else 0)
-        hi = int(spec.max_value if spec.max_value is not None else 10)
+        lo = int(spec.min if spec.min is not None else 0)
+        hi = int(spec.max if spec.max is not None else 10)
         step = int(spec.step) if spec.step else max(1, (hi - lo) // 10)
         return cast("list[JsonValue]", list(range(lo, hi + 1, step)))
 
     # numeric
-    lo_f = spec.min_value if spec.min_value is not None else 0.0
-    hi_f = spec.max_value if spec.max_value is not None else 1.0
+    lo_f = spec.min if spec.min is not None else 0.0
+    hi_f = spec.max if spec.max is not None else 1.0
     if spec.step:
         values: list[float] = []
         v = lo_f

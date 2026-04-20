@@ -1,8 +1,8 @@
 """Internal endpoints — not for production use."""
 
 from fastapi import APIRouter
-from pydantic import BaseModel
 
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.transport.http.schemas.experiment_responses import (
     BootstrapResultResponse,
     ConfidenceIntervalResponse,
@@ -45,7 +45,7 @@ from pathfinder.transport.http.schemas.optimization import (
 router = APIRouter(prefix="/api/v1/internal", tags=["internal"])
 
 
-class ExperimentSchemaIndex(BaseModel):
+class ExperimentSchemaIndex(CamelModel):
     """Index of all experiment response schemas. Never called -- exists for OpenAPI generation."""
 
     experiment: ExperimentResponse | None = None

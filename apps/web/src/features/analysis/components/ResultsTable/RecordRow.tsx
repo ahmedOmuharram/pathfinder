@@ -1,11 +1,12 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { flexRender, type Row } from "@tanstack/react-table";
-import type { RecordDetail, WdkRecord } from "@/lib/types/wdk";
+import type { RecordDetailResponse } from "@pathfinder/shared/generated/types/RecordDetailResponse";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import { ExpandedRowDetail } from "./ExpandedRowDetail";
 
 interface RecordRowProps {
-  row: Row<WdkRecord>;
-  detail: RecordDetail | null;
+  row: Row<ClassifiedRecord>;
+  detail: RecordDetailResponse | null;
   detailError: string | null;
   detailLoading: boolean;
   onToggle: () => void;

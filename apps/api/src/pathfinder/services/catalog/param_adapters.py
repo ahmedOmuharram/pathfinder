@@ -7,10 +7,10 @@ layer because they bridge integration and domain.
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
-from pathfinder.integrations.veupathdb.wdk_parameters import WDKBaseParameter
+from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 
 
-def adapt_param_from_wdk(param: WDKBaseParameter) -> ParamSpecNormalized:
+def adapt_param_from_wdk(param: WDKParameter) -> ParamSpecNormalized:
     """Convert a typed WDK parameter to the canonical spec."""
     return ParamSpecNormalized(
         name=param.name,
@@ -21,8 +21,8 @@ def adapt_param_from_wdk(param: WDKBaseParameter) -> ParamSpecNormalized:
         vocabulary=param.vocabulary,
         count_only_leaves=param.count_only_leaves,
         is_number=param.is_number,
-        min_value=float(param.min) if param.min is not None else None,
-        max_value=float(param.max) if param.max is not None else None,
+        min=float(param.min) if param.min is not None else None,
+        max=float(param.max) if param.max is not None else None,
         increment=float(param.increment) if param.increment is not None else None,
         max_length=param.length if param.length > 0 else None,
         display_type=param.display_type,

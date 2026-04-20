@@ -1,15 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
-import type { RecordDetail, WdkRecord } from "@/lib/types/wdk";
+import type { RecordDetailResponse } from "@pathfinder/shared/generated/types/RecordDetailResponse";
+import type { ClassifiedRecord } from "@pathfinder/shared/generated/types/ClassifiedRecord";
 import { getRecordDetail, type EntityRef } from "@/features/analysis/api/stepResults";
 
 interface UseResultsTableDetailArgs {
   entityRef: EntityRef;
   expandedKey: string | null;
-  recordId: WdkRecord["id"] | null;
+  recordId: ClassifiedRecord["id"] | null;
 }
 
 interface ResultsTableDetailState {
-  detail: RecordDetail | null;
+  detail: RecordDetailResponse | null;
   detailError: string | null;
   detailLoading: boolean;
 }

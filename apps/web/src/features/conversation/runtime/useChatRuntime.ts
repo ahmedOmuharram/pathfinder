@@ -24,18 +24,29 @@ export function useChatRuntime({
   initialMessages,
 }: UseChatRuntimeArgs) {
   const queryClient = useQueryClient();
+  const invalidateConversationList = () => {
+    const siteId = useSessionStore.getState().selectedSite;
+    void queryClient.invalidateQueries({
+      queryKey: conversationListOptions(siteId).queryKey,
+    });
+  };
   return useAssistantUIChatRuntime({
     id: conversationId,
     ...(initialMessages !== undefined && { messages: initialMessages }),
     adapters: { feedback: createFeedbackAdapter() },
+    onData: (dataPart) => {
+      if (dataPart.type === "data-conversation-title") {
+        invalidateConversationList();
+      }
+    },
     onFinish: () => {
-      const siteId = useSessionStore.getState().selectedSite;
       void queryClient.invalidateQueries({
         queryKey: ["conversations", conversationId, "detail"],
       });
       void queryClient.invalidateQueries({
-        queryKey: conversationListOptions(siteId).queryKey,
+        queryKey: ["conversations", conversationId, "messages"],
       });
+      invalidateConversationList();
       void queryClient.invalidateQueries({ queryKey: userQuotaQueryKey });
     },
     transport: new DefaultChatTransport({

@@ -14,8 +14,8 @@ from enum import Enum, auto
 
 from pydantic import JsonValue
 
-from pathfinder.domain.parameters._decode_values import decode_values
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.value_utils import ensure_list
 from pathfinder.domain.parameters.vocab_utils import match_vocab_value
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.types import JSONObject
@@ -132,21 +132,21 @@ def validate_single_required(spec: ParamSpecNormalized) -> None:
 
 def validate_numeric_range(spec: ParamSpecNormalized, numeric_value: float) -> None:
     """Validate a numeric value against min/max constraints if present."""
-    if spec.min_value is not None and numeric_value < spec.min_value:
+    if spec.min is not None and numeric_value < spec.min:
         raise ValidationError(
             title="Invalid parameter value",
             detail=(
                 f"Parameter '{spec.name}' value {numeric_value} "
-                f"is below minimum {spec.min_value}."
+                f"is below minimum {spec.min}."
             ),
             errors=[{"param": spec.name, "value": numeric_value}],
         )
-    if spec.max_value is not None and numeric_value > spec.max_value:
+    if spec.max is not None and numeric_value > spec.max:
         raise ValidationError(
             title="Invalid parameter value",
             detail=(
                 f"Parameter '{spec.name}' value {numeric_value} "
-                f"exceeds maximum {spec.max_value}."
+                f"exceeds maximum {spec.max}."
             ),
             errors=[{"param": spec.name, "value": numeric_value}],
         )
@@ -184,7 +184,7 @@ def process_value(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam
 # -- per-type processors -----------------------------------------------------
 
 def process_multi_pick(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
-    values = [stringify(v) for v in decode_values(value, spec.name)]
+    values = [stringify(v) for v in ensure_list(value, spec.name)]
     matched: list[str] = [
         match_vocab_value(vocab=spec.vocabulary, param_name=spec.name, value=v)
         for v in values
@@ -194,7 +194,7 @@ def process_multi_pick(spec: ParamSpecNormalized, value: JsonValue) -> Processed
     return ProcessedParam(kind=ParamKind.MULTI_PICK, value=result_values)
 
 def process_single_pick(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
-    decoded = decode_values(value, spec.name)
+    decoded = ensure_list(value, spec.name)
     if len(decoded) > 1:
         raise ValidationError(
             title="Invalid parameter value",

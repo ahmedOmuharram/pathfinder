@@ -63,8 +63,8 @@ export interface ThresholdSweepResult {
 export interface NumericSweepRequest {
   sweepType: "numeric";
   parameterName: string;
-  minValue: number;
-  maxValue: number;
+  min: number;
+  max: number;
   steps: number;
 }
 
