@@ -1,4 +1,4 @@
-"""Execution-phase toolset — 12 tools for building and editing strategies."""
+"""Execution-phase toolset — tools for building and editing strategies."""
 
 from pydantic_ai.tools import Tool
 from pydantic_ai.toolsets.function import FunctionToolset
@@ -55,5 +55,5 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             think,
             search_memory,
             remember,
-    ],
+        ],
     )

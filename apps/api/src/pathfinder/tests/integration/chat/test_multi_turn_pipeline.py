@@ -30,6 +30,7 @@ from pydantic_ai.messages import (
     ModelResponse,
     TextPart,
     ToolCallPart,
+    ToolReturnPart,
     UserPromptPart,
 )
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
@@ -39,8 +40,10 @@ import pathfinder.ai.graph.nodes as nodes_module
 from pathfinder.ai.agents.supervisor import SupervisorDecision
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.graph.runtime import AgentDeps, Context
-from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.graph.state import PhaseDisposition, PhaseOutcome, PipelineState
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
+from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.session import async_session_factory
@@ -418,3 +421,294 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
                 "summarize what you did", is_first=False,
             )
             _assert_final_turn(state_6, captured_history_lens)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Scratchpad regression test (Plan Task 26)
+#
+# Turn 1: scoping stub calls the real ``note(...)`` tool then returns a
+# ``PhaseOutcome(awaiting_user)`` so the supervisor ends the turn cleanly.
+# Turn 2: scoping stub calls the real ``list_notes()`` tool — which reads the
+# DB row created in turn 1 — and its ToolReturnPart is threaded into the
+# agent's message history, proving the scratchpad is visible across turns.
+# ────────────────────────────────────────────────────────────────────────────
+
+
+_SCRATCHPAD_NOTE_TITLE = "TURN1_NOTE"
+_SCRATCHPAD_NOTE_SUMMARY = "saved during scoping turn 1"
+_SCRATCHPAD_NOTE_BODY = "Body captured while scoping the P. falciparum question."
+
+
+def _count_tool_returns_in_run(messages: list[ModelMessage]) -> int:
+    """Count ToolReturnParts emitted AFTER the most recent UserPromptPart.
+
+    pydantic-ai re-invokes the FunctionModel callable after each tool return,
+    so we use this count as the step index within the current agent run.
+    """
+    boundary = -1
+    for i, msg in enumerate(messages):
+        if isinstance(msg, ModelRequest) and any(
+            isinstance(p, UserPromptPart) for p in msg.parts
+        ):
+            boundary = i
+    count = 0
+    for msg in messages[boundary + 1 :]:
+        if isinstance(msg, ModelRequest):
+            count += sum(1 for p in msg.parts if isinstance(p, ToolReturnPart))
+    return count
+
+
+def _phase_outcome_args() -> str:
+    return json.dumps({
+        "disposition": PhaseDisposition.AWAITING_USER.value,
+        "prose": "Saved a scratchpad note; pausing for user confirmation.",
+        "reason": "awaiting confirmation on scope",
+    })
+
+
+def _note_tool_call(call_id: str) -> ToolCallPart:
+    return ToolCallPart(
+        tool_name="note",
+        args=json.dumps({
+            "title": _SCRATCHPAD_NOTE_TITLE,
+            "summary": _SCRATCHPAD_NOTE_SUMMARY,
+            "body": _SCRATCHPAD_NOTE_BODY,
+        }),
+        tool_call_id=call_id,
+    )
+
+
+def _list_notes_tool_call(call_id: str) -> ToolCallPart:
+    return ToolCallPart(
+        tool_name="list_notes",
+        args=json.dumps({}),
+        tool_call_id=call_id,
+    )
+
+
+def _final_result_call(call_id: str) -> ToolCallPart:
+    return ToolCallPart(
+        tool_name="final_result",
+        args=_phase_outcome_args(),
+        tool_call_id=call_id,
+    )
+
+
+def _first_scratchpad_tool(turn_idx: int, call_id: str) -> ToolCallPart:
+    """Turn 1 writes via ``note``; turn 2+ reads via ``list_notes``."""
+    if turn_idx == 0:
+        return _note_tool_call(call_id)
+    return _list_notes_tool_call(call_id)
+
+
+def _collect_list_notes_returns(
+    messages: list[ModelMessage], sink: list[list[ToolReturnPart]],
+) -> None:
+    for msg in messages:
+        if not isinstance(msg, ModelRequest):
+            continue
+        returns = [
+            p for p in msg.parts
+            if isinstance(p, ToolReturnPart) and p.tool_name == "list_notes"
+        ]
+        if returns:
+            sink.append(returns)
+
+
+def _scratchpad_scoping_stub() -> tuple[
+    Agent[AgentDeps, PhaseOutcome], list[list[ToolReturnPart]],
+]:
+    """Scoping agent that exercises the real scratchpad toolset.
+
+    Step 0 (first _fn call this turn): emit ``note`` (turn 1) or
+    ``list_notes`` (turn 2+) as a tool call.
+    Step 1: emit ``final_result`` with a ``PhaseOutcome`` so the agent run
+    terminates.
+
+    Returns both the agent and an accumulator that the test can inspect to
+    confirm turn-2 ``list_notes`` actually returned the note from turn 1.
+    """
+    turn_counter = {"i": 0}
+    captured: list[list[ToolReturnPart]] = []
+
+    def _response_for(messages: list[ModelMessage]) -> ModelResponse:
+        step = _count_tool_returns_in_run(messages)
+        turn_idx = turn_counter["i"]
+        if step == 0:
+            return ModelResponse(
+                parts=[_first_scratchpad_tool(turn_idx, f"sc_{turn_idx}_0")],
+            )
+        _collect_list_notes_returns(messages, captured)
+        response = ModelResponse(
+            parts=[_final_result_call(f"sc_{turn_idx}_final")],
+        )
+        turn_counter["i"] += 1
+        return response
+
+    def _fn(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        del info
+        return _response_for(messages)
+
+    async def _stream(
+        messages: list[ModelMessage], info: AgentInfo,
+    ) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
+        del info
+        response = _response_for(messages)
+        tool_call = next(
+            p for p in response.parts if isinstance(p, ToolCallPart)
+        )
+        yield {
+            0: DeltaToolCall(
+                name=tool_call.tool_name,
+                json_args=tool_call.args_as_json_str(),
+                tool_call_id=tool_call.tool_call_id,
+            ),
+        }
+
+    agent: Agent[AgentDeps, PhaseOutcome] = Agent(
+        FunctionModel(
+            _fn, stream_function=_stream, model_name="mock:scoping-scratchpad",
+        ),
+        output_type=PhaseOutcome,
+        deps_type=AgentDeps,
+        toolsets=[build_scratchpad_toolset()],
+        instructions="write a scratchpad note then await user",
+        name="mock-scoping-scratchpad",
+        defer_model_check=True,
+    )
+    return agent, captured
+
+
+def _scratchpad_supervisor_decisions() -> list[SupervisorDecision]:
+    # Each turn: start → scoping → (phase sets awaiting_user) → supervisor
+    # routes to ``end``. Only the initial routing decision per turn is
+    # consumed from this list; the "end" branches short-circuit via the
+    # ``_waiting_for_user_reply`` guard in the supervisor node.
+    return [
+        SupervisorDecision(to="scoping", reason="start scratchpad turn 1"),
+        SupervisorDecision(to="scoping", reason="start scratchpad turn 2"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_scratchpad_note_persists_across_turns(
+    db_cleaner: None,
+    patch_app_db_engine: None,
+) -> None:
+    """Multi-turn regression: note written turn 1 is visible turn 2."""
+    del db_cleaner, patch_app_db_engine
+
+    scoping_agent, captured_list_returns = _scratchpad_scoping_stub()
+    # Other phases never run in this test but must exist for PHASE_AGENTS
+    # completeness. Give them text-only stubs that would error out loudly
+    # if the pipeline wandered off-path.
+    phase_stubs: dict[str, Agent[AgentDeps, Any]] = {
+        "scoping": scoping_agent,
+        "discovery": _phase_text_agent("discovery", ["unreachable"]),
+        "planning": _phase_text_agent("planning", ["unreachable"]),
+        "execution": _phase_text_agent("execution", ["unreachable"]),
+        "verification": _phase_text_agent("verification", ["unreachable"]),
+    }
+    sup_agent, _sup_capture = _supervisor_stub(_scratchpad_supervisor_decisions())
+
+    conversation_id = uuid4()
+    user_id = uuid4()
+    config = {"configurable": {"thread_id": str(conversation_id)}}
+    await _seed_conversation(conversation_id, user_id)
+
+    settings = get_settings()
+    async with lifespan_memory_store(settings.database_url) as memory_store:
+        context = _make_context(user_id, memory_store)
+
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(agents_module, "PHASE_AGENTS", phase_stubs)
+            mp.setattr(nodes_module, "PHASE_AGENTS", phase_stubs)
+            mp.setattr(
+                nodes_module,
+                "build_supervisor_agent",
+                lambda provider=None, *, model_id=None: sup_agent,
+            )
+            harness = _Harness(
+                graph=build_graph(checkpointer=InMemorySaver()),
+                context=context,
+                config=config,
+                conversation_id=conversation_id,
+                user_id=user_id,
+            )
+
+            # ── Turn 1: agent calls note(...) during scoping ────────────
+            _state_1, events_1 = await harness.turn(
+                "scope my malaria question", is_first=True,
+            )
+            types_1 = _chunk_types(
+                [e[1] if isinstance(e, tuple) else e for e in events_1],
+            )
+            assert "data-phase-start" in types_1
+            assert "data-scratchpad-updated" in types_1, (
+                f"note(...) must emit data-scratchpad-updated; got {types_1}"
+            )
+
+            # Note is in the DB.
+            async with async_session_factory() as session:
+                notes = await ScratchpadRepository(session).list_notes(
+                    conversation_id=conversation_id, limit=10,
+                )
+            assert len(notes) == 1
+            assert notes[0].title == _SCRATCHPAD_NOTE_TITLE
+            assert notes[0].summary == _SCRATCHPAD_NOTE_SUMMARY
+            assert notes[0].body == _SCRATCHPAD_NOTE_BODY
+            turn1_note_id = notes[0].id
+
+            # ── Turn 2: agent calls list_notes() during scoping ────────
+            # Must clear ``last_phase_outcome`` — the dispatcher resets this
+            # per turn in production, but ``_run_turn_input`` in this test
+            # harness doesn't, so a turn-1 ``awaiting_user`` outcome would
+            # keep tripping the supervisor's ``_waiting_for_user_reply``
+            # short-circuit.
+            turn_2_input = {
+                **_run_turn_input("follow-up question"),
+                "last_phase_outcome": None,
+            }
+            events_2 = [
+                ev async for ev in harness.graph.astream(
+                    turn_2_input,
+                    config=harness.config,
+                    context=harness.context,
+                    stream_mode=["custom"],
+                )
+            ]
+            types_2 = _chunk_types(
+                [e[1] if isinstance(e, tuple) else e for e in events_2],
+            )
+            assert "data-phase-start" in types_2, (
+                f"turn 2 did not hit scoping; chunks={types_2}"
+            )
+
+            # Proof-of-visibility: the list_notes ToolReturnPart threaded into
+            # the agent's run this turn must contain the note from turn 1.
+            assert captured_list_returns, (
+                "scoping stub never captured a list_notes ToolReturnPart on turn 2"
+            )
+            latest_returns = captured_list_returns[-1]
+            # There's exactly one list_notes call per turn 2 run.
+            assert len(latest_returns) == 1
+            payload = latest_returns[0].content
+            assert isinstance(payload, dict)
+            matches = payload.get("matches")
+            assert isinstance(matches, list)
+            titles = [
+                entry.get("title") for entry in matches
+                if isinstance(entry, dict)
+            ]
+            ids = [
+                entry.get("id") for entry in matches
+                if isinstance(entry, dict)
+            ]
+            assert _SCRATCHPAD_NOTE_TITLE in titles, (
+                f"turn 2 list_notes should surface the turn-1 note; got {titles}"
+            )
+            assert turn1_note_id in ids, (
+                f"turn 2 list_notes return is missing turn-1 note id "
+                f"{turn1_note_id!r}; got {ids}"
+            )
+

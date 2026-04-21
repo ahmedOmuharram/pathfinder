@@ -9,13 +9,18 @@ import type { DistributionEntry } from "@/features/analysis/components/Distribut
 import { APIError } from "@/lib/api/http";
 
 export function parseDistribution(raw: DistributionResponse): DistributionEntry[] {
-  const isNumericBinned = raw.histogram[0]?.binStart !== "";
+  const firstBinStart = raw.histogram[0]?.binStart ?? "";
+  const isNumericBinned = firstBinStart !== "";
   const parsed: DistributionEntry[] = raw.histogram
     .filter((bin) => (bin.value ?? 0) > 0)
-    .map((bin) => ({
-      value: bin.binLabel || bin.binStart || "",
-      count: bin.value ?? 0,
-    }));
+    .map((bin) => {
+      const label = bin.binLabel ?? "";
+      const start = bin.binStart ?? "";
+      return {
+        value: label !== "" ? label : start,
+        count: bin.value ?? 0,
+      };
+    });
   return isNumericBinned ? parsed : parsed.sort((a, b) => b.count - a.count);
 }
 

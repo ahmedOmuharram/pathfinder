@@ -6,7 +6,6 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from genai_prices import calc_price
 from langgraph.config import get_stream_writer
 from langgraph.runtime import Runtime
 from langgraph.types import Command
@@ -17,6 +16,7 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    PartEndEvent,
     TextPart,
     ThinkingPart,
     ToolCallPart,
@@ -29,7 +29,6 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     TextEndChunk,
     TextStartChunk,
 )
-from pydantic_ai.usage import RunUsage
 from sqlalchemy.exc import SQLAlchemyError
 
 from pathfinder.ai.agents.supervisor import (
@@ -39,6 +38,7 @@ from pathfinder.ai.agents.supervisor import (
     build_supervisor_agent,
 )
 from pathfinder.ai.conversation.vercel_adapter import PhaseStreamEmitter
+from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph.agents import PHASE_AGENTS
 from pathfinder.ai.graph.runtime import (
     AgentDeps,
@@ -55,6 +55,7 @@ from pathfinder.ai.graph.state import (
 from pathfinder.ai.graph.stream_events import (
     phase_change_event,
     phase_start_event,
+    scratchpad_updated_event,
     supervisor_decision_event,
     turn_qa_event,
     turn_rejected_event,
@@ -64,6 +65,9 @@ from pathfinder.ai.memory.retrieval import retrieve_relevant_memories
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.memory.tombstones import TombstoneRepository
+from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
+from pathfinder.ai.scratchpad.rendering import render_scratchpad_for_supervisor
+from pathfinder.ai.scratchpad.repository import ScratchpadRepository
 from pathfinder.persistence.repositories import MessagesRepository
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
@@ -284,31 +288,53 @@ class _PhaseRunCapture(BaseModel):
     phase_outcome: PhaseOutcome | None = None
     tokens: int = 0
     cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
+    orphan_text_parts: list[TextPart] = Field(default_factory=list)
+    prose_already_streamed: bool = False
 
 
-def _cost_for_run(
-    *,
-    usage: RunUsage,
-    model_name: str | None,
-    provider_name: str | None,
-    provider_url: str | None,
-) -> Decimal:
-    """Mirror of ``ModelResponse.cost()`` but for whole-run ``RunUsage``."""
-    if not model_name or not usage.has_values():
-        return Decimal(0)
-    if provider_url:
-        try:
-            return calc_price(
-                usage, model_name, provider_api_url=provider_url,
-            ).total_price
-        except LookupError:
-            pass
-    try:
-        return calc_price(
-            usage, model_name, provider_id=provider_name,
-        ).total_price
-    except LookupError:
-        return Decimal(0)
+def _synthesize_from_orphan_text(
+    capture: _PhaseRunCapture,
+    state: PipelineState,
+    phase: PhaseName,
+    agent_model: str,
+) -> None:
+    if not capture.orphan_text_parts:
+        msg = (
+            f"phase {phase} stream ended without AgentRunResult "
+            f"(finish_reason={capture.finish_reason})"
+        )
+        logger.error(
+            "phase produced no AgentRunResult and no text",
+            phase=phase,
+            conversation_id=str(state.conversation_id),
+            user_id=str(state.user_id),
+            trace_id=state.turn_trace_id,
+            model=agent_model,
+            finish_reason=capture.finish_reason,
+            message_history_len=len(state.message_history or []),
+        )
+        raise PhaseRunError(msg)
+
+    prose = "\n".join(p.content for p in capture.orphan_text_parts).strip()
+    capture.phase_outcome = PhaseOutcome(
+        disposition=PhaseDisposition.AWAITING_USER,
+        prose=prose[:4000],
+        reason="phase returned prose without calling final_result",
+    )
+    capture.prose_already_streamed = True
+    capture.new_messages = [
+        ModelRequest(parts=[UserPromptPart(content=state.user_prompt)]),
+        ModelResponse(parts=list(capture.orphan_text_parts)),
+    ]
+    logger.warning(
+        "phase produced prose without AgentRunResult — synthesized outcome",
+        phase=phase,
+        conversation_id=str(state.conversation_id),
+        user_id=str(state.user_id),
+        trace_id=state.turn_trace_id,
+        model=agent_model,
+        prose_chars=len(prose),
+    )
 
 
 def _absorb_run_result(
@@ -323,7 +349,7 @@ def _absorb_run_result(
         capture.phase_outcome = run_result.output
     usage = run_result.usage()
     capture.tokens = usage.total_tokens
-    capture.cost_usd = _cost_for_run(
+    capture.cost_usd = cost_for_run(
         usage=usage,
         model_name=response.model_name,
         provider_name=response.provider_name,
@@ -341,7 +367,7 @@ def _build_phase_delta(
 ) -> dict[str, Any]:
     delta = extract_state_delta(deps)
     delta["current_phase"] = phase
-    delta["message_history"] = capture.new_messages
+    delta["message_history"] = list(capture.new_messages)
     delta["turn_message_parts"] = state.turn_message_parts + new_parts
     delta["turn_total_tokens"] = state.turn_total_tokens + capture.tokens
     delta["turn_total_cost_usd"] = state.turn_total_cost_usd + capture.cost_usd
@@ -388,7 +414,6 @@ async def _run_phase_node(
     emitter = PhaseStreamEmitter(message_id=str(phase_message_id))
 
     async def _agent_events() -> AsyncGenerator[AgentStreamEvent | AgentRunResultEvent[Any]]:
-        """Forward agent events, capturing the terminal run result."""
         async for event in agent.run_stream_events(
             state.user_prompt,
             deps=deps,
@@ -396,6 +421,12 @@ async def _run_phase_node(
         ):
             if isinstance(event, AgentRunResultEvent):
                 _absorb_run_result(event, capture)
+            elif (
+                isinstance(event, PartEndEvent)
+                and isinstance(event.part, TextPart)
+                and event.part.content.strip()
+            ):
+                capture.orphan_text_parts.append(event.part)
             yield event
 
     try:
@@ -414,27 +445,17 @@ async def _run_phase_node(
         raise
 
     if not capture.new_messages:
-        msg = (
-            f"phase {phase} stream ended without AgentRunResult "
-            f"(finish_reason={capture.finish_reason})"
-        )
-        logger.error(
-            "phase produced no AgentRunResult",
-            phase=phase,
-            conversation_id=str(state.conversation_id),
-            user_id=str(state.user_id),
-            trace_id=state.turn_trace_id,
-            model=agent_model,
-            finish_reason=capture.finish_reason,
-            message_history_len=len(state.message_history or []),
-        )
-        raise PhaseRunError(msg)
+        _synthesize_from_orphan_text(capture, state, phase, agent_model)
 
     new_parts: list[dict[str, Any]] = [
         _phase_start_part(phase, state.turn_trace_id, agent_model),
         *_convert_assistant_parts(capture.new_messages),
     ]
-    if capture.phase_outcome is not None and capture.phase_outcome.prose:
+    if (
+        capture.phase_outcome is not None
+        and capture.phase_outcome.prose
+        and not capture.prose_already_streamed
+    ):
         prose_chunk_id = f"phase-prose-{phase_message_id}"
         _emit_chunk(writer, TextStartChunk(id=prose_chunk_id))
         _emit_chunk(
@@ -533,7 +554,9 @@ def _waiting_for_user_reply(state: PipelineState) -> bool:
     return len(frame.blocking_questions) > 0
 
 
-def _render_supervisor_state(state: PipelineState) -> str:
+async def _render_supervisor_state(
+    state: PipelineState, context: Context | None,
+) -> str:
     lines: list[str] = ["Pipeline state:"]
     lines.append(f"- supervisor_call: {state.supervisor_call_count + 1}")
     lines.append(f"- current_phase: {state.current_phase or 'null'}")
@@ -565,7 +588,18 @@ def _render_supervisor_state(state: PipelineState) -> str:
     if state.last_assistant_prose:
         lines.append("- last_phase_prose_to_user: |")
         lines.extend(f"    {prose_line}" for prose_line in state.last_assistant_prose.splitlines())
-    return "\n".join(lines)
+    body = "\n".join(lines)
+    if context is None:
+        return body
+    async with context.db_session_factory() as session:
+        repo = ScratchpadRepository(session)
+        notes, total_count, _ = await repo.list_for_index_with_totals(
+            conversation_id=state.conversation_id,
+        )
+    scratchpad_block = render_scratchpad_for_supervisor(
+        notes, total_count=total_count,
+    )
+    return f"{body}\n\n{scratchpad_block}"
 
 
 def _supervisor_history(state: PipelineState) -> list[ModelMessage]:
@@ -667,7 +701,9 @@ async def supervisor_node(
     supervisor_model_id = await _resolve_supervisor_model(state, runtime)
     agent = build_supervisor_agent(model_id=supervisor_model_id)
     history = _supervisor_history(state)
-    deps = SupervisorDeps(state_block=_render_supervisor_state(state))
+    deps = SupervisorDeps(
+        state_block=await _render_supervisor_state(state, runtime.context),
+    )
     if state.phase_call_counts:
         user_prompt_for_run = "Decide the next action."
     else:
@@ -815,5 +851,30 @@ async def finalize_turn_node(
             )
         except (RuntimeError, ValueError, OSError, SQLAlchemyError) as exc:
             logger.warning("auto-write memories failed: %s", exc)
+
+    if runtime.context is not None and state.current_phase == "verification":
+        try:
+            compaction_run = await maybe_compact_scratchpad(
+                conversation_id=state.conversation_id,
+                user_id=state.user_id,
+                db_session_factory=runtime.context.db_session_factory,
+            )
+        except Exception:
+            # Compaction must never break the turn — broad catch mirrors
+            # the supervisor-agent failure handler above (same rationale).
+            logger.exception(
+                "scratchpad compaction wrapper failed",
+                conversation_id=str(state.conversation_id),
+            )
+            compaction_run = None
+        if compaction_run is not None:
+            writer = get_stream_writer()
+            writer(
+                {
+                    "chunk": scratchpad_updated_event().model_dump(
+                        by_alias=True, mode="json", exclude_none=True,
+                    ),
+                },
+            )
 
     return Command(goto=_END, update={"turn_message_parts": []})

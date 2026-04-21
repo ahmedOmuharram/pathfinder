@@ -4,10 +4,12 @@ from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
 
+from pathfinder.ai.agents._history_processor import pair_tool_calls
 from pathfinder.ai.agents._hooks import apply_auto_build_hook
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
+    pinned_scratchpad,
     pinned_user_memories,
 )
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
@@ -15,6 +17,7 @@ from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.state import PhaseOutcome
+from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
 from pathfinder.ai.tools.toolsets.execution import build_toolset
 
 _EXECUTION_INSTRUCTIONS = """\
@@ -86,13 +89,14 @@ execution_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
     output_type=[PhaseOutcome, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_EXECUTION_INSTRUCTIONS,
-    toolsets=[build_toolset()],
+    toolsets=[build_toolset(), build_scratchpad_toolset()],
     capabilities=[
         ToolResilience(),
         _execution_hooks,
         Thinking(effort="medium"),
         SecurityGuardrail(),
     ],
+    history_processors=[pair_tool_calls],
     retries=3,
     description="Builds WDK strategies by executing planned operations",
     name="execution",
@@ -113,5 +117,10 @@ def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
 @execution_agent.instructions
 def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_user_memories(ctx)
+
+
+@execution_agent.instructions
+async def _pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
+    return await pinned_scratchpad(ctx)
 
 

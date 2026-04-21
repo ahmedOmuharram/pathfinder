@@ -47,14 +47,14 @@ export function createGeneSet(req: CreateGeneSetRequest): Promise<GeneSet> {
   return requestJson(geneSetResponseSchema, "/api/v1/gene-sets", {
     method: "POST",
     body: req,
-  }) as Promise<GeneSet>;
+  });
 }
 
 /** List gene sets, optionally filtered by site. */
 export function listGeneSets(siteId?: string): Promise<GeneSet[]> {
   return requestJson(GeneSetListSchema, "/api/v1/gene-sets", {
     ...(siteId != null && siteId !== "" ? { query: { siteId } } : {}),
-  }) as Promise<GeneSet[]>;
+  });
 }
 
 /** Delete a gene set by ID. */
@@ -69,7 +69,7 @@ export function performSetOperation(req: SetOperationRequest): Promise<GeneSet> 
   return requestJson(geneSetResponseSchema, "/api/v1/gene-sets/operations", {
     method: "POST",
     body: req,
-  }) as Promise<GeneSet>;
+  });
 }
 
 /** Run enrichment analysis on a gene set. */

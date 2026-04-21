@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, ClipboardList, Timer, Workflow } from "lucide-react";
+import { Brain, ClipboardList, Notebook, Timer, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 
@@ -21,6 +21,7 @@ import {
 
 import { MemoriesPanel } from "./MemoriesPanel";
 import { PlanPanel } from "./PlanPanel";
+import { ScratchpadPanel } from "./ScratchpadPanel";
 import { StrategyPanel } from "./StrategyPanel";
 import { TasksPanel } from "./TasksPanel";
 
@@ -46,6 +47,7 @@ const RAIL_ICONS: RailIconSpec[] = [
   { id: "plan", icon: ClipboardList, label: "Plan" },
   { id: "tasks", icon: Timer, label: "Tasks" },
   { id: "memories", icon: Brain, label: "Memories" },
+  { id: "scratchpad", icon: Notebook, label: "Scratchpad" },
 ];
 
 export function RightRail({ conversationId, strategy, siteId }: RightRailProps) {
@@ -62,6 +64,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
     plan: activePlanId !== null && activePlanId !== lastSeen.planId,
     tasks: false,
     memories: false,
+    scratchpad: false,
   };
 
   const markersFor = (panel: RightRailPanel) => {
@@ -72,6 +75,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
         return { planId: activePlanId };
       case "tasks":
       case "memories":
+      case "scratchpad":
         return {};
     }
   };
@@ -106,6 +110,9 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
                     <TasksPanel conversationId={conversationId} />
                   )}
                   {openPanel === "memories" && <MemoriesPanel />}
+                  {openPanel === "scratchpad" && (
+                    <ScratchpadPanel conversationId={conversationId} />
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>

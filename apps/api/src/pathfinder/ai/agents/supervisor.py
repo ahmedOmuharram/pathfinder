@@ -6,12 +6,10 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 from pydantic_ai import Agent, RunContext
 
-from pathfinder.ai.models.catalog import (
-    ModelEntry,
-    get_model_entry,
-    get_smallest_model,
+from pathfinder.ai.agents._history_processor import pair_tool_calls
+from pathfinder.ai.agents._model_resolution import (
+    resolve_orchestrator_model_entry,
 )
-from pathfinder.platform.config import get_settings
 from pathfinder.platform.types import ModelProvider
 
 SupervisorTarget = Literal[
@@ -141,33 +139,19 @@ fill `rejection_message`. For `question`, fill `answer`. The \
 message/answer and reason are both shown to the user.
 """
 
-def _resolve_supervisor_entry(
-    model_id: str | None, provider: ModelProvider | None,
-) -> ModelEntry:
-    """Pick the supervisor's model entry.
-
-    Precedence: explicit catalog id → explicit provider's smallest → configured
-    default provider's smallest.
-    """
-    if model_id is not None:
-        entry = get_model_entry(model_id)
-        if entry is not None:
-            return entry
-    resolved_provider: ModelProvider = provider or get_settings().default_provider
-    return get_smallest_model(resolved_provider)
-
 
 def build_supervisor_agent(
     provider: ModelProvider | None = None,
     *,
     model_id: str | None = None,
 ) -> Agent[SupervisorDeps, SupervisorDecision]:
-    entry = _resolve_supervisor_entry(model_id, provider)
+    entry = resolve_orchestrator_model_entry(model_id, provider)
     agent: Agent[SupervisorDeps, SupervisorDecision] = Agent(
         entry.id,
         deps_type=SupervisorDeps,
         output_type=SupervisorDecision,
         instructions=_SUPERVISOR_INSTRUCTIONS,
+        history_processors=[pair_tool_calls],
         retries=2,
         name="supervisor",
         defer_model_check=True,
@@ -178,5 +162,3 @@ def build_supervisor_agent(
         return ctx.deps.state_block
 
     return agent
-
-

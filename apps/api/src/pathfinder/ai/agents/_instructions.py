@@ -5,6 +5,8 @@ from pydantic_ai.tools import RunContext
 from pathfinder.ai.context.rendering import render_graph_state
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.prompts.loader import load_system_prompt
+from pathfinder.ai.scratchpad.rendering import render_scratchpad_for_phase
+from pathfinder.ai.scratchpad.repository import ScratchpadRepository
 
 
 def base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
@@ -48,6 +50,9 @@ def pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
     if frame.blocking_questions:
         lines.extend(["", "### Blocking Questions"])
         lines.extend(f"- {q.question}" for q in frame.blocking_questions)
+    if frame.optional_questions:
+        lines.extend(["", "### Optional Clarifications (non-blocking)"])
+        lines.extend(f"- {q.question}" for q in frame.optional_questions)
 
     return "\n".join(lines)
 
@@ -69,3 +74,15 @@ def pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
         tags_str = f" [{', '.join(m.tags)}]" if m.tags else ""
         lines.append(f"- [{m.kind}] {m.name}{tags_str}: {m.summary}")
     return "\n".join(lines)
+
+
+async def pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
+    """Render the conversation's scratchpad index for the phase agent."""
+    if ctx.deps.db_session_factory is None or ctx.deps.conversation_id is None:
+        return None
+    async with ctx.deps.db_session_factory() as session:
+        repo = ScratchpadRepository(session)
+        notes, total_count, _ = await repo.list_for_index_with_totals(
+            conversation_id=ctx.deps.conversation_id,
+        )
+    return render_scratchpad_for_phase(notes, total_count=total_count)

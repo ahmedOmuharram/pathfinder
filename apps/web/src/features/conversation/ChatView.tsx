@@ -6,6 +6,7 @@ import { redirect, useParams } from "next/navigation";
 import { conversationDetailOptions } from "@/lib/api/conversations";
 import { conversationMessagesOptions } from "@/lib/api/conversationMessages";
 import { Spinner } from "@/components/ui/spinner";
+import { useSessionStore } from "@/state/useSessionStore";
 
 import { ChatThread } from "./ChatThread";
 import { RightRail } from "./rail/RightRail";
@@ -19,6 +20,7 @@ export function ChatView({
 }) {
   const params = useParams<{ siteId?: string }>();
   const siteSegment = params.siteId ?? "";
+  const chatResetCounter = useSessionStore((s) => s.chatResetCounter);
 
   const detailQuery = useQuery(conversationDetailOptions(conversationId));
   const messagesQuery = useQuery({
@@ -49,6 +51,7 @@ export function ChatView({
     <div className="flex min-h-0 min-w-0 flex-1">
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
         <ChatThread
+          key={`${conversationId}:${chatResetCounter}`}
           conversationId={conversationId}
           initialMessages={messagesQuery.data ?? []}
         />

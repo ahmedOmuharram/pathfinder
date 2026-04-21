@@ -153,6 +153,9 @@ max-branches = 10
     "PLR0913",  # tool functions need many params for LLM tool interface
     "FBT",      # boolean params required for LLM tool descriptions
 ]
+"src/pathfinder/ai/scratchpad/tools.py" = [
+    "FBT",      # boolean params required for LLM tool descriptions
+]
 "src/pathfinder/jobs/impls/**" = [
     "PLR0913",  # worker impls mirror tool signatures + framework kwargs
     "FBT",      # booleans mirror tool interface

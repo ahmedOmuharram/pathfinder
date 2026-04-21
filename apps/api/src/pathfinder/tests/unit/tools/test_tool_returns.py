@@ -580,24 +580,3 @@ async def test_create_workbench_gene_set_emits_gene_set_data_chunk():
     assert data["siteId"] == "plasmodb"
 
 
-# ── ToolErrorPayload short-circuit ─────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_create_leaf_step_error_returns_raw_error_without_metadata():
-    """When the tool errors out, it returns a ToolErrorPayload (no metadata chunks)."""
-    session = _make_session()
-    agent_state = AgentToolState()
-    # Do NOT register any search — will fail DISCOVERY_REQUIRED gate
-    deps = _make_deps(session, agent_state=agent_state)
-    ctx = _make_ctx(deps)
-
-    result = await create_leaf_step(
-        ctx,
-        search_name="UnknownSearch",
-        parameters={"organism": "plasmodium"},
-    )
-
-    # Errors return plain ToolErrorPayload (no ToolReturn wrapping)
-    assert not isinstance(result, ToolReturn)
-    assert result.code == "DISCOVERY_REQUIRED"

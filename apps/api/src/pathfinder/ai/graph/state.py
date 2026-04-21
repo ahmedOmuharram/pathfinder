@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import operator
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Any, Literal
@@ -9,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai.messages import ModelMessage
 
 from pathfinder.ai.agents.state import SearchOverview
-from pathfinder.ai.graph.messages_reducer import append_messages_safely
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
@@ -76,6 +76,14 @@ class PhaseOutcome(CamelModel):
         description="Short routing explanation shown on the orchestrator card.",
     )
     handoff_to: PhaseName | None = None
+    note_refs: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description=(
+            "Scratchpad note ids supporting this outcome. Optional; when "
+            "populated, cites the notes that led to this conclusion."
+        ),
+    )
 
 
 class ClarificationQuestion(CamelModel):
@@ -139,7 +147,7 @@ class PipelineState(BaseModel):
     turn_total_tokens: int = 0
     turn_total_cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
 
-    message_history: Annotated[list[ModelMessage], append_messages_safely] = Field(
+    message_history: Annotated[list[ModelMessage], operator.add] = Field(
         default_factory=list,
     )
 

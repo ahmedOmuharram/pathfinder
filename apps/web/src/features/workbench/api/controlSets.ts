@@ -10,7 +10,7 @@ const ControlSetListSchema = z.array(controlSetResponseSchema);
 export async function listControlSets(siteId: string): Promise<ControlSet[]> {
   return (await requestJson(ControlSetListSchema, "/api/v1/control-sets", {
     query: { siteId },
-  })) as ControlSet[];
+  }));
 }
 
 export function controlSetsOptions(siteId: string) {
@@ -23,7 +23,7 @@ export function controlSetsOptions(siteId: string) {
 }
 
 export async function getControlSet(id: string): Promise<ControlSet> {
-  return (await requestJson(controlSetResponseSchema, `/api/v1/control-sets/${id}`)) as ControlSet;
+  return (await requestJson(controlSetResponseSchema, `/api/v1/control-sets/${id}`));
 }
 
 export async function createControlSet(body: {
@@ -40,7 +40,7 @@ export async function createControlSet(body: {
   return (await requestJson(controlSetResponseSchema, "/api/v1/control-sets", {
     method: "POST",
     body,
-  })) as ControlSet;
+  }));
 }
 
 export async function deleteControlSet(id: string): Promise<void> {

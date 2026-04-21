@@ -14,6 +14,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -23,6 +24,7 @@ from langgraph.types import Interrupt
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pydantic_ai.ui.vercel_ai._event_stream import VERCEL_AI_DSP_HEADERS
 from pydantic_ai.ui.vercel_ai.response_types import (
+    BaseChunk,
     DoneChunk,
     ErrorChunk,
     FinishChunk,
@@ -33,7 +35,6 @@ from starlette.responses import Response, StreamingResponse
 
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
 from pathfinder.ai.graph.runtime import Context
-from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.graph.stream_events import (
     background_task_started_event,
     conversation_title_event,
@@ -275,36 +276,51 @@ def _build_turn_input(
 ) -> dict[str, Any]:
     user_message_id = incoming.last_user_message_id
     user_text = incoming.last_user_text
-    state = PipelineState(
-        conversation_id=incoming.conversation_id,
-        user_id=user_id,
-        site_id=incoming.site_id,
-        mode=incoming.mode,
-        user_message_id=user_message_id,
-        user_prompt=user_text,
-        user_parts=[{"type": "text", "text": user_text}],
-        turn_trace_id=str(uuid4()),
-        turn_created_at=datetime.now(UTC).isoformat(),
-        turn_message_id=turn_message_id,
-    )
-    turn_meta = state.model_dump()
-    turn_meta["supervisor_call_count"] = 0
-    turn_meta["phase_call_counts"] = {}
-    turn_meta["current_phase"] = None
-    turn_meta["last_routing_reason"] = None
-    turn_meta["last_assistant_prose"] = ""
-    turn_meta["last_phase_outcome"] = None
-    turn_meta["last_verification_message_id"] = None
-    turn_meta["turn_message_parts"] = []
-    return turn_meta
+    return {
+        "conversation_id": incoming.conversation_id,
+        "user_id": user_id,
+        "site_id": incoming.site_id,
+        "mode": incoming.mode,
+        "user_message_id": user_message_id,
+        "user_prompt": user_text,
+        "user_parts": [{"type": "text", "text": user_text}],
+        "turn_trace_id": str(uuid4()),
+        "turn_created_at": datetime.now(UTC).isoformat(),
+        "turn_message_id": turn_message_id,
+        "supervisor_call_count": 0,
+        "phase_call_counts": {},
+        "current_phase": None,
+        "last_routing_reason": None,
+        "last_assistant_prose": "",
+        "last_phase_outcome": None,
+        "last_verification_message_id": None,
+        "turn_message_parts": [],
+        "turn_total_tokens": 0,
+        "turn_total_cost_usd": Decimal(0),
+        "retrieved_memories": [],
+    }
 
 
 # ──────────────────── v6 chunk encoding ────────────────────
 
 
+_V6_SDK_VERSION = 6
+
+
 def _encode_chunk_dict(chunk: dict[str, Any]) -> str:
     """Encode a pre-serialized v6 chunk as one SSE frame."""
     return f"data: {json.dumps(chunk, separators=(',', ':'))}\n\n"
+
+
+def _encode_chunk(chunk: BaseChunk) -> str:
+    """Encode a chunk model using its protocol-aware ``encode`` method.
+
+    ``DoneChunk`` must serialize as ``[DONE]`` (the AI SDK v6 sentinel), not
+    ``{"type":"done"}``. ``BaseChunk.encode`` picks the right form; calling
+    ``model_dump`` directly bypasses that and produces JSON the frontend's
+    ``uiMessageChunkSchema`` rejects.
+    """
+    return f"data: {chunk.encode(_V6_SDK_VERSION)}\n\n"
 
 
 class _ChunkEnvelope(BaseModel):
@@ -449,10 +465,7 @@ async def _event_source(
     encountered_error = False
 
     turn_message_id = uuid4()
-    start_chunk = StartChunk(message_id=str(turn_message_id))
-    yield _encode_chunk_dict(
-        start_chunk.model_dump(by_alias=True, mode="json", exclude_none=True),
-    )
+    yield _encode_chunk(StartChunk(message_id=str(turn_message_id)))
 
     try:
         async for chunk in _iter_graph_chunks(
@@ -481,9 +494,8 @@ async def _event_source(
             mode=incoming.mode,
             error_type=type(exc).__name__,
         )
-        err = ErrorChunk(error_text=f"{type(exc).__name__}: {exc}")
-        yield _encode_chunk_dict(
-            err.model_dump(by_alias=True, mode="json", exclude_none=True),
+        yield _encode_chunk(
+            ErrorChunk(error_text=f"{type(exc).__name__}: {exc}"),
         )
     finally:
         if not cancelled:
@@ -491,16 +503,8 @@ async def _event_source(
                 saw_interrupt=saw_interrupt,
                 encountered_error=encountered_error,
             )
-            finish = FinishChunk(finish_reason=finish_reason)
-            yield _encode_chunk_dict(
-                finish.model_dump(
-                    by_alias=True, mode="json", exclude_none=True,
-                ),
-            )
-            done = DoneChunk()
-            yield _encode_chunk_dict(
-                done.model_dump(by_alias=True, mode="json", exclude_none=True),
-            )
+            yield _encode_chunk(FinishChunk(finish_reason=finish_reason))
+            yield _encode_chunk(DoneChunk())
 
 
 def _resolve_finish_reason(

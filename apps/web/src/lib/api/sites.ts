@@ -29,7 +29,7 @@ export async function getRecordTypes(siteId: string): Promise<RecordType[]> {
   return (await requestJson(
     RecordTypeListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/record-types`,
-  )) as RecordType[];
+  ));
 }
 
 export async function getSearches(
@@ -40,7 +40,7 @@ export async function getSearches(
     SearchListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches`,
     recordType != null && recordType !== "" ? { query: { recordType } } : {},
-  )) as Search[];
+  ));
 }
 
 export async function getParamSpecs(
@@ -55,7 +55,7 @@ export async function getParamSpecs(
       recordType,
     )}/${encodeURIComponent(searchName)}/param-specs`,
     { method: "POST", body: { contextValues } },
-  )) as ParamSpec[];
+  ));
 }
 
 export async function refreshDependentParams(
@@ -71,7 +71,7 @@ export async function refreshDependentParams(
       recordType,
     )}/${encodeURIComponent(searchName)}/refreshed-dependent-params`,
     { method: "POST", body: { parameterName, contextValues } },
-  )) as ParamSpec[];
+  ));
 }
 
 export async function validateSearchParams(

@@ -1573,6 +1573,280 @@
                 }
             }
         },
+        "/api/v1/conversations/{conversation_id}/scratchpad/notes": {
+            "get": {
+                "tags": [
+                    "scratchpad"
+                ],
+                "summary": "List scratchpad notes for the conversation.",
+                "operationId": "list_scratchpad_notes_api_v1_conversations__conversation_id__scratchpad_notes_get",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Note"
+                                    },
+                                    "title": "Response List Scratchpad Notes Api V1 Conversations  Conversation Id  Scratchpad Notes Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/{conversation_id}/scratchpad/notes/{note_id}": {
+            "get": {
+                "tags": [
+                    "scratchpad"
+                ],
+                "summary": "Get a single scratchpad note.",
+                "operationId": "get_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__get",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    },
+                    {
+                        "name": "note_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Note Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Note"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "scratchpad"
+                ],
+                "summary": "Pin or unpin a scratchpad note.",
+                "operationId": "patch_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__patch",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    },
+                    {
+                        "name": "note_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Note Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ScratchpadPatchRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Note"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "scratchpad"
+                ],
+                "summary": "Delete a scratchpad note.",
+                "operationId": "delete_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__delete",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    },
+                    {
+                        "name": "note_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Note Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/{conversation_id}/scratchpad/compactions": {
+            "get": {
+                "tags": [
+                    "scratchpad"
+                ],
+                "summary": "Audit log for scratchpad compaction runs.",
+                "operationId": "list_compactions_api_v1_conversations__conversation_id__scratchpad_compactions_get",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/CompactionRun"
+                                    },
+                                    "title": "Response List Compactions Api V1 Conversations  Conversation Id  Scratchpad Compactions Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/experiments/": {
             "post": {
                 "tags": [
@@ -5673,6 +5947,72 @@
                 ],
                 "title": "CombineOp",
                 "description": "Set operations for combining two step results."
+            },
+            "CompactionRun": {
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "title": "Id"
+                    },
+                    "conversationId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "title": "Conversationid"
+                    },
+                    "triggeredAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Triggeredat"
+                    },
+                    "beforeCount": {
+                        "type": "integer",
+                        "title": "Beforecount"
+                    },
+                    "afterCount": {
+                        "type": "integer",
+                        "title": "Aftercount"
+                    },
+                    "beforeTokens": {
+                        "type": "integer",
+                        "title": "Beforetokens"
+                    },
+                    "afterTokens": {
+                        "type": "integer",
+                        "title": "Aftertokens"
+                    },
+                    "modelId": {
+                        "type": "string",
+                        "title": "Modelid"
+                    },
+                    "costUsd": {
+                        "type": "string",
+                        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                        "title": "Costusd"
+                    },
+                    "triggerReason": {
+                        "type": "string",
+                        "enum": [
+                            "count",
+                            "tokens",
+                            "both"
+                        ],
+                        "title": "Triggerreason"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "conversationId",
+                    "triggeredAt",
+                    "beforeCount",
+                    "afterCount",
+                    "beforeTokens",
+                    "afterTokens",
+                    "modelId",
+                    "costUsd",
+                    "triggerReason"
+                ],
+                "title": "CompactionRun"
             },
             "CompletedToolCall": {
                 "properties": {
@@ -9837,6 +10177,77 @@
                 "title": "NegativeSetVariantResponse",
                 "description": "Rank metrics evaluated with an alternative negative control set."
             },
+            "Note": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "conversationId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "title": "Conversationid"
+                    },
+                    "title": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "minLength": 1,
+                        "title": "Title"
+                    },
+                    "summary": {
+                        "type": "string",
+                        "maxLength": 280,
+                        "minLength": 1,
+                        "title": "Summary"
+                    },
+                    "body": {
+                        "type": "string",
+                        "maxLength": 20000,
+                        "minLength": 1,
+                        "title": "Body"
+                    },
+                    "tags": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "maxItems": 16,
+                        "title": "Tags"
+                    },
+                    "pinned": {
+                        "type": "boolean",
+                        "title": "Pinned",
+                        "default": false
+                    },
+                    "bodyTokens": {
+                        "type": "integer",
+                        "minimum": 0.0,
+                        "title": "Bodytokens"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Createdat"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Updatedat"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "conversationId",
+                    "title",
+                    "summary",
+                    "body",
+                    "bodyTokens",
+                    "createdAt",
+                    "updatedAt"
+                ],
+                "title": "Note"
+            },
             "OpenConversationRequest": {
                 "properties": {
                     "conversationId": {
@@ -12289,6 +12700,22 @@
                 ],
                 "title": "RunEnrichmentRequest",
                 "description": "Request to run enrichment on an existing experiment."
+            },
+            "ScratchpadPatchRequest": {
+                "properties": {
+                    "pinned": {
+                        "type": "boolean",
+                        "title": "Pinned",
+                        "description": "New pin state."
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "pinned"
+                ],
+                "title": "ScratchpadPatchRequest",
+                "description": "User-driven PATCH \u2014 only the ``pinned`` flag is settable from the UI.\n\n``extra=\"forbid\"`` rejects ``title``/``body``/``summary`` edits with 422\nso scratchpad content stays agent-authored."
             },
             "SearchResponse": {
                 "properties": {

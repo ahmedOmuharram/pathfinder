@@ -28,7 +28,7 @@ export async function searchGenes(
     geneSearchResponseSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/genes/search`,
     { query: params },
-  )) as GeneSearchResponse;
+  ));
 }
 
 export async function resolveGeneIds(
@@ -39,7 +39,7 @@ export async function resolveGeneIds(
     geneResolveResponseSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/genes/resolve`,
     { method: "POST", body: { geneIds } },
-  )) as GeneResolveResponse;
+  ));
 }
 
 export function organismsOptions(siteId: string) {

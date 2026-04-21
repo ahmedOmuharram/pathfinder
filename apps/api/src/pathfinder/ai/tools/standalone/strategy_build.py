@@ -124,11 +124,8 @@ async def create_leaf_step(
 ) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
     """Create a new search step (leaf node) in the strategy graph.
 
-    The search MUST have been discovered via ``get_search_overview`` first.
-    This ensures the model has seen the parameter schema before filling values.
-
     Args:
-        search_name: WDK search urlSegment (e.g. 'GenesByTaxon'). Must be discovered first.
+        search_name: WDK search urlSegment (e.g. 'GenesByTaxon').
         parameters: Parameter values for the search (paramName -> value string).
         display_name: Human-readable label for the step shown in the UI.
         record_type: Record type (e.g. 'transcript'). Auto-resolved if omitted.
@@ -136,13 +133,6 @@ async def create_leaf_step(
     """
     deps = ctx.deps
     session = deps.strategy_session
-
-    if not deps.agent_state.is_search_discovered(search_name):
-        return tool_error(
-            "DISCOVERY_REQUIRED",
-            f"Call get_search_overview('{search_name}') first to see the parameter schema before creating a step.",
-            required_action=f"get_search_overview(search_name='{search_name}')",
-        )
 
     graph = get_graph(session, graph_id)
     if not graph:
@@ -289,11 +279,6 @@ async def transform_step(
 ) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
     """Create a transform step that takes an existing step as input.
 
-    When custom parameters are provided, the transform search must have
-    been discovered via ``get_search_overview`` first (discovery gate).
-    When parameters is None the transform proceeds with defaults and no
-    discovery is needed.
-
     Args:
         input_step_id: ID of the step whose results feed into this transform.
         transform_name: WDK transform search urlSegment (e.g. 'GenesByOrthologs').
@@ -303,14 +288,6 @@ async def transform_step(
     """
     deps = ctx.deps
     session = deps.strategy_session
-
-    # Only enforce gate when custom parameters are provided
-    if parameters and not deps.agent_state.is_search_discovered(transform_name):
-        return tool_error(
-            "DISCOVERY_REQUIRED",
-            f"Call get_search_overview('{transform_name}') first to see the parameter schema.",
-            required_action=f"get_search_overview(search_name='{transform_name}')",
-        )
 
     graph = get_graph(session, graph_id)
     if not graph:

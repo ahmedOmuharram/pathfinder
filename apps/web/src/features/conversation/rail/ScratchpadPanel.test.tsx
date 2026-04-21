@@ -1,0 +1,105 @@
+// @vitest-environment jsdom
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/api/scratchpad", () => ({
+  listScratchpadNotes: vi.fn(),
+  patchScratchpadNote: vi.fn(),
+  deleteScratchpadNote: vi.fn(),
+  scratchpadNotesOptions: (conversationId: string) => ({
+    queryKey: ["conversations", conversationId, "scratchpad", "notes"] as const,
+    queryFn: () => mockedList(conversationId),
+  }),
+}));
+
+import {
+  deleteScratchpadNote,
+  listScratchpadNotes,
+  patchScratchpadNote,
+  type Note,
+} from "@/lib/api/scratchpad";
+
+import { ScratchpadPanel } from "./ScratchpadPanel";
+
+const mockedList = vi.mocked(listScratchpadNotes);
+const mockedPatch = vi.mocked(patchScratchpadNote);
+const mockedDelete = vi.mocked(deleteScratchpadNote);
+
+function wrap(ui: React.ReactNode) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
+}
+
+function buildNote(overrides: Partial<Note> & Pick<Note, "id" | "title">): Note {
+  const now = new Date().toISOString();
+  return {
+    conversationId: "c1",
+    summary: "s",
+    body: "b",
+    tags: [],
+    pinned: false,
+    bodyTokens: 1,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+describe("ScratchpadPanel", () => {
+  beforeEach(() => {
+    mockedList.mockReset();
+    mockedPatch.mockReset();
+    mockedDelete.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders empty state when no notes", async () => {
+    mockedList.mockResolvedValue([]);
+    render(wrap(<ScratchpadPanel conversationId="c1" />));
+    await waitFor(() => {
+      expect(screen.getByText(/no notes/i)).toBeInTheDocument();
+    });
+  });
+
+  it("renders pinned group above unpinned", async () => {
+    mockedList.mockResolvedValue([
+      buildNote({ id: "n-aaa111", title: "UNPINNED_ONE", pinned: false }),
+      buildNote({ id: "n-bbb222", title: "PINNED_ONE", pinned: true }),
+    ]);
+
+    render(wrap(<ScratchpadPanel conversationId="c1" />));
+    await waitFor(() => {
+      expect(screen.getByText("PINNED_ONE")).toBeInTheDocument();
+      expect(screen.getByText("UNPINNED_ONE")).toBeInTheDocument();
+    });
+
+    const pinned = screen.getByText("PINNED_ONE");
+    const unpinned = screen.getByText("UNPINNED_ONE");
+    // Pinned section appears before unpinned section in the DOM.
+    expect(
+      pinned.compareDocumentPosition(unpinned) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("pin toggle calls PATCH", async () => {
+    mockedList.mockResolvedValue([
+      buildNote({ id: "n-xyz", title: "T", pinned: false }),
+    ]);
+    mockedPatch.mockResolvedValue(
+      buildNote({ id: "n-xyz", title: "T", pinned: true }),
+    );
+
+    render(wrap(<ScratchpadPanel conversationId="c1" />));
+    const pinBtn = await screen.findByRole("button", { name: /^pin$/i });
+    await userEvent.click(pinBtn);
+    expect(mockedPatch).toHaveBeenCalledWith("c1", "n-xyz", { pinned: true });
+  });
+});

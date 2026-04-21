@@ -152,6 +152,16 @@ export async function forkConversation(
   return raw;
 }
 
+export async function revertConversationToMessage(
+  conversationId: string,
+  messageId: string,
+): Promise<void> {
+  await requestVoid(
+    `/api/v1/conversations/${conversationId}/revert-to-message`,
+    { method: "POST", body: { messageId } },
+  );
+}
+
 export async function dismissConversation(
   conversationId: string,
 ): Promise<void> {

@@ -1,4 +1,4 @@
-"""Unit tests for :mod:`pathfinder.ai.graph.messages_reducer`."""
+"""Unit tests for :mod:`pathfinder.ai.agents._history_processor`."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from pathfinder.ai.graph.messages_reducer import append_messages_safely
+from pathfinder.ai.agents._history_processor import pair_tool_calls
 
 
 def _user(text: str) -> ModelRequest:
@@ -39,17 +39,17 @@ def _tool_call(call_id: str, name: str = "foo") -> ToolCallPart:
     return ToolCallPart(tool_name=name, args={}, tool_call_id=call_id)
 
 
-class TestAppendMessagesSafely:
+class TestPairToolCalls:
     def test_clean_history_passes_through_unchanged(self) -> None:
         existing = [_user("hi")]
         new = [_assistant(TextPart(content="hello"))]
-        result = append_messages_safely(existing, new)
+        result = pair_tool_calls(existing + new)
         assert result == existing + new
 
     def test_paired_tool_call_and_return_preserved(self) -> None:
         existing = [_user("hi"), _assistant(_tool_call("c1"))]
         new = [_tool_return("c1"), _assistant(TextPart(content="done"))]
-        result = append_messages_safely(existing, new)
+        result = pair_tool_calls(existing + new)
         assert len(result) == 4
         assert any(
             isinstance(p, ToolReturnPart) and p.tool_call_id == "c1"
@@ -61,14 +61,14 @@ class TestAppendMessagesSafely:
         """A ToolReturnPart with no matching ToolCallPart is stripped."""
         existing = [_user("hi")]
         new = [_tool_return("phantom")]  # no preceding ToolCallPart
-        result = append_messages_safely(existing, new)
+        result = pair_tool_calls(existing + new)
         assert result == existing  # entire orphan-return ModelRequest dropped
 
     def test_orphan_tool_call_gets_placeholder_return(self) -> None:
         """A ToolCallPart with no matching ToolReturnPart gets a placeholder."""
         existing = [_user("hi"), _assistant(_tool_call("c1"))]
         new: list = []  # stream died before the return landed
-        result = append_messages_safely(existing, new)
+        result = pair_tool_calls(existing + new)
         # A synthetic ModelRequest with the placeholder return was appended.
         assert len(result) == 3
         last = result[-1]
@@ -88,7 +88,7 @@ class TestAppendMessagesSafely:
         ]
         # A later user turn lands with no tool return for c1.
         new = [_user("follow-up")]
-        result = append_messages_safely(existing, new)
+        result = pair_tool_calls(existing + new)
         # The follow-up request now carries both the user prompt and the
         # synthetic return so the earlier call_id is paired.
         follow_up = result[2]
@@ -100,18 +100,9 @@ class TestAppendMessagesSafely:
     def test_orphan_call_placeholder_precedes_user_prompt_in_request(
         self,
     ) -> None:
-        """Placeholder ToolReturnPart must come BEFORE UserPromptPart.
-
-        Regression: pydantic-ai's OpenAI mapper walks ``ModelRequest.parts``
-        in order and emits one wire message per part. If the placeholder is
-        appended after an existing ``UserPromptPart`` the emitted sequence
-        is ``assistant(tool_calls=[c1]) → user → tool``, which OpenAI rejects
-        because the ``tool`` role message must *immediately* follow the
-        ``assistant`` message whose ``tool_calls`` carry its ``tool_call_id``.
-        """
         existing = [_user("hi"), _assistant(_tool_call("c1"))]
         new = [_user("follow-up")]
-        result = append_messages_safely(existing, new)
+        result = pair_tool_calls(existing + new)
         follow_up = result[2]
         assert isinstance(follow_up, ModelRequest)
         tool_return_idx = next(
@@ -140,12 +131,6 @@ class TestAppendMessagesSafely:
     def test_orphan_call_placeholder_precedes_system_and_user_prompts(
         self,
     ) -> None:
-        """Placeholder must come before every SystemPromptPart/UserPromptPart.
-
-        Same adjacency rule as the user-prompt case: a SystemPromptPart
-        between the ``assistant(tool_calls)`` message and the placeholder
-        ``tool`` message also breaks OpenAI's pairing requirement.
-        """
         existing = [_user("hi"), _assistant(_tool_call("c1"))]
         new = [
             ModelRequest(
@@ -155,14 +140,30 @@ class TestAppendMessagesSafely:
                 ],
             ),
         ]
-        result = append_messages_safely(existing, new)
+        result = pair_tool_calls(existing + new)
         follow_up = result[2]
         assert isinstance(follow_up, ModelRequest)
-        # The first part MUST be the synthetic ToolReturnPart so it maps to
-        # the adjacent `tool` message on the wire.
         first = follow_up.parts[0]
         assert isinstance(first, ToolReturnPart)
         assert first.tool_call_id == "c1"
+
+    def test_orphan_call_with_intervening_response_inserts_new_request(
+        self,
+    ) -> None:
+        existing = [
+            _user("hi"),
+            _assistant(_tool_call("c1")),
+            _assistant(TextPart(content="still talking")),
+            _user("follow-up"),
+        ]
+        result = pair_tool_calls([*existing])
+        inserted = result[2]
+        assert isinstance(inserted, ModelRequest)
+        first = inserted.parts[0]
+        assert isinstance(first, ToolReturnPart)
+        assert first.tool_call_id == "c1"
+        assert isinstance(result[3], ModelResponse)
+        assert isinstance(result[4], ModelRequest)
 
     def test_mixed_orphans_both_fixed(self) -> None:
         """Simultaneously drop orphan returns and pair orphan calls."""
@@ -173,7 +174,7 @@ class TestAppendMessagesSafely:
             _assistant(_tool_call("lonely")),  # never answered
         ]
         new = [_tool_return("ghost")]  # matches no call
-        result = append_messages_safely(existing, new)
+        result = pair_tool_calls(existing + new)
         call_ids = {
             p.tool_call_id
             for m in result
@@ -206,7 +207,7 @@ class TestAppendMessagesSafely:
             ],
         )
         new = [mixed_request]
-        result = append_messages_safely(existing, new)
+        result = pair_tool_calls(existing + new)
         # The ghost return is gone, but the user prompt survives — AND the
         # orphan call c1 got its placeholder appended to the same request.
         survivors = result[-1]
@@ -222,4 +223,4 @@ class TestAppendMessagesSafely:
         assert "c1" in return_ids
 
     def test_empty_inputs_return_empty(self) -> None:
-        assert append_messages_safely([], []) == []
+        assert pair_tool_calls([]) == []

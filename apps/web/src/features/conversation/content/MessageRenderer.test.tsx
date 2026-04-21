@@ -46,10 +46,10 @@ describe("DataPartRenderer dispatch", () => {
     expect(screen.getByRole("link", { name: "Test" })).toBeInTheDocument();
   });
 
-  it("dispatches data-gene-set-created to the correct component", () => {
+  it("dispatches data-gene-set to the correct component", () => {
     render(
       <DataPartRenderer
-        kind="data-gene-set-created"
+        kind="data-gene-set"
         data={{
           geneSetId: "gs1",
           name: "Test Set",
@@ -58,6 +58,6 @@ describe("DataPartRenderer dispatch", () => {
         }}
       />,
     );
-    expect(screen.getByTestId("data-gene-set-created")).toBeInTheDocument();
+    expect(screen.getByTestId("data-gene-set")).toBeInTheDocument();
   });
 });

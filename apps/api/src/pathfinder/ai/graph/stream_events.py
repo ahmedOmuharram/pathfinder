@@ -67,3 +67,8 @@ def supervisor_decision_event(*, to: str, reason: str) -> DataChunk:
         type="data-supervisor-decision",
         data={"to": to, "reason": reason},
     )
+
+
+def scratchpad_updated_event() -> DataChunk:
+    """Chunk that instructs the client to invalidate its scratchpad query."""
+    return DataChunk(type="data-scratchpad-updated", data={})

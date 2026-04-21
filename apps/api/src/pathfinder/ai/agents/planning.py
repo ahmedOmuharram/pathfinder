@@ -4,10 +4,12 @@ from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
 
+from pathfinder.ai.agents._history_processor import pair_tool_calls
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
     pinned_problem_frame,
+    pinned_scratchpad,
     pinned_user_memories,
 )
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
@@ -15,6 +17,7 @@ from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.state import PhaseOutcome
+from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
 from pathfinder.ai.tools.toolsets.planning import build_toolset
 from pathfinder.domain.strategy.plan import PlanStatus, StepStatus
 
@@ -89,13 +92,14 @@ planning_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
     output_type=[PhaseOutcome, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_PLANNING_INSTRUCTIONS,
-    toolsets=[build_toolset()],
+    toolsets=[build_toolset(), build_scratchpad_toolset()],
     capabilities=[
         ToolResilience(),
         _planning_hooks,
         Thinking(effort="high"),
         SecurityGuardrail(),
     ],
+    history_processors=[pair_tool_calls],
     retries=3,
     description="Creates structured execution plans from discovery findings",
     name="planning",
@@ -121,6 +125,11 @@ def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
 @planning_agent.instructions
 def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_user_memories(ctx)
+
+
+@planning_agent.instructions
+async def _pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
+    return await pinned_scratchpad(ctx)
 
 
 @planning_agent.instructions

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import get_args, get_origin
+from typing import get_args
 from uuid import uuid4
 
 import pytest
@@ -13,7 +13,6 @@ from pydantic_ai.messages import (
 )
 
 from pathfinder.ai.agents.state import SearchOverview
-from pathfinder.ai.graph.messages_reducer import append_messages_safely
 from pathfinder.ai.graph.state import (
     PHASE_NAMES,
     PhaseName,
@@ -68,15 +67,6 @@ def test_state_rejects_unknown_phase_name() -> None:
             mode="strategy",
             current_phase="bogus",  # type: ignore[arg-type]
         )
-
-
-def test_message_history_uses_tool_safe_reducer() -> None:
-    field_info = PipelineState.model_fields["message_history"]
-    metadata = field_info.metadata
-    reducer_callables = [m for m in metadata if callable(m)]
-    assert append_messages_safely in reducer_callables
-    origin = get_origin(field_info.annotation)
-    assert origin is list
 
 
 def test_state_serializes_with_pydantic_ai_messages(base_state: PipelineState) -> None:

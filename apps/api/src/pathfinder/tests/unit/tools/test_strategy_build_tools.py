@@ -59,33 +59,12 @@ def _register_search(state: AgentToolState, search_name: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_leaf_step_requires_discovery() -> None:
-    session = _make_session()
-    state = AgentToolState()
-    deps = _make_deps(session, state)
-    ctx = _make_ctx(deps)
-
-    result = await create_leaf_step(
-        ctx,
-        search_name="GenesByTaxon",
-        parameters={"organism": "Plasmodium falciparum 3D7"},
-    )
-
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "DISCOVERY_REQUIRED"
-    assert "get_search_overview" in result.message
-    assert result.details is not None
-    assert result.details["required_action"] == "get_search_overview(search_name='GenesByTaxon')"
-
-
-@pytest.mark.asyncio
 @patch("pathfinder.ai.tools.standalone.strategy_build.create_step", new_callable=AsyncMock)
-async def test_create_leaf_step_after_discovery(
+async def test_create_leaf_step(
     mock_create_step: AsyncMock,
 ) -> None:
     session = _make_session()
     state = AgentToolState()
-    _register_search(state, "GenesByTaxon")
     deps = _make_deps(session, state)
     ctx = _make_ctx(deps)
 
@@ -216,30 +195,6 @@ async def test_combine_steps_rejects_invalid_operator() -> None:
     assert isinstance(result, ToolErrorPayload)
     assert result.code == "VALIDATION_ERROR"
     assert "INTERSECT" in result.message
-
-
-@pytest.mark.asyncio
-async def test_transform_step_requires_discovery_with_params() -> None:
-    session = _make_session()
-    state = AgentToolState()
-    deps = _make_deps(session, state)
-    ctx = _make_ctx(deps)
-
-    graph = session.get_graph(None)
-    assert graph is not None
-
-    step = StrategyStepNode(search_name="GenesByTaxon", display_name="Source")
-    graph.add_step(step)
-
-    result = await transform_step(
-        ctx,
-        input_step_id=step.id,
-        transform_name="GenesByOrthologPattern",
-        parameters={"profile_pattern": "%pfal3D7:Y%"},
-    )
-
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "DISCOVERY_REQUIRED"
 
 
 @pytest.mark.asyncio

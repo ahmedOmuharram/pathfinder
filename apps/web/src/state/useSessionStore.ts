@@ -26,6 +26,10 @@ interface SessionState {
   chatPreviewVersion: number;
   pendingAskNode: NodeSelection | null;
   composerPrefill: { message: string } | null;
+  /** Text that the next-mounted ChatThread should auto-submit. */
+  pendingUserSubmission: { conversationId: string; content: string } | null;
+  /** Bumped to force a ChatThread remount after revert. */
+  chatResetCounter: number;
 
   // Stream-derived session state (from chat data-* parts)
   problemFrame: ProblemFramePart | null;
@@ -42,6 +46,10 @@ interface SessionState {
   bumpChatPreviewVersion: () => void;
   setPendingAskNode: (payload: NodeSelection | null) => void;
   setComposerPrefill: (payload: { message: string } | null) => void;
+  setPendingUserSubmission: (
+    payload: { conversationId: string; content: string } | null,
+  ) => void;
+  bumpChatResetCounter: () => void;
 
   // Stream-derived session setters (from chat data-* parts)
   setProblemFrame: (frame: ProblemFramePart) => void;
@@ -61,6 +69,8 @@ export const useSessionStore = createPersistedStore<SessionState>(
     chatPreviewVersion: 0,
     pendingAskNode: null,
     composerPrefill: null,
+    pendingUserSubmission: null,
+    chatResetCounter: 0,
 
     problemFrame: null,
     lastGeneSet: null,
@@ -117,6 +127,10 @@ export const useSessionStore = createPersistedStore<SessionState>(
       set((s) => (s.pendingAskNode === payload ? s : { pendingAskNode: payload })),
     setComposerPrefill: (payload) =>
       set((s) => (s.composerPrefill === payload ? s : { composerPrefill: payload })),
+    setPendingUserSubmission: (payload) =>
+      set({ pendingUserSubmission: payload }),
+    bumpChatResetCounter: () =>
+      set((s) => ({ chatResetCounter: s.chatResetCounter + 1 })),
 
     setProblemFrame: (frame) => set({ problemFrame: frame }),
     recordGeneSet: (geneSet) => set({ lastGeneSet: geneSet }),

@@ -472,17 +472,24 @@ export type DataPartKind =
   | "data-task-progress"
   | "data-task-completed"
   | "data-strategy-link"
+  | "data-strategy-update"
+  | "data-strategy-meta"
+  | "data-graph-snapshot"
+  | "data-graph-cleared"
+  | "data-graph-plan"
   | "data-problem-frame"
   | "data-plan-artifact"
+  | "data-decision-presented"
   | "data-tool-approval-request"
   | "data-tool-approval-result"
   | "data-memory-retrieved"
-  | "data-gene-set-created"
+  | "data-gene-set"
   | "data-verification-summary"
   | "data-conversation-title"
   | "data-turn-rejected"
   | "data-turn-qa"
-  | "data-supervisor-decision";
+  | "data-supervisor-decision"
+  | "data-scratchpad-updated";
 
 export interface DataPartPayloadMap {
   "data-phase-start": DataPhaseStartPayload;
@@ -491,17 +498,24 @@ export interface DataPartPayloadMap {
   "data-task-progress": TaskProgressStreamPart;
   "data-task-completed": TaskCompleted;
   "data-strategy-link": StrategyLink;
+  "data-strategy-update": StrategyPatch;
+  "data-strategy-meta": StrategyMeta;
+  "data-graph-snapshot": GraphSnapshot;
+  "data-graph-cleared": GraphCleared;
+  "data-graph-plan": PlanArtifact;
   "data-problem-frame": ProblemFrame;
   "data-plan-artifact": PlanArtifact;
+  "data-decision-presented": DecisionPresented;
   "data-tool-approval-request": DataToolApprovalRequestPayload;
   "data-tool-approval-result": DataToolApprovalResultPayload;
   "data-memory-retrieved": DataMemoryRetrievedPayload;
-  "data-gene-set-created": GeneSetStreamPart;
+  "data-gene-set": GeneSetStreamPart;
   "data-verification-summary": DataVerificationSummaryPayload;
   "data-conversation-title": DataConversationTitlePayload;
   "data-turn-rejected": DataTurnRejectedPayload;
   "data-turn-qa": DataTurnQaPayload;
   "data-supervisor-decision": DataSupervisorDecisionPayload;
+  "data-scratchpad-updated": Record<string, never>;
 }
 
 export type TypedDataPart<K extends DataPartKind = DataPartKind> = {

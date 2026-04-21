@@ -17,6 +17,7 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import type { DataPartKind } from "@pathfinder/shared";
 import type { ToolUIPart } from "ai";
 import {
+  AlertTriangle,
   Check,
   Copy,
   Pencil,
@@ -27,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { BranchMessageAction } from "./BranchMessageAction";
+import { EditComposerBranchOrRevert } from "./EditComposerSend";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 
@@ -170,6 +172,7 @@ export function UserMessage() {
 }
 
 export function UserEditComposer() {
+  const isLast = useMessage((s) => s.isLast);
   return (
     <motion.div {...MESSAGE_FADE_IN}>
       <Message from="user">
@@ -184,11 +187,15 @@ export function UserEditComposer() {
                 <X className="mr-1 h-3.5 w-3.5" /> Cancel
               </Button>
             </ComposerPrimitive.Cancel>
-            <ComposerPrimitive.Send asChild>
-              <Button type="button" size="sm">
-                <Check className="mr-1 h-3.5 w-3.5" /> Save
-              </Button>
-            </ComposerPrimitive.Send>
+            {isLast ? (
+              <ComposerPrimitive.Send asChild>
+                <Button type="button" size="sm">
+                  <Check className="mr-1 h-3.5 w-3.5" /> Save
+                </Button>
+              </ComposerPrimitive.Send>
+            ) : (
+              <EditComposerBranchOrRevert />
+            )}
           </div>
         </ComposerPrimitive.Root>
       </Message>
@@ -220,6 +227,55 @@ function AssistantThinkingPlaceholder() {
   );
 }
 
+const ASSISTANT_ERROR_DEFAULT = "The model couldn't finish this turn.";
+
+function selectAssistantErrorDetail(m: ThreadMessage): string | null {
+  if (m.status?.type !== "incomplete") return null;
+  if (m.status.reason === "cancelled") return null;
+  const raw = m.status.error;
+  if (typeof raw === "string" && raw.length > 0) return raw;
+  if (
+    raw !== null
+    && typeof raw === "object"
+    && "message" in raw
+    && typeof (raw as { message?: unknown }).message === "string"
+  ) {
+    return (raw as { message: string }).message;
+  }
+  return ASSISTANT_ERROR_DEFAULT;
+}
+
+function AssistantErrorCard() {
+  const detail = useMessage({
+    optional: true,
+    selector: selectAssistantErrorDetail,
+  });
+  if (typeof detail !== "string") return null;
+  return (
+    <div
+      data-testid="assistant-error-card"
+      className="my-2 flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+    >
+      <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">Response failed</p>
+        <p className="mt-0.5 break-words text-xs text-destructive/80">
+          {detail}
+        </p>
+        <ActionBarPrimitive.Reload asChild>
+          <button
+            type="button"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-background px-2 py-1 text-xs font-medium text-destructive shadow-sm transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+          >
+            <RefreshCw className="size-3" aria-hidden />
+            Try again
+          </button>
+        </ActionBarPrimitive.Reload>
+      </div>
+    </div>
+  );
+}
+
 export function AssistantMessage() {
   return (
     <motion.div {...MESSAGE_FADE_IN}>
@@ -228,8 +284,9 @@ export function AssistantMessage() {
           <ModelBadge />
           <AssistantThinkingPlaceholder />
           <MessagePrimitive.Content components={contentComponents} />
+          <AssistantErrorCard />
         </MessageContent>
-        <ActionBarPrimitive.Root asChild hideWhenRunning autohide="not-last">
+        <ActionBarPrimitive.Root asChild hideWhenRunning>
           <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             <ActionBarPrimitive.Copy asChild>
               <MessageAction tooltip="Copy response">

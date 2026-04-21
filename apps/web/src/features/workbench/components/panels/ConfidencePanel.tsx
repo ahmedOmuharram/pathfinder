@@ -2,11 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ShieldCheck } from "lucide-react";
-import type {
-  Experiment,
-  EnrichmentResult,
-  GeneConfidenceScore,
-} from "@pathfinder/shared";
+import type { Experiment, EnrichmentResult } from "@pathfinder/shared";
 import { geneConfidenceScoreResponseSchema } from "@pathfinder/shared/generated/zod/geneConfidenceScoreResponseSchema";
 import { z } from "zod";
 
@@ -98,7 +94,7 @@ export function ConfidencePanel() {
       requestJson(GeneConfidenceScoreListSchema, "/api/v1/gene-sets/confidence", {
         method: "POST",
         body: requestBody!,
-      }) as Promise<GeneConfidenceScore[]>,
+      }),
     enabled: isRelevant && requestBody != null,
     retry: false,
   });

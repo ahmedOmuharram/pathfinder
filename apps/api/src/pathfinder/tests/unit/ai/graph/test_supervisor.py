@@ -158,8 +158,22 @@ def capture_writer(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     async def _stub_resolve(state: Any, runtime: Any) -> None:
         del state, runtime
 
+    async def _stub_render(state: PipelineState, context: Any) -> str:
+        del context
+        lines: list[str] = [
+            "Pipeline state:",
+            f"- has_problem_frame: {state.problem_frame is not None}",
+        ]
+        if state.last_assistant_prose:
+            lines.append("- last_phase_prose_to_user: |")
+            lines.extend(
+                f"    {line}" for line in state.last_assistant_prose.splitlines()
+            )
+        return "\n".join(lines)
+
     monkeypatch.setattr(nodes_module, "get_stream_writer", _get_writer)
     monkeypatch.setattr(nodes_module, "_resolve_supervisor_model", _stub_resolve)
+    monkeypatch.setattr(nodes_module, "_render_supervisor_state", _stub_render)
     return captured
 
 

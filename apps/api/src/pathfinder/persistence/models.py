@@ -10,10 +10,12 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Computed,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     LargeBinary,
@@ -24,7 +26,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -452,6 +454,81 @@ class ConversationEvent(Base):
         server_default=func.now(),
         nullable=False,
     )
+
+
+class ScratchpadNote(Base):
+    """Agent-written working-memory note, conversation-scoped."""
+
+    __tablename__ = "scratchpad_notes"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    conversation_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    summary: Mapped[str] = mapped_column(String, nullable=False)
+    body: Mapped[str] = mapped_column(String, nullable=False)
+    tags: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]",
+    )
+    pinned: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false",
+    )
+    body_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    fts: Mapped[str] = mapped_column(
+        TSVECTOR,
+        Computed(
+            "setweight(to_tsvector('english', coalesce(title, '')), 'A') "
+            "|| setweight(to_tsvector('english', coalesce(summary, '')), 'B') "
+            "|| setweight(to_tsvector('english', coalesce(body, '')), 'C')",
+            persisted=True,
+        ),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+
+class ScratchpadCompaction(Base):
+    """Audit row for one scratchpad compaction run."""
+
+    __tablename__ = "scratchpad_compactions"
+    __table_args__ = (
+        CheckConstraint(
+            "trigger_reason IN ('count', 'tokens', 'both')",
+            name="ck_scratchpad_compactions_trigger_reason",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger, Identity(always=False), primary_key=True
+    )
+    conversation_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    triggered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False,
+    )
+    before_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    after_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    before_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    after_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    model_id: Mapped[str] = mapped_column(String, nullable=False)
+    cost_usd: Mapped[Decimal] = mapped_column(
+        Numeric(precision=12, scale=6), nullable=False, server_default="0",
+    )
+    trigger_reason: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class MonthlyUsage(Base):

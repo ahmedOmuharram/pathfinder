@@ -1,54 +1,30 @@
 "use client";
 
 import { useMessage, type ThreadMessage } from "@assistant-ui/react";
-import { Bot, Sparkles } from "lucide-react";
+import type { ModelProvider } from "@pathfinder/shared";
 import type { ReactElement } from "react";
 
-type ProviderSlug = "openai" | "anthropic" | "gemini" | "mistral" | "unknown";
+import { ProviderIcon } from "@/lib/components/ProviderIcon";
+import { PROVIDER_LABELS } from "@/lib/models/providerMeta";
 
 interface ParsedModel {
-  provider: ProviderSlug;
+  provider: ModelProvider | null;
   model: string;
 }
 
 function parseModelString(raw: string): ParsedModel {
-  const [first, ...rest] = raw.split(":");
-  const provider = (first ?? "").toLowerCase();
-  const model = rest.join(":");
-  if (provider === "openai" || provider === "anthropic" || provider === "mistral") {
-    return { provider, model };
+  const [head, ...rest] = raw.split(":");
+  const tail = rest.join(":");
+  const slug = (head ?? "").toLowerCase();
+  // Pydantic-AI identifies Google models with the ``google`` provider key;
+  // ``gemini`` is the model family label. Treat both as Google for display.
+  if (slug === "openai" || slug === "anthropic" || slug === "ollama" || slug === "mock") {
+    return { provider: slug, model: tail };
   }
-  if (provider === "gemini" || provider === "google") {
-    return { provider: "gemini", model };
+  if (slug === "google" || slug === "gemini") {
+    return { provider: "google", model: tail };
   }
-  return { provider: "unknown", model };
-}
-
-function providerIcon(provider: ProviderSlug): ReactElement {
-  switch (provider) {
-    case "openai":
-    case "gemini":
-      return <Sparkles className="size-3" aria-hidden />;
-    case "anthropic":
-    case "mistral":
-    case "unknown":
-      return <Bot className="size-3" aria-hidden />;
-  }
-}
-
-function providerLabel(provider: ProviderSlug): string {
-  switch (provider) {
-    case "openai":
-      return "OpenAI";
-    case "anthropic":
-      return "Anthropic";
-    case "gemini":
-      return "Gemini";
-    case "mistral":
-      return "Mistral";
-    case "unknown":
-      return "Model";
-  }
+  return { provider: null, model: raw };
 }
 
 function selectLastPhaseModel(m: ThreadMessage): string | null {
@@ -68,18 +44,23 @@ function selectLastPhaseModel(m: ThreadMessage): string | null {
 export function ModelBadge(): ReactElement | null {
   const raw = useMessage({ optional: true, selector: selectLastPhaseModel });
   if (typeof raw !== "string" || raw === "") return null;
-  const parsed = parseModelString(raw);
+  const { provider, model } = parseModelString(raw);
+  const label = provider !== null ? PROVIDER_LABELS[provider] : "Model";
   return (
     <div
       data-testid="model-badge"
       className="inline-flex items-center gap-1.5 self-start rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground"
     >
-      {providerIcon(parsed.provider)}
-      <span className="font-medium text-foreground">
-        {providerLabel(parsed.provider)}
-      </span>
-      <span aria-hidden>·</span>
-      <span className="font-mono">{parsed.model}</span>
+      {provider !== null && (
+        <ProviderIcon provider={provider} size={12} className="shrink-0" />
+      )}
+      <span className="font-medium text-foreground">{label}</span>
+      {model !== "" && (
+        <>
+          <span aria-hidden>·</span>
+          <span className="font-mono">{model}</span>
+        </>
+      )}
     </div>
   );
 }

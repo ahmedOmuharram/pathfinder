@@ -20,7 +20,7 @@ export async function listExperiments(
     ExperimentSummaryListSchema,
     "/api/v1/experiments",
     siteId != null && siteId !== "" ? { query: { siteId } } : {},
-  )) as ExperimentSummary[];
+  ));
 }
 
 export function experimentsListOptions(siteId: string) {

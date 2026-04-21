@@ -1,4 +1,4 @@
-"""Discovery-phase toolset — 14 tools for exploring searches, literature, and catalogs."""
+"""Discovery-phase toolset — tools for exploring searches, literature, and catalogs."""
 
 from pydantic_ai.toolsets.function import FunctionToolset
 
@@ -49,5 +49,5 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             think,
             search_memory,
             remember,
-    ],
+        ],
     )
