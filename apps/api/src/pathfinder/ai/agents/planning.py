@@ -7,14 +7,15 @@ from pydantic_ai.tools import RunContext
 from pathfinder.ai.agents._history_processor import pair_tool_calls
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
+    pinned_active_plan,
     pinned_graph_state,
     pinned_problem_frame,
     pinned_scratchpad,
     pinned_user_memories,
 )
+from pathfinder.ai.capabilities.orphan_audit import OrphanToolAuditor
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
-from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.state import PhaseOutcome
 from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
@@ -39,14 +40,26 @@ literature context discovered in the previous phase.
 
 2. **Create a plan**: Use `create_plan` to define the sequence of strategy \
 operations (leaf steps, combinations, transforms) needed to answer the \
-user's question.
+user's question. Call ``create_plan`` ONCE. If the pinned Active Plan \
+block already describes a plan, DO NOT call ``create_plan`` again — use \
+``update_plan`` to modify it or call ``submit_plan`` to re-present.
 
 3. **Specify parameters**: For each step in the plan, specify exact \
 parameter values based on discovery findings. Use `resolve_gene_ids_to_records` \
 if the plan requires gene ID lookups.
 
-4. **Submit for execution**: Once the plan is complete and reviewed, use \
-`submit_plan` to hand it off to the execution agent.
+4. **Submit for approval**: Once the plan is complete, call `submit_plan` \
+ONCE. ``submit_plan`` is an approval gate: it does NOT execute \
+immediately. The system halts the turn and asks the user to approve, \
+deny, or request changes. On their reply:
+
+   - **Approved** — ``submit_plan`` executes for real, returns the \
+     approved plan, and you end with \
+     ``PhaseOutcome(disposition=handoff, handoff_to=execution)``.
+   - **Denied / changes requested** — ``submit_plan`` returns a denial \
+     message describing what the user wants. Call ``update_plan`` to \
+     apply the change, then ``submit_plan`` again. End with \
+     ``disposition=awaiting_user`` for the next approval round.
 
 ## Output
 
@@ -80,9 +93,10 @@ Return exactly one ``PhaseOutcome``:
 rationale. This IS the assistant message the user reads.
 - ``reason`` (required, short): one sentence explaining your routing \
 choice.
-- ``disposition``: ``awaiting_user`` when the plan needs user review or \
-you asked a blocking question in ``prose``; ``handoff`` when the plan is \
-ready for execution.
+- ``disposition``: the system halts automatically on the ``submit_plan`` \
+approval gate; on that path you don't author a disposition at all. If \
+the user already approved and you've just finished running ``submit_plan`` \
+for real, use ``handoff`` with ``handoff_to=execution``.
 - ``handoff_to`` (optional): ``execution`` (or ``discovery`` if a gap \
 emerged).
 """
@@ -97,7 +111,7 @@ planning_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
         ToolResilience(),
         _planning_hooks,
         Thinking(effort="high"),
-        SecurityGuardrail(),
+        OrphanToolAuditor(),
     ],
     history_processors=[pair_tool_calls],
     retries=3,
@@ -120,6 +134,11 @@ def _pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
 @planning_agent.instructions
 def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return pinned_graph_state(ctx)
+
+
+@planning_agent.instructions
+def _pinned_active_plan(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_active_plan(ctx)
 
 
 @planning_agent.instructions

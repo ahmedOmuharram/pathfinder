@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import uuid4
 
-from pydantic import Field, JsonValue
+from pydantic import Field, JsonValue, model_validator
 
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -137,6 +137,20 @@ class PlannedConnection(CamelModel):
     input_type: str = "primary"
     operator: str | None = None
 
+class PlanTopologyError(ValueError):
+    """Raised when a StrategyPlan's step/connection topology is invalid."""
+
+
+def _expected_input_arity(step_type: StepType) -> int:
+    match step_type:
+        case StepType.LEAF:
+            return 0
+        case StepType.TRANSFORM:
+            return 1
+        case StepType.COMBINE:
+            return 2
+
+
 class StrategyPlan(CamelModel):
     """The full strategy plan: steps, connections, questions, metadata."""
 
@@ -152,6 +166,62 @@ class StrategyPlan(CamelModel):
     uncertainties: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=_utc_now)
     updated_at: datetime = Field(default_factory=_utc_now)
+
+    @model_validator(mode="after")
+    def _validate_topology_on_construct(self) -> "StrategyPlan":
+        self.verify_topology()
+        return self
+
+    def verify_topology(self) -> None:
+        """Validate step/connection topology. Raises ``PlanTopologyError``.
+
+        Callable after in-place mutation (``update_plan``) so model-level
+        invariants still apply to paths that don't reconstruct the model.
+        """
+        step_ids = {s.id for s in self.steps}
+
+        inbound: dict[str, int] = {s.id: 0 for s in self.steps}
+        outbound: dict[str, int] = {s.id: 0 for s in self.steps}
+        for conn in self.connections:
+            if conn.from_step not in step_ids:
+                msg = (
+                    f"Connection references non-existent step: {conn.from_step}"
+                )
+                raise PlanTopologyError(msg)
+            if conn.to_step not in step_ids:
+                msg = (
+                    f"Connection references non-existent step: {conn.to_step}"
+                )
+                raise PlanTopologyError(msg)
+            if conn.from_step == conn.to_step:
+                msg = f"Self-loop on step {conn.from_step}"
+                raise PlanTopologyError(msg)
+            inbound[conn.to_step] += 1
+            outbound[conn.from_step] += 1
+
+        for step in self.steps:
+            expected = _expected_input_arity(step.step_type)
+            actual = inbound[step.id]
+            if actual != expected:
+                msg = (
+                    f"Step {step.id!r} (type {step.step_type.value}) has "
+                    f"{actual} inbound connection(s); expected {expected}."
+                )
+                raise PlanTopologyError(msg)
+
+        roots = [sid for sid, count in outbound.items() if count == 0]
+        if len(roots) > 1:
+            msg = (
+                f"Plan has multiple roots (steps with no outgoing "
+                f"connection): {sorted(roots)}. A plan must produce a "
+                "single final step."
+            )
+            raise PlanTopologyError(msg)
+
+        try:
+            self.steps_in_dependency_order()
+        except ValueError as exc:
+            raise PlanTopologyError(str(exc)) from exc
 
     def steps_in_dependency_order(self) -> list[PlannedStep]:
         """Return steps topologically sorted so dependencies come first.

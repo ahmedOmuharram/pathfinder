@@ -14,6 +14,7 @@ import logging
 from pathfinder.ai.memory.embedding import embed_text
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.impls import register_all_tools
+from pathfinder.jobs.logging_filters import install_procrastinate_redaction
 from pathfinder.platform.logging import setup_logging
 
 
@@ -33,12 +34,13 @@ async def _warm_up() -> None:
 
 async def amain() -> None:
     setup_logging()
+    install_procrastinate_redaction()
     logging.getLogger(__name__).info("Pathfinder worker starting")
     register_all_tools()
     await _warm_up()
     async with procrastinate_app.open_async():
         await procrastinate_app.run_worker_async(
-            queues=["verification", "maintenance", "default"],
+            queues=["chat_turn", "default", "maintenance", "verification"],
             install_signal_handlers=True,
         )
 

@@ -1,28 +1,9 @@
-"""Security guardrail capability — PIGuard + invisible-text scanning.
-
-Runs PIGuard (ONNX) prompt-injection detection and invisible-text
-scanning on every model request.  No output scanning — PathFinder's
-domain (gene searches, strategy building) doesn't require toxicity,
-PII, or refusal detection.
-
-The ONNX model and tokenizer are lazy-initialized on first use so
-the filesystem hit happens only once per process lifetime.
-Initialization runs in a thread executor to avoid blocking the async
-event loop.
-"""
-
 from __future__ import annotations
 
-import asyncio
+import re
 import threading
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-
-from pydantic_ai.capabilities.abstract import AbstractCapability
-from pydantic_ai.messages import ModelRequest, UserPromptPart
-from pydantic_ai.models import ModelRequestContext
-from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.capabilities.piguard import (
     InvisibleTextScanner,
@@ -30,125 +11,129 @@ from pathfinder.ai.capabilities.piguard import (
     SecurityRejectionError,
     resolve_model_dir,
 )
-from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+_PURE_APPROVAL_BYPASS = re.compile(
+    r"""^\s*(?:
+        yes|yep|yeah|ok|okay|sure|fine|
+        approved?|proceed|go(?:\s+ahead)?|continue|
+        run\s+it|execute(?:\s+(?:it|the\s+plan))?|launch(?:\s+it)?|
+        do\s+it|confirm(?:ed)?|accept(?:ed)?|
+        sounds?\s+good|looks?\s+good|
+        perfect|great
+    )[\s\.\!\,]*$""",
+    re.IGNORECASE | re.VERBOSE,
+)
+
+_APPROVAL_CONNECTIVE_RE = re.compile(
+    r"^\s*(?P<head>[^,.\!\?]{0,40}?)\s*[,\.]\s*(?P<tail>[^,.\!\?]{0,40})[\s\.\!\?]*$",
+)
+
+_MAX_APPROVAL_LENGTH = 80
 
 
-def _extract_user_text(messages: Sequence[object]) -> str:
-    """Extract the latest user text from a message list.
+def _is_pure_approval(text: str) -> bool:
+    """Strict whitelist: the text is nothing more than an approval phrase.
 
-    Walks the message list in reverse to find the most recent
-    ``ModelRequest`` containing a ``UserPromptPart`` with string content.
-    Returns the empty string if none is found.
+    Bypassing PIGuard is only safe when the reply is demonstrably a short
+    affirmation with no room for injected instruction. This is stricter
+    than ``classify_approval_reply``, which accepts change-requests that
+    also read affirmative.
     """
-    for message in reversed(messages):
-        if not isinstance(message, ModelRequest):
-            continue
-        for part in message.parts:
-            if isinstance(part, UserPromptPart) and isinstance(part.content, str):
-                return part.content
-    return ""
-
-
-# ---------------------------------------------------------------------------
-# SecurityGuardrail capability
-# ---------------------------------------------------------------------------
-
-# Scanner protocol — both PIGuardScanner and InvisibleTextScanner satisfy it.
-_Scanner = PIGuardScanner | InvisibleTextScanner
+    stripped = text.strip()
+    if not stripped or len(stripped) > _MAX_APPROVAL_LENGTH:
+        return False
+    if _PURE_APPROVAL_BYPASS.match(stripped):
+        return True
+    match = _APPROVAL_CONNECTIVE_RE.match(stripped)
+    if match is None:
+        return False
+    head = match.group("head") or ""
+    tail = match.group("tail") or ""
+    return bool(
+        _PURE_APPROVAL_BYPASS.match(head)
+        and _PURE_APPROVAL_BYPASS.match(tail),
+    )
 
 
 @dataclass
-class SecurityGuardrail(AbstractCapability[AgentDeps]):
-    """Scans LLM inputs using PIGuard and invisible-text detection.
+class UserInputScanner:
+    """Single-scan-per-turn trust boundary for user input.
 
-    Input scanners reject prompts that trigger prompt-injection or
-    invisible-text detectors.  No output scanning is performed —
-    PathFinder's domain (gene searches, strategy building) doesn't
-    require toxicity, PII, or refusal detection.
-
-    Scanners are lazy-initialized on first use so the filesystem hit
-    happens only once per process.  Initialization is thread-safe
-    and runs in a thread executor to avoid blocking the event loop.
+    The scanners are lazy-initialised under a lock so the first caller
+    pays the onnxruntime + tokenizer load once. ``warm_up_piguard`` at
+    startup primes the OS page cache so the first real scan is fast.
     """
 
-    injection_threshold: float = 0.70
+    injection_threshold: float = 0.90
     model_dir: Path = field(default_factory=resolve_model_dir)
-
-    _scanners: list[_Scanner] = field(
-        default_factory=list, init=False, repr=False
+    _piguard: PIGuardScanner | None = field(default=None, init=False, repr=False)
+    _invisible: InvisibleTextScanner | None = field(
+        default=None, init=False, repr=False,
     )
-    _initialized: bool = field(default=False, init=False, repr=False)
-    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+    _lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False,
+    )
 
-    # -----------------------------------------------------------------------
-    # Lazy initialization (thread-safe, non-blocking)
-    # -----------------------------------------------------------------------
-
-    def _init_scanners_sync(self) -> None:
-        """Build scanners synchronously. Called from a thread executor."""
+    def _ensure_initialised(self) -> tuple[PIGuardScanner, InvisibleTextScanner]:
+        if self._piguard is not None and self._invisible is not None:
+            return self._piguard, self._invisible
         with self._lock:
-            if self._initialized:
-                return
-
-            self._scanners = [
-                PIGuardScanner(
+            if self._piguard is None:
+                self._piguard = PIGuardScanner(
                     model_dir=self.model_dir,
                     threshold=self.injection_threshold,
-                ),
-                InvisibleTextScanner(),
-            ]
-
-            self._initialized = True
-            logger.info("Security guardrail initialized (PIGuard + InvisibleText)")
-
-    async def _ensure_initialized(self) -> None:
-        """Initialize scanners if needed, without blocking the event loop."""
-        if self._initialized:
-            return
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._init_scanners_sync)
-
-    # -----------------------------------------------------------------------
-    # Input scanning (before model request)
-    # -----------------------------------------------------------------------
-
-    async def before_model_request(
-        self,
-        ctx: RunContext[AgentDeps],
-        request_context: ModelRequestContext,
-    ) -> ModelRequestContext:
-        """Scan the latest user text before sending to the model.
-
-        Raises ``SecurityRejectionError`` if any input scanner rejects.
-        """
-        await self._ensure_initialized()
-
-        user_text = _extract_user_text(request_context.messages)
-        if not user_text:
-            return request_context
-
-        for scanner in self._scanners:
-            scanner_name = type(scanner).__name__
-            _sanitized, is_valid, risk_score = scanner.scan(user_text)
-            if not is_valid:
-                logger.warning(
-                    "Input rejected by security scanner",
-                    scanner=scanner_name,
-                    risk_score=risk_score,
                 )
-                raise SecurityRejectionError(scanner_name, risk_score)
-            logger.debug(
-                "Input scanner passed",
-                scanner=scanner_name,
-                risk_score=risk_score,
-            )
+            if self._invisible is None:
+                self._invisible = InvisibleTextScanner()
+            return self._piguard, self._invisible
 
-        return request_context
+    def scan(self, text: str, *, is_approval_reply: bool = False) -> None:
+        """Scan one user message. Raise ``SecurityRejectionError`` if rejected.
+
+        When ``is_approval_reply`` is True AND ``_is_pure_approval`` matches,
+        the PIGuard scan is bypassed. Short affirmatives like "Approved.
+        Execute the plan." reliably score > 0.99 on PIGuard even though
+        they are benign in our domain. The bypass uses a strict whitelist
+        of one or two concatenated approval words — enough headroom for
+        legitimate researcher phrasing, no headroom for attacker prose.
+        """
+        if is_approval_reply and _is_pure_approval(text):
+            return
+        piguard, invisible = self._ensure_initialised()
+        piguard_name = "PIGuardScanner"
+        invisible_name = "InvisibleTextScanner"
+        _, valid, score = piguard.scan(text)
+        if not valid:
+            logger.warning(
+                "Input rejected by security scanner",
+                scanner=piguard_name,
+                risk_score=score,
+            )
+            raise SecurityRejectionError(piguard_name, score)
+        _, visible_valid, visible_score = invisible.scan(text)
+        if not visible_valid:
+            logger.warning(
+                "Input rejected by security scanner",
+                scanner=invisible_name,
+                risk_score=visible_score,
+            )
+            raise SecurityRejectionError(invisible_name, visible_score)
+
+
+_scanner = UserInputScanner()
+
+
+def scan_user_input(text: str, *, is_approval_reply: bool = False) -> None:
+    """Module-level entry point. See :meth:`UserInputScanner.scan`."""
+    _scanner.scan(text, is_approval_reply=is_approval_reply)
+
+
+__all__ = [
+    "SecurityRejectionError",
+    "UserInputScanner",
+    "scan_user_input",
+]

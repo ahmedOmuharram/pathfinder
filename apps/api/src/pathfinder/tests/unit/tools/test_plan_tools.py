@@ -403,7 +403,8 @@ async def test_update_plan_applies_step_patches() -> None:
     assert plan_before is not None
     assert plan_before.version == 1
 
-    # Apply a patch to change the organism parameter
+    # Apply a patch with a JSON-encoded list — the StepPatch validator
+    # auto-unwraps this into a real list (WDK rejects the stringified form).
     patch = StepPatch(
         step_id="step_a",
         parameters={"organism": '["Plasmodium vivax"]'},
@@ -415,11 +416,11 @@ async def test_update_plan_applies_step_patches() -> None:
     assert isinstance(payload, StrategyPlan)
     assert payload.version == 2
 
-    # Verify the parameter was actually changed
+    # Verify the parameter was unwrapped to a real list.
     patched_step = payload.steps[0]
     assert patched_step.id == "step_a"
     organism = next(p for p in patched_step.parameters if p.name == "organism")
-    assert organism.value == '["Plasmodium vivax"]'
+    assert organism.value == ["Plasmodium vivax"]
     assert organism.status == ParamStatus.SET
 
 

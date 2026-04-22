@@ -55,6 +55,7 @@ import { Button } from "@/components/ui/button";
 import { DataPartRenderer } from "./DataPartRenderer";
 import { ModelBadge } from "./ModelBadge";
 import { dataPartComponents } from "./contentComponents";
+import { ToolThink } from "./parts/ToolThink";
 
 const DATA_PREFIX = "data-" as const;
 
@@ -135,7 +136,7 @@ const UnknownDataPartError: DataMessagePartComponent<unknown> = ({ name }) => {
 const contentComponents = {
   Text,
   Reasoning: ReasoningPart,
-  tools: { Fallback: ToolCall },
+  tools: { by_name: { think: ToolThink }, Fallback: ToolCall },
   data: { by_name: dataByName, Fallback: UnknownDataPartError },
 } as const;
 

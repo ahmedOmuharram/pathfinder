@@ -107,6 +107,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Application lifespan handler."""
     settings = get_settings()
     setup_logging()
+    from pathfinder.jobs.logging_filters import (  # noqa: PLC0415
+        install_procrastinate_redaction,
+    )
+
+    install_procrastinate_redaction()
     logger.info("Starting Pathfinder API", version=__version__, env=settings.api_env)
 
     readiness = get_readiness()

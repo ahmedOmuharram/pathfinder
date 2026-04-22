@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 from collections.abc import AsyncGenerator
 from decimal import Decimal
@@ -23,6 +24,12 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_ai.settings import ModelSettings
+from pydantic_ai.tools import (
+    DeferredToolRequests,
+    DeferredToolResults,
+    ToolDenied,
+)
 from pydantic_ai.ui.vercel_ai.response_types import (
     BaseChunk,
     TextDeltaChunk,
@@ -37,6 +44,10 @@ from pathfinder.ai.agents.supervisor import (
     SupervisorTarget,
     build_supervisor_agent,
 )
+from pathfinder.ai.conversation.approval import (
+    ApprovalDecision,
+    classify_approval_reply,
+)
 from pathfinder.ai.conversation.vercel_adapter import PhaseStreamEmitter
 from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph.agents import PHASE_AGENTS
@@ -47,6 +58,7 @@ from pathfinder.ai.graph.runtime import (
     extract_state_delta,
 )
 from pathfinder.ai.graph.state import (
+    PendingApproval,
     PhaseDisposition,
     PhaseName,
     PhaseOutcome,
@@ -59,6 +71,7 @@ from pathfinder.ai.graph.stream_events import (
     supervisor_decision_event,
     turn_qa_event,
     turn_rejected_event,
+    turn_usage_event,
 )
 from pathfinder.ai.memory.autowrite import auto_write_memories
 from pathfinder.ai.memory.retrieval import retrieve_relevant_memories
@@ -233,11 +246,15 @@ async def _write_turn_message(
     state: PipelineState,
     parts: list[dict[str, Any]],
 ) -> UUID | None:
+    """Finalize the turn's assistant message row.
+
+    ``_persist_phase_progress`` already upserted progressively at each phase,
+    so this upsert replaces the partial row with the final parts and usage.
+    """
     if not parts:
         return None
     async with context.db_session_factory() as session:
-        repo = MessagesRepository(session)
-        await repo.insert_message(
+        await MessagesRepository(session).upsert_message(
             message_id=state.turn_message_id,
             conversation_id=state.conversation_id,
             role="assistant",
@@ -290,6 +307,8 @@ class _PhaseRunCapture(BaseModel):
     cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
     orphan_text_parts: list[TextPart] = Field(default_factory=list)
     prose_already_streamed: bool = False
+    pending_approval: PendingApproval | None = None
+    approval_consumed: bool = False
 
 
 def _synthesize_from_orphan_text(
@@ -338,15 +357,37 @@ def _synthesize_from_orphan_text(
 
 
 def _absorb_run_result(
-    event: AgentRunResultEvent, capture: _PhaseRunCapture,
+    event: AgentRunResultEvent,
+    capture: _PhaseRunCapture,
+    *,
+    phase: PhaseName,
+    plan_id: str | None,
 ) -> None:
     run_result = event.result
     capture.new_messages = list(run_result.new_messages())
     response = run_result.response
     if response.finish_reason:
         capture.finish_reason = response.finish_reason
-    if isinstance(run_result.output, PhaseOutcome):
-        capture.phase_outcome = run_result.output
+    output = run_result.output
+    if isinstance(output, PhaseOutcome):
+        capture.phase_outcome = output
+    elif isinstance(output, DeferredToolRequests) and output.approvals:
+        approval_call = output.approvals[0]
+        capture.pending_approval = PendingApproval(
+            phase=phase,
+            tool_call_id=approval_call.tool_call_id,
+            tool_name=approval_call.tool_name,
+            tool_args=approval_call.args_as_dict(),
+            plan_id=plan_id,
+        )
+        capture.phase_outcome = PhaseOutcome(
+            disposition=PhaseDisposition.AWAITING_USER,
+            prose=(
+                "The plan is ready for your review. Reply with 'approved' "
+                "/ 'proceed' to run it, or describe changes you'd like."
+            ),
+            reason=f"{approval_call.tool_name} awaiting user approval",
+        )
     usage = run_result.usage()
     capture.tokens = usage.total_tokens
     capture.cost_usd = cost_for_run(
@@ -373,6 +414,10 @@ def _build_phase_delta(
     delta["turn_total_cost_usd"] = state.turn_total_cost_usd + capture.cost_usd
     if capture.phase_outcome is not None:
         delta["last_phase_outcome"] = capture.phase_outcome
+    if capture.pending_approval is not None:
+        delta["pending_approval"] = capture.pending_approval
+    elif capture.approval_consumed:
+        delta["pending_approval"] = None
     delta["phase_call_counts"] = {
         **state.phase_call_counts,
         phase: state.phase_call_counts.get(phase, 0) + 1,
@@ -387,6 +432,73 @@ def _build_phase_delta(
     return delta
 
 
+def _resume_user_prompt(state: PipelineState) -> str | None:
+    """When resuming a deferred tool, the user text is already captured as
+    the approval / denial — don't re-insert it as a new UserPromptPart."""
+    if state.pending_approval is None:
+        return state.user_prompt
+    return None
+
+
+def _build_deferred_tool_results(
+    state: PipelineState,
+    phase: PhaseName,
+) -> DeferredToolResults | None:
+    approval = state.pending_approval
+    if approval is None or approval.phase != phase:
+        return None
+    decision = classify_approval_reply(state.user_prompt)
+    if decision == ApprovalDecision.APPROVED:
+        return DeferredToolResults(approvals={approval.tool_call_id: True})
+    return DeferredToolResults(
+        approvals={
+            approval.tool_call_id: ToolDenied(
+                message=f"User did not approve. Message: {state.user_prompt}",
+            ),
+        },
+    )
+
+
+def _plan_id_from_state(state: PipelineState) -> str | None:
+    return state.active_plan.id if state.active_plan is not None else None
+
+
+_OVERRIDE_MAX_TOKENS = 32_000
+"""Anthropic rejects ``max_tokens <= thinking.budget_tokens`` (default
+``max_tokens=4096``; ``Thinking(effort="high")`` budget = 16384). 32000
+covers all current ``ANTHROPIC_THINKING_BUDGET_MAP`` entries we use and
+is silently capped by OpenAI / Google.
+"""
+
+_OVERRIDE_MODEL_SETTINGS: ModelSettings = {"max_tokens": _OVERRIDE_MAX_TOKENS}
+
+
+def _override_model_settings(model_id_str: str) -> ModelSettings:
+    """Return ``model_settings`` to attach when overriding a phase agent's model."""
+    del model_id_str
+    return _OVERRIDE_MODEL_SETTINGS
+
+
+async def _resolve_phase_model_override(
+    state: PipelineState, runtime: Runtime[Context], phase: PhaseName,
+) -> str | None:
+    """Per-user phase model override, or None to keep the agent's default."""
+    if runtime.context is None:
+        return None
+    try:
+        async with runtime.context.db_session_factory() as session:
+            return await prefs_service.resolve_phase_model(
+                session, user_id=state.user_id, phase=phase,
+            )
+    except SQLAlchemyError:
+        logger.warning(
+            "failed to load phase model pref; using phase-agent default",
+            user_id=str(state.user_id),
+            phase=phase,
+        )
+        return None
+
+
 async def _run_phase_node(
     state: PipelineState,
     runtime: Runtime[Context],
@@ -398,7 +510,17 @@ async def _run_phase_node(
     writer = get_stream_writer()
     effective_memories = memories if memories is not None else state.retrieved_memories
     deps = build_node_deps(state, runtime.context, memories=effective_memories)
-    agent_model = model_id(agent)
+
+    model_override = await _resolve_phase_model_override(state, runtime, phase)
+    override_ctx = (
+        agent.override(
+            model=model_override,
+            model_settings=_override_model_settings(model_override),
+        )
+        if model_override is not None
+        else contextlib.nullcontext()
+    )
+    agent_model = model_override if model_override is not None else model_id(agent)
 
     phase_message_id = uuid4()
     _emit_chunk(
@@ -412,15 +534,24 @@ async def _run_phase_node(
 
     capture = _PhaseRunCapture()
     emitter = PhaseStreamEmitter(message_id=str(phase_message_id))
+    deferred_results = _build_deferred_tool_results(state, phase)
+    capture.approval_consumed = deferred_results is not None
+    resume_prompt = _resume_user_prompt(state)
 
     async def _agent_events() -> AsyncGenerator[AgentStreamEvent | AgentRunResultEvent[Any]]:
         async for event in agent.run_stream_events(
-            state.user_prompt,
+            resume_prompt,
             deps=deps,
             message_history=state.message_history or None,
+            deferred_tool_results=deferred_results,
         ):
             if isinstance(event, AgentRunResultEvent):
-                _absorb_run_result(event, capture)
+                _absorb_run_result(
+                    event,
+                    capture,
+                    phase=phase,
+                    plan_id=_plan_id_from_state(state),
+                )
             elif (
                 isinstance(event, PartEndEvent)
                 and isinstance(event.part, TextPart)
@@ -430,8 +561,9 @@ async def _run_phase_node(
             yield event
 
     try:
-        async for v6_chunk in emitter.chunks(_agent_events()):
-            _emit_chunk(writer, v6_chunk)
+        with override_ctx:
+            async for v6_chunk in emitter.chunks(_agent_events()):
+                _emit_chunk(writer, v6_chunk)
     except Exception:
         logger.exception(
             "phase stream raised",
@@ -465,9 +597,88 @@ async def _run_phase_node(
         _emit_chunk(writer, TextEndChunk(id=prose_chunk_id))
         new_parts.append(_text_part(capture.phase_outcome.prose))
 
+    cumulative_tokens = state.turn_total_tokens + capture.tokens
+    cumulative_cost = state.turn_total_cost_usd + capture.cost_usd
+    cumulative_parts = state.turn_message_parts + new_parts
+
+    await _persist_phase_progress(
+        runtime.context,
+        state=state,
+        capture=capture,
+        cumulative_parts=cumulative_parts,
+    )
+    _emit_chunk(
+        writer,
+        turn_usage_event(
+            total_tokens=cumulative_tokens,
+            cost_usd=str(cumulative_cost),
+        ),
+    )
+
     return _build_phase_delta(
         state=state, deps=deps, phase=phase, new_parts=new_parts, capture=capture,
     )
+
+
+async def _persist_phase_progress(
+    context: Context | None,
+    *,
+    state: PipelineState,
+    capture: _PhaseRunCapture,
+    cumulative_parts: list[dict[str, Any]],
+) -> None:
+    """Persist per-phase quota + the turn message's partial state.
+
+    Charges the user for this phase immediately (so mid-turn failures still
+    charge) and upserts the turn's assistant message so the conversation
+    detail endpoint reflects accumulated usage without waiting for
+    ``finalize_turn_node``.
+    """
+    if context is None or not cumulative_parts:
+        return
+
+    cumulative_tokens = state.turn_total_tokens + capture.tokens
+    cumulative_cost = state.turn_total_cost_usd + capture.cost_usd
+
+    async with context.db_session_factory() as session:
+        if capture.tokens > 0 or capture.cost_usd > 0:
+            try:
+                await quota_service.accumulate(
+                    session,
+                    user_id=state.user_id,
+                    tokens=capture.tokens,
+                    cost_usd=capture.cost_usd,
+                )
+            except SQLAlchemyError:
+                logger.warning(
+                    "failed to accumulate phase quota",
+                    user_id=str(state.user_id),
+                    conversation_id=str(state.conversation_id),
+                    phase=state.current_phase,
+                )
+        try:
+            await MessagesRepository(session).upsert_message(
+                message_id=state.turn_message_id,
+                conversation_id=state.conversation_id,
+                role="assistant",
+                parts=cumulative_parts,
+                metadata={
+                    "traceId": state.turn_trace_id,
+                    "createdAt": state.turn_created_at,
+                    "siteId": state.site_id,
+                    "mode": state.mode,
+                    "usage": {
+                        "totalTokens": cumulative_tokens,
+                        "costUsd": str(cumulative_cost),
+                    },
+                },
+            )
+        except SQLAlchemyError:
+            logger.warning(
+                "failed to upsert partial turn message",
+                conversation_id=str(state.conversation_id),
+            )
+        await session.commit()
 
 
 async def scoping_node(
@@ -529,29 +740,6 @@ SupervisorGoto = Literal[
 
 _END: Literal["__end__"] = "__end__"
 _FINALIZE: Literal["finalize_turn"] = "finalize_turn"
-
-
-def _waiting_for_user_reply(state: PipelineState) -> bool:
-    """True when the most recent phase has handed the turn back to the user.
-
-    Two independent signals, either sufficient:
-
-    * The phase agent called ``signal_phase_outcome(disposition=awaiting_user)``
-      — the explicit, authoritative declaration. Prefer this.
-    * Scoping left structured ``blocking_questions`` on the problem frame
-      with ``ready_for_wdk_discovery=False`` — the old structural signal,
-      kept as a belt-and-suspenders for when the scoping agent populated
-      the frame but forgot to call ``signal_phase_outcome``.
-    """
-    outcome = state.last_phase_outcome
-    if outcome is not None and outcome.disposition == PhaseDisposition.AWAITING_USER:
-        return True
-    frame = state.problem_frame
-    if frame is None:
-        return False
-    if frame.ready_for_wdk_discovery:
-        return False
-    return len(frame.blocking_questions) > 0
 
 
 async def _render_supervisor_state(
@@ -660,65 +848,128 @@ async def _resolve_supervisor_model(
         return None
 
 
-async def supervisor_node(
-    state: PipelineState, runtime: Runtime[Context]
-) -> Command[SupervisorGoto]:
-    writer = get_stream_writer()
+def _resume_pending_approval(
+    state: PipelineState, writer: Any,
+) -> Command[SupervisorGoto] | None:
+    """Short-circuit supervisor when a tool approval is pending.
 
-    if state.supervisor_call_count >= SUPERVISOR_CALL_BUDGET:
-        logger.warning(
-            "supervisor call budget exhausted",
-            conversation_id=str(state.conversation_id),
-            count=state.supervisor_call_count,
-        )
-        abort_reason = "supervisor call budget exhausted — safety abort"
-        _emit_chunk(
-            writer,
-            phase_change_event(
-                phase="completed", status="failed", reason=abort_reason,
-            ),
-        )
-        return _supervisor_finalize(
-            state,
-            abort_reason,
-            _data_part("data-phase-change", {"phase": "completed", "status": "failed", "reason": abort_reason}),
-        )
+    The pending approval implies the last turn halted on a deferred tool;
+    this turn must resume that exact phase to hand the user's reply back
+    to pydantic-ai as a ``DeferredToolResults``.
+    """
+    approval = state.pending_approval
+    if approval is None or state.phase_call_counts:
+        return None
+    reason = (
+        f"resuming {approval.tool_name} approval on {approval.phase} phase"
+    )
+    _emit_chunk(
+        writer,
+        supervisor_decision_event(to=approval.phase, reason=reason),
+    )
+    return Command(
+        goto=approval.phase,
+        update={
+            "current_phase": approval.phase,
+            "last_routing_reason": reason,
+            "supervisor_call_count": state.supervisor_call_count + 1,
+            "turn_message_parts": [
+                *state.turn_message_parts,
+                _data_part(
+                    "data-supervisor-decision",
+                    {"to": approval.phase, "reason": reason},
+                ),
+            ],
+        },
+    )
 
-    if _waiting_for_user_reply(state):
-        outcome = state.last_phase_outcome
-        halt_reason = (
-            outcome.reason
-            if outcome is not None and outcome.disposition == PhaseDisposition.AWAITING_USER
-            else "waiting for user reply — previous phase left open blocking questions"
-        )
-        _emit_chunk(writer, supervisor_decision_event(to="end", reason=halt_reason))
-        return _supervisor_finalize(
-            state,
-            halt_reason,
-            _data_part("data-supervisor-decision", {"to": "end", "reason": halt_reason}),
-        )
 
+def _supervisor_budget_exhausted(
+    state: PipelineState, writer: Any,
+) -> Command[SupervisorGoto] | None:
+    if state.supervisor_call_count < SUPERVISOR_CALL_BUDGET:
+        return None
+    logger.warning(
+        "supervisor call budget exhausted",
+        conversation_id=str(state.conversation_id),
+        count=state.supervisor_call_count,
+    )
+    abort_reason = "supervisor call budget exhausted — safety abort"
+    _emit_chunk(
+        writer,
+        phase_change_event(
+            phase="completed", status="failed", reason=abort_reason,
+        ),
+    )
+    return _supervisor_finalize(
+        state,
+        abort_reason,
+        _data_part(
+            "data-phase-change",
+            {"phase": "completed", "status": "failed", "reason": abort_reason},
+        ),
+    )
+
+
+def _supervisor_halt_on_awaiting_user(
+    state: PipelineState, writer: Any,
+) -> Command[SupervisorGoto] | None:
+    outcome = state.last_phase_outcome
+    if outcome is None or outcome.disposition != PhaseDisposition.AWAITING_USER:
+        return None
+    halt_reason = outcome.reason
+    _emit_chunk(writer, supervisor_decision_event(to="end", reason=halt_reason))
+    return _supervisor_finalize(
+        state,
+        halt_reason,
+        _data_part(
+            "data-supervisor-decision",
+            {"to": "end", "reason": halt_reason},
+        ),
+    )
+
+
+async def _run_supervisor_agent(
+    state: PipelineState, runtime: Runtime[Context],
+) -> SupervisorDecision | None:
     supervisor_model_id = await _resolve_supervisor_model(state, runtime)
     agent = build_supervisor_agent(model_id=supervisor_model_id)
     history = _supervisor_history(state)
     deps = SupervisorDeps(
         state_block=await _render_supervisor_state(state, runtime.context),
     )
-    if state.phase_call_counts:
-        user_prompt_for_run = "Decide the next action."
-    else:
-        user_prompt_for_run = state.user_prompt or "(empty user message)"
+    user_prompt_for_run = (
+        "Decide the next action."
+        if state.phase_call_counts
+        else state.user_prompt or "(empty user message)"
+    )
     try:
         result = await agent.run(
-            user_prompt_for_run,
-            deps=deps,
-            message_history=history,
+            user_prompt_for_run, deps=deps, message_history=history,
         )
     except Exception:
         logger.exception(
             "supervisor agent failed; ending turn",
             conversation_id=str(state.conversation_id),
         )
+        return None
+    return result.output
+
+
+async def supervisor_node(
+    state: PipelineState, runtime: Runtime[Context]
+) -> Command[SupervisorGoto]:
+    writer = get_stream_writer()
+    for guard in (
+        _supervisor_budget_exhausted(state, writer),
+        _resume_pending_approval(state, writer),
+        _supervisor_halt_on_awaiting_user(state, writer),
+    ):
+        if guard is not None:
+            return guard
+
+    decision = await _run_supervisor_agent(state, runtime)
+    if decision is None:
         fallback_reason = "supervisor failed — ending turn"
         _emit_chunk(
             writer,
@@ -729,10 +980,15 @@ async def supervisor_node(
         return _supervisor_finalize(
             state,
             fallback_reason,
-            _data_part("data-phase-change", {"phase": "completed", "status": "failed", "reason": fallback_reason}),
+            _data_part(
+                "data-phase-change",
+                {
+                    "phase": "completed",
+                    "status": "failed",
+                    "reason": fallback_reason,
+                },
+            ),
         )
-
-    decision: SupervisorDecision = result.output
     _emit_chunk(
         writer,
         supervisor_decision_event(to=decision.to, reason=decision.reason),
@@ -814,25 +1070,6 @@ async def finalize_turn_node(
         except SQLAlchemyError:
             logger.warning(
                 "failed to write turn message",
-                conversation_id=str(state.conversation_id),
-            )
-
-    if runtime.context is not None and (
-        state.turn_total_tokens > 0 or state.turn_total_cost_usd > 0
-    ):
-        try:
-            async with runtime.context.db_session_factory() as session:
-                await quota_service.accumulate(
-                    session,
-                    user_id=state.user_id,
-                    tokens=state.turn_total_tokens,
-                    cost_usd=state.turn_total_cost_usd,
-                )
-                await session.commit()
-        except SQLAlchemyError:
-            logger.warning(
-                "failed to accumulate quota usage",
-                user_id=str(state.user_id),
                 conversation_id=str(state.conversation_id),
             )
 

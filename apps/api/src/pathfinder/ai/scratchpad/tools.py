@@ -5,9 +5,11 @@ from uuid import UUID
 
 from pydantic import ValidationError
 from pydantic_ai.exceptions import ModelRetry
-from pydantic_ai.messages import ToolReturn
-from pydantic_ai.tools import RunContext
+from pydantic_ai.messages import ModelResponse, ToolCallPart, ToolReturn
+from pydantic_ai.tools import RunContext, ToolDefinition
+from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_ai.toolsets.function import FunctionToolset
+from pydantic_ai.toolsets.prepared import PreparedToolset
 
 from pathfinder.ai.graph.runtime import AgentDeps, DBSessionFactory
 from pathfinder.ai.graph.stream_events import scratchpad_updated_event
@@ -43,11 +45,18 @@ def _note_payload(note: Note) -> dict[str, object]:
 
 def _require_context(
     ctx: RunContext[AgentDeps],
-) -> tuple[DBSessionFactory, UUID]:
+) -> tuple[DBSessionFactory, UUID] | None:
+    """Return ``(factory, conversation_id)`` or ``None`` if unavailable.
+
+    ``None`` means the scratchpad can't be reached (missing DB or
+    conversation id). Callers must surface that to the model as a plain
+    tool-result string — a ``ModelRetry`` here would just loop the model
+    against a permanent condition.
+    """
     factory = ctx.deps.db_session_factory
     conversation_id = ctx.deps.conversation_id
     if factory is None or conversation_id is None:
-        raise ModelRetry(_MSG_MISSING_CTX)
+        return None
     return factory, conversation_id
 
 
@@ -68,7 +77,10 @@ async def note(
     Use liberally: before moving on from any promising search, save what you
     learned. Over-noting is cheaper than re-discovering.
     """
-    factory, conversation_id = _require_context(ctx)
+    ctx_or_none = _require_context(ctx)
+    if ctx_or_none is None:
+        return ToolReturn(return_value={"error": _MSG_MISSING_CTX})
+    factory, conversation_id = ctx_or_none
     try:
         data = (
             NoteCreate(title=title, summary=summary, body=body, pinned=pinned)
@@ -112,7 +124,10 @@ async def update_note(
     tags: list[str] | None = None,
 ) -> ToolReturn[dict[str, object]]:
     """Update fields on an existing note. Omitted fields are unchanged."""
-    factory, conversation_id = _require_context(ctx)
+    ctx_or_none = _require_context(ctx)
+    if ctx_or_none is None:
+        return ToolReturn(return_value={"error": _MSG_MISSING_CTX})
+    factory, conversation_id = ctx_or_none
     try:
         patch = NoteUpdate(title=title, summary=summary, body=body, tags=tags)
     except ValidationError as exc:
@@ -139,7 +154,10 @@ async def delete_note(
     ctx: RunContext[AgentDeps], note_id: str,
 ) -> ToolReturn[str]:
     """Remove a note. Use when the note is superseded by a newer one."""
-    factory, conversation_id = _require_context(ctx)
+    ctx_or_none = _require_context(ctx)
+    if ctx_or_none is None:
+        return ToolReturn(return_value=_MSG_MISSING_CTX)
+    factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
         ok = await repo.delete(conversation_id=conversation_id, note_id=note_id)
@@ -155,7 +173,10 @@ async def pin_note(
     ctx: RunContext[AgentDeps], note_id: str,
 ) -> ToolReturn[dict[str, object]]:
     """Pin a note so compaction never merges or drops it."""
-    factory, conversation_id = _require_context(ctx)
+    ctx_or_none = _require_context(ctx)
+    if ctx_or_none is None:
+        return ToolReturn(return_value={"error": _MSG_MISSING_CTX})
+    factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
         try:
@@ -174,7 +195,10 @@ async def unpin_note(
     ctx: RunContext[AgentDeps], note_id: str,
 ) -> ToolReturn[dict[str, object]]:
     """Unpin a previously pinned note."""
-    factory, conversation_id = _require_context(ctx)
+    ctx_or_none = _require_context(ctx)
+    if ctx_or_none is None:
+        return ToolReturn(return_value={"error": _MSG_MISSING_CTX})
+    factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
         try:
@@ -214,7 +238,10 @@ async def list_notes(
     the size of the whole scratchpad — distinguish "no matches" from "empty
     scratchpad" via that field.
     """
-    factory, conversation_id = _require_context(ctx)
+    ctx_or_none = _require_context(ctx)
+    if ctx_or_none is None:
+        return {"error": _MSG_MISSING_CTX, "totalNotes": 0, "matches": []}
+    factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
         notes = await repo.list_notes(
@@ -242,7 +269,15 @@ async def search_notes(
     ``matches`` with ``totalNotes > 0`` means the query didn't hit; with
     ``totalNotes == 0`` it means the scratchpad is empty.
     """
-    factory, conversation_id = _require_context(ctx)
+    ctx_or_none = _require_context(ctx)
+    if ctx_or_none is None:
+        return {
+            "error": _MSG_MISSING_CTX,
+            "totalNotes": 0,
+            "query": query,
+            "matches": [],
+        }
+    factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
         hits = await repo.search_notes(
@@ -272,7 +307,10 @@ async def read_note(
     ctx: RunContext[AgentDeps], note_id: str,
 ) -> dict[str, object]:
     """Fetch the full note (including body) by id."""
-    factory, conversation_id = _require_context(ctx)
+    ctx_or_none = _require_context(ctx)
+    if ctx_or_none is None:
+        return {"error": _MSG_MISSING_CTX}
+    factory, conversation_id = ctx_or_none
     async with factory() as session:
         repo = ScratchpadRepository(session)
         note_row = await repo.get(conversation_id=conversation_id, note_id=note_id)
@@ -298,7 +336,10 @@ async def promote_to_memory(
     pipeline at the end of successful turns, not via this tool. The
     scratchpad note stays in place; a new cross-thread memory is created.
     """
-    factory, conversation_id = _require_context(ctx)
+    ctx_or_none = _require_context(ctx)
+    if ctx_or_none is None:
+        return _MSG_MISSING_CTX
+    factory, conversation_id = ctx_or_none
     store_raw = ctx.deps.memory_store
     user_id = ctx.deps.user_id
     if store_raw is None or user_id is None:
@@ -325,9 +366,65 @@ async def promote_to_memory(
     return await mem_store.put(user_id=user_id, value=value)
 
 
-def build_scratchpad_toolset() -> FunctionToolset[AgentDeps]:
-    """Scratchpad toolset, added to every phase agent."""
-    return FunctionToolset[AgentDeps](
+_EMPTY_SCRATCHPAD_HIDDEN = frozenset({
+    "list_notes",
+    "search_notes",
+    "read_note",
+    "update_note",
+    "delete_note",
+    "pin_note",
+    "unpin_note",
+    "promote_to_memory",
+})
+
+_SCRATCHPAD_READ_TOOLS = frozenset({"search_notes", "list_notes", "read_note"})
+
+_MAX_CONSECUTIVE_READ = 2
+
+
+def _loop_hidden_read_tools(ctx: RunContext[AgentDeps]) -> frozenset[str]:
+    """Names of scratchpad read tools that should disappear this step
+    because the agent called one of them twice in a row. Hiding forces the
+    model to take a different action (``note``, ``web_search``, etc.)
+    before searching again. Only the TAIL of history matters: any non-read
+    tool (mutation or otherwise) breaks the streak and resets.
+    """
+    counts: dict[str, int] = {}
+    for msg in reversed(ctx.messages):
+        if not isinstance(msg, ModelResponse):
+            continue
+        for part in reversed(msg.parts):
+            if not isinstance(part, ToolCallPart):
+                continue
+            if part.tool_name in _SCRATCHPAD_READ_TOOLS:
+                counts[part.tool_name] = counts.get(part.tool_name, 0) + 1
+                continue
+            # Any other tool (mutation or unrelated) ends the read streak.
+            return frozenset({n for n, c in counts.items() if c >= _MAX_CONSECUTIVE_READ})
+    return frozenset({n for n, c in counts.items() if c >= _MAX_CONSECUTIVE_READ})
+
+
+async def _prepare_scratchpad_tools(
+    ctx: RunContext[AgentDeps],
+    tool_defs: list[ToolDefinition],
+) -> list[ToolDefinition]:
+    factory = ctx.deps.db_session_factory
+    conversation_id = ctx.deps.conversation_id
+    if factory is None or conversation_id is None:
+        return tool_defs
+    async with factory() as session:
+        repo = ScratchpadRepository(session)
+        total, _ = await repo.totals(conversation_id=conversation_id)
+    if total == 0:
+        return [td for td in tool_defs if td.name not in _EMPTY_SCRATCHPAD_HIDDEN]
+    loop_hidden = _loop_hidden_read_tools(ctx)
+    if not loop_hidden:
+        return tool_defs
+    return [td for td in tool_defs if td.name not in loop_hidden]
+
+
+def build_scratchpad_toolset() -> AbstractToolset[AgentDeps]:
+    base = FunctionToolset[AgentDeps](
         tools=[
             note,
             update_note,
@@ -340,3 +437,4 @@ def build_scratchpad_toolset() -> FunctionToolset[AgentDeps]:
             promote_to_memory,
         ],
     )
+    return PreparedToolset(wrapped=base, prepare_func=_prepare_scratchpad_tools)

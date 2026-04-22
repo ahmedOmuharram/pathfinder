@@ -28,7 +28,10 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.domain.strategy.types import DecodedParams
+from pathfinder.domain.strategy.types import (
+    DecodedParams,
+    unwrap_json_encoded_params,
+)
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.catalog.param_validation import ValidationCallbacks
 from pathfinder.services.strategies.step_creation import (
@@ -143,7 +146,7 @@ async def create_leaf_step(
 
     spec = StepSpec(
         search_name=search_name,
-        parameters=dict(parameters),
+        parameters=unwrap_json_encoded_params(dict(parameters)),
         record_type=record_type,
         display_name=display_name,
         _skip_auto_combine=True,
@@ -306,7 +309,11 @@ async def transform_step(
 
     spec = StepSpec(
         search_name=transform_name,
-        parameters=parameters,
+        parameters=(
+            unwrap_json_encoded_params(dict(parameters))
+            if parameters is not None
+            else None
+        ),
         primary_input_step_id=input_step_id,
         display_name=display_name,
     )

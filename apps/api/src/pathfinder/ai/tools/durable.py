@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.jobs.app import procrastinate_app
+from pathfinder.jobs.payloads import DurableTaskPayload
 from pathfinder.persistence.models import TaskProgress
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
@@ -202,10 +203,13 @@ def durable_tool(
                 name=f"durable:{tool_name}",
                 queue="verification",
             )
-            await task.defer_async(
-                task_id=str(task_id),
-                thread_id=str(deps.conversation_id),
+            dispatched_payload = DurableTaskPayload.from_context(
+                task_id=task_id,
+                thread_id=deps.conversation_id,
                 args=tool_args,
+            )
+            await task.defer_async(
+                **dispatched_payload.model_dump(mode="json", by_alias=True),
             )
 
             resumed = interrupt(

@@ -130,16 +130,6 @@ export async function setConversationSaved(
   return raw;
 }
 
-export async function setConversationSupervisorModel(
-  conversationId: string,
-  supervisorModelId: string | null,
-): Promise<void> {
-  await requestVoid(`/api/v1/conversations/${conversationId}`, {
-    method: "PATCH",
-    body: { supervisorModelId },
-  });
-}
-
 export async function forkConversation(
   sourceConversationId: string,
   fromMessageId: string,

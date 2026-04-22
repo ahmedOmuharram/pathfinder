@@ -100,7 +100,12 @@ class HTTPClient:
         self.max_keepalive_connections = int(max_keepalive_connections)
         self._client: httpx.AsyncClient | None = None
         self._client_lock = asyncio.Lock()
-        self._session_initialized = False
+        # Track which auth token initialized the current session. When the
+        # effective token changes (different user on a shared client), we
+        # re-init so the ``JSESSIONID`` cookie in the shared jar matches
+        # the new identity — otherwise WDK process queries silently return
+        # results scoped to the *previous* user.
+        self._initialized_for_token: str | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -156,7 +161,7 @@ class HTTPClient:
         if self._client and not self._client.is_closed:
             await self._client.aclose()
             self._client = None
-        self._session_initialized = False
+        self._initialized_for_token = None
 
     @retry(
         retry=retry_if_exception_type(
@@ -200,8 +205,11 @@ class HTTPClient:
             # Inject per-request into the built Request object to avoid
             # mutating the shared client cookie jar (which would race
             # between concurrent users on the same site).
-            if auth_token and not self._session_initialized:
-                self._session_initialized = True
+            if auth_token and auth_token != self._initialized_for_token:
+                # Different user on a shared client — the previous
+                # identity's JSESSIONID must not leak into this request.
+                client.cookies.delete("JSESSIONID")
+                self._initialized_for_token = auth_token
                 await self._init_wdk_session(client, auth_token)
             httpx_params = _convert_params_for_httpx(params)
             request = client.build_request(

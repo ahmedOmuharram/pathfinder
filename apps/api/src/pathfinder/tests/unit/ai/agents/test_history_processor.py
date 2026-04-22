@@ -224,3 +224,112 @@ class TestPairToolCalls:
 
     def test_empty_inputs_return_empty(self) -> None:
         assert pair_tool_calls([]) == []
+
+    def test_duplicate_returns_same_request_deduped(self) -> None:
+        """Two ToolReturnParts with the same call_id in one request keep one."""
+        existing = [
+            _user("hi"),
+            _assistant(_tool_call("c1")),
+            ModelRequest(
+                parts=[
+                    ToolReturnPart(
+                        tool_name="foo", content="first", tool_call_id="c1",
+                    ),
+                    ToolReturnPart(
+                        tool_name="foo", content="second", tool_call_id="c1",
+                    ),
+                ],
+            ),
+        ]
+        result = pair_tool_calls(existing)
+        returns = [
+            p
+            for m in result
+            for p in m.parts
+            if isinstance(p, ToolReturnPart) and p.tool_call_id == "c1"
+        ]
+        assert len(returns) == 1
+        # First occurrence wins.
+        assert returns[0].content == "first"
+
+    def test_duplicate_returns_across_requests_deduped(self) -> None:
+        """Duplicate returns spread across separate ModelRequests collapse to one."""
+        existing = [
+            _user("hi"),
+            _assistant(_tool_call("c1")),
+            _tool_return("c1"),
+            _assistant(TextPart(content="mid")),
+            _tool_return("c1"),  # duplicate, later turn
+        ]
+        result = pair_tool_calls(existing)
+        returns = [
+            p
+            for m in result
+            for p in m.parts
+            if isinstance(p, ToolReturnPart) and p.tool_call_id == "c1"
+        ]
+        assert len(returns) == 1
+
+    def test_duplicate_returns_preserve_co_located_parts(self) -> None:
+        """Deduping a return doesn't strip other parts in the same request."""
+        existing = [
+            _user("hi"),
+            _assistant(_tool_call("c1")),
+            _tool_return("c1"),
+            _assistant(TextPart(content="mid")),
+            ModelRequest(
+                parts=[
+                    ToolReturnPart(
+                        tool_name="foo", content="dup", tool_call_id="c1",
+                    ),
+                    UserPromptPart(content="new question"),
+                ],
+            ),
+        ]
+        result = pair_tool_calls(existing)
+        last = result[-1]
+        assert isinstance(last, ModelRequest)
+        part_types = [type(p).__name__ for p in last.parts]
+        # Duplicate return stripped, user prompt kept.
+        assert "ToolReturnPart" not in part_types
+        assert "UserPromptPart" in part_types
+
+    def test_duplicate_returns_with_distinct_call_ids_all_kept(self) -> None:
+        """Deduping is per-call_id — distinct ids don't collide."""
+        existing = [
+            _user("hi"),
+            _assistant(_tool_call("c1"), _tool_call("c2"), _tool_call("c3")),
+            ModelRequest(
+                parts=[
+                    ToolReturnPart(
+                        tool_name="foo", content="a", tool_call_id="c1",
+                    ),
+                    ToolReturnPart(
+                        tool_name="foo", content="b", tool_call_id="c2",
+                    ),
+                    ToolReturnPart(
+                        tool_name="foo", content="c", tool_call_id="c3",
+                    ),
+                ],
+            ),
+        ]
+        result = pair_tool_calls(existing)
+        return_ids = [
+            p.tool_call_id
+            for m in result
+            for p in m.parts
+            if isinstance(p, ToolReturnPart)
+        ]
+        assert sorted(return_ids) == ["c1", "c2", "c3"]
+
+    def test_empty_request_after_dedup_is_dropped(self) -> None:
+        """A ModelRequest that only held duplicate returns is removed entirely."""
+        existing = [
+            _user("hi"),
+            _assistant(_tool_call("c1")),
+            _tool_return("c1"),
+            _tool_return("c1"),  # sole part of its own request; fully duplicate
+        ]
+        result = pair_tool_calls(existing)
+        # Original length 4; duplicate return's request dropped → 3.
+        assert len(result) == 3

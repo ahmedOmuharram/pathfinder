@@ -14,6 +14,7 @@ import traceback
 from dataclasses import dataclass
 from typing import Any
 
+from langgraph.errors import GraphInterrupt
 from pydantic_ai.capabilities.abstract import AbstractCapability
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
 from pydantic_ai.messages import ToolCallPart
@@ -147,6 +148,11 @@ class ToolResilience(AbstractCapability[AgentDeps]):
         error: Exception,
     ) -> Any:
         """Intercept tool execution errors and route by category."""
+        # GraphInterrupt is LangGraph's control-flow signal for durable tools
+        # (the tool suspends the graph and resumes via Command(resume=...)).
+        # It is not an error and must propagate unchanged.
+        if isinstance(error, GraphInterrupt):
+            raise error
         tool_name = tool_def.name
         category = classify_error(error)
 

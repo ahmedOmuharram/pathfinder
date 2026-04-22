@@ -54,6 +54,7 @@ export function ChatView({
           key={`${conversationId}:${chatResetCounter}`}
           conversationId={conversationId}
           initialMessages={messagesQuery.data ?? []}
+          allowMissing={allowMissing}
         />
       </div>
       <RightRail

@@ -64,6 +64,7 @@ class AgentDeps(BaseModel):
     literature_search_service: SkipValidation[LiteratureSearchService] | None = None
     agent_state: AgentToolState = Field(default_factory=AgentToolState)
     problem_frame: ProblemFrame | None = None
+    problem_frame_set_this_run: bool = False
     tool_repetition_guard: ToolRepetitionGuard = Field(
         default_factory=ToolRepetitionGuard,
     )

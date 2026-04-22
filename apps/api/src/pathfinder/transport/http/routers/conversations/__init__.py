@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from . import (
     counts,
     crud,
+    events,
     revert,
     scratchpad,
     sidebar,
@@ -15,6 +16,7 @@ from . import (
 router = APIRouter()
 router.include_router(crud.router)
 router.include_router(counts.router)
+router.include_router(events.router)
 router.include_router(strategy_ast.router)
 router.include_router(wdk_import.router)
 router.include_router(sidebar.router)

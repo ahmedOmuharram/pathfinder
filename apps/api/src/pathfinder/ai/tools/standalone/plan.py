@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
+from pydantic import ValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
@@ -36,7 +37,6 @@ from pathfinder.ai.tools.standalone._plan_models import (
     _convert_step,
     _validate_domain_parameters,
     _validate_domain_topology,
-    _validate_plan_topology,
 )
 from pathfinder.ai.tools.standalone._stream_parts import (
     decision_presented_chunk,
@@ -48,6 +48,7 @@ from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.plan import (
     PlannedStep,
     PlanStatus,
+    PlanTopologyError,
     StepType,
     StrategyPlan,
     UserQuestion,
@@ -219,6 +220,25 @@ def _planned_steps_for_stream(plan: StrategyPlan) -> list[StreamPlannedStep]:
     ]
 
 
+_CREATE_PLAN_BLOCKING_STATUSES: frozenset[PlanStatus] = frozenset(
+    {PlanStatus.APPROVED, PlanStatus.EXECUTING, PlanStatus.COMPLETE},
+)
+
+
+def _topology_error_message(exc: ValidationError | PlanTopologyError) -> str:
+    if isinstance(exc, PlanTopologyError):
+        return str(exc)
+    for err in exc.errors():
+        ctx = err.get("ctx") or {}
+        inner = ctx.get("error")
+        if isinstance(inner, PlanTopologyError):
+            return str(inner)
+        msg = err.get("msg")
+        if msg:
+            return str(msg)
+    return str(exc)
+
+
 async def create_plan(
     ctx: RunContext[AgentDeps],
     title: str,
@@ -244,9 +264,17 @@ async def create_plan(
         questions: Questions for the user.
         uncertainties: Things we don't know yet.
     """
-    topology_error = _validate_plan_topology(steps, connections)
-    if topology_error is not None:
-        return topology_error
+    existing = ctx.deps.agent_state.active_plan
+    if existing is not None and existing.status in _CREATE_PLAN_BLOCKING_STATUSES:
+        return tool_error(
+            "PLAN_ALREADY_EXISTS",
+            (
+                f"A {existing.status.value} plan already exists "
+                f"(id={existing.id}, title={existing.title!r}). "
+                "Use update_plan to modify it or submit_plan to re-present."
+            ),
+            planId=existing.id,
+        )
 
     try:
         specs_by_search = await _fetch_specs_by_search(ctx.deps.site_id, steps)
@@ -265,16 +293,19 @@ async def create_plan(
     domain_connections = [_convert_connection(c) for c in connections]
     domain_questions = _merge_questions([], questions or [])
 
-    plan = StrategyPlan(
-        title=title,
-        description=description,
-        rationale=rationale,
-        status=PlanStatus.DRAFT,
-        steps=domain_steps,
-        connections=domain_connections,
-        questions=domain_questions,
-        uncertainties=uncertainties or [],
-    )
+    try:
+        plan = StrategyPlan(
+            title=title,
+            description=description,
+            rationale=rationale,
+            status=PlanStatus.DRAFT,
+            steps=domain_steps,
+            connections=domain_connections,
+            questions=domain_questions,
+            uncertainties=uncertainties or [],
+        )
+    except (ValidationError, PlanTopologyError) as exc:
+        return tool_error("TOPOLOGY_ERROR", _topology_error_message(exc))
 
     ctx.deps.agent_state.set_plan(plan)
 
@@ -468,15 +499,19 @@ async def update_plan(
 async def submit_plan(
     ctx: RunContext[AgentDeps],
 ) -> ToolReturn[StrategyPlan] | ToolErrorPayload:
-    """Submit the current plan for user review.
+    """Submit the current plan for user approval.
 
-    Validates that all leaf steps have parameters and topology is valid,
-    then presents the plan in the UI. Use after create_plan or update_plan.
-    The pipeline pauses via the v6 tool-approval flow (see Decision 9):
-    this tool carries ``requires_approval=True`` when registered, so the
-    adapter emits a ``ToolApprovalRequestChunk`` instead of completing
-    immediately. Put user-facing questions on the plan via create_plan or
-    update_plan before calling submit_plan.
+    Registered with ``requires_approval=True`` so pydantic-ai halts the
+    agent with a ``DeferredToolRequests`` on the first call. The adapter
+    emits a ``ToolApprovalRequestChunk``; the backend writes a
+    ``PendingApproval`` onto graph state and hands the turn back to the
+    user. On the next turn the agent resumes with
+    ``DeferredToolResults(approvals={id: True})`` and this body runs,
+    setting status to APPROVED. A ``ToolDenied`` result surfaces a denial
+    to the agent without running this body.
+
+    Call after create_plan or update_plan. Put user-facing questions on
+    the plan via those tools before calling submit_plan.
     """
     deps = ctx.deps
     plan = deps.agent_state.active_plan
@@ -491,7 +526,7 @@ async def submit_plan(
     if topo_err is not None:
         return topo_err
 
-    plan.status = PlanStatus.PRESENTED
+    plan.status = PlanStatus.APPROVED
     plan.updated_at = datetime.now(UTC)
 
     metadata: list[DataChunk] = [
@@ -501,13 +536,6 @@ async def submit_plan(
             rationale=plan.rationale or "",
         ),
     ]
-    # Optionally attach the proposed graph as a data-graph-plan chunk if the
-    # domain model produced one (plans with zero steps yield None).
-    proposed = _build_proposed_plan(plan)
-    if proposed is not None:
-        metadata.append(
-            DataChunk(type="data-graph-plan", data=proposed),
-        )
 
     return ToolReturn(return_value=plan, metadata=metadata)
 

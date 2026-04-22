@@ -31,6 +31,7 @@ from shared_py.stream_parts.strategy import (
     StrategyMeta,
     StrategyPatch,
 )
+from shared_py.stream_parts.turn_usage import TurnUsage
 
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -53,6 +54,7 @@ class StreamPartsSchemaIndex(CamelModel):
     gene_set: GeneSet | None = None
     optimization_snapshot: OptimizationSnapshot | None = None
     phase_change: PhaseChange | None = None
+    turn_usage: TurnUsage | None = None
     background_task_started: BackgroundTaskStarted | None = None
     task_progress: TaskProgress | None = None
     task_completed: TaskCompleted | None = None

@@ -33,7 +33,6 @@ export function DataPartRenderer({
     .with("data-strategy-meta", (k) => renderKind(k, data))
     .with("data-graph-snapshot", (k) => renderKind(k, data))
     .with("data-graph-cleared", (k) => renderKind(k, data))
-    .with("data-graph-plan", (k) => renderKind(k, data))
     .with("data-problem-frame", (k) => renderKind(k, data))
     .with("data-plan-artifact", (k) => renderKind(k, data))
     .with("data-decision-presented", (k) => renderKind(k, data))
@@ -47,5 +46,6 @@ export function DataPartRenderer({
     .with("data-turn-qa", (k) => renderKind(k, data))
     .with("data-supervisor-decision", (k) => renderKind(k, data))
     .with("data-scratchpad-updated", (k) => renderKind(k, data))
+    .with("data-turn-usage", (k) => renderKind(k, data))
     .exhaustive();
 }

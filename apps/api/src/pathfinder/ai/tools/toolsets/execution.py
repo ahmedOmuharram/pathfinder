@@ -1,7 +1,10 @@
 """Execution-phase toolset — tools for building and editing strategies."""
 
-from pydantic_ai.tools import Tool
+from pydantic_ai.messages import ModelResponse, ToolCallPart
+from pydantic_ai.tools import RunContext, Tool, ToolDefinition
+from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_ai.toolsets.function import FunctionToolset
+from pydantic_ai.toolsets.prepared import PreparedToolset
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone.conversation import (
@@ -27,18 +30,42 @@ from pathfinder.ai.tools.standalone.strategy_edit import (
 from pathfinder.ai.tools.standalone.strategy_graph import get_strategy
 from pathfinder.ai.tools.standalone.think import think
 
+_MAX_CONSECUTIVE_GET_STRATEGY = 2
 
-def build_toolset() -> FunctionToolset[AgentDeps]:
-    """Build the execution-phase toolset.
 
-    Destructive graph-mutations (``delete_step`` and ``clear_strategy``)
-    carry ``requires_approval=True`` so the v6 adapter emits a
-    ``ToolApprovalRequestChunk`` instead of executing immediately. The
-    client then prompts the user for approval before the destructive
-    operation proceeds. See design Decision 8 + chat-overhaul
-    section "Tool approvals".
+def _get_strategy_repeated_without_mutation(
+    ctx: RunContext[AgentDeps],
+) -> bool:
+    """True when the last calls in history are ``get_strategy`` repeated
+    ≥ N times with no other tool between them. Any non-``get_strategy``
+    call breaks the streak.
     """
-    return FunctionToolset(
+    consecutive = 0
+    for msg in reversed(ctx.messages):
+        if not isinstance(msg, ModelResponse):
+            continue
+        for part in reversed(msg.parts):
+            if not isinstance(part, ToolCallPart):
+                continue
+            if part.tool_name == "get_strategy":
+                consecutive += 1
+                if consecutive >= _MAX_CONSECUTIVE_GET_STRATEGY:
+                    return True
+            else:
+                return False
+    return False
+
+
+async def _prepare(
+    ctx: RunContext[AgentDeps], tool_defs: list[ToolDefinition],
+) -> list[ToolDefinition]:
+    if _get_strategy_repeated_without_mutation(ctx):
+        return [td for td in tool_defs if td.name != "get_strategy"]
+    return tool_defs
+
+
+def build_toolset() -> AbstractToolset[AgentDeps]:
+    base = FunctionToolset[AgentDeps](
         tools=[
             create_leaf_step,
             combine_steps,
@@ -57,3 +84,4 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             remember,
         ],
     )
+    return PreparedToolset(wrapped=base, prepare_func=_prepare)

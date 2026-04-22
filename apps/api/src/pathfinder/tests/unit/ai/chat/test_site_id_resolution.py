@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from pathfinder.ai.conversation.dispatcher import resolve_site_id
+from pathfinder.ai.conversation._turn_helpers import resolve_site_id
 
 
 def test_resolve_prefers_chat_site_id_over_body() -> None:

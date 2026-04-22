@@ -17,16 +17,16 @@ async def set_problem_frame(
     ctx: RunContext[AgentDeps],
     frame: ProblemFrame,
 ) -> ToolReturn[ProblemFrameResponse]:
-    """Save the current problem frame for downstream discovery and planning.
-
-    Call this exactly once near the end of scoping. If the request is still
-    ambiguous, set ``ready_for_wdk_discovery`` to false and include concise
-    blocking questions. If it is clear enough to explore WDK, set it to true
-    and record any assumptions the next phases should preserve.
+    """Save the problem frame. ONE-SHOT — after this call the tool is
+    removed from your toolset and you cannot amend the frame further in this
+    turn. Do all your ``think``/``web_search``/``literature_search`` BEFORE
+    calling this. Populate ``blocking_questions`` now if the prompt is
+    ambiguous; you will not get another chance.
     """
     confidence = max(0.0, min(1.0, frame.confidence))
     normalized = frame.model_copy(update={"confidence": confidence})
     ctx.deps.problem_frame = normalized
+    ctx.deps.problem_frame_set_this_run = True
     return ToolReturn(
         return_value=ProblemFrameResponse(problem_frame=normalized),
         metadata=[problem_frame_chunk(normalized, site_id=ctx.deps.site_id)],

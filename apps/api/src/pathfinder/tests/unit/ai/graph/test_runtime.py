@@ -60,6 +60,7 @@ def test_agent_deps_is_pydantic_and_lists_live_fields() -> None:
         "literature_search_service",
         "agent_state",
         "problem_frame",
+        "problem_frame_set_this_run",
         "tool_repetition_guard",
         "experiment_id",
         "cancel_event",

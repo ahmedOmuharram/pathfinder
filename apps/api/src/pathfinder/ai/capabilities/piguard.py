@@ -115,11 +115,10 @@ class InvisibleTextScanner:
 
 
 def warm_up_piguard() -> None:
-    """Instantiate a PIGuardScanner so the ONNX session + tokenizer are loaded.
+    """Prime the ONNX session + tokenizer at startup.
 
-    The first request otherwise pays a 3-7s cold-load penalty inside the
-    per-agent ``SecurityGuardrail._init_scanners_sync``. Calling this at
-    startup warms the OS page cache and the onnxruntime library, so
-    subsequent construction in each agent's capability is fast.
+    The first request otherwise pays a 3-7s cold-load penalty when
+    ``UserInputScanner`` lazy-initialises its scanners. Calling this at
+    startup warms the OS page cache and the onnxruntime library.
     """
     PIGuardScanner(model_dir=resolve_model_dir())

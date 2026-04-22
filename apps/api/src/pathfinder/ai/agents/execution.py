@@ -12,9 +12,9 @@ from pathfinder.ai.agents._instructions import (
     pinned_scratchpad,
     pinned_user_memories,
 )
+from pathfinder.ai.capabilities.orphan_audit import OrphanToolAuditor
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
-from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.state import PhaseOutcome
 from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
@@ -94,7 +94,7 @@ execution_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
         ToolResilience(),
         _execution_hooks,
         Thinking(effort="medium"),
-        SecurityGuardrail(),
+        OrphanToolAuditor(),
     ],
     history_processors=[pair_tool_calls],
     retries=3,

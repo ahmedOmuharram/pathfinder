@@ -1,9 +1,13 @@
 "use client";
 
-import { DefaultChatTransport, type UIMessage } from "ai";
-import { useChatRuntime as useAssistantUIChatRuntime } from "@assistant-ui/react-ai-sdk";
+import { type UIMessage } from "ai";
+import {
+  useChatRuntime as useAssistantUIChatRuntime,
+  type UseChatRuntimeOptions,
+} from "@assistant-ui/react-ai-sdk";
 import { useQueryClient } from "@tanstack/react-query";
 
+import type { Strategy } from "@pathfinder/shared";
 import { decisionPresentedSchema } from "@pathfinder/shared/generated/zod/decisionPresentedSchema";
 import { geneSetSchema } from "@pathfinder/shared/generated/zod/geneSetSchema";
 import { graphClearedSchema } from "@pathfinder/shared/generated/zod/graphClearedSchema";
@@ -12,9 +16,13 @@ import { planArtifactSchema } from "@pathfinder/shared/generated/zod/planArtifac
 import { problemFrameSchema } from "@pathfinder/shared/generated/zod/problemFrameSchema";
 import { strategyMetaSchema } from "@pathfinder/shared/generated/zod/strategyMetaSchema";
 import { strategyPatchSchema } from "@pathfinder/shared/generated/zod/strategyPatchSchema";
+import { turnUsageSchema } from "@pathfinder/shared/generated/zod/turnUsageSchema";
 
 import { getAuthHeaders } from "@/lib/api/http";
-import { conversationListOptions } from "@/lib/api/conversations";
+import {
+  conversationDetailOptions,
+  conversationListOptions,
+} from "@/lib/api/conversations";
 import { userQuotaQueryKey } from "@/lib/api/quota";
 import { scratchpadNotesOptions } from "@/lib/api/scratchpad";
 import { usePlanStore } from "@/state/usePlanStore";
@@ -22,11 +30,13 @@ import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
 
 import { buildChatRequestBody } from "./buildRequestBody";
+import { DurableChatTransport } from "./DurableChatTransport";
 import { createFeedbackAdapter } from "./feedbackAdapter";
 
 interface UseChatRuntimeArgs {
   conversationId: string;
   initialMessages?: UIMessage[];
+  allowMissing?: boolean;
 }
 
 const chatIdsWithRewrittenUrl = new Set<string>();
@@ -34,6 +44,7 @@ const chatIdsWithRewrittenUrl = new Set<string>();
 export function useChatRuntime({
   conversationId,
   initialMessages,
+  allowMissing = false,
 }: UseChatRuntimeArgs) {
   const queryClient = useQueryClient();
   const invalidateConversationList = () => {
@@ -42,8 +53,13 @@ export function useChatRuntime({
       queryKey: conversationListOptions(siteId).queryKey,
     });
   };
-  return useAssistantUIChatRuntime({
+  // `resume` isn't on the public UseChatRuntimeOptions type but is spread
+  // through to the underlying useChat at runtime.
+  const runtimeOptions: UseChatRuntimeOptions<UIMessage> & {
+    resume?: boolean;
+  } = {
     id: conversationId,
+    resume: !allowMissing,
     ...(initialMessages !== undefined && { messages: initialMessages }),
     adapters: { feedback: createFeedbackAdapter() },
     onData: (dataPart) => {
@@ -75,11 +91,23 @@ export function useChatRuntime({
           useStrategyStore
             .getState()
             .applyGraphSnapshot(graphSnapshotSchema.parse(dataPart.data));
+          // The StrategyPanel reads the full Strategy shape from the
+          // conversation-detail query; the snapshot payload is a compact
+          // nodes/edges summary, not a full Strategy. Invalidate so the
+          // panel refetches the authoritative AST from the server as the
+          // turn builds the strategy — otherwise users only see the
+          // strategy after manually refreshing.
+          void queryClient.invalidateQueries({
+            queryKey: conversationDetailOptions(conversationId).queryKey,
+          });
           break;
         case "data-strategy-update":
           useStrategyStore
             .getState()
             .applyPatch(strategyPatchSchema.parse(dataPart.data));
+          void queryClient.invalidateQueries({
+            queryKey: conversationDetailOptions(conversationId).queryKey,
+          });
           break;
         case "data-strategy-meta":
           useStrategyStore
@@ -89,10 +117,28 @@ export function useChatRuntime({
         case "data-graph-cleared":
           graphClearedSchema.parse(dataPart.data);
           useStrategyStore.getState().clear();
+          void queryClient.invalidateQueries({
+            queryKey: conversationDetailOptions(conversationId).queryKey,
+          });
           break;
         case "data-decision-presented":
           decisionPresentedSchema.parse(dataPart.data);
           break;
+        case "data-turn-usage": {
+          const usage = turnUsageSchema.parse(dataPart.data);
+          const detailKey =
+            conversationDetailOptions(conversationId).queryKey;
+          queryClient.setQueryData<Strategy | null>(detailKey, (prev) =>
+            prev == null
+              ? prev
+              : {
+                  ...prev,
+                  totalTokens: usage.totalTokens,
+                  totalCostUsd: usage.costUsd,
+                },
+          );
+          break;
+        }
       }
     },
     onFinish: () => {
@@ -105,7 +151,9 @@ export function useChatRuntime({
       invalidateConversationList();
       void queryClient.invalidateQueries({ queryKey: userQuotaQueryKey });
     },
-    transport: new DefaultChatTransport({
+    transport: new DurableChatTransport({
+      conversationId,
+      eventsUrlFor: (id) => `/api/v1/conversations/${id}/events`,
       api: "/api/v1/chat",
       headers: () =>
         getAuthHeaders({
@@ -135,5 +183,6 @@ export function useChatRuntime({
         };
       },
     }),
-  });
+  };
+  return useAssistantUIChatRuntime(runtimeOptions);
 }

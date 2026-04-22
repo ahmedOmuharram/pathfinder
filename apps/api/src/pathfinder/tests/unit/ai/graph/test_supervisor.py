@@ -271,9 +271,10 @@ async def test_supervisor_halts_without_llm_when_blocking_questions_open(
     capture_writer: list[dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When a phase leaves open blocking questions, supervisor must end the
-    turn deterministically — without invoking the LLM — so the user can
-    reply. Prevents the discovery/planning drift we saw in production."""
+    """When the most recent phase emitted ``disposition=awaiting_user``,
+    supervisor must end the turn deterministically — without invoking the
+    LLM — so the user can reply. Prevents the discovery/planning drift we
+    saw in production."""
 
     def _no_llm(provider: Any = None) -> Agent[None, SupervisorDecision]:
         del provider
@@ -294,11 +295,17 @@ async def test_supervisor_halts_without_llm_when_blocking_questions_open(
             ),
         ],
     )
+    outcome = PhaseOutcome(
+        disposition=PhaseDisposition.AWAITING_USER,
+        prose="I need two clarifications before proceeding.",
+        reason="blocking questions on transporter class and life stage remain open",
+    )
     state = _state(
         supervisor_call_count=1,
         current_phase="scoping",
         phase_call_counts={"scoping": 1},
         problem_frame=frame,
+        last_phase_outcome=outcome,
     )
     runtime = _Runtime(context=None)
 
@@ -307,7 +314,7 @@ async def test_supervisor_halts_without_llm_when_blocking_questions_open(
     assert cmd.goto == "finalize_turn"
     update = cmd.update
     assert isinstance(update, dict)
-    assert "waiting" in update["last_routing_reason"].lower()
+    assert update["last_routing_reason"] == outcome.reason
     assert "current_phase" not in update  # leaving phase unchanged
 
     decisions = [

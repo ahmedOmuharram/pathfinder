@@ -1,0 +1,198 @@
+from __future__ import annotations
+
+import asyncio
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
+
+from pydantic_ai.ui.vercel_ai.response_types import (
+    DoneChunk,
+    ErrorChunk,
+    FinishChunk,
+    StartChunk,
+)
+
+from pathfinder.ai.conversation._turn_helpers import (
+    _build_runtime_context,
+    _build_turn_input,
+    _extract_chunk,
+    _interrupt_chunks,
+    resolve_site_id,
+)
+from pathfinder.ai.conversation.event_writer import ChatEventWriter
+from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.ai.conversation.title_generator import generate_conversation_title
+from pathfinder.ai.graph.stream_events import conversation_title_event
+from pathfinder.persistence.repositories import ConversationRepository
+from pathfinder.persistence.repositories.conversation import ConversationUpdate
+from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class _DriveResult:
+    saw_interrupt: bool = False
+    encountered_error: bool = False
+    title_emitted: bool = False
+
+
+async def run_turn(
+    *,
+    body: ChatRequestBody,
+    user_id: UUID,
+    compiled_graph: Any,
+    memory_store: Any,
+    writer: ChatEventWriter,
+) -> None:
+    """Drive one chat turn to completion, writing chunks through ``writer``.
+
+    Runs to completion regardless of client state — no disconnect cancellation.
+    The procrastinate worker that calls this coroutine is the owner; any client
+    reattaches via the events SSE endpoint in a later task.
+    """
+    async with async_session_factory() as session:
+        conversation = await ConversationRepository(session).get_by_id(
+            body.conversation_id,
+        )
+    effective_site_id = resolve_site_id(
+        chat_site_id=conversation.site_id if conversation is not None else None,
+        body_site_id=body.site_id,
+        conversation_id=body.conversation_id,
+    )
+    body = body.model_copy(update={"site_id": effective_site_id})
+    runtime_context = _build_runtime_context(
+        conversation=conversation,
+        site_id=effective_site_id,
+        user_id=user_id,
+        memory_store=memory_store,
+    )
+
+    turn_message_id = writer.turn_id
+    await writer.write(
+        StartChunk(message_id=str(turn_message_id)).model_dump(
+            by_alias=True, mode="json", exclude_none=True,
+        ),
+    )
+
+    title_task: asyncio.Task[str] | None = None
+    if body.last_user_text.strip():
+        title_task = asyncio.create_task(
+            generate_conversation_title(body.last_user_text),
+        )
+
+    result = await _drive_graph(
+        body=body,
+        user_id=user_id,
+        compiled_graph=compiled_graph,
+        runtime_context=runtime_context,
+        title_task=title_task,
+        writer=writer,
+    )
+
+    if title_task is not None and not result.title_emitted:
+        async for t in _emit_title(title_task, body.conversation_id):
+            await writer.write(t)
+
+    finish_reason = (
+        "error" if result.encountered_error
+        else "other" if result.saw_interrupt
+        else "stop"
+    )
+    await writer.write(
+        FinishChunk(finish_reason=finish_reason).model_dump(
+            by_alias=True, mode="json", exclude_none=True,
+        ),
+    )
+    await writer.write(
+        DoneChunk().model_dump(by_alias=True, mode="json", exclude_none=True),
+    )
+
+
+async def _drive_graph(
+    *,
+    body: ChatRequestBody,
+    user_id: UUID,
+    compiled_graph: Any,
+    runtime_context: Any,
+    title_task: asyncio.Task[str] | None,
+    writer: ChatEventWriter,
+) -> _DriveResult:
+    result = _DriveResult()
+    graph_input = _build_turn_input(body, user_id, turn_message_id=writer.turn_id)
+    thread_config = {
+        "configurable": {"thread_id": str(body.conversation_id)},
+        "metadata": {
+            "turn_id": str(body.last_user_message_id),
+            "user_prompt_preview": body.last_user_text[:120],
+        },
+    }
+    try:
+        async for mode, payload in compiled_graph.astream(
+            graph_input,
+            config=thread_config,
+            context=runtime_context,
+            stream_mode=["custom", "updates"],
+        ):
+            if mode == "custom":
+                await _handle_custom(payload, title_task, body.conversation_id, result, writer)
+            elif mode == "updates":
+                for interrupt_chunk in _interrupt_chunks(payload):
+                    result.saw_interrupt = True
+                    await writer.write(interrupt_chunk)
+    except Exception as exc:
+        result.encountered_error = True
+        logger.exception(
+            "Turn runner failed",
+            conversation_id=str(body.conversation_id),
+            user_id=str(user_id),
+            error_type=type(exc).__name__,
+        )
+        await writer.write(
+            ErrorChunk(error_text=f"{type(exc).__name__}: {exc}").model_dump(
+                by_alias=True, mode="json", exclude_none=True,
+            ),
+        )
+    return result
+
+
+async def _handle_custom(
+    payload: object,
+    title_task: asyncio.Task[str] | None,
+    conversation_id: UUID,
+    result: _DriveResult,
+    writer: ChatEventWriter,
+) -> None:
+    chunk = _extract_chunk(payload)
+    if chunk is not None:
+        await writer.write(chunk)
+    if not result.title_emitted and title_task is not None and title_task.done():
+        async for t in _emit_title(title_task, conversation_id):
+            await writer.write(t)
+            result.title_emitted = True
+
+
+async def _emit_title(
+    title_task: asyncio.Task[str], conversation_id: UUID,
+) -> AsyncGenerator[dict[str, Any]]:
+    try:
+        title = await title_task
+    except Exception:
+        logger.exception("Conversation title generation failed")
+        return
+    if not title:
+        return
+    async with async_session_factory() as session:
+        repo = ConversationRepository(session)
+        conversation = await repo.get_by_id(conversation_id)
+        if conversation is not None and conversation.name:
+            return
+        await repo.update_conversation(
+            conversation_id, ConversationUpdate(name=title),
+        )
+        await session.commit()
+    yield conversation_title_event(title=title).model_dump(
+        by_alias=True, mode="json", exclude_none=True,
+    )

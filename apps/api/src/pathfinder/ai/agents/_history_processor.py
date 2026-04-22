@@ -8,6 +8,7 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    RetryPromptPart,
     ToolCallPart,
     ToolReturnPart,
 )
@@ -24,35 +25,58 @@ _PLACEHOLDER_CONTENT = (
 
 def _collect_ids(
     messages: Sequence[ModelMessage],
-) -> tuple[set[str], set[str]]:
+) -> tuple[set[str], set[str], bool]:
+    """Return ``(call_ids, satisfied_ids, has_duplicate_returns)``.
+
+    A tool call is *satisfied* by either a ``ToolReturnPart`` (normal
+    result) or a ``RetryPromptPart`` carrying the same ``tool_call_id``.
+    When a tool raises ``ModelRetry``, pydantic-ai adds a ``RetryPromptPart``
+    (no ``ToolReturnPart``) — the call is not orphan.
+    """
     call_ids: set[str] = set()
-    return_ids: set[str] = set()
+    satisfied_ids: set[str] = set()
+    seen_returns: set[str] = set()
+    has_duplicates = False
     for msg in messages:
         for part in msg.parts:
             if isinstance(part, ToolCallPart):
                 call_ids.add(part.tool_call_id)
             elif isinstance(part, ToolReturnPart):
-                return_ids.add(part.tool_call_id)
-    return call_ids, return_ids
+                satisfied_ids.add(part.tool_call_id)
+                if part.tool_call_id in seen_returns:
+                    has_duplicates = True
+                seen_returns.add(part.tool_call_id)
+            elif isinstance(part, RetryPromptPart) and part.tool_call_id:
+                satisfied_ids.add(part.tool_call_id)
+    return call_ids, satisfied_ids, has_duplicates
 
 
-def _drop_orphan_returns(
+def _drop_orphan_and_duplicate_returns(
     messages: Sequence[ModelMessage],
     orphan_return_ids: set[str],
 ) -> list[ModelMessage]:
+    """Remove tool returns that have no matching call AND dedupe returns.
+
+    Anthropic's API rejects multiple ``tool_result`` blocks for the same
+    ``tool_use_id``; OpenAI silently tolerates them but downstream logic
+    breaks. Keep the FIRST occurrence of each tool_call_id and drop later
+    duplicates.
+    """
+    seen_return_ids: set[str] = set()
     cleaned: list[ModelMessage] = []
     for msg in messages:
         if not isinstance(msg, ModelRequest):
             cleaned.append(msg)
             continue
-        kept_parts = [
-            p
-            for p in msg.parts
-            if not (
-                isinstance(p, ToolReturnPart)
-                and p.tool_call_id in orphan_return_ids
-            )
-        ]
+        kept_parts: list[object] = []
+        for p in msg.parts:
+            if isinstance(p, ToolReturnPart):
+                if p.tool_call_id in orphan_return_ids:
+                    continue
+                if p.tool_call_id in seen_return_ids:
+                    continue
+                seen_return_ids.add(p.tool_call_id)
+            kept_parts.append(p)
         if not kept_parts:
             continue
         if len(kept_parts) == len(msg.parts):
@@ -115,19 +139,20 @@ def _inject_placeholder_returns(
 
 def pair_tool_calls(messages: list[ModelMessage]) -> list[ModelMessage]:
     """Return a cleaned copy of ``messages`` with tool-call/return pairing fixed."""
-    call_ids, return_ids = _collect_ids(messages)
-    orphan_return_ids = return_ids - call_ids
-    orphan_call_ids = call_ids - return_ids
+    call_ids, satisfied_ids, has_duplicates = _collect_ids(messages)
+    orphan_return_ids = satisfied_ids - call_ids
+    orphan_call_ids = call_ids - satisfied_ids
 
-    if not orphan_return_ids and not orphan_call_ids:
+    if not orphan_return_ids and not orphan_call_ids and not has_duplicates:
         return list(messages)
 
     logger.warning(
         "message_history integrity correction applied",
         orphan_return_ids=sorted(orphan_return_ids),
         orphan_call_ids=sorted(orphan_call_ids),
+        has_duplicate_returns=has_duplicates,
         total_messages=len(messages),
     )
 
-    cleaned = _drop_orphan_returns(messages, orphan_return_ids)
+    cleaned = _drop_orphan_and_duplicate_returns(messages, orphan_return_ids)
     return _inject_placeholder_returns(cleaned, orphan_call_ids)

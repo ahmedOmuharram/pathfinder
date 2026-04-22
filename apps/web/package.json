@@ -62,6 +62,7 @@
     "date-fns": "^4.1.0",
     "elkjs": "^0.11.1",
     "embla-carousel-react": "^8.6.0",
+    "eventsource-parser": "^3.0.6",
     "immer": "^11.1.4",
     "json-diff-kit": "^1.0.35",
     "lucide-react": "^1.8.0",

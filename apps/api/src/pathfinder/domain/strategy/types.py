@@ -16,6 +16,7 @@ Encoding/decoding between the two lives in
 
 from __future__ import annotations
 
+import json
 from typing import Protocol
 
 from pydantic import JsonValue
@@ -24,6 +25,33 @@ from pathfinder.domain.strategy.validation import StepValidation
 
 DecodedParams = dict[str, JsonValue]
 WireParams = dict[str, str]
+
+_MIN_JSON_WRAPPER_LEN = 2
+
+
+def unwrap_json_encoded_params(params: DecodedParams) -> DecodedParams:
+    """Unwrap string values that are JSON-encoded lists/objects.
+
+    Models sometimes emit ``{"organism": "[\\"X\\"]"}`` — a string that is
+    itself a JSON array — instead of the raw list. WDK rejects the string
+    form. Apply this at every LLM-facing entry point that accepts
+    ``DecodedParams``.
+    """
+    out: DecodedParams = {}
+    for k, v in params.items():
+        if (
+            isinstance(v, str)
+            and len(v) >= _MIN_JSON_WRAPPER_LEN
+            and v[0] in "[{"
+            and v[-1] in "]}"
+        ):
+            try:
+                out[k] = json.loads(v)
+                continue
+            except (json.JSONDecodeError, ValueError):
+                pass
+        out[k] = v
+    return out
 
 
 class SyncStateProtocol(Protocol):

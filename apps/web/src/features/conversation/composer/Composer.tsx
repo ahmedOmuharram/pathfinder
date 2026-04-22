@@ -18,8 +18,6 @@ import { parseSlashInput } from "@/features/conversation/slash/parser";
 import { conversationDetailOptions } from "@/lib/api/conversations";
 import { useSessionStore } from "@/state/useSessionStore";
 
-import { OrchestratorPill } from "./OrchestratorPill";
-
 const tokensCompact = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
@@ -49,15 +47,12 @@ function ConversationUsageFooter({ conversationId }: { conversationId: string })
   const { data } = useQuery(conversationDetailOptions(conversationId));
   const tokens = data?.totalTokens ?? 0;
   const cost = Number(data?.totalCostUsd ?? 0);
-  const showUsage = tokens > 0 || cost > 0;
+  if (tokens === 0 && cost === 0) return null;
   return (
     <div className="flex items-center gap-2 px-1 pt-1">
-      <OrchestratorPill conversationId={conversationId} />
-      {showUsage && (
-        <span className="text-[11px] text-muted-foreground">
-          {tokensCompact.format(tokens)} tokens · {formatCost(cost)}
-        </span>
-      )}
+      <span className="text-[11px] text-muted-foreground">
+        {tokensCompact.format(tokens)} tokens · {formatCost(cost)}
+      </span>
     </div>
   );
 }

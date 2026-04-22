@@ -7,7 +7,14 @@ type JSONArray = list[JsonValue]
 
 ModelProvider = Literal["openai", "anthropic", "google", "ollama", "mock"]
 ReasoningEffort = Literal["none", "low", "medium", "high"]
-TierName = Literal["quality", "balanced", "fast"]
+TierName = Literal["quality", "balanced", "fast", "custom"]
+
+PipelinePhase = Literal[
+    "scoping", "discovery", "planning", "execution", "verification",
+]
+PIPELINE_PHASES: tuple[PipelinePhase, ...] = (
+    "scoping", "discovery", "planning", "execution", "verification",
+)
 
 
 def as_json_object(value: JsonValue) -> JSONObject:

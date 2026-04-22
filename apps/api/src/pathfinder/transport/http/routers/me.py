@@ -31,7 +31,10 @@ async def get_my_preferences(
     session: DBSession, user_id: CurrentUser,
 ) -> UserPreferencesResponse:
     prefs = await prefs_service.get_preferences(session, user_id)
-    return UserPreferencesResponse(supervisor_model_id=prefs.supervisor_model_id)
+    return UserPreferencesResponse(
+        supervisor_model_id=prefs.supervisor_model_id,
+        pipeline_config=prefs.pipeline_config,
+    )
 
 
 @router.patch("/preferences", response_model=UserPreferencesResponse)
@@ -45,4 +48,7 @@ async def update_my_preferences(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc),
         ) from exc
-    return UserPreferencesResponse(supervisor_model_id=prefs.supervisor_model_id)
+    return UserPreferencesResponse(
+        supervisor_model_id=prefs.supervisor_model_id,
+        pipeline_config=prefs.pipeline_config,
+    )

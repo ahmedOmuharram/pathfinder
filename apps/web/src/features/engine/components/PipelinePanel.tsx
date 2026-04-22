@@ -1,11 +1,25 @@
-import type { ModelCatalogEntry, ModelProvider, PipelinePhase, TierName } from "@pathfinder/shared";
-import { useShallow } from "zustand/react/shallow";
-import { normalizePipelineConfig, useEngineStore } from "@/state/useEngineStore";
-import { PhaseCard } from "./PhaseCard";
-import { OrchestratorSelect } from "./OrchestratorSelect";
+"use client";
+
+import type {
+  ModelCatalogEntry,
+  ModelProvider,
+  PipelinePhase,
+  ReasoningEffort,
+  TierName,
+} from "@pathfinder/shared";
+import type { PipelineConfigPayload } from "@pathfinder/shared/generated/types/PipelineConfigPayload";
 import { ChevronDown } from "lucide-react";
 
-const PHASES: PipelinePhase[] = ["scoping", "discovery", "planning", "execution", "verification"];
+import { OrchestratorSelect } from "./OrchestratorSelect";
+import { PhaseCard } from "./PhaseCard";
+
+const PHASES: PipelinePhase[] = [
+  "scoping",
+  "discovery",
+  "planning",
+  "execution",
+  "verification",
+];
 const PHASE_TRANSITIONS: Record<string, string> = {
   "scoping→discovery": "Problem frame",
   "discovery→planning": "Findings",
@@ -26,35 +40,32 @@ const PROVIDER_OPTIONS: { value: ModelProvider; label: string }[] = [
 
 interface PipelinePanelProps {
   models: ModelCatalogEntry[];
+  config: PipelineConfigPayload;
   selectedPhase: PipelinePhase | null;
   onSelectPhase: (phase: PipelinePhase) => void;
   onProviderChange: (provider: ModelProvider) => void;
   onTierChange: (tier: TierName) => void;
+  onEffortChange: (phase: PipelinePhase, effort: ReasoningEffort) => void;
 }
 
 export function PipelinePanel({
   models,
+  config,
   selectedPhase,
   onSelectPhase,
   onProviderChange,
   onTierChange,
+  onEffortChange,
 }: PipelinePanelProps) {
-  const { provider, tier, phases, setPhaseEffort } = useEngineStore(
-    useShallow((s) => ({
-      provider: s.provider,
-      tier: s.tier,
-      phases: s.phases,
-      setPhaseEffort: s.setPhaseEffort,
-    })),
-  );
+  const { provider, tier, phases } = config;
   const isOllama = provider === "ollama";
-  const normalizedPhases = normalizePipelineConfig(phases);
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">
-      {/* Provider */}
       <div>
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">Provider</label>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          Provider
+        </label>
         <select
           value={provider}
           onChange={(e) => onProviderChange(e.target.value as ModelProvider)}
@@ -68,9 +79,10 @@ export function PipelinePanel({
         </select>
       </div>
 
-      {/* Tier */}
       <div>
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">Tier</label>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+          Tier
+        </label>
         <select
           value={tier}
           onChange={(e) => onTierChange(e.target.value as TierName)}
@@ -92,31 +104,33 @@ export function PipelinePanel({
 
       <div className="h-px bg-border" />
 
-      {/* Pipeline visualization */}
       <div className="flex flex-1 flex-col gap-1">
         <span className="text-xs font-medium text-muted-foreground">Pipeline</span>
-        {PHASES.map((phase, i) => (
-          <div key={phase}>
-            <PhaseCard
-              phase={phase}
-              config={normalizedPhases[phase]}
-              models={models}
-              isSelected={selectedPhase === phase}
-              onSelect={() => onSelectPhase(phase)}
-              onEffortChange={(effort) => setPhaseEffort(phase, effort)}
-            />
-            {i < PHASES.length - 1 && (
-              <div className="flex items-center justify-center gap-1.5 py-0.5">
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-[10px] text-muted-foreground">
-                  {PHASE_TRANSITIONS[`${PHASES[i]}→${PHASES[i + 1]}`]}
-                </span>
-              </div>
-            )}
-          </div>
-        ))}
+        {PHASES.map((phase, i) => {
+          const phaseConfig = phases[phase];
+          if (!phaseConfig) return null;
+          return (
+            <div key={phase}>
+              <PhaseCard
+                phase={phase}
+                config={phaseConfig}
+                models={models}
+                isSelected={selectedPhase === phase}
+                onSelect={() => onSelectPhase(phase)}
+                onEffortChange={(effort) => onEffortChange(phase, effort)}
+              />
+              {i < PHASES.length - 1 && (
+                <div className="flex items-center justify-center gap-1.5 py-0.5">
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-[10px] text-muted-foreground">
+                    {PHASE_TRANSITIONS[`${PHASES[i]}→${PHASES[i + 1]}`]}
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-
     </div>
   );
 }

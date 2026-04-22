@@ -3,6 +3,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import Message
@@ -34,6 +35,41 @@ class MessagesRepository:
             )
         )
 
+    async def upsert_message(
+        self,
+        *,
+        message_id: UUID,
+        conversation_id: UUID,
+        role: str,
+        parts: list[dict[str, Any]],
+        metadata: dict[str, Any],
+    ) -> None:
+        """Insert or replace the ``parts`` / ``metadata`` of ``message_id``.
+
+        Used by the graph pipeline to persist partial turn progress at each
+        phase end — a mid-turn failure leaves the partial row behind so the
+        conversation-detail ``sum_usage_for_conversation`` still reflects
+        consumed tokens.
+        """
+        stmt = (
+            pg_insert(Message)
+            .values(
+                id=message_id,
+                conversation_id=conversation_id,
+                role=role,
+                parts=parts,
+                metadata_=metadata,
+            )
+            .on_conflict_do_update(
+                index_elements=[Message.id],
+                set_={
+                    Message.parts: parts,
+                    Message.metadata_: metadata,
+                },
+            )
+        )
+        await self.session.execute(stmt)
+
     async def list_messages_for_conversation(self, conversation_id: UUID) -> list[Message]:
         """Return messages for a chat, oldest first."""
         stmt = (
@@ -43,6 +79,20 @@ class MessagesRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_latest_by_role(
+        self, *, conversation_id: UUID, role: str,
+    ) -> Message | None:
+        """Return the newest message of ``role`` in ``conversation_id`` or ``None``."""
+        stmt = (
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .where(Message.role == role)
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
 
     async def sum_usage_for_conversation(
         self, conversation_id: UUID,

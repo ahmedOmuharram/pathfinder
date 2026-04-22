@@ -583,7 +583,7 @@ def _scratchpad_supervisor_decisions() -> list[SupervisorDecision]:
     # Each turn: start → scoping → (phase sets awaiting_user) → supervisor
     # routes to ``end``. Only the initial routing decision per turn is
     # consumed from this list; the "end" branches short-circuit via the
-    # ``_waiting_for_user_reply`` guard in the supervisor node.
+    # AWAITING_USER halt in supervisor_node.
     return [
         SupervisorDecision(to="scoping", reason="start scratchpad turn 1"),
         SupervisorDecision(to="scoping", reason="start scratchpad turn 2"),
@@ -660,11 +660,10 @@ async def test_scratchpad_note_persists_across_turns(
             turn1_note_id = notes[0].id
 
             # ── Turn 2: agent calls list_notes() during scoping ────────
-            # Must clear ``last_phase_outcome`` — the dispatcher resets this
-            # per turn in production, but ``_run_turn_input`` in this test
-            # harness doesn't, so a turn-1 ``awaiting_user`` outcome would
-            # keep tripping the supervisor's ``_waiting_for_user_reply``
-            # short-circuit.
+            # Must clear ``last_phase_outcome`` — ``_build_turn_input``
+            # resets this per turn in production, but the test harness
+            # doesn't, so a turn-1 ``awaiting_user`` outcome would keep
+            # tripping supervisor_node's AWAITING_USER halt.
             turn_2_input = {
                 **_run_turn_input("follow-up question"),
                 "last_phase_outcome": None,

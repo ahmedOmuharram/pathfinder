@@ -50,7 +50,6 @@ export const useSettingsStore = createPersistedStore<SettingsState>(
 
 export const PERSISTED_STORE_KEYS = [
   "pathfinder-settings",
-  "pathfinder-engine",
   "pathfinder-left-sidebar",
   "pathfinder-right-rail",
 ] as const;

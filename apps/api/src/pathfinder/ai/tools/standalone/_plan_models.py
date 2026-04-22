@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import cast
 from uuid import uuid4
 
@@ -12,6 +13,7 @@ from pydantic import (
     JsonValue,
     TypeAdapter,
     ValidationError,
+    field_validator,
 )
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
@@ -20,6 +22,7 @@ from pathfinder.domain.strategy.plan import (
     PlannedConnection,
     PlannedParameter,
     PlannedStep,
+    PlanTopologyError,
     QuestionOption,
     StepStatus,
     StepType,
@@ -29,6 +32,35 @@ from pathfinder.domain.strategy.plan import (
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONArray, JSONObject
+
+_MIN_JSON_WRAPPER_LEN = 2
+
+
+def _unwrap_json_encoded_collections(
+    params: dict[str, JsonValue],
+) -> dict[str, JsonValue]:
+    """Unwrap string values that are JSON-encoded lists/objects.
+
+    Models sometimes emit ``{"organism": "[\\"P. falciparum 3D7\\"]"}`` —
+    a string containing a JSON array — instead of the raw list. WDK
+    rejects the string form, so we parse it eagerly at the plan-input
+    boundary. Non-JSON strings pass through.
+    """
+    out: dict[str, JsonValue] = {}
+    for k, v in params.items():
+        if (
+            isinstance(v, str)
+            and len(v) >= _MIN_JSON_WRAPPER_LEN
+            and v[0] in "[{"
+            and v[-1] in "]}"
+        ):
+            try:
+                out[k] = json.loads(v)
+                continue
+            except (json.JSONDecodeError, ValueError):
+                pass
+        out[k] = v
+    return out
 
 
 class PlannedStepInput(BaseModel):
@@ -44,6 +76,15 @@ class PlannedStepInput(BaseModel):
     step_type: StepType = StepType.LEAF
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
     operator: str | None = None
+
+    @field_validator("parameters", mode="before")
+    @classmethod
+    def _unwrap_params(cls, v: object) -> object:
+        if isinstance(v, dict):
+            return _unwrap_json_encoded_collections(
+                cast("dict[str, JsonValue]", v),
+            )
+        return v
 
 class PlannedConnectionInput(BaseModel):
     """Input model for a planned connection from the LLM."""
@@ -77,6 +118,15 @@ class StepPatch(BaseModel):
     parameters: dict[str, JsonValue] | None = None
     rationale: str | None = None
     operator: str | None = None
+
+    @field_validator("parameters", mode="before")
+    @classmethod
+    def _unwrap_params(cls, v: object) -> object:
+        if isinstance(v, dict):
+            return _unwrap_json_encoded_collections(
+                cast("dict[str, JsonValue]", v),
+            )
+        return v
 
 class PlanCreatedResponse(CamelModel):
     """Acknowledgment that a plan was created.
@@ -270,39 +320,12 @@ def _convert_question(q: UserQuestionInput) -> UserQuestion:
         options=options,
     )
 
-def _validate_plan_topology(
-    steps: list[PlannedStepInput],
-    connections: list[PlannedConnectionInput],
-) -> ToolErrorPayload | None:
-    """Validate basic plan topology (all connection refs exist)."""
-    step_ids = {s.id for s in steps}
-    for conn in connections:
-        if conn.from_step not in step_ids:
-            return tool_error(
-                "TOPOLOGY_ERROR",
-                f"Connection references non-existent step: {conn.from_step}",
-            )
-        if conn.to_step not in step_ids:
-            return tool_error(
-                "TOPOLOGY_ERROR",
-                f"Connection references non-existent step: {conn.to_step}",
-            )
-    return None
-
 def _validate_domain_topology(plan: StrategyPlan) -> ToolErrorPayload | None:
-    """Validate topology of a domain StrategyPlan."""
-    step_ids = {s.id for s in plan.steps}
-    for conn in plan.connections:
-        if conn.from_step not in step_ids:
-            return tool_error(
-                "TOPOLOGY_ERROR",
-                f"Connection references non-existent step: {conn.from_step}",
-            )
-        if conn.to_step not in step_ids:
-            return tool_error(
-                "TOPOLOGY_ERROR",
-                f"Connection references non-existent step: {conn.to_step}",
-            )
+    """Re-run topology invariants after in-place mutation of a plan."""
+    try:
+        plan.verify_topology()
+    except PlanTopologyError as exc:
+        return tool_error("TOPOLOGY_ERROR", str(exc))
     return None
 
 def _validate_domain_parameters(

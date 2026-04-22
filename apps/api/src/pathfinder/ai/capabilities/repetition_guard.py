@@ -47,6 +47,7 @@ GRAPH_MODIFYING_TOOLS: frozenset[str] = frozenset(
         "apply_view_filter",
         "delete_view_filter",
         "update_search_config",
+        "create_plan",
         "submit_plan",
         "update_plan",
     }

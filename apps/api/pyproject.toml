@@ -39,6 +39,8 @@ dependencies = [
     "cachetools>=7.0.5",
     "fastembed>=0.8.0",
     "procrastinate>=3.8.1",
+    "ddgs>=9.14.1",
+    "markdown>=3.10.0",
 ]
 
 [tool.uv]
@@ -61,9 +63,11 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["src/pathfinder/tests"]
+addopts = "--ignore=src/pathfinder/tests/llm -m 'not llm'"
 markers = [
     "live_wdk: tests that make live HTTP calls to VEuPathDB WDK endpoints (require network)",
     "vcr: tests backed by VCR cassettes (auto-registered by pytest-recording)",
+    "llm: per-phase tests that hit real OpenAI and real WDK (opt-in; run via `uv run pytest src/pathfinder/tests/llm -m llm --override-ini addopts=''`)",
 ]
 
 [tool.coverage.run]

@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from pydantic_ai.messages import ModelMessage
 
 from pathfinder.ai.agents.state import SearchOverview
@@ -64,7 +64,20 @@ class PhaseOutcome(CamelModel):
       specific next phase.
     """
 
-    disposition: PhaseDisposition
+    disposition: PhaseDisposition = Field(
+        description=(
+            "Control-flow signal for the supervisor. "
+            "'awaiting_user' = the turn ends; the user must reply before any "
+            "more phases run — use whenever the phase asked questions, made "
+            "assumptions worth confirming, or surfaced ambiguity. Default "
+            "for a first-turn scope. "
+            "'handoff' = phase is done, supervisor routes to the next phase "
+            "this turn — use only when everything was unambiguous and no "
+            "user input is needed. "
+            "'done' = investigation is complete; end the turn after this "
+            "phase."
+        ),
+    )
     prose: str = Field(
         min_length=1,
         max_length=4000,
@@ -119,6 +132,22 @@ class ProblemFrame(CamelModel):
     confidence: float = 0.0
 
 
+class PendingApproval(CamelModel):
+    """A deferred tool call awaiting user approval across turns.
+
+    Written when a phase agent exits with a ``DeferredToolRequests`` output
+    carrying an ``approvals`` entry. Carried through the LangGraph
+    checkpoint so the next turn can resume the agent with a
+    ``DeferredToolResults`` built from the user's reply.
+    """
+
+    phase: PhaseName
+    tool_call_id: str
+    tool_name: str
+    tool_args: dict[str, JsonValue] = Field(default_factory=dict)
+    plan_id: str | None = None
+
+
 class PipelineState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -154,5 +183,6 @@ class PipelineState(BaseModel):
     problem_frame: ProblemFrame | None = None
     discovered_searches: dict[str, SearchOverview] = Field(default_factory=dict)
     active_plan: StrategyPlan | None = None
+    pending_approval: PendingApproval | None = None
     created_gene_set_ids: list[str] = Field(default_factory=list)
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)

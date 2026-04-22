@@ -13,9 +13,9 @@ from pathfinder.ai.agents._instructions import (
     pinned_scratchpad,
     pinned_user_memories,
 )
+from pathfinder.ai.capabilities.orphan_audit import OrphanToolAuditor
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
-from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.state import PhaseOutcome
 from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
@@ -56,10 +56,11 @@ problems.
 ## Output
 
 End your turn with concise prose summarizing candidate searches, parameter \
-trade-offs, and caveats so the planner and the user can see them. If catalog \
-evidence reshapes the scoping frame, call `set_problem_frame` to update it \
-first. A supervisor reads your prose and decides whether to continue to \
-planning, skip to execution, or end the turn to wait for the user.
+trade-offs, and caveats so the planner and the user can see them. If \
+catalog evidence reshapes the scoping frame, note the disagreement in your \
+prose so the supervisor can route back to scoping. A supervisor reads your \
+prose and decides whether to continue to planning, skip to execution, or \
+end the turn to wait for the user.
 
 NEVER skip the prose. A reply that is only tool calls with no visible text \
 is a failure — the user sees a blank assistant message.
@@ -71,8 +72,9 @@ is a failure — the user sees a blank assistant message.
 can express the user's constraints.
 - Record types matter: gene/transcript searches return different result sets.
 - When multiple searches could work, note the trade-offs for the planner.
-- Do NOT create or modify strategies — that is the execution agent's job.
-- Do NOT create plans — that is the planning agent's job.
+- Only the tools listed above are available in this phase. Strategy edits, \
+plan authoring, and frame-setting belong to other phases — describe what \
+the next phase should do; do NOT try to call tools you haven't been given.
 - If you need the user to answer a blocking question, ask it in your prose \
 and pick ``disposition="awaiting_user"``. The pipeline will halt.
 - Summarize your findings clearly so the planning agent can act on them.
@@ -108,7 +110,7 @@ discovery_agent: Agent[AgentDeps, PhaseOutcome] = Agent(
         ToolResilience(),
         _discovery_hooks,
         Thinking(effort="medium"),
-        SecurityGuardrail(),
+        OrphanToolAuditor(),
     ],
     history_processors=[pair_tool_calls],
     retries=3,

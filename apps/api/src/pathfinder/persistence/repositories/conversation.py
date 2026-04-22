@@ -288,11 +288,11 @@ class ConversationRepository:
         await self.session.flush()
 
     async def restore(self, conversation_id: UUID) -> None:
-        """Un-dismiss a chat and reset strategy scratchpad for fresh WDK import."""
+        """Un-dismiss a chat and reset strategy AST for fresh WDK import."""
         await self.session.execute(
             update(Conversation)
             .where(Conversation.id == conversation_id)
-            .values(dismissed_at=None, plan={})
+            .values(dismissed_at=None, strategy_ast={})
         )
         await self.session.flush()
 

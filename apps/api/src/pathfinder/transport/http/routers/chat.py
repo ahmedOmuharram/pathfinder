@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from starlette import status
 from starlette.responses import Response
 
-from pathfinder.ai.conversation.dispatcher import ChatRequestBody, dispatch
+from pathfinder.ai.conversation.dispatcher import dispatch
+from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.services import quota as quota_service
 from pathfinder.transport.http.deps import CurrentUser, DBSession
 
@@ -14,7 +15,6 @@ router = APIRouter(tags=["chat"])
 @router.post("/api/v1/chat")
 async def chat(
     body: ChatRequestBody,
-    request: Request,
     session: DBSession,
     user_id: CurrentUser,
 ) -> Response:
@@ -30,10 +30,4 @@ async def chat(
                 "totalTokens": quota.total_tokens,
             },
         )
-    return await dispatch(
-        body=body,
-        session=session,
-        user_id=user_id,
-        compiled_graph=request.app.state.compiled_graph,
-        memory_store=request.app.state.memory_store,
-    )
+    return await dispatch(body=body, session=session, user_id=user_id)

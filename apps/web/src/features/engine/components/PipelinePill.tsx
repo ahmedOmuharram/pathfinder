@@ -1,6 +1,12 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import { Brain } from "lucide-react";
-import { useShallow } from "zustand/react/shallow";
-import { useEngineStore } from "@/state/useEngineStore";
+
+import {
+  DEFAULT_PIPELINE_CONFIG,
+  userPreferencesOptions,
+} from "@/lib/api/me";
 
 const PROVIDER_LABELS: Record<string, string> = {
   anthropic: "Anthropic",
@@ -21,7 +27,15 @@ interface PipelinePillProps {
 }
 
 export function PipelinePill({ onClick }: PipelinePillProps) {
-  const { provider, tier } = useEngineStore(useShallow((s) => ({ provider: s.provider, tier: s.tier })));
+  const { data } = useQuery({
+    ...userPreferencesOptions(),
+    select: (prefs) => {
+      const cfg = prefs.pipelineConfig ?? DEFAULT_PIPELINE_CONFIG;
+      return { provider: cfg.provider, tier: cfg.tier };
+    },
+  });
+  const provider = data?.provider ?? DEFAULT_PIPELINE_CONFIG.provider;
+  const tier = data?.tier ?? DEFAULT_PIPELINE_CONFIG.tier;
 
   return (
     <button

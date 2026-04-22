@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from pydantic_ai import Agent
+from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_ai.toolsets.function import FunctionToolset
+from pydantic_ai.toolsets.prepared import PreparedToolset
+from pydantic_ai.toolsets.wrapper import WrapperToolset
 
 from pathfinder.ai.agents.discovery import discovery_agent
 from pathfinder.ai.agents.execution import execution_agent
@@ -24,28 +29,34 @@ _SCRATCHPAD_TOOL_NAMES = (
 )
 
 
+def _unwrap(ts: AbstractToolset[Any]) -> AbstractToolset[Any]:
+    while isinstance(ts, WrapperToolset):
+        ts = ts.wrapped
+    return ts
+
+
 def test_scratchpad_toolset_lists_all_tools() -> None:
-    """``build_scratchpad_toolset`` is the single source of scratchpad tools."""
     ts = build_scratchpad_toolset()
-    names = set(ts.tools.keys())
+    inner = _unwrap(ts)
+    assert isinstance(inner, FunctionToolset)
+    names = set(inner.tools.keys())
     for required in _SCRATCHPAD_TOOL_NAMES:
         assert required in names, f"{required} missing from build_scratchpad_toolset"
 
 
+def test_scratchpad_toolset_is_prepared_for_dynamic_filtering() -> None:
+    ts = build_scratchpad_toolset()
+    assert isinstance(ts, PreparedToolset)
+
+
 def _caller_toolsets(
-    agent: Agent[object, object],
-) -> list[FunctionToolset[object]]:
-    """Return only the toolsets passed to the agent at construction time.
-
-    pydantic-ai prepends a synthetic ``_AgentFunctionToolset`` (subclass of
-    ``FunctionToolset``) that wraps the output schema; we want the two
-    caller-provided toolsets (phase tools + scratchpad tools), so filter by
-    exact type.
-    """
-    return [ts for ts in agent.toolsets if type(ts) is FunctionToolset]
+    agent: Agent[Any, Any],
+) -> list[FunctionToolset[Any]]:
+    unwrapped = [_unwrap(ts) for ts in agent.toolsets]
+    return [ts for ts in unwrapped if type(ts) is FunctionToolset]
 
 
-def _flat_tool_names_from_agent(agent: Agent[object, object]) -> set[str]:
+def _flat_tool_names_from_agent(agent: Agent[Any, Any]) -> set[str]:
     found: set[str] = set()
     for ts in _caller_toolsets(agent):
         found.update(ts.tools.keys())

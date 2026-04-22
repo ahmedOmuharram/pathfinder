@@ -7,6 +7,7 @@ from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.prompts.loader import load_system_prompt
 from pathfinder.ai.scratchpad.rendering import render_scratchpad_for_phase
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.domain.strategy.plan import PlanStatus
 
 
 def base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
@@ -73,6 +74,40 @@ def pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
     for m in memories:
         tags_str = f" [{', '.join(m.tags)}]" if m.tags else ""
         lines.append(f"- [{m.kind}] {m.name}{tags_str}: {m.summary}")
+    return "\n".join(lines)
+
+
+def pinned_active_plan(ctx: RunContext[AgentDeps]) -> str | None:
+    """Show the planner an already-authored plan so it doesn't re-author.
+
+    ``FAILED`` status is intentionally omitted: the planner's own
+    ``_replan_context`` handles that case with targeted guidance.
+    """
+    plan = ctx.deps.agent_state.active_plan
+    if plan is None or plan.status == PlanStatus.FAILED:
+        return None
+    lines = [
+        "## Active Plan — already authored",
+        f"- id: {plan.id}",
+        f"- title: {plan.title}",
+        f"- status: {plan.status.value}",
+        f"- step_count: {len(plan.steps)}",
+        "",
+        "DO NOT call `create_plan` again. Use `get_plan` to inspect, "
+        "`update_plan` to modify, or `submit_plan` to (re)present for "
+        "approval.",
+    ]
+    if plan.status == PlanStatus.APPROVED:
+        lines.extend(
+            [
+                "",
+                "**The user has already approved this plan.** DO NOT call "
+                "`submit_plan` again. DO NOT ask the user to approve. "
+                "Emit `PhaseOutcome(disposition=handoff, "
+                "handoff_to=\"execution\")` with short prose confirming "
+                "the plan is approved and execution is starting.",
+            ],
+        )
     return "\n".join(lines)
 
 

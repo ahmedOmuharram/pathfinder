@@ -11521,6 +11521,7 @@ __metadata:
     embla-carousel-react: "npm:^8.6.0"
     eslint: "npm:^9.39.4"
     eslint-config-next: "npm:16.1.6"
+    eventsource-parser: "npm:^3.0.6"
     immer: "npm:^11.1.4"
     jsdom: "npm:^28.1.0"
     json-diff-kit: "npm:^1.0.35"

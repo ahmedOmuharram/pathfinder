@@ -40,21 +40,31 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
     Phase exit is handled by ``output_type=VerificationDecision`` on the
     verification agent — no ``finish_*`` tool is exposed.
 
-    ``optimize_search_parameters`` carries ``requires_approval=True`` because
-    it runs up to ``settings.budget`` trials (default 30), each calling WDK.
-    The v6 adapter emits a ``ToolApprovalRequestChunk`` so the user can
-    confirm the expense before the optimizer starts.
+    Every ``@durable_tool`` is also registered with ``sequential=True``.
+    Durable tools suspend the graph via ``interrupt()`` on invocation; if
+    pydantic-ai were to run a durable peer in parallel with a sibling tool,
+    the sibling's ``ToolReturnPart`` would be orphaned when the interrupt
+    escapes ``_call_tools`` and cancels peers. Sequential execution on the
+    whole batch guarantees paired ``tool_call_id`` / ``tool_return_id`` in
+    every persisted message history.
+
+    ``optimize_search_parameters`` also carries ``requires_approval=True``
+    because it runs up to ``settings.budget`` trials (default 30).
     """
     return FunctionToolset(
         tools=[
             get_estimated_size,
             get_sample_records,
             get_download_url,
-            run_control_tests_on_step,
+            Tool(run_control_tests_on_step, sequential=True),
             run_control_tests_on_search,
-            Tool(optimize_search_parameters, requires_approval=True),
+            Tool(
+                optimize_search_parameters,
+                requires_approval=True,
+                sequential=True,
+            ),
             create_workbench_gene_set,
-            run_gene_set_enrichment,
+            Tool(run_gene_set_enrichment, sequential=True),
             list_workbench_gene_sets,
             export_gene_set,
             get_evaluation_summary,

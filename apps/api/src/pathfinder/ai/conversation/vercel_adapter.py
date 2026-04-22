@@ -16,14 +16,34 @@ progress, plan artifacts, etc.) come from the same ``get_stream_writer``
 channel — they're separate from the agent's pydantic-ai events, so they
 don't go through :class:`VercelAIEventStream` at all; they're produced
 directly by node / tool code.
+
+``PinnedVercelAIEventStream`` below fixes an upstream correctness bug in
+``pydantic_ai.ui.vercel_ai._event_stream.VercelAIEventStream``: the base
+class keeps a single mutable ``self.message_id`` that every ``handle_*_``
+method mutates and reads, so a ``PartDeltaEvent`` / ``PartEndEvent`` for
+an earlier part is routed with whatever id the *most recent* part-start
+minted. That produces ``reasoning-delta`` chunks whose id was never
+``reasoning-start``'d on the frontend, which the AI SDK v6 protocol
+validator rejects with
+``Received reasoning-delta for missing reasoning part with ID ...``.
+We pin ``self.message_id`` to the per-index id around every delta/end
+dispatch so each part's chunks are coherent regardless of vendor
+ordering.
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
+from pydantic_ai.messages import (
+    PartDeltaEvent,
+    PartEndEvent,
+    PartStartEvent,
+    TextPart,
+    ThinkingPart,
+)
 from pydantic_ai.ui.vercel_ai._event_stream import VercelAIEventStream
 from pydantic_ai.ui.vercel_ai.request_types import SubmitMessage
 from pydantic_ai.ui.vercel_ai.response_types import (
@@ -33,12 +53,69 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     StartChunk,
 )
 
-# ``VercelAIEventStream.run_input`` isn't used by ``transform_stream`` —
-# it's only referenced by request-parsing helpers we don't invoke. Supply
-# a minimal stub so the dataclass constructs.
 _PHASE_STUB_INPUT: SubmitMessage = SubmitMessage(
     trigger="submit-message", id="phase", messages=[],
 )
+
+
+@dataclass
+class PinnedVercelAIEventStream(VercelAIEventStream[Any, Any]):
+    """``VercelAIEventStream`` that pins the message id to the originating part.
+
+    The base class uses ``self.message_id`` as an implicit "current" pointer
+    that every ``handle_*_`` method mutates. When parts arrive out of order
+    (or when interleaved-thinking shifts ``self.message_id`` between a
+    thinking part's start and its own delta), downstream reasoning/text
+    chunks reference an id that was never opened. We maintain an
+    index -> id map populated on each part-start and restore
+    ``self.message_id`` to the part's own id before dispatching delta/end.
+    """
+
+    _index_to_message_id: dict[int, str] = field(default_factory=dict, init=False)
+
+    async def handle_part_start(
+        self, event: PartStartEvent,
+    ) -> AsyncIterator[BaseChunk]:
+        async for chunk in super().handle_part_start(event):
+            yield chunk
+        if isinstance(event.part, (TextPart, ThinkingPart)):
+            # After super() returns, ``self.message_id`` is the id
+            # associated with this part (a freshly minted one for non-
+            # follows_text starts, or the previous text's id when
+            # ``follows_text=True`` reuses it).
+            self._index_to_message_id[event.index] = self.message_id
+
+    async def handle_part_delta(
+        self, event: PartDeltaEvent,
+    ) -> AsyncIterator[BaseChunk]:
+        pinned = self._index_to_message_id.get(event.index)
+        if pinned is None:
+            async for chunk in super().handle_part_delta(event):
+                yield chunk
+            return
+        saved = self.message_id
+        self.message_id = pinned
+        try:
+            async for chunk in super().handle_part_delta(event):
+                yield chunk
+        finally:
+            self.message_id = saved
+
+    async def handle_part_end(
+        self, event: PartEndEvent,
+    ) -> AsyncIterator[BaseChunk]:
+        pinned = self._index_to_message_id.get(event.index)
+        if pinned is None:
+            async for chunk in super().handle_part_end(event):
+                yield chunk
+            return
+        saved = self.message_id
+        self.message_id = pinned
+        try:
+            async for chunk in super().handle_part_end(event):
+                yield chunk
+        finally:
+            self.message_id = saved
 
 
 @dataclass
@@ -53,13 +130,13 @@ class PhaseStreamEmitter:
     """
 
     message_id: str
-    sdk_version: int = 6
-    _stream: VercelAIEventStream[Any, Any] = field(init=False)
+    sdk_version: Literal[5, 6] = 6
+    _stream: PinnedVercelAIEventStream = field(init=False)
 
     def __post_init__(self) -> None:
-        self._stream = VercelAIEventStream(
+        self._stream = PinnedVercelAIEventStream(
             run_input=_PHASE_STUB_INPUT,
-            sdk_version=self.sdk_version,  # type: ignore[arg-type]
+            sdk_version=self.sdk_version,
             server_message_id=self.message_id,
         )
         self._stream.message_id = self.message_id

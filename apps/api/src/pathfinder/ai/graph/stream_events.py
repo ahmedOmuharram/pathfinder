@@ -72,3 +72,16 @@ def supervisor_decision_event(*, to: str, reason: str) -> DataChunk:
 def scratchpad_updated_event() -> DataChunk:
     """Chunk that instructs the client to invalidate its scratchpad query."""
     return DataChunk(type="data-scratchpad-updated", data={})
+
+
+def turn_usage_event(*, total_tokens: int, cost_usd: str) -> DataChunk:
+    """Cumulative tokens + cost for the current turn, emitted per phase.
+
+    Lets the composer footer update live during the run — and guarantees
+    the frontend has an up-to-date figure even when the turn fails before
+    ``finalize_turn`` writes the final assistant message.
+    """
+    return DataChunk(
+        type="data-turn-usage",
+        data={"totalTokens": total_tokens, "costUsd": cost_usd},
+    )

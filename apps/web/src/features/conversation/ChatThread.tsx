@@ -23,12 +23,15 @@ import { useChatRuntime } from "./runtime/useChatRuntime";
 export function ChatThread({
   conversationId,
   initialMessages,
+  allowMissing = false,
 }: {
   conversationId: string;
   initialMessages?: UIMessage[];
+  allowMissing?: boolean;
 }) {
   const runtime = useChatRuntime({
     conversationId,
+    allowMissing,
     ...(initialMessages !== undefined && { initialMessages }),
   });
   const pendingSubmission = useSessionStore((s) => s.pendingUserSubmission);

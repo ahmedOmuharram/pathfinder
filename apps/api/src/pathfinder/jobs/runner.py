@@ -26,6 +26,7 @@ from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.tools.durable import TaskProgressEmitter
+from pathfinder.jobs.auth_context import attach_wdk_auth
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runtime import build_worker_runtime_context
 from pathfinder.persistence.models import ConversationEvent
@@ -45,8 +46,17 @@ async def run_durable_task(
     task_id: str,
     thread_id: str,
     args: dict[str, Any],
+    veupathdb_auth_token: str | None = None,
 ) -> None:
-    """Execute a durable tool impl on the worker and resume the graph."""
+    """Execute a durable tool impl on the worker and resume the graph.
+
+    The worker→worker procrastinate hop drops ``ContextVar`` state, so the
+    dispatcher (``@durable_tool`` wrapper) serializes the VEuPathDB auth
+    cookie into the task payload and we re-install it here for the impl's
+    lifetime. Without this, any WDK call inside the impl (enrichment,
+    control tests, optimization) would fall through to the service-account
+    token in settings.
+    """
     task_uuid = UUID(task_id)
     chat_uuid = UUID(thread_id)
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
@@ -68,7 +78,10 @@ async def run_durable_task(
 
     settings = get_settings()
     try:
-        async with lifespan_memory_store(settings.database_url) as raw_memory:
+        async with (
+            attach_wdk_auth(veupathdb_auth_token),
+            lifespan_memory_store(settings.database_url) as raw_memory,
+        ):
             mem_store = MemoryStore(store=raw_memory)
             base_context = await build_worker_runtime_context(
                 conversation_id=thread_id, task_id=task_id
@@ -90,14 +103,17 @@ async def run_durable_task(
         logger.exception("durable tool failed", tool_name=tool_name)
         error = str(exc) or exc.__class__.__name__
         await repo.mark_failed(task_id=task_uuid, error=error)
-        await _safe_resume_graph_with_error(thread_id, task_uuid, error)
+        await _safe_resume_graph_with_error(
+            thread_id, task_uuid, error,
+            veupathdb_auth_token=veupathdb_auth_token,
+        )
         return
 
     result = _to_dict(payload)
     await repo.mark_result_ready(task_id=task_uuid, result=result)
     await repo.mark_resuming(task_id=task_uuid)
     resume_error = await _safe_resume_graph_with_result(
-        thread_id, task_uuid, result,
+        thread_id, task_uuid, result, veupathdb_auth_token=veupathdb_auth_token,
     )
     if resume_error is None:
         await repo.mark_complete(task_id=task_uuid)
@@ -106,7 +122,11 @@ async def run_durable_task(
 
 
 async def _safe_resume_graph_with_result(
-    thread_id: str, task_id: UUID, result: dict[str, Any],
+    thread_id: str,
+    task_id: UUID,
+    result: dict[str, Any],
+    *,
+    veupathdb_auth_token: str | None = None,
 ) -> str | None:
     """Resume the graph. Returns ``None`` on success or an error string.
 
@@ -115,7 +135,10 @@ async def _safe_resume_graph_with_result(
     "something went wrong".
     """
     try:
-        await _resume_graph_with_result(thread_id, task_id, result)
+        await _resume_graph_with_result(
+            thread_id, task_id, result,
+            veupathdb_auth_token=veupathdb_auth_token,
+        )
     except Exception as exc:
         logger.exception(
             "graph resume with result failed",
@@ -126,10 +149,17 @@ async def _safe_resume_graph_with_result(
 
 
 async def _safe_resume_graph_with_error(
-    thread_id: str, task_id: UUID, error: str,
+    thread_id: str,
+    task_id: UUID,
+    error: str,
+    *,
+    veupathdb_auth_token: str | None = None,
 ) -> None:
     try:
-        await _resume_graph_with_error(thread_id, task_id, error)
+        await _resume_graph_with_error(
+            thread_id, task_id, error,
+            veupathdb_auth_token=veupathdb_auth_token,
+        )
     except Exception:
         logger.exception(
             "graph resume with error failed",
@@ -154,22 +184,32 @@ def _to_dict(value: Any) -> dict[str, Any]:
 
 
 async def _resume_graph_with_result(
-    thread_id: str, task_id: UUID, result: dict[str, Any]
+    thread_id: str,
+    task_id: UUID,
+    result: dict[str, Any],
+    *,
+    veupathdb_auth_token: str | None = None,
 ) -> None:
     await _resume_graph(
         thread_id=thread_id,
         task_id=task_id,
         resume_value={"status": "success", "result": result},
+        veupathdb_auth_token=veupathdb_auth_token,
     )
 
 
 async def _resume_graph_with_error(
-    thread_id: str, task_id: UUID, error: str
+    thread_id: str,
+    task_id: UUID,
+    error: str,
+    *,
+    veupathdb_auth_token: str | None = None,
 ) -> None:
     await _resume_graph(
         thread_id=thread_id,
         task_id=task_id,
         resume_value={"status": "failed", "error": error},
+        veupathdb_auth_token=veupathdb_auth_token,
     )
 
 
@@ -178,9 +218,11 @@ async def _resume_graph(
     thread_id: str,
     task_id: UUID,
     resume_value: dict[str, Any],
+    veupathdb_auth_token: str | None = None,
 ) -> None:
     settings = get_settings()
     async with (
+        attach_wdk_auth(veupathdb_auth_token),
         lifespan_checkpointer(settings.database_url) as saver,
         lifespan_memory_store(settings.database_url) as raw_memory,
     ):

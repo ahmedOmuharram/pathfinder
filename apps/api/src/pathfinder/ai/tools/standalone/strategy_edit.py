@@ -34,7 +34,10 @@ from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.domain.strategy.types import DecodedParams
+from pathfinder.domain.strategy.types import (
+    DecodedParams,
+    unwrap_json_encoded_params,
+)
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.platform.errors import AppError, ErrorCode, ValidationError
 from pathfinder.platform.logging import get_logger
@@ -238,8 +241,13 @@ async def update_step(
     graph, step = resolved
 
     sync_state = ensure_sync_state(session)
+    normalized_params = (
+        unwrap_json_encoded_params(dict(parameters))
+        if parameters is not None
+        else None
+    )
     apply_error = await _apply_step_updates(
-        deps.site_id, graph, sync_state, step, search_name, parameters, operator, display_name
+        deps.site_id, graph, sync_state, step, search_name, normalized_params, operator, display_name
     )
 
 

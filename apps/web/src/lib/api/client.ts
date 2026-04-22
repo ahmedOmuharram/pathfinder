@@ -37,6 +37,7 @@ export async function client<TData>(cfg: RequestConfig): Promise<ResponseConfig<
     method: cfg.method.toUpperCase(),
     headers: {
       "content-type": "application/json",
+      "X-Requested-With": "XMLHttpRequest",
       ...cfg.headers,
     },
     credentials: "include",

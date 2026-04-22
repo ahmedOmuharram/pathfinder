@@ -94,6 +94,9 @@ class User(Base):
     supervisor_model_id: Mapped[str | None] = mapped_column(
         String(128), nullable=True
     )
+    pipeline_config: Mapped[JSONObject | None] = mapped_column(
+        JSONB, nullable=True,
+    )
 
     conversations: Mapped[list[Conversation]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -447,6 +450,10 @@ class ConversationEvent(Base):
         ForeignKey("background_tasks.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
+    )
+    turn_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        nullable=True,
     )
     chunk: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     emitted_at: Mapped[datetime] = mapped_column(

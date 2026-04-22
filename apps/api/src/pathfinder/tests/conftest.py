@@ -8,8 +8,8 @@ from uuid import UUID, uuid4
 # ---------------------------------------------------------------------------
 # PIGuard ONNX model — MUST run before any pathfinder imports.
 # ---------------------------------------------------------------------------
-# SecurityGuardrail() is instantiated at agent module level, so the model
-# must be available before the import chain reaches it.  huggingface_hub
+# UserInputScanner is module-level in ai.capabilities.security; the model
+# must be available before the import chain reaches it. huggingface_hub
 # caches to ~/.cache/huggingface/hub/ — the network download only happens
 # once per machine.
 

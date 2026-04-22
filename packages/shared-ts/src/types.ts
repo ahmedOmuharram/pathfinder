@@ -67,6 +67,7 @@ import type {
   ParameterSweepPointResponse,
   PhaseChange,
   PlanArtifact,
+  PlannedStep,
   PlanUpdate,
   PushConversationRequest,
   ProblemFrame,
@@ -94,6 +95,7 @@ import type {
   TreeOptimizationResultResponse,
   TreeOptimizationTrialResponse,
   TrialProgressDataResponse,
+  TurnUsage,
   UpdatesEvent,
   UpdateConversationRequest,
 } from "./generated/types/index";
@@ -393,12 +395,14 @@ export type {
   StrategyMeta,
   StrategyLink,
   PlanArtifact,
+  PlannedStep,
   PlanUpdate,
   DecisionPresented,
   OptimizationSnapshot,
   PhaseChange,
   BackgroundTaskStarted,
   TaskCompleted,
+  TurnUsage,
 };
 export type ProblemFramePart = ProblemFrame;
 export type GeneSetPart = GeneSetStreamPart;
@@ -476,7 +480,6 @@ export type DataPartKind =
   | "data-strategy-meta"
   | "data-graph-snapshot"
   | "data-graph-cleared"
-  | "data-graph-plan"
   | "data-problem-frame"
   | "data-plan-artifact"
   | "data-decision-presented"
@@ -489,7 +492,8 @@ export type DataPartKind =
   | "data-turn-rejected"
   | "data-turn-qa"
   | "data-supervisor-decision"
-  | "data-scratchpad-updated";
+  | "data-scratchpad-updated"
+  | "data-turn-usage";
 
 export interface DataPartPayloadMap {
   "data-phase-start": DataPhaseStartPayload;
@@ -502,7 +506,6 @@ export interface DataPartPayloadMap {
   "data-strategy-meta": StrategyMeta;
   "data-graph-snapshot": GraphSnapshot;
   "data-graph-cleared": GraphCleared;
-  "data-graph-plan": PlanArtifact;
   "data-problem-frame": ProblemFrame;
   "data-plan-artifact": PlanArtifact;
   "data-decision-presented": DecisionPresented;
@@ -516,6 +519,7 @@ export interface DataPartPayloadMap {
   "data-turn-qa": DataTurnQaPayload;
   "data-supervisor-decision": DataSupervisorDecisionPayload;
   "data-scratchpad-updated": Record<string, never>;
+  "data-turn-usage": TurnUsage;
 }
 
 export type TypedDataPart<K extends DataPartKind = DataPartKind> = {

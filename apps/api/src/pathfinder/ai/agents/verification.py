@@ -11,8 +11,8 @@ from pathfinder.ai.agents._instructions import (
     pinned_scratchpad,
     pinned_user_memories,
 )
+from pathfinder.ai.capabilities.orphan_audit import OrphanToolAuditor
 from pathfinder.ai.capabilities.resilience import ToolResilience
-from pathfinder.ai.capabilities.security import SecurityGuardrail
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.state import PhaseOutcome
 from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
@@ -96,7 +96,9 @@ verification_agent: Agent[
     deps_type=AgentDeps,
     instructions=_VERIFICATION_INSTRUCTIONS,
     toolsets=[build_toolset(), build_scratchpad_toolset()],
-    capabilities=[ToolResilience(), Thinking(effort="high"), SecurityGuardrail()],
+    capabilities=[
+        ToolResilience(), Thinking(effort="high"), OrphanToolAuditor(),
+    ],
     history_processors=[pair_tool_calls],
     retries=3,
     description="Inspects strategy results and validates correctness",

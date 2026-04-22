@@ -6,7 +6,6 @@ import { DataConversationTitle } from "./parts/DataConversationTitle";
 import { DataDecisionPresented } from "./parts/DataDecisionPresented";
 import { DataGeneSet } from "./parts/DataGeneSet";
 import { DataGraphCleared } from "./parts/DataGraphCleared";
-import { DataGraphPlan } from "./parts/DataGraphPlan";
 import { DataGraphSnapshot } from "./parts/DataGraphSnapshot";
 import { DataMemoryRetrieved } from "./parts/DataMemoryRetrieved";
 import { DataPhaseChange } from "./parts/DataPhaseChange";
@@ -41,7 +40,6 @@ export const dataPartComponents: {
   "data-strategy-meta": DataStrategyMeta,
   "data-graph-snapshot": DataGraphSnapshot,
   "data-graph-cleared": DataGraphCleared,
-  "data-graph-plan": DataGraphPlan,
   "data-problem-frame": DataProblemFrame,
   "data-plan-artifact": DataPlanArtifact,
   "data-decision-presented": DataDecisionPresented,
@@ -55,4 +53,5 @@ export const dataPartComponents: {
   "data-turn-qa": DataTurnQa,
   "data-supervisor-decision": DataSupervisorDecision,
   "data-scratchpad-updated": () => null,
+  "data-turn-usage": () => null,
 };
