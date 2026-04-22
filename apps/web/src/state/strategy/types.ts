@@ -3,14 +3,7 @@
  */
 
 import type { Patch } from "immer";
-import type {
-  GraphSnapshot,
-  StrategyMeta,
-  StrategyPatch,
-  StrategyAst,
-  Step,
-  Strategy,
-} from "@pathfinder/shared";
+import type { Step, Strategy } from "@pathfinder/shared";
 import type {
   StepLifecycleSeed,
   StepMachineEvent,
@@ -21,9 +14,24 @@ import type {
 // Per-slice state + action interfaces
 // ---------------------------------------------------------------------------
 
+export interface StrategyMetaUpdate {
+  name?: string;
+  description?: string | null;
+  wdkStrategyId?: number | null;
+  wdkUrl?: string | null;
+}
+
+/**
+ * The most recent failed push payload, kept in the store so a retry button
+ * can re-fire it without recomputing the optimistic strategy.
+ */
+export interface FailedPushPayload {
+  optimistic: Strategy;
+}
+
 export interface DraftSlice {
   strategy: Strategy | null;
-  stepsById: Record<string, Step>;
+  lastFailedPush: FailedPushPayload | null;
 
   addStep: (step: Step) => void;
   updateStep: (stepId: string, updates: Partial<Step>) => void;
@@ -35,12 +43,8 @@ export interface DraftSlice {
     name?: string | null,
     description?: string | null,
   ) => void;
-  setStrategyMeta: (updates: Partial<Strategy>) => void;
-  buildPlan: () => {
-    plan: StrategyAst;
-    name: string;
-    recordType: string | null;
-  } | null;
+  setStrategyMeta: (updates: StrategyMetaUpdate) => void;
+  setLastFailedPush: (payload: FailedPushPayload | null) => void;
   clear: () => void;
 }
 
@@ -63,38 +67,30 @@ export interface LifecycleSlice {
   applyStepCounts: (counts: Record<string, number | null | undefined>) => void;
 }
 
+export interface HistorySnapshot {
+  strategy: Strategy | null;
+}
+
 export interface HistorySlice {
   undoStack: Patch[][];
   redoStack: Patch[][];
 
+  /**
+   * Record a forward step from the given previous snapshot to the current
+   * store state. Mutations call this in `onSuccess` after the server-canonical
+   * strategy has replaced the optimistic copy.
+   */
+  pushSnapshot: (prev: HistorySnapshot) => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
 }
 
-export interface ListSlice {
-  executedStrategies: Strategy[];
-
-  addExecutedStrategy: (strategy: Strategy) => void;
-}
-
 export interface MetaSlice {
   graphValidationStatus: Record<string, boolean>;
 
-  /** Latest stream-derived snapshot from a `data-graph-snapshot` part. */
-  latestGraphSnapshot: GraphSnapshot | null;
-  /** Latest stream-derived strategy metadata from a `data-strategy-meta` part. */
-  latestStrategyMeta: StrategyMeta | null;
-  /** Latest stream-derived patch from a `data-strategy-patch` part. */
-  lastStrategyPatch: StrategyPatch | null;
-
   setGraphValidationStatus: (id: string, hasErrors: boolean) => void;
-
-  // Stream-derived setters (from data-* parts)
-  applyGraphSnapshot: (snapshot: GraphSnapshot) => void;
-  setLatestStrategyMeta: (meta: StrategyMeta) => void;
-  applyPatch: (patch: StrategyPatch) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +99,5 @@ export interface MetaSlice {
 
 export type StrategyState = DraftSlice &
   HistorySlice &
-  ListSlice &
   MetaSlice &
   LifecycleSlice;

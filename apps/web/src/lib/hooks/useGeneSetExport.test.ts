@@ -79,7 +79,7 @@ describe("useGeneSetExport", () => {
       parameters: { text: "kinase" },
     });
     expect(mockInvalidate).toHaveBeenCalled();
-    expect(mockPush).toHaveBeenCalledWith("/workbench/gs1");
+    expect(mockPush).toHaveBeenCalledWith("/plasmodb/workbench/gs1");
     expect(result.current.exportingGeneSet).toBe(false);
   });
 

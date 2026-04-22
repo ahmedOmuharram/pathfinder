@@ -126,6 +126,15 @@
   --kind-combine: 200 80% 55%;
   --kind-transform: 270 60% 55%;
 
+  /* Spec hex colors for nodes/ subtree (Layer 5).
+     soft = 10% alpha surface, ring = 30% alpha border. */
+  --kind-leaf-soft: rgb(16 185 129 / 0.1);
+  --kind-leaf-ring: rgb(16 185 129 / 0.3);
+  --kind-combine-soft: rgb(99 102 241 / 0.1);
+  --kind-combine-ring: rgb(99 102 241 / 0.3);
+  --kind-transform-soft: rgb(168 85 247 / 0.1);
+  --kind-transform-ring: rgb(168 85 247 / 0.3);
+
   /* ── Chart palette ── */
   --chart-1: 215 70% 50%; /* primary blue */
   --chart-2: 160 60% 45%; /* success green */
@@ -547,6 +556,25 @@
   pointer-events: none;
 }
 
+/* ── Step node syncing pulse (strategy graph) ── */
+
+@keyframes node-syncing-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 hsl(var(--primary) / 0),
+      var(--shadow-card);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px hsl(var(--primary) / 0.18),
+      var(--shadow-card);
+  }
+}
+
+.node-syncing-pulse {
+  animation: node-syncing-pulse 1.4s ease-in-out infinite;
+}
+
 /* ── Save attention pulse ── */
 
 @keyframes save-attention {
@@ -607,6 +635,12 @@
 
 .react-flow__node {
   transition: transform var(--duration-normal) var(--ease-default);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__node {
+    transition: none;
+  }
 }
 
 .react-flow__edge-path {

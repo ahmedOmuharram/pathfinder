@@ -23,8 +23,8 @@ test.describe("AI Workbench Integration", () => {
     await chatPage.expectIdle();
 
     // UI: Compact view with step pills
-    await graphPage.expectCompactView();
-    const pillCount = await graphPage.stepPills.count();
+    await graphPage.expectRailPanel();
+    const pillCount = await graphPage.railStepRows.count();
     expect(pillCount).toBeGreaterThan(0);
 
     // API: Strategy persisted — use captured ID for isolation
@@ -47,14 +47,14 @@ test.describe("AI Workbench Integration", () => {
     await chatPage.expectPlanningArtifact();
 
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
     // UI: Edit button visible
     await expect(page.getByRole("button", { name: /edit/i })).toBeVisible();
 
     // UI: Step pills show content
-    const pillCount = await graphPage.stepPills.count();
+    const pillCount = await graphPage.railStepRows.count();
     expect(pillCount).toBeGreaterThan(0);
 
     // API: Strategy with steps persisted — use captured ID for isolation

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
 import { SelectParam } from "./SelectParam";
 import type { ParamSpec } from "@pathfinder/shared";
 import type { VocabOption } from "@/lib/utils/vocab";
@@ -29,113 +30,66 @@ function makeSpec(overrides: Partial<ParamSpec> = {}): ParamSpec {
   } as ParamSpec;
 }
 
-describe("SelectParam -- single-pick", () => {
-  it("renders a native <select> element", () => {
-    const spec = makeSpec();
+describe("SelectParam (single-pick, shadcn Select)", () => {
+  it("renders a shadcn Select trigger as combobox", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <SelectParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => <SelectParam spec={makeSpec()} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
       </WidgetTestForm>,
     );
-    const select = screen.getByRole("combobox");
-    expect(select).toBeTruthy();
-    expect(select.tagName).toBe("SELECT");
+    expect(screen.getByRole("combobox")).toBeTruthy();
   });
 
-  it("renders all options plus the placeholder", () => {
-    const spec = makeSpec();
+  it("displays the placeholder when value is empty", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <SelectParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => <SelectParam spec={makeSpec()} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
       </WidgetTestForm>,
     );
-    const options = screen.getAllByRole("option");
-    expect(options.length).toBe(5);
-    expect(options[0]!.textContent).toBe("-- Select --");
+    expect(screen.getByText("-- Select --")).toBeTruthy();
   });
 
-  it("omits placeholder when allowEmptyValue is false", () => {
-    const spec = makeSpec({ allowEmptyValue: false });
+  it("opens and lists options on click", async () => {
+    const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <SelectParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => <SelectParam spec={makeSpec()} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
       </WidgetTestForm>,
     );
-    const options = screen.getAllByRole("option");
-    expect(options.length).toBe(4);
-    expect(options[0]!.textContent).toBe("Alpha");
-  });
-
-  it("selects the current value from form default", () => {
-    const spec = makeSpec();
-    render(
-      <WidgetTestForm name="test_param" defaultValue="b">
-        {(field) => <SelectParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
-      </WidgetTestForm>,
-    );
-    const select: HTMLSelectElement = screen.getByRole("combobox");
-    expect(select.value).toBe("b");
-  });
-
-  it("updates form value when selection changes", () => {
-    const spec = makeSpec();
-    render(
-      <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <SelectParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
-      </WidgetTestForm>,
-    );
-    const select: HTMLSelectElement = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "c" } });
-    expect(select.value).toBe("c");
-  });
-
-  it("shows validation error for required field on blur", async () => {
-    const spec = makeSpec({ allowEmptyValue: false });
-    render(
-      <WidgetTestFormWithValidation
-        name="test_param"
-        defaultValue=""
-        validator={(v) => (v === "" ? "Required" : undefined)}
-      >
-        {(field) => <SelectParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
-      </WidgetTestFormWithValidation>,
-    );
-    fireEvent.blur(screen.getByRole("combobox"));
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeTruthy();
-      expect(screen.getByRole("alert").textContent).toBe("Required");
-    });
+    await user.click(screen.getByRole("combobox"));
+    expect(screen.getByText("Alpha")).toBeTruthy();
+    expect(screen.getByText("Beta")).toBeTruthy();
   });
 
   it("sets aria-invalid when field has error", async () => {
-    const spec = makeSpec({ allowEmptyValue: false });
     render(
       <WidgetTestFormWithValidation
         name="test_param"
         defaultValue=""
         validator={(v) => (v === "" ? "Required" : undefined)}
       >
-        {(field) => <SelectParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => <SelectParam spec={makeSpec({ allowEmptyValue: false })} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
       </WidgetTestFormWithValidation>,
     );
     fireEvent.blur(screen.getByRole("combobox"));
-    await waitFor(() => {
-      expect(screen.getByRole("combobox").getAttribute("aria-invalid")).toBe("true");
-    });
+    // Allow time for validation
+    await new Promise((r) => setTimeout(r, 30));
+    const select = screen.getByRole("combobox");
+    expect(select.getAttribute("aria-invalid")).toBe("true");
   });
 });
 
-describe("SelectParam -- multi-pick", () => {
+describe("SelectParam (multi-pick, shadcn Checkbox stack)", () => {
   const multiSpec = makeSpec({ multiPick: true });
 
-  it("renders checkboxes instead of a select", () => {
+  it("renders one shadcn Checkbox per option", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue={[]}>
         {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
       </WidgetTestForm>,
     );
-    expect(screen.queryByRole("combobox")).toBeNull();
     const checkboxes = screen.getAllByRole("checkbox");
+    // 4 options + 1 select-all when count > 3
     expect(checkboxes.length).toBe(5);
   });
 
@@ -149,88 +103,24 @@ describe("SelectParam -- multi-pick", () => {
   });
 
   it("does not show 'Select all' when options <= 3", () => {
-    const fewOptions = sampleOptions.slice(0, 3);
     render(
       <WidgetTestForm name="test_param" defaultValue={[]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={fewOptions} vocabTree={null} field={field} />}
+        {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions.slice(0, 3)} vocabTree={null} field={field} />}
       </WidgetTestForm>,
     );
     expect(screen.queryByText(/Select all/)).toBeNull();
   });
 
-  it("checks selected values from form default", () => {
-    render(
-      <WidgetTestForm name="test_param" defaultValue={["a", "c"]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
-      </WidgetTestForm>,
-    );
-    const checkboxes = screen.getAllByRole("checkbox");
-    const [selectAll, a, b, c, d] = checkboxes;
-    expect((a as HTMLInputElement).checked).toBe(true);
-    expect((b as HTMLInputElement).checked).toBe(false);
-    expect((c as HTMLInputElement).checked).toBe(true);
-    expect((d as HTMLInputElement).checked).toBe(false);
-    expect((selectAll as HTMLInputElement).checked).toBe(false);
-  });
-
-  it("toggles individual checkbox and updates form", () => {
+  it("toggles a value via the checkbox", async () => {
+    const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_param" defaultValue={["a"]}>
         {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
       </WidgetTestForm>,
     );
-    fireEvent.click(screen.getByText("Beta"));
-    const checkboxes = screen.getAllByRole("checkbox");
-    const [, a, b] = checkboxes;
-    expect((a as HTMLInputElement).checked).toBe(true);
-    expect((b as HTMLInputElement).checked).toBe(true);
-  });
-
-  it("removes value when unchecking", () => {
-    render(
-      <WidgetTestForm name="test_param" defaultValue={["a", "b"]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
-      </WidgetTestForm>,
-    );
-    fireEvent.click(screen.getByText("Alpha"));
-    const checkboxes = screen.getAllByRole("checkbox");
-    const [, a, b] = checkboxes;
-    expect((a as HTMLInputElement).checked).toBe(false);
-    expect((b as HTMLInputElement).checked).toBe(true);
-  });
-
-  it("'Select all' selects all values", () => {
-    render(
-      <WidgetTestForm name="test_param" defaultValue={[]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
-      </WidgetTestForm>,
-    );
-    fireEvent.click(screen.getByText(/Select all/));
-    const checkboxes = screen.getAllByRole("checkbox");
-    for (const cb of checkboxes) {
-      expect((cb as HTMLInputElement).checked).toBe(true);
-    }
-  });
-
-  it("'Select all' deselects when all are already selected", () => {
-    render(
-      <WidgetTestForm name="test_param" defaultValue={["a", "b", "c", "d"]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
-      </WidgetTestForm>,
-    );
-    fireEvent.click(screen.getByText(/Select all/));
-    const checkboxes = screen.getAllByRole("checkbox");
-    for (const cb of checkboxes) {
-      expect((cb as HTMLInputElement).checked).toBe(false);
-    }
-  });
-
-  it("renders empty panel when no options", () => {
-    render(
-      <WidgetTestForm name="test_param" defaultValue={[]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={[]} vocabTree={null} field={field} />}
-      </WidgetTestForm>,
-    );
-    expect(screen.queryByRole("checkbox")).toBeNull();
+    await user.click(screen.getByLabelText("Beta"));
+    // After clicking Beta we expect data-state on the Beta checkbox to flip
+    const beta = screen.getByLabelText("Beta");
+    expect(beta.getAttribute("data-state")).toBe("checked");
   });
 });

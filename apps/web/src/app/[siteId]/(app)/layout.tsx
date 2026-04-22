@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
@@ -58,13 +58,19 @@ function AppShellInner({
   const searchParams = useSearchParams();
   const embedded = searchParams.get("embedded") === "true";
 
-  const storedSite = useSessionStore((s) => s.selectedSite);
   const selectedSite = siteId;
 
-  // URL is the source of truth; keep the session store in sync so
-  // downstream consumers that still read from it see the current site.
-  if (storedSite !== siteId) {
-    useSessionStore.setState({ selectedSite: siteId });
+  // URL is the source of truth; mirror it into the session store so
+  // downstream consumers that still read from the store see the current site.
+  // Defer the cross-store write to a microtask so React's "setState during
+  // render" warning doesn't fire (the store update would re-render any
+  // subscriber if done synchronously here).
+  const [syncedSite, setSyncedSite] = useState<string | null>(null);
+  if (syncedSite !== siteId) {
+    setSyncedSite(siteId);
+    queueMicrotask(() => {
+      useSessionStore.setState({ selectedSite: siteId });
+    });
   }
 
   const { data: authStatus } = useSuspenseQuery(authStatusOptions(selectedSite));

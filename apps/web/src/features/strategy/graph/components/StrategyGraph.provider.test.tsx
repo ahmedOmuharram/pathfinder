@@ -6,6 +6,11 @@ import type * as StrategiesApi from "@/lib/api/conversations";
 import { createTestWrapper } from "@/lib/query/testing";
 import { StrategyGraph } from "./StrategyGraph";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/conversation/strategy-1/strategy",
+}));
+
 vi.mock("@xyflow/react", async () => {
   const React = await import("react");
   const flowContext = React.createContext(false);
@@ -52,6 +57,7 @@ vi.mock("@xyflow/react", async () => {
       Left: "left",
     },
     SelectionMode: { Partial: "partial" },
+    useStore: () => "0|0|1",
   };
 });
 

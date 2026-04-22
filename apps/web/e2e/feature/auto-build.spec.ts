@@ -139,8 +139,8 @@ test.describe("Auto-Build Pipeline", () => {
     await chatPage.expectIdle();
 
     // Graph must be visible with at least one step pill
-    await graphPage.expectCompactView();
-    const pillCount = await graphPage.stepPills.count();
+    await graphPage.expectRailPanel();
+    const pillCount = await graphPage.railStepRows.count();
     expect(pillCount).toBeGreaterThan(0);
   });
 });
@@ -204,8 +204,8 @@ test.describe("Delegation Auto-Build Pipeline", () => {
     await chatPage.expectPlanningArtifact();
     await chatPage.approvePlan();
     // Graph should appear during execution streaming (before message_end).
-    await graphPage.expectCompactView();
-    const pillCount = await graphPage.stepPills.count();
+    await graphPage.expectRailPanel();
+    const pillCount = await graphPage.railStepRows.count();
     expect(pillCount).toBeGreaterThan(0);
   });
 });
@@ -243,7 +243,7 @@ test.describe("Planning Artifact Pipeline", () => {
     await chatPage.expectPlanningArtifact();
 
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
     // After apply, strategy should have steps with real search names

@@ -1,3 +1,7 @@
+"use client";
+
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils/cn";
 import { isMultiParam } from "@/features/strategy/parameters/spec";
 import type { ParamWidgetProps } from "./types";
@@ -9,10 +13,12 @@ export function CheckboxParam({ spec, name, options, field }: ParamWidgetProps) 
   const errorMessage = hasError ? String(errors[0]) : null;
 
   if (!multi) {
+    const value = typeof field.state.value === "string" ? field.state.value : "";
     return (
       <div>
-        <div
-          role="radiogroup"
+        <RadioGroup
+          value={value}
+          onValueChange={(next) => field.handleChange(next)}
           aria-invalid={hasError ? "true" : undefined}
           aria-describedby={hasError ? `${name}-error` : undefined}
           className={cn(
@@ -22,19 +28,11 @@ export function CheckboxParam({ spec, name, options, field }: ParamWidgetProps) 
         >
           {options.map((opt) => (
             <label key={opt.value} className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name={name}
-                value={opt.value}
-                checked={field.state.value === opt.value}
-                onChange={() => field.handleChange(opt.value)}
-                onBlur={field.handleBlur}
-                className="accent-primary"
-              />
+              <RadioGroupItem value={opt.value} aria-label={opt.label} onBlur={field.handleBlur} />
               {opt.label}
             </label>
           ))}
-        </div>
+        </RadioGroup>
         {hasError && errorMessage != null && (
           <p id={`${name}-error`} role="alert" className="mt-1 text-xs text-destructive">
             {errorMessage}
@@ -75,23 +73,21 @@ export function CheckboxParam({ spec, name, options, field }: ParamWidgetProps) 
       >
         {options.length > 3 && (
           <label className="flex items-center gap-2 text-xs text-muted-foreground mb-1 pb-1 border-b border-border">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={allSelected}
-              onChange={toggleAll}
-              className="accent-primary"
+              onCheckedChange={toggleAll}
+              aria-label="Select all"
             />
             Select all ({options.length})
           </label>
         )}
         {options.map((opt) => (
           <label key={opt.value} className="flex items-center gap-2 text-sm py-0.5">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={currentValue.includes(opt.value)}
-              onChange={() => toggle(opt.value)}
+              onCheckedChange={() => toggle(opt.value)}
               onBlur={field.handleBlur}
-              className="accent-primary"
+              aria-label={opt.label}
             />
             {opt.label}
           </label>

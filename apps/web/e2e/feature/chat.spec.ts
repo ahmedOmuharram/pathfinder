@@ -80,8 +80,8 @@ test.describe("Chat", () => {
     await chatPage.expectPhaseTiming("scoping", "Completed");
     await chatPage.expectPhaseTiming("discovery", "Completed");
     await chatPage.expectPhaseTiming("planning", "Awaiting approval");
-    await graphPage.expectCompactView();
-    const previewPillCount = await graphPage.stepPills.count();
+    await graphPage.expectRailPanel();
+    const previewPillCount = await graphPage.railStepRows.count();
     expect(previewPillCount).toBeGreaterThan(0);
   });
 
@@ -96,7 +96,7 @@ test.describe("Chat", () => {
 
     await chatPage.approvePlan();
     await chatPage.expectIdle();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
 
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();

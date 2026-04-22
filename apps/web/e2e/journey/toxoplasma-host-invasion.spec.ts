@@ -66,7 +66,7 @@ test.describe("Toxoplasma Host Invasion Journey", () => {
     // ── Phase 2: Strategy Creation ───────────────────────────────
 
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
     // Verify strategy persisted

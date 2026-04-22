@@ -1,10 +1,10 @@
 /**
- * Widget registry — maps WDK displayType to React components.
+ * Widget registry — maps WDK displayType (and spec.type) to React components.
  *
  * Dispatch order:
- * 1. Composite widgets claim groups of params (e.g., PhyleticProfile)
- * 2. Unclaimed visible params route by displayType
- * 3. Hidden unclaimed params → skip rendering, collect defaults
+ * 1. Composite widgets claim groups of params (e.g., PhyleticProfile).
+ * 2. Unclaimed visible params route by displayType first, then spec.type.
+ * 3. Hidden unclaimed params → skip rendering, collect defaults.
  */
 
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
@@ -25,8 +25,8 @@ export function isAdvancedParam(spec: ParamSpec): boolean {
 }
 
 /**
- * Canonical display type constants matching WDK's enum values.
- * Unknown values fall back to STRING (plain text input).
+ * Canonical display type constants matching WDK's enum values (lowercased).
+ * Empty string → fall through to spec.type dispatch.
  */
 export const DISPLAY_TYPES = {
   TREE_BOX: "treebox",
@@ -36,4 +36,38 @@ export const DISPLAY_TYPES = {
   STRING: "",
 } as const;
 
-type _DisplayType = (typeof DISPLAY_TYPES)[keyof typeof DISPLAY_TYPES];
+export type WidgetKind =
+  | "treebox"
+  | "typeahead"
+  | "select"
+  | "checkbox"
+  | "string"
+  | "number"
+  | "date"
+  | "number-range"
+  | "date-range"
+  | "timestamp"
+  | "filter"
+  | "dataset"
+  | "input-step";
+
+/** Resolve which widget should render this spec. */
+export function resolveWidgetKind(spec: ParamSpec): WidgetKind {
+  const displayType = resolveDisplayType(spec);
+  if (displayType === DISPLAY_TYPES.TREE_BOX) return "treebox";
+  if (displayType === DISPLAY_TYPES.TYPE_AHEAD) return "typeahead";
+  if (displayType === DISPLAY_TYPES.SELECT) return "select";
+  if (displayType === DISPLAY_TYPES.CHECK_BOX) return "checkbox";
+
+  const type = spec.type.trim().toLowerCase();
+  if (type === "string") return "string";
+  if (type === "number") return "number";
+  if (type === "date") return "date";
+  if (type === "number-range") return "number-range";
+  if (type === "date-range") return "date-range";
+  if (type === "timestamp") return "timestamp";
+  if (type === "filter") return "filter";
+  if (type === "input-dataset") return "dataset";
+  if (type === "input-step") return "input-step";
+  return "string";
+}

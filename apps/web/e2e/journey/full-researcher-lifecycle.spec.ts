@@ -62,7 +62,7 @@ test.describe("Full Researcher Lifecycle", () => {
 
     // Approve the presented plan so execution builds the strategy.
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
 
     // Verify strategy exists via API — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;

@@ -1,15 +1,20 @@
 /**
- * Draft slice — current strategy, step map, step CRUD, display name preservation.
+ * Draft slice — current strategy and step CRUD primitives.
+ *
+ * Steps live exclusively in `strategy.steps`; consumers derive a `stepsById`
+ * map via `useStepsById()` (selectors.ts). Each action mutates the store
+ * synchronously without recording history — mutations explicitly call
+ * `pushSnapshot` from historySlice on success.
  */
 
-import type { Step } from "@pathfinder/shared";
+import type { Step, Strategy } from "@pathfinder/shared";
+import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { StateCreator } from "zustand";
-import { serializeStrategyAst, isFallbackDisplayName } from "@/lib/strategyGraph";
+import { isFallbackDisplayName } from "@/lib/strategyGraph";
+import { getRootSteps, getRootStepId } from "@/lib/strategyGraph/validate";
 import type { DevtoolsMutators } from "@/state/middleware";
-import type { StrategyState, DraftSlice } from "./types";
-import { buildStrategy } from "./helpers";
-import { pushHistory } from "./historySlice";
 import { initialStepSnapshot, type StepMachineSnapshot } from "./stepMachine";
+import type { DraftSlice, StrategyState } from "./types";
 
 function seedSnapshotForStep(step: Step): StepMachineSnapshot {
   const wireErrors = step.validation?.errors;
@@ -24,7 +29,6 @@ function seedSnapshotForStep(step: Step): StepMachineSnapshot {
           general: wireErrors.general ?? [],
           byKey: wireErrors.byKey ?? {},
         },
-        estimatedSize: estimate,
       },
     });
   }
@@ -39,33 +43,35 @@ function seedSnapshotForStep(step: Step): StepMachineSnapshot {
 
 function syncLifecycleForSteps(
   current: Record<string, StepMachineSnapshot>,
-  stepsById: Record<string, Step>,
+  steps: Step[],
 ): Record<string, StepMachineSnapshot> {
   const next: Record<string, StepMachineSnapshot> = {};
-  for (const [id, step] of Object.entries(stepsById)) {
-    next[id] = current[id] ?? seedSnapshotForStep(step);
+  for (const step of steps) {
+    next[step.id] = current[step.id] ?? seedSnapshotForStep(step);
   }
   return next;
 }
 
-// ---------------------------------------------------------------------------
-// Display-name preservation
-// ---------------------------------------------------------------------------
+function ensureDisplayName(step: Step, existing: Step | undefined): Step {
+  if (step.displayName != null && step.displayName !== "") return step;
+  const existingName = existing?.displayName;
+  const fallbackName =
+    existingName != null && existingName !== ""
+      ? existingName
+      : step.searchName != null && step.searchName !== ""
+        ? step.searchName
+        : "Untitled step";
+  return { ...step, displayName: fallbackName };
+}
 
-/**
- * Decide whether to keep an existing step's displayName when an incoming
- * update arrives (e.g. from the AI).  Rules:
- *  - If the existing name is user-edited (not a fallback), keep it unless
- *    the incoming name is also non-fallback.
- *  - If the incoming name is a generic fallback, keep the existing name.
- */
 function preserveDisplayName(existing: Step, incoming: Step, merged: Step): Step {
   const existingName = existing.displayName;
   if (existingName == null || existingName === "") return merged;
 
   const incomingName = incoming.displayName;
   const keepExisting =
-    incomingName == null || incomingName === "" ||
+    incomingName == null ||
+    incomingName === "" ||
     !isFallbackDisplayName(existingName, existing) ||
     isFallbackDisplayName(incomingName, incoming);
 
@@ -75,38 +81,44 @@ function preserveDisplayName(existing: Step, incoming: Step, merged: Step): Step
   return merged;
 }
 
-/** Ensure a step always has a displayName. */
-function ensureDisplayName(step: Step, existing: Step | undefined): Step {
-  if (step.displayName != null && step.displayName !== "") return step;
-  const existingName = existing?.displayName;
-  const fallbackName = existingName != null && existingName !== ""
-    ? existingName
-    : step.searchName != null && step.searchName !== ""
-      ? step.searchName
-      : "Untitled step";
-  return { ...step, displayName: fallbackName };
+function buildStrategyFromSteps(
+  steps: Step[],
+  existing: Strategy | null,
+): Strategy | null {
+  if (steps.length === 0) return null;
+  const roots = getRootSteps(steps);
+  const rootStepId = roots.length === 1 ? getRootStepId(steps) : null;
+  return {
+    id: existing?.id ?? "draft",
+    name: existing?.name ?? DEFAULT_STREAM_NAME,
+    siteId: existing?.siteId ?? "veupathdb",
+    recordType: existing?.recordType ?? steps[0]?.recordType ?? "gene",
+    steps,
+    rootStepId,
+    wdkStrategyId: existing?.wdkStrategyId ?? null,
+    wdkUrl: existing?.wdkUrl ?? null,
+    isSaved: existing?.isSaved ?? false,
+    description: existing?.description ?? null,
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
-// ---------------------------------------------------------------------------
-// Slice
-// ---------------------------------------------------------------------------
-
-export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [], DraftSlice> = (
-  set,
-  get,
-) => ({
+export const createDraftSlice: StateCreator<
+  StrategyState,
+  DevtoolsMutators,
+  [],
+  DraftSlice
+> = (set) => ({
   strategy: null,
-  stepsById: {},
+  lastFailedPush: null,
 
   addStep: (step) => {
     set((state) => {
-      const existing = state.stepsById[step.id];
+      const currentSteps = state.strategy?.steps ?? [];
+      const existing = currentSteps.find((s) => s.id === step.id);
 
-      const updates = Object.fromEntries(Object.entries(step)) as Partial<Step>;
-      let nextStep: Step = {
-        ...(existing ?? step),
-        ...updates,
-      };
+      let nextStep: Step = existing ? { ...existing, ...step } : { ...step };
 
       if (
         existing?.recordType !== null &&
@@ -126,44 +138,45 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
 
       nextStep = ensureDisplayName(nextStep, existing);
 
-      const historyState = pushHistory(state, (draft) => {
-        draft.stepsById[step.id] = nextStep;
-        draft.strategy = buildStrategy(draft.stepsById, draft.strategy);
-      });
+      const nextSteps = existing
+        ? currentSteps.map((s) => (s.id === step.id ? nextStep : s))
+        : [...currentSteps, nextStep];
+
+      const nextStrategy = buildStrategyFromSteps(nextSteps, state.strategy);
       const lifecycleNext = state.stepLifecycleById[step.id]
         ? state.stepLifecycleById
         : {
             ...state.stepLifecycleById,
             [step.id]: seedSnapshotForStep(nextStep),
           };
-      return { ...historyState, stepLifecycleById: lifecycleNext };
+      return { strategy: nextStrategy, stepLifecycleById: lifecycleNext };
     });
   },
 
   updateStep: (stepId, updates) => {
     set((state) => {
-      const existingStep = state.stepsById[stepId];
-      if (!existingStep) return state;
-
-      const nextStep: Step = { ...existingStep, ...updates };
-
-      return pushHistory(state, (draft) => {
-        draft.stepsById[stepId] = nextStep;
-        draft.strategy = buildStrategy(draft.stepsById, draft.strategy);
-      });
+      const currentSteps = state.strategy?.steps ?? [];
+      const existing = currentSteps.find((s) => s.id === stepId);
+      if (!existing) return state;
+      const nextStep: Step = { ...existing, ...updates };
+      const nextSteps = currentSteps.map((s) =>
+        s.id === stepId ? nextStep : s,
+      );
+      return { strategy: buildStrategyFromSteps(nextSteps, state.strategy) };
     });
   },
 
   removeStep: (stepId) => {
     set((state) => {
-      if (!state.stepsById[stepId]) return state;
-      const historyState = pushHistory(state, (draft) => {
-        delete draft.stepsById[stepId];
-        draft.strategy = buildStrategy(draft.stepsById, draft.strategy);
-      });
+      const currentSteps = state.strategy?.steps ?? [];
+      if (!currentSteps.some((s) => s.id === stepId)) return state;
+      const nextSteps = currentSteps.filter((s) => s.id !== stepId);
       const lifecycleNext = { ...state.stepLifecycleById };
       delete lifecycleNext[stepId];
-      return { ...historyState, stepLifecycleById: lifecycleNext };
+      return {
+        strategy: buildStrategyFromSteps(nextSteps, state.strategy),
+        stepLifecycleById: lifecycleNext,
+      };
     });
   },
 
@@ -171,65 +184,19 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
     if (!strategy) {
       set({
         strategy: null,
-        stepsById: {},
         stepLifecycleById: {},
         undoStack: [],
         redoStack: [],
       });
       return;
     }
-    set((state) => {
-      const existingSteps = state.stepsById;
-      const incomingSteps = strategy.steps;
-      const mergedSteps = incomingSteps.map((step) => {
-        const existing = existingSteps[step.id];
-        if (!existing) return step;
-
-        let nextStep = step;
-        const existingName = existing.displayName;
-        const incomingName = step.displayName;
-        const hasExisting = existingName != null && existingName !== "";
-        const hasIncoming = incomingName != null && incomingName !== "";
-
-        if (
-          (nextStep.recordType === null || nextStep.recordType === undefined) &&
-          existing.recordType !== null &&
-          existing.recordType !== undefined
-        ) {
-          nextStep = { ...nextStep, recordType: existing.recordType };
-        }
-        if (!hasIncoming && hasExisting) {
-          return { ...nextStep, displayName: existingName };
-        }
-        if (hasExisting && !isFallbackDisplayName(existingName, existing)) {
-          return { ...nextStep, displayName: existingName };
-        }
-        if (
-          hasIncoming
-          && isFallbackDisplayName(incomingName, step)
-          && hasExisting
-        ) {
-          return { ...nextStep, displayName: existingName };
-        }
-        return nextStep;
-      });
-
-      const nextStepsById: Record<string, Step> = {};
-      for (const step of mergedSteps) {
-        nextStepsById[step.id] = step;
-      }
-      const mergedStrategy = { ...strategy, steps: mergedSteps };
-
-      const historyState = pushHistory(state, (draft) => {
-        draft.stepsById = nextStepsById;
-        draft.strategy = mergedStrategy;
-      });
-      const lifecycleNext = syncLifecycleForSteps(
+    set((state) => ({
+      strategy,
+      stepLifecycleById: syncLifecycleForSteps(
         state.stepLifecycleById,
-        nextStepsById,
-      );
-      return { ...historyState, stepLifecycleById: lifecycleNext };
-    });
+        strategy.steps,
+      ),
+    }));
   },
 
   setWdkInfo: (wdkStrategyId, wdkUrl, name, description) => {
@@ -254,25 +221,28 @@ export const createDraftSlice: StateCreator<StrategyState, DevtoolsMutators, [],
   setStrategyMeta: (updates) => {
     set((state) => {
       if (!state.strategy) return state;
-      return {
-        strategy: {
-          ...state.strategy,
-          ...updates,
-          updatedAt: new Date().toISOString(),
-        },
+      const nextStrategy: Strategy = {
+        ...state.strategy,
+        updatedAt: new Date().toISOString(),
       };
+      if (updates.name !== undefined) nextStrategy.name = updates.name;
+      if (updates.description !== undefined)
+        nextStrategy.description = updates.description;
+      if (updates.wdkStrategyId !== undefined)
+        nextStrategy.wdkStrategyId = updates.wdkStrategyId;
+      if (updates.wdkUrl !== undefined) nextStrategy.wdkUrl = updates.wdkUrl;
+      return { strategy: nextStrategy };
     });
   },
 
-  buildPlan: () => {
-    const state = get();
-    return serializeStrategyAst(state.stepsById, state.strategy);
+  setLastFailedPush: (payload) => {
+    set({ lastFailedPush: payload });
   },
 
   clear: () => {
     set({
       strategy: null,
-      stepsById: {},
+      lastFailedPush: null,
       stepLifecycleById: {},
       undoStack: [],
       redoStack: [],

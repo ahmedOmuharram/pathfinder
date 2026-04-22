@@ -4,7 +4,6 @@ import { useStrategyStore } from "./store";
 function resetStore() {
   useStrategyStore.setState({
     strategy: null,
-    stepsById: {},
     stepLifecycleById: {},
     undoStack: [],
     redoStack: [],

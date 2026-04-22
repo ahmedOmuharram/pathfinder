@@ -1,9 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, expect, it, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
-import type { Step } from "@pathfinder/shared";
+import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "./store";
 import { useStepSnapshot } from "./useStepSnapshot";
 
@@ -22,10 +22,26 @@ function makeStep(overrides: Partial<Step> = {}): Step {
   } as Step;
 }
 
+function makeStrategyWith(steps: Step[]): Strategy {
+  return {
+    id: "draft",
+    name: "Test",
+    siteId: "plasmodb",
+    recordType: "gene",
+    steps,
+    rootStepId: steps[0]?.id ?? null,
+    isSaved: false,
+    description: null,
+    wdkStrategyId: null,
+    wdkUrl: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+}
+
 function resetStore() {
   useStrategyStore.setState({
     strategy: null,
-    stepsById: {},
     stepLifecycleById: {},
     undoStack: [],
     redoStack: [],
@@ -47,18 +63,16 @@ describe("useStepSnapshot", () => {
   });
 
   it("returns wire estimatedSize when no lifecycle context override", () => {
-    useStrategyStore.setState({
-      stepsById: { s1: makeStep({ estimatedSize: 99 }) },
-    });
+    useStrategyStore.getState().setStrategy(
+      makeStrategyWith([makeStep({ estimatedSize: 99 })]),
+    );
     const { result } = renderHook(() => useStepSnapshot("s1"));
     expect(result.current.estimatedSize).toBe(99);
   });
 
   it("lifecycle estimatedSize overrides wire when present", () => {
     const api = useStrategyStore.getState();
-    useStrategyStore.setState({
-      stepsById: { s1: makeStep({ estimatedSize: 10 }) },
-    });
+    api.setStrategy(makeStrategyWith([makeStep({ estimatedSize: 10 })]));
     api.applyStepCounts({ s1: 500 });
     const { result } = renderHook(() => useStepSnapshot("s1"));
     expect(result.current.estimatedSize).toBe(500);
@@ -67,7 +81,7 @@ describe("useStepSnapshot", () => {
 
   it("surfaces invalid state and validation errors", () => {
     const api = useStrategyStore.getState();
-    useStrategyStore.setState({ stepsById: { s1: makeStep() } });
+    api.setStrategy(makeStrategyWith([makeStep()]));
     api.applyStepValidationErrors({ s1: "Missing taxon" });
     const { result } = renderHook(() => useStepSnapshot("s1"));
     expect(result.current.isInvalid).toBe(true);
@@ -76,8 +90,9 @@ describe("useStepSnapshot", () => {
 
   it("surfaces failed state with lastError", () => {
     const api = useStrategyStore.getState();
-    useStrategyStore.setState({ stepsById: { s1: makeStep() } });
-    api.initStepLifecycle("s1", { state: "valid" });
+    api.setStrategy(makeStrategyWith([makeStep()]));
+    api.dispatchStepEvent("s1", { type: "VALIDATE" });
+    api.dispatchStepEvent("s1", { type: "VALIDATION_SUCCESS" });
     api.dispatchStepEvent("s1", { type: "RUN_COUNTS" });
     api.dispatchStepEvent("s1", { type: "RUN_ERROR", message: "500" });
     const { result } = renderHook(() => useStepSnapshot("s1"));
@@ -87,7 +102,7 @@ describe("useStepSnapshot", () => {
 
   it("isBusy true during validating / running", () => {
     const api = useStrategyStore.getState();
-    useStrategyStore.setState({ stepsById: { s1: makeStep() } });
+    api.setStrategy(makeStrategyWith([makeStep()]));
     api.initStepLifecycle("s1");
     api.dispatchStepEvent("s1", { type: "VALIDATE" });
     const { result, rerender } = renderHook(() => useStepSnapshot("s1"));
@@ -98,17 +113,17 @@ describe("useStepSnapshot", () => {
   });
 
   it("falls back to wire validation.errors when lifecycle has none", () => {
-    useStrategyStore.setState({
-      stepsById: {
-        s1: makeStep({
+    useStrategyStore.getState().setStrategy(
+      makeStrategyWith([
+        makeStep({
           validation: {
             level: "UNRUNNABLE",
             isValid: false,
             errors: { general: ["Server said no"], byKey: {} },
           },
         }),
-      },
-    });
+      ]),
+    );
     const { result } = renderHook(() => useStepSnapshot("s1"));
     expect(result.current.validationErrors?.general?.[0]).toBe("Server said no");
   });

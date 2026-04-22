@@ -1,0 +1,187 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ComponentProps } from "react";
+import { cleanup, render } from "@testing-library/react";
+import type { Step } from "@pathfinder/shared";
+import type { StepSnapshot } from "@/state/strategy/useStepSnapshot";
+import { STAGGER_DELAY_MS } from "@/lib/motion/presets";
+
+interface MotionDivProps extends ComponentProps<"div"> {
+  initial?: unknown;
+  animate?: unknown;
+  transition?: unknown;
+  exit?: unknown;
+}
+
+const motionDivCalls: MotionDivProps[] = [];
+
+vi.mock("motion/react", async () => {
+  const React = await import("react");
+  return {
+    motion: {
+      div: ({
+        initial: _initial,
+        animate: _animate,
+        transition: _transition,
+        exit: _exit,
+        children,
+        ...rest
+      }: MotionDivProps) => {
+        motionDivCalls.push({
+          initial: _initial,
+          animate: _animate,
+          transition: _transition,
+          exit: _exit,
+        });
+        return React.createElement("div", rest, children);
+      },
+    },
+  };
+});
+
+function setReducedMotion(matches: boolean): void {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === "(prefers-reduced-motion: reduce)" ? matches : false,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => true,
+  })) as typeof window.matchMedia;
+}
+
+import { NodeShell } from "./NodeShell";
+
+function makeStep(overrides: Partial<Step> = {}): Step {
+  return {
+    id: "s1",
+    kind: "search",
+    displayName: "Genes by taxon",
+    searchName: "GenesByTaxon",
+    recordType: "gene",
+    parameters: {},
+    estimatedSize: 100,
+    isBuilt: false,
+    isFiltered: false,
+    validation: null,
+    ...overrides,
+  } as Step;
+}
+
+function makeSnapshot(overrides: Partial<StepSnapshot> = {}): StepSnapshot {
+  return {
+    step: null,
+    lifecycleState: "idle",
+    estimatedSize: 100,
+    validationErrors: null,
+    lastError: null,
+    isBusy: false,
+    isInvalid: false,
+    isFailed: false,
+    ...overrides,
+  };
+}
+
+function renderShell(
+  overrides: Partial<ComponentProps<typeof NodeShell>> = {},
+) {
+  const step = overrides.step ?? makeStep();
+  return render(
+    <NodeShell
+      kind="search"
+      step={step}
+      selected={false}
+      isUnsaved={false}
+      width={168}
+      height={64}
+      snapshot={makeSnapshot()}
+      {...overrides}
+    />,
+  );
+}
+
+describe("NodeShell motion stagger", () => {
+  beforeEach(() => {
+    motionDivCalls.length = 0;
+    setReducedMotion(false);
+  });
+  afterEach(() => cleanup());
+
+  it("wraps the shell in a motion.div that applies fade-in-up enter animation", () => {
+    renderShell({ enterDelayIndex: 0 });
+
+    expect(motionDivCalls.length).toBeGreaterThan(0);
+    const props = motionDivCalls[0]!;
+    expect(props.initial).toEqual({ opacity: 0, y: 6 });
+    expect(props.animate).toEqual({ opacity: 1, y: 0 });
+    expect(props.transition).toEqual({
+      delay: 0,
+      duration: 0.2,
+      ease: "easeOut",
+    });
+  });
+
+  it("staggers the enter delay by index * STAGGER_DELAY_MS / 1000 seconds", () => {
+    renderShell({ enterDelayIndex: 3 });
+
+    const props = motionDivCalls[0]!;
+    const expectedDelay = 3 * (STAGGER_DELAY_MS / 1000);
+    expect(props.transition).toEqual({
+      delay: expectedDelay,
+      duration: 0.2,
+      ease: "easeOut",
+    });
+  });
+
+  it("treats a missing enterDelayIndex as 0", () => {
+    renderShell({});
+
+    const props = motionDivCalls[0]!;
+    expect(props.transition).toEqual({
+      delay: 0,
+      duration: 0.2,
+      ease: "easeOut",
+    });
+  });
+
+  it("clamps a negative enterDelayIndex to 0", () => {
+    renderShell({ enterDelayIndex: -1 });
+
+    const props = motionDivCalls[0]!;
+    expect(props.transition).toEqual({
+      delay: 0,
+      duration: 0.2,
+      ease: "easeOut",
+    });
+  });
+
+  it("respects prefers-reduced-motion: skips the transition and renders at final state", () => {
+    setReducedMotion(true);
+    renderShell({ enterDelayIndex: 5 });
+
+    const props = motionDivCalls[0]!;
+    expect(props.initial).toEqual({ opacity: 1, y: 0 });
+    expect(props.animate).toEqual({ opacity: 1, y: 0 });
+    expect(props.transition).toEqual({ duration: 0 });
+  });
+
+  it("preserves data-testid + data-kind + width/height on the wrapping element", () => {
+    const step = makeStep({ id: "abc" });
+    const { container } = renderShell({ step, kind: "combine", width: 168, height: 112 });
+
+    const wrapper = container.querySelector('[data-testid="rf-node-abc"]');
+    expect(wrapper).not.toBeNull();
+    expect(wrapper?.getAttribute("data-kind")).toBe("combine");
+    expect((wrapper as HTMLElement | null)?.style.width).toBe("168px");
+    expect((wrapper as HTMLElement | null)?.style.height).toBe("112px");
+  });
+
+  it("exposes the enter-delay index via data-enter-delay-index for inspection", () => {
+    const step = makeStep({ id: "n2" });
+    const { container } = renderShell({ step, enterDelayIndex: 2 });
+    const wrapper = container.querySelector('[data-testid="rf-node-n2"]');
+    expect(wrapper?.getAttribute("data-enter-delay-index")).toBe("2");
+  });
+});

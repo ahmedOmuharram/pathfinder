@@ -44,6 +44,7 @@ from pathfinder.ai.agents.supervisor import (
     SupervisorTarget,
     build_supervisor_agent,
 )
+from pathfinder.ai.models.mock import get_mock_model
 from pathfinder.ai.conversation.approval import (
     ApprovalDecision,
     classify_approval_reply,
@@ -82,6 +83,7 @@ from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
 from pathfinder.ai.scratchpad.rendering import render_scratchpad_for_supervisor
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
 from pathfinder.persistence.repositories import MessagesRepository
+from pathfinder.platform.config import get_settings
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services import quota as quota_service
@@ -511,16 +513,23 @@ async def _run_phase_node(
     effective_memories = memories if memories is not None else state.retrieved_memories
     deps = build_node_deps(state, runtime.context, memories=effective_memories)
 
-    model_override = await _resolve_phase_model_override(state, runtime, phase)
-    override_ctx = (
-        agent.override(
-            model=model_override,
-            model_settings=_override_model_settings(model_override),
+    # Mock chat provider (E2E mode): swap in the deterministic FunctionModel
+    # so chat does not depend on a real LLM API key. User-pref overrides are
+    # ignored in this mode because the mock fakes every phase.
+    if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
+        override_ctx = agent.override(model=get_mock_model())
+        agent_model = f"mock:{phase}"
+    else:
+        model_override = await _resolve_phase_model_override(state, runtime, phase)
+        override_ctx = (
+            agent.override(
+                model=model_override,
+                model_settings=_override_model_settings(model_override),
+            )
+            if model_override is not None
+            else contextlib.nullcontext()
         )
-        if model_override is not None
-        else contextlib.nullcontext()
-    )
-    agent_model = model_override if model_override is not None else model_id(agent)
+        agent_model = model_override if model_override is not None else model_id(agent)
 
     phase_message_id = uuid4()
     _emit_chunk(
@@ -943,10 +952,19 @@ async def _run_supervisor_agent(
         if state.phase_call_counts
         else state.user_prompt or "(empty user message)"
     )
+    is_mock = (
+        get_settings().pathfinder_chat_provider.strip().lower() == "mock"
+    )
+    override_ctx = (
+        agent.override(model=get_mock_model())
+        if is_mock
+        else contextlib.nullcontext()
+    )
     try:
-        result = await agent.run(
-            user_prompt_for_run, deps=deps, message_history=history,
-        )
+        with override_ctx:
+            result = await agent.run(
+                user_prompt_for_run, deps=deps, message_history=history,
+            )
     except Exception:
         logger.exception(
             "supervisor agent failed; ending turn",

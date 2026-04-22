@@ -88,31 +88,22 @@ export function useChatRuntime({
             .recordGeneSet(geneSetSchema.parse(dataPart.data));
           break;
         case "data-graph-snapshot":
-          useStrategyStore
-            .getState()
-            .applyGraphSnapshot(graphSnapshotSchema.parse(dataPart.data));
-          // The StrategyPanel reads the full Strategy shape from the
-          // conversation-detail query; the snapshot payload is a compact
-          // nodes/edges summary, not a full Strategy. Invalidate so the
-          // panel refetches the authoritative AST from the server as the
-          // turn builds the strategy — otherwise users only see the
-          // strategy after manually refreshing.
+          // Validate shape; the StrategyPanel reads the full Strategy from the
+          // conversation-detail query. Invalidate so the panel refetches the
+          // authoritative AST from the server as the turn builds the strategy.
+          graphSnapshotSchema.parse(dataPart.data);
           void queryClient.invalidateQueries({
             queryKey: conversationDetailOptions(conversationId).queryKey,
           });
           break;
         case "data-strategy-update":
-          useStrategyStore
-            .getState()
-            .applyPatch(strategyPatchSchema.parse(dataPart.data));
+          strategyPatchSchema.parse(dataPart.data);
           void queryClient.invalidateQueries({
             queryKey: conversationDetailOptions(conversationId).queryKey,
           });
           break;
         case "data-strategy-meta":
-          useStrategyStore
-            .getState()
-            .setLatestStrategyMeta(strategyMetaSchema.parse(dataPart.data));
+          strategyMetaSchema.parse(dataPart.data);
           break;
         case "data-graph-cleared":
           graphClearedSchema.parse(dataPart.data);

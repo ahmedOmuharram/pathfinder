@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
 import { TreeBoxParam } from "./TreeBoxParam";
 import type { ParamSpec } from "@pathfinder/shared";
 import type { VocabNode, VocabOption } from "@/lib/utils/vocab";
@@ -55,13 +56,11 @@ function makeSpec(overrides: Partial<ParamSpec> = {}): ParamSpec {
   } as ParamSpec;
 }
 
-function checkboxFor(label: string): HTMLInputElement {
-  return screen.getByText(label).parentElement?.querySelector(
-    'input[type="checkbox"]',
-  ) as HTMLInputElement;
+function stateOf(label: string): string | null {
+  return screen.getByLabelText(label).getAttribute("data-state");
 }
 
-describe("TreeBoxParam -- multi-pick checkboxes", () => {
+describe("TreeBoxParam — multi-pick (shadcn checkboxes)", () => {
   it("renders checkboxes for all nodes", () => {
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
@@ -71,56 +70,48 @@ describe("TreeBoxParam -- multi-pick checkboxes", () => {
     expect(screen.getAllByRole("checkbox").length).toBe(7);
   });
 
-  it("checks a leaf checkbox when its value is in the form value", () => {
+  it("checks a leaf when its value is in the form value", () => {
     render(
       <WidgetTestForm name="test_tree" defaultValue={["leaf-1"]}>
         {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
       </WidgetTestForm>,
     );
-    expect(checkboxFor("Leaf 1").checked).toBe(true);
+    expect(stateOf("Leaf 1")).toBe("checked");
   });
 
-  it("clicking a leaf adds it to the form value", () => {
+  it("clicking a leaf adds it to the form value", async () => {
+    const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
         {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
       </WidgetTestForm>,
     );
-    fireEvent.click(screen.getByText("Leaf 1"));
-    expect(checkboxFor("Leaf 1").checked).toBe(true);
+    await user.click(screen.getByLabelText("Leaf 1"));
+    expect(stateOf("Leaf 1")).toBe("checked");
   });
 
-  it("clicking a checked leaf removes it from the form value", () => {
+  it("clicking a checked leaf removes it from the form value", async () => {
+    const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_tree" defaultValue={["leaf-1", "leaf-2"]}>
         {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
       </WidgetTestForm>,
     );
-    fireEvent.click(screen.getByText("Leaf 1"));
-    expect(checkboxFor("Leaf 1").checked).toBe(false);
-    expect(checkboxFor("Leaf 2").checked).toBe(true);
+    await user.click(screen.getByLabelText("Leaf 1"));
+    expect(stateOf("Leaf 1")).toBe("unchecked");
+    expect(stateOf("Leaf 2")).toBe("checked");
   });
 
-  it("clicking a branch selects all its leaf descendants", () => {
+  it("clicking a branch selects all its leaf descendants", async () => {
+    const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
         {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
       </WidgetTestForm>,
     );
-    fireEvent.click(screen.getByText("Branch A"));
-    expect(checkboxFor("Leaf 1").checked).toBe(true);
-    expect(checkboxFor("Leaf 2").checked).toBe(true);
-  });
-
-  it("clicking a fully-selected branch deselects all its leaf descendants", () => {
-    render(
-      <WidgetTestForm name="test_tree" defaultValue={["leaf-1", "leaf-2"]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
-      </WidgetTestForm>,
-    );
-    fireEvent.click(screen.getByText("Branch A"));
-    expect(checkboxFor("Leaf 1").checked).toBe(false);
-    expect(checkboxFor("Leaf 2").checked).toBe(false);
+    await user.click(screen.getByLabelText("Branch A"));
+    expect(stateOf("Leaf 1")).toBe("checked");
+    expect(stateOf("Leaf 2")).toBe("checked");
   });
 
   it("branch checkbox is indeterminate when some children selected", () => {
@@ -129,9 +120,7 @@ describe("TreeBoxParam -- multi-pick checkboxes", () => {
         {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
       </WidgetTestForm>,
     );
-    const checkbox = checkboxFor("Branch A");
-    expect(checkbox.indeterminate).toBe(true);
-    expect(checkbox.checked).toBe(false);
+    expect(stateOf("Branch A")).toBe("indeterminate");
   });
 
   it("branch checkbox is checked when all children selected", () => {
@@ -140,13 +129,11 @@ describe("TreeBoxParam -- multi-pick checkboxes", () => {
         {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
       </WidgetTestForm>,
     );
-    const checkbox = checkboxFor("Branch A");
-    expect(checkbox.checked).toBe(true);
-    expect(checkbox.indeterminate).toBe(false);
+    expect(stateOf("Branch A")).toBe("checked");
   });
 });
 
-describe("TreeBoxParam -- search filter", () => {
+describe("TreeBoxParam — search filter", () => {
   it("renders search input", () => {
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>

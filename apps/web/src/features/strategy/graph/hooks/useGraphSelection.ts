@@ -15,7 +15,6 @@ const areNodeIdsEqual = (a: string[], b: string[]) => {
 };
 
 export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs) {
-  const [interactionMode, setInteractionMode] = useState<"select" | "pan">("pan");
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const setPendingAskNode = useSessionStore((s) => s.setPendingAskNode);
 
@@ -47,8 +46,6 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
   };
 
   return {
-    interactionMode,
-    setInteractionMode,
     selectedNodeIds,
     setSelectedNodeIds,
     handleAddToChat,

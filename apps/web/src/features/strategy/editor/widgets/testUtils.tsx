@@ -1,6 +1,18 @@
 import type { ReactNode } from "react";
 import { useForm } from "@tanstack/react-form";
+import { screen } from "@testing-library/react";
 import type { ParamWidgetProps } from "./types";
+
+/** Get an input element by its accessible label. Narrows type to HTMLInputElement. */
+export function getInputByLabel(label: string): HTMLInputElement {
+  const el = screen.getByLabelText(label);
+  if (!(el instanceof HTMLInputElement)) {
+    throw new Error(
+      `getInputByLabel("${label}"): expected HTMLInputElement, got ${el.tagName}`,
+    );
+  }
+  return el;
+}
 
 type ParamFormValues = Record<string, string | string[]>;
 

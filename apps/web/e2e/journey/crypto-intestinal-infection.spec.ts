@@ -66,7 +66,7 @@ test.describe("Crypto Intestinal Infection Journey", () => {
     await chatPage.expectPlanningArtifact();
 
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
     // ── Phase 3: Workbench — Gene Sets ───────────────────────────

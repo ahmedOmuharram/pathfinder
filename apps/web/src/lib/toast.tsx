@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils/cn";
 import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { toast as sonnerToast } from "sonner";
 
 export type ToastType = "success" | "error" | "info";
@@ -32,17 +32,40 @@ export function toast(props: Omit<ToastProps, "id">) {
 }
 
 function Toast({ id, type, description }: ToastProps) {
+  const [isMultiLine, setIsMultiLine] = useState(false);
+
+  const measureLines = (el: HTMLDivElement) => {
+    const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight);
+    if (Number.isNaN(lineHeight) || lineHeight <= 0) return;
+    setIsMultiLine(el.scrollHeight > lineHeight * 1.5);
+  };
+
+  const descriptionRef = (el: HTMLDivElement | null) => {
+    if (el === null) return;
+    measureLines(el);
+    if (typeof window === "undefined" || !("ResizeObserver" in window)) return;
+    const observer = new ResizeObserver(() => measureLines(el));
+    observer.observe(el);
+    return () => observer.disconnect();
+  };
+
   return (
     <div className="flex w-full justify-center md:w-[356px]">
       <div
-        className="flex w-full flex-row items-start gap-3 rounded-lg border border-border/50 bg-card p-3 shadow-[var(--shadow-float)] md:w-fit"
+        className={cn(
+          "flex w-full flex-row gap-3 rounded-lg border border-border/50 bg-card p-3 shadow-[var(--shadow-float)] md:w-fit",
+          isMultiLine ? "items-start" : "items-center",
+        )}
         data-testid="toast"
         key={id}
       >
-        <div className={cn(iconClassByType[type], "pt-0.5")}>
+        <div className={cn(iconClassByType[type], isMultiLine && "pt-0.5")}>
           {iconsByType[type]}
         </div>
-        <div className="text-sm text-foreground [overflow-wrap:anywhere]">
+        <div
+          className="text-sm text-foreground [overflow-wrap:anywhere]"
+          ref={descriptionRef}
+        >
           {description}
         </div>
       </div>

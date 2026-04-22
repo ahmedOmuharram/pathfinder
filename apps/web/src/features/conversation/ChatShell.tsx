@@ -6,10 +6,15 @@ import { useState } from "react";
 import { ChatView } from "./ChatView";
 
 const CHAT_ID_FROM_PATH = /\/conversation\/([^/]+)/;
+const STRATEGY_PATH = /\/conversation\/[^/]+\/strategy(\/|$)/;
 
 function extractChatId(pathname: string): string | null {
   const match = pathname.match(CHAT_ID_FROM_PATH);
   return match?.[1] ?? null;
+}
+
+export function isStrategyRoute(pathname: string): boolean {
+  return STRATEGY_PATH.test(pathname);
 }
 
 export interface ChatResolution {
@@ -43,6 +48,10 @@ export function ChatShell() {
     setLastSeenPath(pathname);
     setGeneratedChatId(crypto.randomUUID());
   }
+
+  // /conversation/[id]/strategy and nested routes own the main pane; let
+  // the route's `page.tsx` render the strategy canvas instead of the chat.
+  if (isStrategyRoute(pathname)) return null;
 
   const { conversationId, allowMissing } = computeChatResolution({
     pathname,

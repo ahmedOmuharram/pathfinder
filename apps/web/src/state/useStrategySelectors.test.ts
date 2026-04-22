@@ -6,7 +6,6 @@ import { renderHook } from "@testing-library/react";
 import { useStrategyStore } from "./strategy/store";
 import {
   useCurrentStrategy,
-  useStrategyList,
   useStrategyHistory,
   useStrategyActions,
   useStrategyListActions,
@@ -15,13 +14,10 @@ import {
 describe("state/useStrategySelectors", () => {
   beforeEach(() => {
     useStrategyStore.getState().clear();
-    useStrategyStore.setState({
-      executedStrategies: [],
-      graphValidationStatus: {},
-    });
+    useStrategyStore.setState({ graphValidationStatus: {} });
   });
 
-  it("useCurrentStrategy returns strategy and stepsById", () => {
+  it("useCurrentStrategy returns the current strategy", () => {
     const { addStep } = useStrategyStore.getState();
     addStep({
       id: "s1",
@@ -33,39 +29,31 @@ describe("state/useStrategySelectors", () => {
     });
 
     const { result } = renderHook(() => useCurrentStrategy());
-    expect(result.current.strategy).not.toBeNull();
-    expect(result.current.stepsById["s1"]).toBeDefined();
-    expect(result.current.stepsById["s1"]?.displayName).toBe("Search 1");
+    expect(result.current).not.toBeNull();
+    expect(result.current?.steps[0]?.displayName).toBe("Search 1");
   });
 
-  it("useStrategyList returns executedStrategies and graphValidationStatus", () => {
-    useStrategyStore.getState().setGraphValidationStatus("s1", true);
-
-    const { result } = renderHook(() => useStrategyList());
-    expect(result.current.graphValidationStatus["s1"]).toBe(true);
-  });
-
-  it("useStrategyHistory returns undo/redo functions", () => {
+  it("useStrategyHistory returns undo/redo functions and pushSnapshot", () => {
     const { result } = renderHook(() => useStrategyHistory());
     expect(typeof result.current.undo).toBe("function");
     expect(typeof result.current.redo).toBe("function");
     expect(typeof result.current.canUndo).toBe("function");
     expect(typeof result.current.canRedo).toBe("function");
+    expect(typeof result.current.pushSnapshot).toBe("function");
   });
 
-  it("useStrategyActions returns all mutation actions", () => {
+  it("useStrategyActions returns mutation actions (no buildPlan)", () => {
     const { result } = renderHook(() => useStrategyActions());
     expect(typeof result.current.addStep).toBe("function");
     expect(typeof result.current.updateStep).toBe("function");
     expect(typeof result.current.removeStep).toBe("function");
     expect(typeof result.current.setStrategy).toBe("function");
-    expect(typeof result.current.buildPlan).toBe("function");
+    expect(typeof result.current.setStrategyMeta).toBe("function");
     expect(typeof result.current.clear).toBe("function");
   });
 
   it("useStrategyListActions returns list mutation actions", () => {
     const { result } = renderHook(() => useStrategyListActions());
-    expect(typeof result.current.addExecutedStrategy).toBe("function");
     expect(typeof result.current.setGraphValidationStatus).toBe("function");
   });
 });

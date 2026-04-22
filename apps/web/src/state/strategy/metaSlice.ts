@@ -1,18 +1,19 @@
 /**
- * Meta slice — graph validation status, stream-derived snapshot/patch state.
+ * Meta slice — graph validation status. Stream-derived snapshot/patch state
+ * was removed; AI streaming events drive query invalidation directly.
  */
 
 import type { StateCreator } from "zustand";
 import type { DevtoolsMutators } from "@/state/middleware";
-import type { StrategyState, MetaSlice } from "./types";
+import type { MetaSlice, StrategyState } from "./types";
 
-export const createMetaSlice: StateCreator<StrategyState, DevtoolsMutators, [], MetaSlice> = (
-  set,
-) => ({
+export const createMetaSlice: StateCreator<
+  StrategyState,
+  DevtoolsMutators,
+  [],
+  MetaSlice
+> = (set) => ({
   graphValidationStatus: {},
-  latestGraphSnapshot: null,
-  latestStrategyMeta: null,
-  lastStrategyPatch: null,
 
   setGraphValidationStatus: (id, hasErrors) =>
     set((state) => ({
@@ -21,8 +22,4 @@ export const createMetaSlice: StateCreator<StrategyState, DevtoolsMutators, [], 
         [id]: hasErrors,
       },
     })),
-
-  applyGraphSnapshot: (snapshot) => set({ latestGraphSnapshot: snapshot }),
-  setLatestStrategyMeta: (meta) => set({ latestStrategyMeta: meta }),
-  applyPatch: (patch) => set({ lastStrategyPatch: patch }),
 });

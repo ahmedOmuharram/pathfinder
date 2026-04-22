@@ -1,6 +1,7 @@
-import { useState } from "react";
+"use client";
+
+import { toast } from "sonner";
 import type { Connection, Edge } from "@xyflow/react";
-import { type CombineOperator } from "@pathfinder/shared";
 import type { Step } from "@pathfinder/shared";
 import {
   buildGraphIndices,
@@ -9,101 +10,102 @@ import {
   inferCombineRecordTypeOrMismatch,
   isValidGraphConnection,
 } from "@/features/strategy/graph/utils/graphConnectionsLogic";
-
-interface PendingCombine {
-  sourceId: string;
-  targetId: string;
-}
+import {
+  useAddStepMutation,
+  useUpdateStepMutation,
+} from "@/features/strategy/mutations";
 
 interface UseGraphConnectionsArgs {
   steps: Step[];
-  addStep: (step: Step) => void;
-  updateStep: (stepId: string, updates: Partial<Step>) => void;
-  failCombineMismatch: () => void;
-  triggerSync: () => void;
 }
 
+const COMBINE_MISMATCH_ERROR = "Cannot combine steps with different record types.";
 const generateStepId = () => `step_${Math.random().toString(16).slice(2, 10)}`;
 
-export function useGraphConnections({
-  steps,
-  addStep,
-  updateStep,
-  failCombineMismatch,
-  triggerSync,
-}: UseGraphConnectionsArgs) {
-  const [pendingCombine, setPendingCombine] = useState<PendingCombine | null>(null);
+/**
+ * Connection handlers for the strategy graph.
+ *
+ * The pre-overhaul "pick combine operator first" modal flow is gone; dragging
+ * an edge between two roots now creates a combine step with the default
+ * `INTERSECT` operator. The user picks a different operator from the editor
+ * Sheet (or the edge ContextMenu) afterwards.
+ */
+export function useGraphConnections({ steps }: UseGraphConnectionsArgs) {
+  const addStep = useAddStepMutation();
+  const updateStep = useUpdateStepMutation();
   const indices = buildGraphIndices(steps);
 
-  const isValidConnection = (connection: Edge | Connection) => {
-    return isValidGraphConnection(connection as Connection, indices);
-  };
+  const isValidConnection = (connection: Edge | Connection) =>
+    isValidGraphConnection(connection as Connection, indices);
 
   const handleConnect = (connection: Connection) => {
     const effect = getConnectionEffect(connection, indices);
     if (effect.type === "patch") {
-      updateStep(effect.targetId, effect.patch);
-      triggerSync();
-    } else if (effect.type === "pendingCombine") {
-      setPendingCombine({ sourceId: effect.sourceId, targetId: effect.targetId });
+      updateStep.mutate({ stepId: effect.targetId, patch: effect.patch });
+      return;
+    }
+    if (effect.type === "pendingCombine") {
+      const { recordType, mismatch } = inferCombineRecordTypeOrMismatch({
+        sourceId: effect.sourceId,
+        targetId: effect.targetId,
+        indices,
+      });
+      if (mismatch) {
+        toast.error(COMBINE_MISMATCH_ERROR);
+        return;
+      }
+      const newStep: Step = {
+        id: generateStepId(),
+        kind: "combine",
+        displayName: "INTERSECT combine",
+        operator: "INTERSECT",
+        recordType: recordType ?? null,
+        primaryInputStepId: effect.sourceId,
+        secondaryInputStepId: effect.targetId,
+        isBuilt: false,
+        isFiltered: false,
+      };
+      addStep.mutate({ step: newStep });
     }
   };
 
   const handleDeleteEdge = (edge: Edge) => {
     const patch = edgeToInputPatch(edge);
     if (!patch) return;
-    updateStep(edge.target, patch);
-    triggerSync();
-  };
-
-  const handleCombineCreate = async (operator: CombineOperator) => {
-    if (!pendingCombine) return;
-    const { recordType, mismatch } = inferCombineRecordTypeOrMismatch({
-      sourceId: pendingCombine.sourceId,
-      targetId: pendingCombine.targetId,
-      indices,
-    });
-    if (mismatch) {
-      failCombineMismatch();
-      setPendingCombine(null);
-      return;
-    }
-    const nextStep: Step = {
-      id: generateStepId(),
-      kind: "combine",
-      displayName: `${operator} combine`,
-      operator,
-      recordType: recordType ?? null,
-      primaryInputStepId: pendingCombine.sourceId,
-      secondaryInputStepId: pendingCombine.targetId,
-      isBuilt: false,
-      isFiltered: false,
-    };
-    addStep(nextStep);
-    setPendingCombine(null);
-    triggerSync();
-  };
-
-  const handleCombineCancel = () => {
-    setPendingCombine(null);
+    updateStep.mutate({ stepId: edge.target, patch });
   };
 
   const startCombine = (sourceId: string, targetId: string) => {
-    if (!sourceId || !targetId) return;
-    if (sourceId === targetId) return;
-    // Only meaningful when the graph has multiple roots and both selections are roots.
+    if (!sourceId || !targetId || sourceId === targetId) return;
     if (indices.rootIds.length === 1) return;
     if (!indices.rootSet.has(sourceId) || !indices.rootSet.has(targetId)) return;
-    setPendingCombine({ sourceId, targetId });
+    const { recordType, mismatch } = inferCombineRecordTypeOrMismatch({
+      sourceId,
+      targetId,
+      indices,
+    });
+    if (mismatch) {
+      toast.error(COMBINE_MISMATCH_ERROR);
+      return;
+    }
+    const newStep: Step = {
+      id: generateStepId(),
+      kind: "combine",
+      displayName: "INTERSECT combine",
+      operator: "INTERSECT",
+      recordType: recordType ?? null,
+      primaryInputStepId: sourceId,
+      secondaryInputStepId: targetId,
+      isBuilt: false,
+      isFiltered: false,
+    };
+    addStep.mutate({ step: newStep });
   };
 
   return {
-    pendingCombine,
     isValidConnection,
     handleConnect,
     handleDeleteEdge,
-    handleCombineCreate,
-    handleCombineCancel,
     startCombine,
   };
 }

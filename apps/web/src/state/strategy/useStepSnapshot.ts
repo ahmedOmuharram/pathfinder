@@ -68,7 +68,7 @@ function resolveValidationErrors(
 export function useStepSnapshot(stepId: string): StepSnapshot {
   return useStrategyStore(
     useShallow((state) => {
-      const step = state.stepsById[stepId] ?? null;
+      const step = state.strategy?.steps.find((s) => s.id === stepId) ?? null;
       const lifecycle = state.stepLifecycleById[stepId];
       const lifecycleState = pickLifecycleValue(lifecycle);
       return {

@@ -63,7 +63,7 @@ test.describe("Malaria Drug Resistance Journey", () => {
 
     // Apply plan — backend stores real strategy with GenesByTaxon search
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
     // Verify strategy was persisted via API

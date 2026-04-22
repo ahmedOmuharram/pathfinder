@@ -95,7 +95,7 @@ export function deserializeStrategyToGraph(
     }
   }
 
-  for (const step of strategy.steps) {
+  for (const [stepIndex, step] of strategy.steps.entries()) {
     const kind = inferStepKind(step);
     const ex = existing ? existing.get(step.id) : null;
     const cp = computed.get(step.id);
@@ -127,6 +127,7 @@ export function deserializeStrategyToGraph(
           step.primaryInputStepId == null,
         showSecondaryInputHandle:
           kind === "combine" && step.secondaryInputStepId == null,
+        enterDelayIndex: stepIndex,
       },
       sourcePosition: Position.Right,
       targetPosition: Position.Left,

@@ -1,4 +1,6 @@
-import { cn } from "@/lib/utils/cn";
+"use client";
+
+import { Input } from "@/components/ui/input";
 import type { ParamWidgetProps } from "./types";
 
 export function StringParam({ spec, name, field }: ParamWidgetProps) {
@@ -12,10 +14,10 @@ export function StringParam({ spec, name, field }: ParamWidgetProps) {
 
   return (
     <div>
-      <input
+      <Input
         name={name}
-        value={(field.state.value as string | undefined) ?? ""}
-        onChange={(e) => field.handleChange(e.target.value)}
+        value={typeof field.state.value === "string" ? field.state.value : ""}
+        onChange={(event) => field.handleChange(event.target.value)}
         onBlur={field.handleBlur}
         type={isNumeric ? "number" : "text"}
         min={isNumeric && spec.min != null ? spec.min : undefined}
@@ -24,10 +26,6 @@ export function StringParam({ spec, name, field }: ParamWidgetProps) {
         aria-invalid={hasError ? "true" : undefined}
         aria-describedby={hasError ? `${name}-error` : undefined}
         aria-required={spec.allowEmptyValue === false ? "true" : undefined}
-        className={cn(
-          "w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground",
-          hasError ? "border-destructive/30 bg-destructive/5" : "border-border",
-        )}
       />
       {hasError && errorMessage != null && (
         <p id={`${name}-error`} role="alert" className="mt-1 text-xs text-destructive">

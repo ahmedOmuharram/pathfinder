@@ -32,11 +32,11 @@ test.describe("Chat → Workbench Flow", () => {
     await chatPage.expectPlanningArtifact();
 
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
     // UI: Step pills visible
-    const pillCount = await graphPage.stepPills.count();
+    const pillCount = await graphPage.railStepRows.count();
     expect(pillCount).toBeGreaterThan(0);
 
     // API: Strategy persisted — use captured ID for isolation

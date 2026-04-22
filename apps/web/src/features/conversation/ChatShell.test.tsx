@@ -4,7 +4,7 @@
 import type * as ReactQueryModule from "@tanstack/react-query";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-import { computeChatResolution } from "./ChatShell";
+import { computeChatResolution, isStrategyRoute } from "./ChatShell";
 
 type ReactQueryExports = typeof ReactQueryModule;
 
@@ -42,6 +42,23 @@ describe("ChatShell.computeChatResolution", () => {
       generatedChatId: "gen-1",
     });
     expect(r.allowMissing).toBe(true);
+  });
+});
+
+describe("ChatShell.isStrategyRoute", () => {
+  it("returns false for the bare conversation route", () => {
+    expect(isStrategyRoute("/plasmodb/conversation/conv-1")).toBe(false);
+    expect(isStrategyRoute("/plasmodb/conversation")).toBe(false);
+  });
+
+  it("returns true for the strategy page route", () => {
+    expect(isStrategyRoute("/plasmodb/conversation/conv-1/strategy")).toBe(true);
+  });
+
+  it("returns true for the strategy step deep-link route", () => {
+    expect(
+      isStrategyRoute("/plasmodb/conversation/conv-1/strategy/step/step_1"),
+    ).toBe(true);
   });
 });
 
@@ -91,8 +108,8 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     expect(redirectSpy).not.toHaveBeenCalled();
   });
 
-  it("ChatView renders StrategyGraph beside the chat when the conversation has steps", async () => {
-    const strategyGraphSpy = vi.fn();
+  it("ChatView passes the strategy and siteId into the rail StrategyPanel when steps exist", async () => {
+    const strategyPanelSpy = vi.fn();
     vi.doMock("next/navigation", () => ({
       redirect: vi.fn(),
       usePathname: () => "/conversation/with-steps",
@@ -133,31 +150,32 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
       useQueryState: () => [null, () => {}],
       parseAsString: {},
     }));
-    vi.doMock("@/features/strategy/graph/components/StrategyGraph", () => ({
-      StrategyGraph: (props: { strategy: { id: string } | null; siteId: string }) => {
-        strategyGraphSpy(props);
-        return <div data-testid="strategy-graph" />;
+    vi.doMock("./rail/StrategyPanel", () => ({
+      StrategyPanel: (props: { strategy: { id: string } | null; siteId: string }) => {
+        strategyPanelSpy(props);
+        return <div data-testid="strategy-panel" />;
       },
     }));
 
     const { ChatView } = await import("./ChatView");
     const { render } = await import("@testing-library/react");
+    const { useRightRailStore } = await import("@/state/useRightRailStore");
 
-    const { getByTestId } = render(
-      <ChatView conversationId="with-steps" allowMissing={false} />,
-    );
+    // Force the rail to be open on the strategy panel for this test.
+    useRightRailStore.setState({ openPanel: "strategy" });
 
-    expect(getByTestId("strategy-graph")).toBeTruthy();
-    expect(strategyGraphSpy).toHaveBeenCalled();
-    const lastCall = strategyGraphSpy.mock.calls.at(-1);
+    render(<ChatView conversationId="with-steps" allowMissing={false} />);
+
+    expect(strategyPanelSpy).toHaveBeenCalled();
+    const lastCall = strategyPanelSpy.mock.calls.at(-1);
     if (lastCall === undefined) throw new Error("no call");
     const props = lastCall[0] as { strategy: { id: string } | null; siteId: string };
     expect(props.strategy?.id).toBe("with-steps");
     expect(props.siteId).toBe("plasmodb");
   });
 
-  it("ChatView does not render StrategyGraph when the conversation has no steps", async () => {
-    const strategyGraphSpy = vi.fn();
+  it("ChatView passes a strategy with no steps into the rail StrategyPanel (rail handles empty state)", async () => {
+    const strategyPanelSpy = vi.fn();
     vi.doMock("next/navigation", () => ({
       redirect: vi.fn(),
       usePathname: () => "/conversation/no-steps",
@@ -198,22 +216,26 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
       useQueryState: () => [null, () => {}],
       parseAsString: {},
     }));
-    vi.doMock("@/features/strategy/graph/components/StrategyGraph", () => ({
-      StrategyGraph: (props: unknown) => {
-        strategyGraphSpy(props);
-        return <div data-testid="strategy-graph" />;
+    vi.doMock("./rail/StrategyPanel", () => ({
+      StrategyPanel: (props: { strategy: { steps: unknown[] } | null; siteId: string }) => {
+        strategyPanelSpy(props);
+        return <div data-testid="strategy-panel" />;
       },
     }));
 
     const { ChatView } = await import("./ChatView");
     const { render } = await import("@testing-library/react");
+    const { useRightRailStore } = await import("@/state/useRightRailStore");
 
-    const { queryByTestId } = render(
-      <ChatView conversationId="no-steps" allowMissing={false} />,
-    );
+    useRightRailStore.setState({ openPanel: "strategy" });
 
-    expect(queryByTestId("strategy-graph")).toBeNull();
-    expect(strategyGraphSpy).not.toHaveBeenCalled();
+    render(<ChatView conversationId="no-steps" allowMissing={false} />);
+
+    expect(strategyPanelSpy).toHaveBeenCalled();
+    const lastCall = strategyPanelSpy.mock.calls.at(-1);
+    if (lastCall === undefined) throw new Error("no call");
+    const props = lastCall[0] as { strategy: { steps: unknown[] } | null; siteId: string };
+    expect(props.strategy?.steps).toEqual([]);
   });
 
   it("ChatView does invoke redirect() when conversationId is an unknown id (not client-generated)", async () => {
@@ -254,6 +276,8 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
 
     render(<ChatView conversationId="stranger" allowMissing={false} />);
 
-    expect(redirectSpy).toHaveBeenCalledWith("/conversation");
+    // useParams mock omits siteId, so the redirect interpolates an empty
+    // segment. The production code prefixes the route with `/${siteId}/`.
+    expect(redirectSpy).toHaveBeenCalledWith("//conversation");
   });
 });

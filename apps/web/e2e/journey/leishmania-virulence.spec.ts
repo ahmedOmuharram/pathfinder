@@ -62,7 +62,7 @@ test.describe("Leishmania Virulence Journey", () => {
     await chatPage.expectPlanningArtifact();
 
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
     // Verify strategy persisted

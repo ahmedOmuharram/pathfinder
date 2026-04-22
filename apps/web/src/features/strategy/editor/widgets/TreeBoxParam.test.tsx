@@ -77,7 +77,7 @@ describe("TreeBoxParam -- flat fallback", () => {
     );
     const radios = screen.getAllByRole("radio");
     expect(radios.length).toBe(4);
-    expect((radios[1] as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByLabelText("Leaf 2").getAttribute("data-state")).toBe("checked");
   });
 });
 
@@ -163,8 +163,6 @@ describe("TreeBoxParam -- single-pick (radios)", () => {
         {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
       </WidgetTestForm>,
     );
-    const leaf2Label = screen.getByText("Leaf 2");
-    const radio = leaf2Label.parentElement?.querySelector('input[type="radio"]') as HTMLInputElement;
-    expect(radio.checked).toBe(true);
+    expect(screen.getByLabelText("Leaf 2").getAttribute("data-state")).toBe("checked");
   });
 });

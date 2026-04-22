@@ -6,7 +6,6 @@ import { useReactFlow } from "@xyflow/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEventListener } from "usehooks-ts";
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useShallow } from "zustand/react/shallow";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useStrategyHistory } from "@/state/useStrategySelectors";
 import { useNodePositionHistory } from "@/features/strategy/graph/hooks/useNodePositionHistory";
@@ -15,6 +14,10 @@ import {
   layoutStrategyGraph,
   type StepPositions,
 } from "@/lib/strategyGraph";
+import {
+  usePushStrategyMutation,
+  useUpdateStepMutation,
+} from "@/features/strategy/mutations";
 
 interface UseStrategyGraphLayoutOptions {
   strategy: Strategy | null;
@@ -26,7 +29,6 @@ interface UseStrategyGraphLayoutOptions {
   handleAddToChat: (stepId: string) => void;
   handleOpenDetails: (stepId: string) => void;
   setSelectedNodeIds: (ids: string[]) => void;
-  triggerSync: () => void;
 }
 
 function layoutCacheKey(strategy: Strategy | null): string {
@@ -50,7 +52,6 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     handleAddToChat,
     handleOpenDetails,
     setSelectedNodeIds,
-    triggerSync,
   } = options;
 
   const [layoutSeed, setLayoutSeed] = useState(0);
@@ -61,9 +62,9 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     strategy?.id ?? null,
   );
 
-  const { updateStep, strategy: draftStrategy } = useStrategyStore(
-    useShallow((s) => ({ updateStep: s.updateStep, strategy: s.strategy })),
-  );
+  const draftStrategy = useStrategyStore((s) => s.strategy);
+  const updateStepMutation = useUpdateStepMutation();
+  const pushMutation = usePushStrategyMutation();
   const { undo, redo, canUndo, canRedo } = useStrategyHistory();
 
   const {
@@ -99,14 +100,16 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
       if (tryRedo()) return;
       if (canRedo()) {
         redo();
-        triggerSync();
+        const next = useStrategyStore.getState().strategy;
+        if (next) pushMutation.mutate({ optimistic: next });
       }
       return;
     }
     if (tryUndo()) return;
     if (canUndo()) {
       undo();
-      triggerSync();
+      const next = useStrategyStore.getState().strategy;
+      if (next) pushMutation.mutate({ optimistic: next });
     }
   };
   useEventListener("keydown", handleUndoRedoKeyDown);
@@ -139,7 +142,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
         strategy,
         (stepId, operator) => {
           const patch: Partial<Step> = { operator };
-          updateStep(stepId, patch);
+          updateStepMutation.mutate({ stepId, patch });
         },
         handleAddToChat,
         handleOpenDetails,
@@ -173,15 +176,9 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     setUserHasMoved(true);
   };
 
-  const resetViewTracking = () => {
-    setUserHasMoved(false);
-    void fitView({ padding: 0.3, duration: 300 });
-  };
-
   return {
     handleNodeDragStop,
     handleRelayout,
     handleMoveStart,
-    resetViewTracking,
   } as const;
 }

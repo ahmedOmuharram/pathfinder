@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
 import type { ParamForm } from "../hooks/useParamForm";
 import {
@@ -175,12 +176,11 @@ export function PhyleticProfileParam({
 
   return (
     <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-      <input
+      <Input
         type="text"
         placeholder="Search species..."
         value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        onChange={(event) => setSearchQuery(event.target.value)}
       />
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         <span>

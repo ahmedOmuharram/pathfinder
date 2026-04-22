@@ -21,16 +21,16 @@ test.describe("Strategy Graph", () => {
     await chatPage.expectPlanningArtifact();
 
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
-    // UI: Step pills visible with content
-    const pillCount = await graphPage.stepPills.count();
-    expect(pillCount).toBeGreaterThan(0);
+    // UI: Step rows visible with content
+    const rowCount = await graphPage.railStepRows.count();
+    expect(rowCount).toBeGreaterThan(0);
 
-    // UI: First step pill should show real search-related text
-    const firstPillText = await graphPage.stepPills.first().textContent();
-    expect(firstPillText).toBeTruthy();
+    // UI: First step row should show real search-related text
+    const firstRowText = await graphPage.railStepRows.first().textContent();
+    expect(firstRowText).toBeTruthy();
 
     // API: Strategy persisted with steps — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;
@@ -49,12 +49,12 @@ test.describe("Strategy Graph", () => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
     await chatPage.expectPlanningArtifact();
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
-    // UI: Step pills from delegation
-    const pillCount = await graphPage.stepPills.count();
-    expect(pillCount).toBeGreaterThan(0);
+    // UI: Step rows from delegation
+    const rowCount = await graphPage.railStepRows.count();
+    expect(rowCount).toBeGreaterThan(0);
 
     // API: Strategy persisted — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;
@@ -73,7 +73,7 @@ test.describe("Strategy Graph", () => {
     await chatPage.expectPlanningArtifact();
 
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
 
     // Use the strategy ID captured during newChat()
     const strategyId = chatPage.lastStrategyId;
@@ -84,10 +84,10 @@ test.describe("Strategy Graph", () => {
       timeout: 15_000,
     });
 
-    // UI: Graph compact view must be visible after reload
-    await graphPage.expectCompactView();
-    const pillCount = await graphPage.stepPills.count();
-    expect(pillCount).toBeGreaterThan(0);
+    // UI: Graph rail must be visible after reload
+    await graphPage.expectRailPanel();
+    const rowCount = await graphPage.railStepRows.count();
+    expect(rowCount).toBeGreaterThan(0);
 
     // API: Strategy still in DB after reload with steps intact
     const afterResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
@@ -104,10 +104,10 @@ test.describe("Strategy Graph", () => {
     await chatPage.expectPlanningArtifact();
     await chatPage.approvePlan();
     // Graph must appear during execution streaming, before message_end.
-    await graphPage.expectCompactView();
-    // Step pills must be visible
-    const pillCount = await graphPage.stepPills.count();
-    expect(pillCount).toBeGreaterThan(0);
+    await graphPage.expectRailPanel();
+    // Step rows must be visible
+    const rowCount = await graphPage.railStepRows.count();
+    expect(rowCount).toBeGreaterThan(0);
   });
 
   test("delegation graph visible in UI after page reload", async ({
@@ -119,7 +119,7 @@ test.describe("Strategy Graph", () => {
     await chatPage.send(MOCK_DELEGATION_PROMPT);
     await chatPage.expectPlanningArtifact();
     await chatPage.approvePlan();
-    await graphPage.expectCompactView();
+    await graphPage.expectRailPanel();
     await chatPage.expectIdle();
 
     const strategyId = chatPage.lastStrategyId;
@@ -130,10 +130,10 @@ test.describe("Strategy Graph", () => {
       timeout: 15_000,
     });
 
-    // UI: Graph renders after reload
-    await graphPage.expectCompactView();
-    const pillCount = await graphPage.stepPills.count();
-    expect(pillCount).toBeGreaterThan(0);
+    // UI: Graph rail renders after reload
+    await graphPage.expectRailPanel();
+    const rowCount = await graphPage.railStepRows.count();
+    expect(rowCount).toBeGreaterThan(0);
 
     // API: Steps persisted
     const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);

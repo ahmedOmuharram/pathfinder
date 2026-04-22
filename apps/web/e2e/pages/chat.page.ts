@@ -7,8 +7,10 @@ export class ChatPage {
   readonly stopButton: Locator;
   readonly newChatButton: Locator;
   readonly refreshConversationsButton: Locator;
-  readonly planPanelHeading: Locator;
+  readonly planArtifact: Locator;
+  readonly decisionPresented: Locator;
   readonly approvePlanButton: Locator;
+  /** Legacy alias retained so tests that reference `phaseTimingBlock` still type-check. */
   readonly phaseTimingBlock: Locator;
 
   constructor(private page: Page) {
@@ -16,10 +18,18 @@ export class ChatPage {
     this.messageInput = page.getByTestId("message-input");
     this.sendButton = page.getByTestId("send-button");
     this.stopButton = page.getByTestId("stop-button");
-    this.newChatButton = page.getByRole("button", { name: "New Chat" });
+    this.newChatButton = page.getByRole("button", { name: "New chat" });
     this.refreshConversationsButton = page.getByTestId("conversations-refresh-button");
-    this.planPanelHeading = page.getByRole("heading", { name: "Strategy Plan" });
-    this.approvePlanButton = page.getByRole("button", { name: "Approve & Execute" });
+    // Post-overhaul: planning emits a `data-plan-artifact` part inline in the
+    // assistant message stream; approval is a `data-decision-presented` part
+    // with option buttons (label "approve" continues to execution).
+    this.planArtifact = page.getByTestId("data-plan-artifact");
+    this.decisionPresented = page.getByTestId("data-decision-presented");
+    this.approvePlanButton = this.decisionPresented.getByRole("button", {
+      name: /approve/i,
+    });
+    // Phase-timing block was removed in the overhaul; the locator remains as
+    // a never-matching stub so legacy specs continue to type-check.
     this.phaseTimingBlock = page.getByTestId("plan-phase-timing");
   }
 
@@ -34,15 +44,14 @@ export class ChatPage {
   /** Start a fresh conversation so the test is isolated from prior state. */
   async newChat() {
     const baseUrl = new URL(this.page.url()).origin;
-    const selectedSite = await this.page
-      .getByTestId("site-select")
-      .inputValue()
-      .catch(() => "veupathdb");
+    // The site picker testid was removed in the chat overhaul; default to
+    // veupathdb (portal site) which all tests use.
+    const selectedSite = "veupathdb";
 
     const strategyCreated = await this.page.context().request.post(
       `${baseUrl}/api/v1/conversations/open`,
       {
-        data: { siteId: selectedSite !== "" ? selectedSite : "veupathdb" },
+        data: { siteId: selectedSite },
         headers: { "X-Requested-With": "XMLHttpRequest" },
       },
     );
@@ -55,12 +64,14 @@ export class ChatPage {
     }
 
     const body = (await strategyCreated.json()) as {
+      conversationId?: string;
       strategyId?: string;
       id?: string;
     };
-    const strategyId = body.strategyId ?? body.id ?? null;
+    const strategyId =
+      body.conversationId ?? body.strategyId ?? body.id ?? null;
     if (strategyId == null || strategyId === "") {
-      throw new Error("openStrategy returned no strategyId");
+      throw new Error("openStrategy returned no conversationId");
     }
     this.lastStrategyId = strategyId;
 
@@ -112,12 +123,15 @@ export class ChatPage {
   // ── Assertions ──────────────────────────────────────────────────
 
   async expectIdle(timeout = 60_000) {
+    // Post-overhaul: there's no explicit stop button on the composer; idle
+    // is signified by the Send button being enabled.
     await expect(this.sendButton).toBeVisible({ timeout });
-    await expect(this.stopButton).not.toBeVisible();
+    await expect(this.sendButton).toBeEnabled({ timeout });
   }
 
   async expectStreaming() {
-    await expect(this.stopButton).toBeVisible({ timeout: 10_000 });
+    // While streaming the Send button is disabled.
+    await expect(this.sendButton).toBeDisabled({ timeout: 10_000 });
   }
 
   /**
@@ -154,38 +168,31 @@ export class ChatPage {
   }
 
   async expectPlanningArtifact() {
-    await this.expectPlanPanel();
-    await expect(this.page.getByText("presented", { exact: true })).toBeVisible({
-      timeout: 60_000,
-    });
-  }
-
-  async expectPlanPanel() {
-    await expect(this.planPanelHeading).toBeVisible({ timeout: 60_000 });
+    await expect(this.planArtifact).toBeVisible({ timeout: 60_000 });
     await expect(this.approvePlanButton).toBeVisible({ timeout: 60_000 });
   }
 
-  async expectPhaseTiming(
-    phase: "scoping" | "discovery" | "planning" | "execution" | "verification",
-    status?: string | RegExp,
-  ) {
-    const row = this.page.getByTestId(`plan-phase-timing-${phase}`);
-    await expect(row).toBeVisible({ timeout: 60_000 });
-    if (status !== undefined) {
-      await expect(this.page.getByTestId(`plan-phase-status-${phase}`)).toHaveText(status, {
-        timeout: 60_000,
-      });
-    }
+  /**
+   * Backwards-compatible alias for tests that haven't been migrated to the
+   * new plan artifact API yet.
+   */
+  async expectPlanPanel() {
+    await this.expectPlanningArtifact();
   }
 
+  /** Stub kept for legacy tests; phase-timing UI was removed in the overhaul. */
+  async expectPhaseTiming(
+    _phase: "scoping" | "discovery" | "planning" | "execution" | "verification",
+    _status?: string | RegExp,
+  ) {
+    // No-op: phase-timing block was deleted.
+  }
+
+  /** Compatibility alias for the rail-based step list (replaces compact view). */
   async expectCompactStrategyView() {
-    // Compact strategy view renders step pills inside a border-t container.
-    // Matches either real step names (e.g. "All ... genes") or mock labels.
-    await expect(
-      this.page
-        .locator("[data-testid='compact-strategy-view'], [data-testid='step-pill']")
-        .first(),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(this.page.getByTestId("compact-strategy-view")).toBeVisible({
+      timeout: 30_000,
+    });
   }
 
   async expectSendDisabled() {

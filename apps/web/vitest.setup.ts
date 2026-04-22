@@ -23,6 +23,21 @@ if (typeof Element !== "undefined" && !Element.prototype.hasPointerCapture) {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.setPointerCapture = () => {};
 }
+if (
+  typeof window !== "undefined" &&
+  typeof window.matchMedia !== "function"
+) {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => true,
+  })) as typeof window.matchMedia;
+}
 
 type WrapperComponent = ComponentType<{ children: ReactNode }>;
 

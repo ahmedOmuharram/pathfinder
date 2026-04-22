@@ -1,4 +1,5 @@
 import { ChatShell } from "@/features/conversation/ChatShell";
+import { StrategyPopstateFlush } from "@/features/strategy/hooks/StrategyPopstateFlush";
 
 export default function ChatLayout({
   children,
@@ -7,6 +8,7 @@ export default function ChatLayout({
 }) {
   return (
     <>
+      <StrategyPopstateFlush />
       <ChatShell />
       {children}
     </>

@@ -8,24 +8,9 @@
 import { useShallow } from "zustand/react/shallow";
 import { useStrategyStore } from "@/state/strategy/store";
 
-/** Returns the current strategy and its step map. */
+/** Returns the current strategy. */
 export function useCurrentStrategy() {
-  return useStrategyStore(
-    useShallow((s) => ({
-      strategy: s.strategy,
-      stepsById: s.stepsById,
-    })),
-  );
-}
-
-/** Returns the executed strategies and graph validation status. */
-export function useStrategyList() {
-  return useStrategyStore(
-    useShallow((s) => ({
-      executedStrategies: s.executedStrategies,
-      graphValidationStatus: s.graphValidationStatus,
-    })),
-  );
+  return useStrategyStore((s) => s.strategy);
 }
 
 /** Returns undo/redo state. */
@@ -36,6 +21,7 @@ export function useStrategyHistory() {
       redo: s.redo,
       canUndo: s.canUndo,
       canRedo: s.canRedo,
+      pushSnapshot: s.pushSnapshot,
     })),
   );
 }
@@ -50,7 +36,6 @@ export function useStrategyActions() {
       setStrategy: s.setStrategy,
       setWdkInfo: s.setWdkInfo,
       setStrategyMeta: s.setStrategyMeta,
-      buildPlan: s.buildPlan,
       applyStepValidationErrors: s.applyStepValidationErrors,
       applyStepCounts: s.applyStepCounts,
       clear: s.clear,
@@ -58,24 +43,10 @@ export function useStrategyActions() {
   );
 }
 
-/** Returns step lifecycle accessors + dispatch. */
-export function useStepLifecycleActions() {
-  return useStrategyStore(
-    useShallow((s) => ({
-      initStepLifecycle: s.initStepLifecycle,
-      dispatchStepEvent: s.dispatchStepEvent,
-      removeStepLifecycle: s.removeStepLifecycle,
-      applyStepValidationErrors: s.applyStepValidationErrors,
-      applyStepCounts: s.applyStepCounts,
-    })),
-  );
-}
-
-/** Returns list mutation actions (track executed, graph validation). */
+/** Returns list mutation actions (graph validation). */
 export function useStrategyListActions() {
   return useStrategyStore(
     useShallow((s) => ({
-      addExecutedStrategy: s.addExecutedStrategy,
       setGraphValidationStatus: s.setGraphValidationStatus,
     })),
   );

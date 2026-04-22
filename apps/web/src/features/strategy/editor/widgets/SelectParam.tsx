@@ -1,6 +1,18 @@
+"use client";
+
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 import { isMultiParam } from "@/features/strategy/parameters/spec";
 import type { ParamWidgetProps } from "./types";
+
+const PLACEHOLDER_VALUE = "__placeholder__";
 
 export function SelectParam({ spec, name, options, field }: ParamWidgetProps) {
   const multi = isMultiParam(spec);
@@ -9,28 +21,32 @@ export function SelectParam({ spec, name, options, field }: ParamWidgetProps) {
   const errorMessage = hasError ? String(errors[0]) : null;
 
   if (!multi) {
+    const value = typeof field.state.value === "string" ? field.state.value : "";
     return (
       <div>
-        <select
-          value={(field.state.value as string | undefined) ?? ""}
-          onChange={(e) => field.handleChange(e.target.value)}
-          onBlur={field.handleBlur}
-          aria-invalid={hasError ? "true" : undefined}
-          aria-describedby={hasError ? `${name}-error` : undefined}
-          className={cn(
-            "w-full rounded-md border px-2 py-1.5 text-sm bg-card text-foreground",
-            hasError ? "border-destructive/30 bg-destructive/5" : "border-border",
-          )}
+        <Select
+          value={value === "" ? PLACEHOLDER_VALUE : value}
+          onValueChange={(next) => field.handleChange(next === PLACEHOLDER_VALUE ? "" : next)}
         >
-          {spec.allowEmptyValue !== false && (
-            <option value="">-- Select --</option>
-          )}
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            aria-invalid={hasError ? "true" : undefined}
+            aria-describedby={hasError ? `${name}-error` : undefined}
+            className="w-full"
+            onBlur={field.handleBlur}
+          >
+            <SelectValue placeholder="-- Select --" />
+          </SelectTrigger>
+          <SelectContent>
+            {spec.allowEmptyValue !== false && (
+              <SelectItem value={PLACEHOLDER_VALUE}>-- Select --</SelectItem>
+            )}
+            {options.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {hasError && errorMessage != null && (
           <p id={`${name}-error`} role="alert" className="mt-1 text-xs text-destructive">
             {errorMessage}
@@ -68,22 +84,20 @@ export function SelectParam({ spec, name, options, field }: ParamWidgetProps) {
       >
         {options.length > 3 && (
           <label className="flex items-center gap-2 text-xs text-muted-foreground mb-1 pb-1 border-b border-border">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={allSelected}
-              onChange={toggleAll}
-              className="accent-primary"
+              onCheckedChange={toggleAll}
+              aria-label="Select all"
             />
             Select all ({options.length})
           </label>
         )}
         {options.map((opt) => (
           <label key={opt.value} className="flex items-center gap-2 text-sm py-0.5">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={selected.includes(opt.value)}
-              onChange={() => toggle(opt.value)}
-              className="accent-primary"
+              onCheckedChange={() => toggle(opt.value)}
+              aria-label={opt.label}
             />
             {opt.label}
           </label>

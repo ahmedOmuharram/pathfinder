@@ -3,10 +3,14 @@
 import { useState } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useShallow } from "zustand/react/shallow";
 import { useStrategyStore } from "@/state/strategy/store";
 import { computeNodeDeletionResult } from "@/features/strategy/graph/utils/nodeDeletionLogic";
 import { computeOrthologInsert } from "@/features/strategy/graph/utils/orthologInsert";
+import {
+  useAddStepMutation,
+  useDeleteStepMutation,
+  useUpdateStepMutation,
+} from "@/features/strategy/mutations";
 
 interface UseStrategyGraphHandlersOptions {
   strategy: Strategy | null;
@@ -16,12 +20,11 @@ interface UseStrategyGraphHandlersOptions {
   setSelectedStep: (step: Step | null) => void;
   selectedNodeIds: string[];
   startCombine: (sourceId: string, targetId: string) => void;
-  triggerSync: () => void;
 }
 
 /**
- * Click, combine, delete, edge-context, and ortholog-transform handlers
- * for the strategy graph.
+ * Click, combine, delete, edge-context, and ortholog-transform handlers for
+ * the strategy graph. All writes go through mutations.
  */
 export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOptions) {
   const {
@@ -32,22 +35,11 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
     setSelectedStep,
     selectedNodeIds,
     startCombine,
-    triggerSync,
   } = options;
 
-  const {
-    strategy: draftStrategy,
-    updateStep,
-    addStep,
-    removeStep,
-  } = useStrategyStore(
-    useShallow((s) => ({
-      strategy: s.strategy,
-      updateStep: s.updateStep,
-      addStep: s.addStep,
-      removeStep: s.removeStep,
-    })),
-  );
+  const updateStep = useUpdateStepMutation();
+  const deleteStep = useDeleteStepMutation();
+  const addStep = useAddStepMutation();
 
   const [edgeMenu, setEdgeMenu] = useState<{
     edge: Edge;
@@ -58,7 +50,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
 
   const handleNodesDelete = (deletedNodes: Node[]) => {
     if (isCompact || deletedNodes.length === 0) return;
-    const stepsList = draftStrategy?.steps ?? [];
+    const stepsList = useStrategyStore.getState().strategy?.steps ?? [];
     if (stepsList.length === 0) return;
     const result = computeNodeDeletionResult({
       steps: stepsList,
@@ -67,15 +59,14 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
     if (result.removeIds.length === 0) return;
 
     for (const { stepId, patch } of result.patches) {
-      updateStep(stepId, patch);
+      updateStep.mutate({ stepId, patch });
     }
     for (const stepId of result.removeIds) {
-      removeStep(stepId);
+      deleteStep.mutate({ stepId });
     }
     if (selectedStep && result.removeIds.includes(selectedStep.id)) {
       setSelectedStep(null);
     }
-    triggerSync();
   };
 
   const handleStartCombineFromSelection = () => {
@@ -107,7 +98,8 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
   ) => {
     const selectedId = selectedNodeIds[0];
     if (selectedId == null || selectedId === "") return;
-    const stepsList = draftStrategy?.steps ?? strategy?.steps ?? [];
+    const stepsList =
+      useStrategyStore.getState().strategy?.steps ?? strategy?.steps ?? [];
     const { newStep, downstreamPatch } = computeOrthologInsert({
       selectedId,
       steps: stepsList,
@@ -117,14 +109,16 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
       generateId: () => `step_${Math.random().toString(16).slice(2, 10)}`,
     });
 
-    addStep(newStep);
+    addStep.mutate({ step: newStep });
     if (downstreamPatch) {
-      updateStep(downstreamPatch.stepId, downstreamPatch.patch);
+      updateStep.mutate({
+        stepId: downstreamPatch.stepId,
+        patch: downstreamPatch.patch,
+      });
     }
 
     setOrthologModalOpen(false);
     setSelectedStep(newStep);
-    triggerSync();
   };
 
   return {
@@ -137,6 +131,8 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
     handleStartOrthologTransformFromSelection,
     handleOpenDetails,
     handleOrthologChoose,
-    updateStep,
+    /** Single-step patch — wraps useUpdateStepMutation. */
+    updateStep: (stepId: string, patch: Partial<Step>) =>
+      updateStep.mutate({ stepId, patch }),
   } as const;
 }

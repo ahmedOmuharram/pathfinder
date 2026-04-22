@@ -4,87 +4,14 @@ import { useState } from "react";
 import { type Node, type Edge, useNodesState, useEdgesState } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
+import { useStepsById } from "@/state/strategy/selectors";
 import { validateStepsForSave } from "@/features/strategy/validation/save";
 import { useSaveValidation } from "@/features/strategy/validation/useSaveValidation";
 import {
   getCombineMismatchGroups,
   inferStepKind,
   serializeStrategyAst,
-  type CombineMismatchGroup,
 } from "@/lib/strategyGraph";
-
-const DEFAULT_NODE_WIDTH = 224;
-const DEFAULT_NODE_HEIGHT = 112;
-const WARNING_PADDING = 16;
-
-function computeWarningGroupNodes(
-  nodes: Node[],
-  groups: CombineMismatchGroup[],
-): Node[] {
-  if (groups.length === 0) return [];
-  return groups.flatMap((group) => {
-    const targetNodes = nodes.filter((node) => group.ids.has(node.id));
-    if (targetNodes.length < 2) return [];
-    const minX = Math.min(...targetNodes.map((n) => n.position.x));
-    const minY = Math.min(...targetNodes.map((n) => n.position.y));
-    const maxX = Math.max(
-      ...targetNodes.map((n) => n.position.x + (n.measured?.width ?? DEFAULT_NODE_WIDTH)),
-    );
-    const maxY = Math.max(
-      ...targetNodes.map((n) => n.position.y + (n.measured?.height ?? DEFAULT_NODE_HEIGHT)),
-    );
-    const groupWidth = maxX - minX + WARNING_PADDING * 2;
-    const groupHeight = maxY - minY + WARNING_PADDING * 2;
-    const groupLeft = minX - WARNING_PADDING;
-    const groupTop = minY - WARNING_PADDING;
-    return [
-      {
-        id: `warning-group-${group.id}`,
-        type: "warningGroup",
-        position: { x: groupLeft, y: groupTop },
-        data: { message: group.message },
-        className: "warning-group-node warning-dash",
-        selectable: false,
-        draggable: false,
-        connectable: false,
-        deletable: false,
-        focusable: false,
-        width: groupWidth,
-        height: groupHeight,
-        style: {
-          width: groupWidth,
-          height: groupHeight,
-          zIndex: 50,
-          pointerEvents: "none",
-          background: "transparent",
-          overflow: "visible",
-          borderRadius: 14,
-          boxSizing: "border-box",
-        },
-      } as Node,
-      {
-        id: `warning-icon-${group.id}`,
-        type: "warningIcon",
-        position: { x: groupLeft - 8, y: groupTop - 8 },
-        data: { message: group.message },
-        selectable: false,
-        draggable: false,
-        connectable: false,
-        deletable: false,
-        focusable: false,
-        width: 24,
-        height: 24,
-        style: {
-          width: 24,
-          height: 24,
-          zIndex: 60,
-          pointerEvents: "auto",
-          background: "transparent",
-        },
-      } as Node,
-    ];
-  });
-}
 
 interface UseStrategyGraphNodesOptions {
   strategy: Strategy | null;
@@ -108,7 +35,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   const applyStepValidationErrors = useStrategyStore(
     (state) => state.applyStepValidationErrors,
   );
-  const stepsById = useStrategyStore((state) => state.stepsById);
+  const stepsById = useStepsById();
   const setGraphValidationStatus = useStrategyStore(
     (state) => state.setGraphValidationStatus,
   );
@@ -131,8 +58,6 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
 
   const combineMismatchGroups = getCombineMismatchGroups(draftStrategy?.steps ?? strategy?.steps ?? []);
 
-  const warningGroupNodes = computeWarningGroupNodes(nodes, combineMismatchGroups);
-
   const isDraftView = draftStrategy != null && strategy?.id === draftStrategy.id;
   const planResult = serializeStrategyAst(stepsById, draftStrategy ?? strategy);
   const planHash = planResult ? JSON.stringify(planResult.plan) : null;
@@ -143,10 +68,9 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
       : false,
   );
 
-  // Render nodes (warning overlays only -- no dirty dots)
-  const renderNodes = warningGroupNodes.length > 0
-    ? [...warningGroupNodes, ...nodes]
-    : nodes;
+  // Validation Alert renders as canvas chrome (see ValidationAlert) instead of
+  // injecting overlay nodes into the graph itself.
+  const renderNodes = nodes;
 
 
   // Validate search steps

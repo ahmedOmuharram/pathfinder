@@ -6,23 +6,22 @@ import { useStepRecordType } from "./hooks/useStepRecordType";
 import { useStepSearch } from "./hooks/useStepSearch";
 import { useStepParameters } from "./hooks/useStepParameters";
 import { useParamForm } from "./hooks/useParamForm";
-import { useStepValidation } from "./hooks/useStepValidation";
-import { buildStepSaveHandler } from "./useStepSaveHandler";
+import { useDependentParamRefresh } from "./hooks/useDependentParamRefresh";
 
 interface UseStepEditorStateArgs {
   step: Step;
   siteId: string;
   recordType: string | null;
-  onUpdate: (updates: Partial<Step>) => void;
-  onClose: () => void;
 }
 
+/**
+ * Composed editor state. Form values are SSOT for in-flight edits; saving
+ * is owned by the caller via mutations (useUpdateStepMutation).
+ */
 export function useStepEditorState({
   step,
   siteId,
   recordType,
-  onUpdate,
-  onClose,
 }: UseStepEditorStateArgs) {
   const metadata = useStepMetadata({ step });
 
@@ -48,58 +47,19 @@ export function useStepEditorState({
     isSearchNameAvailable: searchState.isSearchNameAvailable,
     apiRecordTypeValue: recordTypeState.apiRecordTypeValue,
     resolveRecordTypeForSearch: recordTypeState.resolveRecordTypeForSearch,
-    initialParameters: step.parameters ?? {},
-  });
-
-  const validation = useStepValidation({
-    stepValidationError: metadata.stepValidationError,
-    paramSpecs: paramState.paramSpecs,
   });
 
   const form = useParamForm(paramState.paramSpecs);
 
-  const getDirtyFields = (): Partial<Record<string, boolean>> => {
-    const meta = form.state.fieldMeta;
-    const result: Partial<Record<string, boolean>> = {};
-    for (const [name, fieldMeta] of Object.entries(meta)) {
-      if (fieldMeta?.isDirty === true) {
-        result[name] = true;
-      }
-    }
-    return result;
-  };
-
-  const setFieldError = (_name: string, _error: { type: string; message: string }) => {
-    // Server-side field errors are displayed via the validation.error state
-    // in the step editor rather than per-field TanStack Form errors.
-    // The save handler already calls setError() with formatted WDK messages.
-  };
-
-  const handleSave = async () => {
-    const handler = buildStepSaveHandler({
-      step,
-      siteId,
-      name: metadata.name ?? "",
-      oldName: metadata.oldName ?? "",
-      searchName: searchState.searchName,
-      selectedSearch: searchState.selectedSearch,
-      isSearchNameAvailable: searchState.isSearchNameAvailable,
-      kind: metadata.kind,
-      parameters: paramState.parameters,
-      paramSpecs: paramState.paramSpecs,
-      hiddenDefaults: paramState.hiddenDefaults,
-      getDirtyFields,
-      recordTypeValue: recordTypeState.recordTypeValue,
-      resolveRecordTypeForSearch: recordTypeState.resolveRecordTypeForSearch,
-      operatorValue: metadata.operatorValue,
-      colocationParams: metadata.colocationParams,
-      onUpdate,
-      onClose,
-      setError: validation.setError,
-      setFieldError,
-    });
-    await handler();
-  };
+  const dependent = useDependentParamRefresh({
+    siteId,
+    recordType: recordTypeState.apiRecordTypeValue ?? recordType ?? "",
+    searchName: searchState.searchName,
+    specs: paramState.paramSpecs,
+    onClearStaleValue: (paramName) => {
+      form.setFieldValue(paramName, "");
+    },
+  });
 
   return {
     kind: metadata.kind,
@@ -128,17 +88,12 @@ export function useStepEditorState({
     recordType,
 
     paramSpecs: paramState.paramSpecs,
-    parameters: paramState.parameters,
-    setParameters: paramState.setParameters,
     vocabOptions: paramState.vocabOptions,
     hiddenDefaults: paramState.hiddenDefaults,
-    dependentOptions: paramState.dependentOptions,
-    dependentLoading: paramState.dependentLoading,
-    dependentErrors: paramState.dependentErrors,
-    validationErrorKeys: validation.validationErrorKeys,
-
-    error: validation.error,
-    setError: validation.setError,
+    dependentOptions: dependent.dependentOptions,
+    dependentLoading: dependent.dependentLoading,
+    dependentErrors: dependent.dependentErrors,
+    onDependentFieldChange: dependent.handleFieldChange,
     isLoading: paramState.isLoading,
 
     operatorValue: metadata.operatorValue,
@@ -147,8 +102,6 @@ export function useStepEditorState({
     setColocationParams: metadata.setColocationParams,
 
     form,
-
-    handleSave,
   };
 }
 

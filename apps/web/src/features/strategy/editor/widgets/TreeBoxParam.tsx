@@ -1,4 +1,9 @@
+"use client";
+
 import { useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils/cn";
 import { isMultiParam } from "@/features/strategy/parameters/spec";
 import type { VocabNode } from "@/lib/utils/vocab";
@@ -113,6 +118,8 @@ function TreeBoxInner({
     }
   };
 
+  const singleValue = !multi && typeof field.state.value === "string" ? field.state.value : "";
+
   function renderNode(node: VocabNode, depth: number) {
     if (lowerSearch && !nodeMatchesSearch(node, lowerSearch)) {
       return null;
@@ -160,31 +167,15 @@ function TreeBoxInner({
           )}
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             {multi ? (
-              <input
-                type="checkbox"
-                checked={allChecked}
-                ref={(el) => {
-                  if (el) el.indeterminate = someChecked;
-                }}
-                onChange={() =>
-                  isBranch ? toggleBranch(node) : toggleLeaf(node.value)
-                }
+              <Checkbox
+                checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                onCheckedChange={() => (isBranch ? toggleBranch(node) : toggleLeaf(node.value))}
                 onBlur={field.handleBlur}
-                className="accent-primary"
+                aria-label={node.label}
               />
-            ) : (
-              !isBranch && (
-                <input
-                  type="radio"
-                  name={name}
-                  value={node.value}
-                  checked={field.state.value === node.value}
-                  onChange={() => field.handleChange(node.value)}
-                  onBlur={field.handleBlur}
-                  className="accent-primary"
-                />
-              )
-            )}
+            ) : !isBranch ? (
+              <RadioGroupItem value={node.value} aria-label={node.label} />
+            ) : null}
             {node.label}
           </label>
         </div>
@@ -197,32 +188,46 @@ function TreeBoxInner({
 
   const selectedCount = currentValue.filter((v) => allLeaves.includes(v)).length;
 
-  return (
-    <div>
-      <div
-        aria-invalid={hasError ? "true" : undefined}
-        aria-describedby={hasError ? `${name}-error` : undefined}
-        className={cn(
-          "rounded-md border bg-card text-sm",
-          hasError ? "border-destructive/30 bg-destructive/5" : "border-border",
-        )}
-      >
-        <div className="p-2 border-b border-border">
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full rounded border border-border bg-card px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground"
-          />
-        </div>
-        <div className="max-h-64 overflow-y-auto p-2">
-          {vocabTree.map((node) => renderNode(node, 0))}
-        </div>
+  const treeBody = (
+    <div
+      aria-invalid={hasError ? "true" : undefined}
+      aria-describedby={hasError ? `${name}-error` : undefined}
+      className={cn(
+        "rounded-md border bg-card text-sm",
+        hasError ? "border-destructive/30 bg-destructive/5" : "border-border",
+      )}
+    >
+      <div className="p-2 border-b border-border">
+        <Input
+          type="text"
+          placeholder="Search..."
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+        />
+      </div>
+      <div className="max-h-64 overflow-y-auto p-2">
+        {vocabTree.map((node) => renderNode(node, 0))}
+      </div>
+      {multi && (
         <div className="px-2 py-1.5 border-t border-border text-xs text-muted-foreground">
           {selectedCount} of {allLeaves.length} selected
         </div>
-      </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div>
+      {multi ? (
+        treeBody
+      ) : (
+        <RadioGroup
+          value={singleValue}
+          onValueChange={(next) => field.handleChange(next)}
+        >
+          {treeBody}
+        </RadioGroup>
+      )}
       {hasError && errorMessage != null && (
         <p id={`${name}-error`} role="alert" className="mt-1 text-xs text-destructive">
           {errorMessage}

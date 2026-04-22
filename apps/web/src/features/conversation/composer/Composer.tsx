@@ -150,7 +150,10 @@ export function Composer({ conversationId }: { conversationId: string }) {
       && parsed.rest === "";
 
   return (
-    <ComposerPrimitive.Root className="relative mx-auto flex w-full max-w-3xl flex-col gap-1 border-t bg-card px-4 pb-2 pt-3">
+    <ComposerPrimitive.Root
+      data-testid="message-composer"
+      className="relative mx-auto flex w-full max-w-3xl flex-col gap-1 border-t bg-card px-4 pb-2 pt-3"
+    >
       <SlashPopover
         open={showPopover}
         query={parsed?.token ?? ""}
@@ -175,6 +178,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
       />
       <div className="focus-within:shadow-[var(--shadow-composer-focus)] flex flex-col gap-2 rounded-lg border bg-background shadow-[var(--shadow-composer)] transition-shadow">
         <ComposerPrimitive.Input
+          data-testid="message-input"
           placeholder="Ask about strategies, genes, or data... (try /help)"
           className="w-full resize-none bg-transparent p-3 text-sm outline-none"
           autoFocus
@@ -187,6 +191,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
         />
         <div className="flex justify-end p-2">
           <ComposerPrimitive.Send
+            data-testid="send-button"
             aria-label="Send"
             className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground shadow-[var(--shadow-card)] transition-transform hover:-translate-y-px disabled:opacity-50 disabled:hover:translate-y-0"
           >

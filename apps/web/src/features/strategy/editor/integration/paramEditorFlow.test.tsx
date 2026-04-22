@@ -161,9 +161,7 @@ describe("TF: multi-pick param interaction", () => {
         )}
       </ParamFormWrapper>,
     );
-    const selectAllCb = screen.getByText(/Select all/).parentElement?.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement;
+    const selectAllCb = screen.getByLabelText("Select all");
     fireEvent.click(selectAllCb);
     let parsed: string[] = JSON.parse(screen.getByTestId("fv-go_terms").textContent);
     expect(parsed).toHaveLength(5);

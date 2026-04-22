@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "@tanstack/react-form";
 import type { ParamSpec } from "@pathfinder/shared";
 import { isMultiParam } from "@/features/strategy/parameters/spec";
@@ -34,13 +35,24 @@ export { extractDefaults };
 
 export type ParamForm = ReturnType<typeof useParamForm>;
 
+/**
+ * Form bound to the current `paramSpecs`. When `paramSpecs` identity changes
+ * (e.g. user picks a different searchName), the form resets to the new
+ * defaults via the render-time prevValue pattern (no `useEffect`).
+ */
 export function useParamForm(specs: ParamSpec[]) {
-  const defaultValues = extractDefaults(specs);
-
-  return useForm({
-    defaultValues,
+  const form = useForm({
+    defaultValues: extractDefaults(specs),
     onSubmit: () => {
-      // submission handled externally via handleSave
+      // submission handled externally via mutations
     },
   });
+
+  const [prevSpecs, setPrevSpecs] = useState(specs);
+  if (specs !== prevSpecs) {
+    setPrevSpecs(specs);
+    form.reset(extractDefaults(specs));
+  }
+
+  return form;
 }

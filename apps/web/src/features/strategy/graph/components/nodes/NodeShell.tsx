@@ -1,0 +1,188 @@
+"use client";
+
+import { motion } from "motion/react";
+import type { Step } from "@pathfinder/shared";
+import { cn } from "@/lib/utils/cn";
+import { usePrefersReducedMotion } from "@/lib/hooks/usePrefersReducedMotion";
+import { STAGGER_DELAY_MS } from "@/lib/motion/presets";
+import { CornerDot } from "./CornerDot";
+import { HoverActions } from "./HoverActions";
+import { InlineRename } from "./InlineRename";
+import { ResultLabel } from "./ResultLabel";
+import { ValidationBanner } from "./ValidationBanner";
+import type { StepSnapshot } from "@/state/strategy/useStepSnapshot";
+
+export type NodeKind = "search" | "combine" | "transform";
+
+type NodeShellProps = {
+  kind: NodeKind;
+  step: Step;
+  selected: boolean;
+  isUnsaved: boolean;
+  width: number;
+  height: number;
+  snapshot: StepSnapshot;
+  enterDelayIndex?: number | undefined;
+  onAddToChat?: ((stepId: string) => void) | undefined;
+  onOpenDetails?: ((stepId: string) => void) | undefined;
+  onRename?: ((stepId: string, nextName: string) => void) | undefined;
+  onDuplicate?: ((stepId: string) => void) | undefined;
+  onDelete?: ((stepId: string) => void) | undefined;
+  /** Optional clip-path applied to the surface (for chevron-shaped nodes). */
+  surfaceClipPath?: string | undefined;
+  /** Optional `data-clip` attr to make the clipped surface findable in tests. */
+  surfaceClipDataAttr?: string | undefined;
+  /** Slot for kind-specific body content (e.g. CombineNode renders the venn here). */
+  children?: React.ReactNode | undefined;
+  /** Slot for kind-specific handles (rendered before the chrome so they layer correctly). */
+  handles?: React.ReactNode | undefined;
+};
+
+const KIND_VAR: Record<NodeKind, string> = {
+  search: "leaf",
+  combine: "combine",
+  transform: "transform",
+};
+
+const KIND_DOT_LABEL: Record<NodeKind, string> = {
+  search: "Search step",
+  combine: "Combine step",
+  transform: "Transform step",
+};
+
+export function NodeShell({
+  kind,
+  step,
+  selected,
+  isUnsaved,
+  width,
+  height,
+  snapshot,
+  enterDelayIndex,
+  onAddToChat,
+  onOpenDetails,
+  onRename,
+  onDuplicate,
+  onDelete,
+  surfaceClipPath,
+  surfaceClipDataAttr,
+  children,
+  handles,
+}: NodeShellProps) {
+  const reduced = usePrefersReducedMotion();
+  const hasError = snapshot.isInvalid || snapshot.isFailed;
+  const isSyncing = snapshot.isBusy;
+  const variantSlug = KIND_VAR[kind];
+  const surfaceStyle: React.CSSProperties = {
+    width,
+    height,
+    background: `linear-gradient(180deg, hsl(var(--card)) 0%, var(--kind-${variantSlug}-soft) 100%)`,
+    borderColor: `var(--kind-${variantSlug}-ring)`,
+    boxShadow: selected
+      ? `0 0 0 2.5px hsl(var(--accent)), var(--shadow-card)`
+      : "var(--shadow-card)",
+    transition: "transform 180ms ease-out, box-shadow 180ms ease-out",
+    ...(surfaceClipPath != null ? { clipPath: surfaceClipPath } : {}),
+  };
+
+  const surfaceClasses = cn(
+    "relative rounded-[10px] border",
+    !hasError && "hover:-translate-y-px hover:shadow-md",
+    hasError && "border-l-[3px] !border-l-destructive",
+    isSyncing && "node-syncing-pulse",
+  );
+
+  function handleRenameCommit(next: string) {
+    if (onRename == null) return;
+    const trimmed = next.trim();
+    if (trimmed === "" || trimmed === step.displayName) return;
+    onRename(step.id, trimmed);
+  }
+
+  const safeIndex = enterDelayIndex != null && enterDelayIndex >= 0 ? enterDelayIndex : 0;
+  const enterTransition = reduced
+    ? { duration: 0 }
+    : {
+        delay: safeIndex * (STAGGER_DELAY_MS / 1000),
+        duration: 0.2,
+        ease: "easeOut" as const,
+      };
+  const enterInitial = reduced ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 };
+
+  return (
+    <motion.div
+      data-testid={`rf-node-${step.id}`}
+      data-kind={kind}
+      data-selected={selected ? "true" : "false"}
+      data-validation={hasError ? "error" : undefined}
+      data-syncing={isSyncing ? "true" : "false"}
+      data-enter-delay-index={safeIndex}
+      className="group relative"
+      style={{ width, height }}
+      initial={enterInitial}
+      animate={{ opacity: 1, y: 0 }}
+      transition={enterTransition}
+    >
+      {handles}
+      {isSyncing && (
+        <span
+          data-testid="syncing-strip"
+          className="pointer-events-none absolute inset-x-2 top-0 z-20 h-0.5 overflow-hidden rounded-full"
+        >
+          <span className="block h-full w-1/3 animate-[shimmer_1.4s_ease-in-out_infinite] bg-primary/70" />
+        </span>
+      )}
+      <div
+        className={surfaceClasses}
+        style={surfaceStyle}
+        {...(surfaceClipDataAttr != null
+          ? { "data-clip": surfaceClipDataAttr }
+          : {})}
+      >
+        {hasError && <CornerDot variant="error" />}
+        {!hasError && isUnsaved && <CornerDot variant="unsaved" />}
+        <span className="sr-only">{KIND_DOT_LABEL[kind]}</span>
+        <HoverActions
+          step={step}
+          onAddToChat={onAddToChat}
+          onOpenDetails={onOpenDetails}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+        />
+        <div className="relative z-10 flex h-full flex-col gap-1 px-3 py-2">
+          {onRename != null ? (
+            <InlineRename
+              value={step.displayName ?? ""}
+              onCommit={handleRenameCommit}
+              onCancel={() => {}}
+              className={cn(
+                "pr-12",
+                hasError && "text-destructive",
+                isSyncing && "text-primary",
+              )}
+            />
+          ) : (
+            <div
+              className={cn(
+                "truncate pr-12 text-sm font-medium leading-tight",
+                hasError ? "text-destructive" : "text-foreground",
+              )}
+              title={step.displayName ?? ""}
+            >
+              {step.displayName}
+            </div>
+          )}
+          {children}
+          <div className="mt-auto flex items-center justify-between gap-2">
+            <ResultLabel step={step} snapshot={snapshot} />
+          </div>
+          <ValidationBanner
+            step={step}
+            snapshot={snapshot}
+            onOpenDetails={onOpenDetails}
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+}

@@ -1,9 +1,13 @@
-/**
- * Collapsible wrapper for params in the "advancedParams" WDK group.
- * Closed by default. Shows param count and validation indicators.
- */
+"use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils/cn";
 
 interface AdvancedParamsGroupProps {
   children: ReactNode;
@@ -16,22 +20,33 @@ export function AdvancedParamsGroup({
   count,
   hasErrors = false,
 }: AdvancedParamsGroupProps) {
+  const [open, setOpen] = useState(false);
   if (count === 0) return null;
+
   return (
-    <details
-      className={`rounded-lg border bg-card px-3 py-2 ${
-        hasErrors ? "border-destructive/30" : "border-border"
-      }`}
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className={cn(
+        "rounded-lg border bg-card px-3 py-2",
+        hasErrors ? "border-destructive/30" : "border-border",
+      )}
     >
-      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none">
+      <CollapsibleTrigger className="flex w-full items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none">
+        <ChevronRight
+          className={cn(
+            "size-3.5 transition-transform duration-150",
+            open ? "rotate-90" : "",
+          )}
+        />
         Advanced Parameters ({count})
         {hasErrors && (
           <span className="ml-2 text-destructive" aria-label="has errors">
             !
           </span>
         )}
-      </summary>
-      <div className="mt-2 space-y-3">{children}</div>
-    </details>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2 space-y-3">{children}</CollapsibleContent>
+    </Collapsible>
   );
 }
