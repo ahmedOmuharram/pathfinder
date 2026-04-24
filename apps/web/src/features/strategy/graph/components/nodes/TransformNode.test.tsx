@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { Step, Strategy } from "@pathfinder/shared";
+import type { Step} from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
 import { TransformNode } from "./TransformNode";
 import type { StepNodeProps } from "./types";
@@ -36,26 +36,10 @@ function makeStep(overrides: Partial<Step> = {}): Step {
   } as Step;
 }
 
-function makeStrategy(steps: Step[]): Strategy {
-  return {
-    id: "draft",
-    name: "Test",
-    siteId: "plasmodb",
-    recordType: "gene",
-    steps,
-    rootStepId: steps[0]?.id ?? null,
-    isSaved: false,
-    description: null,
-    wdkStrategyId: null,
-    wdkUrl: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  };
-}
 
 function reset() {
   useStrategyStore.setState({
-    strategy: null,
+
     stepLifecycleById: {},
     undoStack: [],
     redoStack: [],
@@ -77,7 +61,6 @@ describe("TransformNode", () => {
 
   it("applies the chevron clip-path to the surface", () => {
     const step = makeStep();
-    useStrategyStore.getState().setStrategy(makeStrategy([step]));
     const { container } = render(<TransformNode {...defaultProps(step)} />);
     const surface = container.querySelector('[data-clip="chevron-right"]');
     expect(surface).not.toBeNull();
@@ -85,7 +68,6 @@ describe("TransformNode", () => {
 
   it("renders one input handle on the left and one output on the right", () => {
     const step = makeStep();
-    useStrategyStore.getState().setStrategy(makeStrategy([step]));
     render(<TransformNode {...defaultProps(step)} />);
     expect(screen.getByTestId("flow-handle-target-left")).toBeTruthy();
     expect(screen.getByTestId("flow-handle-source-right")).toBeTruthy();

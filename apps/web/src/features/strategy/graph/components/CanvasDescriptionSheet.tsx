@@ -18,14 +18,16 @@ interface CanvasDescriptionSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialDescription: string;
+  conversationId: string;
 }
 
 export function CanvasDescriptionSheet({
   open,
   onOpenChange,
   initialDescription,
+  conversationId,
 }: CanvasDescriptionSheetProps) {
-  const updateMeta = useUpdateStrategyMetaMutation();
+  const updateMeta = useUpdateStrategyMetaMutation(conversationId);
   const [draft, setDraft] = useState(initialDescription);
   const [prev, setPrev] = useState(initialDescription);
 

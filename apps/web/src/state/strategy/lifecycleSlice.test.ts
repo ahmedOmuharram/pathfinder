@@ -3,7 +3,6 @@ import { useStrategyStore } from "./store";
 
 function resetStore() {
   useStrategyStore.setState({
-    strategy: null,
     stepLifecycleById: {},
     undoStack: [],
     redoStack: [],

@@ -6,174 +6,184 @@ function step(partial: Partial<Step> & { id: string; displayName: string }): Ste
   return { isBuilt: false, isFiltered: false, ...partial } as Step;
 }
 
-function findStep(id: string): Step | undefined {
-  return useStrategyStore.getState().strategy?.steps.find((s) => s.id === id);
+function makeStrategy(steps: Step[]): Strategy {
+  return {
+    id: "strategy-1",
+    name: "Test",
+    siteId: "plasmodb",
+    recordType: "gene",
+    steps,
+    rootStepId: steps[steps.length - 1]?.id ?? null,
+    isSaved: false,
+    description: null,
+    wdkStrategyId: null,
+    wdkUrl: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
 }
 
-function snapshotState() {
-  return { strategy: useStrategyStore.getState().strategy };
+function rename(strategy: Strategy, id: string, name: string): Strategy {
+  return {
+    ...strategy,
+    steps: strategy.steps.map((s) => (s.id === id ? { ...s, displayName: name } : s)),
+  };
 }
 
-describe("state/strategy/historySlice (Immer patches via explicit pushSnapshot)", () => {
+function removeStepById(strategy: Strategy, id: string): Strategy {
+  return { ...strategy, steps: strategy.steps.filter((s) => s.id !== id) };
+}
+
+describe("state/strategy/historySlice (TQ-cache aware: pure patch logic)", () => {
   beforeEach(() => {
     useStrategyStore.getState().clear();
   });
 
-  it("does NOT auto-push history on raw addStep/updateStep", () => {
-    const { addStep, updateStep } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }));
-    updateStep("s1", { displayName: "Renamed" });
-    expect(useStrategyStore.getState().undoStack).toHaveLength(0);
-  });
-
-  it("pushSnapshot stores the inverse patches required to undo back to prev", () => {
-    const { addStep, updateStep, pushSnapshot } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }));
-    const beforeUpdate = snapshotState();
-    updateStep("s1", { displayName: "Renamed" });
-    pushSnapshot(beforeUpdate);
+  it("pushSnapshot stores inverse patches required to undo back to prev", () => {
+    const { pushSnapshot } = useStrategyStore.getState();
+    const prev = makeStrategy([
+      step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    const next = rename(prev, "s1", "Renamed");
+    pushSnapshot({ strategy: prev }, next);
 
     const { undoStack, redoStack } = useStrategyStore.getState();
     expect(undoStack).toHaveLength(1);
     expect(redoStack).toHaveLength(0);
-
-    const patches = undoStack[0];
-    if (!patches) throw new Error("expected patches");
-    expect(Array.isArray(patches)).toBe(true);
-    expect(patches.length).toBeGreaterThan(0);
+    expect(undoStack[0]?.length).toBeGreaterThan(0);
   });
 
-  it("pushSnapshot is a no-op when prev.strategy is null (initial state has nothing to undo to)", () => {
-    const { addStep, pushSnapshot } = useStrategyStore.getState();
-    const initialSnap = snapshotState();
-    addStep(step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }));
-    pushSnapshot(initialSnap);
+  it("pushSnapshot is a no-op when prev.strategy is null", () => {
+    const { pushSnapshot } = useStrategyStore.getState();
+    const next = makeStrategy([
+      step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    pushSnapshot({ strategy: null }, next);
     expect(useStrategyStore.getState().undoStack).toHaveLength(0);
   });
 
-  it("undo restores prior strategy and populates redoStack", () => {
-    const { addStep, updateStep, pushSnapshot, undo } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }));
-    const before = snapshotState();
-    updateStep("s1", { displayName: "Renamed" });
-    pushSnapshot(before);
+  it("undo applies the inverse to the supplied current and returns the prior strategy", () => {
+    const { pushSnapshot, undo } = useStrategyStore.getState();
+    const prev = makeStrategy([
+      step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    const next = rename(prev, "s1", "Renamed");
+    pushSnapshot({ strategy: prev }, next);
 
-    undo();
-    expect(findStep("s1")?.displayName).toBe("Search 1");
+    const restored = undo(next);
+    expect(restored?.steps[0]?.displayName).toBe("Search 1");
     expect(useStrategyStore.getState().redoStack).toHaveLength(1);
     expect(useStrategyStore.getState().undoStack).toHaveLength(0);
   });
 
-  it("redo restores forward patches after undo", () => {
-    const { addStep, updateStep, pushSnapshot, undo, redo } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }));
-    const before = snapshotState();
-    updateStep("s1", { displayName: "Renamed" });
-    pushSnapshot(before);
-    undo();
-    redo();
-    expect(findStep("s1")?.displayName).toBe("Renamed");
+  it("redo applies the forward patch and returns the new strategy", () => {
+    const { pushSnapshot, undo, redo } = useStrategyStore.getState();
+    const prev = makeStrategy([
+      step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    const next = rename(prev, "s1", "Renamed");
+    pushSnapshot({ strategy: prev }, next);
+    const after = undo(next);
+    const redone = redo(after);
+    expect(redone?.steps[0]?.displayName).toBe("Renamed");
     expect(useStrategyStore.getState().undoStack).toHaveLength(1);
     expect(useStrategyStore.getState().redoStack).toHaveLength(0);
   });
 
   it("new pushSnapshot after undo clears redoStack", () => {
-    const { addStep, updateStep, pushSnapshot, undo } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }));
-    const before1 = snapshotState();
-    updateStep("s1", { displayName: "Renamed" });
-    pushSnapshot(before1);
-    undo();
+    const { pushSnapshot, undo } = useStrategyStore.getState();
+    const a = makeStrategy([
+      step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    const b = rename(a, "s1", "Renamed");
+    pushSnapshot({ strategy: a }, b);
+    const afterUndo = undo(b);
     expect(useStrategyStore.getState().redoStack).toHaveLength(1);
+    expect(afterUndo?.steps[0]?.displayName).toBe("Search 1");
 
-    const before2 = snapshotState();
-    updateStep("s1", { displayName: "Fresh" });
-    pushSnapshot(before2);
+    const c = rename(afterUndo!, "s1", "Fresh");
+    pushSnapshot({ strategy: afterUndo }, c);
     expect(useStrategyStore.getState().redoStack).toHaveLength(0);
     expect(useStrategyStore.getState().undoStack).toHaveLength(1);
-    expect(findStep("s1")?.displayName).toBe("Fresh");
   });
 
-  it("undo/redo restores step removal", () => {
-    const { addStep, removeStep, pushSnapshot, undo, redo } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }));
-    addStep(step({ id: "s2", displayName: "S2", searchName: "geneById", recordType: "gene" }));
-    const before = snapshotState();
-    removeStep("s1");
-    pushSnapshot(before);
+  it("undo/redo roundtrips a step removal", () => {
+    const { pushSnapshot, undo, redo } = useStrategyStore.getState();
+    const prev = makeStrategy([
+      step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
+      step({ id: "s2", displayName: "S2", searchName: "geneById", recordType: "gene" }),
+    ]);
+    const next = removeStepById(prev, "s1");
+    pushSnapshot({ strategy: prev }, next);
 
-    expect(findStep("s1")).toBeUndefined();
-    undo();
-    expect(findStep("s1")?.displayName).toBe("S1");
-    redo();
-    expect(findStep("s1")).toBeUndefined();
+    const restored = undo(next);
+    expect(restored?.steps.find((s) => s.id === "s1")?.displayName).toBe("S1");
+    const redone = redo(restored);
+    expect(redone?.steps.find((s) => s.id === "s1")).toBeUndefined();
   });
 
   it("caps undoStack at MAX_HISTORY (50)", () => {
-    const { addStep, updateStep, pushSnapshot } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "init", searchName: "geneById", recordType: "gene" }));
+    const { pushSnapshot } = useStrategyStore.getState();
+    let current = makeStrategy([
+      step({ id: "s1", displayName: "init", searchName: "geneById", recordType: "gene" }),
+    ]);
     for (let i = 0; i < 60; i += 1) {
-      const prev = snapshotState();
-      updateStep("s1", { displayName: `name-${i}` });
-      pushSnapshot(prev);
+      const next = rename(current, "s1", `name-${i}`);
+      pushSnapshot({ strategy: current }, next);
+      current = next;
     }
-    const { undoStack } = useStrategyStore.getState();
-    expect(undoStack.length).toBe(50);
+    expect(useStrategyStore.getState().undoStack.length).toBe(50);
   });
 
   it("clear empties both stacks", () => {
-    const { addStep, updateStep, pushSnapshot, clear } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }));
-    const prev = snapshotState();
-    updateStep("s1", { displayName: "R" });
-    pushSnapshot(prev);
+    const { pushSnapshot, clear } = useStrategyStore.getState();
+    const a = makeStrategy([
+      step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    pushSnapshot({ strategy: a }, rename(a, "s1", "R"));
     clear();
-    const state = useStrategyStore.getState();
-    expect(state.undoStack).toHaveLength(0);
-    expect(state.redoStack).toHaveLength(0);
-    expect(state.strategy).toBeNull();
+    expect(useStrategyStore.getState().undoStack).toHaveLength(0);
+    expect(useStrategyStore.getState().redoStack).toHaveLength(0);
   });
 
-  it("undo is a no-op when undoStack is empty", () => {
+  it("undo returns null when undoStack is empty", () => {
     const { undo } = useStrategyStore.getState();
-    undo();
-    expect(useStrategyStore.getState().strategy).toBeNull();
+    expect(undo(null)).toBeNull();
     expect(useStrategyStore.getState().undoStack).toHaveLength(0);
   });
 
-  it("redo is a no-op when redoStack is empty", () => {
-    const { addStep, redo } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }));
-    redo();
-    expect(findStep("s1")?.displayName).toBe("S1");
+  it("redo returns null when redoStack is empty", () => {
+    const { redo } = useStrategyStore.getState();
+    expect(redo(null)).toBeNull();
     expect(useStrategyStore.getState().redoStack).toHaveLength(0);
   });
 
   it("persists step data integrity across multiple undo/redo cycles", () => {
-    const { addStep, updateStep, pushSnapshot, undo, redo } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }));
-    const a = snapshotState();
-    updateStep("s1", { displayName: "Second" });
-    pushSnapshot(a);
-    const b = snapshotState();
-    updateStep("s1", { displayName: "Third" });
-    pushSnapshot(b);
+    const { pushSnapshot, undo, redo } = useStrategyStore.getState();
+    const a = makeStrategy([
+      step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    const b = rename(a, "s1", "Second");
+    pushSnapshot({ strategy: a }, b);
+    const c = rename(b, "s1", "Third");
+    pushSnapshot({ strategy: b }, c);
 
-    undo();
-    expect(findStep("s1")?.displayName).toBe("Second");
-    undo();
-    expect(findStep("s1")?.displayName).toBe("S1");
-    redo();
-    expect(findStep("s1")?.displayName).toBe("Second");
-    redo();
-    expect(findStep("s1")?.displayName).toBe("Third");
+    const undo1 = undo(c);
+    expect(undo1?.steps[0]?.displayName).toBe("Second");
+    const undo2 = undo(undo1);
+    expect(undo2?.steps[0]?.displayName).toBe("S1");
+    const redo1 = redo(undo2);
+    expect(redo1?.steps[0]?.displayName).toBe("Second");
+    const redo2 = redo(redo1);
+    expect(redo2?.steps[0]?.displayName).toBe("Third");
   });
 
   it("pushSnapshot is a no-op when nothing changed", () => {
-    const { addStep, pushSnapshot } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }));
-    const same: { strategy: Strategy | null } = snapshotState();
-    pushSnapshot(same);
+    const { pushSnapshot } = useStrategyStore.getState();
+    const a = makeStrategy([
+      step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
+    ]);
+    pushSnapshot({ strategy: a }, a);
     expect(useStrategyStore.getState().undoStack).toHaveLength(0);
   });
 });

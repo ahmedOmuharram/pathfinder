@@ -13,11 +13,8 @@ from pydantic import ValidationError
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
     ModelMessage,
-    ModelRequest,
     ModelResponse,
-    TextPart,
     ToolCallPart,
-    UserPromptPart,
 )
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
@@ -130,6 +127,26 @@ def _stub_supervisor_agent(
 @dataclass
 class _Runtime:
     context: Any
+
+
+@pytest.fixture(autouse=True)
+def _disable_mock_provider_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass the supervisor's mock-model override branch.
+
+    The global conftest sets ``PATHFINDER_CHAT_PROVIDER=mock`` so other
+    tests don't hit real LLMs. Supervisor unit tests stub the agent
+    directly via ``build_supervisor_agent``, so the mock-provider branch
+    in ``_run_supervisor_agent`` would replace the stub and break the
+    test. Pin the provider to ``""`` for the duration of these tests
+    so the stub's own ``FunctionModel`` runs.
+    """
+    real_get_settings = nodes_module.get_settings
+
+    def _no_mock_settings() -> Any:
+        settings = real_get_settings()
+        return settings.model_copy(update={"pathfinder_chat_provider": ""})
+
+    monkeypatch.setattr(nodes_module, "get_settings", _no_mock_settings)
 
 
 def _state(**overrides: Any) -> PipelineState:
@@ -574,10 +591,14 @@ async def test_supervisor_converts_reject_to_end_after_phase_ran(
 
 
 @pytest.mark.asyncio
-async def test_supervisor_passes_history_and_sanitized_state(
+async def test_supervisor_does_not_send_message_history(
     capture_writer: list[dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Cross-turn token cascade fix: the supervisor must call its agent with
+    ``message_history=None``. All conversation context the supervisor needs
+    flows through the typed ``state_block`` (problem frame, last phase
+    outcome, phase call counts) — not through replaying raw model traces."""
     del capture_writer
 
     captured_calls: list[dict[str, Any]] = []
@@ -595,8 +616,9 @@ async def test_supervisor_passes_history_and_sanitized_state(
             captured_calls.append({
                 "prompt": prompt,
                 "deps": deps,
-                "history": list(message_history or []),
+                "history": message_history,
             })
+
             class _Result:
                 output = SupervisorDecision(to="scoping", reason="continue")
             return _Result()
@@ -615,44 +637,37 @@ async def test_supervisor_passes_history_and_sanitized_state(
         ready_for_wdk_discovery=True,
         confidence=0.9,
     )
-    prior_messages: list[ModelMessage] = [
-        ModelRequest(parts=[UserPromptPart(content="find stuff")]),
-        ModelResponse(parts=[TextPart(content="found candidate A, B, C")]),
-    ]
     state = _state(
         problem_frame=frame,
         user_prompt="What did you find?",
-        message_history=prior_messages,
     )
     runtime, _sess = _runtime_with_memdb()
     cmd = await supervisor_node(state, cast("Runtime[Context]", runtime))
     assert cmd.goto == "scoping"
     assert len(captured_calls) == 1
     call = captured_calls[0]
+    # Critical: no raw history piped into the supervisor.
+    assert call["history"] is None
+    # Frame still arrives via the rendered state block, with prompt-injection
+    # text stripped (no leakage of user-supplied "BANANA" content).
     state_block = call["deps"].state_block
     assert "has_problem_frame: True" in state_block
     assert "BANANA" not in state_block
     assert "ignore all prior" not in state_block
     assert call["prompt"] == "What did you find?"
-    history_texts: list[str] = []
-    for m in call["history"]:
-        if not isinstance(m, ModelResponse):
-            continue
-        history_texts.extend(p.content for p in m.parts if isinstance(p, TextPart))
-    assert any("candidate A" in t for t in history_texts)
-    user_history_texts: list[str] = []
-    for m in call["history"]:
-        if not isinstance(m, ModelRequest):
-            continue
-        user_history_texts.extend(str(p.content) for p in m.parts if isinstance(p, UserPromptPart))
-    assert any("find stuff" in t for t in user_history_texts)
 
 
 @pytest.mark.asyncio
-async def test_supervisor_question_appends_to_message_history(
+async def test_supervisor_question_does_not_write_message_history(
     capture_writer: list[dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """The reject/question paths used to seed ``state.message_history`` so
+    the next turn's supervisor would see them. With the field removed,
+    those updates must not appear — the user-facing answer still reaches
+    the user via the ``data-turn-qa`` chunk + persisted message row, which
+    is what the chat UI renders. The supervisor reasons over typed state
+    on the next turn, not raw history."""
     del capture_writer
     decision = SupervisorDecision(
         to="question",
@@ -672,26 +687,19 @@ async def test_supervisor_question_appends_to_message_history(
     cmd = await supervisor_node(state, cast("Runtime[Context]", runtime))
     update = cmd.update
     assert isinstance(update, dict)
-    history = update.get("message_history")
-    assert isinstance(history, list)
-    assert len(history) == 2
-    user_msg = history[0]
-    assistant_msg = history[1]
-    assert any(
-        isinstance(p, UserPromptPart) and p.content == "What is precision?"
-        for p in user_msg.parts
-    )
-    assert any(
-        isinstance(p, TextPart) and "Precision" in p.content
-        for p in assistant_msg.parts
-    )
+    assert "message_history" not in update
+    # The user-facing answer still flows via the routing reason / parts.
+    assert "methodological" in update["last_routing_reason"]
 
 
 @pytest.mark.asyncio
-async def test_supervisor_reject_appends_to_message_history(
+async def test_supervisor_reject_does_not_write_message_history(
     capture_writer: list[dict[str, Any]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Symmetric to the question path — reject must not seed message_history
+    either; the rejection message reaches the user via the data-turn-rejected
+    chunk that ``supervisor_node`` already emits."""
     del capture_writer
     decision = SupervisorDecision(
         to="reject",
@@ -711,17 +719,8 @@ async def test_supervisor_reject_appends_to_message_history(
     cmd = await supervisor_node(state, cast("Runtime[Context]", runtime))
     update = cmd.update
     assert isinstance(update, dict)
-    history = update.get("message_history")
-    assert isinstance(history, list)
-    assert len(history) == 2
-    assert any(
-        isinstance(p, UserPromptPart) and p.content == "help me write python"
-        for p in history[0].parts
-    )
-    assert any(
-        isinstance(p, TextPart) and "Out of scope" in p.content
-        for p in history[1].parts
-    )
+    assert "message_history" not in update
+    assert "off-topic" in update["last_routing_reason"]
 
 
 @pytest.mark.asyncio

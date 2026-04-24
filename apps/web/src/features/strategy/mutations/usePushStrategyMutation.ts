@@ -1,22 +1,20 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Strategy } from "@pathfinder/shared";
-import { pushConversation } from "@/lib/api/conversations";
+import { conversationDetailKey, pushConversation } from "@/lib/api/conversations";
 import { toUserMessage } from "@/lib/api/errors";
 import { serializeStrategyAst } from "@/lib/strategyGraph/serialize";
 import { useStrategyStore } from "@/state/strategy/store";
-import {
-  applyOptimisticStrategy,
-  rollbackStrategy,
-  snapshotStrategy,
-  type StrategySnapshot,
-} from "./optimistic";
 
 export interface PushStrategyVars {
-  /** The fully optimistic strategy to apply locally and serialize to the wire. */
   optimistic: Strategy;
+}
+
+interface PushContext {
+  snapshot: Strategy | null;
+  key: ReturnType<typeof conversationDetailKey>;
 }
 
 class SyncPausedError extends Error {
@@ -26,21 +24,15 @@ class SyncPausedError extends Error {
   }
 }
 
-/** Mutation-key prefix used by `useStrategyAutoFlush` to detect in-flight pushes. */
 export const PUSH_STRATEGY_MUTATION_KEY = ["strategy", "push"] as const;
+export const PUSH_STRATEGY_SCOPE_ID = "strategy-push";
 
-/**
- * The single primitive that pushes the current strategy to the server.
- *
- * - `onMutate` snapshots and applies the optimistic strategy to the store.
- *   Throws if the validation gate (`graphValidationStatus[id]`) is set.
- * - `mutationFn` serializes the AST and calls `pushConversation`.
- * - `onSuccess` replaces the store with the server-canonical response.
- * - `onError` rolls back to the snapshot and surfaces a toast.
- */
 export function usePushStrategyMutation() {
-  return useMutation<Strategy, Error, PushStrategyVars, StrategySnapshot>({
+  const queryClient = useQueryClient();
+
+  return useMutation<Strategy, Error, PushStrategyVars, PushContext>({
     mutationKey: PUSH_STRATEGY_MUTATION_KEY,
+    scope: { id: PUSH_STRATEGY_SCOPE_ID },
     onMutate: ({ optimistic }) => {
       const validationPaused =
         useStrategyStore.getState().graphValidationStatus[optimistic.id] === true;
@@ -48,9 +40,10 @@ export function usePushStrategyMutation() {
         toast.warning("Sync paused — record-type mismatch");
         throw new SyncPausedError();
       }
-      const snapshot = snapshotStrategy();
-      applyOptimisticStrategy(optimistic);
-      return snapshot;
+      const key = conversationDetailKey(optimistic.id);
+      const snapshot = queryClient.getQueryData<Strategy>(key) ?? null;
+      queryClient.setQueryData<Strategy>(key, optimistic);
+      return { snapshot, key };
     },
     mutationFn: async ({ optimistic }) => {
       const planResult = serializeStrategyAst(
@@ -69,13 +62,13 @@ export function usePushStrategyMutation() {
         description: optimistic.description ?? null,
       });
     },
-    onSuccess: (serverResponse) => {
-      useStrategyStore.getState().setStrategy(serverResponse);
+    onSuccess: (serverResponse, _vars, context) => {
+      queryClient.setQueryData<Strategy>(context.key, serverResponse);
       useStrategyStore.getState().setLastFailedPush(null);
     },
-    onError: (err, vars, snapshot) => {
-      if (snapshot) {
-        rollbackStrategy(snapshot);
+    onError: (err, vars, context) => {
+      if (context !== undefined) {
+        queryClient.setQueryData<Strategy | null>(context.key, context.snapshot);
       }
       if (err instanceof SyncPausedError) {
         return;

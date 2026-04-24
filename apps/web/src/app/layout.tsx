@@ -21,7 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "PathFinder - VEuPathDB Strategy Builder",
+  title: "PathFinder",
   description: "AI-powered search strategy builder for VEuPathDB",
   icons: {
     icon: "/favicon.svg",

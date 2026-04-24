@@ -116,3 +116,70 @@ async def test_sum_usage_reads_partial_turn_metadata(
         ).sum_usage_for_conversation(conversation_id)
         assert total_tokens == 517
         assert str(total_cost) == "0.042"
+
+
+@pytest.mark.asyncio
+async def test_insert_message_is_idempotent_on_same_id(
+    patch_app_db_engine: None, db_cleaner: None,
+) -> None:
+    """Re-POSTing the same user message id (from a double-clicked Send,
+    a network retry, or AI SDK resume) must not crash with a
+    UniqueViolationError. The second insert is a no-op — the row's
+    original parts and metadata stay intact (we don't want a retry to
+    silently overwrite a turn's persisted state)."""
+    del patch_app_db_engine, db_cleaner
+    user_id = uuid4()
+    conversation_id = uuid4()
+    message_id = uuid4()
+
+    async with session_module.async_session_factory() as session:
+        session.add(User(id=user_id))
+        session.add(
+            Conversation(
+                id=conversation_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="t",
+            ),
+        )
+        await session.commit()
+
+    original_parts = [{"type": "text", "text": "find Plasmodium kinases"}]
+    original_meta = {"siteId": "plasmodb", "mode": "strategy"}
+
+    async with session_module.async_session_factory() as session:
+        await MessagesRepository(session).insert_message(
+            message_id=message_id,
+            conversation_id=conversation_id,
+            role="user",
+            parts=original_parts,
+            metadata=original_meta,
+        )
+        await session.commit()
+
+    # Second insert with the SAME id but different parts — must succeed
+    # silently. The user double-clicked Send; the original turn is the
+    # source of truth.
+    async with session_module.async_session_factory() as session:
+        await MessagesRepository(session).insert_message(
+            message_id=message_id,
+            conversation_id=conversation_id,
+            role="user",
+            parts=[{"type": "text", "text": "DIFFERENT TEXT"}],
+            metadata={"siteId": "plasmodb", "mode": "different"},
+        )
+        await session.commit()
+
+    async with session_module.async_session_factory() as session:
+        rows = (
+            await session.scalars(
+                select(Message).where(Message.id == message_id),
+            )
+        ).all()
+        assert len(rows) == 1
+        kept = rows[0]
+        # Original payload preserved — the second insert is a no-op,
+        # not a clobber. (If clients want to update they use the upsert
+        # path.)
+        assert kept.parts == original_parts
+        assert kept.metadata_ == original_meta

@@ -164,7 +164,6 @@ export function DatasetParam({ spec, name, field }: ParamWidgetProps) {
           <StrategyTab
             value={strategyIdFromConfig(decoded)}
             onChange={updateStrategy}
-            name={name}
           />
         </TabsContent>
       </Tabs>

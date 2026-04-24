@@ -1,7 +1,7 @@
 "use client";
 
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/strategy/store";
+import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
 import { usePushStrategyMutation } from "./usePushStrategyMutation";
 
 export interface DuplicateStepVars {
@@ -88,19 +88,20 @@ export function applyDuplicate(
  * the graph via a new INTERSECT combine alongside the source so the graph
  * stays single-rooted. The user can change the operator afterwards.
  */
-export function useDuplicateStepMutation() {
+export function useDuplicateStepMutation(conversationId: string) {
   const push = usePushStrategyMutation();
+  const cache = useStrategyCacheUtils();
   return {
     ...push,
     mutate: (vars: DuplicateStepVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) return;
       const next = applyDuplicate(current, vars.stepId);
       if (!next) return;
       push.mutate({ optimistic: next });
     },
     mutateAsync: async (vars: DuplicateStepVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) {
         throw new Error("Cannot duplicate step: no strategy loaded");
       }

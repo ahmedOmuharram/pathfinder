@@ -1,14 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
+import type * as ConversationsModule from "@/lib/api/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
 
 const pushConversationMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/conversations", () => ({
-  pushConversation: pushConversationMock,
-}));
+vi.mock("@/lib/api/conversations", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof ConversationsModule>();
+  return { ...actual, pushConversation: pushConversationMock };
+});
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() },
@@ -17,6 +21,7 @@ vi.mock("sonner", () => ({
 import { useStrategyStore } from "@/state/strategy/store";
 import { useStrategyAutoFlush } from "./useStrategyAutoFlush";
 import { usePushStrategyMutation } from "@/features/strategy/mutations/usePushStrategyMutation";
+import { makeQueryHarness } from "@/features/strategy/mutations/__tests__/strategyTestUtils";
 
 function makeStrategy(): Strategy {
   return {
@@ -52,7 +57,10 @@ beforeEach(() => {
 
 describe("useStrategyAutoFlush", () => {
   it("awaitFlush resolves immediately when no mutations are in flight", async () => {
-    const { result } = renderHook(() => useStrategyAutoFlush());
+    const harness = makeQueryHarness();
+    const { result } = renderHook(() => useStrategyAutoFlush(), {
+      wrapper: harness.wrapper,
+    });
     await act(async () => {
       await result.current.awaitFlush();
     });
@@ -61,7 +69,7 @@ describe("useStrategyAutoFlush", () => {
 
   it("awaitFlush waits for an in-flight push to settle", async () => {
     const initial = makeStrategy();
-    useStrategyStore.getState().setStrategy(initial);
+    const harness = makeQueryHarness(initial);
 
     let resolveFn!: (s: Strategy) => void;
     pushConversationMock.mockReturnValueOnce(
@@ -70,11 +78,14 @@ describe("useStrategyAutoFlush", () => {
       }),
     );
 
-    const { result } = renderHook(() => {
-      const flush = useStrategyAutoFlush();
-      const push = usePushStrategyMutation();
-      return { flush, push };
-    });
+    const { result } = renderHook(
+      () => {
+        const flush = useStrategyAutoFlush();
+        const push = usePushStrategyMutation();
+        return { flush, push };
+      },
+      { wrapper: harness.wrapper },
+    );
 
     act(() => {
       void result.current.push.mutateAsync({ optimistic: initial });

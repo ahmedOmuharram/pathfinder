@@ -34,7 +34,7 @@ export function CombineNode(props: StepNodeProps) {
     onDuplicate,
     onDelete,
   } = props;
-  const snapshot = useStepSnapshot(step.id);
+  const snapshot = useStepSnapshot(step);
   const operator: CombineOperator | string = step.operator ?? "";
 
   return (

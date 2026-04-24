@@ -91,4 +91,11 @@ class ParamSpecResponse(CamelModel):
     group: str | None = None
     dependent_params: list[str] = Field(default_factory=list)
     help: str | None = None
+    # Filter-only metadata (populated only when type == "filter").
+    ontology: list[JSONObject] | None = Field(default=None)
+    filter_data_type_display_name: str | None = Field(default=None)
+    # Dataset-only metadata (populated only when type == "input-dataset").
+    parsers: list[JSONObject] | None = Field(default=None)
+    default_id_list: str | None = Field(default=None)
+    record_class_name: str | None = Field(default=None)
 

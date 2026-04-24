@@ -50,7 +50,7 @@ export function CanvasTopbar({
   onRetry,
 }: CanvasTopbarProps) {
   const router = useRouter();
-  const updateMeta = useUpdateStrategyMetaMutation();
+  const updateMeta = useUpdateStrategyMetaMutation(conversationId);
   const deleteStrategy = useDeleteStrategyMutation();
   const [draftName, setDraftName] = useState(strategy.name);
   const [prevName, setPrevName] = useState(strategy.name);
@@ -191,6 +191,7 @@ export function CanvasTopbar({
         open={descSheetOpen}
         onOpenChange={setDescSheetOpen}
         initialDescription={strategy.description ?? ""}
+        conversationId={conversationId}
       />
       <DeleteStrategyConfirm
         open={confirmDeleteOpen}

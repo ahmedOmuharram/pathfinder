@@ -39,17 +39,21 @@ export function VennIcon({ operator }: { operator: string }) {
       {operator === CombineOperator.INTERSECT && (
         <path d={overlapPath} fill={highlight} fillOpacity="0.9" />
       )}
-      {(operator === CombineOperator.MINUS || operator === CombineOperator.LONLY) && (
+      {operator === CombineOperator.LONLY && (
+        <circle cx="14" cy="12" r="8" fill={highlight} fillOpacity="0.5" />
+      )}
+      {operator === CombineOperator.RONLY && (
+        <circle cx="22" cy="12" r="8" fill={highlight} fillOpacity="0.5" />
+      )}
+      {operator === CombineOperator.MINUS && (
         <>
           <circle cx="14" cy="12" r="8" fill={highlight} fillOpacity="0.5" />
-          {/* Punch out the overlap so it's truly "left only" */}
           <path d={overlapPath} fill={bg} />
         </>
       )}
-      {(operator === CombineOperator.RMINUS || operator === CombineOperator.RONLY) && (
+      {operator === CombineOperator.RMINUS && (
         <>
           <circle cx="22" cy="12" r="8" fill={highlight} fillOpacity="0.5" />
-          {/* Punch out the overlap so it's truly "right only" */}
           <path d={overlapPath} fill={bg} />
         </>
       )}

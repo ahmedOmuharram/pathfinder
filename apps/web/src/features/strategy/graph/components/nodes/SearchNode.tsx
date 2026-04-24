@@ -21,7 +21,7 @@ export function SearchNode(props: StepNodeProps) {
     onDuplicate,
     onDelete,
   } = props;
-  const snapshot = useStepSnapshot(step.id);
+  const snapshot = useStepSnapshot(step);
 
   return (
     <NodeShell

@@ -25,6 +25,7 @@ interface AddStepSheetProps {
    * are listed.
    */
   recordType: string | null;
+  conversationId: string;
 }
 
 const generateStepId = (): string =>
@@ -35,8 +36,9 @@ export function AddStepSheet({
   onOpenChange,
   siteId,
   recordType,
+  conversationId,
 }: AddStepSheetProps) {
-  const addStep = useAddStepMutation();
+  const addStep = useAddStepMutation(conversationId);
   const { enabled: _enabled, ...searchOpts } = searchesOptions(
     siteId,
     recordType,

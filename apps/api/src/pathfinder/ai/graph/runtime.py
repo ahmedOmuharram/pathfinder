@@ -12,7 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.capabilities.repetition_guard import ToolRepetitionGuard
-from pathfinder.ai.graph.state import PipelineState, ProblemFrame
+from pathfinder.ai.graph.state import (
+    PhaseName,
+    PhaseOutcome,
+    PipelineState,
+    ProblemFrame,
+)
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
@@ -74,6 +79,8 @@ class AgentDeps(BaseModel):
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
     conversation_id: UUID | None = None
     db_session_factory: SkipValidation[DBSessionFactory] | None = None
+    last_phase_outcome: PhaseOutcome | None = None
+    last_phase_name: PhaseName | None = None
 
 
 def build_node_deps(
@@ -101,6 +108,8 @@ def build_node_deps(
         retrieved_memories=memories or [],
         conversation_id=state.conversation_id,
         db_session_factory=context.db_session_factory,
+        last_phase_outcome=state.last_phase_outcome,
+        last_phase_name=state.current_phase,
     )
 
 

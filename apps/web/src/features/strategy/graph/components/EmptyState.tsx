@@ -8,9 +8,10 @@ import { AddStepSheet } from "@/features/strategy/graph/components/AddStepSheet"
 interface EmptyStateProps {
   siteId: string;
   recordType: string | null;
+  conversationId: string;
 }
 
-export function EmptyState({ siteId, recordType }: EmptyStateProps) {
+export function EmptyState({ siteId, recordType, conversationId }: EmptyStateProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
@@ -44,6 +45,7 @@ export function EmptyState({ siteId, recordType }: EmptyStateProps) {
         onOpenChange={setSheetOpen}
         siteId={siteId}
         recordType={recordType}
+        conversationId={conversationId}
       />
     </div>
   );

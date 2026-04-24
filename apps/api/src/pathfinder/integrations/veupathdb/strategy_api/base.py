@@ -8,6 +8,7 @@ import json
 
 from pydantic import JsonValue
 
+from pathfinder.domain.parameters.value_utils import decode_values
 from pathfinder.domain.parameters.vocab_utils import (
     collect_leaf_terms,
     find_vocab_node,
@@ -18,7 +19,6 @@ from pathfinder.integrations.veupathdb.strategy_api.helpers import (
     CURRENT_USER,
     resolve_wdk_user_id,
 )
-from pathfinder.integrations.veupathdb.value_decoding import decode_values
 from pathfinder.integrations.veupathdb.wdk_models import WDKAnswer
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.errors import AppError, ErrorCode, validate_response

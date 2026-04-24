@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/strategy/store";
 import { computeNodeDeletionResult } from "@/features/strategy/graph/utils/nodeDeletionLogic";
 import { computeOrthologInsert } from "@/features/strategy/graph/utils/orthologInsert";
 import {
@@ -37,9 +36,10 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
     startCombine,
   } = options;
 
-  const updateStep = useUpdateStepMutation();
-  const deleteStep = useDeleteStepMutation();
-  const addStep = useAddStepMutation();
+  const conversationId = strategy?.id ?? "";
+  const updateStep = useUpdateStepMutation(conversationId);
+  const deleteStep = useDeleteStepMutation(conversationId);
+  const addStep = useAddStepMutation(conversationId);
 
   const [edgeMenu, setEdgeMenu] = useState<{
     edge: Edge;
@@ -50,7 +50,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
 
   const handleNodesDelete = (deletedNodes: Node[]) => {
     if (isCompact || deletedNodes.length === 0) return;
-    const stepsList = useStrategyStore.getState().strategy?.steps ?? [];
+    const stepsList = strategy?.steps ?? [];
     if (stepsList.length === 0) return;
     const result = computeNodeDeletionResult({
       steps: stepsList,
@@ -98,8 +98,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
   ) => {
     const selectedId = selectedNodeIds[0];
     if (selectedId == null || selectedId === "") return;
-    const stepsList =
-      useStrategyStore.getState().strategy?.steps ?? strategy?.steps ?? [];
+    const stepsList = strategy?.steps ?? [];
     const { newStep, downstreamPatch } = computeOrthologInsert({
       selectedId,
       steps: stepsList,

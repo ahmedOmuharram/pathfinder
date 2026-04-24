@@ -1,4 +1,17 @@
-"""Pair orphan tool_calls/returns in message history before each model request."""
+"""History processors run before every LLM request inside an agent run.
+
+Two processors live here:
+
+1. :func:`pair_tool_calls` — repairs orphan ``ToolCallPart`` /
+   ``ToolReturnPart`` pairs so the provider doesn't reject the request.
+2. :func:`elide_consumed_tool_results` — trims the *content* of older
+   tool results so the within-run cascade doesn't blow up token spend.
+   The tool-call ↔ tool-return pairing is preserved (providers reject
+   orphan calls); only the result body is replaced with a stub.
+
+Both are pure functions so pydantic-ai can compose them as
+``history_processors=[pair_tool_calls, elide_consumed_tool_results]``.
+"""
 from __future__ import annotations
 
 import dataclasses
@@ -7,6 +20,7 @@ from collections.abc import Sequence
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
+    ModelRequestPart,
     ModelResponse,
     RetryPromptPart,
     ToolCallPart,
@@ -20,6 +34,18 @@ logger = get_logger(__name__)
 _PLACEHOLDER_CONTENT = (
     "Tool call was not executed (prior stream error). Treat as failed and "
     "proceed without the expected result."
+)
+
+KEEP_RECENT_TOOL_PAIRS = 3
+"""How many of the most-recent tool-call/return pairs keep their full
+result content. Older returns get elided to a stub. Three pairs is
+enough for the model to see the *shape* of recent activity (it almost
+never needs raw bytes from the 4th-most-recent tool call to make the
+next decision) while keeping the per-request prompt bounded."""
+
+_ELIDED_RESULT_STUB = (
+    "<elided to control context size; the agent has already acted on "
+    "this result — re-call the tool only if you need fresh data>"
 )
 
 
@@ -156,3 +182,69 @@ def pair_tool_calls(messages: list[ModelMessage]) -> list[ModelMessage]:
 
     cleaned = _drop_orphan_and_duplicate_returns(messages, orphan_return_ids)
     return _inject_placeholder_returns(cleaned, orphan_call_ids)
+
+
+def _ordered_tool_call_ids(messages: Sequence[ModelMessage]) -> list[str]:
+    """Tool-call ids in the order the model emitted them."""
+    out: list[str] = []
+    for msg in messages:
+        if not isinstance(msg, ModelResponse):
+            continue
+        out.extend(
+            part.tool_call_id
+            for part in msg.parts
+            if isinstance(part, ToolCallPart)
+        )
+    return out
+
+
+def elide_consumed_tool_results(
+    messages: list[ModelMessage],
+) -> list[ModelMessage]:
+    """Trim the body of older tool results so the within-run cascade
+    doesn't blow up token spend.
+
+    The model emits a chain of tool calls inside one ``agent.run``. Each
+    subsequent LLM request includes every prior ``ToolReturnPart`` —
+    so for a 30-call discovery loop the final request pays for all 30
+    return bodies as input tokens. We replace older return bodies with
+    a stub, leaving the most-recent ``KEEP_RECENT_TOOL_PAIRS`` pairs
+    intact. Tool-call/return pairing is preserved (Anthropic / OpenAI
+    reject orphans), only the result *content* is shortened.
+
+    Tool results carry the same data the typed pinned context already
+    surfaces (``discovered_searches``, ``problem_frame``,
+    ``active_plan``), so dropping their raw bytes is lossless from the
+    agent's perspective. If the agent decides it actually needs fresh
+    data it can re-call the tool — one extra call is still cheap
+    compared to the cumulative replay cost we're avoiding.
+    """
+    call_ids = _ordered_tool_call_ids(messages)
+    if len(call_ids) <= KEEP_RECENT_TOOL_PAIRS:
+        return list(messages)
+    elide_ids = set(call_ids[: -KEEP_RECENT_TOOL_PAIRS])
+    return [_elide_returns_in_message(msg, elide_ids) for msg in messages]
+
+
+def _elide_returns_in_message(
+    msg: ModelMessage, elide_ids: set[str],
+) -> ModelMessage:
+    if not isinstance(msg, ModelRequest):
+        return msg
+    new_parts: list[ModelRequestPart] = []
+    changed = False
+    for part in msg.parts:
+        if (
+            isinstance(part, ToolReturnPart)
+            and part.tool_call_id in elide_ids
+            and part.content != _ELIDED_RESULT_STUB
+        ):
+            new_parts.append(
+                dataclasses.replace(part, content=_ELIDED_RESULT_STUB),
+            )
+            changed = True
+        else:
+            new_parts.append(part)
+    if not changed:
+        return msg
+    return dataclasses.replace(msg, parts=new_parts)

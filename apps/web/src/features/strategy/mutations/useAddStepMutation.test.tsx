@@ -1,14 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
+import type * as ConversationsModule from "@/lib/api/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import type { Strategy, Step } from "@pathfinder/shared";
 
 const pushConversationMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/conversations", () => ({
-  pushConversation: pushConversationMock,
-}));
+vi.mock("@/lib/api/conversations", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof ConversationsModule>();
+  return { ...actual, pushConversation: pushConversationMock };
+});
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() },
@@ -16,6 +20,7 @@ vi.mock("sonner", () => ({
 
 import { useStrategyStore } from "@/state/strategy/store";
 import { useAddStepMutation } from "./useAddStepMutation";
+import { makeQueryHarness } from "./__tests__/strategyTestUtils";
 
 function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
   return { isBuilt: false, isFiltered: false, ...partial } as Step;
@@ -45,9 +50,9 @@ beforeEach(() => {
 });
 
 describe("useAddStepMutation", () => {
-  it("inserts a new step into the store with a client-generated id (empty -> first step)", async () => {
+  it("inserts a new step into the cache with a client-generated id", async () => {
     const empty = makeStrategy([]);
-    useStrategyStore.getState().setStrategy(empty);
+    const harness = makeQueryHarness(empty);
 
     pushConversationMock.mockImplementationOnce((_id, args) => {
       return Promise.resolve({
@@ -67,7 +72,10 @@ describe("useAddStepMutation", () => {
       });
     });
 
-    const { result } = renderHook(() => useAddStepMutation());
+    const { result } = renderHook(
+      () => useAddStepMutation(empty.id),
+      { wrapper: harness.wrapper },
+    );
 
     let p: Promise<unknown> | undefined;
     act(() => {
@@ -81,20 +89,16 @@ describe("useAddStepMutation", () => {
       });
     });
 
-    // Optimistic: store now has the new step.
-    const ids = useStrategyStore
-      .getState()
-      .strategy?.steps.map((s) => s.id);
-    expect(ids).toEqual(["added-1"]);
+    const optimisticIds = harness.getStrategy(empty.id)?.steps.map((s) => s.id);
+    expect(optimisticIds).toEqual(["added-1"]);
 
     await act(async () => {
       await p;
     });
 
-    // Server response replaces — the new step now has wdkStepId attached.
-    const added = useStrategyStore
-      .getState()
-      .strategy?.steps.find((s) => s.id === "added-1");
+    const added = harness
+      .getStrategy(empty.id)
+      ?.steps.find((s) => s.id === "added-1");
     expect(added?.wdkStepId).toBe(555);
   });
 
@@ -103,7 +107,7 @@ describe("useAddStepMutation", () => {
       step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
       step({ id: "s2", displayName: "S2", searchName: "geneById", recordType: "gene" }),
     ]);
-    useStrategyStore.getState().setStrategy(strategy);
+    const harness = makeQueryHarness(strategy);
 
     pushConversationMock.mockImplementationOnce((_id, args) => {
       return Promise.resolve({
@@ -123,7 +127,10 @@ describe("useAddStepMutation", () => {
       });
     });
 
-    const { result } = renderHook(() => useAddStepMutation());
+    const { result } = renderHook(
+      () => useAddStepMutation(strategy.id),
+      { wrapper: harness.wrapper },
+    );
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -138,7 +145,7 @@ describe("useAddStepMutation", () => {
       });
     });
 
-    const c = useStrategyStore.getState().strategy?.steps.find((s) => s.id === "c1");
+    const c = harness.getStrategy(strategy.id)?.steps.find((s) => s.id === "c1");
     expect(c?.operator).toBe("INTERSECT");
     expect(c?.primaryInputStepId).toBe("s1");
     expect(c?.secondaryInputStepId).toBe("s2");

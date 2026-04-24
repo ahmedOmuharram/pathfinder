@@ -44,12 +44,16 @@ async def resolve_search_and_validate_params(
     search_name: str,
     parameters: JSONObject,
     callbacks: ValidationCallbacks,
-) -> tuple[str, ToolErrorPayload | None]:
+) -> tuple[str, JSONObject, ToolErrorPayload | None]:
     """Resolve record type for a search and validate its parameters.
 
     Shared by leaf and transform validation paths.
 
-    :returns: (resolved_record_type, error_or_none).
+    :returns: (resolved_record_type, canonical_parameters, error_or_none).
+        ``canonical_parameters`` is a fresh dict with vocab-matched,
+        decoded-form values; pass it to ``StrategyStepNode(parameters=...)``
+        so the AST holds canonical decoded values. ``parameters`` is left
+        unmodified.
     """
     rt = await callbacks.resolve_record_type_for_search(
         resolved_record_type,
@@ -61,7 +65,7 @@ async def resolve_search_and_validate_params(
         record_type_hint = await callbacks.find_record_type_hint(
             search_name, resolved_record_type
         )
-        return resolved_record_type, tool_error(
+        return resolved_record_type, parameters, tool_error(
             ErrorCode.SEARCH_NOT_FOUND,
             f"Unknown or invalid search: {search_name}",
             recordType=resolved_record_type,
@@ -74,7 +78,7 @@ async def resolve_search_and_validate_params(
         graph.record_type = rt
 
     try:
-        await validate_parameters(
+        canonical = await validate_parameters(
             SearchContext(site_id, rt, search_name),
             parameters=parameters,
             callbacks=callbacks,
@@ -83,6 +87,6 @@ async def resolve_search_and_validate_params(
         error_fn = callbacks.validation_error_payload
         if error_fn is None:
             raise
-        return rt, error_fn(exc)
+        return rt, parameters, error_fn(exc)
 
-    return rt, None
+    return rt, canonical, None

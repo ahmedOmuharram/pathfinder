@@ -34,10 +34,7 @@ from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.domain.strategy.types import (
-    DecodedParams,
-    unwrap_json_encoded_params,
-)
+from pathfinder.domain.strategy.types import DecodedParams, DecodedParamsField
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.platform.errors import AppError, ErrorCode, ValidationError
 from pathfinder.platform.logging import get_logger
@@ -93,7 +90,7 @@ async def _validate_and_set_params(
         return None
     record_type = graph.record_type or "transcript"
     try:
-        await validate_parameters(
+        canonical = await validate_parameters(
             SearchContext(site_id, record_type, step.search_name),
             parameters=parameters,
             callbacks=_make_callbacks(site_id),
@@ -102,7 +99,7 @@ async def _validate_and_set_params(
         return validation_error_payload(
             exc, recordType=record_type, searchName=step.search_name
         )
-    step.parameters = parameters
+    step.parameters = canonical
     return None
 
 
@@ -213,7 +210,7 @@ async def update_step(
     ctx: RunContext[AgentDeps],
     step_id: str,
     search_name: str | None = None,
-    parameters: DecodedParams | None = None,
+    parameters: DecodedParamsField | None = None,
     operator: str | None = None,
     display_name: str | None = None,
     graph_id: str | None = None,
@@ -227,7 +224,8 @@ async def update_step(
     Args:
         step_id: ID of the step to update.
         search_name: New WDK search urlSegment. Replaces the current search.
-        parameters: New parameter values (paramName -> value string). Merged into WDK.
+        parameters: New parameter values. Use native types: list[str] for
+            multi-pick, str for single-pick, dict for ranges.
         operator: New set operator for binary steps (INTERSECT, UNION, MINUS, RMINUS).
         display_name: New human-readable label shown in the UI.
         graph_id: Target graph. Uses the active graph if omitted.
@@ -241,13 +239,10 @@ async def update_step(
     graph, step = resolved
 
     sync_state = ensure_sync_state(session)
-    normalized_params = (
-        unwrap_json_encoded_params(dict(parameters))
-        if parameters is not None
-        else None
-    )
     apply_error = await _apply_step_updates(
-        deps.site_id, graph, sync_state, step, search_name, normalized_params, operator, display_name
+        deps.site_id, graph, sync_state, step, search_name,
+        dict(parameters) if parameters is not None else None,
+        operator, display_name,
     )
 
 

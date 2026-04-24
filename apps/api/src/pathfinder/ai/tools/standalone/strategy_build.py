@@ -28,10 +28,7 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.domain.strategy.types import (
-    DecodedParams,
-    unwrap_json_encoded_params,
-)
+from pathfinder.domain.strategy.types import DecodedParamsField
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.catalog.param_validation import ValidationCallbacks
 from pathfinder.services.strategies.step_creation import (
@@ -119,7 +116,7 @@ def _make_callbacks(site_id: str) -> ValidationCallbacks:
 async def create_leaf_step(
     ctx: RunContext[AgentDeps],
     search_name: str,
-    parameters: DecodedParams,
+    parameters: DecodedParamsField,
     display_name: str = "",
     record_type: str | None = None,
     *,
@@ -129,7 +126,8 @@ async def create_leaf_step(
 
     Args:
         search_name: WDK search urlSegment (e.g. 'GenesByTaxon').
-        parameters: Parameter values for the search (paramName -> value string).
+        parameters: Parameter values for the search. Use native types:
+            list[str] for multi-pick, str for single-pick, dict for ranges.
         display_name: Human-readable label for the step shown in the UI.
         record_type: Record type (e.g. 'transcript'). Auto-resolved if omitted.
         graph_id: Target graph. Uses the active graph if omitted.
@@ -146,7 +144,7 @@ async def create_leaf_step(
 
     spec = StepSpec(
         search_name=search_name,
-        parameters=unwrap_json_encoded_params(dict(parameters)),
+        parameters=dict(parameters),
         record_type=record_type,
         display_name=display_name,
         _skip_auto_combine=True,
@@ -275,7 +273,7 @@ async def transform_step(
     ctx: RunContext[AgentDeps],
     input_step_id: str,
     transform_name: str,
-    parameters: DecodedParams | None = None,
+    parameters: DecodedParamsField | None = None,
     display_name: str | None = None,
     *,
     graph_id: str | None = None,
@@ -285,7 +283,8 @@ async def transform_step(
     Args:
         input_step_id: ID of the step whose results feed into this transform.
         transform_name: WDK transform search urlSegment (e.g. 'GenesByOrthologs').
-        parameters: Parameter values for the transform. If None, uses defaults.
+        parameters: Parameter values. Use native types: list[str] for
+            multi-pick, str for single-pick. None uses defaults.
         display_name: Human-readable label for the transform step.
         graph_id: Target graph. Uses the active graph if omitted.
     """
@@ -309,11 +308,7 @@ async def transform_step(
 
     spec = StepSpec(
         search_name=transform_name,
-        parameters=(
-            unwrap_json_encoded_params(dict(parameters))
-            if parameters is not None
-            else None
-        ),
+        parameters=dict(parameters) if parameters is not None else None,
         primary_input_step_id=input_step_id,
         display_name=display_name,
     )

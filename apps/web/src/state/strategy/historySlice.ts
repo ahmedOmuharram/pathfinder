@@ -1,5 +1,6 @@
 import { enablePatches, produceWithPatches, applyPatches } from "immer";
 import type { Patch } from "immer";
+import type { Strategy } from "@pathfinder/shared";
 import type { StateCreator } from "zustand";
 import type { DevtoolsMutators } from "@/state/middleware";
 import type { HistorySlice, HistorySnapshot, StrategyState } from "./types";
@@ -15,10 +16,6 @@ function trimStack(stack: Patch[][]): Patch[][] {
   return stack;
 }
 
-/**
- * Compute the inverse patches that would restore `prev` from `next`. Returns
- * an empty array when nothing changed.
- */
 function inversePatchesBetween(
   prev: HistorySnapshot,
   next: HistorySnapshot,
@@ -38,10 +35,9 @@ export const createHistorySlice: StateCreator<
   undoStack: [],
   redoStack: [],
 
-  pushSnapshot: (prev) => {
-    const current: HistorySnapshot = { strategy: get().strategy };
+  pushSnapshot: (prev, current) => {
     if (prev.strategy === null) return;
-    const inverse = inversePatchesBetween(prev, current);
+    const inverse = inversePatchesBetween(prev, { strategy: current });
     if (inverse.length === 0) return;
     set((state) => ({
       undoStack: trimStack([...state.undoStack, inverse]),
@@ -49,40 +45,48 @@ export const createHistorySlice: StateCreator<
     }));
   },
 
-  undo: () => {
-    const { undoStack, redoStack, strategy } = get();
+  undo: (current) => {
+    const { undoStack, redoStack } = get();
     const lastInverse = undoStack[undoStack.length - 1];
-    if (!lastInverse) return;
+    if (!lastInverse) return null;
 
-    const current: HistorySnapshot = { strategy };
-    const [restored, , forward] = produceWithPatches(current, (draft) => {
-      applyPatches(draft, lastInverse);
-    });
+    const [restored, , forward] = produceWithPatches(
+      { strategy: current } satisfies HistorySnapshot,
+      (draft) => {
+        applyPatches(draft, lastInverse);
+      },
+    );
 
     set({
-      strategy: restored.strategy,
       undoStack: undoStack.slice(0, -1),
       redoStack: [...redoStack, forward],
     });
+    return restored.strategy;
   },
 
-  redo: () => {
-    const { undoStack, redoStack, strategy } = get();
+  redo: (current) => {
+    const { undoStack, redoStack } = get();
     const lastForward = redoStack[redoStack.length - 1];
-    if (!lastForward) return;
+    if (!lastForward) return null;
 
-    const current: HistorySnapshot = { strategy };
-    const [restored, , inverse] = produceWithPatches(current, (draft) => {
-      applyPatches(draft, lastForward);
-    });
+    const [restored, , inverse] = produceWithPatches(
+      { strategy: current } satisfies HistorySnapshot,
+      (draft) => {
+        applyPatches(draft, lastForward);
+      },
+    );
 
     set({
-      strategy: restored.strategy,
       undoStack: [...undoStack, inverse],
       redoStack: redoStack.slice(0, -1),
     });
+    return restored.strategy;
   },
 
   canUndo: () => get().undoStack.length > 0,
   canRedo: () => get().redoStack.length > 0,
+
+  clearHistory: () => set({ undoStack: [], redoStack: [] }),
 });
+
+export type { Patch, Strategy };

@@ -1,14 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
+import type * as ConversationsModule from "@/lib/api/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
 
 const pushConversationMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/conversations", () => ({
-  pushConversation: pushConversationMock,
-}));
+vi.mock("@/lib/api/conversations", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof ConversationsModule>();
+  return { ...actual, pushConversation: pushConversationMock };
+});
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({
@@ -22,6 +26,7 @@ vi.mock("sonner", () => ({
 import { useStrategyStore } from "@/state/strategy/store";
 import { useRetryLastPush } from "./useRetryLastPush";
 import { usePushStrategyMutation } from "./usePushStrategyMutation";
+import { makeQueryHarness } from "./__tests__/strategyTestUtils";
 
 function makeStrategy(name = "Test"): Strategy {
   return {
@@ -58,7 +63,10 @@ beforeEach(() => {
 
 describe("useRetryLastPush", () => {
   it("does nothing when lastFailedPush is null", async () => {
-    const { result } = renderHook(() => useRetryLastPush());
+    const harness = makeQueryHarness();
+    const { result } = renderHook(() => useRetryLastPush(), {
+      wrapper: harness.wrapper,
+    });
 
     await act(async () => {
       result.current();
@@ -69,17 +77,20 @@ describe("useRetryLastPush", () => {
 
   it("re-fires the most recent failed push and clears lastFailedPush on success", async () => {
     const initial = makeStrategy("Failing");
-    useStrategyStore.getState().setStrategy(initial);
+    const harness = makeQueryHarness(initial);
 
     pushConversationMock
       .mockRejectedValueOnce(new Error("transient"))
       .mockResolvedValueOnce(initial);
 
-    const { result } = renderHook(() => {
-      const retry = useRetryLastPush();
-      const push = usePushStrategyMutation();
-      return { retry, push };
-    });
+    const { result } = renderHook(
+      () => {
+        const retry = useRetryLastPush();
+        const push = usePushStrategyMutation();
+        return { retry, push };
+      },
+      { wrapper: harness.wrapper },
+    );
 
     await act(async () => {
       await expect(

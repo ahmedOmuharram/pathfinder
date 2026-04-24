@@ -16,6 +16,7 @@ from pathfinder.ai.tools.standalone.catalog_discovery import (
     get_parameter_dependencies,
     get_parameter_options,
     get_search_overview,
+    update_search_decision,
 )
 from pathfinder.ai.tools.standalone.gene import lookup_gene_records
 from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
@@ -40,6 +41,7 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             lookup_phyletic_codes,
             search_example_plans,
             get_search_overview,
+            update_search_decision,
             get_parameter_options,
             get_parameter_dependencies,
             web_search,

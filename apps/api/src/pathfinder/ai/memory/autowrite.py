@@ -7,7 +7,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph.state import PipelineState
-from pathfinder.ai.memory.schemas import MemoryValue
+from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.memory.tombstones import (
     SessionFactory,
@@ -70,7 +70,8 @@ async def auto_write_memories(
 def _collect_candidates(
     state: PipelineState,
 ) -> list[tuple[MemoryValue, str]]:
-    """Synchronous part of candidate enumeration (strategies + gene sets)."""
+    """Synchronous part of candidate enumeration (strategies + gene sets +
+    verification-authored knowledge entries)."""
     candidates: list[tuple[MemoryValue, str]] = []
     if state.active_plan is not None:
         candidates.append((
@@ -81,6 +82,12 @@ def _collect_candidates(
         (_build_gene_set_value(state, gs_id), f"gene_set:{gs_id}")
         for gs_id in state.created_gene_set_ids
     )
+    if state.verification_digest is not None:
+        for idx, entry in enumerate(state.verification_digest.remember):
+            candidates.append((
+                _build_knowledge_value(state, entry),
+                f"knowledge:{state.conversation_id.hex}:{idx}",
+            ))
     return candidates
 
 
@@ -117,6 +124,30 @@ def _build_gene_set_value(state: PipelineState, gs_id: str) -> MemoryValue:
         tags=[state.site_id] if state.site_id else [],
         site_id=state.site_id,
         content={"gene_set_id": gs_id},
+        source_conversation_id=state.conversation_id,
+        created_at=datetime.now(UTC),
+    )
+
+
+def _build_knowledge_value(
+    state: PipelineState, entry: MemoryEntryDraft,
+) -> MemoryValue:
+    """Lift a verification-authored draft to a full ``MemoryValue``.
+
+    Site id and source conversation id come from pipeline state — the
+    draft does not author them so the LLM can't accidentally cross-link
+    to a different chat.
+    """
+    tags = list(entry.tags)
+    if state.site_id and state.site_id not in tags:
+        tags.append(state.site_id)
+    return MemoryValue(
+        kind="knowledge",
+        name=entry.name,
+        summary=entry.summary,
+        tags=tags,
+        site_id=state.site_id,
+        content=dict(entry.content),
         source_conversation_id=state.conversation_id,
         created_at=datetime.now(UTC),
     )

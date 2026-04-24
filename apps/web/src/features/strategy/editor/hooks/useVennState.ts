@@ -7,6 +7,8 @@ export type VennOperator =
   | "UNION"
   | "MINUS"
   | "RMINUS"
+  | "LONLY"
+  | "RONLY"
   | "COLOCATE";
 
 interface VennState {
@@ -19,6 +21,8 @@ interface VennState {
 function flipDirection(op: string): string {
   if (op === "MINUS") return "RMINUS";
   if (op === "RMINUS") return "MINUS";
+  if (op === "LONLY") return "RONLY";
+  if (op === "RONLY") return "LONLY";
   return op;
 }
 

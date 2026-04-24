@@ -4,10 +4,11 @@ Covers the full P. falciparum-kinases research workflow with greetings,
 off-topic rejects, conceptual questions, and the scoping→discovery→
 planning→execution→verification phase progression. Verifies:
 
-- message_history accumulates across turns (phase + question + reject)
 - problem_frame persists across unrelated turns (Q/reject don't clobber)
-- supervisor-emitted reject and question rows appear in history
-- phase_call_counts resets per turn but state carries over
+- supervisor-emitted reject and question reach the user via streamed
+  ``data-turn-qa`` / ``data-turn-rejected`` chunks (the chat UI's render
+  path), not via raw ``message_history`` (removed)
+- phase_call_counts resets per turn but typed state carries over
 - data chunks (phase-start, turn-qa, turn-rejected, supervisor-decision)
   are emitted in the expected sequence per turn
 """
@@ -150,6 +151,65 @@ def _run_turn_input(user_text: str) -> dict[str, Any]:
     }
 
 
+def _iter_chunks(events: list[Any]) -> list[dict[str, Any]]:
+    chunks: list[dict[str, Any]] = []
+    for ev in events:
+        payload = ev[1] if isinstance(ev, tuple) else ev
+        if not isinstance(payload, dict):
+            continue
+        chunk_obj = payload.get("chunk")
+        if isinstance(chunk_obj, dict):
+            chunks.append(chunk_obj)
+    return chunks
+
+
+def _streamed_text_blocks(chunks: list[dict[str, Any]]) -> list[str]:
+    deltas_by_id: dict[str, list[str]] = {}
+    blocks: list[str] = []
+    for chunk in chunks:
+        kind = chunk.get("type")
+        if kind == "text-delta":
+            delta = chunk.get("delta")
+            text_id = chunk.get("id")
+            if isinstance(delta, str) and isinstance(text_id, str):
+                deltas_by_id.setdefault(text_id, []).append(delta)
+        elif kind == "text-end":
+            text_id = chunk.get("id")
+            if isinstance(text_id, str) and text_id in deltas_by_id:
+                blocks.append("".join(deltas_by_id.pop(text_id)))
+    blocks.extend("".join(parts) for parts in deltas_by_id.values())
+    return blocks
+
+
+def _data_chunk_strings(chunks: list[dict[str, Any]]) -> list[str]:
+    fields_by_kind = {
+        "data-turn-qa": "answer",
+        "data-turn-rejected": "message",
+    }
+    out: list[str] = []
+    for chunk in chunks:
+        kind = chunk.get("type")
+        field = fields_by_kind.get(kind) if isinstance(kind, str) else None
+        if field is None:
+            continue
+        data = chunk.get("data")
+        if not isinstance(data, dict):
+            continue
+        value = data.get(field)
+        if isinstance(value, str):
+            out.append(value)
+    return out
+
+
+def _user_facing_texts(events: list[Any]) -> list[str]:
+    """User-visible strings from the streamed event sequence — QA answers,
+    rejection messages, and phase prose deltas. This is the post-refactor
+    source of truth for "what did the user see this turn" (raw
+    message_history is gone)."""
+    chunks = _iter_chunks(events)
+    return _data_chunk_strings(chunks) + _streamed_text_blocks(chunks)
+
+
 def _chunk_types(events: list[dict[str, Any]]) -> list[str]:
     out: list[str] = []
     for e in events:
@@ -184,15 +244,20 @@ def _make_context(user_id: UUID, memory_store: Any) -> Context:
     )
 
 
-def _assert_final_turn(state: dict[str, Any], captured_history_lens: list[int]) -> None:
+def _assert_final_turn(
+    state: dict[str, Any],
+    captured_history_lens: list[int],
+    cross_turn_assistant_texts: list[str],
+) -> None:
+    """After the final follow-up turn the conversation has run all 6 turns
+    end-to-end. We assert on the *streamed* assistant texts collected by
+    the harness across all turns (the user-visible record), since the raw
+    ``state.message_history`` field is gone — typed phase outputs are now
+    the cross-turn contract."""
     assert captured_history_lens, "supervisor was never invoked"
-    assert captured_history_lens[-1] >= len(captured_history_lens) * 0
-    history_texts = [
-        "".join(p.content for p in m.parts if isinstance(p, TextPart))
-        for m in state["message_history"]
-        if isinstance(m, ModelResponse)
-    ]
-    joined = "\n".join(history_texts)
+    # message_history was removed; supervisor now never receives history.
+    assert all(n == 0 for n in captured_history_lens)
+    joined = "\n".join(cross_turn_assistant_texts)
     for needle in (
         "F1 is the harmonic mean",
         "PathFinder is for biological research only",
@@ -202,14 +267,6 @@ def _assert_final_turn(state: dict[str, Any], captured_history_lens: list[int]) 
     ):
         assert needle in joined
     assert state["current_phase"] is None
-    assert any(
-        any(
-            isinstance(p, UserPromptPart) and p.content == "summarize what you did"
-            for p in m.parts
-        )
-        for m in state["message_history"]
-        if isinstance(m, ModelRequest)
-    )
 
 
 @dataclass
@@ -313,6 +370,45 @@ def _make_decisions() -> list[SupervisorDecision]:
     ]
 
 
+_QA_REJECT_PROMPTS: tuple[tuple[str, str], ...] = (
+    ("hi", "qa"),
+    ("what is F1?", "qa"),
+    ("help me write python", "reject"),
+)
+
+
+async def _run_qa_reject_turns(
+    harness: _Harness,
+    *,
+    expected: dict[str, str],
+) -> list[str]:
+    """Drive the first three "non-research" turns and assert each one's
+    user-facing chunk matches what the supervisor stub queued. Returns the
+    accumulated user-facing texts so the rest of the test can extend it."""
+    out: list[str] = []
+    for idx, (prompt, kind) in enumerate(_QA_REJECT_PROMPTS):
+        is_first = idx == 0
+        _state, events = await harness.turn(prompt, is_first=is_first)
+        chunk_types = _chunk_types(
+            [e[1] if isinstance(e, tuple) else e for e in events],
+        )
+        if kind == "qa":
+            assert "data-turn-qa" in chunk_types
+        elif kind == "reject":
+            assert "data-turn-rejected" in chunk_types
+        else:
+            msg = f"unknown turn kind: {kind}"
+            raise AssertionError(msg)
+        if is_first:
+            assert "data-supervisor-decision" in chunk_types
+            assert "data-phase-start" not in chunk_types
+        texts = _user_facing_texts(events)
+        assert len(texts) == 1
+        assert texts[0] in expected
+        out.extend(texts)
+    return out
+
+
 @pytest.mark.asyncio
 async def test_multi_turn_full_pipeline_with_questions_and_rejects(
     db_cleaner: None,
@@ -348,45 +444,14 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
                 user_id=user_id,
             )
 
-            # Turn 1: greeting → question
-            state_1, events_1 = await harness.turn("hi", is_first=True)
-            types_1 = _chunk_types([e[1] if isinstance(e, tuple) else e for e in events_1])
-            assert "data-supervisor-decision" in types_1
-            assert "data-turn-qa" in types_1
-            assert "data-phase-start" not in types_1
-            assert len(state_1["message_history"]) == 2, (
-                f"turn 1 should append 2 msgs (user+qa); got "
-                f"{len(state_1['message_history'])}"
+            cross_turn_texts = await _run_qa_reject_turns(
+                harness,
+                expected={
+                    "Hi! What would you like to research?": "qa",
+                    "F1 is the harmonic mean of precision and recall.": "qa",
+                    "PathFinder is for biological research only.": "reject",
+                },
             )
-
-            # Turn 2: conceptual question → another question (prior history must persist)
-            state_2, events_2 = await harness.turn(
-                "what is F1?", is_first=False,
-            )
-            types_2 = _chunk_types([e[1] if isinstance(e, tuple) else e for e in events_2])
-            assert "data-turn-qa" in types_2
-            assert len(state_2["message_history"]) == 4, (
-                "turn 2 appends 2 more msgs (user+qa) for a total of 4"
-            )
-            user_texts = [
-                "".join(
-                    p.content
-                    for p in m.parts
-                    if isinstance(p, UserPromptPart)
-                )
-                for m in state_2["message_history"]
-                if isinstance(m, ModelRequest)
-            ]
-            assert "hi" in user_texts
-            assert "what is F1?" in user_texts
-
-            # Turn 3: off-topic → reject (history must still persist)
-            state_3, events_3 = await harness.turn(
-                "help me write python", is_first=False,
-            )
-            types_3 = _chunk_types([e[1] if isinstance(e, tuple) else e for e in events_3])
-            assert "data-turn-rejected" in types_3
-            assert len(state_3["message_history"]) == 6
 
             # Turn 4: research goal → scoping runs → supervisor ends
             state_4, events_4 = await harness.turn(
@@ -398,10 +463,12 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
                 f"expected exactly 1 phase start this turn (scoping); "
                 f"got {types_4}"
             )
-            # Phase appended user + response; no turn-qa/rejected card
+            # Phase prose still reaches the user via streamed text-delta /
+            # text-end events; no turn-qa/rejected card on a phase turn.
             assert "data-turn-qa" not in types_4
             assert "data-turn-rejected" not in types_4
             assert state_4["current_phase"] == "scoping"
+            cross_turn_texts.extend(_user_facing_texts(events_4))
 
             # Turn 5: user answers → full pipeline progression
             state_5, events_5 = await harness.turn(
@@ -415,12 +482,14 @@ async def test_multi_turn_full_pipeline_with_questions_and_rejects(
                 f"{len(phase_starts)} phase-starts"
             )
             assert state_5["current_phase"] == "verification"
+            cross_turn_texts.extend(_user_facing_texts(events_5))
 
             # Turn 6: follow-up question uses the whole conversation history
-            state_6, _ = await harness.turn(
+            state_6, events_6 = await harness.turn(
                 "summarize what you did", is_first=False,
             )
-            _assert_final_turn(state_6, captured_history_lens)
+            cross_turn_texts.extend(_user_facing_texts(events_6))
+            _assert_final_turn(state_6, captured_history_lens, cross_turn_texts)
 
 
 # ────────────────────────────────────────────────────────────────────────────

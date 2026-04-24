@@ -1,49 +1,37 @@
-/**
- * Typed convenience selectors for the strategy store.
- *
- * Each hook uses useShallow to create a single subscription that only
- * re-renders when the selected fields actually change.
- */
+"use client";
 
 import { useShallow } from "zustand/react/shallow";
 import { useStrategyStore } from "@/state/strategy/store";
+import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
 
-/** Returns the current strategy. */
-export function useCurrentStrategy() {
-  return useStrategyStore((s) => s.strategy);
-}
-
-/** Returns undo/redo state. */
-export function useStrategyHistory() {
-  return useStrategyStore(
+export function useStrategyHistory(conversationId: string) {
+  const cache = useStrategyCacheUtils();
+  const { pushSnapshot, undo, redo, canUndo, canRedo } = useStrategyStore(
     useShallow((s) => ({
+      pushSnapshot: s.pushSnapshot,
       undo: s.undo,
       redo: s.redo,
       canUndo: s.canUndo,
       canRedo: s.canRedo,
-      pushSnapshot: s.pushSnapshot,
     })),
   );
+
+  return {
+    pushSnapshot: (prev: { strategy: ReturnType<typeof cache.get> }) =>
+      pushSnapshot(prev, cache.get(conversationId)),
+    undo: () => {
+      const next = undo(cache.get(conversationId));
+      if (next !== null) cache.set(conversationId, next);
+    },
+    redo: () => {
+      const next = redo(cache.get(conversationId));
+      if (next !== null) cache.set(conversationId, next);
+    },
+    canUndo,
+    canRedo,
+  };
 }
 
-/** Returns mutation actions for the current strategy draft. */
-export function useStrategyActions() {
-  return useStrategyStore(
-    useShallow((s) => ({
-      addStep: s.addStep,
-      updateStep: s.updateStep,
-      removeStep: s.removeStep,
-      setStrategy: s.setStrategy,
-      setWdkInfo: s.setWdkInfo,
-      setStrategyMeta: s.setStrategyMeta,
-      applyStepValidationErrors: s.applyStepValidationErrors,
-      applyStepCounts: s.applyStepCounts,
-      clear: s.clear,
-    })),
-  );
-}
-
-/** Returns list mutation actions (graph validation). */
 export function useStrategyListActions() {
   return useStrategyStore(
     useShallow((s) => ({

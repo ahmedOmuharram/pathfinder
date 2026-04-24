@@ -1,57 +1,39 @@
 /**
  * @vitest-environment jsdom
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
-import type { Step } from "@pathfinder/shared";
-import { useStrategyStore } from "./store";
-import { useStepsById } from "./selectors";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { createElement, type ReactNode } from "react";
+import {
+  useStrategyHistory,
+  useStrategyListActions,
+} from "@/state/useStrategySelectors";
 
-function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
-  return { isBuilt: false, isFiltered: false, ...partial } as Step;
+function makeWrapper() {
+  const client = new QueryClient({
+    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
+  });
+  function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client }, children);
+  }
+  return Wrapper;
 }
 
-describe("state/strategy/selectors — useStepsById", () => {
-  beforeEach(() => {
-    useStrategyStore.getState().clear();
+describe("state/useStrategySelectors", () => {
+  it("useStrategyHistory returns undo/redo functions and pushSnapshot", () => {
+    const { result } = renderHook(() => useStrategyHistory("strategy-1"), {
+      wrapper: makeWrapper(),
+    });
+    expect(typeof result.current.undo).toBe("function");
+    expect(typeof result.current.redo).toBe("function");
+    expect(typeof result.current.canUndo).toBe("function");
+    expect(typeof result.current.canRedo).toBe("function");
+    expect(typeof result.current.pushSnapshot).toBe("function");
   });
 
-  it("returns empty map when strategy is null", () => {
-    const { result } = renderHook(() => useStepsById());
-    expect(result.current).toEqual({});
-  });
-
-  it("returns step map keyed by step id", () => {
-    const { addStep } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }));
-    addStep(step({ id: "s2", displayName: "Search 2", searchName: "geneById", recordType: "gene" }));
-
-    const { result } = renderHook(() => useStepsById());
-    expect(Object.keys(result.current).sort()).toEqual(["s1", "s2"]);
-    expect(result.current["s1"]?.displayName).toBe("Search 1");
-    expect(result.current["s2"]?.displayName).toBe("Search 2");
-  });
-
-  it("returns stable reference when strategy.steps array identity is unchanged", () => {
-    const { addStep } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }));
-
-    const { result, rerender } = renderHook(() => useStepsById());
-    const first = result.current;
-    rerender();
-    expect(result.current).toBe(first);
-  });
-
-  it("returns updated map when steps change", () => {
-    const { addStep, updateStep } = useStrategyStore.getState();
-    addStep(step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }));
-
-    const { result, rerender } = renderHook(() => useStepsById());
-    const before = result.current;
-
-    updateStep("s1", { displayName: "Renamed" });
-    rerender();
-    expect(result.current).not.toBe(before);
-    expect(result.current["s1"]?.displayName).toBe("Renamed");
+  it("useStrategyListActions returns setGraphValidationStatus", () => {
+    const { result } = renderHook(() => useStrategyListActions());
+    expect(typeof result.current.setGraphValidationStatus).toBe("function");
   });
 });

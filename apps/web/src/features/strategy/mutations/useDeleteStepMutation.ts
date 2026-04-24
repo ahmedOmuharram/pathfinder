@@ -1,14 +1,13 @@
 "use client";
 
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/strategy/store";
+import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
 import { usePushStrategyMutation } from "./usePushStrategyMutation";
 
 export interface DeleteStepVars {
   stepId: string;
 }
 
-/** Compute the closure of step ids whose removal cascades from a single deletion. */
 function computeCascade(steps: Step[], rootId: string): Set<string> {
   const removed = new Set<string>([rootId]);
   let added = true;
@@ -38,21 +37,18 @@ function applyDelete(strategy: Strategy, stepId: string): Strategy {
   };
 }
 
-/**
- * Delete a step. Cascades to any step that depends on it (transitively) so
- * the resulting graph remains consistent.
- */
-export function useDeleteStepMutation() {
+export function useDeleteStepMutation(conversationId: string) {
   const push = usePushStrategyMutation();
+  const cache = useStrategyCacheUtils();
   return {
     ...push,
     mutate: (vars: DeleteStepVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) return;
       push.mutate({ optimistic: applyDelete(current, vars.stepId) });
     },
     mutateAsync: async (vars: DeleteStepVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) {
         throw new Error("Cannot delete step: no strategy loaded");
       }

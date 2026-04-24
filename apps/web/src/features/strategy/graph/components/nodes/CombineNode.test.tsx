@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, act } from "@testing-library/react";
-import { CombineOperator, type Step, type Strategy } from "@pathfinder/shared";
+import { render, screen } from "@testing-library/react";
+import { CombineOperator, type Step } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
 import { CombineNode } from "./CombineNode";
 import type { StepNodeProps } from "./types";
@@ -44,26 +44,9 @@ function makeStep(overrides: Partial<Step> = {}): Step {
   } as Step;
 }
 
-function makeStrategy(steps: Step[]): Strategy {
-  return {
-    id: "draft",
-    name: "Test",
-    siteId: "plasmodb",
-    recordType: "gene",
-    steps,
-    rootStepId: steps[0]?.id ?? null,
-    isSaved: false,
-    description: null,
-    wdkStrategyId: null,
-    wdkUrl: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  };
-}
-
 function reset() {
   useStrategyStore.setState({
-    strategy: null,
+
     stepLifecycleById: {},
     undoStack: [],
     redoStack: [],
@@ -85,7 +68,6 @@ describe("CombineNode", () => {
 
   it("renders a mini-venn matching the operator", () => {
     const step = makeStep({ operator: CombineOperator.INTERSECT });
-    useStrategyStore.getState().setStrategy(makeStrategy([step]));
     const { container } = render(<CombineNode {...defaultProps(step)} />);
     const lens = container.querySelector('[data-region="lens"]');
     expect(lens?.getAttribute("data-active")).toBe("true");
@@ -96,7 +78,6 @@ describe("CombineNode", () => {
 
   it("re-renders the venn fill when the operator changes", () => {
     const step = makeStep({ operator: CombineOperator.INTERSECT });
-    useStrategyStore.getState().setStrategy(makeStrategy([step]));
     const { container, rerender } = render(
       <CombineNode {...defaultProps(step)} />,
     );
@@ -105,9 +86,6 @@ describe("CombineNode", () => {
     ).toBe("true");
 
     const updated = makeStep({ operator: CombineOperator.UNION });
-    act(() => {
-      useStrategyStore.getState().setStrategy(makeStrategy([updated]));
-    });
     rerender(<CombineNode {...defaultProps(updated)} />);
 
     expect(
@@ -120,7 +98,6 @@ describe("CombineNode", () => {
 
   it("renders two input handles on the left + one output on the right", () => {
     const step = makeStep();
-    useStrategyStore.getState().setStrategy(makeStrategy([step]));
     render(<CombineNode {...defaultProps(step)} />);
     expect(screen.getByTestId("flow-handle-target-left")).toBeTruthy();
     expect(screen.getByTestId("flow-handle-target-left-secondary")).toBeTruthy();

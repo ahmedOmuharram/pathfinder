@@ -1,6 +1,10 @@
 "use client";
 
-import { AssistantRuntimeProvider, ThreadPrimitive } from "@assistant-ui/react";
+import {
+  AssistantRuntimeProvider,
+  ThreadPrimitive,
+  useAuiEvent,
+} from "@assistant-ui/react";
 import type { UIMessage } from "ai";
 import { useState } from "react";
 
@@ -19,6 +23,18 @@ import {
   UserMessage,
 } from "./content/MessageRenderer";
 import { useChatRuntime } from "./runtime/useChatRuntime";
+
+function ChatUrlSync({ conversationId }: { conversationId: string }) {
+  const siteId = useSessionStore((s) => s.selectedSite);
+  useAuiEvent("thread.runStart", () => {
+    if (typeof window === "undefined") return;
+    const target = `/${siteId}/conversation/${conversationId}`;
+    if (!window.location.pathname.startsWith(target)) {
+      window.history.replaceState(null, "", target);
+    }
+  });
+  return null;
+}
 
 export function ChatThread({
   conversationId,
@@ -50,6 +66,7 @@ export function ChatThread({
   }
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      <ChatUrlSync conversationId={conversationId} />
       <ThreadPrimitive.Root className="flex h-full min-h-0 flex-col">
         <Conversation>
           <ConversationContent>

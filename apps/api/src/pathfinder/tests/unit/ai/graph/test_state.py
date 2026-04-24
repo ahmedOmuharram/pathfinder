@@ -5,17 +5,13 @@ from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
-from pydantic_ai.messages import (
-    ModelRequest,
-    ModelResponse,
-    TextPart,
-    UserPromptPart,
-)
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.graph.state import (
     PHASE_NAMES,
+    PhaseDisposition,
     PhaseName,
+    PhaseOutcome,
     PipelineState,
     ProblemFrame,
 )
@@ -47,7 +43,6 @@ def test_state_minimum_construction(base_state: PipelineState) -> None:
     assert base_state.mode == "strategy"
     assert base_state.user_prompt == ""
     assert base_state.user_parts == []
-    assert base_state.message_history == []
     assert base_state.discovered_searches == {}
     assert base_state.problem_frame is None
     assert base_state.current_phase is None
@@ -56,6 +51,9 @@ def test_state_minimum_construction(base_state: PipelineState) -> None:
     assert base_state.last_routing_reason is None
     assert base_state.last_assistant_prose == ""
     assert base_state.last_verification_message_id is None
+    # Cross-phase / cross-turn context now flows through typed fields, not
+    # a raw model trace — drop the field so checkpoints stay small.
+    assert not hasattr(base_state, "message_history")
 
 
 def test_state_rejects_unknown_phase_name() -> None:
@@ -69,15 +67,31 @@ def test_state_rejects_unknown_phase_name() -> None:
         )
 
 
-def test_state_serializes_with_pydantic_ai_messages(base_state: PipelineState) -> None:
-    request = ModelRequest(parts=[UserPromptPart(content="hi")])
-    response = ModelResponse(parts=[TextPart(content="hello")])
-    state = base_state.model_copy(update={"message_history": [request, response]})
-    dumped = state.model_dump(mode="json")
-    rehydrated = PipelineState.model_validate(dumped)
-    assert len(rehydrated.message_history) == 2
-    assert isinstance(rehydrated.message_history[0], ModelRequest)
-    assert isinstance(rehydrated.message_history[1], ModelResponse)
+def test_state_carries_last_phase_outcome_across_phases(
+    base_state: PipelineState,
+) -> None:
+    """The handoff between phases now flows through ``last_phase_outcome``
+    instead of a raw model trace. Round-tripping through JSON proves it
+    survives the LangGraph checkpoint shape, which is what enables the
+    ``pinned_last_phase_outcome`` instruction to render for the next phase."""
+    outcome = PhaseOutcome(
+        disposition=PhaseDisposition.HANDOFF,
+        prose=(
+            "Discovered GenesByGoTerm and GenesByTransmembrane as anchors; "
+            "rejected GenesByMicroarray (user wants RNA-seq)."
+        ),
+        reason="ready to plan",
+        handoff_to="planning",
+        note_refs=["note_a", "note_b"],
+    )
+    state = base_state.model_copy(
+        update={"last_phase_outcome": outcome, "current_phase": "discovery"},
+    )
+    rehydrated = PipelineState.model_validate(state.model_dump(mode="json"))
+    assert rehydrated.last_phase_outcome is not None
+    assert rehydrated.last_phase_outcome.disposition == PhaseDisposition.HANDOFF
+    assert rehydrated.last_phase_outcome.handoff_to == "planning"
+    assert rehydrated.last_phase_outcome.note_refs == ["note_a", "note_b"]
 
 
 def test_state_carries_problem_frame(base_state: PipelineState) -> None:

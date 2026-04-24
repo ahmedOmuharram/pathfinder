@@ -32,12 +32,9 @@ export function useStrategyKeyboardShortcuts({
   const ctx = useStrategyGraphCtx();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   const router = useRouter();
-  const deleteStep = useDeleteStepMutation();
-  // useAddStepMutation is held by reference for symmetry with the spec (the
-  // `c` shortcut delegates to ctx.handleStartCombineFromSelection which is
-  // wired through useStrategyGraphHandlers → useAddStepMutation under the
-  // hood). Keep the hook call so future direct-add shortcuts can reuse it.
-  useAddStepMutation();
+  const conversationId = ctx.strategy?.id ?? "";
+  const deleteStep = useDeleteStepMutation(conversationId);
+  useAddStepMutation(conversationId);
 
   const leaderRef = useRef<{ key: "g"; expires: number } | null>(null);
 
@@ -45,7 +42,6 @@ export function useStrategyKeyboardShortcuts({
     if (isTypingTarget(event.target)) return;
 
     const meta = event.metaKey || event.ctrlKey;
-    const conversationId = ctx.strategy?.id ?? "";
 
     // Cmd/Ctrl+K — quick switcher
     if (meta && event.key.toLowerCase() === "k") {

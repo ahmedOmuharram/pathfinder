@@ -4,11 +4,15 @@ from pydantic_ai import Agent
 from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
 
-from pathfinder.ai.agents._history_processor import pair_tool_calls
+from pathfinder.ai.agents._history_processor import (
+    elide_consumed_tool_results,
+    pair_tool_calls,
+)
 from pathfinder.ai.agents._hooks import apply_discovery_hook
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
+    pinned_last_phase_outcome,
     pinned_problem_frame,
     pinned_scratchpad,
     pinned_user_memories,
@@ -44,6 +48,16 @@ assumptions unless WDK evidence contradicts them.
 3. **Inspect searches**: Use `get_search_overview` to understand parameter \
 requirements, then `get_parameter_options` and `get_parameter_dependencies` \
 to understand vocabularies and dependent parameter chains.
+
+After you've inspected a search and reached a verdict on it, call \
+`update_search_decision` to commit that verdict — set ``selection_status`` \
+to ``selected``, ``candidate``, or ``rejected``, with a ``rationale`` \
+(why this search is biologically relevant), a ``selection_reason`` (why \
+the status), a ``confidence`` (0..1), and any ``param_hints`` you settled \
+on. Downstream phases read these decisions instead of replaying your tool \
+trace, so be explicit. Recording rejected candidates is just as important \
+as recording selected ones — it keeps planning from re-discovering the \
+same dead ends.
 
 4. **Gather literature context**: Use `literature_search` and `web_search` \
 when the biological question requires domain knowledge you lack (gene names, \
@@ -112,7 +126,7 @@ discovery_agent: Agent[AgentDeps, PhaseOutcome] = Agent(
         Thinking(effort="medium"),
         OrphanToolAuditor(),
     ],
-    history_processors=[pair_tool_calls],
+    history_processors=[pair_tool_calls, elide_consumed_tool_results],
     retries=3,
     description="Explores WDK catalog, searches, parameters, and literature",
     name="discovery",
@@ -143,6 +157,11 @@ def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
 @discovery_agent.instructions
 async def _pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
     return await pinned_scratchpad(ctx)
+
+
+@discovery_agent.instructions
+def _pinned_last_phase_outcome(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_last_phase_outcome(ctx)
 
 
 @discovery_agent.instructions

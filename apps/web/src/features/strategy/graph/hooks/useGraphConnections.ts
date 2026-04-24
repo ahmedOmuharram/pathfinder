@@ -17,6 +17,7 @@ import {
 
 interface UseGraphConnectionsArgs {
   steps: Step[];
+  conversationId: string;
 }
 
 const COMBINE_MISMATCH_ERROR = "Cannot combine steps with different record types.";
@@ -30,9 +31,9 @@ const generateStepId = () => `step_${Math.random().toString(16).slice(2, 10)}`;
  * `INTERSECT` operator. The user picks a different operator from the editor
  * Sheet (or the edge ContextMenu) afterwards.
  */
-export function useGraphConnections({ steps }: UseGraphConnectionsArgs) {
-  const addStep = useAddStepMutation();
-  const updateStep = useUpdateStepMutation();
+export function useGraphConnections({ steps, conversationId }: UseGraphConnectionsArgs) {
+  const addStep = useAddStepMutation(conversationId);
+  const updateStep = useUpdateStepMutation(conversationId);
   const indices = buildGraphIndices(steps);
 
   const isValidConnection = (connection: Edge | Connection) =>

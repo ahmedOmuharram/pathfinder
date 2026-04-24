@@ -1,7 +1,7 @@
 "use client";
 
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/strategy/store";
+import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
 import { usePushStrategyMutation } from "./usePushStrategyMutation";
 
 export interface UpdateStepVars {
@@ -16,21 +16,18 @@ function applyPatch(strategy: Strategy, stepId: string, patch: Partial<Step>): S
   };
 }
 
-/**
- * Patch a single step's fields. Optimistically updates the store and pushes
- * the resulting strategy to the server.
- */
-export function useUpdateStepMutation() {
+export function useUpdateStepMutation(conversationId: string) {
   const push = usePushStrategyMutation();
+  const cache = useStrategyCacheUtils();
   return {
     ...push,
     mutate: (vars: UpdateStepVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) return;
       push.mutate({ optimistic: applyPatch(current, vars.stepId, vars.patch) });
     },
     mutateAsync: async (vars: UpdateStepVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) {
         throw new Error("Cannot update step: no strategy loaded");
       }

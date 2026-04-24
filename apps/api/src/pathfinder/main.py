@@ -6,7 +6,10 @@ from typing import cast
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response
@@ -255,6 +258,40 @@ def create_app() -> FastAPI:
                 status_code=429,
                 headers={"Retry-After": "60"},
             ),
+        ),
+    )
+
+    # Log + return body-validation 422s with the offending body so they
+    # surface in `docker logs` instead of disappearing into the void.
+    async def request_validation_handler(
+        request: StarletteRequest,
+        exc: RequestValidationError,
+    ) -> JSONResponse:
+        body_preview: str
+        raw_body = exc.body
+        if isinstance(raw_body, (bytes, bytearray)):
+            body_preview = bytes(raw_body).decode("utf-8", errors="replace")[:1000]
+        elif raw_body is None:
+            body_preview = ""
+        else:
+            body_preview = str(raw_body)[:1000]
+        logger.warning(
+            "Request validation failed",
+            method=request.method,
+            path=request.url.path,
+            errors=exc.errors(),
+            body_preview=body_preview,
+        )
+        return JSONResponse(
+            status_code=422,
+            content={"detail": jsonable_encoder(exc.errors()), "body": exc.body},
+        )
+
+    app.add_exception_handler(
+        RequestValidationError,
+        cast(
+            "Callable[[StarletteRequest, Exception], Awaitable[Response]]",
+            request_validation_handler,
         ),
     )
 

@@ -110,7 +110,7 @@ describe("StrategyGraph React Flow provider boundary", () => {
 
     render(
       <Wrapper>
-        <StrategyGraph strategy={STRATEGY} siteId="plasmodb" />
+        <StrategyGraph strategy={STRATEGY} siteId="plasmodb" conversationId={STRATEGY.id} />
       </Wrapper>,
     );
 

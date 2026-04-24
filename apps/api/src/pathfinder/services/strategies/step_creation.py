@@ -251,26 +251,28 @@ async def create_step(
         callbacks.resolve_record_type_for_search,
     )
 
-    search_name, parsed_op, step_error = await resolve_search_name_and_validate(
-        graph=graph,
-        site_id=site_id,
-        spec_search_name=spec.search_name,
-        inputs=StepInputs(
-            primary=primary_input,
-            secondary=secondary_input,
-            operator=operator,
-            params=parameters,
-        ),
-        callbacks=callbacks,
-        combine_placeholder=COMBINE_PLACEHOLDER_SEARCH_NAME,
+    search_name, parsed_op, canonical_params, step_error = (
+        await resolve_search_name_and_validate(
+            graph=graph,
+            site_id=site_id,
+            spec_search_name=spec.search_name,
+            inputs=StepInputs(
+                primary=primary_input,
+                secondary=secondary_input,
+                operator=operator,
+                params=parameters,
+            ),
+            callbacks=callbacks,
+            combine_placeholder=COMBINE_PLACEHOLDER_SEARCH_NAME,
+        )
     )
     if step_error is not None:
         return _error_result(step_error)
 
-    # Build the step node.
+    # Build the step node with the validator's canonical decoded form.
     step = StrategyStepNode(
         search_name=search_name,
-        parameters=parameters,
+        parameters=canonical_params,
         primary_input=primary_input,
         secondary_input=secondary_input,
         operator=parsed_op,

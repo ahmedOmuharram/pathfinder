@@ -6,8 +6,8 @@ import { useReactFlow } from "@xyflow/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEventListener } from "usehooks-ts";
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/strategy/store";
 import { useStrategyHistory } from "@/state/useStrategySelectors";
+import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
 import { useNodePositionHistory } from "@/features/strategy/graph/hooks/useNodePositionHistory";
 import {
   deserializeStrategyToGraph,
@@ -31,7 +31,7 @@ interface UseStrategyGraphLayoutOptions {
   setSelectedNodeIds: (ids: string[]) => void;
 }
 
-function layoutCacheKey(strategy: Strategy | null): string {
+function layoutTopologyKey(strategy: Strategy | null): string {
   if (!strategy) return "empty";
   return strategy.steps
     .map(
@@ -62,10 +62,11 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     strategy?.id ?? null,
   );
 
-  const draftStrategy = useStrategyStore((s) => s.strategy);
-  const updateStepMutation = useUpdateStepMutation();
+  const conversationId = strategy?.id ?? "";
+  const cache = useStrategyCacheUtils();
+  const updateStepMutation = useUpdateStepMutation(conversationId);
   const pushMutation = usePushStrategyMutation();
-  const { undo, redo, canUndo, canRedo } = useStrategyHistory();
+  const { undo, redo, canUndo, canRedo } = useStrategyHistory(conversationId);
 
   const {
     pushSnapshot,
@@ -100,7 +101,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
       if (tryRedo()) return;
       if (canRedo()) {
         redo();
-        const next = useStrategyStore.getState().strategy;
+        const next = cache.get(conversationId);
         if (next) pushMutation.mutate({ optimistic: next });
       }
       return;
@@ -108,27 +109,34 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
     if (tryUndo()) return;
     if (canUndo()) {
       undo();
-      const next = useStrategyStore.getState().strategy;
+      const next = cache.get(conversationId);
       if (next) pushMutation.mutate({ optimistic: next });
     }
   };
   useEventListener("keydown", handleUndoRedoKeyDown);
 
-  const cacheKey = layoutCacheKey(strategy);
+  const topologyKey = layoutTopologyKey(strategy);
   const { data: computedPositions } = useQuery<StepPositions>({
-    queryKey: ["strategy-layout", strategy?.id ?? null, cacheKey],
+    queryKey: ["strategy-layout", strategy?.id ?? null, topologyKey],
     queryFn: () => layoutStrategyGraph(strategy),
     enabled: strategy !== null && strategy.steps.length > 0,
     staleTime: Number.POSITIVE_INFINITY,
   });
 
-  const graphKey = `${strategy?.id}|${draftStrategy?.id}|${layoutSeed}|${cacheKey}|${computedPositions ? "ready" : "pending"}`;
-  const [prevGraphKey, setPrevGraphKey] = useState(graphKey);
-  if (graphKey !== prevGraphKey) {
+  const [prevStrategy, setPrevStrategy] = useState<Strategy | null>(strategy);
+  const [prevPositions, setPrevPositions] = useState<StepPositions | undefined>(
+    computedPositions,
+  );
+  const inputsChanged =
+    prevStrategy !== strategy ||
+    prevLayoutSeed !== layoutSeed ||
+    prevPositions !== computedPositions;
+  if (inputsChanged) {
     const forceRelayout =
       prevLayoutSeed !== layoutSeed || prevStrategyId !== currentStrategyId;
-    setPrevGraphKey(graphKey);
+    setPrevStrategy(strategy);
     setPrevLayoutSeed(layoutSeed);
+    setPrevPositions(computedPositions);
 
     if (computedPositions !== undefined) {
       const deserializeOpts: Parameters<typeof deserializeStrategyToGraph>[5] = {

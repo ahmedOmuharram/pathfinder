@@ -32,3 +32,47 @@ class MemoryTombstone(CamelModel):
     content_hash: str
     deleted_at: datetime
     reason: TombstoneReason = "user_deleted"
+
+
+class MemoryEntryDraft(CamelModel):
+    """Verification-authored memory entry, lifted to a full ``MemoryValue``.
+
+    The verification agent populates these in its ``VerificationDigest``;
+    the autowrite layer fills in ``site_id`` (from pipeline state),
+    ``source_conversation_id``, and ``created_at`` so the LLM doesn't
+    invent timestamps or cross-conversation links. Memories authored this
+    way are always ``kind="knowledge"`` — durable facts the user (or
+    future agent runs) should be reminded of next time.
+    """
+
+    name: str = Field(
+        min_length=1,
+        max_length=200,
+        description=(
+            "Short, recall-friendly title (e.g. "
+            "\"P. falciparum kinome size\")."
+        ),
+    )
+    summary: str = Field(
+        min_length=1,
+        max_length=400,
+        description=(
+            "One-line summary shown in retrieval previews. The retriever "
+            "matches against this + the content payload."
+        ),
+    )
+    content: dict[str, object] = Field(
+        default_factory=dict,
+        description=(
+            "Structured payload — the durable knowledge itself (counts, "
+            "identifiers, criteria, etc.) so future runs can act on it."
+        ),
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        max_length=8,
+        description=(
+            "Optional retrieval tags (organism, technique, dataset). "
+            "Site id is added automatically — don't repeat it here."
+        ),
+    )

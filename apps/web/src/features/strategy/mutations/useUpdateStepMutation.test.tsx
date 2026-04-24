@@ -1,14 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
+import type * as ConversationsModule from "@/lib/api/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
 
 const pushConversationMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/conversations", () => ({
-  pushConversation: pushConversationMock,
-}));
+vi.mock("@/lib/api/conversations", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof ConversationsModule>();
+  return { ...actual, pushConversation: pushConversationMock };
+});
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
 const toastWarningMock = vi.hoisted(() => vi.fn());
@@ -18,6 +22,7 @@ vi.mock("sonner", () => ({
 
 import { useStrategyStore } from "@/state/strategy/store";
 import { useUpdateStepMutation } from "./useUpdateStepMutation";
+import { makeQueryHarness } from "./__tests__/strategyTestUtils";
 
 function makeStrategy(): Strategy {
   return {
@@ -55,12 +60,15 @@ beforeEach(() => {
 });
 
 describe("useUpdateStepMutation", () => {
-  it("patches step.parameters in store on mutate (optimistic)", async () => {
+  it("patches step.parameters in cache on mutate (optimistic)", async () => {
     const initial = makeStrategy();
-    useStrategyStore.getState().setStrategy(initial);
+    const harness = makeQueryHarness(initial);
     pushConversationMock.mockResolvedValueOnce(initial);
 
-    const { result } = renderHook(() => useUpdateStepMutation());
+    const { result } = renderHook(
+      () => useUpdateStepMutation(initial.id),
+      { wrapper: harness.wrapper },
+    );
 
     let promise: Promise<unknown> | undefined;
     act(() => {
@@ -71,7 +79,7 @@ describe("useUpdateStepMutation", () => {
     });
 
     expect(
-      useStrategyStore.getState().strategy?.steps[0]?.parameters?.["organism"],
+      harness.getStrategy(initial.id)?.steps[0]?.parameters?.["organism"],
     ).toBe("Toxoplasma");
 
     await act(async () => {
@@ -81,10 +89,13 @@ describe("useUpdateStepMutation", () => {
 
   it("rolls back on error", async () => {
     const initial = makeStrategy();
-    useStrategyStore.getState().setStrategy(initial);
+    const harness = makeQueryHarness(initial);
 
     pushConversationMock.mockRejectedValueOnce(new Error("Boom"));
-    const { result } = renderHook(() => useUpdateStepMutation());
+    const { result } = renderHook(
+      () => useUpdateStepMutation(initial.id),
+      { wrapper: harness.wrapper },
+    );
 
     await act(async () => {
       await expect(
@@ -96,7 +107,7 @@ describe("useUpdateStepMutation", () => {
     });
 
     await waitFor(() => {
-      expect(useStrategyStore.getState().strategy?.steps[0]?.displayName).toBe(
+      expect(harness.getStrategy(initial.id)?.steps[0]?.displayName).toBe(
         "Genes by taxon",
       );
     });
@@ -105,7 +116,7 @@ describe("useUpdateStepMutation", () => {
 
   it("guards against duplicate concurrent updates with isPending", async () => {
     const initial = makeStrategy();
-    useStrategyStore.getState().setStrategy(initial);
+    const harness = makeQueryHarness(initial);
     let resolveFn!: (s: Strategy) => void;
     pushConversationMock.mockReturnValueOnce(
       new Promise<Strategy>((resolve) => {
@@ -113,7 +124,10 @@ describe("useUpdateStepMutation", () => {
       }),
     );
 
-    const { result } = renderHook(() => useUpdateStepMutation());
+    const { result } = renderHook(
+      () => useUpdateStepMutation(initial.id),
+      { wrapper: harness.wrapper },
+    );
 
     let p1: Promise<unknown> | undefined;
     act(() => {

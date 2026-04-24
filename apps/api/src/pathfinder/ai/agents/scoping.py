@@ -4,10 +4,14 @@ from pydantic_ai import Agent
 from pydantic_ai.capabilities import Thinking
 from pydantic_ai.tools import RunContext
 
-from pathfinder.ai.agents._history_processor import pair_tool_calls
+from pathfinder.ai.agents._history_processor import (
+    elide_consumed_tool_results,
+    pair_tool_calls,
+)
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_graph_state,
+    pinned_last_phase_outcome,
     pinned_problem_frame,
     pinned_scratchpad,
     pinned_user_memories,
@@ -156,7 +160,7 @@ scoping_agent: Agent[AgentDeps, PhaseOutcome] = Agent(
     instructions=_SCOPING_INSTRUCTIONS,
     toolsets=[build_toolset(), build_scratchpad_toolset()],
     capabilities=[ToolResilience(), Thinking(effort="medium"), OrphanToolAuditor()],
-    history_processors=[pair_tool_calls],
+    history_processors=[pair_tool_calls, elide_consumed_tool_results],
     retries=3,
     description="Frames the biological problem before WDK discovery",
     name="scoping",
@@ -187,5 +191,10 @@ def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
 @scoping_agent.instructions
 async def _pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
     return await pinned_scratchpad(ctx)
+
+
+@scoping_agent.instructions
+def _pinned_last_phase_outcome(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_last_phase_outcome(ctx)
 
 

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/strategy/store";
+import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
 import { usePushStrategyMutation } from "./usePushStrategyMutation";
 
 export interface AddStepVars {
@@ -12,23 +12,18 @@ function applyAdd(strategy: Strategy, step: Step): Strategy {
   return { ...strategy, steps: [...strategy.steps, step] };
 }
 
-/**
- * Append a new step to the strategy. The caller supplies a fully-formed step
- * (client-generated id; combine inputs already wired). The server-canonical
- * response (with `wdkStepId` populated) replaces the optimistic copy on
- * success.
- */
-export function useAddStepMutation() {
+export function useAddStepMutation(conversationId: string) {
   const push = usePushStrategyMutation();
+  const cache = useStrategyCacheUtils();
   return {
     ...push,
     mutate: (vars: AddStepVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) return;
       push.mutate({ optimistic: applyAdd(current, vars.step) });
     },
     mutateAsync: async (vars: AddStepVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) {
         throw new Error("Cannot add step: no strategy loaded");
       }

@@ -1,14 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
+import type * as ConversationsModule from "@/lib/api/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Strategy, Step } from "@pathfinder/shared";
 
 const pushConversationMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/conversations", () => ({
-  pushConversation: pushConversationMock,
-}));
+vi.mock("@/lib/api/conversations", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof ConversationsModule>();
+  return { ...actual, pushConversation: pushConversationMock };
+});
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({
@@ -17,6 +21,7 @@ vi.mock("sonner", () => ({
 
 import { useStrategyStore } from "@/state/strategy/store";
 import { useDeleteStepMutation } from "./useDeleteStepMutation";
+import { makeQueryHarness } from "./__tests__/strategyTestUtils";
 
 function step(partial: Partial<Step> & { id: string; displayName: string }): Step {
   return { isBuilt: false, isFiltered: false, ...partial } as Step;
@@ -47,26 +52,29 @@ beforeEach(() => {
 });
 
 describe("useDeleteStepMutation", () => {
-  it("removes the step from store on mutate", async () => {
+  it("removes the step from cache on mutate", async () => {
     const strategy = makeStrategy([
       step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
       step({ id: "s2", displayName: "S2", searchName: "geneById", recordType: "gene" }),
     ]);
-    useStrategyStore.getState().setStrategy(strategy);
+    const harness = makeQueryHarness(strategy);
     pushConversationMock.mockResolvedValueOnce({
       ...strategy,
       steps: [strategy.steps[1]!],
       rootStepId: "s2",
     });
 
-    const { result } = renderHook(() => useDeleteStepMutation());
+    const { result } = renderHook(
+      () => useDeleteStepMutation(strategy.id),
+      { wrapper: harness.wrapper },
+    );
 
     let p: Promise<unknown> | undefined;
     act(() => {
       p = result.current.mutateAsync({ stepId: "s1" });
     });
-    expect(useStrategyStore.getState().strategy?.steps).toHaveLength(1);
-    expect(useStrategyStore.getState().strategy?.steps[0]?.id).toBe("s2");
+    expect(harness.getStrategy(strategy.id)?.steps).toHaveLength(1);
+    expect(harness.getStrategy(strategy.id)?.steps[0]?.id).toBe("s2");
     await act(async () => {
       await p;
     });
@@ -77,10 +85,13 @@ describe("useDeleteStepMutation", () => {
       step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
       step({ id: "s2", displayName: "S2", searchName: "geneById", recordType: "gene" }),
     ]);
-    useStrategyStore.getState().setStrategy(strategy);
+    const harness = makeQueryHarness(strategy);
     pushConversationMock.mockRejectedValueOnce(new Error("boom"));
 
-    const { result } = renderHook(() => useDeleteStepMutation());
+    const { result } = renderHook(
+      () => useDeleteStepMutation(strategy.id),
+      { wrapper: harness.wrapper },
+    );
 
     await act(async () => {
       await expect(
@@ -88,17 +99,16 @@ describe("useDeleteStepMutation", () => {
       ).rejects.toThrow("boom");
     });
     await waitFor(() => {
-      expect(useStrategyStore.getState().strategy?.steps).toHaveLength(2);
-      const ids = useStrategyStore
-        .getState()
-        .strategy?.steps.map((s) => s.id)
+      expect(harness.getStrategy(strategy.id)?.steps).toHaveLength(2);
+      const ids = harness
+        .getStrategy(strategy.id)
+        ?.steps.map((s) => s.id)
         .sort();
       expect(ids).toEqual(["s1", "s2"]);
     });
   });
 
   it("cascades to dependent steps (combine downstream of removed primary)", async () => {
-    // s1, s2 → combine c1 (primary=s1, secondary=s2)
     const strategy = makeStrategy([
       step({ id: "s1", displayName: "S1", searchName: "geneById", recordType: "gene" }),
       step({ id: "s2", displayName: "S2", searchName: "geneById", recordType: "gene" }),
@@ -111,11 +121,9 @@ describe("useDeleteStepMutation", () => {
         recordType: "gene",
       }),
     ]);
-    useStrategyStore.getState().setStrategy(strategy);
+    const harness = makeQueryHarness(strategy);
 
-    // Server response just echoes back the optimistic state for this assertion.
     pushConversationMock.mockImplementationOnce((_id, args) => {
-      // The pushed AST after cascade should have only s2 as root (s1 + c1 gone).
       expect(args.strategyAst.root.id).toBe("s2");
       return Promise.resolve({
         ...strategy,
@@ -124,16 +132,18 @@ describe("useDeleteStepMutation", () => {
       });
     });
 
-    const { result } = renderHook(() => useDeleteStepMutation());
+    const { result } = renderHook(
+      () => useDeleteStepMutation(strategy.id),
+      { wrapper: harness.wrapper },
+    );
 
     let p: Promise<unknown> | undefined;
     act(() => {
       p = result.current.mutateAsync({ stepId: "s1" });
     });
-    // Optimistic: s1 removed; combine c1 (which depended on s1) also removed.
-    const optimisticIds = useStrategyStore
-      .getState()
-      .strategy?.steps.map((s) => s.id)
+    const optimisticIds = harness
+      .getStrategy(strategy.id)
+      ?.steps.map((s) => s.id)
       .sort();
     expect(optimisticIds).toEqual(["s2"]);
     await act(async () => {

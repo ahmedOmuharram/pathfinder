@@ -4,11 +4,14 @@ from enum import StrEnum
 from http import HTTPStatus
 
 import pydantic
+import structlog
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from pathfinder.platform.types import JSONArray
+
+_logger = structlog.get_logger(__name__)
 
 _STATUS_TO_ERROR_CODE: dict[int, "ErrorCode"] = {}
 
@@ -252,6 +255,19 @@ def sanitize_error_for_client(exc: BaseException) -> str:
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     """Handle AppError exceptions."""
+    log = _logger.bind(
+        method=request.method,
+        path=request.url.path,
+        status=exc.status,
+        code=exc.code.value,
+        title=exc.title,
+        detail=exc.detail,
+        errors=exc.errors,
+    )
+    if exc.status >= HTTPStatus.INTERNAL_SERVER_ERROR:
+        log.error("Request failed", exc_info=exc)
+    else:
+        log.warning("Request failed")
     problem = ProblemDetail(
         type=f"/errors/{exc.code.value}",
         title=exc.title,

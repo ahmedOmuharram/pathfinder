@@ -1,23 +1,30 @@
 "use client";
 
 import { ArrowLeftRight } from "lucide-react";
+import { useRef } from "react";
+import { useDebounceCallback } from "usehooks-ts";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { cn } from "@/lib/utils/cn";
 import { useVennState } from "../hooks/useVennState";
+import { VennSvg, type VennRegion } from "./VennSvg";
 
-const REGION_PATHS = {
-  MINUS: "M 110 28 A 62 62 0 1 0 110 152 A 62 62 0 0 1 110 28 Z",
-  INTERSECT: "M 110 28 A 62 62 0 0 1 110 152 A 62 62 0 0 1 110 28 Z",
-  RMINUS: "M 170 28 A 62 62 0 1 1 170 152 A 62 62 0 0 0 170 28 Z",
-} as const;
+const ON_CHANGE_DEBOUNCE_MS = 600;
+const DEBOUNCE_MS = 1000;
 
 const PRETTY: Record<string, string> = {
   INTERSECT: "Intersect",
   UNION: "Union",
   MINUS: "A only",
   RMINUS: "B only",
+  LONLY: "Just A",
+  RONLY: "Just B",
   COLOCATE: "Colocate",
+};
+
+const CYCLE: Record<VennRegion, [string, string]> = {
+  A: ["LONLY", "MINUS"],
+  LENS: ["INTERSECT", "UNION"],
+  B: ["RONLY", "RMINUS"],
 };
 
 interface VennPickerProps {
@@ -34,83 +41,67 @@ export function VennPicker({
   bLabel = "B",
 }: VennPickerProps) {
   const venn = useVennState(operator);
+  const lastClickRef = useRef<{ region: VennRegion; ts: number; index: 0 | 1 } | null>(null);
+
+  const debouncedOnChange = useDebounceCallback(onChange, ON_CHANGE_DEBOUNCE_MS);
+
+  const click = (next: string) => {
+    venn.setOperator(next);
+    debouncedOnChange(next);
+  };
 
   const swap = () => {
     const beforeOp = venn.operator;
     venn.swap();
-    if (beforeOp === "MINUS") {
-      onChange("RMINUS");
-    } else if (beforeOp === "RMINUS") {
-      onChange("MINUS");
-    } else {
-      onChange(beforeOp);
-    }
+    let nextOp: string;
+    if (beforeOp === "MINUS") nextOp = "RMINUS";
+    else if (beforeOp === "RMINUS") nextOp = "MINUS";
+    else if (beforeOp === "LONLY") nextOp = "RONLY";
+    else if (beforeOp === "RONLY") nextOp = "LONLY";
+    else nextOp = beforeOp;
+    debouncedOnChange.cancel();
+    onChange(nextOp);
   };
 
-  const isSelected = (region: keyof typeof REGION_PATHS) =>
-    venn.operator === region || venn.operator === "UNION";
+  const handleRegionClick = (region: VennRegion) => {
+    const now = Date.now();
+    const last = lastClickRef.current;
+    const isRapidRepeat =
+      last !== null && last.region === region && now - last.ts < DEBOUNCE_MS;
+    const nextIndex: 0 | 1 = isRapidRepeat ? (last.index === 0 ? 1 : 0) : 0;
+    lastClickRef.current = { region, ts: now, index: nextIndex };
+    click(CYCLE[region][nextIndex]);
+  };
 
   const showA = venn.swappedLabels ? bLabel : aLabel;
   const showB = venn.swappedLabels ? aLabel : bLabel;
 
-  const click = (next: string) => {
-    venn.setOperator(next);
-    onChange(next);
-  };
+  // Background-circle fills: render the full A and/or B circle when the
+  // operator selects the entire side. UNION fills both. LONLY fills A
+  // (lens stays inside that fill, matching the "include all of A" semantic).
+  // Region overlays are then transparent for these operators so their
+  // primary/0.55 fill doesn't stack on top of the circle fill.
+  const fillA = venn.operator === "UNION" || venn.operator === "LONLY";
+  const fillB = venn.operator === "UNION" || venn.operator === "RONLY";
 
-  const isUnionVisuallyFilled = venn.operator === "UNION";
+  const isRegionSelected = (region: VennRegion): boolean => {
+    if (region === "A") return venn.operator === "MINUS";
+    if (region === "B") return venn.operator === "RMINUS";
+    return venn.operator === "INTERSECT";
+  };
 
   return (
     <div className="flex flex-col gap-3" data-testid="venn-picker">
       <div className="flex justify-center">
-        <svg
-          viewBox="0 0 280 180"
-          width="280"
-          height="180"
-          role="img"
-          aria-label="Venn region picker"
-          className="select-none"
-        >
-          {/* Filled circles when UNION (visual only — picks happen via region clicks or presets) */}
-          {isUnionVisuallyFilled && (
-            <>
-              <circle cx="110" cy="90" r="62" fill="hsl(var(--primary) / 0.55)" />
-              <circle cx="170" cy="90" r="62" fill="hsl(var(--primary) / 0.55)" />
-            </>
-          )}
-
-          {/* Outline circles */}
-          <circle cx="110" cy="90" r="62" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground" />
-          <circle cx="170" cy="90" r="62" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground" />
-
-          {/* Clickable regions */}
-          <RegionPath
-            label="A only"
-            d={REGION_PATHS.MINUS}
-            selected={isSelected("MINUS")}
-            onClick={() => click("MINUS")}
-          />
-          <RegionPath
-            label="Intersection region"
-            d={REGION_PATHS.INTERSECT}
-            selected={isSelected("INTERSECT")}
-            onClick={() => click("INTERSECT")}
-          />
-          <RegionPath
-            label="B only"
-            d={REGION_PATHS.RMINUS}
-            selected={isSelected("RMINUS")}
-            onClick={() => click("RMINUS")}
-          />
-
-          {/* Step labels */}
-          <text x="60" y="170" textAnchor="middle" className="fill-muted-foreground text-xs">
-            {showA}
-          </text>
-          <text x="220" y="170" textAnchor="middle" className="fill-muted-foreground text-xs">
-            {showB}
-          </text>
-        </svg>
+        <VennSvg
+          fillA={fillA}
+          fillB={fillB}
+          isRegionSelected={isRegionSelected}
+          handleRegionClick={handleRegionClick}
+          showA={showA}
+          showB={showB}
+          isColocate={venn.operator === "COLOCATE"}
+        />
       </div>
 
       <div className="flex items-center justify-between gap-2">
@@ -134,15 +125,13 @@ export function VennPicker({
       <div className="flex items-center justify-center">
         <ToggleGroup
           type="single"
-          value={venn.operator}
+          value={venn.operator === "COLOCATE" ? "COLOCATE" : ""}
           onValueChange={(v) => {
-            if (v !== "" && v !== venn.operator) click(v);
+            if (v === "COLOCATE" && venn.operator !== "COLOCATE") click("COLOCATE");
           }}
           variant="outline"
           size="sm"
         >
-          <ToggleGroupItem value="UNION" aria-label="Union">Union</ToggleGroupItem>
-          <ToggleGroupItem value="INTERSECT" aria-label="Intersect">∩ Both</ToggleGroupItem>
           <ToggleGroupItem value="COLOCATE" aria-label="Colocate">Colocate…</ToggleGroupItem>
         </ToggleGroup>
       </div>
@@ -150,36 +139,3 @@ export function VennPicker({
   );
 }
 
-function RegionPath({
-  label,
-  d,
-  selected,
-  onClick,
-}: {
-  label: string;
-  d: string;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <path
-      d={d}
-      role="button"
-      aria-label={label}
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      className={cn(
-        "cursor-pointer outline-none transition-[fill] duration-150 ease-[cubic-bezier(.4,0,.2,1)] focus-visible:stroke-ring focus-visible:stroke-2",
-        selected
-          ? "fill-[hsl(var(--primary)/0.55)] hover:fill-[hsl(var(--primary)/0.7)]"
-          : "fill-transparent hover:fill-[hsl(var(--primary)/0.18)]",
-      )}
-    />
-  );
-}

@@ -10,8 +10,6 @@ export class ChatPage {
   readonly planArtifact: Locator;
   readonly decisionPresented: Locator;
   readonly approvePlanButton: Locator;
-  /** Legacy alias retained so tests that reference `phaseTimingBlock` still type-check. */
-  readonly phaseTimingBlock: Locator;
 
   constructor(private page: Page) {
     this.composer = page.getByTestId("message-composer");
@@ -28,9 +26,6 @@ export class ChatPage {
     this.approvePlanButton = this.decisionPresented.getByRole("button", {
       name: /approve/i,
     });
-    // Phase-timing block was removed in the overhaul; the locator remains as
-    // a never-matching stub so legacy specs continue to type-check.
-    this.phaseTimingBlock = page.getByTestId("plan-phase-timing");
   }
 
   async goto() {
@@ -172,21 +167,6 @@ export class ChatPage {
     await expect(this.approvePlanButton).toBeVisible({ timeout: 60_000 });
   }
 
-  /**
-   * Backwards-compatible alias for tests that haven't been migrated to the
-   * new plan artifact API yet.
-   */
-  async expectPlanPanel() {
-    await this.expectPlanningArtifact();
-  }
-
-  /** Stub kept for legacy tests; phase-timing UI was removed in the overhaul. */
-  async expectPhaseTiming(
-    _phase: "scoping" | "discovery" | "planning" | "execution" | "verification",
-    _status?: string | RegExp,
-  ) {
-    // No-op: phase-timing block was deleted.
-  }
 
   /** Compatibility alias for the rail-based step list (replaces compact view). */
   async expectCompactStrategyView() {

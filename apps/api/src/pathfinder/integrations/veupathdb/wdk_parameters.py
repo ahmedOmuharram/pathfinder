@@ -50,6 +50,15 @@ class WDKBaseParameter(WDKModel):
     length: int = 0
     is_number: bool = False
 
+    # Filter-only fields (declared on base so the formatter can read uniformly).
+    ontology: list[JSONObject] = Field(default_factory=list)
+    filter_data_type_display_name: str | None = None
+
+    # Dataset-only fields (declared on base for the same reason).
+    default_id_list: str | None = None
+    record_class_name: str | None = None
+    parsers: list[JSONObject] = Field(default_factory=list)
+
     @field_validator("max_selected_count", mode="before")
     @classmethod
     def _normalize_unlimited(cls, v: object) -> object:

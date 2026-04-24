@@ -1,10 +1,14 @@
 "use client";
 
 import { FileUpIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { conversationListOptions } from "@/lib/api/conversations";
+import { useSessionStore } from "@/state/useSessionStore";
 import { parseIdsFromText } from "./datasetParamLogic";
 
 interface PasteTabProps {
@@ -143,29 +147,39 @@ export function BasketTab({ value, onChange, name }: BasketTabProps) {
 interface StrategyTabProps {
   value: string;
   onChange: (value: string) => void;
-  name: string;
 }
 
-export function StrategyTab({ value, onChange, name }: StrategyTabProps) {
+export function StrategyTab({ value, onChange }: StrategyTabProps) {
+  const siteId = useSessionStore((s) => s.selectedSite);
+  const { data, isPending, isError } = useQuery({
+    ...conversationListOptions(siteId),
+    enabled: siteId !== "",
+  });
+
+  const options: ComboboxOption[] = (data ?? []).map((conv) => ({
+    value: conv.id,
+    label: conv.name === "" ? `Untitled (${conv.id.slice(0, 8)})` : conv.name,
+  }));
+
   return (
     <div className="space-y-2">
-      <label
-        htmlFor={`${name}-strategy-id`}
-        className="block text-xs text-muted-foreground"
-      >
-        Strategy ID
+      <label className="block text-xs text-muted-foreground">
+        Pick a strategy
       </label>
-      <Input
-        id={`${name}-strategy-id`}
-        aria-label="Strategy ID"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="e.g. 12345"
+      {isError && (
+        <p className="text-xs text-destructive">
+          Couldn&apos;t load strategies for this site.
+        </p>
+      )}
+      <Combobox
+        options={options}
+        value={value === "" ? null : value}
+        onChange={(next) => onChange(next ?? "")}
+        placeholder={isPending ? "Loading…" : "Select a strategy…"}
+        emptyMessage="No strategies available for this site."
+        searchPlaceholder="Search strategies…"
       />
-      <p className="text-[11px] text-muted-foreground">
-        Source: strategy. The Combobox-based picker arrives once strategies are
-        listed inline; for now paste the strategyId.
-      </p>
+      <p className="text-[11px] text-muted-foreground">Source: strategy</p>
     </div>
   );
 }

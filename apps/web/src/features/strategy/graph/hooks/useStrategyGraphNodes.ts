@@ -31,16 +31,15 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   const [selectedStep, setSelectedStep] = useState<Step | null>(null);
   const nodePositions = new Map(nodes.map((n: Node) => [n.id, { x: n.position.x, y: n.position.y }]));
 
-  const draftStrategy = useStrategyStore((state) => state.strategy);
   const applyStepValidationErrors = useStrategyStore(
     (state) => state.applyStepValidationErrors,
   );
-  const stepsById = useStepsById();
+  const stepsById = useStepsById(strategy);
   const setGraphValidationStatus = useStrategyStore(
     (state) => state.setGraphValidationStatus,
   );
 
-  const editableSteps = draftStrategy?.steps ?? strategy?.steps ?? [];
+  const editableSteps = strategy?.steps ?? [];
 
   const buildStepSignature = (step: Step) => {
     const kind = inferStepKind(step);
@@ -56,26 +55,21 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     });
   };
 
-  const combineMismatchGroups = getCombineMismatchGroups(draftStrategy?.steps ?? strategy?.steps ?? []);
+  const combineMismatchGroups = getCombineMismatchGroups(editableSteps);
 
-  const isDraftView = draftStrategy != null && strategy?.id === draftStrategy.id;
-  const planResult = serializeStrategyAst(stepsById, draftStrategy ?? strategy);
+  const planResult = serializeStrategyAst(stepsById, strategy);
   const planHash = planResult ? JSON.stringify(planResult.plan) : null;
-  const graphIdForValidation = draftStrategy?.id ?? strategy?.id ?? null;
+  const graphIdForValidation = strategy?.id ?? null;
   const graphHasValidationIssues = useStrategyStore((state) =>
     graphIdForValidation != null && graphIdForValidation !== ""
       ? state.graphValidationStatus[graphIdForValidation] === true
       : false,
   );
 
-  // Validation Alert renders as canvas chrome (see ValidationAlert) instead of
-  // injecting overlay nodes into the graph itself.
   const renderNodes = nodes;
 
-
-  // Validate search steps
   const validateSearchSteps = async () => {
-    const steps = draftStrategy?.steps ?? [];
+    const steps = editableSteps;
     if (steps.length === 0) return true;
     const { errorsByStepId, hasErrors: hasFieldErrors } = await validateStepsForSave({
       siteId,
@@ -84,7 +78,7 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     });
     applyStepValidationErrors(errorsByStepId);
     const hasErrors = hasFieldErrors || combineMismatchGroups.length > 0;
-    const graphId = draftStrategy?.id ?? strategy?.id;
+    const graphId = strategy?.id;
     if (graphId != null && graphId !== "") {
       setGraphValidationStatus(graphId, hasErrors);
     }
@@ -92,13 +86,12 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
   };
 
   useSaveValidation({
-    steps: draftStrategy?.steps ?? [],
+    steps: editableSteps,
     buildStepSignature,
     validate: validateSearchSteps,
   });
 
   return {
-    // Raw node/edge state
     nodes,
     setNodes,
     onNodesChange,
@@ -106,22 +99,13 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     setEdges,
     onEdgesChange,
     nodePositions,
-
-    // Render nodes (includes warning overlays)
     renderNodes,
-
-    // Step selection
     selectedStep,
     setSelectedStep,
     editableSteps,
-
-    // Graph metadata
-    isDraftView,
     planResult,
     planHash,
     graphHasValidationIssues,
-
-    // Validation
     combineMismatchGroups,
     validateSearchSteps,
     buildStepSignature,

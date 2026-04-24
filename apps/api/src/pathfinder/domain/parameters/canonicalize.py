@@ -1,18 +1,14 @@
-"""Canonicalize parameter values (API-friendly) using WDK parameter specs.
+"""Canonicalize parameter values (decoded form) using WDK parameter specs.
 
-This module is the counterpart to ``domain/parameters/normalize``:
-
-- ``normalize`` produces WDK wire-safe values (often strings/JSON strings).
-- ``canonicalize`` produces API-friendly canonical JSON shapes:
-  multi-pick values become ``list[str]``, scalars become strings,
-  range values become ``{min, max}``, filter values become dict/list.
+Produces decoded JSON shapes: multi-pick values become ``list[str]``,
+scalars become strings, range values become ``{min, max}``, filter
+values become dict/list. The domain layer holds these shapes everywhere;
+WDK wire encoding (JSON-stringified compounds) happens once at the
+integration boundary in ``integrations.veupathdb.value_decoding.encode_params``.
 
 Delegates validation and decoding to the shared dispatch chain in
 ``_value_helpers.process_value()``, then applies canonicalizer-specific
 post-processing (FAKE_ALL_SENTINEL rejection, leaf enforcement).
-
-Used at API boundaries (plan normalization, validation) so the frontend
-can consume stable shapes without re-implementing coercion.
 """
 
 from dataclasses import dataclass

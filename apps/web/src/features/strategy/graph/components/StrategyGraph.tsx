@@ -12,6 +12,7 @@ import { OrthologSheet } from "@/features/strategy/graph/components/OrthologShee
 import { QuickSwitcher } from "@/features/strategy/graph/components/QuickSwitcher";
 import { ShortcutsOverlay } from "@/features/strategy/graph/components/ShortcutsOverlay";
 import { StrategyGraphLayout } from "@/features/strategy/graph/components/StrategyGraphLayout";
+import { SyncProgressBar } from "@/features/strategy/graph/components/SyncProgressBar";
 import { useStrategyGraph } from "@/features/strategy/graph/hooks/useStrategyGraph";
 import { useQuickSwitcher } from "@/features/strategy/graph/hooks/useQuickSwitcher";
 import { useStrategyKeyboardShortcuts } from "@/features/strategy/graph/hooks/useStrategyKeyboardShortcuts";
@@ -25,16 +26,8 @@ import {
 interface StrategyGraphProps {
   strategy: Strategy | null;
   siteId: string;
-  /**
-   * When true, renders only the canvas (no topbar). Used when the page-level
-   * shell already provides a topbar/header. Defaults to true (full).
-   */
+  conversationId: string;
   showTopbar?: boolean;
-  /**
-   * When set, the editor Sheet auto-opens focused on this step id. Used by
-   * the deep-linkable `/strategy/step/[stepId]` route. The id is matched
-   * against `strategy.steps`; an unknown id is ignored.
-   */
   focusStepId?: string | null;
 }
 
@@ -49,6 +42,7 @@ export function StrategyGraph(props: StrategyGraphProps) {
 function StrategyGraphInner({
   strategy,
   siteId,
+  conversationId,
   showTopbar = true,
   focusStepId = null,
 }: StrategyGraphProps) {
@@ -74,6 +68,7 @@ function StrategyGraphInner({
       <EmptyState
         siteId={siteId}
         recordType={strategy?.recordType ?? null}
+        conversationId={conversationId}
       />
     );
   }
@@ -118,6 +113,7 @@ function StrategyGraphChrome({
 
   return (
     <div className="relative flex h-full w-full flex-col">
+      <SyncProgressBar active={syncState === "saving"} />
       {showTopbar && (
         <CanvasTopbar
           strategy={strategy}

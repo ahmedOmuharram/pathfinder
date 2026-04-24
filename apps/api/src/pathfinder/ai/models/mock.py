@@ -135,7 +135,7 @@ def _leaf_taxon() -> ToolCallPart:
         tool_name="create_leaf_step",
         args=json.dumps({
             "search_name": "GenesByTaxon",
-            "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
+            "parameters": {"organism": ["Plasmodium falciparum 3D7"]},
             "display_name": "P. falciparum genes",
         }),
         tool_call_id="mock_leaf_taxon",
@@ -168,7 +168,7 @@ def _plan_create() -> ToolCallPart:
                 "record_type": "transcript",
                 "rationale": "All P. falciparum genes",
                 "step_type": "leaf",
-                "parameters": {"organism": '["Plasmodium falciparum 3D7"]'},
+                "parameters": {"organism": ["Plasmodium falciparum 3D7"]},
             }],
             "connections": [],
         }),

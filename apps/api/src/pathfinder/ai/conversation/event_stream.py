@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -55,6 +56,25 @@ async def latest_event(
         if row is None:
             return None
         return (row.id, row.chunk)
+
+
+async def latest_event_with_timestamp(
+    conversation_id: UUID,
+) -> tuple[int, dict[str, Any], datetime] | None:
+    """Like ``latest_event`` but also returns the wall-clock time the row
+    was emitted. Callers use the timestamp to decide whether a turn that
+    has not yet emitted ``done`` is still alive or stalled.
+    """
+    async with async_session_factory() as session:
+        row = await session.scalar(
+            select(ConversationEvent)
+            .where(ConversationEvent.conversation_id == conversation_id)
+            .order_by(ConversationEvent.id.desc())
+            .limit(1),
+        )
+        if row is None:
+            return None
+        return (row.id, row.chunk, row.emitted_at)
 
 
 async def _drain_and_yield(

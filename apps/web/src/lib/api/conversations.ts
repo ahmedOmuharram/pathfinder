@@ -83,9 +83,13 @@ export async function getConversation(
   }
 }
 
+export function conversationDetailKey(conversationId: string) {
+  return ["conversations", conversationId, "detail"] as const;
+}
+
 export function conversationDetailOptions(conversationId: string) {
   return queryOptions({
-    queryKey: ["conversations", conversationId, "detail"] as const,
+    queryKey: conversationDetailKey(conversationId),
     queryFn: () => getConversation(conversationId),
     staleTime: Infinity,
     gcTime: Infinity,

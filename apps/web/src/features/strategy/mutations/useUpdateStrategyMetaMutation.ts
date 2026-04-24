@@ -1,7 +1,7 @@
 "use client";
 
 import type { Strategy } from "@pathfinder/shared";
-import { useStrategyStore } from "@/state/strategy/store";
+import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
 import { usePushStrategyMutation } from "./usePushStrategyMutation";
 
 export interface UpdateStrategyMetaVars {
@@ -19,21 +19,18 @@ function applyMeta(
   return next;
 }
 
-/**
- * Patch the strategy's display metadata (name / description). The same push
- * primitive carries the changes to the server.
- */
-export function useUpdateStrategyMetaMutation() {
+export function useUpdateStrategyMetaMutation(conversationId: string) {
   const push = usePushStrategyMutation();
+  const cache = useStrategyCacheUtils();
   return {
     ...push,
     mutate: (vars: UpdateStrategyMetaVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) return;
       push.mutate({ optimistic: applyMeta(current, vars) });
     },
     mutateAsync: async (vars: UpdateStrategyMetaVars) => {
-      const current = useStrategyStore.getState().strategy;
+      const current = cache.get(conversationId);
       if (!current) {
         throw new Error("Cannot update strategy meta: no strategy loaded");
       }

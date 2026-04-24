@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import cast
 from uuid import uuid4
 
@@ -13,7 +12,6 @@ from pydantic import (
     JsonValue,
     TypeAdapter,
     ValidationError,
-    field_validator,
 )
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
@@ -29,38 +27,10 @@ from pathfinder.domain.strategy.plan import (
     StrategyPlan,
     UserQuestion,
 )
+from pathfinder.domain.strategy.types import DecodedParamsField
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONArray, JSONObject
-
-_MIN_JSON_WRAPPER_LEN = 2
-
-
-def _unwrap_json_encoded_collections(
-    params: dict[str, JsonValue],
-) -> dict[str, JsonValue]:
-    """Unwrap string values that are JSON-encoded lists/objects.
-
-    Models sometimes emit ``{"organism": "[\\"P. falciparum 3D7\\"]"}`` —
-    a string containing a JSON array — instead of the raw list. WDK
-    rejects the string form, so we parse it eagerly at the plan-input
-    boundary. Non-JSON strings pass through.
-    """
-    out: dict[str, JsonValue] = {}
-    for k, v in params.items():
-        if (
-            isinstance(v, str)
-            and len(v) >= _MIN_JSON_WRAPPER_LEN
-            and v[0] in "[{"
-            and v[-1] in "]}"
-        ):
-            try:
-                out[k] = json.loads(v)
-                continue
-            except (json.JSONDecodeError, ValueError):
-                pass
-        out[k] = v
-    return out
 
 
 class PlannedStepInput(BaseModel):
@@ -74,17 +44,8 @@ class PlannedStepInput(BaseModel):
     record_type: str = "transcript"
     rationale: str = ""
     step_type: StepType = StepType.LEAF
-    parameters: dict[str, JsonValue] = Field(default_factory=dict)
+    parameters: DecodedParamsField = Field(default_factory=dict)
     operator: str | None = None
-
-    @field_validator("parameters", mode="before")
-    @classmethod
-    def _unwrap_params(cls, v: object) -> object:
-        if isinstance(v, dict):
-            return _unwrap_json_encoded_collections(
-                cast("dict[str, JsonValue]", v),
-            )
-        return v
 
 class PlannedConnectionInput(BaseModel):
     """Input model for a planned connection from the LLM."""
@@ -115,18 +76,9 @@ class StepPatch(BaseModel):
     step_id: str
     search_name: str | None = None
     display_name: str | None = None
-    parameters: dict[str, JsonValue] | None = None
+    parameters: DecodedParamsField | None = None
     rationale: str | None = None
     operator: str | None = None
-
-    @field_validator("parameters", mode="before")
-    @classmethod
-    def _unwrap_params(cls, v: object) -> object:
-        if isinstance(v, dict):
-            return _unwrap_json_encoded_collections(
-                cast("dict[str, JsonValue]", v),
-            )
-        return v
 
 class PlanCreatedResponse(CamelModel):
     """Acknowledgment that a plan was created.

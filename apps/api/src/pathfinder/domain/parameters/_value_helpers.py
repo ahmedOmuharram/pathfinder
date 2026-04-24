@@ -1,11 +1,10 @@
 """Shared validation and coercion helpers for parameter processing.
 
-Used by both ``ParameterNormalizer`` (wire-safe WDK values) and
-``ParameterCanonicalizer`` (API-friendly canonical shapes).
-
-The shared dispatch chain lives in ``process_value()``.
-Each consumer (normalizer / canonicalizer) calls it and then applies its
-own output formatting to the returned ``ProcessedParam``.
+Used by ``ParameterCanonicalizer`` to produce decoded-form parameter
+values (lists, dicts, scalars). The dispatch chain in ``process_value()``
+validates and coerces per WDK param type; the canonicalizer applies
+canonicalizer-specific post-processing (leaf enforcement, sentinel
+rejection) on top.
 """
 
 from collections.abc import Callable
@@ -15,7 +14,7 @@ from enum import Enum, auto
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.domain.parameters.value_utils import ensure_list
+from pathfinder.domain.parameters.value_utils import decode_values
 from pathfinder.domain.parameters.vocab_utils import match_vocab_value
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.types import JSONObject
@@ -184,7 +183,7 @@ def process_value(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam
 # -- per-type processors -----------------------------------------------------
 
 def process_multi_pick(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
-    values = [stringify(v) for v in ensure_list(value, spec.name)]
+    values = [stringify(v) for v in decode_values(value, spec.name)]
     matched: list[str] = [
         match_vocab_value(vocab=spec.vocabulary, param_name=spec.name, value=v)
         for v in values
@@ -194,7 +193,7 @@ def process_multi_pick(spec: ParamSpecNormalized, value: JsonValue) -> Processed
     return ProcessedParam(kind=ParamKind.MULTI_PICK, value=result_values)
 
 def process_single_pick(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
-    decoded = ensure_list(value, spec.name)
+    decoded = decode_values(value, spec.name)
     if len(decoded) > 1:
         raise ValidationError(
             title="Invalid parameter value",

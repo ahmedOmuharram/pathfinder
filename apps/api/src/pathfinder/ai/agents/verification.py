@@ -4,17 +4,22 @@ from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.capabilities import Thinking
 from pydantic_ai.tools import RunContext
 
-from pathfinder.ai.agents._history_processor import pair_tool_calls
+from pathfinder.ai.agents._history_processor import (
+    elide_consumed_tool_results,
+    pair_tool_calls,
+)
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
+    pinned_discovered_searches,
     pinned_graph_state,
+    pinned_last_phase_outcome,
     pinned_scratchpad,
     pinned_user_memories,
 )
 from pathfinder.ai.capabilities.orphan_audit import OrphanToolAuditor
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.graph.state import PhaseOutcome
+from pathfinder.ai.graph.state import VerificationDigest
 from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
 from pathfinder.ai.tools.toolsets.verification import build_toolset
 
@@ -72,9 +77,11 @@ opener.
 "Anything else?" at the end of verification. The chat shell already waits \
 for the user's next instruction.
 
-## Output — the PhaseOutcome contract
+## Output — the VerificationDigest contract
 
-Return exactly one ``PhaseOutcome``:
+Return exactly one ``VerificationDigest``. It extends ``PhaseOutcome`` \
+with verification-specific fields the autowrite layer reads to make \
+memory writes deterministic.
 
 - ``prose`` (required, user-facing): a concise completion summary — what \
 was checked, what passed, and anything suspicious. This IS the assistant \
@@ -86,20 +93,32 @@ investigation is complete; ``handoff`` when something you surfaced needs \
 another phase.
 - ``handoff_to`` (optional): ``execution`` (fix a step), ``planning`` \
 (rework), or ``discovery`` (replace a search).
+- ``success`` (required): True if the strategy answered the user's \
+question; False if verification surfaced a real problem.
+- ``key_findings`` (optional, ≤10): bullet-style facts the user should \
+walk away with — counts, enrichments, surprising hits. One sentence each.
+- ``caveats`` (optional, ≤10): open issues or limitations the user \
+should know about even when ``success`` is True.
+- ``remember`` (optional, ≤5): durable knowledge memories to autowrite. \
+Only stable, reusable facts (organism kinome sizes, reliable threshold \
+choices, cross-strategy gene lists) — NOT turn-specific results. Each \
+needs ``name`` (recall-friendly title), ``summary`` (one line), \
+``content`` (structured payload), and optional ``tags``. Site is added \
+automatically — do not include it.
 """
 
 verification_agent: Agent[
-    AgentDeps, PhaseOutcome | DeferredToolRequests,
+    AgentDeps, VerificationDigest | DeferredToolRequests,
 ] = Agent(
     "openai:gpt-4.1-mini",
-    output_type=[PhaseOutcome, DeferredToolRequests],
+    output_type=[VerificationDigest, DeferredToolRequests],
     deps_type=AgentDeps,
     instructions=_VERIFICATION_INSTRUCTIONS,
     toolsets=[build_toolset(), build_scratchpad_toolset()],
     capabilities=[
         ToolResilience(), Thinking(effort="high"), OrphanToolAuditor(),
     ],
-    history_processors=[pair_tool_calls],
+    history_processors=[pair_tool_calls, elide_consumed_tool_results],
     retries=3,
     description="Inspects strategy results and validates correctness",
     name="verification",
@@ -125,5 +144,15 @@ def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
 @verification_agent.instructions
 async def _pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
     return await pinned_scratchpad(ctx)
+
+
+@verification_agent.instructions
+def _pinned_last_phase_outcome(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_last_phase_outcome(ctx)
+
+
+@verification_agent.instructions
+def _pinned_discovered_searches(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_discovered_searches(ctx)
 
 

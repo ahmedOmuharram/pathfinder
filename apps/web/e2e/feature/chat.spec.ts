@@ -70,16 +70,11 @@ test.describe("Chat", () => {
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
-    await chatPage.expectPlanPanel();
     await chatPage.expectIdle();
 
     await expect(page.getByText("presented", { exact: true })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(chatPage.phaseTimingBlock).toBeVisible({ timeout: 15_000 });
-    await chatPage.expectPhaseTiming("scoping", "Completed");
-    await chatPage.expectPhaseTiming("discovery", "Completed");
-    await chatPage.expectPhaseTiming("planning", "Awaiting approval");
     await graphPage.expectRailPanel();
     const previewPillCount = await graphPage.railStepRows.count();
     expect(previewPillCount).toBeGreaterThan(0);
@@ -92,7 +87,6 @@ test.describe("Chat", () => {
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
     await chatPage.expectPlanningArtifact();
-    await chatPage.expectPlanPanel();
 
     await chatPage.approvePlan();
     await chatPage.expectIdle();

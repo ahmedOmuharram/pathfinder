@@ -4,11 +4,16 @@ from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
 
-from pathfinder.ai.agents._history_processor import pair_tool_calls
+from pathfinder.ai.agents._history_processor import (
+    elide_consumed_tool_results,
+    pair_tool_calls,
+)
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
     pinned_active_plan,
+    pinned_discovered_searches,
     pinned_graph_state,
+    pinned_last_phase_outcome,
     pinned_problem_frame,
     pinned_scratchpad,
     pinned_user_memories,
@@ -113,7 +118,7 @@ planning_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
         Thinking(effort="high"),
         OrphanToolAuditor(),
     ],
-    history_processors=[pair_tool_calls],
+    history_processors=[pair_tool_calls, elide_consumed_tool_results],
     retries=3,
     description="Creates structured execution plans from discovery findings",
     name="planning",
@@ -149,6 +154,16 @@ def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
 @planning_agent.instructions
 async def _pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
     return await pinned_scratchpad(ctx)
+
+
+@planning_agent.instructions
+def _pinned_last_phase_outcome(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_last_phase_outcome(ctx)
+
+
+@planning_agent.instructions
+def _pinned_discovered_searches(ctx: RunContext[AgentDeps]) -> str | None:
+    return pinned_discovered_searches(ctx)
 
 
 @planning_agent.instructions

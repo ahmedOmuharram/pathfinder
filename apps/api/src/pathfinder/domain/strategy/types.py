@@ -12,14 +12,22 @@ Two shapes:
 
 Encoding/decoding between the two lives in
 ``pathfinder.integrations.veupathdb.value_decoding``.
+
+``DecodedParamsField`` is the canonical Annotated type for any model field
+or tool argument that holds parameter values. Its ``BeforeValidator`` decodes
+JSON-encoded list/object strings (the WDK wire form) back into native
+Python types. This single validator defends every entry point — HTTP request
+bodies, DB load via ``model_validate``, LLM tool args — against wire-form
+leaks. Always use ``DecodedParamsField`` instead of the bare
+``DecodedParams`` alias on a field.
 """
 
 from __future__ import annotations
 
 import json
-from typing import Protocol
+from typing import Annotated, Protocol
 
-from pydantic import JsonValue
+from pydantic import BeforeValidator, JsonValue
 
 from pathfinder.domain.strategy.validation import StepValidation
 
@@ -29,29 +37,43 @@ WireParams = dict[str, str]
 _MIN_JSON_WRAPPER_LEN = 2
 
 
-def unwrap_json_encoded_params(params: DecodedParams) -> DecodedParams:
-    """Unwrap string values that are JSON-encoded lists/objects.
+def decode_wire_value(value: JsonValue) -> JsonValue:
+    """Decode one wire-form value into its native Python type.
 
-    Models sometimes emit ``{"organism": "[\\"X\\"]"}`` — a string that is
-    itself a JSON array — instead of the raw list. WDK rejects the string
-    form. Apply this at every LLM-facing entry point that accepts
-    ``DecodedParams``.
+    A "wire form" value is a string that JSON-encodes a list or object —
+    the shape WDK requires on the HTTP boundary and that legacy DB rows /
+    older LLM emissions still carry. Anything else passes through unchanged.
     """
-    out: DecodedParams = {}
-    for k, v in params.items():
-        if (
-            isinstance(v, str)
-            and len(v) >= _MIN_JSON_WRAPPER_LEN
-            and v[0] in "[{"
-            and v[-1] in "]}"
-        ):
-            try:
-                out[k] = json.loads(v)
-                continue
-            except (json.JSONDecodeError, ValueError):
-                pass
-        out[k] = v
-    return out
+    if not isinstance(value, str):
+        return value
+    if len(value) < _MIN_JSON_WRAPPER_LEN:
+        return value
+    if value[0] not in "[{" or value[-1] not in "]}":
+        return value
+    try:
+        decoded: JsonValue = json.loads(value)
+    except (json.JSONDecodeError, ValueError):
+        return value
+    return decoded
+
+
+def decode_wire_dict(params: object) -> object:
+    """Decode every wire-form value in *params* into native Python types.
+
+    Pass-through for non-dict input so it composes safely as a Pydantic
+    ``BeforeValidator`` — letting the field's standard validation surface
+    its own type error rather than masking it.
+    """
+    if not isinstance(params, dict):
+        return params
+    return {k: decode_wire_value(v) for k, v in params.items()}
+
+
+DecodedParamsField = Annotated[
+    DecodedParams,
+    BeforeValidator(decode_wire_dict),
+]
+"""Canonical Annotated type for parameter-value fields. Use everywhere."""
 
 
 class SyncStateProtocol(Protocol):

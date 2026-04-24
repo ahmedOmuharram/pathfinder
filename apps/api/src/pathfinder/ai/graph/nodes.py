@@ -12,6 +12,7 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, AgentRunResultEvent
+from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.messages import (
     AgentStreamEvent,
     ModelMessage,
@@ -36,6 +37,7 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     TextEndChunk,
     TextStartChunk,
 )
+from pydantic_ai.usage import UsageLimits
 from sqlalchemy.exc import SQLAlchemyError
 
 from pathfinder.ai.agents.supervisor import (
@@ -44,7 +46,6 @@ from pathfinder.ai.agents.supervisor import (
     SupervisorTarget,
     build_supervisor_agent,
 )
-from pathfinder.ai.models.mock import get_mock_model
 from pathfinder.ai.conversation.approval import (
     ApprovalDecision,
     classify_approval_reply,
@@ -64,6 +65,7 @@ from pathfinder.ai.graph.state import (
     PhaseName,
     PhaseOutcome,
     PipelineState,
+    VerificationDigest,
 )
 from pathfinder.ai.graph.stream_events import (
     phase_change_event,
@@ -79,6 +81,7 @@ from pathfinder.ai.memory.retrieval import retrieve_relevant_memories
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.memory.tombstones import TombstoneRepository
+from pathfinder.ai.models.mock import get_mock_model
 from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
 from pathfinder.ai.scratchpad.rendering import render_scratchpad_for_supervisor
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
@@ -92,6 +95,17 @@ from pathfinder.services import user_preferences as prefs_service
 logger = get_logger(__name__)
 
 SUPERVISOR_CALL_BUDGET: int = 15
+
+# Per-phase guardrail. The library catches the violation between LLM
+# requests and raises ``UsageLimitExceeded``; we convert that into a
+# graceful outcome so the supervisor can decide what to do next instead
+# of the whole turn crashing. Generous caps — they exist to prevent
+# pathological loops, not to throttle legitimate work.
+PHASE_USAGE_LIMITS: UsageLimits = UsageLimits(
+    request_limit=60,
+    tool_calls_limit=60,
+    total_tokens_limit=2_000_000,
+)
 
 
 class PhaseRunError(RuntimeError):
@@ -332,7 +346,6 @@ def _synthesize_from_orphan_text(
             trace_id=state.turn_trace_id,
             model=agent_model,
             finish_reason=capture.finish_reason,
-            message_history_len=len(state.message_history or []),
         )
         raise PhaseRunError(msg)
 
@@ -410,12 +423,13 @@ def _build_phase_delta(
 ) -> dict[str, Any]:
     delta = extract_state_delta(deps)
     delta["current_phase"] = phase
-    delta["message_history"] = list(capture.new_messages)
     delta["turn_message_parts"] = state.turn_message_parts + new_parts
     delta["turn_total_tokens"] = state.turn_total_tokens + capture.tokens
     delta["turn_total_cost_usd"] = state.turn_total_cost_usd + capture.cost_usd
     if capture.phase_outcome is not None:
         delta["last_phase_outcome"] = capture.phase_outcome
+        if isinstance(capture.phase_outcome, VerificationDigest):
+            delta["verification_digest"] = capture.phase_outcome
     if capture.pending_approval is not None:
         delta["pending_approval"] = capture.pending_approval
     elif capture.approval_consumed:
@@ -501,6 +515,65 @@ async def _resolve_phase_model_override(
         return None
 
 
+async def _resolve_phase_model_context(
+    agent: Agent[AgentDeps, Any],
+    state: PipelineState,
+    runtime: Runtime[Context],
+    phase: PhaseName,
+) -> tuple[Any, str]:
+    """Resolve the override context manager and the agent-model id label.
+
+    Mock chat provider (E2E mode) swaps in the deterministic FunctionModel
+    so chat doesn't depend on a real LLM API key. User-pref overrides are
+    ignored in mock mode because the mock fakes every phase.
+    """
+    if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
+        return agent.override(model=get_mock_model()), f"mock:{phase}"
+    model_override = await _resolve_phase_model_override(state, runtime, phase)
+    if model_override is None:
+        return contextlib.nullcontext(), model_id(agent)
+    ctx = agent.override(
+        model=model_override,
+        model_settings=_override_model_settings(model_override),
+    )
+    return ctx, model_override
+
+
+def _handle_usage_limit_exceeded(
+    capture: _PhaseRunCapture,
+    exc: UsageLimitExceeded,
+    *,
+    phase: PhaseName,
+    state: PipelineState,
+    agent_model: str,
+) -> None:
+    """Convert a hit usage cap into a graceful phase outcome.
+
+    Better to halt the phase and let the supervisor decide than to keep
+    burning budget. The synthesized outcome flips the turn to
+    ``awaiting_user`` so the user can refine or approve continuation.
+    """
+    logger.warning(
+        "phase usage limit exceeded — capping run",
+        phase=phase,
+        conversation_id=str(state.conversation_id),
+        user_id=str(state.user_id),
+        trace_id=state.turn_trace_id,
+        model=agent_model,
+        error=str(exc),
+    )
+    capture.phase_outcome = PhaseOutcome(
+        disposition=PhaseDisposition.AWAITING_USER,
+        prose=(
+            f"The {phase} phase hit its safety budget ({exc}). "
+            "Investigation paused — refine the request or approve a "
+            "continuation to proceed."
+        ),
+        reason=f"{phase} phase exceeded usage budget",
+    )
+    capture.prose_already_streamed = False
+
+
 async def _run_phase_node(
     state: PipelineState,
     runtime: Runtime[Context],
@@ -513,23 +586,9 @@ async def _run_phase_node(
     effective_memories = memories if memories is not None else state.retrieved_memories
     deps = build_node_deps(state, runtime.context, memories=effective_memories)
 
-    # Mock chat provider (E2E mode): swap in the deterministic FunctionModel
-    # so chat does not depend on a real LLM API key. User-pref overrides are
-    # ignored in this mode because the mock fakes every phase.
-    if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
-        override_ctx = agent.override(model=get_mock_model())
-        agent_model = f"mock:{phase}"
-    else:
-        model_override = await _resolve_phase_model_override(state, runtime, phase)
-        override_ctx = (
-            agent.override(
-                model=model_override,
-                model_settings=_override_model_settings(model_override),
-            )
-            if model_override is not None
-            else contextlib.nullcontext()
-        )
-        agent_model = model_override if model_override is not None else model_id(agent)
+    override_ctx, agent_model = await _resolve_phase_model_context(
+        agent, state, runtime, phase,
+    )
 
     phase_message_id = uuid4()
     _emit_chunk(
@@ -551,8 +610,9 @@ async def _run_phase_node(
         async for event in agent.run_stream_events(
             resume_prompt,
             deps=deps,
-            message_history=state.message_history or None,
+            message_history=None,
             deferred_tool_results=deferred_results,
+            usage_limits=PHASE_USAGE_LIMITS,
         ):
             if isinstance(event, AgentRunResultEvent):
                 _absorb_run_result(
@@ -573,6 +633,10 @@ async def _run_phase_node(
         with override_ctx:
             async for v6_chunk in emitter.chunks(_agent_events()):
                 _emit_chunk(writer, v6_chunk)
+    except UsageLimitExceeded as exc:
+        _handle_usage_limit_exceeded(
+            capture, exc, phase=phase, state=state, agent_model=agent_model,
+        )
     except Exception:
         logger.exception(
             "phase stream raised",
@@ -581,7 +645,6 @@ async def _run_phase_node(
             user_id=str(state.user_id),
             trace_id=state.turn_trace_id,
             model=agent_model,
-            message_history_len=len(state.message_history or []),
         )
         raise
 
@@ -774,7 +837,6 @@ async def _render_supervisor_state(
             f"{p}={n}" for p, n in state.phase_call_counts.items()
         )
         lines.append(f"- phase_call_counts_this_turn: {parts}")
-    lines.append(f"- prior_message_count: {len(state.message_history)}")
     if state.last_phase_outcome is not None:
         outcome = state.last_phase_outcome
         lines.append(
@@ -797,20 +859,6 @@ async def _render_supervisor_state(
         notes, total_count=total_count,
     )
     return f"{body}\n\n{scratchpad_block}"
-
-
-def _supervisor_history(state: PipelineState) -> list[ModelMessage]:
-    sanitized: list[ModelMessage] = []
-    for msg in state.message_history:
-        if isinstance(msg, ModelRequest):
-            user_parts = [p for p in msg.parts if isinstance(p, UserPromptPart)]
-            if user_parts:
-                sanitized.append(ModelRequest(parts=list(user_parts)))
-        elif isinstance(msg, ModelResponse):
-            text_parts = [p for p in msg.parts if isinstance(p, TextPart)]
-            if text_parts:
-                sanitized.append(ModelResponse(parts=list(text_parts)))
-    return sanitized
 
 
 def _supervisor_goto(target: SupervisorTarget) -> SupervisorGoto:
@@ -943,7 +991,6 @@ async def _run_supervisor_agent(
 ) -> SupervisorDecision | None:
     supervisor_model_id = await _resolve_supervisor_model(state, runtime)
     agent = build_supervisor_agent(model_id=supervisor_model_id)
-    history = _supervisor_history(state)
     deps = SupervisorDeps(
         state_block=await _render_supervisor_state(state, runtime.context),
     )
@@ -963,7 +1010,7 @@ async def _run_supervisor_agent(
     try:
         with override_ctx:
             result = await agent.run(
-                user_prompt_for_run, deps=deps, message_history=history,
+                user_prompt_for_run, deps=deps, message_history=None,
             )
     except Exception:
         logger.exception(
@@ -1059,16 +1106,6 @@ async def supervisor_node(
         "supervisor_call_count": state.supervisor_call_count + 1,
         "turn_message_parts": [*state.turn_message_parts, *new_parts],
     }
-    if decision.to in {"reject", "question"}:
-        response_text = (
-            decision.rejection_message
-            if decision.to == "reject"
-            else decision.answer
-        ) or ""
-        update["message_history"] = [
-            ModelRequest(parts=[UserPromptPart(content=state.user_prompt)]),
-            ModelResponse(parts=[TextPart(content=response_text)]),
-        ]
     if decision.to not in ("end", "reject", "question"):
         update["current_phase"] = decision.to
 

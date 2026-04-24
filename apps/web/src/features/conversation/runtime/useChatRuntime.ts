@@ -39,8 +39,6 @@ interface UseChatRuntimeArgs {
   allowMissing?: boolean;
 }
 
-const chatIdsWithRewrittenUrl = new Set<string>();
-
 export function useChatRuntime({
   conversationId,
   initialMessages,
@@ -60,6 +58,7 @@ export function useChatRuntime({
   } = {
     id: conversationId,
     resume: !allowMissing,
+    generateId: () => crypto.randomUUID(),
     ...(initialMessages !== undefined && { messages: initialMessages }),
     adapters: { feedback: createFeedbackAdapter() },
     onData: (dataPart) => {
@@ -153,15 +152,6 @@ export function useChatRuntime({
         }),
       prepareSendMessagesRequest: async ({ id, messages, trigger, body }) => {
         const siteId = useSessionStore.getState().selectedSite;
-        const conversationPath = `/${siteId}/conversation/${conversationId}`;
-        if (
-          !chatIdsWithRewrittenUrl.has(conversationId)
-          && typeof window !== "undefined"
-          && !window.location.pathname.startsWith(conversationPath)
-        ) {
-          chatIdsWithRewrittenUrl.add(conversationId);
-          window.history.replaceState(null, "", conversationPath);
-        }
         return {
           body: buildChatRequestBody({
             conversationId,

@@ -120,7 +120,15 @@ def setup_logging() -> None:
     # Quiet noisy loggers
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    # Surface uvicorn request lines (and 4xx/5xx) in `docker logs`.
+    # uvicorn ships with propagate=False; flip it so events reach the root
+    # handler we just installed.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        uv_logger = logging.getLogger(name)
+        uv_logger.setLevel(logging.INFO)
+        uv_logger.propagate = True
+        # Drop uvicorn's own stderr handlers so we don't double-log.
+        uv_logger.handlers.clear()
 
 
 def get_logger(name: str) -> structlog.BoundLogger:

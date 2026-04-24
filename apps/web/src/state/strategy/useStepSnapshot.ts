@@ -65,11 +65,11 @@ function resolveValidationErrors(
   return normalized;
 }
 
-export function useStepSnapshot(stepId: string): StepSnapshot {
+export function useStepSnapshot(step: Step | null): StepSnapshot {
+  const stepId = step?.id ?? "";
   return useStrategyStore(
     useShallow((state) => {
-      const step = state.strategy?.steps.find((s) => s.id === stepId) ?? null;
-      const lifecycle = state.stepLifecycleById[stepId];
+      const lifecycle = stepId !== "" ? state.stepLifecycleById[stepId] : undefined;
       const lifecycleState = pickLifecycleValue(lifecycle);
       return {
         step,

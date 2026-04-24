@@ -27,7 +27,7 @@ from pathfinder.services.wdk import get_strategy_api
 
 from .wdk_conversion import (
     build_snapshot_from_wdk,
-    normalize_synced_parameters,
+    canonicalize_synced_parameters,
 )
 
 logger = get_logger(__name__)
@@ -80,7 +80,7 @@ async def fetch_and_convert(
     payload = build_snapshot_from_wdk(wdk_strategy)
 
     try:
-        await normalize_synced_parameters(payload, api)
+        await canonicalize_synced_parameters(payload, api)
     except AppError as exc:
         logger.warning(
             "Parameter normalization failed, storing raw values",

@@ -94,7 +94,6 @@ describe("StrategyPage", () => {
     expect(props.siteId).toBe("plasmodb");
     expect(props.showTopbar).toBe(true);
     expect(props.focusStepId).toBe(null);
-    expect(useStrategyStore.getState().strategy?.id).toBe("conv-1");
   });
 
   it("forwards focusStepId to the StrategyGraph", async () => {

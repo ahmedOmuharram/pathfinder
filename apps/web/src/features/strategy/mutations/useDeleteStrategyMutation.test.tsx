@@ -1,14 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
+import type * as ConversationsModule from "@/lib/api/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
 
 const deleteConversationMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/conversations", () => ({
-  deleteConversation: deleteConversationMock,
-}));
+vi.mock("@/lib/api/conversations", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof ConversationsModule>();
+  return { ...actual, deleteConversation: deleteConversationMock };
+});
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
 const toastSuccessMock = vi.hoisted(() => vi.fn());
@@ -30,8 +34,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { useStrategyStore } from "@/state/strategy/store";
-import { createTestWrapper } from "@/lib/query/testing";
 import { useDeleteStrategyMutation } from "./useDeleteStrategyMutation";
+import { makeQueryHarness } from "./__tests__/strategyTestUtils";
 
 function makeStrategy(): Strategy {
   return {
@@ -68,49 +72,47 @@ beforeEach(() => {
 });
 
 describe("useDeleteStrategyMutation", () => {
-  it("calls DELETE endpoint, clears store, navigates, and toasts success", async () => {
+  it("calls DELETE endpoint, removes the cache entry, navigates, and toasts success", async () => {
     const initial = makeStrategy();
-    useStrategyStore.getState().setStrategy(initial);
+    const harness = makeQueryHarness(initial);
     deleteConversationMock.mockResolvedValueOnce(undefined);
 
-    const { Wrapper } = createTestWrapper();
     const { result } = renderHook(() => useDeleteStrategyMutation(), {
-      wrapper: Wrapper,
+      wrapper: harness.wrapper,
     });
 
     await act(async () => {
       await result.current.mutateAsync({
-        conversationId: "strategy-1",
+        conversationId: initial.id,
         siteId: "plasmodb",
       });
     });
 
-    expect(deleteConversationMock).toHaveBeenCalledWith("strategy-1");
-    expect(useStrategyStore.getState().strategy).toBeNull();
+    expect(deleteConversationMock).toHaveBeenCalledWith(initial.id);
+    expect(harness.getStrategy(initial.id)).toBeNull();
     expect(routerPushMock).toHaveBeenCalledWith("/plasmodb/conversation");
     expect(toastSuccessMock).toHaveBeenCalled();
   });
 
-  it("does NOT clear store or navigate on error and toasts the error", async () => {
+  it("does NOT remove cache entry or navigate on error, toasts the error", async () => {
     const initial = makeStrategy();
-    useStrategyStore.getState().setStrategy(initial);
+    const harness = makeQueryHarness(initial);
     deleteConversationMock.mockRejectedValueOnce(new Error("Boom"));
 
-    const { Wrapper } = createTestWrapper();
     const { result } = renderHook(() => useDeleteStrategyMutation(), {
-      wrapper: Wrapper,
+      wrapper: harness.wrapper,
     });
 
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          conversationId: "strategy-1",
+          conversationId: initial.id,
           siteId: "plasmodb",
         }),
       ).rejects.toThrow("Boom");
     });
 
-    expect(useStrategyStore.getState().strategy?.id).toBe("strategy-1");
+    expect(harness.getStrategy(initial.id)?.id).toBe("strategy-1");
     expect(routerPushMock).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(toastErrorMock).toHaveBeenCalled();

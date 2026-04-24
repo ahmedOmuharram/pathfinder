@@ -1,14 +1,15 @@
 """WDK -> plan conversion: parse typed WDK strategy models into internal plan.
 
-Pure conversion functions (no I/O except ``normalize_synced_parameters`` which
-fetches param specs from WDK).
+Pure conversion functions (no I/O except ``canonicalize_synced_parameters``
+which fetches param specs from WDK).
 
 Public API:
 - ``build_snapshot_from_wdk`` -- WDKStrategyDetails -> StrategyAst (with step_counts and wdk_step_ids)
-- ``normalize_synced_parameters`` -- enrich plan nodes with normalized param values
+- ``canonicalize_synced_parameters`` -- enrich plan nodes with canonicalized
+  decoded param values (vocab-matched, leaf-enforced, native types)
 """
 
-from pathfinder.domain.parameters.normalize import ParameterNormalizer
+from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
     walk_step_tree,
@@ -191,13 +192,19 @@ async def _load_search_spec(
     return response.search_data
 
 
-async def normalize_synced_parameters(
+async def canonicalize_synced_parameters(
     payload: StrategyAst,
     api: StrategyAPI,
 ) -> None:
-    """Normalize parameters from WDK response using param specs.
+    """Canonicalize parameters from WDK response using param specs.
 
-    Mutates plan step nodes in place with normalized parameter values.
+    Validates against WDK specs, matches vocab terms, enforces leaf
+    selections — and **leaves values in decoded form** (lists, dicts,
+    native scalars). The integration layer re-encodes to wire form
+    immediately before each WDK HTTP call. This keeps ``step.parameters``
+    homogeneous (always ``DecodedParams``) at every persistence boundary.
+
+    Mutates plan step nodes in place.
     """
     spec_cache: dict[tuple[str, str], WDKSearch | None] = {}
 
@@ -222,11 +229,11 @@ async def normalize_synced_parameters(
         if not specs:
             continue
         try:
-            normalizer = ParameterNormalizer(specs)
-            normalized = normalizer.normalize(step.parameters)
+            canonicalizer = ParameterCanonicalizer(specs)
+            canonical = canonicalizer.canonicalize(step.parameters)
         except AppError as exc:
             logger.warning(
-                "Failed to normalize synced parameters",
+                "Failed to canonicalize synced parameters",
                 record_type=record_type,
                 search_name=search_name,
                 step_id=step.id,
@@ -234,4 +241,4 @@ async def normalize_synced_parameters(
             )
             continue
 
-        step.parameters = normalized
+        step.parameters = canonical

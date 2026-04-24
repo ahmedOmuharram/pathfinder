@@ -7,7 +7,6 @@ from typing import Protocol, cast
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
-from pathfinder.domain.parameters.normalize import ParameterNormalizer
 from pathfinder.domain.parameters.specs import find_missing_required_params
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery_service import (
@@ -259,12 +258,14 @@ async def validate_parameters(
     *,
     parameters: JSONObject,
     callbacks: ValidationCallbacks,
-) -> None:
+) -> JSONObject:
     """Validate parameters against WDK search specs.
 
-    Normalizes *parameters* in-place and raises ``ValidationError`` when
-    the search is unknown, extra/unknown parameters are provided, or
-    required parameters are missing.
+    Returns the **canonicalized** parameters as a new dict (decoded form:
+    multi-pick → ``list[str]``, single-pick → ``str``, ranges → dict).
+    Does NOT mutate *parameters*. Raises ``ValidationError`` when the
+    search is unknown, extra/unknown parameters are provided, or required
+    parameters are missing.
     """
     resolved_record_type = await callbacks.resolve_record_type_for_search(
         ctx.record_type, ctx.search_name, require_match=True, allow_fallback=True
@@ -293,12 +294,10 @@ async def validate_parameters(
     )
 
     param_spec_map = adapt_param_specs_from_search(response.search_data)
-    normalizer = ParameterNormalizer(param_spec_map)
-    normalized = normalizer.normalize(parameters)
-    parameters.clear()
-    parameters.update(normalized)
+    canonicalizer = ParameterCanonicalizer(param_spec_map)
+    canonical: JSONObject = canonicalizer.canonicalize(parameters)
     param_names = _extract_param_names_from_response(response)
-    extra_params = [key for key in parameters if key not in param_names]
+    extra_params = [key for key in canonical if key not in param_names]
     if extra_params:
         full_param_spec = format_param_info_typed(response.search_data.parameters or [])
         serialized_spec: JsonValue = [
@@ -318,7 +317,7 @@ async def validate_parameters(
                 }
             ],
         )
-    missing = find_missing_required_params(param_spec_map, parameters)
+    missing = find_missing_required_params(param_spec_map, canonical)
 
     if missing:
         full_param_spec = format_param_info_typed(response.search_data.parameters or [])
@@ -339,3 +338,4 @@ async def validate_parameters(
                 }
             ],
         )
+    return canonical

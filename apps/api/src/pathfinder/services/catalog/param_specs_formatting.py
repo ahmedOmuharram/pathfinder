@@ -47,6 +47,25 @@ def build_param_specs_from_list(
                 group=param.group or None,
                 dependent_params=list(param.dependent_params),
                 help=param.help,
+                ontology=list(param.ontology) if param.type == "filter" else None,
+                filter_data_type_display_name=(
+                    param.filter_data_type_display_name
+                    if param.type == "filter"
+                    else None
+                ),
+                parsers=(
+                    list(param.parsers) if param.type == "input-dataset" else None
+                ),
+                default_id_list=(
+                    param.default_id_list
+                    if param.type == "input-dataset"
+                    else None
+                ),
+                record_class_name=(
+                    param.record_class_name
+                    if param.type == "input-dataset"
+                    else None
+                ),
             ),
         )
     results.sort(key=lambda s: s.name)

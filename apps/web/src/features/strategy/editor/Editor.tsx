@@ -13,15 +13,17 @@ import { QueryBoundary } from "@/lib/components/QueryBoundary";
 import {
   useDeleteStepMutation,
   useDuplicateStepMutation,
-  useUpdateStepMutation,
 } from "@/features/strategy/mutations";
 import { useStrategyStore } from "@/state/strategy/store";
+import { useStrategyData } from "@/state/strategy/useStrategyQuery";
+import { useStrategyDraft, type StrategyDraft } from "@/state/strategy/useStrategyDraft";
 import { useStepSnapshot } from "@/state/strategy/useStepSnapshot";
 import { EditorHeader } from "./EditorHeader";
 import { EditorBody } from "./EditorBody";
 import { EditorFooter, type SyncState } from "./EditorFooter";
 import { useStepEditorState } from "./useStepEditorState";
 import { useEditorAutoSave } from "./hooks/useEditorAutoSave";
+import { DEFAULT_COLOCATION } from "./components/ColocationEditor";
 
 interface EditorProps {
   step: Step | null;
@@ -42,8 +44,13 @@ export function Editor({
   recordType,
   conversationId,
 }: EditorProps) {
+  const draft = useStrategyDraft(conversationId);
+  const handleOpenChange = (next: boolean) => {
+    if (!next) draft.flush();
+    onOpenChange(next);
+  };
   return (
-    <Sheet open={isOpen} onOpenChange={onOpenChange}>
+    <Sheet open={isOpen} onOpenChange={handleOpenChange}>
       <SheetContent
         side="right"
         data-testid="step-editor-sheet"
@@ -63,7 +70,8 @@ export function Editor({
               siteId={siteId}
               recordType={recordType}
               conversationId={conversationId}
-              onClose={() => onOpenChange(false)}
+              draft={draft}
+              onClose={() => handleOpenChange(false)}
             />
           </QueryBoundary>
         )}
@@ -77,6 +85,7 @@ interface EditorContentProps {
   siteId: string;
   recordType: string | null;
   conversationId: string;
+  draft: StrategyDraft;
   onClose: () => void;
 }
 
@@ -85,24 +94,24 @@ function EditorContent({
   siteId,
   recordType,
   conversationId,
+  draft,
   onClose,
 }: EditorContentProps) {
   const state = useStepEditorState({ step, siteId, recordType });
-  const updateStep = useUpdateStepMutation();
-  const deleteStep = useDeleteStepMutation();
-  const duplicateStep = useDuplicateStepMutation();
-  const stepNumber = useStepNumber(step.id);
-  const wdkUrl = useStrategyStore((s) => s.strategy?.wdkUrl ?? null);
-  const isPaused = useGraphValidationPaused();
-  const snapshot = useStepSnapshot(step.id);
+  const deleteStep = useDeleteStepMutation(conversationId);
+  const duplicateStep = useDuplicateStepMutation(conversationId);
+  const stepNumber = useStepNumber(conversationId, step.id);
+  const wdkUrl = useStrategyData(conversationId)?.wdkUrl ?? null;
+  const isPaused = useGraphValidationPaused(conversationId);
+  const snapshot = useStepSnapshot(step);
 
   const autosave = useEditorAutoSave({
     debounceMs: 500,
     mutation: {
       mutate: (vars) => {
-        updateStep.mutate(vars);
+        draft.applyStepPatch(vars.stepId, vars.patch);
       },
-      isPending: updateStep.isPending,
+      isPending: false,
     },
     getPayload: () => {
       const values = state.form.state.values;
@@ -132,7 +141,7 @@ function EditorContent({
   });
 
   const handleRename = (next: string): void => {
-    updateStep.mutate({ stepId: step.id, patch: { displayName: next } });
+    draft.applyStepPatch(step.id, { displayName: next });
   };
 
   const handleDelete = (): void => {
@@ -161,20 +170,26 @@ function EditorContent({
     if (nextRecordType !== null) {
       patch.recordType = nextRecordType;
     }
-    updateStep.mutate({ stepId: step.id, patch });
+    draft.applyStepPatch(step.id, patch);
   };
 
   const handleOperatorChange = (operator: string): void => {
     if (operator === step.operator) return;
     state.setOperatorValue(operator);
-    updateStep.mutate({ stepId: step.id, patch: { operator } });
+    const patch: Partial<Step> = { operator };
+    if (operator === "COLOCATE") {
+      patch.colocationParams = step.colocationParams ?? DEFAULT_COLOCATION;
+    } else {
+      patch.colocationParams = null;
+    }
+    draft.applyStepPatch(step.id, patch);
   };
 
   const handleColocationChange = (
     next: NonNullable<Step["colocationParams"]>,
   ): void => {
     state.setColocationParams(next);
-    updateStep.mutate({ stepId: step.id, patch: { colocationParams: next } });
+    draft.applyStepPatch(step.id, { colocationParams: next });
   };
 
   const handleFieldChanged = (
@@ -192,19 +207,14 @@ function EditorContent({
 
   const syncState = computeSyncState({
     isPaused,
-    updatePending: updateStep.isPending,
-    updateError: updateStep.isError,
+    updatePending: draft.isFlushing,
+    updateError: false,
   });
 
   const footerProps = {
     syncState,
     count: snapshot.estimatedSize,
     wdkUrl,
-    ...(updateStep.isError && {
-      onRetry: () => {
-        autosave.submitNow();
-      },
-    }),
   };
 
   return (
@@ -245,15 +255,13 @@ function computeSyncState(args: {
   return "idle";
 }
 
-function useGraphValidationPaused(): boolean {
-  const strategyId = useStrategyStore((s) => s.strategy?.id ?? null);
+function useGraphValidationPaused(conversationId: string): boolean {
   const status = useStrategyStore((s) => s.graphValidationStatus);
-  if (strategyId === null) return false;
-  return status[strategyId] === true;
+  return status[conversationId] === true;
 }
 
-function useStepNumber(stepId: string): number | null {
-  const steps = useStrategyStore((s) => s.strategy?.steps ?? []);
+function useStepNumber(conversationId: string, stepId: string): number | null {
+  const steps = useStrategyData(conversationId)?.steps ?? [];
   const idx = steps.findIndex((s) => s.id === stepId);
   return idx >= 0 ? idx + 1 : null;
 }

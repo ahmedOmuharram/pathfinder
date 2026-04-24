@@ -24,16 +24,27 @@ class MessagesRepository:
         parts: list[dict[str, Any]],
         metadata: dict[str, Any],
     ) -> None:
-        """Add a new message row. Caller is responsible for ``commit``."""
-        self.session.add(
-            Message(
+        """Add a new message row idempotently — same ``message_id`` is a no-op.
+
+        ``useChat`` keeps message ids stable across submits for resumability,
+        so a user double-clicking Send (or any client retry) re-POSTs the
+        same id. ``ON CONFLICT DO NOTHING`` makes that the same logical turn
+        instead of a 500 Internal Server Error. The graph's own per-phase
+        upserts use ``upsert_message`` and are unaffected. Caller is still
+        responsible for ``commit``.
+        """
+        stmt = (
+            pg_insert(Message)
+            .values(
                 id=message_id,
                 conversation_id=conversation_id,
                 role=role,
                 parts=parts,
                 metadata_=metadata,
             )
+            .on_conflict_do_nothing(index_elements=[Message.id])
         )
+        await self.session.execute(stmt)
 
     async def upsert_message(
         self,

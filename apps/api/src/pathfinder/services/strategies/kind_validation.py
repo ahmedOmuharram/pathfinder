@@ -34,10 +34,12 @@ async def _validate_leaf_or_transform(
     parameters: JSONObject,
     is_transform: bool,
     callbacks: ValidationCallbacks,
-) -> ToolErrorPayload | None:
+) -> tuple[JSONObject, ToolErrorPayload | None]:
     """Validate a leaf or transform step.
 
-    Returns error payload or None on success.
+    Returns (canonical_parameters, error_or_none). ``canonical_parameters``
+    is the validator's vocab-matched, decoded-form output — pass it to
+    ``StrategyStepNode(parameters=...)``.
 
     Shared validation (search resolution + parameter validation) runs first,
     then kind-specific checks:
@@ -48,7 +50,7 @@ async def _validate_leaf_or_transform(
     the resolved type is read from ``graph.record_type``.
     """
     resolved_record_type = graph.record_type or "transcript"
-    rt, error = await resolve_search_and_validate_params(
+    rt, canonical, error = await resolve_search_and_validate_params(
         graph=graph,
         site_id=site_id,
         resolved_record_type=resolved_record_type,
@@ -57,14 +59,14 @@ async def _validate_leaf_or_transform(
         callbacks=callbacks,
     )
     if error is not None:
-        return error
+        return canonical, error
 
     if is_transform:
-        return await _validate_transform_input_param(rt, site_id, search_name)
+        return canonical, await _validate_transform_input_param(rt, site_id, search_name)
 
     # Leaf-specific: fold-change searches with identical ref and comp samples
     # produce meaningless results.
-    return _validate_fold_change_samples(search_name, parameters)
+    return canonical, _validate_fold_change_samples(search_name, canonical)
 
 def _validate_fold_change_samples(
     search_name: str,
@@ -199,8 +201,8 @@ async def _validate_step_by_kind(
     inputs: StepInputs,
     parsed_op: CombineOp | None,
     callbacks: ValidationCallbacks,
-) -> ToolErrorPayload | None:
-    """Validate a step based on its kind (leaf/transform vs binary)."""
+) -> tuple[JSONObject, ToolErrorPayload | None]:
+    """Validate a step based on its kind. Returns (canonical_params, error)."""
     is_binary = inputs.primary is not None and inputs.secondary is not None
     if not is_binary:
         return await _validate_leaf_or_transform(
@@ -211,11 +213,12 @@ async def _validate_step_by_kind(
             is_transform=inputs.primary is not None,
             callbacks=callbacks,
         )
-    return (
+    binary_error = (
         _validate_cross_organism_intersect(graph, inputs.primary, inputs.secondary)
         if parsed_op == CombineOp.INTERSECT and inputs.primary and inputs.secondary
         else None
     )
+    return inputs.params or {}, binary_error
 
 async def resolve_search_name_and_validate(
     *,
@@ -225,10 +228,13 @@ async def resolve_search_name_and_validate(
     inputs: StepInputs,
     callbacks: ValidationCallbacks,
     combine_placeholder: str,
-) -> tuple[str, CombineOp | None, ToolErrorPayload | None]:
+) -> tuple[str, CombineOp | None, JSONObject, ToolErrorPayload | None]:
     """Resolve search_name, parse operator, and run step validation.
 
-    :returns: (search_name, parsed_op, error_or_none).
+    :returns: (search_name, parsed_op, canonical_parameters, error_or_none).
+        ``canonical_parameters`` is the validator's vocab-matched output;
+        bind it to the new ``StrategyStepNode`` so the AST holds canonical
+        decoded values.
     """
     is_binary = inputs.primary is not None and inputs.secondary is not None
     search_name, name_error = _resolve_search_name(
@@ -238,14 +244,14 @@ async def resolve_search_name_and_validate(
         combine_placeholder=combine_placeholder,
     )
     if name_error is not None:
-        return search_name, None, name_error
+        return search_name, None, inputs.params or {}, name_error
 
     parsed_op = (
         parse_op(inputs.operator)
         if inputs.secondary is not None and inputs.operator
         else None
     )
-    step_error = await _validate_step_by_kind(
+    canonical, step_error = await _validate_step_by_kind(
         graph=graph,
         site_id=site_id,
         search_name=search_name,
@@ -253,4 +259,4 @@ async def resolve_search_name_and_validate(
         parsed_op=parsed_op,
         callbacks=callbacks,
     )
-    return search_name, parsed_op, step_error
+    return search_name, parsed_op, canonical, step_error

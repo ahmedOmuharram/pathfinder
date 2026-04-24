@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import operator
 from decimal import Decimal
 from enum import StrEnum
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
-from pydantic_ai.messages import ModelMessage
 
 from pathfinder.ai.agents.state import SearchOverview
-from pathfinder.ai.memory.schemas import MemoryValue
+from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
 from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -99,6 +97,50 @@ class PhaseOutcome(CamelModel):
     )
 
 
+class VerificationDigest(PhaseOutcome):
+    """Verification's structured close-out — extends ``PhaseOutcome``.
+
+    Subclassing keeps the supervisor / orchestrator routing contract
+    (disposition + prose + reason + handoff_to + note_refs) intact while
+    layering on the verification-specific fields the autowrite path uses
+    to make memory writes deterministic.
+    """
+
+    success: bool = Field(
+        description=(
+            "True if the strategy answered the user's question — sample "
+            "records and result sizes look right, control tests passed. "
+            "False if verification surfaced a real problem the next phase "
+            "(or the user) needs to address."
+        ),
+    )
+    key_findings: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description=(
+            "Bullet-style facts the user should walk away with — counts, "
+            "enrichments, surprising hits. One sentence each."
+        ),
+    )
+    caveats: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description=(
+            "Open issues, suspicious patterns, or limitations the user "
+            "should know about even when ``success`` is True."
+        ),
+    )
+    remember: list[MemoryEntryDraft] = Field(
+        default_factory=list,
+        max_length=5,
+        description=(
+            "Knowledge memories to autowrite — durable facts the user (or "
+            "future agent runs) should recall next time. Use sparingly: "
+            "only stable, reusable knowledge, not turn-specific results."
+        ),
+    )
+
+
 class ClarificationQuestion(CamelModel):
     question: str
     context: str = ""
@@ -176,13 +218,10 @@ class PipelineState(BaseModel):
     turn_total_tokens: int = 0
     turn_total_cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
 
-    message_history: Annotated[list[ModelMessage], operator.add] = Field(
-        default_factory=list,
-    )
-
     problem_frame: ProblemFrame | None = None
     discovered_searches: dict[str, SearchOverview] = Field(default_factory=dict)
     active_plan: StrategyPlan | None = None
+    verification_digest: VerificationDigest | None = None
     pending_approval: PendingApproval | None = None
     created_gene_set_ids: list[str] = Field(default_factory=list)
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)

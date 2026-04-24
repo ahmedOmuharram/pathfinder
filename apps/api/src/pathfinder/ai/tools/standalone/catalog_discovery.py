@@ -9,7 +9,7 @@ Three focused tools replacing the old get_search_parameters / get_dependent_voca
 
 from pydantic_ai import RunContext
 
-from pathfinder.ai.agents.state import SearchOverview
+from pathfinder.ai.agents.state import SearchOverview, SearchSelectionStatus
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._catalog_models import (
     DependencyDag,
@@ -17,7 +17,7 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _filter_vocab,
     _resolve_record_type,
 )
-from pathfinder.domain.strategy.types import DecodedParams
+from pathfinder.domain.strategy.types import DecodedParamsField
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
@@ -103,7 +103,7 @@ async def get_parameter_options(
     search_name: str,
     param_name: str,
     record_type: str | None = None,
-    context_values: DecodedParams | None = None,
+    context_values: DecodedParamsField | None = None,
     query: str | None = None,
 ) -> ParameterInfo | ToolErrorPayload:
     """Get detailed parameter info including vocabulary/allowed values.
@@ -158,6 +158,67 @@ async def get_parameter_options(
             return format_typed_param(filtered, depends_on=depends_on, controls=controls)
 
     return tool_error("PARAM_NOT_FOUND", f"Parameter '{param_name}' not found in search '{search_name}'.")
+
+
+async def update_search_decision(
+    ctx: RunContext[AgentDeps],
+    search_name: str,
+    selection_status: SearchSelectionStatus,
+    rationale: str,
+    selection_reason: str = "",
+    confidence: float = 0.0,
+    param_hints: dict[str, str] | None = None,
+) -> ToolErrorPayload | str:
+    """Commit discovery's decision about an already-inspected search.
+
+    Call this AFTER ``get_search_overview`` (and any parameter inspection)
+    to record what you concluded — biological rationale, whether you're
+    keeping it, why, and any parameter values you already settled on.
+    Downstream phases (planning, execution, verification) read this
+    instead of replaying your tool history.
+
+    Args:
+        search_name: WDK search urlSegment that was previously inspected.
+        selection_status: ``selected`` (committing this search to the plan),
+            ``candidate`` (still considering), or ``rejected`` (ruling out
+            but worth recording so planning doesn't re-discover it).
+        rationale: Why this search is biologically relevant to the user's
+            question. Reuse on every call — this is the "elevator pitch"
+            for the search, not the decision justification.
+        selection_reason: Short justification for the current
+            ``selection_status`` decision (e.g. "primary anchor for kinase
+            filter" or "user wants RNA-seq, not microarray").
+        confidence: 0..1 confidence that this search fits.
+        param_hints: Parameter values you settled on during inspection
+            (raw WDK form). Planning will use these as starting defaults.
+    """
+    if not 0.0 <= confidence <= 1.0:
+        return tool_error(
+            "INVALID_CONFIDENCE",
+            f"confidence must be in [0, 1]; got {confidence}.",
+        )
+    deps = ctx.deps
+    existing = deps.agent_state.get_overview(search_name)
+    if existing is None:
+        return tool_error(
+            "SEARCH_NOT_DISCOVERED",
+            f"Search '{search_name}' has not been inspected yet. "
+            "Call `get_search_overview` first.",
+        )
+    updated = existing.model_copy(
+        update={
+            "selection_status": selection_status,
+            "rationale": rationale,
+            "selection_reason": selection_reason,
+            "confidence": confidence,
+            "param_hints": dict(param_hints) if param_hints else {},
+        },
+    )
+    deps.agent_state.register_search(search_name, updated)
+    return (
+        f"Recorded {selection_status} decision for {search_name} "
+        f"(confidence {confidence:.2f})."
+    )
 
 
 async def get_parameter_dependencies(

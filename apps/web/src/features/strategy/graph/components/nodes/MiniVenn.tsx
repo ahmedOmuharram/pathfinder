@@ -22,16 +22,16 @@ function regionFlagsForOperator(operator: string): RegionFlags {
   if (operator === CombineOperator.INTERSECT) {
     return { leftOnly: false, rightOnly: false, lens: true };
   }
-  if (
-    operator === CombineOperator.MINUS ||
-    operator === CombineOperator.LONLY
-  ) {
+  if (operator === CombineOperator.LONLY) {
+    return { leftOnly: true, rightOnly: false, lens: true };
+  }
+  if (operator === CombineOperator.RONLY) {
+    return { leftOnly: false, rightOnly: true, lens: true };
+  }
+  if (operator === CombineOperator.MINUS) {
     return { leftOnly: true, rightOnly: false, lens: false };
   }
-  if (
-    operator === CombineOperator.RMINUS ||
-    operator === CombineOperator.RONLY
-  ) {
+  if (operator === CombineOperator.RMINUS) {
     return { leftOnly: false, rightOnly: true, lens: false };
   }
   return { leftOnly: false, rightOnly: false, lens: false };
@@ -45,7 +45,9 @@ const STROKE_COLOR = "hsl(var(--muted-foreground))";
 const LEFT_CENTER = { cx: 28, cy: 28 };
 const RIGHT_CENTER = { cx: 56, cy: 28 };
 const RADIUS = 20;
-const LENS_PATH = "M42 9.4641 A20 20 0 0 1 42 46.5359 A20 20 0 0 1 42 9.4641 Z";
+// Intersection points: x = 42 (midline), y = 28 ± √(400 − 196) ≈ 28 ± 14.283.
+const LENS_PATH =
+  "M42 13.71715 A20 20 0 0 1 42 42.28285 A20 20 0 0 1 42 13.71715 Z";
 const LEFT_FULL = `M${LEFT_CENTER.cx},${LEFT_CENTER.cy} m-${RADIUS},0 a${RADIUS},${RADIUS} 0 1,0 ${RADIUS * 2},0 a${RADIUS},${RADIUS} 0 1,0 -${RADIUS * 2},0 Z`;
 const RIGHT_FULL = `M${RIGHT_CENTER.cx},${RIGHT_CENTER.cy} m-${RADIUS},0 a${RADIUS},${RADIUS} 0 1,0 ${RADIUS * 2},0 a${RADIUS},${RADIUS} 0 1,0 -${RADIUS * 2},0 Z`;
 
@@ -135,33 +137,33 @@ export function MiniVenn({
       className={className}
     >
       <defs>
-        <clipPath id="venn-left-clip">
-          <path d={LEFT_FULL} />
-        </clipPath>
-        <clipPath id="venn-right-clip">
-          <path d={RIGHT_FULL} />
-        </clipPath>
+        <mask id="venn-left-only-mask" maskUnits="userSpaceOnUse">
+          <path d={LEFT_FULL} fill="white" />
+          <path d={RIGHT_FULL} fill="black" />
+        </mask>
+        <mask id="venn-right-only-mask" maskUnits="userSpaceOnUse">
+          <path d={RIGHT_FULL} fill="white" />
+          <path d={LEFT_FULL} fill="black" />
+        </mask>
       </defs>
-      <g clipPath="url(#venn-left-clip)">
-        <path
-          data-region="left-only"
-          data-active={regions.leftOnly ? "true" : "false"}
-          d={LEFT_FULL}
-          fill={HIGHLIGHT_FILL}
-          fillOpacity={leftOnlyOpacity}
-          style={{ transition: REGION_TRANSITION }}
-        />
-      </g>
-      <g clipPath="url(#venn-right-clip)">
-        <path
-          data-region="right-only"
-          data-active={regions.rightOnly ? "true" : "false"}
-          d={RIGHT_FULL}
-          fill={HIGHLIGHT_FILL}
-          fillOpacity={rightOnlyOpacity}
-          style={{ transition: REGION_TRANSITION }}
-        />
-      </g>
+      <path
+        data-region="left-only"
+        data-active={regions.leftOnly ? "true" : "false"}
+        d={LEFT_FULL}
+        fill={HIGHLIGHT_FILL}
+        fillOpacity={leftOnlyOpacity}
+        mask="url(#venn-left-only-mask)"
+        style={{ transition: REGION_TRANSITION }}
+      />
+      <path
+        data-region="right-only"
+        data-active={regions.rightOnly ? "true" : "false"}
+        d={RIGHT_FULL}
+        fill={HIGHLIGHT_FILL}
+        fillOpacity={rightOnlyOpacity}
+        mask="url(#venn-right-only-mask)"
+        style={{ transition: REGION_TRANSITION }}
+      />
       <path
         data-region="lens"
         data-active={regions.lens ? "true" : "false"}

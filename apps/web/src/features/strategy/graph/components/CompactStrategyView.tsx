@@ -103,7 +103,7 @@ function StepRow({ step, onStepClick, indented = false }: StepRowProps) {
 
 function StepRowButton({ step, onStepClick, indented = false }: StepRowProps) {
   const dot = KIND_DOT[step.kind] ?? "bg-muted";
-  const snapshot = useStepSnapshot(step.id);
+  const snapshot = useStepSnapshot(step);
   const liveCount = snapshot.estimatedSize;
 
   return (

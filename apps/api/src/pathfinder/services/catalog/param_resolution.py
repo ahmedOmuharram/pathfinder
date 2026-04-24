@@ -1,6 +1,6 @@
 """WDK parameter fetching, caching, and expansion."""
 
-from pathfinder.domain.parameters.normalize import ParameterNormalizer
+from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import find_input_step_param
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.client import (
@@ -10,7 +10,6 @@ from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
 from pathfinder.integrations.veupathdb.factory import get_wdk_client
-from pathfinder.integrations.veupathdb.param_utils import normalize_param_value
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearchResponse,
     encode_wdk_params,
@@ -120,9 +119,9 @@ async def expand_search_details_with_params(
     specs = adapt_param_specs_from_search(response.search_data) if response else {}
 
     if specs:
-        normalizer = ParameterNormalizer(specs)
+        canonicalizer = ParameterCanonicalizer(specs)
         try:
-            normalized_context = normalizer.normalize(filtered_context)
+            normalized_context = canonicalizer.canonicalize(filtered_context)
         except CoreValidationError:
             resolved_record_type = await find_record_type_for_search(ctx)
             fallback_response = await client.get_search_details_with_params(
@@ -132,15 +131,13 @@ async def expand_search_details_with_params(
                 expand_params=True,
             )
             specs = adapt_param_specs_from_search(fallback_response.search_data)
-            normalizer = ParameterNormalizer(specs)
-            normalized_context = normalizer.normalize(filtered_context)
+            canonicalizer = ParameterCanonicalizer(specs)
+            normalized_context = canonicalizer.canonicalize(filtered_context)
         input_step_param = find_input_step_param(specs)
         if input_step_param:
             normalized_context[input_step_param] = ""
     else:
-        normalized_context = {
-            key: normalize_param_value(value) for key, value in filtered_context.items()
-        }
+        normalized_context = filtered_context
     resolved_record_type = await find_record_type_for_search(ctx)
     return await _get_search_details_with_portal_fallback(
         site_id=ctx.site_id,

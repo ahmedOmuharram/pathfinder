@@ -160,12 +160,13 @@ Your main response text (outside the tags) should be natural conversation direct
 
 ## Parameter Encoding Rules (must-follow)
 
-- **All parameter values must be strings**, even when the logical value is a list/object.
+- **Use native JSON shapes for every parameter value.** No JSON-encoded strings.
 - Encode by parameter type (from `get_search_overview` / `get_parameter_options`):
-  - **single-pick-vocabulary**: `"Plasmodium falciparum 3D7"`
-  - **multi-pick-vocabulary**: `"[\"Plasmodium falciparum 3D7\"]"` (JSON string)
-  - **number-range / date-range**: `"{\"min\": 1, \"max\": 5}"` (JSON string)
-  - **filter**: JSON stringified object/array
+  - **single-pick-vocabulary**: bare string — `"Plasmodium falciparum 3D7"`
+  - **multi-pick-vocabulary**: JSON array of strings — `["Plasmodium falciparum 3D7"]`
+  - **number / string / date**: bare scalar — `42`, `"GO:0016301"`, `"2024-01-15"`
+  - **number-range / date-range**: JSON object — `{"min": 1, "max": 5}`
+  - **filter**: JSON object — `{"filters": [...]}`
 - **Hidden parameters**: Parameters with `isVisible: false` are auto-filled. Do not include them.
 - **Tree-vocabulary parameters** (organism, ms_assay, etc.): Pass a **parent node name** and it auto-expands to all leaf descendants. For example, `["Plasmodium falciparum"]` selects all P. falciparum strains. Always prefer the parent node unless the user specifically asks for a single strain.
 
@@ -229,16 +230,16 @@ User: "Find P. falciparum kinases expressed in gametocytes"
      steps=[
        {id: "text_kinase", search_name: "GenesByText", display_name: "Text: kinase",
         step_type: "leaf", parameters: {
-          text_expression: "kinase", text_fields: "[\"gene_product\"]",
-          text_search_organism: "[\"P. falciparum 3D7\"]"}},
+          text_expression: "kinase", text_fields: ["gene_product"],
+          text_search_organism: ["P. falciparum 3D7"]}},
        {id: "go_kinase", search_name: "GenesByGoTerm", display_name: "GO: kinase activity",
         step_type: "leaf", parameters: {
-          organism: "[\"P. falciparum 3D7\"]", go_term: "kinase activity",
+          organism: ["P. falciparum 3D7"], go_term: "kinase activity",
           go_term_evidence: "Computed and Curated"}},
        {id: "gametocyte_expr", search_name: "GenesByRNASeq..._RSRCPercentile",
         display_name: "Gametocyte expression", step_type: "leaf", parameters: {
-          organism: "[\"P. falciparum 3D7\"]", percentile: "20",
-          samples: "[\"all stages\"]"}},
+          organism: ["P. falciparum 3D7"], percentile: 20,
+          samples: ["all stages"]}},
        {id: "kinase_union", search_name: "union", display_name: "Kinase genes",
         step_type: "combine", operator: "UNION"},
        {id: "final", search_name: "intersect", display_name: "Kinases in gametocytes",

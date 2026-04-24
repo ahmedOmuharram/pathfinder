@@ -1,6 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
+
+import type * as ConversationsModule from "@/lib/api/conversations";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Strategy } from "@pathfinder/shared";
@@ -11,9 +13,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 const pushConversationMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/conversations", () => ({
-  pushConversation: pushConversationMock,
-}));
+vi.mock("@/lib/api/conversations", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof ConversationsModule>();
+  return { ...actual, pushConversation: pushConversationMock };
+});
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() },
@@ -21,6 +25,7 @@ vi.mock("sonner", () => ({
 
 import { useStrategyStore } from "@/state/strategy/store";
 import { usePushStrategyMutation } from "@/features/strategy/mutations/usePushStrategyMutation";
+import { makeQueryHarness } from "@/features/strategy/mutations/__tests__/strategyTestUtils";
 import { useFlushBeforeNav } from "./useFlushBeforeNav";
 
 function makeStrategy(): Strategy {
@@ -58,7 +63,10 @@ beforeEach(() => {
 
 describe("useFlushBeforeNav", () => {
   it("navigates immediately when no mutation is pending", async () => {
-    const { result } = renderHook(() => useFlushBeforeNav());
+    const harness = makeQueryHarness();
+    const { result } = renderHook(() => useFlushBeforeNav(), {
+      wrapper: harness.wrapper,
+    });
     await act(async () => {
       await result.current.navigate("/plasmodb/conversation/abc");
     });
@@ -67,7 +75,7 @@ describe("useFlushBeforeNav", () => {
 
   it("waits for an in-flight push to settle before navigating", async () => {
     const initial = makeStrategy();
-    useStrategyStore.getState().setStrategy(initial);
+    const harness = makeQueryHarness(initial);
 
     let resolveFn!: (s: Strategy) => void;
     pushConversationMock.mockReturnValueOnce(
@@ -76,11 +84,14 @@ describe("useFlushBeforeNav", () => {
       }),
     );
 
-    const { result } = renderHook(() => {
-      const flush = useFlushBeforeNav();
-      const push = usePushStrategyMutation();
-      return { flush, push };
-    });
+    const { result } = renderHook(
+      () => {
+        const flush = useFlushBeforeNav();
+        const push = usePushStrategyMutation();
+        return { flush, push };
+      },
+      { wrapper: harness.wrapper },
+    );
 
     act(() => {
       void result.current.push.mutateAsync({ optimistic: initial });

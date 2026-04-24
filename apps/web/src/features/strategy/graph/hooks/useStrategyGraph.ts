@@ -2,8 +2,10 @@
 
 import { CombineOperator } from "@pathfinder/shared";
 import type { Strategy } from "@pathfinder/shared";
+import { useIsMutating } from "@tanstack/react-query";
 import { useStrategyStore } from "@/state/strategy/store";
 import { computeStepCounts } from "@/lib/api/conversations";
+import { PUSH_STRATEGY_MUTATION_KEY } from "@/features/strategy/mutations/usePushStrategyMutation";
 import { useStepCounts } from "@/features/strategy/services/useStepCounts";
 import { useGraphConnections } from "@/features/strategy/graph/hooks/useGraphConnections";
 import { useGraphSelection } from "@/features/strategy/graph/hooks/useGraphSelection";
@@ -28,13 +30,13 @@ interface UseStrategyGraphOptions {
 export function useStrategyGraph(options: UseStrategyGraphOptions) {
   const { strategy, siteId, variant = "full" } = options;
   const isCompact = variant === "compact";
+  const conversationId = strategy?.id ?? "";
 
-  const draftStrategy = useStrategyStore((state) => state.strategy);
   const applyStepCounts = useStrategyStore((state) => state.applyStepCounts);
 
-  const updateMetaMutation = useUpdateStrategyMetaMutation();
-  const addStepMutation = useAddStepMutation();
-  const updateStepMutation = useUpdateStepMutation();
+  const updateMetaMutation = useUpdateStrategyMetaMutation(conversationId);
+  const addStepMutation = useAddStepMutation(conversationId);
+  const updateStepMutation = useUpdateStepMutation(conversationId);
 
   const graphNodes = useStrategyGraphNodes({ strategy, siteId, variant });
 
@@ -53,6 +55,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     startCombine,
   } = useGraphConnections({
     steps: graphNodes.editableSteps,
+    conversationId,
   });
 
   const handlers = useStrategyGraphHandlers({
@@ -83,15 +86,14 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
       ? null
       : (graphNodes.planResult?.plan ?? null),
     planHash: graphNodes.graphHasValidationIssues ? null : graphNodes.planHash,
-    stepIds: (draftStrategy?.steps ?? strategy?.steps ?? []).map((step) => step.id),
+    stepIds: (strategy?.steps ?? []).map((step) => step.id),
     applyStepCounts,
     fetchCounts: computeStepCounts,
   });
 
+  const inFlightPushes = useIsMutating({ mutationKey: PUSH_STRATEGY_MUTATION_KEY });
   const syncStatus: "idle" | "syncing" | "error" =
-    addStepMutation.isPending ||
-    updateStepMutation.isPending ||
-    updateMetaMutation.isPending
+    inFlightPushes > 0
       ? "syncing"
       : addStepMutation.isError ||
           updateStepMutation.isError ||
@@ -132,8 +134,6 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
 
     editableSteps: graphNodes.editableSteps,
     combineMismatchGroups: graphNodes.combineMismatchGroups,
-    draftStrategy,
-    /** Single-step patch — wraps useUpdateStepMutation.mutate. */
     updateStep: (stepId: string, patch: Parameters<typeof updateStepMutation.mutate>[0]["patch"]) =>
       updateStepMutation.mutate({ stepId, patch }),
   } as const;
