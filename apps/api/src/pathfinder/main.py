@@ -5,14 +5,12 @@ from contextlib import asynccontextmanager
 from typing import cast
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
-from starlette.requests import Request as StarletteRequest
-from starlette.responses import Response
 
 from pathfinder import __version__
 from pathfinder.ai.capabilities.piguard import warm_up_piguard
@@ -213,8 +211,8 @@ def create_app() -> FastAPI:
     # Request ID middleware
     @app.middleware("http")
     async def add_request_id(
-        request: StarletteRequest,
-        call_next: Callable[[StarletteRequest], Awaitable[Response]],
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         request_id = request.headers.get("X-Request-ID", str(uuid4()))
         request_id_ctx.set(request_id)
@@ -234,37 +232,16 @@ def create_app() -> FastAPI:
         response.headers["X-Request-ID"] = request_id
         return response
 
-    # Exception handlers
-    app.add_exception_handler(
-        AppError,
-        cast(
-            "Callable[[StarletteRequest, Exception], Awaitable[Response]]",
-            app_error_handler,
-        ),
-    )
-    app.add_exception_handler(
-        HTTPException,
-        cast(
-            "Callable[[StarletteRequest, Exception], Awaitable[Response]]",
-            http_exception_handler,
-        ),
-    )
-    app.add_exception_handler(
-        RateLimitExceeded,
-        cast(
-            "Callable[[StarletteRequest, Exception], Awaitable[Response]]",
-            lambda request, exc: Response(
-                content=str(exc.detail),
-                status_code=429,
-                headers={"Retry-After": "60"},
-            ),
-        ),
-    )
+    async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
+        del request
+        return Response(
+            content=str(exc.detail),
+            status_code=429,
+            headers={"Retry-After": "60"},
+        )
 
-    # Log + return body-validation 422s with the offending body so they
-    # surface in `docker logs` instead of disappearing into the void.
     async def request_validation_handler(
-        request: StarletteRequest,
+        request: Request,
         exc: RequestValidationError,
     ) -> JSONResponse:
         body_preview: str
@@ -287,13 +264,16 @@ def create_app() -> FastAPI:
             content={"detail": jsonable_encoder(exc.errors()), "body": exc.body},
         )
 
-    app.add_exception_handler(
-        RequestValidationError,
-        cast(
-            "Callable[[StarletteRequest, Exception], Awaitable[Response]]",
-            request_validation_handler,
-        ),
-    )
+    for exc_type, handler in (
+        (AppError, app_error_handler),
+        (HTTPException, http_exception_handler),
+        (RateLimitExceeded, rate_limit_handler),
+        (RequestValidationError, request_validation_handler),
+    ):
+        app.add_exception_handler(
+            exc_type,
+            cast("Callable[[Request, Exception], Awaitable[Response]]", handler),
+        )
 
     # Routers
     app.include_router(health.router)

@@ -11,11 +11,13 @@ Provides:
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from difflib import get_close_matches
 from uuid import uuid4
 
 import httpx
 from pydantic import ValidationError
 from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 from shared_py.stream_parts.plan import PlannedStep as StreamPlannedStep
@@ -62,6 +64,171 @@ from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import (
     adapt_param_specs_from_search,
 )
+
+
+def _validate_plan_search_names(
+    deps: AgentDeps, steps: list[PlannedStepInput],
+) -> None:
+    """Raise ``ModelRetry`` with did-you-mean suggestions if any planned
+    step references a search outside discovery's selected universe.
+
+    Catches the cross-phase analogue of the ``parameter_id`` hallucination:
+    the planner inventing a search name that wasn't committed in
+    ``update_search_decision``. Plain ``tool_error`` would force the
+    model into another full round-trip; ``ModelRetry`` re-prompts in the
+    same step with a curated suggestion list.
+    """
+    selected = sorted(deps.agent_state.selected_search_names())
+    if not selected:
+        return
+    bad = [
+        s.search_name
+        for s in steps
+        if s.step_type != StepType.COMBINE
+        and s.search_name
+        and s.search_name not in selected
+    ]
+    if not bad:
+        return
+    suggestions = sorted({
+        match
+        for name in bad
+        for match in get_close_matches(name, selected, n=3, cutoff=0.3)
+    })
+    msg = (
+        f"Planned step(s) reference search names {bad!r} that discovery "
+        f"did not select. Did you mean: {suggestions}? "
+        f"Valid (selected) search names: {selected}."
+    )
+    raise ModelRetry(msg)
+
+
+def _validate_step_parameter_keys(
+    deps: AgentDeps, steps: list[PlannedStepInput],
+) -> None:
+    """Raise ``ModelRetry`` if any step's ``parameters`` dict has keys
+    that aren't part of that search's discovered parameter list.
+
+    This catches the per-step analogue of the ``parameter_id``
+    hallucination in discovery — the planner inventing a parameter
+    name (``minOverlap`` vs the real ``min_overlap_size``) inside a
+    create_plan call. The dynamic toolset can't constrain nested dict
+    keys via JSON Schema, so this body-side check fills the gap.
+    """
+    state = deps.agent_state
+    bad_pairs: list[tuple[str, str, list[str]]] = []
+    for step in steps:
+        if not step.search_name or not step.parameters:
+            continue
+        valid = state.param_keys_for(step.search_name)
+        if not valid:
+            continue
+        invalid = [k for k in step.parameters if k not in valid]
+        if invalid:
+            sorted_valid = sorted(valid)
+            bad_pairs.extend(
+                (step.search_name, k, sorted_valid) for k in invalid
+            )
+    if not bad_pairs:
+        return
+    lines = [
+        f"  - on {search_name!r}: parameter {key!r} does not exist. "
+        f"Did you mean: {get_close_matches(key, valid, n=3, cutoff=0.3)}? "
+        f"Valid params: {valid}"
+        for search_name, key, valid in bad_pairs
+    ]
+    msg = (
+        "One or more planned step parameters reference unknown keys:\n"
+        + "\n".join(lines)
+    )
+    raise ModelRetry(msg)
+
+
+def _validate_patch_parameter_keys(
+    deps: AgentDeps,
+    patches: list[StepPatch],
+    existing_steps: dict[str, PlannedStep],
+) -> None:
+    """Same as ``_validate_step_parameter_keys`` but for ``update_plan``
+    patches — uses the patch's ``search_name`` if set, else falls back
+    to the existing step's ``search_name``."""
+    state = deps.agent_state
+    bad_pairs: list[tuple[str, str, list[str]]] = []
+    for patch in patches:
+        if not patch.parameters:
+            continue
+        existing = existing_steps.get(patch.step_id)
+        search_name = patch.search_name or (
+            existing.search_name if existing else None
+        )
+        if not search_name:
+            continue
+        valid = state.param_keys_for(search_name)
+        if not valid:
+            continue
+        invalid = [k for k in patch.parameters if k not in valid]
+        if invalid:
+            sorted_valid = sorted(valid)
+            bad_pairs.extend(
+                (search_name, k, sorted_valid) for k in invalid
+            )
+    if not bad_pairs:
+        return
+    lines = [
+        f"  - on {search_name!r}: parameter {key!r} does not exist. "
+        f"Did you mean: {get_close_matches(key, valid, n=3, cutoff=0.3)}? "
+        f"Valid params: {valid}"
+        for search_name, key, valid in bad_pairs
+    ]
+    msg = (
+        "One or more update_plan patches reference unknown parameter keys:\n"
+        + "\n".join(lines)
+    )
+    raise ModelRetry(msg)
+
+
+def _validate_update_plan_inputs(
+    deps: AgentDeps,
+    plan: StrategyPlan,
+    add_steps: list[PlannedStepInput] | None,
+    step_updates: list[StepPatch] | None,
+) -> None:
+    """Run all four ``update_plan`` validators in one shot — keeps
+    ``update_plan``'s body under the cyclomatic-complexity bar."""
+    if add_steps:
+        _validate_plan_search_names(deps, add_steps)
+        _validate_step_parameter_keys(deps, add_steps)
+    if step_updates:
+        existing = {s.id: s for s in plan.steps}
+        _validate_patch_search_names(deps, step_updates)
+        _validate_patch_parameter_keys(deps, step_updates, existing)
+
+
+def _validate_patch_search_names(
+    deps: AgentDeps, patches: list[StepPatch],
+) -> None:
+    """Equivalent to ``_validate_plan_search_names`` but for the patch
+    shape used by ``update_plan`` — only validates patches that try to
+    override the search_name (the `existing.search_name` fallback is
+    already in discovery's selected universe by virtue of having reached
+    the plan in the first place)."""
+    selected = sorted(deps.agent_state.selected_search_names())
+    if not selected:
+        return
+    bad = [p.search_name for p in patches if p.search_name and p.search_name not in selected]
+    if not bad:
+        return
+    suggestions = sorted({
+        match
+        for name in bad
+        for match in get_close_matches(name, selected, n=3, cutoff=0.3)
+    })
+    msg = (
+        f"update_plan patches reference search names {bad!r} that "
+        f"discovery did not select. Did you mean: {suggestions}? "
+        f"Valid (selected) search names: {selected}."
+    )
+    raise ModelRetry(msg)
 
 
 async def _fetch_specs_by_search(
@@ -266,15 +433,15 @@ async def create_plan(
     """
     existing = ctx.deps.agent_state.active_plan
     if existing is not None and existing.status in _CREATE_PLAN_BLOCKING_STATUSES:
-        return tool_error(
-            "PLAN_ALREADY_EXISTS",
-            (
-                f"A {existing.status.value} plan already exists "
-                f"(id={existing.id}, title={existing.title!r}). "
-                "Use update_plan to modify it or submit_plan to re-present."
-            ),
-            planId=existing.id,
+        msg = (
+            f"PLAN_ALREADY_EXISTS: A {existing.status.value} plan already exists "
+            f"(id={existing.id}, title={existing.title!r}). "
+            "Use update_plan to modify it or submit_plan to re-present."
         )
+        raise ModelRetry(msg)
+
+    _validate_plan_search_names(ctx.deps, steps)
+    _validate_step_parameter_keys(ctx.deps, steps)
 
     try:
         specs_by_search = await _fetch_specs_by_search(ctx.deps.site_id, steps)
@@ -289,7 +456,8 @@ async def create_plan(
             for s in steps
         ]
     except ValueError as exc:
-        return tool_error("DISCOVERY_ERROR", str(exc))
+        msg = f"DISCOVERY_ERROR: {exc}"
+        raise ModelRetry(msg) from exc
     domain_connections = [_convert_connection(c) for c in connections]
     domain_questions = _merge_questions([], questions or [])
 
@@ -305,7 +473,8 @@ async def create_plan(
             uncertainties=uncertainties or [],
         )
     except (ValidationError, PlanTopologyError) as exc:
-        return tool_error("TOPOLOGY_ERROR", _topology_error_message(exc))
+        msg = f"TOPOLOGY_ERROR: {_topology_error_message(exc)}"
+        raise ModelRetry(msg) from exc
 
     ctx.deps.agent_state.set_plan(plan)
 
@@ -340,11 +509,12 @@ async def create_plan(
 
 async def get_plan(
     ctx: RunContext[AgentDeps],
-) -> StrategyPlan | ToolErrorPayload:
+) -> StrategyPlan:
     """Read the current active strategy plan. Use this to review the plan before making updates."""
     plan = ctx.deps.agent_state.active_plan
     if plan is None:
-        return tool_error("NO_ACTIVE_PLAN", "No plan exists yet. Use create_plan to build one.")
+        msg = "NO_ACTIVE_PLAN: No plan exists yet. Call create_plan first."
+        raise ModelRetry(msg)
     return plan
 
 
@@ -360,8 +530,8 @@ def _mutate_plan(
     remove_connections: list[ConnectionRef] | None,
     questions: list[UserQuestionInput] | None,
     specs_by_search: dict[str, dict[str, ParamSpecNormalized]] | None = None,
-) -> ToolErrorPayload | None:
-    """Apply all mutations to a plan in-place. Returns an error payload or None."""
+) -> None:
+    """Apply all mutations to a plan in-place. Raises ModelRetry on bad patches."""
     if title is not None:
         plan.title = title
     if description is not None:
@@ -376,11 +546,9 @@ def _mutate_plan(
         ]
 
     if step_updates:
-        patch_err = _apply_step_patches(
+        _apply_step_patches(
             plan, step_updates, specs_by_search=specs_by_search,
         )
-        if patch_err is not None:
-            return patch_err
 
     if add_steps:
         plan.steps.extend(
@@ -400,8 +568,6 @@ def _mutate_plan(
 
     if questions is not None:
         plan.questions = _merge_questions(plan.questions, questions)
-
-    return None
 
 
 async def update_plan(
@@ -432,7 +598,10 @@ async def update_plan(
     """
     plan = ctx.deps.agent_state.active_plan
     if plan is None:
-        return tool_error("NO_ACTIVE_PLAN", "No plan exists yet. Use create_plan to build one.")
+        msg = "NO_ACTIVE_PLAN: No plan exists yet. Call create_plan first."
+        raise ModelRetry(msg)
+
+    _validate_update_plan_inputs(ctx.deps, plan, add_steps, step_updates)
 
     # Fetch WDK specs for any new or patched steps.
     enrichable_steps = list(add_steps or [])
@@ -460,7 +629,7 @@ async def update_plan(
         )
 
     try:
-        mutation_err = _mutate_plan(
+        _mutate_plan(
             plan,
             title=title,
             description=description,
@@ -473,13 +642,10 @@ async def update_plan(
             specs_by_search=specs_by_search,
         )
     except ValueError as exc:
-        return tool_error("DISCOVERY_ERROR", str(exc))
-    if mutation_err is not None:
-        return mutation_err
+        msg = f"DISCOVERY_ERROR: {exc}"
+        raise ModelRetry(msg) from exc
 
-    topo_err = _validate_domain_topology(plan)
-    if topo_err is not None:
-        return topo_err
+    _validate_domain_topology(plan)
 
     plan.version += 1
     plan.updated_at = datetime.now(UTC)
@@ -498,7 +664,7 @@ async def update_plan(
 
 async def submit_plan(
     ctx: RunContext[AgentDeps],
-) -> ToolReturn[StrategyPlan] | ToolErrorPayload:
+) -> ToolReturn[StrategyPlan]:
     """Submit the current plan for user approval.
 
     Registered with ``requires_approval=True`` so pydantic-ai halts the
@@ -516,15 +682,11 @@ async def submit_plan(
     deps = ctx.deps
     plan = deps.agent_state.active_plan
     if plan is None:
-        return tool_error("NO_ACTIVE_PLAN", "No plan exists yet. Use create_plan to build one.")
+        msg = "NO_ACTIVE_PLAN: No plan exists yet. Call create_plan first."
+        raise ModelRetry(msg)
 
-    param_err = _validate_domain_parameters(plan, deps.agent_state)
-    if param_err is not None:
-        return param_err
-
-    topo_err = _validate_domain_topology(plan)
-    if topo_err is not None:
-        return topo_err
+    _validate_domain_parameters(plan, deps.agent_state)
+    _validate_domain_topology(plan)
 
     plan.status = PlanStatus.APPROVED
     plan.updated_at = datetime.now(UTC)

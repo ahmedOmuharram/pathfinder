@@ -78,6 +78,7 @@ def test_agent_deps_accepts_mock_service_via_skip_validation() -> None:
     mock_lit = AsyncMock()
     deps = AgentDeps(
         site_id="plasmodb",
+        strategy_session=StrategySession(site_id="plasmodb"),
         web_search_service=mock_web,
         literature_search_service=mock_lit,
     )

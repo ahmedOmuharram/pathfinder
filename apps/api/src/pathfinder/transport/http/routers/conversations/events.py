@@ -3,10 +3,10 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic_ai.ui.vercel_ai._event_stream import VERCEL_AI_DSP_HEADERS
-from starlette.responses import Response, StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from pathfinder.ai.conversation.event_stream import iter_sse, latest_event
+from pathfinder.ai.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
 from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.transport.http.deps import CurrentUser, DBSession
 

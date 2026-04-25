@@ -1,4 +1,4 @@
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.models import Message
+from pathfinder.persistence.repositories._message_metadata import MessageMetadata
 
 
 class MessagesRepository:
@@ -116,20 +117,11 @@ class MessagesRepository:
         total_tokens = 0
         total_cost = Decimal(0)
         for (meta,) in result.all():
-            if not isinstance(meta, dict):
+            usage = MessageMetadata.model_validate(meta).usage
+            if usage is None:
                 continue
-            usage = meta.get("usage")
-            if not isinstance(usage, dict):
-                continue
-            raw_tokens = usage.get("totalTokens")
-            if isinstance(raw_tokens, int):
-                total_tokens += raw_tokens
-            raw_cost = usage.get("costUsd")
-            if isinstance(raw_cost, (str, int, float)):
-                try:
-                    total_cost += Decimal(str(raw_cost))
-                except InvalidOperation:
-                    continue
+            total_tokens += usage.total_tokens
+            total_cost += usage.cost_decimal()
         return total_tokens, total_cost
 
     async def mark_turn_completed(self, message_id: UUID) -> None:
@@ -142,6 +134,6 @@ class MessagesRepository:
         message = await self.session.get(Message, message_id)
         if message is None:
             return
-        updated = dict(message.metadata_ or {})
-        updated["turnCompleted"] = True
-        message.metadata_ = updated
+        meta = MessageMetadata.model_validate(message.metadata_)
+        meta.turn_completed = True
+        message.metadata_ = meta.model_dump(by_alias=True, exclude_none=True)

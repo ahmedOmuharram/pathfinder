@@ -20,7 +20,7 @@ import contextlib
 import json
 from typing import Any, cast
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import ConfigDict, Field, TypeAdapter, ValidationError
 from pydantic_ai.messages import ToolCallPart, ToolReturn
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
@@ -408,17 +408,11 @@ async def _apply_single_root_build(
         return _merge_auto_build(result_text, {"autoBuild": error_payload}), []
 
 
+_ANY_JSON: TypeAdapter[Any] = TypeAdapter(Any)
+
+
 def _serialize_tool_return_value(raw_value: Any) -> str:
-    if isinstance(raw_value, str):
-        return raw_value
-    if isinstance(raw_value, BaseModel):
-        return json.dumps(raw_value.model_dump(by_alias=True, mode="json"))
-    if isinstance(raw_value, (dict, list)):
-        try:
-            return json.dumps(raw_value)
-        except (TypeError, ValueError):
-            return str(raw_value)
-    return str(raw_value)
+    return _ANY_JSON.dump_json(raw_value, by_alias=True).decode()
 
 
 def _extract_text_and_metadata(result: Any) -> tuple[str, list[DataChunk]]:

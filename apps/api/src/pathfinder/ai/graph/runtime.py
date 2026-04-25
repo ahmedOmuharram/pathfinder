@@ -28,12 +28,8 @@ DBSessionFactory = Callable[[], AsyncSession]
 
 @dataclass(frozen=True)
 class Context:
-    """Per-invocation runtime context for the LangGraph pipeline.
-
-    Holds non-serializable services and per-chat resources that must NOT be
-    checkpointed. Constructed once by the dispatcher per chat turn and passed
-    to ``graph.astream(..., context=ctx)``.
-    """
+    # Non-serializable per-turn resources passed via
+    # ``graph.astream(..., context=ctx)``; never checkpointed.
 
     site_id: str
     user_id: UUID
@@ -47,24 +43,14 @@ class Context:
 
 
 class AgentDeps(BaseModel):
-    """Slimmed pydantic-ai per-node deps.
-
-    Built fresh by each node from the current ``PipelineState`` and the
-    per-invocation ``Context``. Tools mutate ``problem_frame`` and
-    ``agent_state``; the node calls :func:`extract_state_delta` after the
-    agent completes to propagate changes back into checkpointed state.
-
-    Service fields use ``SkipValidation`` so tests can inject mock instances
-    without failing Pydantic's ``arbitrary_types_allowed`` isinstance check.
-    """
+    # Service fields use ``SkipValidation`` so tests can inject mock
+    # instances without tripping Pydantic's isinstance check.
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     site_id: str
     user_id: UUID | None = None
-    strategy_session: SkipValidation[StrategySession] = Field(
-        default_factory=lambda: StrategySession(site_id=""),
-    )
+    strategy_session: SkipValidation[StrategySession]
     web_search_service: SkipValidation[WebSearchService] | None = None
     literature_search_service: SkipValidation[LiteratureSearchService] | None = None
     agent_state: AgentToolState = Field(default_factory=AgentToolState)
@@ -89,7 +75,6 @@ def build_node_deps(
     *,
     memories: list[MemoryValue] | None = None,
 ) -> AgentDeps:
-    """Construct ``AgentDeps`` for one node invocation."""
     agent_state = AgentToolState(
         discovered_searches=dict(state.discovered_searches),
         active_plan=state.active_plan,
@@ -114,7 +99,6 @@ def build_node_deps(
 
 
 def extract_state_delta(deps: AgentDeps) -> dict[str, Any]:
-    """Pull mutable scratchpad data out of ``deps`` for state propagation."""
     return {
         "problem_frame": deps.problem_frame,
         "discovered_searches": dict(deps.agent_state.discovered_searches),

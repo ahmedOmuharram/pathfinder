@@ -1,9 +1,3 @@
-"""StrategyAPI base class with shared infrastructure.
-
-Provides initialization, parameter normalization, and session management
-that all mixin classes depend on.
-"""
-
 import json
 
 from pydantic import JsonValue
@@ -46,7 +40,6 @@ def _sort_profile_pattern(pattern: str) -> str:
     return f"%{'%'.join(sorted(parts))}%" if parts else pattern
 
 def _validate_phyletic_codes(entries: list[str], all_known_codes: set[str]) -> None:
-    """Raise ``AppError`` if any entry code is not in the known set."""
     invalid_codes: list[str] = []
     for entry in entries:
         parts = entry.split(":")
@@ -68,18 +61,7 @@ def _validate_phyletic_codes(entries: list[str], all_known_codes: set[str]) -> N
         )
 
 class StrategyAPIBase:
-    """Base infrastructure for :class:`StrategyAPI`.
-
-    Provides ``__init__``, parameter normalization, and WDK session management.
-    Mixin classes inherit from this to access shared state.
-    """
-
     def __init__(self, client: VEuPathDBClient, user_id: str = CURRENT_USER) -> None:
-        """Initialize the strategy API.
-
-        :param client: VEuPathDB HTTP client (site-specific).
-        :param user_id: WDK user ID; defaults to ``"current"`` (resolved at first use).
-        """
         self.client = client
         self._initial_user_id = user_id
         self._resolved_user_id = user_id
@@ -87,37 +69,20 @@ class StrategyAPIBase:
         self._boolean_search_cache: dict[str, str] = {}
         self._answer_param_cache: dict[str, set[str]] = {}
 
-    def _normalize_parameters(
-        self,
-        parameters: JSONObject,
-        *,
-        keep_empty: set[str] | None = None,
-    ) -> dict[str, str]:
-        """Normalize parameters to WDK string values; omit empty values.
+    def _normalize_parameters(self, parameters: JSONObject) -> dict[str, str]:
+        """Normalize parameters to WDK string values; drop ``None``.
 
-        WDK rejects params like ``hard_floor`` with value ``""`` (Cannot be empty).
-        Omitting empty params avoids 422s when a required param is left blank
-        in the UI; the caller should supply a valid value for required params.
-
-        Params whose value is ``None`` are omitted (never explicitly set).
-        Params whose value is ``""`` (empty string) are kept — the caller
-        explicitly included them, and WDK may accept them via
+        ``None`` values are dropped (caller never set them). Every other
+        value is coerced via :func:`normalize_param_value`. Empty strings
+        are preserved — callers pass them explicitly (e.g. AnswerParams
+        that WDK requires as ``""``) and WDK accepts them via
         ``allowEmptyValue``.
-
-        :param parameters: Raw parameter dict.
-        :param keep_empty: Param names that must be kept even when empty
-            (e.g. AnswerParams that WDK requires as ``""``).
         """
-        keep = keep_empty or set()
-        out: dict[str, str] = {}
-        for key, value in (parameters or {}).items():
-            if value is None:
-                continue
-            s = normalize_param_value(value)
-            if s.strip() or key in keep or isinstance(value, str):
-                out[key] = s if s.strip() else ""
-        # OrthoMCL requires profile_pattern entries in alphabetical order.
-        # The frontend monorepo always .sort()s before joining — we must too.
+        out: dict[str, str] = {
+            key: normalize_param_value(value)
+            for key, value in (parameters or {}).items()
+            if value is not None
+        }
         if "profile_pattern" in out:
             out["profile_pattern"] = _sort_profile_pattern(out["profile_pattern"])
         return out
@@ -139,11 +104,6 @@ class StrategyAPIBase:
         self._session_initialized = True
 
     async def _get_user_id(self, user_id: str | None) -> str:
-        """Resolve effective user ID for a request.
-
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
-        :returns: The effective user ID string.
-        """
         if user_id is not None:
             return user_id
         await self._ensure_session()
@@ -181,7 +141,6 @@ class StrategyAPIBase:
         params: dict[str, str],
         search_name: str,
     ) -> dict[str, str]:
-        """Expand tree param values using typed WDK parameter specs."""
         result = dict(params)
         for spec in wdk_params:
             if spec.name not in result:
@@ -210,7 +169,6 @@ class StrategyAPIBase:
     def _expand_single_tree_param(
         self, vocab: JSONObject, raw_value: str
     ) -> list[str] | None:
-        """Expand a single tree param value to leaf terms."""
         values = decode_values(raw_value, "tree-param")
         if not values:
             return None
@@ -281,7 +239,6 @@ class StrategyAPIBase:
             return pattern
 
     async def _fetch_indent_vocab(self, record_type: str) -> list[JsonValue]:
-        """Fetch the phyletic_indent_map vocabulary."""
         response = await self.client.get_search_details(
             record_type, "GenesByOrthologPattern", expand_params=True
         )
@@ -298,15 +255,6 @@ class StrategyAPIBase:
         report_config: dict[str, object],
         user_id: str | None = None,
     ) -> WDKAnswer:
-        """Run a standard report on a step.
-
-        Shared helper used by report, answer, count, and preview methods.
-
-        :param step_id: WDK step ID (must be part of a strategy).
-        :param report_config: Report configuration dict.
-        :param user_id: Explicit user ID override, or ``None`` to use resolved.
-        :returns: Validated WDK answer.
-        """
         uid = await self._get_user_id(user_id)
         result = await self.client.post(
             f"/users/{uid}/steps/{step_id}/reports/standard",
@@ -319,7 +267,6 @@ class StrategyAPIBase:
 def _build_phyletic_tree(
     indent_vocab: list[JsonValue],
 ) -> tuple[dict[str, list[str]], set[str]]:
-    """Build parent->children and leaf sets from the phyletic indent vocabulary."""
     codes_at_depth = [
         (str(item[0]), int(str(item[1])) if item[1] is not None else 0)
         for item in indent_vocab
@@ -346,7 +293,6 @@ def _expand_entries(
     children_of: dict[str, list[str]],
     leaf_codes: set[str],
 ) -> list[str]:
-    """Expand group codes in profile_pattern entries to leaf codes."""
     expanded: list[str] = []
     for entry in entries:
         parts = entry.split(":")

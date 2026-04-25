@@ -11,11 +11,16 @@ from pathfinder.ai.tools.standalone.catalog import (
     list_searches,
     search_for_searches,
 )
+from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.catalog.models import RecordTypeInfo, SearchMatch
 
 
 def _make_deps(site_id: str = "plasmodb") -> AgentDeps:
-    return AgentDeps(site_id=site_id, agent_state=AgentToolState())
+    return AgentDeps(
+        site_id=site_id,
+        strategy_session=StrategySession(site_id=site_id),
+        agent_state=AgentToolState(),
+    )
 
 
 def _make_ctx(deps: AgentDeps) -> MagicMock:

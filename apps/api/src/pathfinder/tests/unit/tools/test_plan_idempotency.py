@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -103,17 +104,18 @@ def _leaf() -> PlannedStepInput:
 )
 async def test_create_plan_rejects_when_plan_locked(status: PlanStatus) -> None:
     deps = _deps(existing=_plan(status))
-    result = await create_plan(
-        _ctx(deps),
-        title="Re-create",
-        description="d",
-        rationale="r",
-        steps=[_leaf()],
-        connections=[],
-    )
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "PLAN_ALREADY_EXISTS"
-    assert "plan_existing01" in result.message
+    with pytest.raises(ModelRetry) as excinfo:
+        await create_plan(
+            _ctx(deps),
+            title="Re-create",
+            description="d",
+            rationale="r",
+            steps=[_leaf()],
+            connections=[],
+        )
+    msg = str(excinfo.value)
+    assert "PLAN_ALREADY_EXISTS" in msg
+    assert "plan_existing01" in msg
     assert deps.agent_state.active_plan is not None
     assert deps.agent_state.active_plan.id == "plan_existing01"
 

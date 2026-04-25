@@ -1,9 +1,13 @@
 """Verification-phase toolset for testing, analyzing, and exporting results."""
 
-from pydantic_ai.tools import Tool
+from pydantic_ai.tools import RunContext, Tool
+from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.tools.standalone.escape_hatch import (
+    request_search_inspection,
+)
 from pathfinder.ai.tools.standalone.execution import get_estimated_size
 from pathfinder.ai.tools.standalone.experiment import (
     run_control_tests_on_search,
@@ -32,9 +36,43 @@ from pathfinder.ai.tools.standalone.workbench_read import (
     get_result_gene_lists,
     get_step_contributions,
 )
+from pathfinder.ai.tools.toolsets._dynamic import (
+    DynamicEnumToolset,
+    EnumOverrides,
+    live_wdk_step_ids,
+)
 
 
-def build_toolset() -> FunctionToolset[AgentDeps]:
+def _verification_enum_overrides(
+    ctx: RunContext[AgentDeps],
+) -> EnumOverrides:
+    """Constrain ``wdk_step_id`` args to steps actually built in WDK and
+    ``target_search_name`` to discovery's selected universe.
+
+    Verification tools take ``wdk_step_id: int`` (the WDK-side numeric
+    id assigned after a step is pushed) — only steps that have been
+    built can be queried, so the enum is restricted to ids visible in
+    ``strategy_session.sync_state.wdk_step_ids``.
+    """
+    overrides: EnumOverrides = {}
+    wdk_ids = live_wdk_step_ids(ctx.deps)
+    if wdk_ids:
+        for tool in (
+            "get_estimated_size",
+            "get_sample_records",
+            "get_download_url",
+            "run_control_tests_on_step",
+        ):
+            overrides[(tool, "wdk_step_id")] = list(wdk_ids)
+    selected = sorted(ctx.deps.agent_state.selected_search_names())
+    if selected:
+        overrides[("run_control_tests_on_search", "target_search_name")] = (
+            selected
+        )
+    return overrides
+
+
+def build_toolset() -> AbstractToolset[AgentDeps]:
     """Build the verification-phase toolset.
 
     Phase exit is handled by ``output_type=VerificationDecision`` on the
@@ -51,7 +89,7 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
     ``optimize_search_parameters`` also carries ``requires_approval=True``
     because it runs up to ``settings.budget`` trials (default 30).
     """
-    return FunctionToolset(
+    base: FunctionToolset[AgentDeps] = FunctionToolset(
         tools=[
             get_estimated_size,
             get_sample_records,
@@ -75,8 +113,12 @@ def build_toolset() -> FunctionToolset[AgentDeps]:
             get_ensemble_analysis,
             get_result_gene_lists,
             get_strategy,
+            request_search_inspection,
             think,
             search_memory,
             remember,
         ],
+    )
+    return DynamicEnumToolset(
+        wrapped=base, build_overrides=_verification_enum_overrides,
     )

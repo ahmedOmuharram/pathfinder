@@ -8,6 +8,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
@@ -37,7 +38,6 @@ from pathfinder.domain.strategy.plan import (
     StrategyPlan,
 )
 from pathfinder.domain.strategy.session import StrategySession
-from pathfinder.platform.tool_errors import ToolErrorPayload
 
 
 def _unwrap(result: Any) -> Any:
@@ -224,19 +224,20 @@ async def test_submit_plan_validates_topology() -> None:
     # Connection references a non-existent step "step_ghost"
     bad_connection = _connection("step_a", "step_ghost")
 
-    result = await create_plan(
-        ctx,
-        title="Bad Topology",
-        description="This plan has a topology error",
-        rationale="Testing",
-        steps=[step_a],
-        connections=[bad_connection],
-    )
+    with pytest.raises(ModelRetry) as excinfo:
+        await create_plan(
+            ctx,
+            title="Bad Topology",
+            description="This plan has a topology error",
+            rationale="Testing",
+            steps=[step_a],
+            connections=[bad_connection],
+        )
 
     # create_plan itself catches topology errors
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "TOPOLOGY_ERROR"
-    assert "step_ghost" in result.message
+    msg = str(excinfo.value)
+    assert "TOPOLOGY_ERROR" in msg
+    assert "step_ghost" in msg
 
 
 @pytest.mark.asyncio
@@ -283,11 +284,12 @@ async def test_submit_plan_validates_parameters() -> None:
             ),
         )
 
-    submit_result = await submit_plan(ctx)
+    with pytest.raises(ModelRetry) as excinfo:
+        await submit_plan(ctx)
 
-    assert isinstance(submit_result, ToolErrorPayload)
-    assert submit_result.code == "PARAMETER_ERROR"
-    assert "organism" in submit_result.message
+    msg = str(excinfo.value)
+    assert "PARAMETER_ERROR" in msg
+    assert "organism" in msg
 
 
 @pytest.mark.asyncio
@@ -453,26 +455,26 @@ async def test_get_plan_returns_active_plan() -> None:
 
 @pytest.mark.asyncio
 async def test_get_plan_returns_error_when_no_plan() -> None:
-    """get_plan should return a ToolErrorPayload when no plan exists."""
+    """get_plan should raise ModelRetry when no plan exists."""
     deps = _make_deps()
     ctx = _make_ctx(deps)
 
-    result = await get_plan(ctx)
+    with pytest.raises(ModelRetry) as excinfo:
+        await get_plan(ctx)
 
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "NO_ACTIVE_PLAN"
+    assert "NO_ACTIVE_PLAN" in str(excinfo.value)
 
 
 @pytest.mark.asyncio
 async def test_update_plan_returns_error_when_no_plan() -> None:
-    """update_plan should return a ToolErrorPayload when no plan exists."""
+    """update_plan should raise ModelRetry when no plan exists."""
     deps = _make_deps()
     ctx = _make_ctx(deps)
 
-    result = await update_plan(ctx, title="New Title")
+    with pytest.raises(ModelRetry) as excinfo:
+        await update_plan(ctx, title="New Title")
 
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "NO_ACTIVE_PLAN"
+    assert "NO_ACTIVE_PLAN" in str(excinfo.value)
 
 
 @pytest.mark.asyncio

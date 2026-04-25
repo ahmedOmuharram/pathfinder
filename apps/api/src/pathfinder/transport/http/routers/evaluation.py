@@ -15,6 +15,7 @@ from pydantic import Field
 
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.platform.uuid_utils import format_uuid
 from pathfinder.services.eval import (
     build_gold_strategy,
     fetch_strategy_gene_ids,
@@ -65,7 +66,7 @@ async def build_gold_strategy_endpoint(
         root_step_id=result.root_step_id,
         estimated_size=len(result.gene_ids),
         gene_ids=result.gene_ids,
-        conversation_id=str(result.conversation_id) if result.conversation_id is not None else None,
+        conversation_id=format_uuid(result.conversation_id),
     )
 
 

@@ -38,6 +38,7 @@ def _ctx(
 ) -> RunContext[AgentDeps]:
     deps = AgentDeps(
         site_id="plasmodb",
+        strategy_session=StrategySession(site_id="plasmodb"),
         conversation_id=conv_id,
         db_session_factory=db_session_factory,
     )

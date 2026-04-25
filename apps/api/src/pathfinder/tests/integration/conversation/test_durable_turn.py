@@ -95,12 +95,13 @@ async def _wait_until_enqueued(connector: InMemoryConnector) -> None:
 
 
 def _post_body(conv_id: UUID) -> dict:
+    msg_id = str(uuid4())
     return {
         "trigger": "submit-message",
-        "id": "m1",
+        "id": msg_id,
         "messages": [
             {
-                "id": "m1",
+                "id": msg_id,
                 "role": "user",
                 "parts": [{"type": "text", "text": "hi"}],
             },

@@ -5,8 +5,11 @@ mixin-based tools exactly.
 """
 
 
+from difflib import get_close_matches
+
 from pydantic import BaseModel
 from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -29,7 +32,7 @@ from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import DecodedParamsField
-from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
+from pathfinder.platform.tool_errors import ToolErrorPayload
 from pathfinder.services.catalog.param_validation import ValidationCallbacks
 from pathfinder.services.strategies.step_creation import (
     ColocationStepSpec,
@@ -38,6 +41,42 @@ from pathfinder.services.strategies.step_creation import (
     create_step,
 )
 from pathfinder.services.strategies.sync_state import ensure_sync_state
+
+
+def _validate_step_parameters(
+    deps: AgentDeps, search_name: str, parameters: dict[str, object],
+) -> None:
+    """Body-side guard against hallucinated parameter keys on
+    ``create_leaf_step`` / ``update_step``.
+
+    The discovery toolset's dynamic enum already constrains
+    ``search_name`` to discovery's selected universe, so a bad
+    search name here would have been refused at the schema layer.
+    The remaining hallucination surface is the ``parameters`` dict's
+    KEYS — JSON Schema can't constrain dict keys against a per-search
+    set, so we check at the body and surface a ``ModelRetry`` with
+    did-you-mean suggestions."""
+    valid = deps.agent_state.param_keys_for(search_name)
+    if not valid:
+        # Search wasn't in discovery's record — let downstream WDK
+        # validation handle it (the dynamic enum normally prevents
+        # this state).
+        return
+    invalid = [k for k in parameters if k not in valid]
+    if not invalid:
+        return
+    sorted_valid = sorted(valid)
+    lines = [
+        f"  - parameter {k!r} does not exist on search {search_name!r}. "
+        f"Did you mean: {get_close_matches(k, sorted_valid, n=3, cutoff=0.3)}?"
+        for k in invalid
+    ]
+    msg = (
+        f"Invalid parameter keys on {search_name!r}:\n"
+        + "\n".join(lines)
+        + f"\nValid parameter ids for this search: {sorted_valid}"
+    )
+    raise ModelRetry(msg)
 
 
 def _step_added_return(
@@ -133,6 +172,7 @@ async def create_leaf_step(
         graph_id: Target graph. Uses the active graph if omitted.
     """
     deps = ctx.deps
+    _validate_step_parameters(deps, search_name, dict(parameters))
     session = deps.strategy_session
 
     graph = get_graph(session, graph_id)
@@ -173,7 +213,7 @@ async def combine_steps(
     ctx: RunContext[AgentDeps],
     step_a_id: str,
     step_b_id: str,
-    operator: str,
+    operator: CombineOp,
     display_name: str | None = None,
     colocation_params: ColocationSpec | None = None,
     *,
@@ -205,26 +245,27 @@ async def combine_steps(
 
     # Validate both step IDs exist in the graph.
     if step_a_id not in graph.steps:
-        return tool_error(
-            "STEP_NOT_FOUND",
-            f"Step A not found: {step_a_id}",
-            stepId=step_a_id,
+        msg = (
+            f"STEP_NOT_FOUND: Step A not found: {step_a_id}. "
+            f"Valid step ids: {sorted(graph.steps.keys())}."
         )
+        raise ModelRetry(msg)
     if step_b_id not in graph.steps:
-        return tool_error(
-            "STEP_NOT_FOUND",
-            f"Step B not found: {step_b_id}",
-            stepId=step_b_id,
+        msg = (
+            f"STEP_NOT_FOUND: Step B not found: {step_b_id}. "
+            f"Valid step ids: {sorted(graph.steps.keys())}."
         )
+        raise ModelRetry(msg)
 
     # Parse and validate operator.
     try:
         parsed_op = parse_op(operator)
-    except ValueError:
-        return tool_error(
-            "VALIDATION_ERROR",
-            f"Invalid operator: {operator}. Use INTERSECT, UNION, MINUS, RMINUS, or COLOCATE.",
+    except ValueError as exc:
+        msg = (
+            f"VALIDATION_ERROR: Invalid operator: {operator}. "
+            "Use INTERSECT, UNION, MINUS, RMINUS, or COLOCATE."
         )
+        raise ModelRetry(msg) from exc
 
     callbacks = _make_callbacks(deps.site_id)
     sync_state = ensure_sync_state(deps.strategy_session)
@@ -297,11 +338,11 @@ async def transform_step(
 
     # Verify input step exists in the graph.
     if input_step_id not in graph.steps:
-        return tool_error(
-            "STEP_NOT_FOUND",
-            f"Input step '{input_step_id}' not found in graph.",
-            graphId=graph.id,
+        msg = (
+            f"STEP_NOT_FOUND: Input step '{input_step_id}' not found in graph "
+            f"{graph.id!r}. Valid step ids: {sorted(graph.steps.keys())}."
         )
+        raise ModelRetry(msg)
 
     callbacks = _make_callbacks(deps.site_id)
     sync_state = ensure_sync_state(deps.strategy_session)

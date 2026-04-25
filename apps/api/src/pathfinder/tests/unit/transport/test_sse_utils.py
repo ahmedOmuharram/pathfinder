@@ -2,8 +2,8 @@
 
 from collections.abc import AsyncIterator
 
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from starlette.responses import StreamingResponse
 
 from pathfinder.transport.http.sse_utils import typed_event_stream_response
 

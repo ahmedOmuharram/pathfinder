@@ -1,13 +1,42 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 import asyncpg
+from pydantic import Discriminator, Tag, TypeAdapter, ValidationError
+from pydantic_ai.ui.vercel_ai.response_types import (
+    AbortChunk,
+    BaseChunk,
+    DataChunk,
+    DoneChunk,
+    ErrorChunk,
+    FileChunk,
+    FinishChunk,
+    FinishStepChunk,
+    MessageMetadataChunk,
+    ReasoningDeltaChunk,
+    ReasoningEndChunk,
+    ReasoningStartChunk,
+    SourceDocumentChunk,
+    SourceUrlChunk,
+    StartChunk,
+    StartStepChunk,
+    TextDeltaChunk,
+    TextEndChunk,
+    TextStartChunk,
+    ToolApprovalRequestChunk,
+    ToolInputAvailableChunk,
+    ToolInputDeltaChunk,
+    ToolInputErrorChunk,
+    ToolInputStartChunk,
+    ToolOutputAvailableChunk,
+    ToolOutputDeniedChunk,
+    ToolOutputErrorChunk,
+)
 from sqlalchemy import select
 from sqlalchemy.engine import make_url
 
@@ -17,6 +46,46 @@ from pathfinder.platform.config import get_settings
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _chunk_tag(value: Any) -> str:
+    raw_type = value["type"] if isinstance(value, dict) else value.type
+    if not isinstance(raw_type, str):
+        return ""
+    return "data" if raw_type.startswith("data-") else raw_type
+
+
+_ChunkUnion = Annotated[
+    Annotated[TextStartChunk, Tag("text-start")]
+    | Annotated[TextDeltaChunk, Tag("text-delta")]
+    | Annotated[TextEndChunk, Tag("text-end")]
+    | Annotated[ReasoningStartChunk, Tag("reasoning-start")]
+    | Annotated[ReasoningDeltaChunk, Tag("reasoning-delta")]
+    | Annotated[ReasoningEndChunk, Tag("reasoning-end")]
+    | Annotated[ErrorChunk, Tag("error")]
+    | Annotated[ToolInputStartChunk, Tag("tool-input-start")]
+    | Annotated[ToolInputDeltaChunk, Tag("tool-input-delta")]
+    | Annotated[ToolOutputAvailableChunk, Tag("tool-output-available")]
+    | Annotated[ToolInputAvailableChunk, Tag("tool-input-available")]
+    | Annotated[ToolInputErrorChunk, Tag("tool-input-error")]
+    | Annotated[ToolOutputErrorChunk, Tag("tool-output-error")]
+    | Annotated[ToolApprovalRequestChunk, Tag("tool-approval-request")]
+    | Annotated[ToolOutputDeniedChunk, Tag("tool-output-denied")]
+    | Annotated[SourceUrlChunk, Tag("source-url")]
+    | Annotated[SourceDocumentChunk, Tag("source-document")]
+    | Annotated[FileChunk, Tag("file")]
+    | Annotated[DataChunk, Tag("data")]
+    | Annotated[StartStepChunk, Tag("start-step")]
+    | Annotated[FinishStepChunk, Tag("finish-step")]
+    | Annotated[StartChunk, Tag("start")]
+    | Annotated[FinishChunk, Tag("finish")]
+    | Annotated[AbortChunk, Tag("abort")]
+    | Annotated[MessageMetadataChunk, Tag("message-metadata")]
+    | Annotated[DoneChunk, Tag("done")],
+    Discriminator(_chunk_tag),
+]
+
+_CHUNK_ADAPTER: TypeAdapter[BaseChunk] = TypeAdapter(_ChunkUnion)
 
 
 def _asyncpg_dsn(database_url: str) -> str:
@@ -61,10 +130,6 @@ async def latest_event(
 async def latest_event_with_timestamp(
     conversation_id: UUID,
 ) -> tuple[int, dict[str, Any], datetime] | None:
-    """Like ``latest_event`` but also returns the wall-clock time the row
-    was emitted. Callers use the timestamp to decide whether a turn that
-    has not yet emitted ``done`` is still alive or stalled.
-    """
     async with async_session_factory() as session:
         row = await session.scalar(
             select(ConversationEvent)
@@ -81,18 +146,12 @@ async def _drain_and_yield(
     conversation_id: UUID,
     last_sent: int,
     queue: asyncio.Queue[int],
-    cancel: asyncio.Event,
 ) -> AsyncIterator[tuple[int, dict[str, Any]]]:
-    while not cancel.is_set():
-        try:
-            await asyncio.wait_for(queue.get(), timeout=1.0)
-        except TimeoutError:
-            continue
+    while True:
+        await queue.get()
         while not queue.empty():
             queue.get_nowait()
         for event_id, chunk in await _fetch_after(conversation_id, last_sent):
-            if cancel.is_set():
-                return
             yield event_id, chunk
             last_sent = event_id
 
@@ -101,13 +160,9 @@ async def replay_and_tail(
     *,
     conversation_id: UUID,
     after: int,
-    cancel: asyncio.Event,
 ) -> AsyncIterator[tuple[int, dict[str, Any]]]:
-    """Replay rows past ``after``, then tail new ones via ``LISTEN``."""
     last_sent = after
     for event_id, chunk in await _fetch_after(conversation_id, after):
-        if cancel.is_set():
-            return
         yield event_id, chunk
         last_sent = event_id
 
@@ -124,16 +179,14 @@ async def replay_and_tail(
     conn = await asyncpg.connect(dsn=dsn)
     try:
         await conn.add_listener(channel, on_notify)
-        # Race-catch: a row could have landed between the SELECT above and
-        # add_listener. Sweep once now that LISTEN is armed.
+        # Sweep after LISTEN arms in case a row landed between the initial
+        # SELECT and add_listener.
         for event_id, chunk in await _fetch_after(conversation_id, last_sent):
-            if cancel.is_set():
-                return
             yield event_id, chunk
             last_sent = event_id
 
         async for event_id, chunk in _drain_and_yield(
-            conversation_id, last_sent, queue, cancel,
+            conversation_id, last_sent, queue,
         ):
             yield event_id, chunk
     finally:
@@ -143,28 +196,27 @@ async def replay_and_tail(
 async def iter_sse(
     *, conversation_id: UUID, after: int,
 ) -> AsyncIterator[str]:
-    cancel = asyncio.Event()
-    try:
-        async for event_id, chunk in replay_and_tail(
-            conversation_id=conversation_id, after=after, cancel=cancel,
-        ):
-            yield _frame_event(event_id, chunk)
-            if chunk.get("type") == "done":
-                cancel.set()
-                return
-    except asyncio.CancelledError:
-        cancel.set()
-        raise
+    async for event_id, chunk in replay_and_tail(
+        conversation_id=conversation_id, after=after,
+    ):
+        try:
+            typed = _CHUNK_ADAPTER.validate_python(chunk)
+        except ValidationError:
+            logger.warning(
+                "skipping unparseable persisted chunk",
+                event_id=event_id,
+                conversation_id=str(conversation_id),
+            )
+            continue
+        yield _frame_event(event_id, typed)
+        if isinstance(typed, DoneChunk):
+            return
 
 
-def _frame_event(event_id: int, chunk: dict[str, Any]) -> str:
-    """SSE frame for a persisted chunk. Hand-rolled: pydantic-ai's
-    ``VercelAIEventStream.encode_event`` needs ``BaseChunk`` instances and
-    ``BaseChunk`` has no discriminator for dict-in rehydration.
-    """
+def _frame_event(event_id: int, chunk: BaseChunk) -> str:
     payload = (
         "[DONE]"
-        if chunk.get("type") == "done"
-        else json.dumps(chunk, separators=(",", ":"))
+        if isinstance(chunk, DoneChunk)
+        else chunk.model_dump_json(by_alias=True, exclude_none=True)
     )
     return f"id: {event_id}\ndata: {payload}\n\n"

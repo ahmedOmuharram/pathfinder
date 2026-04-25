@@ -9,8 +9,8 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from pydantic import JsonValue
 from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import FileChunk
 
@@ -19,8 +19,6 @@ from pathfinder.ai.tools.standalone._export_models import (
     ExportResultResponse,
     GeneSetSummaryItem,
 )
-from pathfinder.platform.errors import ErrorCode
-from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.export import get_export_service
 from pathfinder.services.gene_sets.store import get_gene_set_store
@@ -47,7 +45,7 @@ async def export_gene_set(
     ctx: RunContext[AgentDeps],
     gene_set_id: str,
     output_format: str = "csv",
-) -> ToolReturn[ExportResultResponse] | ToolErrorPayload:
+) -> ToolReturn[ExportResultResponse]:
     """Export a gene set as a downloadable CSV or TXT file.
 
     Returns a download URL that the user can click to download the file.
@@ -58,25 +56,21 @@ async def export_gene_set(
         output_format: Export format: csv or txt.
     """
     if output_format not in ("csv", "txt"):
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "format must be 'csv' or 'txt'.",
-            format=output_format,
+        msg = (
+            f"VALIDATION_ERROR: format must be 'csv' or 'txt', got {output_format!r}."
         )
+        raise ModelRetry(msg)
 
     deps = ctx.deps
     store = get_gene_set_store()
     gs = await store.aget(gene_set_id)
     if gs is None:
-        available: list[JsonValue] = list(
-            await _available_gene_sets(deps.site_id, deps.user_id)
+        available = await _available_gene_sets(deps.site_id, deps.user_id)
+        msg = (
+            f"NOT_FOUND: Gene set not found: {gene_set_id!r}. "
+            f"Use one of the available gene sets: {available}."
         )
-        return tool_error(
-            ErrorCode.NOT_FOUND,
-            f"Gene set not found: {gene_set_id}. Use one of the available IDs below.",
-            gene_set_id=gene_set_id,
-            availableGeneSets=available,
-        )
+        raise ModelRetry(msg)
 
     svc = get_export_service()
     fmt: Literal["csv", "txt"] = "txt" if output_format == "txt" else "csv"

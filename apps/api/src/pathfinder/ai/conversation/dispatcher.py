@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
-from pydantic_ai.ui.vercel_ai._event_stream import VERCEL_AI_DSP_HEADERS
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import Response, StreamingResponse
 
 from pathfinder.ai.capabilities.security import scan_user_input
 from pathfinder.ai.conversation._turn_helpers import (
@@ -13,6 +12,7 @@ from pathfinder.ai.conversation._turn_helpers import (
 )
 from pathfinder.ai.conversation.event_stream import iter_sse, latest_event
 from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.ai.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job
 from pathfinder.persistence.repositories.conversation import (

@@ -13,6 +13,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
+from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
 
 import pathfinder.ai.graph.agents as agents_module
 import pathfinder.ai.graph.nodes as nodes_module
@@ -159,7 +160,7 @@ async def test_second_turn_inherits_state_from_checkpoint(
             mode="strategy",
             user_message_id=uuid4(),
             user_prompt="turn one",
-            user_parts=[{"type": "text", "text": "turn one"}],
+            user_parts=[TextUIPart(text="turn one", state="done")],
             turn_trace_id=str(uuid4()),
             turn_created_at="2026-04-14T00:00:00+00:00",
         )
@@ -182,7 +183,7 @@ async def test_second_turn_inherits_state_from_checkpoint(
         second_turn: dict[str, Any] = {
             "user_message_id": uuid4(),
             "user_prompt": "turn two",
-            "user_parts": [{"type": "text", "text": "turn two"}],
+            "user_parts": [TextUIPart(text="turn two", state="done")],
             "turn_trace_id": str(uuid4()),
             "turn_created_at": "2026-04-14T00:01:00+00:00",
             "supervisor_call_count": 0,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import json
 from collections.abc import AsyncGenerator
 from decimal import Decimal
 from typing import Any, Literal
@@ -25,11 +24,20 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import (
     DeferredToolRequests,
     DeferredToolResults,
     ToolDenied,
+)
+from pydantic_ai.ui.vercel_ai.request_types import (
+    DataUIPart,
+    ReasoningUIPart,
+    TextUIPart,
+    ToolInputAvailablePart,
+    ToolOutputAvailablePart,
+    ToolOutputErrorPart,
 )
 from pydantic_ai.ui.vercel_ai.response_types import (
     BaseChunk,
@@ -86,9 +94,9 @@ from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
 from pathfinder.ai.scratchpad.rendering import render_scratchpad_for_supervisor
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
 from pathfinder.persistence.repositories import MessagesRepository
+from pathfinder.persistence.repositories._message_metadata import MessageMetadata
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services import quota as quota_service
 from pathfinder.services import user_preferences as prefs_service
 
@@ -121,50 +129,14 @@ def model_id(agent: Agent[Any, Any]) -> str:
     return model.model_id
 
 
+# Mirrors pydantic_ai._output.DEFAULT_OUTPUT_TOOL_NAME (private). Union output
+# types fan out to ``<base>_<TypeName>``, so prefix-match too.
+_FINAL_RESULT_NAME = "final_result"
+_FINAL_RESULT_PREFIX = "final_result_"
+
+
 def _is_final_result_tool(name: str) -> bool:
-    return name == "final_result" or name.startswith("final_result_")
-
-
-class _PersistedTextPart(CamelModel):
-    type: Literal["text"] = "text"
-    text: str
-    state: Literal["done"] = "done"
-
-
-class _PersistedReasoningPart(CamelModel):
-    type: Literal["reasoning"] = "reasoning"
-    text: str
-    state: Literal["done"] = "done"
-
-
-class _PersistedToolCallPart(CamelModel):
-    type: str
-    tool_call_id: str
-    state: Literal["input-available", "output-available", "output-error"] = (
-        "input-available"
-    )
-    input: dict[str, Any] = Field(default_factory=dict)
-    output: Any | None = None
-    error_text: str | None = None
-    provider_executed: bool = False
-
-
-def _serialize_tool_return_content(content: Any) -> Any:
-    """Coerce a pydantic-ai ToolReturnPart.content into a JSON-safe shape."""
-    if content is None or isinstance(content, (str, int, float, bool)):
-        return content
-    if isinstance(content, BaseModel):
-        return content.model_dump(by_alias=True, mode="json")
-    if isinstance(content, list):
-        return [_serialize_tool_return_content(c) for c in content]
-    if isinstance(content, dict):
-        return {
-            str(k): _serialize_tool_return_content(v) for k, v in content.items()
-        }
-    try:
-        return json.loads(json.dumps(content, default=str))
-    except (TypeError, ValueError):
-        return str(content)
+    return name == _FINAL_RESULT_NAME or name.startswith(_FINAL_RESULT_PREFIX)
 
 
 def _index_tool_returns(
@@ -189,78 +161,114 @@ def _index_tool_returns(
 
 def _convert_assistant_parts(
     new_messages: list[ModelMessage],
-) -> list[dict[str, Any]]:
-    """Convert pydantic-ai messages into persisted parts, merging tool outputs."""
+) -> list[_PersistedPart]:
     tool_returns = _index_tool_returns(new_messages)
-    parts: list[dict[str, Any]] = []
+    parts: list[_PersistedPart] = []
     for msg in new_messages:
         if not isinstance(msg, ModelResponse):
             continue
         for part in msg.parts:
             converted = _convert_response_part(part, tool_returns)
-            if converted is None:
-                continue
-            parts.append(converted.model_dump(by_alias=True, exclude_none=True))
+            if converted is not None:
+                parts.append(converted)
     return parts
+
+
+type _PersistedPart = (
+    TextUIPart
+    | ReasoningUIPart
+    | ToolInputAvailablePart
+    | ToolOutputAvailablePart
+    | ToolOutputErrorPart
+)
+
+type _TurnPart = _PersistedPart | DataUIPart
+
+
+def _dump_parts(parts: list[_TurnPart]) -> list[dict[str, Any]]:
+    return [
+        p.model_dump(by_alias=True, mode="json", exclude_none=True)
+        for p in parts
+    ]
 
 
 def _convert_response_part(
     part: object,
     tool_returns: dict[str, ToolReturnPart],
-) -> _PersistedTextPart | _PersistedReasoningPart | _PersistedToolCallPart | None:
+) -> _PersistedPart | None:
     match part:
         case TextPart(content=content) if content:
-            return _PersistedTextPart(text=content)
+            return TextUIPart(text=content, state="done")
         case ThinkingPart(content=content) if content:
-            return _PersistedReasoningPart(text=content)
+            return ReasoningUIPart(text=content, state="done")
         case ToolCallPart() as tc if not _is_final_result_tool(tc.tool_name):
             ret = tool_returns.get(tc.tool_call_id)
             if ret is None:
-                return _PersistedToolCallPart(
+                return ToolInputAvailablePart(
                     type=f"tool-{tc.tool_name}",
                     tool_call_id=tc.tool_call_id,
                     input=tc.args_as_dict(),
                 )
-            output = _serialize_tool_return_content(ret.content)
             if ret.outcome == "failed":
-                return _PersistedToolCallPart(
+                return ToolOutputErrorPart(
                     type=f"tool-{tc.tool_name}",
                     tool_call_id=tc.tool_call_id,
-                    state="output-error",
                     input=tc.args_as_dict(),
                     error_text=str(ret.content),
                 )
-            return _PersistedToolCallPart(
+            return ToolOutputAvailablePart(
                 type=f"tool-{tc.tool_name}",
                 tool_call_id=tc.tool_call_id,
-                state="output-available",
                 input=tc.args_as_dict(),
-                output=output,
+                # Pydantic v2 walks ``Any`` recursively in mode="json",
+                # so BaseModel/dataclass returns serialize without our
+                # old hand-rolled ``_serialize_tool_return_content``.
+                output=ret.content,
             )
         case _:
             return None
 
 
-def _phase_start_part(phase: PhaseName, trace_id: str | None, model: str) -> dict[str, Any]:
-    return {
-        "type": "data-phase-start",
-        "data": {"phase": phase, "traceId": trace_id or "", "model": model},
-    }
+def _phase_start_part(phase: PhaseName, trace_id: str | None, model: str) -> DataUIPart:
+    return DataUIPart(
+        type="data-phase-start",
+        data={"phase": phase, "traceId": trace_id or "", "model": model},
+    )
 
 
-def _data_part(part_type: str, data: dict[str, Any]) -> dict[str, Any]:
-    return {"type": part_type, "data": data}
+def _data_part(part_type: str, data: dict[str, Any]) -> DataUIPart:
+    return DataUIPart(type=part_type, data=data)
 
 
-def _text_part(text: str) -> dict[str, Any]:
-    return {"type": "text", "text": text, "state": "done"}
+def _text_part(text: str) -> TextUIPart:
+    return TextUIPart(text=text, state="done")
+
+
+def _build_turn_metadata(
+    *,
+    state: PipelineState,
+    total_tokens: int,
+    cost_usd: Decimal,
+) -> dict[str, Any]:
+    return MessageMetadata.model_validate(
+        {
+            "traceId": state.turn_trace_id,
+            "createdAt": state.turn_created_at,
+            "siteId": state.site_id,
+            "mode": state.mode,
+            "usage": {
+                "totalTokens": total_tokens,
+                "costUsd": str(cost_usd),
+            },
+        },
+    ).model_dump(by_alias=True, exclude_none=True)
 
 
 async def _write_turn_message(
     *,
     context: Context,
     state: PipelineState,
-    parts: list[dict[str, Any]],
+    parts: list[_TurnPart],
 ) -> UUID | None:
     """Finalize the turn's assistant message row.
 
@@ -269,22 +277,18 @@ async def _write_turn_message(
     """
     if not parts:
         return None
+    metadata = _build_turn_metadata(
+        state=state,
+        total_tokens=state.turn_total_tokens,
+        cost_usd=state.turn_total_cost_usd,
+    )
     async with context.db_session_factory() as session:
         await MessagesRepository(session).upsert_message(
             message_id=state.turn_message_id,
             conversation_id=state.conversation_id,
             role="assistant",
-            parts=parts,
-            metadata={
-                "traceId": state.turn_trace_id,
-                "createdAt": state.turn_created_at,
-                "siteId": state.site_id,
-                "mode": state.mode,
-                "usage": {
-                    "totalTokens": state.turn_total_tokens,
-                    "costUsd": str(state.turn_total_cost_usd),
-                },
-            },
+            parts=_dump_parts(parts),
+            metadata=metadata,
         )
         await session.commit()
     return state.turn_message_id
@@ -418,7 +422,7 @@ def _build_phase_delta(
     state: PipelineState,
     deps: AgentDeps,
     phase: PhaseName,
-    new_parts: list[dict[str, Any]],
+    new_parts: list[_TurnPart],
     capture: _PhaseRunCapture,
 ) -> dict[str, Any]:
     delta = extract_state_delta(deps)
@@ -489,12 +493,6 @@ is silently capped by OpenAI / Google.
 _OVERRIDE_MODEL_SETTINGS: ModelSettings = {"max_tokens": _OVERRIDE_MAX_TOKENS}
 
 
-def _override_model_settings(model_id_str: str) -> ModelSettings:
-    """Return ``model_settings`` to attach when overriding a phase agent's model."""
-    del model_id_str
-    return _OVERRIDE_MODEL_SETTINGS
-
-
 async def _resolve_phase_model_override(
     state: PipelineState, runtime: Runtime[Context], phase: PhaseName,
 ) -> str | None:
@@ -528,13 +526,15 @@ async def _resolve_phase_model_context(
     ignored in mock mode because the mock fakes every phase.
     """
     if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
+        if isinstance(agent.model, FunctionModel):
+            return contextlib.nullcontext(), f"mock:{phase}"
         return agent.override(model=get_mock_model()), f"mock:{phase}"
     model_override = await _resolve_phase_model_override(state, runtime, phase)
     if model_override is None:
         return contextlib.nullcontext(), model_id(agent)
     ctx = agent.override(
         model=model_override,
-        model_settings=_override_model_settings(model_override),
+        model_settings=_OVERRIDE_MODEL_SETTINGS,
     )
     return ctx, model_override
 
@@ -638,6 +638,8 @@ async def _run_phase_node(
             capture, exc, phase=phase, state=state, agent_model=agent_model,
         )
     except Exception:
+        # log + rethrow with context: pydantic-ai AgentRunError variants,
+        # CancelledError, transport errors, and arbitrary tool exceptions.
         logger.exception(
             "phase stream raised",
             phase=phase,
@@ -651,7 +653,7 @@ async def _run_phase_node(
     if not capture.new_messages:
         _synthesize_from_orphan_text(capture, state, phase, agent_model)
 
-    new_parts: list[dict[str, Any]] = [
+    new_parts: list[_TurnPart] = [
         _phase_start_part(phase, state.turn_trace_id, agent_model),
         *_convert_assistant_parts(capture.new_messages),
     ]
@@ -697,7 +699,7 @@ async def _persist_phase_progress(
     *,
     state: PipelineState,
     capture: _PhaseRunCapture,
-    cumulative_parts: list[dict[str, Any]],
+    cumulative_parts: list[_TurnPart],
 ) -> None:
     """Persist per-phase quota + the turn message's partial state.
 
@@ -728,22 +730,18 @@ async def _persist_phase_progress(
                     conversation_id=str(state.conversation_id),
                     phase=state.current_phase,
                 )
+        metadata = _build_turn_metadata(
+            state=state,
+            total_tokens=cumulative_tokens,
+            cost_usd=cumulative_cost,
+        )
         try:
             await MessagesRepository(session).upsert_message(
                 message_id=state.turn_message_id,
                 conversation_id=state.conversation_id,
                 role="assistant",
-                parts=cumulative_parts,
-                metadata={
-                    "traceId": state.turn_trace_id,
-                    "createdAt": state.turn_created_at,
-                    "siteId": state.site_id,
-                    "mode": state.mode,
-                    "usage": {
-                        "totalTokens": cumulative_tokens,
-                        "costUsd": str(cumulative_cost),
-                    },
-                },
+                parts=_dump_parts(cumulative_parts),
+                metadata=metadata,
             )
         except SQLAlchemyError:
             logger.warning(
@@ -872,7 +870,7 @@ def _supervisor_goto(target: SupervisorTarget) -> SupervisorGoto:
 def _supervisor_finalize(
     state: PipelineState,
     reason: str,
-    extra_part: dict[str, Any],
+    extra_part: _TurnPart,
 ) -> Command[SupervisorGoto]:
     return Command(
         goto=_FINALIZE,
@@ -1004,7 +1002,7 @@ async def _run_supervisor_agent(
     )
     override_ctx = (
         agent.override(model=get_mock_model())
-        if is_mock
+        if is_mock and not isinstance(agent.model, FunctionModel)
         else contextlib.nullcontext()
     )
     try:
@@ -1058,7 +1056,7 @@ async def supervisor_node(
         writer,
         supervisor_decision_event(to=decision.to, reason=decision.reason),
     )
-    new_parts: list[dict[str, Any]] = [
+    new_parts: list[_TurnPart] = [
         _data_part("data-supervisor-decision", {"to": decision.to, "reason": decision.reason}),
     ]
 

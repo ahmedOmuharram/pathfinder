@@ -8,10 +8,11 @@ Provides:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -24,9 +25,7 @@ from pathfinder.ai.tools.standalone._workbench_models import (
     GeneSetListResponse,
     WdkSourceSpec,
 )
-from pathfinder.platform.errors import ErrorCode
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.gene_sets.store import get_gene_set_store
 from pathfinder.services.gene_sets.types import GeneSet, GeneSetSource
 
@@ -39,7 +38,7 @@ async def create_workbench_gene_set(
     gene_ids: list[str],
     record_type: str = "transcript",
     wdk_source: WdkSourceSpec | None = None,
-) -> ToolReturn[GeneSetCreatedResponse] | ToolErrorPayload:
+) -> ToolReturn[GeneSetCreatedResponse]:
     """Create a gene set in the user's Workbench for further analysis.
 
     Use this tool after building a strategy or collecting gene IDs to send them
@@ -55,15 +54,11 @@ async def create_workbench_gene_set(
         wdk_source: Optional WDK provenance (search name, parameters, strategy ID, step ID).
     """
     if not name or not name.strip():
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "Gene set name must be a non-empty string.",
-        )
+        msg = "VALIDATION_ERROR: Gene set name must be a non-empty string."
+        raise ModelRetry(msg)
     if not gene_ids:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "gene_ids must contain at least one gene ID.",
-        )
+        msg = "VALIDATION_ERROR: gene_ids must contain at least one gene ID."
+        raise ModelRetry(msg)
     deps = ctx.deps
     src = wdk_source or WdkSourceSpec()
     source: GeneSetSource = (
@@ -111,6 +106,11 @@ async def create_workbench_gene_set(
     )
 
 
+EnrichmentType = Literal[
+    "go_function", "go_process", "go_component", "pathway", "word",
+]
+
+
 @durable_tool(
     tool_name="geneset_enrichment",
     estimated_duration_seconds=120,
@@ -118,7 +118,7 @@ async def create_workbench_gene_set(
 async def run_gene_set_enrichment(
     ctx: RunContext[AgentDeps],
     gene_set_id: str,
-    enrichment_types: list[str] | None = None,
+    enrichment_types: list[EnrichmentType] | None = None,
 ) -> dict[str, Any]:
     """Run enrichment analysis on a gene set in the Workbench.
 

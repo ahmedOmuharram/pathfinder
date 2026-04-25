@@ -7,6 +7,7 @@ Each function takes ``RunContext[AgentDeps]`` and mirrors the original
 from typing import cast
 
 from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -29,6 +30,9 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     get_graph_and_step,
     graph_not_found,
     validation_error_payload,
+)
+from pathfinder.ai.tools.standalone.strategy_build import (
+    _validate_step_parameters,
 )
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
@@ -107,23 +111,22 @@ def _validate_and_set_operator(
     step: StrategyStepNode,
     step_id: str,
     operator: str,
-) -> ToolErrorPayload | None:
-    """Validate and set operator on a binary step. Returns error or None."""
+) -> None:
+    """Validate and set operator on a binary step. Raises ModelRetry on bad input."""
     if step.secondary_input is None:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "operator can only be set for binary steps.",
-            stepId=step_id,
+        msg = (
+            f"VALIDATION_ERROR: operator can only be set for binary steps "
+            f"(stepId={step_id})."
         )
+        raise ModelRetry(msg)
     try:
         step.operator = parse_op(operator)
-    except ValueError:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            f"Unknown operator: {operator}",
-            stepId=step_id,
+    except ValueError as exc:
+        msg = (
+            f"VALIDATION_ERROR: Unknown operator {operator!r} on step {step_id!r}. "
+            "Use INTERSECT, UNION, MINUS, RMINUS, or COLOCATE."
         )
-    return None
+        raise ModelRetry(msg) from exc
 
 
 async def _apply_step_updates(
@@ -150,9 +153,7 @@ async def _apply_step_updates(
         substantive_change = True
 
     if operator is not None:
-        error = _validate_and_set_operator(step, step.id, operator)
-        if error is not None:
-            return error
+        _validate_and_set_operator(step, step.id, operator)
         substantive_change = True
 
     if display_name:
@@ -198,11 +199,8 @@ def _get_plan_step(
         return result
     graph, step = result
     if not isinstance(step, StrategyStepNode):
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "Unsupported step object.",
-            stepId=step_id,
-        )
+        msg = f"VALIDATION_ERROR: Unsupported step object (stepId={step_id})."
+        raise ModelRetry(msg)
     return graph, step
 
 
@@ -237,6 +235,10 @@ async def update_step(
     if isinstance(resolved, ToolErrorPayload):
         return resolved
     graph, step = resolved
+    if parameters is not None:
+        sn = search_name or step.search_name
+        if sn:
+            _validate_step_parameters(deps, sn, dict(parameters))
 
     sync_state = ensure_sync_state(session)
     apply_error = await _apply_step_updates(
@@ -282,20 +284,19 @@ async def delete_step(
         return graph_not_found(graph_id)
 
     if step_id not in graph.steps:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            f"Step '{step_id}' not found.",
-            graphId=graph.id,
+        msg = (
+            f"VALIDATION_ERROR: Step {step_id!r} not found in graph "
+            f"{graph.id!r}. Valid step ids: {sorted(graph.steps.keys())}."
         )
+        raise ModelRetry(msg)
 
     # Guard: refuse to delete the last step(s) — use clear_strategy instead.
     if len(graph.steps) == 1:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "Deleting this step would remove all nodes. Use clear_strategy(confirm=true) to start over.",
-            graphId=graph.id,
-            requiresConfirmation=True,
+        msg = (
+            "VALIDATION_ERROR: Deleting this step would remove all nodes. "
+            "Use clear_strategy(confirm=true) to start over."
         )
+        raise ModelRetry(msg)
 
     sync_state = ensure_sync_state(session)
     result = await delete_step_connected(graph, sync_state, step_id)
@@ -345,13 +346,8 @@ async def undo_last_change(
             ),
             metadata=[graph_snapshot_chunk(session, graph)],
         )
-    return ToolReturn(
-        return_value=with_full_graph(
-            session,
-            graph,
-            tool_error(
-                ErrorCode.VALIDATION_ERROR, "Nothing to undo", graphId=graph.id
-            ).model_dump(by_alias=True, exclude_none=True, mode="json"),
-        ),
-        metadata=[graph_snapshot_chunk(session, graph)],
+    msg = (
+        f"VALIDATION_ERROR: Nothing to undo on graph {graph.id!r}. "
+        "Make a structural change first or pick a different action."
     )
+    raise ModelRetry(msg)

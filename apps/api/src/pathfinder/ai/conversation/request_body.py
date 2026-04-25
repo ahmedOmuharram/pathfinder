@@ -1,18 +1,22 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_ai.ui.vercel_ai.request_types import (
+    TextUIPart,
+    UIMessagePart,
+)
 
 from pathfinder.platform.pydantic_base import CamelModel
 
 
-class _UIMessage(BaseModel):
+class UIMessage(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    id: UUID
+    id: str
     role: Literal["system", "user", "assistant"]
-    parts: list[dict[str, Any]] = Field(default_factory=list)
+    parts: list[UIMessagePart] = Field(default_factory=list)
 
 
 class ChatRequestBody(CamelModel):
@@ -29,7 +33,7 @@ class ChatRequestBody(CamelModel):
 
     trigger: Literal["submit-message", "regenerate-message"] = "submit-message"
     id: str = ""
-    messages: list[_UIMessage] = Field(default_factory=list)
+    messages: list[UIMessage] = Field(default_factory=list)
 
     conversation_id: UUID
     site_id: str = ""
@@ -44,18 +48,15 @@ class ChatRequestBody(CamelModel):
         last = self.messages[-1]
         if last.role != "user":
             return ""
-        chunks: list[str] = []
-        for raw in last.parts:
-            if raw.get("type") != "text":
-                continue
-            text = raw.get("text")
-            if isinstance(text, str):
-                chunks.append(text)
-        return "".join(chunks)
+        return "".join(
+            part.text
+            for part in last.parts
+            if isinstance(part, TextUIPart) and part.text
+        )
 
     @property
     def last_user_message_id(self) -> UUID:
         if not self.messages or self.messages[-1].role != "user":
             msg = "ChatRequestBody.messages must end with a user message"
             raise ValueError(msg)
-        return self.messages[-1].id
+        return UUID(self.messages[-1].id)

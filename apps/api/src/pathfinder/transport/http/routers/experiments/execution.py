@@ -3,7 +3,7 @@
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Request
-from starlette.responses import StreamingResponse
+from fastapi.responses import StreamingResponse
 
 from pathfinder.platform.errors import sanitize_error_for_client
 from pathfinder.platform.logging import get_logger

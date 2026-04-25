@@ -5,8 +5,7 @@ from pydantic_ai.capabilities import Hooks, Thinking
 from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.agents._history_processor import (
-    elide_consumed_tool_results,
-    pair_tool_calls,
+    PHASE_HISTORY_PROCESSORS,
 )
 from pathfinder.ai.agents._instructions import (
     base_system_prompt,
@@ -18,7 +17,6 @@ from pathfinder.ai.agents._instructions import (
     pinned_scratchpad,
     pinned_user_memories,
 )
-from pathfinder.ai.capabilities.orphan_audit import OrphanToolAuditor
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -116,9 +114,9 @@ planning_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
         ToolResilience(),
         _planning_hooks,
         Thinking(effort="high"),
-        OrphanToolAuditor(),
+
     ],
-    history_processors=[pair_tool_calls, elide_consumed_tool_results],
+    history_processors=PHASE_HISTORY_PROCESSORS,
     retries=3,
     description="Creates structured execution plans from discovery findings",
     name="planning",
@@ -126,44 +124,17 @@ planning_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
 )
 
 
-@planning_agent.instructions
-def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
-    return base_system_prompt(ctx)
-
-
-@planning_agent.instructions
-def _pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_problem_frame(ctx)
-
-
-@planning_agent.instructions
-def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_graph_state(ctx)
-
-
-@planning_agent.instructions
-def _pinned_active_plan(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_active_plan(ctx)
-
-
-@planning_agent.instructions
-def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_user_memories(ctx)
-
-
-@planning_agent.instructions
-async def _pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
-    return await pinned_scratchpad(ctx)
-
-
-@planning_agent.instructions
-def _pinned_last_phase_outcome(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_last_phase_outcome(ctx)
-
-
-@planning_agent.instructions
-def _pinned_discovered_searches(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_discovered_searches(ctx)
+for _fn in (
+    base_system_prompt,
+    pinned_problem_frame,
+    pinned_graph_state,
+    pinned_active_plan,
+    pinned_user_memories,
+    pinned_scratchpad,
+    pinned_last_phase_outcome,
+    pinned_discovered_searches,
+):
+    planning_agent.instructions(_fn)
 
 
 @planning_agent.instructions

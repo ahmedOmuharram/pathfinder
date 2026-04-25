@@ -32,9 +32,9 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from shared_py.stream_events import CustomEvent, DoneEvent, StreamEvent
 from sqlalchemy import select
-from starlette.responses import StreamingResponse
 
 from pathfinder.persistence.models import (
     BackgroundTask,

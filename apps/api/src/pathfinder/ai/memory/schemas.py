@@ -35,16 +35,6 @@ class MemoryTombstone(CamelModel):
 
 
 class MemoryEntryDraft(CamelModel):
-    """Verification-authored memory entry, lifted to a full ``MemoryValue``.
-
-    The verification agent populates these in its ``VerificationDigest``;
-    the autowrite layer fills in ``site_id`` (from pipeline state),
-    ``source_conversation_id``, and ``created_at`` so the LLM doesn't
-    invent timestamps or cross-conversation links. Memories authored this
-    way are always ``kind="knowledge"`` — durable facts the user (or
-    future agent runs) should be reminded of next time.
-    """
-
     name: str = Field(
         min_length=1,
         max_length=200,

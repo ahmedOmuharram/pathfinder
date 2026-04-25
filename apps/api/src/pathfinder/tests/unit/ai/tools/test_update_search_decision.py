@@ -12,13 +12,13 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.agents._instructions import pinned_discovered_searches
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
 from pathfinder.ai.tools.standalone.catalog_discovery import (
     update_search_decision,
 )
-from pathfinder.platform.tool_errors import ToolErrorPayload
 
 
 def _seed_overview(name: str, record_type: str = "transcript") -> SearchOverview:
@@ -42,37 +42,67 @@ def _ctx_with(overviews: dict[str, SearchOverview]) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_rejects_unknown_search() -> None:
-    """Discovery must `get_search_overview` first; the decision tool fails
-    loudly if it's called for a search the agent never inspected — that's
-    the only contract that prevents discovered_searches from being filled
-    with hallucinated names."""
+async def test_unknown_search_with_no_discoveries_yet_raises_modelretry() -> None:
+    """Discovery must `get_search_overview` first; the decision tool now
+    raises ``ModelRetry`` so pydantic-ai threads the message back into the
+    same step (the model self-corrects without burning a turn)."""
     ctx = _ctx_with({})
-    result = await update_search_decision(
-        ctx,
-        search_name="GenesByGoTerm",
-        selection_status="selected",
-        rationale="anchor for kinase activity filter",
-    )
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "SEARCH_NOT_DISCOVERED"
-    assert "get_search_overview" in result.message
+    with pytest.raises(ModelRetry) as excinfo:
+        await update_search_decision(
+            ctx,
+            search_name="GenesByGoTerm",
+            selection_status="selected",
+            rationale="anchor for kinase activity filter",
+        )
+    msg = str(excinfo.value)
+    assert "GenesByGoTerm" in msg
+    assert "get_search_overview" in msg
 
 
 @pytest.mark.asyncio
-async def test_rejects_invalid_confidence() -> None:
-    """Confidence is a 0..1 probability; out-of-range values are caller bugs
-    and must surface as tool errors, not silently clamp."""
-    ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
-    result = await update_search_decision(
-        ctx,
-        search_name="GenesByGoTerm",
-        selection_status="selected",
-        rationale="anchor",
-        confidence=1.5,
+async def test_unknown_search_with_other_discoveries_includes_did_you_mean() -> None:
+    """When other searches HAVE been inspected, the retry message must
+    list them so the model can pick the right one — the model can copy
+    a name verbatim from the message instead of guessing again."""
+    ctx = _ctx_with(
+        {
+            "GenesByGoTerm": _seed_overview("GenesByGoTerm"),
+            "GenesByGoTermSimilar": _seed_overview("GenesByGoTermSimilar"),
+            "GenesByText": _seed_overview("GenesByText"),
+        },
     )
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "INVALID_CONFIDENCE"
+    with pytest.raises(ModelRetry) as excinfo:
+        await update_search_decision(
+            ctx,
+            search_name="GenesByGOTerm",  # close to GenesByGoTerm
+            selection_status="selected",
+            rationale="anchor",
+        )
+    msg = str(excinfo.value)
+    assert "GenesByGOTerm" in msg
+    # Did-you-mean suggestion list must include the close match.
+    assert "GenesByGoTerm" in msg
+    # Full valid set is exposed so the model has the complete vocabulary.
+    assert "GenesByText" in msg
+
+
+@pytest.mark.asyncio
+async def test_invalid_confidence_raises_modelretry_with_bounds() -> None:
+    """Confidence is a 0..1 probability. The retry message must spell out
+    the valid range so the model picks a value in-bounds on the next try."""
+    ctx = _ctx_with({"GenesByGoTerm": _seed_overview("GenesByGoTerm")})
+    with pytest.raises(ModelRetry) as excinfo:
+        await update_search_decision(
+            ctx,
+            search_name="GenesByGoTerm",
+            selection_status="selected",
+            rationale="anchor",
+            confidence=1.5,
+        )
+    msg = str(excinfo.value)
+    assert "0" in msg
+    assert "1" in msg
+    assert "1.5" in msg
 
 
 @pytest.mark.asyncio

@@ -12,7 +12,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from pathfinder.ai.agents._history_processor import pair_tool_calls
+from pathfinder.ai.agents._history_processor import _collect_ids, pair_tool_calls
 
 
 def _user(text: str) -> ModelRequest:
@@ -333,3 +333,64 @@ class TestPairToolCalls:
         result = pair_tool_calls(existing)
         # Original length 4; duplicate return's request dropped → 3.
         assert len(result) == 3
+
+    def test_duplicate_tool_calls_surface_in_collect_ids(self) -> None:
+        """Two ToolCallParts sharing a tool_call_id flips ``has_duplicate_calls``."""
+        messages = [
+            _user("hi"),
+            _assistant(_tool_call("dup"), _tool_call("dup")),
+            _tool_return("dup"),
+        ]
+        (
+            call_ids,
+            satisfied_ids,
+            has_duplicate_returns,
+            has_duplicate_calls,
+        ) = _collect_ids(messages)
+        assert call_ids == {"dup"}
+        assert satisfied_ids == {"dup"}
+        assert has_duplicate_returns is False
+        assert has_duplicate_calls is True
+
+    def test_duplicate_tool_calls_pass_through_without_crashing(self) -> None:
+        """Duplicate calls are a vendor bug; pair_tool_calls must keep the flow intact."""
+        existing = [
+            _user("hi"),
+            _assistant(_tool_call("dup"), _tool_call("dup")),
+            _tool_return("dup"),
+        ]
+        result = pair_tool_calls(existing)
+        call_ids = [
+            p.tool_call_id
+            for m in result
+            for p in m.parts
+            if isinstance(p, ToolCallPart)
+        ]
+        return_ids = [
+            p.tool_call_id
+            for m in result
+            for p in m.parts
+            if isinstance(p, ToolReturnPart)
+        ]
+        assert call_ids == ["dup", "dup"]
+        assert return_ids == ["dup"]
+
+    def test_no_duplicate_calls_or_returns_in_clean_history(self) -> None:
+        """Distinct ids never trigger either duplicate flag."""
+        messages = [
+            _user("hi"),
+            _assistant(_tool_call("c1"), _tool_call("c2")),
+            ModelRequest(
+                parts=[
+                    ToolReturnPart(
+                        tool_name="foo", content="a", tool_call_id="c1",
+                    ),
+                    ToolReturnPart(
+                        tool_name="foo", content="b", tool_call_id="c2",
+                    ),
+                ],
+            ),
+        ]
+        _, _, has_dup_returns, has_dup_calls = _collect_ids(messages)
+        assert has_dup_returns is False
+        assert has_dup_calls is False

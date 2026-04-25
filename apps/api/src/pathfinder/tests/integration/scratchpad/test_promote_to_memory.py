@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pathfinder.ai.graph.runtime import AgentDeps, DBSessionFactory
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.scratchpad import tools as sc_tools
+from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import Conversation, User
 
 pytestmark = pytest.mark.asyncio
@@ -38,6 +39,7 @@ def _run_ctx(
 ) -> RunContext[AgentDeps]:
     deps = AgentDeps(
         site_id="plasmodb",
+        strategy_session=StrategySession(site_id="plasmodb"),
         conversation_id=conv_id,
         user_id=user_id,
         db_session_factory=db_session_factory,
@@ -127,6 +129,7 @@ async def test_promote_missing_memory_store_raises(
     del db_session
     deps = AgentDeps(
         site_id="plasmodb",
+        strategy_session=StrategySession(site_id="plasmodb"),
         conversation_id=conv_id,
         user_id=seed_user.id,
         db_session_factory=db_session_factory,

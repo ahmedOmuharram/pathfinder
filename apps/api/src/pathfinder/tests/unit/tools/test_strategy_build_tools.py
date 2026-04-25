@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
@@ -16,7 +17,6 @@ from pathfinder.ai.tools.standalone.strategy_build import (
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategySession
-from pathfinder.platform.tool_errors import ToolErrorPayload
 from pathfinder.services.strategies.step_creation import StepCreationResult
 
 
@@ -137,7 +137,7 @@ async def test_combine_steps_creates_union(
         ctx,
         step_a_id=step_a.id,
         step_b_id=step_b.id,
-        operator="UNION",
+        operator=CombineOp.UNION,
     )
 
     assert isinstance(result, ToolReturn)
@@ -159,42 +159,17 @@ async def test_combine_steps_rejects_missing_step() -> None:
     step_a = StrategyStepNode(search_name="GenesByTaxon", display_name="Step A")
     graph.add_step(step_a)
 
-    result = await combine_steps(
-        ctx,
-        step_a_id=step_a.id,
-        step_b_id="nonexistent-id",
-        operator="INTERSECT",
-    )
+    with pytest.raises(ModelRetry) as excinfo:
+        await combine_steps(
+            ctx,
+            step_a_id=step_a.id,
+            step_b_id="nonexistent-id",
+            operator=CombineOp.INTERSECT,
+        )
 
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "STEP_NOT_FOUND"
-    assert "nonexistent-id" in result.message
-
-
-@pytest.mark.asyncio
-async def test_combine_steps_rejects_invalid_operator() -> None:
-    session = _make_session()
-    deps = _make_deps(session)
-    ctx = _make_ctx(deps)
-
-    graph = session.get_graph(None)
-    assert graph is not None
-
-    step_a = StrategyStepNode(search_name="GenesByTaxon", display_name="Step A")
-    step_b = StrategyStepNode(search_name="GenesByLocation", display_name="Step B")
-    graph.add_step(step_a)
-    graph.add_step(step_b)
-
-    result = await combine_steps(
-        ctx,
-        step_a_id=step_a.id,
-        step_b_id=step_b.id,
-        operator="INVALID_OP",
-    )
-
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "VALIDATION_ERROR"
-    assert "INTERSECT" in result.message
+    msg = str(excinfo.value)
+    assert "STEP_NOT_FOUND" in msg
+    assert "nonexistent-id" in msg
 
 
 @pytest.mark.asyncio
@@ -205,12 +180,12 @@ async def test_transform_step_missing_input_step() -> None:
     deps = _make_deps(session, state)
     ctx = _make_ctx(deps)
 
-    result = await transform_step(
-        ctx,
-        input_step_id="nonexistent",
-        transform_name="GenesByOrthologPattern",
-        parameters={"profile_pattern": "%pfal3D7:Y%"},
-    )
+    with pytest.raises(ModelRetry) as excinfo:
+        await transform_step(
+            ctx,
+            input_step_id="nonexistent",
+            transform_name="GenesByOrthologPattern",
+            parameters={"profile_pattern": "%pfal3D7:Y%"},
+        )
 
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "STEP_NOT_FOUND"
+    assert "STEP_NOT_FOUND" in str(excinfo.value)

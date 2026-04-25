@@ -9,7 +9,7 @@ rejection) on top.
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum, auto
+from typing import Literal
 
 from pydantic import JsonValue
 
@@ -31,51 +31,62 @@ def _safe_float(value: JsonValue) -> float | None:
     except ValueError:
         return None
 
-# Handler signature: (spec, value) -> ProcessedParam
 _ParamHandler = Callable[["ParamSpecNormalized", "JsonValue"], "ProcessedParam"]
 
 _RANGE_PAIR_LENGTH = 2
 
-# Param types that support numeric range constraints
 _NUMERIC_PARAM_TYPES = frozenset({"number", "number-range"})
 
-# ---------------------------------------------------------------------------
-# Intermediate result of the shared dispatch chain
-# ---------------------------------------------------------------------------
-
-class ParamKind(Enum):
-    """Discriminator for the ``ProcessedParam`` tagged union."""
-
-    MULTI_PICK = auto()
-    SINGLE_PICK = auto()
-    SCALAR = auto()
-    RANGE = auto()
-    FILTER = auto()
-    INPUT_DATASET = auto()
-    UNKNOWN = auto()
-    EMPTY = auto()
+@dataclass(frozen=True)
+class MultiPickProcessed:
+    value: list[str]
+    kind: Literal["multi_pick"] = "multi_pick"
 
 @dataclass(frozen=True)
-class ProcessedParam:
-    """Intermediate result from the shared dispatch chain.
+class SinglePickProcessed:
+    value: str
+    kind: Literal["single_pick"] = "single_pick"
 
-    ``kind`` tells callers *what* was produced so they can apply output
-    formatting (e.g. ``json.dumps`` for the wire normalizer, identity for the
-    canonical API formatter).
+@dataclass(frozen=True)
+class ScalarProcessed:
+    value: str
+    kind: Literal["scalar"] = "scalar"
 
-    ``value`` holds the decoded, validated, native-Python value:
-      - MULTI_PICK   -> ``list[str]``
-      - SINGLE_PICK  -> ``str``
-      - SCALAR       -> ``str``
-      - RANGE        -> ``dict`` with ``min``/``max`` keys
-      - FILTER       -> ``dict | list | str``
-      - INPUT_DATASET -> ``str``
-      - UNKNOWN      -> original ``JsonValue`` (pass-through)
-      - EMPTY        -> ``""``
-    """
+@dataclass(frozen=True)
+class RangeProcessed:
+    value: JSONObject
+    kind: Literal["range"] = "range"
 
-    kind: ParamKind
+@dataclass(frozen=True)
+class FilterProcessed:
     value: JsonValue
+    kind: Literal["filter"] = "filter"
+
+@dataclass(frozen=True)
+class InputDatasetProcessed:
+    value: str
+    kind: Literal["input_dataset"] = "input_dataset"
+
+@dataclass(frozen=True)
+class UnknownProcessed:
+    value: JsonValue
+    kind: Literal["unknown"] = "unknown"
+
+@dataclass(frozen=True)
+class EmptyProcessed:
+    value: JsonValue
+    kind: Literal["empty"] = "empty"
+
+ProcessedParam = (
+    MultiPickProcessed
+    | SinglePickProcessed
+    | ScalarProcessed
+    | RangeProcessed
+    | FilterProcessed
+    | InputDatasetProcessed
+    | UnknownProcessed
+    | EmptyProcessed
+)
 
 # Param-type groupings (avoids duplicating string literals)
 SCALAR_TYPES = frozenset({"number", "date", "timestamp", "string"})
@@ -173,11 +184,11 @@ def process_value(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam
     """
     if value is None:
         empty = handle_empty(spec, value)
-        return ProcessedParam(kind=ParamKind.EMPTY, value=empty)
+        return EmptyProcessed(value=empty)
 
     handler = _DISPATCH_TABLE.get(spec.param_type)
     if handler is None:
-        return ProcessedParam(kind=ParamKind.UNKNOWN, value=value)
+        return UnknownProcessed(value=value)
     return handler(spec, value)
 
 # -- per-type processors -----------------------------------------------------
@@ -189,8 +200,7 @@ def process_multi_pick(spec: ParamSpecNormalized, value: JsonValue) -> Processed
         for v in values
     ]
     validate_multi_count(spec, matched)
-    result_values: list[JsonValue] = list(matched)
-    return ProcessedParam(kind=ParamKind.MULTI_PICK, value=result_values)
+    return MultiPickProcessed(value=matched)
 
 def process_single_pick(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
     decoded = decode_values(value, spec.name)
@@ -203,13 +213,13 @@ def process_single_pick(spec: ParamSpecNormalized, value: JsonValue) -> Processe
     selected = stringify(decoded[0]) if decoded else ""
     if not selected:
         validate_single_required(spec)
-        return ProcessedParam(kind=ParamKind.SINGLE_PICK, value="")
+        return SinglePickProcessed(value="")
     selected = match_vocab_value(
         vocab=spec.vocabulary, param_name=spec.name, value=selected
     )
     if not selected:
         validate_single_required(spec)
-    return ProcessedParam(kind=ParamKind.SINGLE_PICK, value=stringify(selected))
+    return SinglePickProcessed(value=stringify(selected))
 
 def process_scalar(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
     if isinstance(value, (list, dict, tuple, set)):
@@ -220,18 +230,15 @@ def process_scalar(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedPara
         )
     str_value = stringify(value)
 
-    # Numeric range constraint validation
-    # Applies to NumberParam types AND StringParam with isNumber=true
     if spec.param_type in _NUMERIC_PARAM_TYPES or spec.is_number:
         parsed = _safe_float(value)
         if parsed is not None:
             validate_numeric_range(spec, parsed)
 
-    # String length constraint validation (only for string-type params)
     if spec.param_type == "string" and spec.max_length is not None:
         validate_string_length(spec, str_value)
 
-    return ProcessedParam(kind=ParamKind.SCALAR, value=str_value)
+    return ScalarProcessed(value=str_value)
 
 def process_range(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
     range_dict: JSONObject
@@ -246,7 +253,6 @@ def process_range(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam
             errors=[{"param": spec.name, "value": value}],
         )
 
-    # Validate each endpoint of the range against numeric constraints
     if spec.param_type in _NUMERIC_PARAM_TYPES:
         for key in ("min", "max"):
             endpoint = range_dict.get(key)
@@ -255,13 +261,13 @@ def process_range(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam
                 if parsed is not None:
                     validate_numeric_range(spec, parsed)
 
-    return ProcessedParam(kind=ParamKind.RANGE, value=range_dict)
+    return RangeProcessed(value=range_dict)
 
 def process_filter(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
-    _ = spec  # spec unused for filters; accept for dispatch uniformity
+    _ = spec
     if isinstance(value, (dict, list)):
-        return ProcessedParam(kind=ParamKind.FILTER, value=value)
-    return ProcessedParam(kind=ParamKind.FILTER, value=stringify(value))
+        return FilterProcessed(value=value)
+    return FilterProcessed(value=stringify(value))
 
 def process_input_dataset(
     spec: ParamSpecNormalized, value: JsonValue
@@ -273,8 +279,8 @@ def process_input_dataset(
                 detail=f"Parameter '{spec.name}' must be a single value.",
                 errors=[{"param": spec.name, "value": value}],
             )
-        return ProcessedParam(kind=ParamKind.INPUT_DATASET, value=stringify(value[0]))
-    return ProcessedParam(kind=ParamKind.INPUT_DATASET, value=stringify(value))
+        return InputDatasetProcessed(value=stringify(value[0]))
+    return InputDatasetProcessed(value=stringify(value))
 
 # -- dispatch table (must come after function definitions) -------------------
 

@@ -7,12 +7,11 @@ from uuid import UUID
 
 import jwt
 from fastapi import Depends, Request
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import APIKeyCookie
 from jwt.types import Options
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from starlette.requests import Request as StarletteRequest
-from starlette.responses import JSONResponse, Response
 
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import user_id_ctx
@@ -103,8 +102,8 @@ _CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
 async def csrf_middleware(
-    request: StarletteRequest,
-    call_next: Callable[[StarletteRequest], Awaitable[Response]],
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
     """Require X-Requested-With header on state-changing requests.
 

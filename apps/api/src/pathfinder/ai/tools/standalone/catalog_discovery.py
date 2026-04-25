@@ -5,9 +5,18 @@ Three focused tools replacing the old get_search_parameters / get_dependent_voca
 1. ``get_search_overview`` -- high-level overview + state registration
 2. ``get_parameter_options`` -- drill into one parameter's vocabulary
 3. ``get_parameter_dependencies`` -- dependency DAG for fill ordering
+
+Tools that take an opaque-identifier argument (search name, parameter id)
+raise :class:`pydantic_ai.exceptions.ModelRetry` with did-you-mean
+candidates instead of returning a tool error. The library threads the
+retry message back into the same step so the model self-corrects on the
+next request — no wasted round-trip, no spammed retry loop.
 """
 
+from difflib import get_close_matches
+
 from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.agents.state import SearchOverview, SearchSelectionStatus
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -18,7 +27,6 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _resolve_record_type,
 )
 from pathfinder.domain.strategy.types import DecodedParamsField
-from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
     format_search_overview,
@@ -33,6 +41,21 @@ from pathfinder.services.wdk import (
     encode_wdk_params,
     get_wdk_client,
 )
+
+
+def _did_you_mean(
+    candidate: str, valid: list[str], *, kind: str, search_name: str | None = None,
+) -> str:
+    """Build a ``ModelRetry`` message body that lists candidates the model
+    can copy verbatim. Anthropic / OpenAI both treat this as the model's
+    cue to re-emit the tool call with one of the listed values."""
+    suggestions = get_close_matches(candidate, valid, n=5, cutoff=0.3)
+    where = f" on search {search_name!r}" if search_name else ""
+    parts = [f"{kind} {candidate!r} does not exist{where}."]
+    if suggestions:
+        parts.append(f"Did you mean: {suggestions}?")
+    parts.append(f"Valid {kind} values: {sorted(valid)}.")
+    return " ".join(parts)
 
 
 def _fix_gene(record_type: str | None) -> str | None:
@@ -101,11 +124,11 @@ async def get_search_overview(
 async def get_parameter_options(
     ctx: RunContext[AgentDeps],
     search_name: str,
-    param_name: str,
+    parameter_id: str,
     record_type: str | None = None,
     context_values: DecodedParamsField | None = None,
     query: str | None = None,
-) -> ParameterInfo | ToolErrorPayload:
+) -> ParameterInfo:
     """Get detailed parameter info including vocabulary/allowed values.
 
     For dependent parameters, pass context_values with the parent parameter's
@@ -114,7 +137,9 @@ async def get_parameter_options(
     Args:
         ctx: Agent run context.
         search_name: WDK search name (urlSegment).
-        param_name: Parameter name to inspect.
+        parameter_id: Opaque WDK parameter identifier (e.g. ``min_pct_idents``).
+            MUST be one of the names returned by ``get_search_overview`` for
+            this search — copy verbatim, do not paraphrase.
         record_type: Record type. Auto-resolved from search name if omitted (recommended).
         context_values: Current parameter values (paramName -> value) for dependent vocab refresh.
         query: Optional substring filter for large vocabularies. Case-insensitive.
@@ -153,11 +178,18 @@ async def get_parameter_options(
                 depends_on.setdefault(dep, []).append(base.name)
 
     for p in all_params:
-        if p.name == param_name:
+        if p.name == parameter_id:
             filtered = _filter_vocab(p, query) if query else p
             return format_typed_param(filtered, depends_on=depends_on, controls=controls)
 
-    return tool_error("PARAM_NOT_FOUND", f"Parameter '{param_name}' not found in search '{search_name}'.")
+    raise ModelRetry(
+        _did_you_mean(
+            parameter_id,
+            [p.name for p in all_params],
+            kind="parameter_id",
+            search_name=search_name,
+        ),
+    )
 
 
 async def update_search_decision(
@@ -168,7 +200,7 @@ async def update_search_decision(
     selection_reason: str = "",
     confidence: float = 0.0,
     param_hints: dict[str, str] | None = None,
-) -> ToolErrorPayload | str:
+) -> str:
     """Commit discovery's decision about an already-inspected search.
 
     Call this AFTER ``get_search_overview`` (and any parameter inspection)
@@ -193,17 +225,25 @@ async def update_search_decision(
             (raw WDK form). Planning will use these as starting defaults.
     """
     if not 0.0 <= confidence <= 1.0:
-        return tool_error(
-            "INVALID_CONFIDENCE",
-            f"confidence must be in [0, 1]; got {confidence}.",
+        msg = (
+            f"confidence must be in [0, 1]; got {confidence}. "
+            "Pick a value between 0.0 (no confidence this search fits) "
+            "and 1.0 (certain it fits)."
         )
+        raise ModelRetry(msg)
     deps = ctx.deps
     existing = deps.agent_state.get_overview(search_name)
     if existing is None:
-        return tool_error(
-            "SEARCH_NOT_DISCOVERED",
-            f"Search '{search_name}' has not been inspected yet. "
-            "Call `get_search_overview` first.",
+        discovered = sorted(deps.agent_state.discovered_searches)
+        if not discovered:
+            msg = (
+                f"Search {search_name!r} has not been inspected yet, and "
+                "no searches have been inspected this turn. Call "
+                "`get_search_overview` first to inspect a search."
+            )
+            raise ModelRetry(msg)
+        raise ModelRetry(
+            _did_you_mean(search_name, discovered, kind="search_name"),
         )
     updated = existing.model_copy(
         update={

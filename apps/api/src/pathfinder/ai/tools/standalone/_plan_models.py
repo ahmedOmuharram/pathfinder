@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import cast
 from uuid import uuid4
 
 from pydantic import (
@@ -13,6 +12,7 @@ from pydantic import (
     TypeAdapter,
     ValidationError,
 )
+from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.strategy.plan import (
@@ -29,7 +29,6 @@ from pathfinder.domain.strategy.plan import (
 )
 from pathfinder.domain.strategy.types import DecodedParamsField
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONArray, JSONObject
 
 
@@ -272,18 +271,18 @@ def _convert_question(q: UserQuestionInput) -> UserQuestion:
         options=options,
     )
 
-def _validate_domain_topology(plan: StrategyPlan) -> ToolErrorPayload | None:
+def _validate_domain_topology(plan: StrategyPlan) -> None:
     """Re-run topology invariants after in-place mutation of a plan."""
     try:
         plan.verify_topology()
     except PlanTopologyError as exc:
-        return tool_error("TOPOLOGY_ERROR", str(exc))
-    return None
+        msg = f"TOPOLOGY_ERROR: {exc}"
+        raise ModelRetry(msg) from exc
 
 def _validate_domain_parameters(
     plan: StrategyPlan,
     agent_state: object,
-) -> ToolErrorPayload | None:
+) -> None:
     """Validate that leaf steps have required parameters set."""
     non_leaf_ids = {c.to_step for c in plan.connections}
     for step in plan.steps:
@@ -295,21 +294,20 @@ def _validate_domain_parameters(
                 if param.required and param.status != ParamStatus.SET
             ]
             if missing:
-                return tool_error(
-                    "PARAMETER_ERROR",
-                    f"Step '{step.display_name}' has unset required parameters: {', '.join(missing)}",
-                    stepId=step.id,
-                    missingParams=cast("list[JsonValue]", missing),
+                msg = (
+                    f"PARAMETER_ERROR: Step '{step.display_name}' (id={step.id}) "
+                    f"has unset required parameters: {', '.join(missing)}. "
+                    "Use update_plan with step_updates to set them."
                 )
-    return None
+                raise ModelRetry(msg)
 
 def _apply_step_patches(
     plan: StrategyPlan,
     patches: list[StepPatch],
     *,
     specs_by_search: dict[str, dict[str, ParamSpecNormalized]] | None = None,
-) -> ToolErrorPayload | None:
-    """Apply patches to steps in a plan. Returns error if step not found.
+) -> None:
+    """Apply patches to steps in a plan. Raises ModelRetry if step not found.
 
     *specs_by_search* maps ``search_name → {param_name → spec}`` so that
     newly added parameters get real WDK metadata.
@@ -318,10 +316,11 @@ def _apply_step_patches(
     for patch in patches:
         step = step_map.get(patch.step_id)
         if step is None:
-            return tool_error(
-                "STEP_NOT_FOUND",
-                f"Step '{patch.step_id}' not found in plan.",
+            msg = (
+                f"STEP_NOT_FOUND: Step '{patch.step_id}' not found in plan. "
+                f"Valid step ids: {sorted(step_map.keys())}."
             )
+            raise ModelRetry(msg)
         if patch.search_name is not None:
             step.search_name = patch.search_name
         if patch.display_name is not None:
@@ -346,4 +345,3 @@ def _apply_step_patches(
                 else:
                     spec = param_specs.get(name) if param_specs else None
                     step.parameters.append(_build_param(name, value, spec))
-    return None

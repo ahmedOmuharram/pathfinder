@@ -7,6 +7,9 @@ from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.toolsets.prepared import PreparedToolset
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.tools.standalone.escape_hatch import (
+    request_search_inspection,
+)
 from pathfinder.ai.tools.standalone.gene import resolve_gene_ids_to_records
 from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
 from pathfinder.ai.tools.standalone.plan import (
@@ -58,6 +61,7 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
             present_decision,
             resolve_gene_ids_to_records,
             get_strategy,
+            request_search_inspection,
             think,
             search_memory,
             remember,

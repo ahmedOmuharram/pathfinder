@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pydantic import Field
+from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.pydantic_base import CamelModel
@@ -41,39 +42,39 @@ _MAX_SAMPLE_LIMIT = 100
 def _validate_download_url_inputs(
     wdk_step_id: int,
     output_format: str,
-    attributes: list[str] | None,
-) -> ToolErrorPayload | None:
-    """Validate inputs for get_download_url."""
+) -> None:
+    """Validate inputs for get_download_url. Raises ModelRetry on bad input."""
     valid_formats = {"csv", "tab", "json"}
     if output_format not in valid_formats:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            f"Invalid output_format '{output_format}'. Must be one of: {', '.join(sorted(valid_formats))}",
+        msg = (
+            f"VALIDATION_ERROR: Invalid output_format {output_format!r}. "
+            f"Must be one of: {', '.join(sorted(valid_formats))}."
         )
+        raise ModelRetry(msg)
     if wdk_step_id <= 0:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "wdk_step_id must be a positive integer.",
+        msg = (
+            f"VALIDATION_ERROR: wdk_step_id must be a positive integer "
+            f"(got {wdk_step_id})."
         )
-    return None
+        raise ModelRetry(msg)
 
 
 def _validate_sample_inputs(
     wdk_step_id: int,
     limit: int,
-) -> ToolErrorPayload | None:
-    """Validate inputs for get_sample_records."""
+) -> None:
+    """Validate inputs for get_sample_records. Raises ModelRetry on bad input."""
     if wdk_step_id <= 0:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "wdk_step_id must be a positive integer.",
+        msg = (
+            f"VALIDATION_ERROR: wdk_step_id must be a positive integer "
+            f"(got {wdk_step_id})."
         )
+        raise ModelRetry(msg)
     if limit < 1 or limit > _MAX_SAMPLE_LIMIT:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "limit must be between 1 and 100.",
+        msg = (
+            f"VALIDATION_ERROR: limit must be between 1 and 100 (got {limit})."
         )
-    return None
+        raise ModelRetry(msg)
 
 
 async def _fetch_download_url(

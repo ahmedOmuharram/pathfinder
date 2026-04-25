@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pathfinder.ai.graph.runtime import AgentDeps, DBSessionFactory
 from pathfinder.ai.scratchpad import tools as sc_tools
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import Conversation, User
 
 pytestmark = pytest.mark.asyncio
@@ -34,6 +35,7 @@ def _run_ctx(
 ) -> RunContext[AgentDeps]:
     deps = AgentDeps(
         site_id="plasmodb",
+        strategy_session=StrategySession(site_id="plasmodb"),
         conversation_id=conv_id,
         db_session_factory=db_session_factory,
     )
@@ -164,11 +166,14 @@ class TestErrorDiscipline:
         with pytest.raises(ModelRetry):
             await sc_tools.pin_note(ctx, note_id="n-missing")
 
-    async def test_missing_context_raises_modelretry(
+    async def test_missing_context_returns_error_payload(
         self, db_session_factory: DBSessionFactory, conv_id: UUID,
     ) -> None:
         del db_session_factory, conv_id
-        deps = AgentDeps(site_id="plasmodb")
+        deps = AgentDeps(
+            site_id="plasmodb",
+            strategy_session=StrategySession(site_id="plasmodb"),
+        )
         ctx = RunContext(
             deps=deps,
             model=TestModel(),
@@ -176,5 +181,6 @@ class TestErrorDiscipline:
             tool_name="note",
             tool_call_id="tc-1",
         )
-        with pytest.raises(ModelRetry):
-            await sc_tools.note(ctx, title="t", summary="s", body="b")
+        result = await sc_tools.note(ctx, title="t", summary="s", body="b")
+        assert isinstance(result.return_value, dict)
+        assert "error" in result.return_value

@@ -17,6 +17,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
 )
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
+from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
 
 import pathfinder.ai.graph.nodes as nodes_module
 from pathfinder.ai.agents.supervisor import SupervisorDecision
@@ -157,7 +158,7 @@ def _state(**overrides: Any) -> PipelineState:
         mode="strategy",
         user_message_id=uuid4(),
         user_prompt="hello",
-        user_parts=[{"type": "text", "text": "hello"}],
+        user_parts=[TextUIPart(text="hello", state="done")],
     )
     return base.model_copy(update=dict(overrides))
 
@@ -523,11 +524,10 @@ async def test_supervisor_reject_emits_turn_rejected_and_persists(
     assert isinstance(update, dict)
     accumulator = update["turn_message_parts"]
     assert any(
-        p["type"] == "data-turn-rejected"
-        and p["data"]["reason"] == "off-topic"
+        p.type == "data-turn-rejected" and p.data["reason"] == "off-topic"
         for p in accumulator
     )
-    assert any(p["type"] == "data-supervisor-decision" for p in accumulator)
+    assert any(p.type == "data-supervisor-decision" for p in accumulator)
 
 
 @pytest.mark.asyncio
@@ -754,7 +754,7 @@ async def test_supervisor_question_emits_turn_qa_and_persists(
     assert isinstance(update, dict)
     accumulator = update["turn_message_parts"]
     assert any(
-        p["type"] == "data-turn-qa" and "harmonic" in p["data"]["answer"]
+        p.type == "data-turn-qa" and "harmonic" in p.data["answer"]
         for p in accumulator
     )
-    assert any(p["type"] == "data-supervisor-decision" for p in accumulator)
+    assert any(p.type == "data-supervisor-decision" for p in accumulator)

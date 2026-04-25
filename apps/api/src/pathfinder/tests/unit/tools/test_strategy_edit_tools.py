@@ -7,6 +7,7 @@ Only RunContext is a mock wrapper around real AgentDeps.
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.agents.state import AgentToolState
@@ -19,7 +20,6 @@ from pathfinder.ai.tools.standalone.strategy_edit import (
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
-from pathfinder.platform.tool_errors import ToolErrorPayload
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -99,11 +99,12 @@ async def test_delete_step_refuses_last_step() -> None:
     deps = _make_deps(session)
     ctx = _make_ctx(deps)
 
-    result = await delete_step(ctx, step_id="step_1")
+    with pytest.raises(ModelRetry) as excinfo:
+        await delete_step(ctx, step_id="step_1")
 
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "VALIDATION_ERROR"
-    assert "clear_strategy" in result.message
+    msg = str(excinfo.value)
+    assert "VALIDATION_ERROR" in msg
+    assert "clear_strategy" in msg
 
 
 @pytest.mark.asyncio
@@ -119,11 +120,12 @@ async def test_delete_step_missing_step_returns_error() -> None:
     deps = _make_deps(session)
     ctx = _make_ctx(deps)
 
-    result = await delete_step(ctx, step_id="nonexistent_step")
+    with pytest.raises(ModelRetry) as excinfo:
+        await delete_step(ctx, step_id="nonexistent_step")
 
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "VALIDATION_ERROR"
-    assert "nonexistent_step" in result.message
+    msg = str(excinfo.value)
+    assert "VALIDATION_ERROR" in msg
+    assert "nonexistent_step" in msg
 
 
 @pytest.mark.asyncio
@@ -175,11 +177,12 @@ async def test_update_step_invalid_operator_returns_error() -> None:
     deps = _make_deps(session)
     ctx = _make_ctx(deps)
 
-    result = await update_step(ctx, step_id=combine.id, operator="INVALID_OPERATOR")
+    with pytest.raises(ModelRetry) as excinfo:
+        await update_step(ctx, step_id=combine.id, operator="INVALID_OPERATOR")
 
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "VALIDATION_ERROR"
-    assert "INVALID_OPERATOR" in result.message
+    msg = str(excinfo.value)
+    assert "VALIDATION_ERROR" in msg
+    assert "INVALID_OPERATOR" in msg
 
 
 @pytest.mark.asyncio
@@ -194,11 +197,12 @@ async def test_update_step_operator_on_leaf_returns_error() -> None:
     deps = _make_deps(session)
     ctx = _make_ctx(deps)
 
-    result = await update_step(ctx, step_id="step_a", operator="INTERSECT")
+    with pytest.raises(ModelRetry) as excinfo:
+        await update_step(ctx, step_id="step_a", operator="INTERSECT")
 
-    assert isinstance(result, ToolErrorPayload)
-    assert result.code == "VALIDATION_ERROR"
-    assert "binary" in result.message.lower()
+    msg = str(excinfo.value)
+    assert "VALIDATION_ERROR" in msg
+    assert "binary" in msg.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -218,13 +222,10 @@ async def test_undo_with_no_history_returns_error() -> None:
     deps = _make_deps(session)
     ctx = _make_ctx(deps)
 
-    result = await undo_last_change(ctx)
+    with pytest.raises(ModelRetry) as excinfo:
+        await undo_last_change(ctx)
 
-    assert isinstance(result, ToolReturn)
-    payload = result.return_value
-    assert isinstance(payload, dict)
-    # The undo function wraps the error in with_full_graph
-    assert payload.get("ok") is False or payload.get("code") == "VALIDATION_ERROR"
+    assert "VALIDATION_ERROR" in str(excinfo.value)
 
 
 @pytest.mark.asyncio

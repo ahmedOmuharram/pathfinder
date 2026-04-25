@@ -16,8 +16,8 @@ per event (``event_name=lambda e: e.type``) for heterogeneous streams.
 
 from collections.abc import AsyncIterator, Callable
 
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from starlette.responses import StreamingResponse
 
 
 def typed_event_stream_response[T: BaseModel](

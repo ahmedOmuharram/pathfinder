@@ -14,6 +14,7 @@ from pydantic_ai.usage import RunUsage
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.state import ProblemFrame
 from pathfinder.ai.tools.toolsets.scoping import _prepare
+from pathfinder.domain.strategy.session import StrategySession
 
 _ALL_SCOPING_TOOLS = [
     ToolDefinition(name="think", description="", parameters_json_schema={}),
@@ -35,6 +36,7 @@ def _ctx(
 ) -> RunContext[AgentDeps]:
     deps = AgentDeps(
         site_id="plasmodb",
+        strategy_session=StrategySession(site_id="plasmodb"),
         problem_frame=problem_frame,
         problem_frame_set_this_run=problem_frame_set_this_run,
     )

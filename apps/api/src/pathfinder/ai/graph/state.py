@@ -2,10 +2,18 @@ from __future__ import annotations
 
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic_ai.ui.vercel_ai.request_types import (
+    DataUIPart,
+    ReasoningUIPart,
+    TextUIPart,
+    ToolInputAvailablePart,
+    ToolOutputAvailablePart,
+    ToolOutputErrorPart,
+)
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
@@ -30,38 +38,12 @@ PHASE_NAMES: tuple[PhaseName, ...] = (
 
 
 class PhaseDisposition(StrEnum):
-    """How a phase agent wants the turn to proceed after it finishes."""
-
     AWAITING_USER = "awaiting_user"
-    """Phase handed the turn back to the user — halt; don't run more phases."""
-
     HANDOFF = "handoff"
-    """Phase is done; let the supervisor route to the next phase this turn."""
-
     DONE = "done"
-    """Investigation complete — the whole turn should end after this phase."""
 
 
 class PhaseOutcome(CamelModel):
-    """A phase agent's structured final answer.
-
-    Pydantic-ai's ``output_type=PhaseOutcome`` forces every phase to end the
-    turn with an instance of this model — no free prose endings, no
-    side-channel signalling tools.
-
-    Three fields, three distinct audiences:
-
-    * ``prose`` — the user-facing message (what the assistant "says"). The
-      phase node emits this as a streamed text chunk so the chat UI renders
-      it as a normal assistant reply.
-    * ``reason`` — a short internal routing explanation shown on the
-      orchestrator card and logged. Mirrors what the supervisor uses when
-      short-circuiting.
-    * ``disposition`` + ``handoff_to`` — the control-flow signal the
-      supervisor reads to decide whether to halt, continue, or pick a
-      specific next phase.
-    """
-
     disposition: PhaseDisposition = Field(
         description=(
             "Control-flow signal for the supervisor. "
@@ -98,14 +80,6 @@ class PhaseOutcome(CamelModel):
 
 
 class VerificationDigest(PhaseOutcome):
-    """Verification's structured close-out — extends ``PhaseOutcome``.
-
-    Subclassing keeps the supervisor / orchestrator routing contract
-    (disposition + prose + reason + handoff_to + note_refs) intact while
-    layering on the verification-specific fields the autowrite path uses
-    to make memory writes deterministic.
-    """
-
     success: bool = Field(
         description=(
             "True if the strategy answered the user's question — sample "
@@ -175,14 +149,6 @@ class ProblemFrame(CamelModel):
 
 
 class PendingApproval(CamelModel):
-    """A deferred tool call awaiting user approval across turns.
-
-    Written when a phase agent exits with a ``DeferredToolRequests`` output
-    carrying an ``approvals`` entry. Carried through the LangGraph
-    checkpoint so the next turn can resume the agent with a
-    ``DeferredToolResults`` built from the user's reply.
-    """
-
     phase: PhaseName
     tool_call_id: str
     tool_name: str
@@ -200,7 +166,7 @@ class PipelineState(BaseModel):
 
     user_message_id: UUID | None = None
     user_prompt: str = ""
-    user_parts: list[dict[str, Any]] = Field(default_factory=list)
+    user_parts: list[TextUIPart] = Field(default_factory=list)
     turn_trace_id: str | None = None
     turn_created_at: str | None = None
     turn_message_id: UUID = Field(default_factory=uuid4)
@@ -213,7 +179,10 @@ class PipelineState(BaseModel):
     last_phase_outcome: PhaseOutcome | None = None
     last_verification_message_id: UUID | None = None
 
-    turn_message_parts: list[dict[str, Any]] = Field(default_factory=list)
+    turn_message_parts: list[
+        TextUIPart | ReasoningUIPart | ToolInputAvailablePart
+        | ToolOutputAvailablePart | ToolOutputErrorPart | DataUIPart
+    ] = Field(default_factory=list)
 
     turn_total_tokens: int = 0
     turn_total_cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))

@@ -1,7 +1,6 @@
 """User feedback endpoint — records thumbs up/down in Langfuse."""
 
-from fastapi import APIRouter, Response
-from starlette.requests import Request
+from fastapi import APIRouter, Request, Response
 
 from pathfinder.platform.langfuse.actions import (
     ProductActionEvent,

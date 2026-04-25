@@ -2,11 +2,9 @@ from __future__ import annotations
 
 from pydantic_ai import Agent, DeferredToolRequests
 from pydantic_ai.capabilities import Hooks, Thinking
-from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.agents._history_processor import (
-    elide_consumed_tool_results,
-    pair_tool_calls,
+    PHASE_HISTORY_PROCESSORS,
 )
 from pathfinder.ai.agents._hooks import apply_auto_build_hook
 from pathfinder.ai.agents._instructions import (
@@ -17,7 +15,6 @@ from pathfinder.ai.agents._instructions import (
     pinned_scratchpad,
     pinned_user_memories,
 )
-from pathfinder.ai.capabilities.orphan_audit import OrphanToolAuditor
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -99,9 +96,9 @@ execution_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
         ToolResilience(),
         _execution_hooks,
         Thinking(effort="medium"),
-        OrphanToolAuditor(),
+
     ],
-    history_processors=[pair_tool_calls, elide_consumed_tool_results],
+    history_processors=PHASE_HISTORY_PROCESSORS,
     retries=3,
     description="Builds WDK strategies by executing planned operations",
     name="execution",
@@ -109,33 +106,14 @@ execution_agent: Agent[AgentDeps, PhaseOutcome | DeferredToolRequests] = Agent(
 )
 
 
-@execution_agent.instructions
-def _base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
-    return base_system_prompt(ctx)
-
-
-@execution_agent.instructions
-def _pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_graph_state(ctx)
-
-
-@execution_agent.instructions
-def _pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_user_memories(ctx)
-
-
-@execution_agent.instructions
-async def _pinned_scratchpad(ctx: RunContext[AgentDeps]) -> str | None:
-    return await pinned_scratchpad(ctx)
-
-
-@execution_agent.instructions
-def _pinned_last_phase_outcome(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_last_phase_outcome(ctx)
-
-
-@execution_agent.instructions
-def _pinned_discovered_searches(ctx: RunContext[AgentDeps]) -> str | None:
-    return pinned_discovered_searches(ctx)
+for _fn in (
+    base_system_prompt,
+    pinned_graph_state,
+    pinned_user_memories,
+    pinned_scratchpad,
+    pinned_last_phase_outcome,
+    pinned_discovered_searches,
+):
+    execution_agent.instructions(_fn)
 
 

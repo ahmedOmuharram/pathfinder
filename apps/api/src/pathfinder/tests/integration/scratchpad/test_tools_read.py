@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.graph.runtime import AgentDeps, DBSessionFactory
 from pathfinder.ai.scratchpad import tools as sc_tools
+from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import Conversation, User
 
 pytestmark = pytest.mark.asyncio
@@ -32,6 +33,7 @@ def _run_ctx(
 ) -> RunContext[AgentDeps]:
     deps = AgentDeps(
         site_id="plasmodb",
+        strategy_session=StrategySession(site_id="plasmodb"),
         conversation_id=conv_id,
         db_session_factory=db_session_factory,
     )

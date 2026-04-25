@@ -37,16 +37,15 @@ async def test_replay_returns_events_past_cursor(
     id2 = await writer.write({"type": "text-delta", "id": "a", "delta": "x"})
     id3 = await writer.write({"type": "text-end", "id": "a"})
 
-    cancel = asyncio.Event()
     collected: list[tuple[int, dict]] = []
 
     async def consume() -> None:
         async for event_id, chunk in replay_and_tail(
-            conversation_id=conv_id, after=id1, cancel=cancel,
+            conversation_id=conv_id, after=id1,
         ):
             collected.append((event_id, chunk))
             if event_id >= id3:
-                cancel.set()
+                break
 
     await asyncio.wait_for(consume(), timeout=5)
     assert [e[0] for e in collected] == [id2, id3]
@@ -60,16 +59,15 @@ async def test_tail_yields_events_produced_after_subscribe(
     del patch_app_db_engine, db_cleaner
     conv_id, turn_id = await _seed_conversation()
     writer = ChatEventWriter(conversation_id=conv_id, turn_id=turn_id)
-    cancel = asyncio.Event()
     collected: list[tuple[int, dict]] = []
 
     async def consume() -> None:
         async for event_id, chunk in replay_and_tail(
-            conversation_id=conv_id, after=0, cancel=cancel,
+            conversation_id=conv_id, after=0,
         ):
             collected.append((event_id, chunk))
             if len(collected) >= 3:
-                cancel.set()
+                break
 
     async def produce() -> None:
         await asyncio.sleep(0.3)

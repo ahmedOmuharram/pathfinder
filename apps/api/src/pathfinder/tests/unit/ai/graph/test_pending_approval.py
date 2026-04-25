@@ -8,6 +8,7 @@ import pytest
 from langgraph.runtime import Runtime
 from pydantic_ai import Agent
 from pydantic_ai.tools import DeferredToolResults, ToolDenied
+from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
 
 import pathfinder.ai.graph.nodes as nodes_module
 from pathfinder.ai.agents.supervisor import SupervisorDecision
@@ -36,7 +37,7 @@ def _state(**overrides: Any) -> PipelineState:
         mode="strategy",
         user_message_id=uuid4(),
         user_prompt="approved",
-        user_parts=[{"type": "text", "text": "approved"}],
+        user_parts=[TextUIPart(text="approved", state="done")],
     )
     return base.model_copy(update=dict(overrides))
 

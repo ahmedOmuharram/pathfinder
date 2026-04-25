@@ -12,12 +12,12 @@ post-processing (FAKE_ALL_SENTINEL rejection, leaf enforcement).
 """
 
 from dataclasses import dataclass
-from typing import cast
 
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters._value_helpers import (
-    ParamKind,
+    MultiPickProcessed,
+    SinglePickProcessed,
     process_value,
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
@@ -76,19 +76,13 @@ class ParameterCanonicalizer:
                 errors=[{"param": spec.name, "value": value}],
             )
 
-        # Use shared dispatch for common param-type routing
         result = process_value(spec, value)
 
-        # Canonicalizer-specific post-processing: leaf enforcement
-        if result.kind is ParamKind.MULTI_PICK and isinstance(result.value, list):
-            values = cast("list[str]", result.value)
-            return cast("JsonValue", self._enforce_leaf_values(spec, values))
+        if isinstance(result, MultiPickProcessed):
+            enforced = self._enforce_leaf_values(spec, result.value)
+            return list(enforced)
 
-        if (
-            result.kind is ParamKind.SINGLE_PICK
-            and isinstance(result.value, str)
-            and result.value
-        ):
+        if isinstance(result, SinglePickProcessed) and result.value:
             return self._enforce_leaf_value(spec, result.value)
 
         return result.value

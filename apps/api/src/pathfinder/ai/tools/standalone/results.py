@@ -38,11 +38,7 @@ async def get_download_url(
         output_format: Download format: csv, tab, or json.
         attributes: Specific attributes to include in the download.
     """
-    validation_error = _validate_download_url_inputs(
-        wdk_step_id, output_format, attributes
-    )
-    if validation_error is not None:
-        return validation_error
+    _validate_download_url_inputs(wdk_step_id, output_format)
 
     site_id = ctx.deps.strategy_session.site_id
     url_or_error = await _fetch_download_url(
@@ -83,9 +79,7 @@ async def get_sample_records(
         wdk_step_id: WDK step ID. The step must be built in WDK first.
         limit: Number of records to return.
     """
-    validation_error = _validate_sample_inputs(wdk_step_id, limit)
-    if validation_error is not None:
-        return validation_error
+    _validate_sample_inputs(wdk_step_id, limit)
 
     site_id = ctx.deps.strategy_session.site_id
     preview_or_error = await _fetch_step_preview(

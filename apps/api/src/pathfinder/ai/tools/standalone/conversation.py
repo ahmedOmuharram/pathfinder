@@ -8,6 +8,7 @@ Provides:
 from __future__ import annotations
 
 from pydantic_ai import RunContext
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
@@ -20,8 +21,6 @@ from pathfinder.ai.tools.standalone._stream_parts import (
     graph_cleared_chunk,
     strategy_meta_chunk,
 )
-from pathfinder.platform.errors import ErrorCode
-from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.services.strategies.sync_state import WDKSyncState
 
 
@@ -30,7 +29,7 @@ async def rename_strategy(
     new_name: str,
     description: str,
     graph_id: str | None = None,
-) -> ToolReturn[RenameStrategyResult] | ToolErrorPayload:
+) -> ToolReturn[RenameStrategyResult]:
     """Rename the current strategy.
 
     Args:
@@ -41,9 +40,14 @@ async def rename_strategy(
     session = ctx.deps.strategy_session
     graph = session.get_graph(graph_id)
     if not graph:
-        return tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)
+        msg = f"NOT_FOUND: Graph not found (graphId={graph_id!r})."
+        raise ModelRetry(msg)
     if not _has_strategy(graph, session):
-        return tool_error(ErrorCode.INVALID_STRATEGY, "No strategy to rename.")
+        msg = (
+            "INVALID_STRATEGY: No strategy to rename. "
+            "Build at least one step before calling rename_strategy."
+        )
+        raise ModelRetry(msg)
 
     old_name = graph.name
     graph.name = new_name
@@ -68,7 +72,7 @@ async def clear_strategy(
     ctx: RunContext[AgentDeps],
     graph_id: str | None = None,
     confirm: bool = False,
-) -> ToolReturn[ClearStrategyResult] | ToolErrorPayload:
+) -> ToolReturn[ClearStrategyResult]:
     """Clear the current strategy and start fresh.
 
     This removes all steps and the current strategy. Requires explicit confirmation.
@@ -80,14 +84,14 @@ async def clear_strategy(
     session = ctx.deps.strategy_session
     graph = session.get_graph(graph_id)
     if not graph:
-        return tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)
+        msg = f"NOT_FOUND: Graph not found (graphId={graph_id!r})."
+        raise ModelRetry(msg)
     if not confirm:
-        return tool_error(
-            ErrorCode.VALIDATION_ERROR,
-            "Refusing to clear the strategy without confirmation. Use confirm=true.",
-            graphId=graph.id,
-            requiresConfirmation=True,
+        msg = (
+            "VALIDATION_ERROR: Refusing to clear the strategy without confirmation. "
+            f"Re-call clear_strategy with confirm=true (graphId={graph.id!r})."
         )
+        raise ModelRetry(msg)
 
     graph.steps.clear()
     graph.roots.clear()

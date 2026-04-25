@@ -100,21 +100,9 @@ class StepsMixin(StrategyAPIBase):
         search_name: str,
         *,
         wdk_weight: int = 0,
-        keep_empty: set[str] | None = None,
     ) -> tuple[dict[str, str], WDKSearchConfig]:
-        """Normalize and expand parameters, return (normalized_params, search_config).
-
-        Shared by create_step, create_transform_step, and update_step_search_config.
-        Returns the normalized params dict AND a typed WDKSearchConfig.
-
-        :param raw_params: Raw parameter dict (values may be non-string).
-        :param record_type: WDK record type (e.g., "gene", "transcript").
-        :param search_name: Search/question URL segment.
-        :param wdk_weight: WDK weight for result ranking (0 = omit from payload).
-        :param keep_empty: Param names to preserve even when empty (e.g. AnswerParams).
-        :returns: Tuple of (normalized_params, search_config).
-        """
-        normalized = self._normalize_parameters(raw_params, keep_empty=keep_empty)
+        """Normalize and expand parameters, return (normalized_params, search_config)."""
+        normalized = self._normalize_parameters(raw_params)
 
         # Expand group codes in profile_pattern for GenesByOrthologPattern.
         if search_name == "GenesByOrthologPattern" and "profile_pattern" in normalized:
@@ -269,7 +257,6 @@ class StepsMixin(StrategyAPIBase):
             record_type=record_type,
             search_name=spec.search_name,
             wdk_weight=spec.search_config.wdk_weight,
-            keep_empty=answer_param_names,
         )
 
         payload: JSONObject = {

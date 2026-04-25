@@ -21,7 +21,7 @@ from typing import Any, ParamSpec, TypeVar, cast
 from uuid import UUID
 
 from langgraph.types import interrupt
-from pydantic import BaseModel
+from pydantic import TypeAdapter
 from pydantic_ai.tools import RunContext
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -263,20 +263,8 @@ def _parse_invocation(
     return ctx, tool_args
 
 
-def _to_jsonable(value: Any) -> Any:
-    """Coerce a tool argument into a JSON-serialisable shape.
+_ANY_JSON: TypeAdapter[Any] = TypeAdapter(Any)
 
-    Procrastinate persists job args via ``json.dumps`` — raw Pydantic
-    ``BaseModel`` instances crash. We dump models (including nested ones) to
-    plain dicts; primitives / dicts / lists pass through. Worker-side impls
-    receive the dict and can ``model_validate`` if they want the typed form.
-    """
-    if isinstance(value, BaseModel):
-        return value.model_dump(mode="json")
-    if isinstance(value, list):
-        return [_to_jsonable(v) for v in value]
-    if isinstance(value, tuple):
-        return [_to_jsonable(v) for v in value]
-    if isinstance(value, dict):
-        return {k: _to_jsonable(v) for k, v in value.items()}
-    return value
+
+def _to_jsonable(value: Any) -> Any:
+    return _ANY_JSON.dump_python(value, mode="json")

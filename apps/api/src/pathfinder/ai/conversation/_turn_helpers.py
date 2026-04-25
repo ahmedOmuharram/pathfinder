@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from langgraph.types import Interrupt
 from pydantic import BaseModel, ValidationError
+from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
@@ -136,7 +137,7 @@ def _build_turn_input(
         "mode": incoming.mode,
         "user_message_id": user_message_id,
         "user_prompt": user_text,
-        "user_parts": [{"type": "text", "text": user_text}],
+        "user_parts": [TextUIPart(text=user_text, state="done")],
         "turn_trace_id": str(uuid4()),
         "turn_created_at": datetime.now(UTC).isoformat(),
         "turn_message_id": turn_message_id,

@@ -4,7 +4,7 @@ import io
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from starlette.responses import StreamingResponse
+from fastapi.responses import StreamingResponse
 
 from pathfinder.services.export import get_export_service
 from pathfinder.transport.http.deps import CurrentUser

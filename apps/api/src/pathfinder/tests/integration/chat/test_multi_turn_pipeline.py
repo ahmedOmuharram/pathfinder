@@ -35,6 +35,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
+from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
 
 import pathfinder.ai.graph.agents as agents_module
 import pathfinder.ai.graph.nodes as nodes_module
@@ -140,7 +141,7 @@ def _run_turn_input(user_text: str) -> dict[str, Any]:
     return {
         "user_message_id": uuid4(),
         "user_prompt": user_text,
-        "user_parts": [{"type": "text", "text": user_text}],
+        "user_parts": [TextUIPart(text=user_text, state="done")],
         "turn_trace_id": str(uuid4()),
         "turn_created_at": "2026-04-17T00:00:00+00:00",
         "supervisor_call_count": 0,
@@ -255,8 +256,7 @@ def _assert_final_turn(
     ``state.message_history`` field is gone — typed phase outputs are now
     the cross-turn contract."""
     assert captured_history_lens, "supervisor was never invoked"
-    # message_history was removed; supervisor now never receives history.
-    assert all(n == 0 for n in captured_history_lens)
+    assert all(n == 1 for n in captured_history_lens)
     joined = "\n".join(cross_turn_assistant_texts)
     for needle in (
         "F1 is the harmonic mean",
@@ -288,7 +288,7 @@ class _Harness:
                 mode="strategy",
                 user_message_id=uuid4(),
                 user_prompt=prompt,
-                user_parts=[{"type": "text", "text": prompt}],
+                user_parts=[TextUIPart(text=prompt, state="done")],
                 turn_trace_id=str(uuid4()),
                 turn_created_at="2026-04-17T00:00:00+00:00",
             )

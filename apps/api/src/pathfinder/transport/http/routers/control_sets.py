@@ -10,6 +10,7 @@ from pathfinder.persistence.repositories.control_set import ControlSetCreate
 from pathfinder.platform.errors import NotFoundError
 from pathfinder.platform.errors import ValidationError as CoreValidationError
 from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.platform.uuid_utils import format_uuid
 from pathfinder.transport.http.deps import ControlSetRepo, CurrentUser
 
 router = APIRouter(prefix="/api/v1/control-sets", tags=["control-sets"])
@@ -66,7 +67,7 @@ def _serialize(cs: ControlSet) -> ControlSetResponse:
         provenance_notes=cs.provenance_notes,
         version=cs.version,
         is_public=cs.is_public,
-        user_id=str(cs.user_id) if cs.user_id else None,
+        user_id=format_uuid(cs.user_id),
         created_at=cs.created_at.isoformat() if cs.created_at else "",
     )
 
