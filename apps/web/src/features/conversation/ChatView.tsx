@@ -1,8 +1,11 @@
 "use client";
 
+import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
+import type { UIMessage } from "ai";
 import { redirect, useParams } from "next/navigation";
 
+import type { Strategy } from "@pathfinder/shared";
 import { conversationDetailOptions } from "@/lib/api/conversations";
 import { conversationMessagesOptions } from "@/lib/api/conversationMessages";
 import { Spinner } from "@/components/ui/spinner";
@@ -10,6 +13,7 @@ import { useSessionStore } from "@/state/useSessionStore";
 
 import { ChatThread } from "./ChatThread";
 import { RightRail } from "./rail/RightRail";
+import { useChatRuntime } from "./runtime/useChatRuntime";
 
 export function ChatView({
   conversationId,
@@ -48,20 +52,47 @@ export function ChatView({
   const siteId = strategy?.siteId ?? "";
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1">
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
-        <ChatThread
-          key={`${conversationId}:${chatResetCounter}`}
+    <ChatViewBody
+      key={`${conversationId}:${chatResetCounter}`}
+      conversationId={conversationId}
+      initialMessages={messagesQuery.data ?? []}
+      allowMissing={allowMissing}
+      strategy={strategy}
+      siteId={siteId}
+    />
+  );
+}
+
+function ChatViewBody({
+  conversationId,
+  initialMessages,
+  allowMissing,
+  strategy,
+  siteId,
+}: {
+  conversationId: string;
+  initialMessages: UIMessage[];
+  allowMissing: boolean;
+  strategy: Strategy | null;
+  siteId: string;
+}) {
+  const runtime = useChatRuntime({
+    conversationId,
+    allowMissing,
+    initialMessages,
+  });
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
+          <ChatThread conversationId={conversationId} />
+        </div>
+        <RightRail
           conversationId={conversationId}
-          initialMessages={messagesQuery.data ?? []}
-          allowMissing={allowMissing}
+          strategy={strategy}
+          siteId={siteId}
         />
       </div>
-      <RightRail
-        conversationId={conversationId}
-        strategy={strategy}
-        siteId={siteId}
-      />
-    </div>
+    </AssistantRuntimeProvider>
   );
 }

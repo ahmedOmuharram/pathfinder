@@ -13,6 +13,8 @@ interface EditorFooterProps {
   /** Result count from useStepCounts. null = loading. -1 = unknown. */
   count: number | null;
   wdkUrl: string | null;
+  /** Display name of the host site (e.g. "PlasmoDB") for the View link. */
+  dbName: string;
   onRetry?: () => void;
 }
 
@@ -27,7 +29,13 @@ function SyncDot({ state }: { state: SyncState }) {
   return <span className={className} aria-hidden />;
 }
 
-export function EditorFooter({ syncState, count, wdkUrl, onRetry }: EditorFooterProps) {
+export function EditorFooter({
+  syncState,
+  count,
+  wdkUrl,
+  dbName,
+  onRetry,
+}: EditorFooterProps) {
   return (
     <div
       className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-xs text-muted-foreground"
@@ -79,7 +87,7 @@ export function EditorFooter({ syncState, count, wdkUrl, onRetry }: EditorFooter
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-foreground hover:underline"
         >
-          View in WDK
+          View in {dbName !== "" ? dbName : "WDK"}
           <ExternalLink className="size-3" />
         </a>
       )}

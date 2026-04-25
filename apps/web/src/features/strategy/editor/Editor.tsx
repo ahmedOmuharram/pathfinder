@@ -14,6 +14,7 @@ import {
   useDeleteStepMutation,
   useDuplicateStepMutation,
 } from "@/features/strategy/mutations";
+import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useStrategyData } from "@/state/strategy/useStrategyQuery";
 import { useStrategyDraft, type StrategyDraft } from "@/state/strategy/useStrategyDraft";
@@ -211,10 +212,12 @@ function EditorContent({
     updateError: false,
   });
 
+  const dbName = useSessionStore((s) => s.selectedSiteDisplayName);
   const footerProps = {
     syncState,
     count: snapshot.estimatedSize,
     wdkUrl,
+    dbName,
   };
 
   return (

@@ -15,6 +15,7 @@ from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.messages import (
     AgentStreamEvent,
     ModelMessage,
+    ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
     PartEndEvent,
@@ -45,7 +46,7 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     TextEndChunk,
     TextStartChunk,
 )
-from pydantic_ai.usage import UsageLimits
+from pydantic_ai.usage import RunUsage, UsageLimits
 from sqlalchemy.exc import SQLAlchemyError
 
 from pathfinder.ai.agents.supervisor import (
@@ -325,10 +326,20 @@ class _PhaseRunCapture(BaseModel):
     phase_outcome: PhaseOutcome | None = None
     tokens: int = 0
     cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
+    # Tokens / cost already charged to the user's quota mid-stream. Phase-end
+    # reconciliation charges the residual ``tokens - charged_tokens`` and
+    # ``cost_usd - charged_cost``.
+    charged_input_tokens: int = 0
+    charged_output_tokens: int = 0
+    charged_cost: Decimal = Field(default_factory=lambda: Decimal(0))
     orphan_text_parts: list[TextPart] = Field(default_factory=list)
     prose_already_streamed: bool = False
     pending_approval: PendingApproval | None = None
     approval_consumed: bool = False
+
+    @property
+    def charged_tokens(self) -> int:
+        return self.charged_input_tokens + self.charged_output_tokens
 
 
 def _synthesize_from_orphan_text(
@@ -398,6 +409,9 @@ def _absorb_run_result(
             tool_name=approval_call.tool_name,
             tool_args=approval_call.args_as_dict(),
             plan_id=plan_id,
+            prior_messages_json=ModelMessagesTypeAdapter.dump_json(
+                capture.new_messages,
+            ).decode(),
         )
         capture.phase_outcome = PhaseOutcome(
             disposition=PhaseDisposition.AWAITING_USER,
@@ -477,6 +491,22 @@ def _build_deferred_tool_results(
             ),
         },
     )
+
+
+def _resume_message_history(
+    state: PipelineState, phase: PhaseName,
+) -> list[ModelMessage] | None:
+    """Replay the prior agent run's actual messages so the provider sees
+    the original tool-call request it issued. OpenAI rejects tool results
+    referencing tool_call_ids it didn't see in the same conversation, so
+    a synthesized stub doesn't suffice — we deserialize the captured
+    ``new_messages`` snapshot stored on ``PendingApproval``."""
+    approval = state.pending_approval
+    if approval is None or approval.phase != phase:
+        return None
+    if not approval.prior_messages_json:
+        return None
+    return ModelMessagesTypeAdapter.validate_json(approval.prior_messages_json)
 
 
 def _plan_id_from_state(state: PipelineState) -> str | None:
@@ -605,14 +635,17 @@ async def _run_phase_node(
     deferred_results = _build_deferred_tool_results(state, phase)
     capture.approval_consumed = deferred_results is not None
     resume_prompt = _resume_user_prompt(state)
+    resume_history = _resume_message_history(state, phase)
+    usage_acc = RunUsage()
 
     async def _agent_events() -> AsyncGenerator[AgentStreamEvent | AgentRunResultEvent[Any]]:
         async for event in agent.run_stream_events(
             resume_prompt,
             deps=deps,
-            message_history=None,
+            message_history=resume_history,
             deferred_tool_results=deferred_results,
             usage_limits=PHASE_USAGE_LIMITS,
+            usage=usage_acc,
         ):
             if isinstance(event, AgentRunResultEvent):
                 _absorb_run_result(
@@ -627,6 +660,10 @@ async def _run_phase_node(
                 and event.part.content.strip()
             ):
                 capture.orphan_text_parts.append(event.part)
+            await _charge_token_delta(
+                runtime.context, state, capture, usage_acc, writer,
+                agent_model,
+            )
             yield event
 
     try:
@@ -694,6 +731,74 @@ async def _run_phase_node(
     )
 
 
+def _split_agent_model(agent_model: str) -> tuple[str | None, str | None]:
+    """Split ``"openai:gpt-4.1-mini"`` into ``("openai", "gpt-4.1-mini")``.
+
+    Falls back to ``(None, value)`` for unprefixed ids. The provider
+    prefix matches ``genai_prices``'s ``provider_id`` taxonomy so the
+    cost lookup hits the right pricing table.
+    """
+    if ":" not in agent_model:
+        return None, agent_model or None
+    provider, _, model = agent_model.partition(":")
+    return provider or None, model or None
+
+
+async def _charge_token_delta(
+    context: Context | None,
+    state: PipelineState,
+    capture: _PhaseRunCapture,
+    usage: RunUsage,
+    writer: Any,
+    agent_model: str,
+) -> None:
+    """Charge the user's quota for tokens + cost accumulated since the
+    last call. Pydantic-ai mutates the shared ``RunUsage`` as the stream
+    progresses; we read it after every event and persist the delta so a
+    phase that fails midway still bills correctly."""
+    if context is None:
+        return
+    delta_input = usage.input_tokens - capture.charged_input_tokens
+    delta_output = usage.output_tokens - capture.charged_output_tokens
+    delta_tokens = delta_input + delta_output
+    if delta_tokens <= 0:
+        return
+    provider_name, model_name = _split_agent_model(agent_model)
+    delta_cost = cost_for_run(
+        usage=RunUsage(input_tokens=delta_input, output_tokens=delta_output),
+        model_name=model_name,
+        provider_name=provider_name,
+        provider_url=None,
+    )
+    try:
+        async with context.db_session_factory() as session:
+            await quota_service.accumulate(
+                session,
+                user_id=state.user_id,
+                tokens=delta_tokens,
+                cost_usd=delta_cost,
+            )
+            await session.commit()
+    except SQLAlchemyError:
+        logger.warning(
+            "failed to accumulate streaming token delta",
+            user_id=str(state.user_id),
+            conversation_id=str(state.conversation_id),
+            delta=delta_tokens,
+        )
+        return
+    capture.charged_input_tokens += delta_input
+    capture.charged_output_tokens += delta_output
+    capture.charged_cost += delta_cost
+    _emit_chunk(
+        writer,
+        turn_usage_event(
+            total_tokens=state.turn_total_tokens + capture.charged_tokens,
+            cost_usd=str(state.turn_total_cost_usd + capture.charged_cost),
+        ),
+    )
+
+
 async def _persist_phase_progress(
     context: Context | None,
     *,
@@ -715,14 +820,18 @@ async def _persist_phase_progress(
     cumulative_cost = state.turn_total_cost_usd + capture.cost_usd
 
     async with context.db_session_factory() as session:
-        if capture.tokens > 0 or capture.cost_usd > 0:
+        residual_tokens = max(capture.tokens - capture.charged_tokens, 0)
+        residual_cost = max(capture.cost_usd - capture.charged_cost, Decimal(0))
+        if residual_tokens > 0 or residual_cost > 0:
             try:
                 await quota_service.accumulate(
                     session,
                     user_id=state.user_id,
-                    tokens=capture.tokens,
-                    cost_usd=capture.cost_usd,
+                    tokens=residual_tokens,
+                    cost_usd=residual_cost,
                 )
+                capture.charged_output_tokens += residual_tokens
+                capture.charged_cost += residual_cost
             except SQLAlchemyError:
                 logger.warning(
                     "failed to accumulate phase quota",

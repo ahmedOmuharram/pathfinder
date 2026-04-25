@@ -1,8 +1,10 @@
 "use client";
 
+import { useComposerRuntime, useThread } from "@assistant-ui/react";
 import type { PlannedStep } from "@pathfinder/shared";
-import { ClipboardList } from "lucide-react";
+import { Check, ClipboardList, X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { usePlanStore } from "@/state/usePlanStore";
 
 import { RailEmptyState, RailPanelShell } from "./RailPanelShell";
@@ -19,6 +21,7 @@ export function PlanPanel() {
         />
       ) : (
         <div className="space-y-3 p-3 text-sm">
+          <PlanApprovalBar />
           {artifact.rationale !== "" && (
             <section>
               <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -40,6 +43,39 @@ export function PlanPanel() {
         </div>
       )}
     </RailPanelShell>
+  );
+}
+
+function PlanApprovalBar() {
+  const composer = useComposerRuntime();
+  const isRunning = useThread((s) => s.isRunning);
+  const send = (text: string) => {
+    composer.setText(text);
+    void composer.send();
+  };
+  return (
+    <div className="flex gap-2 rounded-md border border-border bg-muted/40 p-2">
+      <Button
+        type="button"
+        size="sm"
+        variant="default"
+        disabled={isRunning}
+        onClick={() => send("approved")}
+        className="flex-1"
+      >
+        <Check className="mr-1 size-4" aria-hidden /> Approve
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={isRunning}
+        onClick={() => send("denied")}
+        className="flex-1"
+      >
+        <X className="mr-1 size-4" aria-hidden /> Deny
+      </Button>
+    </div>
   );
 }
 

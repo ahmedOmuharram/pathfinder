@@ -127,6 +127,7 @@ export function useChatRuntime({
                   totalCostUsd: usage.costUsd,
                 },
           );
+          void queryClient.invalidateQueries({ queryKey: userQuotaQueryKey });
           break;
         }
       }

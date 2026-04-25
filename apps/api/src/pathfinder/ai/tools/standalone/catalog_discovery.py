@@ -199,7 +199,7 @@ async def update_search_decision(
     rationale: str,
     selection_reason: str = "",
     confidence: float = 0.0,
-    param_hints: dict[str, str] | None = None,
+    param_hints: dict[str, str | list[str]] | None = None,
 ) -> str:
     """Commit discovery's decision about an already-inspected search.
 

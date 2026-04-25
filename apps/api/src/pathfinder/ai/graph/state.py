@@ -154,6 +154,11 @@ class PendingApproval(CamelModel):
     tool_name: str
     tool_args: dict[str, JsonValue] = Field(default_factory=dict)
     plan_id: str | None = None
+    # Real prior agent-run messages (serialized via
+    # ``ModelMessagesTypeAdapter``) — required on resume so the provider
+    # sees the original tool call it issued. A synthesized stub satisfies
+    # pydantic-ai's local check but OpenAI rejects unknown tool_call_ids.
+    prior_messages_json: str = ""
 
 
 class PipelineState(BaseModel):

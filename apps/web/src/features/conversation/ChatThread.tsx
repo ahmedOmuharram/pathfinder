@@ -1,11 +1,10 @@
 "use client";
 
 import {
-  AssistantRuntimeProvider,
   ThreadPrimitive,
+  useAssistantRuntime,
   useAuiEvent,
 } from "@assistant-ui/react";
-import type { UIMessage } from "ai";
 import { useState } from "react";
 
 import {
@@ -22,7 +21,6 @@ import {
   UserEditComposer,
   UserMessage,
 } from "./content/MessageRenderer";
-import { useChatRuntime } from "./runtime/useChatRuntime";
 
 function ChatUrlSync({ conversationId }: { conversationId: string }) {
   const siteId = useSessionStore((s) => s.selectedSite);
@@ -38,18 +36,10 @@ function ChatUrlSync({ conversationId }: { conversationId: string }) {
 
 export function ChatThread({
   conversationId,
-  initialMessages,
-  allowMissing = false,
 }: {
   conversationId: string;
-  initialMessages?: UIMessage[];
-  allowMissing?: boolean;
 }) {
-  const runtime = useChatRuntime({
-    conversationId,
-    allowMissing,
-    ...(initialMessages !== undefined && { initialMessages }),
-  });
+  const runtime = useAssistantRuntime();
   const pendingSubmission = useSessionStore((s) => s.pendingUserSubmission);
   const [firedContent, setFiredContent] = useState<string | null>(null);
   if (
@@ -65,7 +55,7 @@ export function ChatThread({
     });
   }
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
+    <>
       <ChatUrlSync conversationId={conversationId} />
       <ThreadPrimitive.Root className="flex h-full min-h-0 flex-col">
         <Conversation>
@@ -83,6 +73,6 @@ export function ChatThread({
         </Conversation>
         <Composer conversationId={conversationId} />
       </ThreadPrimitive.Root>
-    </AssistantRuntimeProvider>
+    </>
   );
 }
