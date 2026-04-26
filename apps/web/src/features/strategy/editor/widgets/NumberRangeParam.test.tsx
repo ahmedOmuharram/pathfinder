@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
+import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { useForm } from "@tanstack/react-form";
 import { NumberRangeParam } from "./NumberRangeParam";
 import type { ParamSpec } from "@pathfinder/shared";
+import type { ParamWidgetProps } from "./types";
 import { WidgetTestForm, getInputByLabel } from "./testUtils";
 
 afterEach(cleanup);
@@ -56,5 +59,40 @@ describe("NumberRangeParam", () => {
     const maxInput = getInputByLabel("r max");
     expect(minInput.value).toBe("3");
     expect(maxInput.value).toBe("7");
+  });
+
+  it("re-renders when field value changes externally (e.g. form.reset)", () => {
+    function ExternalDriver({ value }: { value: string }) {
+      const form = useForm({
+        defaultValues: { r: value },
+        onSubmit: () => {},
+      });
+      const [prev, setPrev] = useState(value);
+      if (value !== prev) {
+        setPrev(value);
+        form.reset({ r: value });
+      }
+      return (
+        <form.Field name="r">
+          {(field) => (
+            <NumberRangeParam
+              spec={makeSpec()}
+              name="r"
+              options={[]}
+              vocabTree={null}
+              field={field as unknown as ParamWidgetProps["field"]}
+            />
+          )}
+        </form.Field>
+      );
+    }
+
+    const { rerender } = render(<ExternalDriver value="5-10" />);
+    expect(getInputByLabel("r min").value).toBe("5");
+    expect(getInputByLabel("r max").value).toBe("10");
+
+    rerender(<ExternalDriver value="100-200" />);
+    expect(getInputByLabel("r min").value).toBe("100");
+    expect(getInputByLabel("r max").value).toBe("200");
   });
 });

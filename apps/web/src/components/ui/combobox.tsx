@@ -93,9 +93,9 @@ function Combobox(props: ComboboxProps) {
 
   if (isMultiple(props)) {
     const { value, onChange } = props
-    const selected = value
-      .map((v) => optionByValue.get(v))
-      .filter((o): o is ComboboxOption => Boolean(o))
+    const selected: ComboboxOption[] = value.map(
+      (v) => optionByValue.get(v) ?? { value: v, label: v },
+    )
 
     const toggle = (v: string) => {
       if (value.includes(v)) {
@@ -184,7 +184,8 @@ function Combobox(props: ComboboxProps) {
   }
 
   const { value, onChange } = props
-  const selected = value !== null ? optionByValue.get(value) : undefined
+  const selected: ComboboxOption | undefined =
+    value !== null ? optionByValue.get(value) ?? { value, label: value } : undefined
 
   return (
     <div data-slot="combobox" className={cn("w-full", className)}>

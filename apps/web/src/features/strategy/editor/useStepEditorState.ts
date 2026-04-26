@@ -38,6 +38,8 @@ export function useStepEditorState({
     resolveRecordTypeForSearch: recordTypeState.resolveRecordTypeForSearch,
   });
 
+  const stepParameters = step.parameters ?? undefined;
+
   const paramState = useStepParameters({
     siteId,
     recordType,
@@ -47,9 +49,13 @@ export function useStepEditorState({
     isSearchNameAvailable: searchState.isSearchNameAvailable,
     apiRecordTypeValue: recordTypeState.apiRecordTypeValue,
     resolveRecordTypeForSearch: recordTypeState.resolveRecordTypeForSearch,
+    stepParameters,
   });
 
-  const form = useParamForm(paramState.paramSpecs);
+  const { form, hydrated: paramFormHydrated } = useParamForm(
+    paramState.paramSpecs,
+    stepParameters,
+  );
 
   const dependent = useDependentParamRefresh({
     siteId,
@@ -102,6 +108,7 @@ export function useStepEditorState({
     setColocationParams: metadata.setColocationParams,
 
     form,
+    paramFormHydrated,
   };
 }
 

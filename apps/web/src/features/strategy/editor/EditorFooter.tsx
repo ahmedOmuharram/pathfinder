@@ -10,12 +10,15 @@ export type SyncState = "idle" | "saving" | "error" | "paused";
 
 interface EditorFooterProps {
   syncState: SyncState;
+  changeCount: number;
+  isSaving: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
   /** Result count from useStepCounts. null = loading. -1 = unknown. */
   count: number | null;
   wdkUrl: string | null;
   /** Display name of the host site (e.g. "PlasmoDB") for the View link. */
   dbName: string;
-  onRetry?: () => void;
 }
 
 function SyncDot({ state }: { state: SyncState }) {
@@ -31,65 +34,97 @@ function SyncDot({ state }: { state: SyncState }) {
 
 export function EditorFooter({
   syncState,
+  changeCount,
+  isSaving,
+  onSave,
+  onDiscard,
   count,
   wdkUrl,
   dbName,
-  onRetry,
 }: EditorFooterProps) {
+  const hasChanges = changeCount > 0;
   return (
     <div
-      className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-xs text-muted-foreground"
+      className="flex flex-col gap-2 border-t border-border px-4 py-3 text-xs text-muted-foreground"
       data-testid="step-editor-footer"
     >
-      <div
-        className="flex items-center gap-2"
-        data-testid="step-editor-sync-state"
-        data-sync-state={syncState}
-      >
-        {syncState === "saving" ? (
-          <>
-            <Spinner className="size-3" />
-            <span>Saving…</span>
-          </>
-        ) : syncState === "error" ? (
-          <>
-            <SyncDot state="error" />
-            <span className="text-destructive">Failed</span>
-            {onRetry && (
-              <Button variant="link" size="xs" onClick={onRetry} type="button">
-                Retry
-              </Button>
-            )}
-          </>
-        ) : syncState === "paused" ? (
-          <>
-            <SyncDot state="paused" />
-            <span className="text-amber-700">Sync paused (validation issue)</span>
-          </>
-        ) : (
-          <>
-            <SyncDot state="idle" />
-            <span>Saved</span>
-          </>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        {count === null ? (
-          <Skeleton className="h-3 w-12" />
-        ) : count >= 0 ? (
-          <span>{count.toLocaleString()} results</span>
-        ) : null}
-      </div>
-      {wdkUrl != null && (
-        <a
-          href={wdkUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-foreground hover:underline"
+      <div className="flex items-center justify-between gap-3">
+        <div
+          className="flex items-center gap-2"
+          data-testid="step-editor-sync-state"
+          data-sync-state={syncState}
+          data-change-count={changeCount}
         >
-          View in {dbName !== "" ? dbName : "WDK"}
-          <ExternalLink className="size-3" />
-        </a>
+          {isSaving ? (
+            <>
+              <Spinner className="size-3" />
+              <span>Saving…</span>
+            </>
+          ) : syncState === "error" ? (
+            <>
+              <SyncDot state="error" />
+              <span className="text-destructive">Save failed</span>
+            </>
+          ) : syncState === "paused" ? (
+            <>
+              <SyncDot state="paused" />
+              <span className="text-amber-700">Sync paused (validation issue)</span>
+            </>
+          ) : hasChanges ? (
+            <>
+              <SyncDot state="saving" />
+              <span data-testid="step-editor-change-count">
+                Edited: {changeCount} {changeCount === 1 ? "change" : "changes"}
+              </span>
+            </>
+          ) : (
+            <>
+              <SyncDot state="idle" />
+              <span>All changes saved</span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {count === null ? (
+            <Skeleton className="h-3 w-12" />
+          ) : count >= 0 ? (
+            <span>{count.toLocaleString()} results</span>
+          ) : null}
+          {wdkUrl != null && (
+            <a
+              href={wdkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-foreground hover:underline"
+            >
+              View in {dbName !== "" ? dbName : "WDK"}
+              <ExternalLink className="size-3" />
+            </a>
+          )}
+        </div>
+      </div>
+      {hasChanges && (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onDiscard}
+            disabled={isSaving}
+            data-testid="step-editor-discard"
+          >
+            Discard
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={onSave}
+            disabled={isSaving}
+            data-testid="step-editor-save"
+          >
+            {isSaving ? "Saving…" : "Save"}
+          </Button>
+        </div>
       )}
     </div>
   );

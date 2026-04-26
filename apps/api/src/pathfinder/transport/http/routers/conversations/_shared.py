@@ -3,11 +3,14 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
+from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.models import Conversation
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.strategies.schemas import (
+    step_response_from_strategy_ast,
+)
 from pathfinder.services.wdk import get_site
 from pathfinder.transport.http.schemas import (
     ConversationResponse,
@@ -35,42 +38,6 @@ def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
             error=str(exc),
         )
         return None
-
-
-def step_response_from_strategy_ast(
-    payload: StrategyAst, step: StrategyStepNode
-) -> StepResponse:
-    """Build a StepResponse from a StrategyStepNode using plan payload metadata."""
-    counts = payload.step_counts or {}
-    ids = payload.wdk_step_ids or {}
-    validations = payload.step_validations or {}
-
-    wdk_step_id = ids.get(step.id)
-    if wdk_step_id is None and step.id.isdigit():
-        wdk_step_id = int(step.id)
-
-    return StepResponse(
-        id=step.id,
-        kind=step.infer_kind(),
-        display_name=step.display_name or step.search_name,
-        search_name=step.search_name,
-        record_type=payload.record_type,
-        parameters=step.parameters,
-        operator=step.operator.value if step.operator else None,
-        colocation_params=step.colocation_params,
-        primary_input_step_id=step.primary_input.id if step.primary_input else None,
-        secondary_input_step_id=step.secondary_input.id
-        if step.secondary_input
-        else None,
-        estimated_size=counts.get(step.id),
-        wdk_step_id=wdk_step_id,
-        is_built=wdk_step_id is not None,
-        is_filtered=bool(step.filters),
-        validation=validations.get(step.id),
-        filters=step.filters or None,
-        analyses=step.analyses or None,
-        reports=step.reports or None,
-    )
 
 
 def derive_steps_from_strategy_ast(

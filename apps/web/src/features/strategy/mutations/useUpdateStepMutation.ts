@@ -1,39 +1,93 @@
 "use client";
 
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
-import { usePushStrategyMutation } from "./usePushStrategyMutation";
+import {
+  conversationDetailKey,
+  patchConversationStep,
+  type StepPatchArgs,
+} from "@/lib/api/conversations";
+import { toUserMessage } from "@/lib/api/errors";
+import { useSessionStore } from "@/state/useSessionStore";
 
 export interface UpdateStepVars {
   stepId: string;
   patch: Partial<Step>;
 }
 
-function applyPatch(strategy: Strategy, stepId: string, patch: Partial<Step>): Strategy {
-  return {
-    ...strategy,
-    steps: strategy.steps.map((s) => (s.id === stepId ? { ...s, ...patch } : s)),
-  };
+interface UpdateStepContext {
+  snapshot: Strategy | null;
+}
+
+export const STEP_PATCH_MUTATION_KEY = ["strategy", "step-patch"] as const;
+
+function buildPatchArgs(patch: Partial<Step>): StepPatchArgs {
+  const out: StepPatchArgs = {};
+  if (patch.parameters !== undefined && patch.parameters !== null) {
+    out.parameters = patch.parameters as Record<string, unknown>;
+  }
+  if (patch.operator !== undefined && patch.operator !== null) {
+    out.operator = patch.operator;
+  }
+  if (patch.displayName !== undefined) {
+    out.displayName = patch.displayName;
+  }
+  if (patch.colocationParams !== undefined) {
+    out.colocationParams = patch.colocationParams;
+  }
+  if (patch.searchName !== undefined && patch.searchName !== null) {
+    out.searchName = patch.searchName;
+  }
+  return out;
 }
 
 export function useUpdateStepMutation(conversationId: string) {
-  const push = usePushStrategyMutation();
-  const cache = useStrategyCacheUtils();
-  return {
-    ...push,
-    mutate: (vars: UpdateStepVars) => {
-      const current = cache.get(conversationId);
-      if (!current) return;
-      push.mutate({ optimistic: applyPatch(current, vars.stepId, vars.patch) });
-    },
-    mutateAsync: async (vars: UpdateStepVars) => {
-      const current = cache.get(conversationId);
-      if (!current) {
-        throw new Error("Cannot update step: no strategy loaded");
+  const queryClient = useQueryClient();
+  const siteId = useSessionStore((s) => s.selectedSite);
+  return useMutation<Step, Error, UpdateStepVars, UpdateStepContext>({
+    mutationKey: [...STEP_PATCH_MUTATION_KEY, conversationId],
+    onMutate: ({ stepId, patch }) => {
+      const key = conversationDetailKey(conversationId);
+      const snapshot = queryClient.getQueryData<Strategy>(key) ?? null;
+      if (snapshot !== null) {
+        queryClient.setQueryData<Strategy>(key, {
+          ...snapshot,
+          steps: snapshot.steps.map((s) =>
+            s.id === stepId ? { ...s, ...patch } : s,
+          ),
+        });
       }
-      return push.mutateAsync({
-        optimistic: applyPatch(current, vars.stepId, vars.patch),
+      return { snapshot };
+    },
+    mutationFn: async ({ stepId, patch }) => {
+      return await patchConversationStep(
+        conversationId,
+        stepId,
+        buildPatchArgs(patch),
+        siteId,
+      );
+    },
+    onSuccess: (updatedStep, vars) => {
+      const key = conversationDetailKey(conversationId);
+      queryClient.setQueryData<Strategy>(key, (current) => {
+        if (current === undefined) return current;
+        return {
+          ...current,
+          steps: current.steps.map((s) =>
+            s.id === vars.stepId ? updatedStep : s,
+          ),
+        };
       });
     },
-  };
+    onError: (err, _vars, context) => {
+      if (context?.snapshot !== undefined && context.snapshot !== null) {
+        queryClient.setQueryData(
+          conversationDetailKey(conversationId),
+          context.snapshot,
+        );
+      }
+      toast.error(toUserMessage(err, "Step update failed"));
+    },
+  });
 }

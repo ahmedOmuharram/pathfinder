@@ -9,6 +9,7 @@ from . import (
     revert,
     scratchpad,
     sidebar,
+    steps,
     strategy_ast,
     wdk_import,
 )
@@ -18,6 +19,7 @@ router.include_router(crud.router)
 router.include_router(counts.router)
 router.include_router(events.router)
 router.include_router(strategy_ast.router)
+router.include_router(steps.router)
 router.include_router(wdk_import.router)
 router.include_router(sidebar.router)
 router.include_router(scratchpad.router)

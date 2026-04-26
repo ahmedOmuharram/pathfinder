@@ -15,12 +15,17 @@ interface UseStepParametersArgs {
   isSearchNameAvailable: boolean;
   apiRecordTypeValue: string | null | undefined;
   resolveRecordTypeForSearch: (searchRecordType?: string | null) => string;
+  stepParameters: StepParameters | undefined;
 }
 
 /**
  * Read-only param state — fetches `paramSpecs` and computes vocab + hidden
  * defaults. Form values are owned by `useParamForm`; dependent-param refresh
  * is owned by `useDependentParamRefresh`.
+ *
+ * `stepParameters` is the persisted `step.parameters` map: passed to
+ * `/param-specs` as `contextValues` so WDK echoes the user's saved values
+ * back through `initialDisplayValue` (instead of WDK's own defaults).
  */
 export function useStepParameters({
   siteId,
@@ -31,6 +36,7 @@ export function useStepParameters({
   isSearchNameAvailable,
   apiRecordTypeValue,
   resolveRecordTypeForSearch,
+  stepParameters,
 }: UseStepParametersArgs) {
   const { paramSpecs, isLoading } = useParamSpecs({
     siteId,
@@ -40,6 +46,7 @@ export function useStepParameters({
     isSearchNameAvailable,
     apiRecordTypeValue,
     resolveRecordTypeForSearch,
+    ...(stepParameters !== undefined ? { contextValues: stepParameters } : {}),
     enabled: kind !== "combine",
   });
 

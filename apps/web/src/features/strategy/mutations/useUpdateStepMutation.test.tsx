@@ -5,43 +5,48 @@
 import type * as ConversationsModule from "@/lib/api/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { Strategy } from "@pathfinder/shared";
+import type { Step, Strategy } from "@pathfinder/shared";
 
-const pushConversationMock = vi.hoisted(() => vi.fn());
+const patchConversationStepMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/conversations", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof ConversationsModule>();
-  return { ...actual, pushConversation: pushConversationMock };
+  const actual = await importOriginal<typeof ConversationsModule>();
+  return { ...actual, patchConversationStep: patchConversationStepMock };
 });
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
-const toastWarningMock = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({
-  toast: { error: toastErrorMock, warning: toastWarningMock, success: vi.fn() },
+  toast: { error: toastErrorMock, warning: vi.fn(), success: vi.fn() },
 }));
 
-import { useStrategyStore } from "@/state/strategy/store";
+vi.mock("@/state/useSessionStore", () => ({
+  useSessionStore: <T,>(selector: (state: { selectedSite: string }) => T): T =>
+    selector({ selectedSite: "plasmodb" }),
+}));
+
 import { useUpdateStepMutation } from "./useUpdateStepMutation";
 import { makeQueryHarness } from "./__tests__/strategyTestUtils";
 
-function makeStrategy(): Strategy {
+function makeStep(id: string, overrides: Partial<Step> = {}): Step {
+  return {
+    id,
+    displayName: `Step ${id}`,
+    searchName: "GenesByTaxon",
+    recordType: "transcript",
+    parameters: { organism: "Plasmodium" },
+    isBuilt: false,
+    isFiltered: false,
+    ...overrides,
+  };
+}
+
+function makeStrategy(steps: Step[]): Strategy {
   return {
     id: "strategy-1",
     name: "Test",
     siteId: "plasmodb",
-    recordType: "gene",
-    steps: [
-      {
-        id: "s1",
-        displayName: "Genes by taxon",
-        searchName: "GenesByTaxon",
-        recordType: "gene",
-        parameters: { organism: "Plasmodium" },
-        isBuilt: false,
-        isFiltered: false,
-      },
-    ],
-    rootStepId: "s1",
+    recordType: "transcript",
+    steps,
+    rootStepId: steps[0]?.id ?? null,
     isSaved: false,
     description: null,
     wdkStrategyId: null,
@@ -52,46 +57,105 @@ function makeStrategy(): Strategy {
 }
 
 beforeEach(() => {
-  useStrategyStore.getState().clear();
-  useStrategyStore.setState({ graphValidationStatus: {} });
-  pushConversationMock.mockReset();
+  patchConversationStepMock.mockReset();
   toastErrorMock.mockReset();
-  toastWarningMock.mockReset();
 });
 
 describe("useUpdateStepMutation", () => {
-  it("patches step.parameters in cache on mutate (optimistic)", async () => {
-    const initial = makeStrategy();
+  it("writes only the returned step to cache, leaving sibling steps untouched", async () => {
+    const stepA = makeStep("A", { parameters: { organism: "Pf3D7" } });
+    const stepB = makeStep("B", { parameters: { organism: "PvP01" } });
+    const stepC = makeStep("C", { parameters: { organism: "Pk" } });
+    const initial = makeStrategy([stepA, stepB, stepC]);
     const harness = makeQueryHarness(initial);
-    pushConversationMock.mockResolvedValueOnce(initial);
+
+    const updatedA: Step = {
+      ...stepA,
+      parameters: { organism: "Pf3D7,PvP01" },
+      operator: "INTERSECT",
+    };
+    patchConversationStepMock.mockResolvedValueOnce(updatedA);
 
     const { result } = renderHook(
       () => useUpdateStepMutation(initial.id),
       { wrapper: harness.wrapper },
     );
 
-    let promise: Promise<unknown> | undefined;
-    act(() => {
-      promise = result.current.mutateAsync({
-        stepId: "s1",
-        patch: { parameters: { organism: "Toxoplasma" } },
+    await act(async () => {
+      await result.current.mutateAsync({
+        stepId: "A",
+        patch: { parameters: { organism: "Pf3D7,PvP01" }, operator: "INTERSECT" },
       });
     });
 
-    expect(
-      harness.getStrategy(initial.id)?.steps[0]?.parameters?.["organism"],
-    ).toBe("Toxoplasma");
-
-    await act(async () => {
-      await promise;
-    });
+    const next = harness.getStrategy(initial.id);
+    expect(next?.steps[0]).toEqual(updatedA);
+    expect(next?.steps[1]).toEqual(stepB);
+    expect(next?.steps[2]).toEqual(stepC);
+    expect(patchConversationStepMock).toHaveBeenCalledTimes(1);
+    expect(patchConversationStepMock).toHaveBeenCalledWith(
+      initial.id,
+      "A",
+      { parameters: { organism: "Pf3D7,PvP01" }, operator: "INTERSECT" },
+      "plasmodb",
+    );
   });
 
-  it("rolls back on error", async () => {
-    const initial = makeStrategy();
+  it("runs concurrent step patches in parallel and updates cache for both with no clobber", async () => {
+    const stepA = makeStep("A", { parameters: { organism: "Pf3D7" } });
+    const stepB = makeStep("B", { parameters: { organism: "PvP01" } });
+    const stepC = makeStep("C", { parameters: { organism: "Pk" } });
+    const initial = makeStrategy([stepA, stepB, stepC]);
     const harness = makeQueryHarness(initial);
 
-    pushConversationMock.mockRejectedValueOnce(new Error("Boom"));
+    const PATCH_DELAY_MS = 100;
+    const updatedA: Step = { ...stepA, parameters: { organism: "Pf3D7-NEW" } };
+    const updatedB: Step = { ...stepB, parameters: { organism: "PvP01-NEW" } };
+
+    patchConversationStepMock.mockImplementation(
+      (_convId: string, stepId: string) =>
+        new Promise<Step>((resolve) => {
+          setTimeout(() => {
+            resolve(stepId === "A" ? updatedA : updatedB);
+          }, PATCH_DELAY_MS);
+        }),
+    );
+
+    const { result } = renderHook(
+      () => useUpdateStepMutation(initial.id),
+      { wrapper: harness.wrapper },
+    );
+
+    const start = Date.now();
+    await act(async () => {
+      await Promise.all([
+        result.current.mutateAsync({
+          stepId: "A",
+          patch: { parameters: { organism: "Pf3D7-NEW" } },
+        }),
+        result.current.mutateAsync({
+          stepId: "B",
+          patch: { parameters: { organism: "PvP01-NEW" } },
+        }),
+      ]);
+    });
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(PATCH_DELAY_MS * 2);
+    expect(patchConversationStepMock).toHaveBeenCalledTimes(2);
+    const next = harness.getStrategy(initial.id);
+    expect(next?.steps[0]).toEqual(updatedA);
+    expect(next?.steps[1]).toEqual(updatedB);
+    expect(next?.steps[2]).toEqual(stepC);
+  });
+
+  it("rolls back to snapshot on error", async () => {
+    const stepA = makeStep("A");
+    const initial = makeStrategy([stepA]);
+    const harness = makeQueryHarness(initial);
+
+    patchConversationStepMock.mockRejectedValueOnce(new Error("Boom"));
+
     const { result } = renderHook(
       () => useUpdateStepMutation(initial.id),
       { wrapper: harness.wrapper },
@@ -100,48 +164,15 @@ describe("useUpdateStepMutation", () => {
     await act(async () => {
       await expect(
         result.current.mutateAsync({
-          stepId: "s1",
+          stepId: "A",
           patch: { displayName: "Renamed locally" },
         }),
       ).rejects.toThrow("Boom");
     });
 
     await waitFor(() => {
-      expect(harness.getStrategy(initial.id)?.steps[0]?.displayName).toBe(
-        "Genes by taxon",
-      );
+      expect(harness.getStrategy(initial.id)?.steps[0]).toEqual(stepA);
     });
     expect(toastErrorMock).toHaveBeenCalled();
-  });
-
-  it("guards against duplicate concurrent updates with isPending", async () => {
-    const initial = makeStrategy();
-    const harness = makeQueryHarness(initial);
-    let resolveFn!: (s: Strategy) => void;
-    pushConversationMock.mockReturnValueOnce(
-      new Promise<Strategy>((resolve) => {
-        resolveFn = resolve;
-      }),
-    );
-
-    const { result } = renderHook(
-      () => useUpdateStepMutation(initial.id),
-      { wrapper: harness.wrapper },
-    );
-
-    let p1: Promise<unknown> | undefined;
-    act(() => {
-      p1 = result.current.mutateAsync({
-        stepId: "s1",
-        patch: { displayName: "A" },
-      });
-    });
-    await waitFor(() => expect(result.current.isPending).toBe(true));
-
-    await act(async () => {
-      resolveFn(initial);
-      await p1;
-    });
-    expect(pushConversationMock).toHaveBeenCalledTimes(1);
   });
 });

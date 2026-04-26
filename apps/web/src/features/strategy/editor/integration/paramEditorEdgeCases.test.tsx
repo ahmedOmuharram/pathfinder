@@ -24,7 +24,7 @@ function ParamFormWrapper({
   onFormReady?: (form: ParamForm) => void;
   children?: (form: ParamForm) => React.ReactNode;
 }) {
-  const form = useParamForm(specs);
+  const { form } = useParamForm(specs);
   if (onFormReady) onFormReady(form);
   return <>{children ? children(form) : null}</>;
 }
@@ -102,7 +102,7 @@ describe("TF: form reset on spec change (search switch)", () => {
     specs: ParamSpec[];
     onFormReady?: (form: ParamForm) => void;
   }) {
-    const form = useParamForm(specs);
+    const { form } = useParamForm(specs);
     if (onFormReady) onFormReady(form);
     return (
       <>

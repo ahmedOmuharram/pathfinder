@@ -4,8 +4,10 @@ from pathfinder.domain.strategy.ast import (
     StepAnalysis,
     StepFilter,
     StepReport,
+    StrategyStepNode,
 )
 from pathfinder.domain.strategy.ops import ColocationParams
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.platform.pydantic_base import CamelModel
@@ -33,3 +35,38 @@ class StepResponse(CamelModel):
     filters: list[StepFilter] | None = None
     analyses: list[StepAnalysis] | None = None
     reports: list[StepReport] | None = None
+
+
+def step_response_from_strategy_ast(
+    payload: StrategyAst, step: StrategyStepNode
+) -> StepResponse:
+    counts = payload.step_counts or {}
+    ids = payload.wdk_step_ids or {}
+    validations = payload.step_validations or {}
+
+    wdk_step_id = ids.get(step.id)
+    if wdk_step_id is None and step.id.isdigit():
+        wdk_step_id = int(step.id)
+
+    return StepResponse(
+        id=step.id,
+        kind=step.infer_kind(),
+        display_name=step.display_name or step.search_name,
+        search_name=step.search_name,
+        record_type=payload.record_type,
+        parameters=step.parameters,
+        operator=step.operator.value if step.operator else None,
+        colocation_params=step.colocation_params,
+        primary_input_step_id=step.primary_input.id if step.primary_input else None,
+        secondary_input_step_id=step.secondary_input.id
+        if step.secondary_input
+        else None,
+        estimated_size=counts.get(step.id),
+        wdk_step_id=wdk_step_id,
+        is_built=wdk_step_id is not None,
+        is_filtered=bool(step.filters),
+        validation=validations.get(step.id),
+        filters=step.filters or None,
+        analyses=step.analyses or None,
+        reports=step.reports or None,
+    )

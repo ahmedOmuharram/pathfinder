@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import type { ParamWidgetProps } from "./types";
 
@@ -21,16 +20,14 @@ function encode(min: string, max: string): string {
 }
 
 export function NumberRangeParam({ spec, name, field }: ParamWidgetProps) {
-  const initial =
-    typeof field.state.value === "string" ? decode(field.state.value) : { min: "", max: "" };
-  const [parts, setParts] = useState<RangeParts>(initial);
+  const value = typeof field.state.value === "string" ? field.state.value : "";
+  const parts = decode(value);
 
   const errors = field.state.meta.errors;
   const hasError = errors.length > 0;
   const errorMessage = hasError ? String(errors[0]) : null;
 
   const update = (next: RangeParts) => {
-    setParts(next);
     field.handleChange(encode(next.min, next.max));
   };
 

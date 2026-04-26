@@ -1,12 +1,15 @@
 import type {
+  ColocationParams,
   ConversationResponse,
   PlanArtifact,
+  Step,
   Strategy,
   StrategyAst,
 } from "@pathfinder/shared";
 import { conversationResponseSchema } from "@pathfinder/shared/generated/zod/conversationResponseSchema";
 import { openConversationResponseSchema } from "@pathfinder/shared/generated/zod/openConversationResponseSchema";
 import { stepCountsResponseSchema } from "@pathfinder/shared/generated/zod/stepCountsResponseSchema";
+import { stepResponseSchema } from "@pathfinder/shared/generated/zod/stepResponseSchema";
 import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 
@@ -256,6 +259,28 @@ export async function pushConversation(
     { method: "POST", body: args },
   );
   return withDefaults(raw as Parameters<typeof withDefaults>[0]);
+}
+
+export interface StepPatchArgs {
+  parameters?: Record<string, unknown>;
+  operator?: string;
+  displayName?: string | null;
+  colocationParams?: ColocationParams | null;
+  wdkWeight?: number | null;
+  searchName?: string;
+}
+
+export async function patchConversationStep(
+  conversationId: string,
+  stepId: string,
+  args: StepPatchArgs,
+  siteId: string,
+): Promise<Step> {
+  return await requestJson(
+    stepResponseSchema,
+    `/api/v1/conversations/${conversationId}/steps/${stepId}`,
+    { method: "PATCH", body: args, query: { siteId } },
+  );
 }
 
 export async function computeStepCounts(

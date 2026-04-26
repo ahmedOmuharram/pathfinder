@@ -4,9 +4,11 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
+from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
+from pathfinder.domain.strategy.types import DecodedParamsField
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.schemas import (
@@ -113,4 +115,20 @@ class ConversationDuplicateResponse(CamelModel):
 
 class ForkConversationRequest(CamelModel):
     from_message_id: UUID
+
+
+class StepPatchRequest(CamelModel):
+    parameters: DecodedParamsField | None = Field(default=None)
+    operator: CombineOp | None = Field(default=None)
+    display_name: str | None = Field(default=None, max_length=255)
+    colocation_params: ColocationParams | None = Field(default=None)
+    wdk_weight: int | None = Field(default=None)
+    search_name: str | None = Field(default=None)
+
+    @model_validator(mode="after")
+    def _at_least_one_field(self) -> "StepPatchRequest":
+        if not self.model_fields_set:
+            msg = "StepPatchRequest must include at least one field"
+            raise ValueError(msg)
+        return self
 

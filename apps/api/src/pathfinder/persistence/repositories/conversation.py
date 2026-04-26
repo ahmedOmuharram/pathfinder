@@ -159,6 +159,21 @@ class ConversationRepository:
         result = await self.session.execute(select(Conversation).where(Conversation.id == conversation_id))
         return result.scalar_one_or_none()
 
+    async def get_by_id_with_strategy_lock(
+        self, conversation_id: UUID
+    ) -> Conversation | None:
+        # Postgres advisory xact lock keyed on the strategy id. Auto-released
+        # at transaction end (same lifecycle as SELECT FOR UPDATE) but doesn't
+        # block concurrent reads of the same row.
+        await self.session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
+            {"k": f"strategy:{conversation_id}"},
+        )
+        result = await self.session.execute(
+            select(Conversation).where(Conversation.id == conversation_id)
+        )
+        return result.scalar_one_or_none()
+
     async def delete(
         self, conversation_id: UUID, *, cascade: bool = False,
     ) -> None:
@@ -277,6 +292,17 @@ class ConversationRepository:
             update(Conversation).where(Conversation.id == conversation_id).values(**values)
         )
         await self.session.flush()
+
+    async def commit_partial(self) -> None:
+        """Commit the underlying session immediately.
+
+        Used by `apply_step_patch` to make partial-success WDK push state
+        durable before raising `PartialPushError`. Without this the
+        request-session middleware would roll back on the raised exception
+        and the next user retry would see no progress (and re-create the
+        already-pushed steps in WDK).
+        """
+        await self.session.commit()
 
     async def dismiss(self, conversation_id: UUID) -> None:
         """Soft-delete: mark a chat as dismissed (hidden from main list)."""

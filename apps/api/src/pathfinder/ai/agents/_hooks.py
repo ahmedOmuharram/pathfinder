@@ -24,6 +24,7 @@ from pydantic import ConfigDict, Field, TypeAdapter, ValidationError
 from pydantic_ai.messages import ToolCallPart, ToolReturn
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
+from sqlalchemy import text
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.context.rendering import render_slim_step_result
@@ -34,7 +35,9 @@ from pathfinder.ai.tools.standalone._stream_parts import (
 )
 from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.session import StrategyGraph
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.types import SyncStateProtocol
+from pathfinder.persistence.models import Conversation
 from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.persistence.repositories.conversation import ConversationUpdate
 from pathfinder.platform.errors import AppError, sanitize_error_for_client
@@ -45,8 +48,15 @@ from pathfinder.services.gene_sets import GeneSetService
 from pathfinder.services.gene_sets.store import get_gene_set_store
 from pathfinder.services.gene_sets.wdk_helpers import GeneSetWdkContext
 from pathfinder.services.strategies.build import RootResolutionError
+from pathfinder.services.strategies.reconcile import (
+    reconcile_sync_state_with_wdk,
+)
 from pathfinder.services.strategies.schemas import StepResponse
-from pathfinder.services.strategies.step_wdk_push import push_all_steps_to_wdk
+from pathfinder.services.strategies.step_push_planner import plan_step_pushes
+from pathfinder.services.strategies.step_wdk_push import (
+    PushOutcome,
+    push_steps_with_plan,
+)
 from pathfinder.services.strategies.sync import SyncResult, sync_strategy_for_site
 from pathfinder.services.strategies.sync_state import ensure_sync_state
 
@@ -173,12 +183,42 @@ async def _auto_build(
     """Push to WDK, sync strategy, create gene set, build data-part chunks.
 
     Returns a pair of ``(build_data, chunks)`` where ``build_data`` is the
-    ``autoBuild`` payload to merge into the tool result and ``chunks`` are
-    the ``DataChunk`` entries to append to ``ToolReturn.metadata`` for the
-    SSE stream.
+    ``autoBuild`` payload. On partial WDK push failure the function persists
+    whatever wdk_step_ids did land, skips the sync step (which would raise
+    `StrategyCompilationError` on the unpushed step), and returns an
+    error payload describing what failed.
     """
     sync_state = ensure_sync_state(deps.strategy_session)
-    await push_all_steps_to_wdk(graph, sync_state, deps.site_id, update_existing=True)
+
+    await reconcile_sync_state_with_wdk(
+        sync_state, deps.site_id, sync_state.wdk_strategy_id,
+    )
+
+    push_outcome: PushOutcome | None = None
+    new_ast = graph.to_strategy_ast(sync_state=sync_state)
+    if new_ast is not None:
+        plan = plan_step_pushes(
+            old_ast=sync_state.last_pushed_ast,
+            new_ast=new_ast,
+            existing_wdk_ids=sync_state.wdk_step_ids,
+        )
+        push_outcome = await push_steps_with_plan(
+            graph, sync_state, deps.site_id, plan,
+        )
+        sync_state.last_pushed_ast = graph.to_strategy_ast(sync_state=sync_state)
+
+    if push_outcome is not None and push_outcome.partial:
+        await _persist_strategy_ast_to_conversation(deps, graph, sync_result=None)
+        build_data: JSONObject = {
+            "ok": False,
+            "error": (
+                f"WDK rejected {len(push_outcome.failed)} step(s); the rest "
+                "were saved. Inspect the failed step parameters and retry."
+            ),
+            "succeededStepIds": cast("JSONArray", push_outcome.succeeded),
+            "failedStepIds": cast("JSONArray", push_outcome.failed),
+        }
+        return build_data, [graph_snapshot_chunk(deps.strategy_session, graph)]
 
     sync_result = await sync_strategy_for_site(
         graph=graph,
@@ -187,7 +227,7 @@ async def _auto_build(
         strategy_name=graph.name,
     )
 
-    build_data: JSONObject = {
+    build_data = {
         "ok": True,
         "wdkStrategyId": sync_result.wdk_strategy_id,
         "wdkUrl": sync_result.wdk_url,
@@ -197,12 +237,8 @@ async def _auto_build(
     }
 
     await _maybe_create_gene_set(deps, sync_result, build_data, graph)
-    await _persist_strategy_ast_to_conversation(deps, graph, sync_result)
+    await _persist_strategy_ast_to_conversation(deps, graph, sync_result=sync_result)
 
-    # Build data-part chunks replacing the old strategy_link + graph_snapshot
-    # SSE events. The wdk_strategy_id is an int returned by WDK, not a
-    # PathFinder graph id; we keep the stream-part strategyId consistent with
-    # graph.id (used by the UI graph store keyed by graph id).
     chunks: list[DataChunk] = []
     if sync_result.wdk_url is not None:
         chunks.append(
@@ -220,33 +256,49 @@ async def _auto_build(
 async def _persist_strategy_ast_to_conversation(
     deps: AgentDeps,
     graph: StrategyGraph,
-    sync_result: SyncResult,
+    *,
+    sync_result: SyncResult | None,
 ) -> None:
-    """Serialize the current strategy graph into ``conversations.strategy_ast``.
+    """Persist the current strategy graph into ``conversations.strategy_ast``.
 
-    Without this, a turn can successfully build a strategy on WDK but leave
-    ``conversations.strategy_ast`` / ``wdk_strategy_id`` empty — so the
-    ``StrategyGraph`` panel in the chat view renders nothing even though the
-    WDK link works. This write closes that gap at the same moment we know the
-    WDK identity of every step.
+    Takes the strategy advisory lock for the merge+commit window only —
+    not for the long WDK push above. This serializes against concurrent
+    user PATCHes (which take the same lock at saga start). Inside the
+    lock the conversation row is re-fetched so any user edits committed
+    while the agent was talking to WDK are merged with the agent's new
+    wdk_step_ids rather than clobbered.
+
+    On a partial WDK push the caller passes ``sync_result=None`` so the
+    new wdk_strategy_id is not written (sync did not run); only the
+    incremental wdk_step_ids land.
     """
     if deps.conversation_id is None or deps.db_session_factory is None:
         return
     sync_state = deps.strategy_session.sync_state
-    ast = graph.to_strategy_ast(sync_state=sync_state)
-    if ast is None:
+    agent_ast = graph.to_strategy_ast(sync_state=sync_state)
+    if agent_ast is None:
         return
     try:
         async with deps.db_session_factory() as session:
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:k, 0))"),
+                {"k": f"strategy:{deps.conversation_id}"},
+            )
             repo = ConversationRepository(session)
+            current = await repo.get_by_id(deps.conversation_id)
+            merged_ast = _merge_agent_ast_into_current(current, agent_ast)
+            wdk_strategy_id_to_write = (
+                sync_result.wdk_strategy_id if sync_result is not None
+                else (current.wdk_strategy_id if current is not None else None)
+            )
             await repo.update_conversation(
                 deps.conversation_id,
                 ConversationUpdate(
-                    strategy_ast=ast,
-                    record_type=ast.record_type or None,
-                    wdk_strategy_id=sync_result.wdk_strategy_id,
-                    wdk_strategy_id_set=True,
-                    step_count=len(walk_step_tree(ast.root)),
+                    strategy_ast=merged_ast,
+                    record_type=merged_ast.record_type or None,
+                    wdk_strategy_id=wdk_strategy_id_to_write,
+                    wdk_strategy_id_set=sync_result is not None,
+                    step_count=len(walk_step_tree(merged_ast.root)),
                 ),
             )
             await session.commit()
@@ -256,6 +308,25 @@ async def _persist_strategy_ast_to_conversation(
             conversation_id=str(deps.conversation_id),
             error=str(exc),
         )
+
+
+def _merge_agent_ast_into_current(
+    current: Conversation | None, agent_ast: StrategyAst,
+) -> StrategyAst:
+    """Write the agent's AST but preserve any persisted wdk_step_ids it lacks.
+
+    The agent owns the graph topology (it just mutated it). The persisted
+    wdk_step_ids may include steps the agent already knows about; the union
+    keeps any IDs a concurrent writer landed for steps the agent did not
+    push this turn. When persisted state is missing entirely (fresh chat),
+    use the agent view as-is.
+    """
+    if current is None or not current.strategy_ast:
+        return agent_ast
+    persisted = StrategyAst.model_validate(current.strategy_ast)
+    merged_step_ids = dict(persisted.wdk_step_ids or {})
+    merged_step_ids.update(agent_ast.wdk_step_ids or {})
+    return agent_ast.model_copy(update={"wdk_step_ids": merged_step_ids})
 
 
 async def _maybe_create_gene_set(

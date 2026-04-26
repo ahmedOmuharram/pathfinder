@@ -1,20 +1,17 @@
 "use client";
 
-/**
- * CompactStrategyView — read-only vertical step list rendered in the right
- * rail's StrategyPanel.
- *
- * Walks the spine via `buildSpineLayout`. Search and transform steps render
- * as a single row (dot + name + count). Combine steps render as an indented
- * sub-tree (secondary input + venn glyph + result row).
- */
+import type { Step, Strategy } from "@pathfinder/shared";
+import { Trash2 } from "lucide-react";
 
-import type { Strategy } from "@pathfinder/shared";
+import { Button } from "@/components/ui/button";
 import {
   buildSpineLayout,
+  findOrphanSteps,
   type CompactStep,
 } from "@/features/strategy/graph/utils/compactLayout";
 import { VennIcon } from "@/features/strategy/graph/components/OpBadge";
+import { inferStepKind } from "@/lib/strategyGraph";
+import { usePushStrategyMutation } from "@/features/strategy/mutations/usePushStrategyMutation";
 import { useStepSnapshot } from "@/state/strategy/useStepSnapshot";
 import { cn } from "@/lib/utils/cn";
 
@@ -43,7 +40,9 @@ export function CompactStrategyView({
       ? []
       : buildSpineLayout(strategy.steps, strategy.rootStepId);
 
-  if (spine.length === 0) {
+  const orphans = findOrphanSteps(strategy.steps, strategy.rootStepId ?? null);
+
+  if (spine.length === 0 && orphans.length === 0) {
     return (
       <div className="px-3 py-3 text-xs text-muted-foreground">
         Building strategy ({strategy.steps.length} steps)…
@@ -52,34 +51,128 @@ export function CompactStrategyView({
   }
 
   return (
-    <ol
-      data-testid="compact-strategy-view"
-      className="flex flex-col gap-1 px-3 py-3"
+    <div className="flex flex-col gap-3 px-3 py-3">
+      {spine.length > 0 && (
+        <ol
+          data-testid="compact-strategy-view"
+          className="flex flex-col gap-1"
+        >
+          {spine.map((seg) => {
+            const isCombine =
+              seg.secondaryInput != null &&
+              seg.step.operator != null &&
+              seg.step.operator !== "";
+            if (isCombine && seg.secondaryInput) {
+              return (
+                <CombineRow
+                  key={seg.step.id}
+                  step={seg.step}
+                  secondaryInput={seg.secondaryInput}
+                  {...(onStepClick !== undefined && { onStepClick })}
+                />
+              );
+            }
+            return (
+              <StepRow
+                key={seg.step.id}
+                step={seg.step}
+                {...(onStepClick !== undefined && { onStepClick })}
+              />
+            );
+          })}
+        </ol>
+      )}
+      {orphans.length > 0 && (
+        <DisconnectedSection
+          strategy={strategy}
+          orphans={orphans}
+          {...(onStepClick !== undefined && { onStepClick })}
+        />
+      )}
+    </div>
+  );
+}
+
+interface DisconnectedSectionProps {
+  strategy: Strategy;
+  orphans: Step[];
+  onStepClick?: (stepId: string) => void;
+}
+
+function DisconnectedSection({
+  strategy,
+  orphans,
+  onStepClick,
+}: DisconnectedSectionProps) {
+  const push = usePushStrategyMutation();
+  const orphanIds = new Set(orphans.map((s) => s.id));
+  const handleClear = () => {
+    push.mutate({
+      optimistic: {
+        ...strategy,
+        steps: strategy.steps.filter((s) => !orphanIds.has(s.id)),
+      },
+    });
+  };
+  return (
+    <section
+      data-testid="compact-strategy-orphans"
+      className="rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-2"
     >
-      {spine.map((seg) => {
-        const isCombine =
-          seg.secondaryInput != null &&
-          seg.step.operator != null &&
-          seg.step.operator !== "";
-        if (isCombine && seg.secondaryInput) {
-          return (
-            <CombineRow
-              key={seg.step.id}
-              step={seg.step}
-              secondaryInput={seg.secondaryInput}
-              {...(onStepClick !== undefined && { onStepClick })}
-            />
-          );
-        }
-        return (
-          <StepRow
-            key={seg.step.id}
-            step={seg.step}
+      <header className="mb-1 flex items-center justify-between gap-2 px-1 text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-400">
+        <span>{orphans.length} disconnected</span>
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          onClick={handleClear}
+          disabled={push.isPending}
+          className="h-5 gap-1 px-1.5 text-[10px] text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
+        >
+          <Trash2 className="size-3" aria-hidden /> Remove all
+        </Button>
+      </header>
+      <p className="px-1 pb-1 text-[10px] text-muted-foreground">
+        These steps aren't connected and block save. Remove or wire them up
+        in the full editor.
+      </p>
+      <ol className="flex flex-col gap-0.5">
+        {orphans.map((step) => (
+          <OrphanRow
+            key={step.id}
+            step={step}
             {...(onStepClick !== undefined && { onStepClick })}
           />
-        );
-      })}
-    </ol>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+interface OrphanRowProps {
+  step: Step;
+  onStepClick?: (stepId: string) => void;
+}
+
+function OrphanRow({ step, onStepClick }: OrphanRowProps) {
+  const kind = inferStepKind(step);
+  const dot = KIND_DOT[kind] ?? "bg-muted";
+  const displayName = step.displayName ?? step.searchName ?? step.id;
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onStepClick?.(step.id)}
+        data-testid={`compact-orphan-row-${step.id}`}
+        className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-muted-foreground opacity-70 transition-opacity hover:bg-accent hover:opacity-100"
+      >
+        <span
+          aria-hidden
+          className={cn("inline-block size-2 shrink-0 rounded-full", dot)}
+        />
+        <span className="flex-1 truncate">{displayName}</span>
+      </button>
+    </li>
   );
 }
 

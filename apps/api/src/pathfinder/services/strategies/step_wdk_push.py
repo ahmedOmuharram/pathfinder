@@ -5,6 +5,10 @@ fails, the step still exists in the local graph and the sync service can
 reconcile later.
 """
 
+from typing import assert_never
+
+from pydantic import BaseModel, ConfigDict
+
 from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
 from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
 from pathfinder.domain.strategy.session import StrategyGraph
@@ -20,7 +24,31 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.strategies.step_push_planner import (
+    CreateAction,
+    PatchAction,
+    RecreateAction,
+    SkipAction,
+    StepPushPlan,
+)
 from pathfinder.services.strategies.sync_state import WDKSyncState
+
+
+class PushOutcome(BaseModel):
+    """Outcome of a `push_steps_with_plan` call.
+
+    `succeeded` is the ordered list of step IDs whose CREATE/PATCH/RECREATE
+    plan entry completed without error. `failed` is the ordered list of
+    step IDs whose action raised. `partial` is True iff any step failed.
+    """
+
+    model_config = ConfigDict(frozen=True)
+    succeeded: list[str]
+    failed: list[str]
+
+    @property
+    def partial(self) -> bool:
+        return len(self.failed) > 0
 
 logger = get_logger(__name__)
 
@@ -237,52 +265,116 @@ async def _update_existing_step(
         )
 
 
-async def push_all_steps_to_wdk(
+async def _patch_combine_metadata(
+    api: StrategyAPI,
+    sync_state: WDKSyncState,
+    step: StrategyStepNode,
+) -> None:
+    # WDK combine operators are creation-time params; only display name /
+    # weight are PATCHable on a combine step.
+    wdk_step_id = sync_state.wdk_step_ids[step.id]
+    if step.display_name is None:
+        return
+    await api.update_step_properties(
+        step_id=wdk_step_id,
+        spec=PatchStepSpec(custom_name=step.display_name),
+    )
+
+
+async def _execute_patch(
+    sync_state: WDKSyncState,
+    site_id: str,
+    step: StrategyStepNode,
+    record_type: str,
+) -> str | None:
+    api = get_strategy_api(site_id)
+    try:
+        if step.infer_kind() == "combine":
+            await _patch_combine_metadata(api, sync_state, step)
+        else:
+            await _update_existing_step(api, sync_state, step, record_type)
+    except (AppError, OSError) as exc:
+        msg = str(exc)
+        sync_state.wdk_push_errors[step.id] = msg
+        return msg
+    return None
+
+
+async def _execute_create(
+    sync_state: WDKSyncState,
+    site_id: str,
+    step: StrategyStepNode,
+    record_type: str,
+) -> str | None:
+    wdk_step_id, _validation, push_error = await push_step_to_wdk(
+        sync_state=sync_state,
+        step=step,
+        site_id=site_id,
+        record_type=record_type,
+        search_name=step.search_name,
+        parameters=step.parameters,
+    )
+    if wdk_step_id is None:
+        if push_error:
+            sync_state.wdk_push_errors[step.id] = push_error
+        return push_error or "push returned no wdk step id"
+    return None
+
+
+async def _execute_recreate(
+    sync_state: WDKSyncState,
+    site_id: str,
+    step: StrategyStepNode,
+    record_type: str,
+) -> str | None:
+    sync_state.wdk_step_ids.pop(step.id, None)
+    return await _execute_create(sync_state, site_id, step, record_type)
+
+
+async def push_steps_with_plan(
     graph: StrategyGraph,
     sync_state: WDKSyncState,
     site_id: str,
-    *,
-    update_existing: bool = False,
-) -> list[str]:
-    """Push all steps in a graph to WDK, bottom-up (leaves first).
+    plan: list[StepPushPlan],
+) -> PushOutcome:
+    """Execute a push plan. Returns a PushOutcome with succeeded + failed step IDs.
 
-    Skips steps that already have a WDK ID. Returns a list of step IDs
-    that failed to push (non-fatal per step, but caller should check).
+    The loop continues after a failure so independent siblings still get
+    pushed. A combine that depends on a failed input naturally short-circuits
+    inside `_push_combine_step` because the input lacks a wdk_step_id, and
+    that combine ends up in `failed`.
     """
     root_step = next(
         (graph.steps[sid] for sid in graph.roots if sid in graph.steps), None
     )
     if root_step is None:
-        return []
+        return PushOutcome(succeeded=[], failed=[])
 
-    all_steps = walk_step_tree(root_step)
+    steps_by_id: dict[str, StrategyStepNode] = {
+        s.id: s for s in walk_step_tree(root_step)
+    }
+    record_type = graph.record_type or "transcript"
+    succeeded: list[str] = []
     failed: list[str] = []
 
-    for step in all_steps:
-        if step.id in sync_state.wdk_step_ids:
-            if update_existing:
-                if step.infer_kind() == "combine":
-                    # Combine operators are creation-time params — can't update
-                    # in-place. Evict the WDK ID to force recreation below.
-                    del sync_state.wdk_step_ids[step.id]
-                else:
-                    api = get_strategy_api(site_id)
-                    await _update_existing_step(api, sync_state, step, graph.record_type or "transcript")
-                    continue
-            else:
-                continue
-
-        wdk_step_id, _validation, push_error = await push_step_to_wdk(
-            sync_state=sync_state,
-            step=step,
-            site_id=site_id,
-            record_type=graph.record_type or "transcript",
-            search_name=step.search_name,
-            parameters=step.parameters,
-        )
-        if wdk_step_id is None:
+    for entry in plan:
+        step = steps_by_id.get(entry.step_id)
+        if step is None:
+            continue
+        action = entry.action
+        if isinstance(action, SkipAction):
+            continue
+        if isinstance(action, PatchAction):
+            err = await _execute_patch(sync_state, site_id, step, record_type)
+        elif isinstance(action, CreateAction):
+            err = await _execute_create(sync_state, site_id, step, record_type)
+        elif isinstance(action, RecreateAction):
+            err = await _execute_recreate(sync_state, site_id, step, record_type)
+        else:
+            assert_never(action)
+        if err is None:
+            succeeded.append(step.id)
+        else:
             failed.append(step.id)
-            if push_error:
-                sync_state.wdk_push_errors[step.id] = push_error
 
-    return failed
+    return PushOutcome(succeeded=succeeded, failed=failed)

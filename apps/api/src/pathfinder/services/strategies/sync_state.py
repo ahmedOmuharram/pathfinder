@@ -8,6 +8,7 @@ manages graph topology only.
 from dataclasses import dataclass, field
 
 from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.wdk_models import WDKStepTree
 
@@ -22,6 +23,10 @@ class WDKSyncState:
     wdk_strategy_id: int | None = None
     wdk_step_tree: WDKStepTree | None = None
     wdk_push_errors: dict[str, str] = field(default_factory=dict)
+    # Snapshot of the AST as it existed at the last successful push. Lets the
+    # diff planner compare new state against the actually-pushed state instead
+    # of always treating every step as new.
+    last_pushed_ast: StrategyAst | None = None
 
 
 def ensure_sync_state(session: StrategySession) -> WDKSyncState:

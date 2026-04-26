@@ -6,6 +6,7 @@ import { useIsMutating } from "@tanstack/react-query";
 import { useStrategyStore } from "@/state/strategy/store";
 import { computeStepCounts } from "@/lib/api/conversations";
 import { PUSH_STRATEGY_MUTATION_KEY } from "@/features/strategy/mutations/usePushStrategyMutation";
+import { STEP_PATCH_MUTATION_KEY } from "@/features/strategy/mutations/useUpdateStepMutation";
 import { useStepCounts } from "@/features/strategy/services/useStepCounts";
 import { useGraphConnections } from "@/features/strategy/graph/hooks/useGraphConnections";
 import { useGraphSelection } from "@/features/strategy/graph/hooks/useGraphSelection";
@@ -92,8 +93,9 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
   });
 
   const inFlightPushes = useIsMutating({ mutationKey: PUSH_STRATEGY_MUTATION_KEY });
+  const inFlightStepPatches = useIsMutating({ mutationKey: STEP_PATCH_MUTATION_KEY });
   const syncStatus: "idle" | "syncing" | "error" =
-    inFlightPushes > 0
+    inFlightPushes + inFlightStepPatches > 0
       ? "syncing"
       : addStepMutation.isError ||
           updateStepMutation.isError ||

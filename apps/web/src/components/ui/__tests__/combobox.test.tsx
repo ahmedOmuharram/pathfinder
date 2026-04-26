@@ -60,6 +60,69 @@ describe("Combobox (single)", () => {
   });
 });
 
+describe("Combobox (single) unknown values", () => {
+  it("renders the raw value as the trigger label when not in options", () => {
+    function Harness() {
+      const [value, setValue] = useState<string | null>("GO:0016301");
+      return (
+        <Combobox
+          options={[]}
+          value={value}
+          onChange={setValue}
+          placeholder="Type to search..."
+        />
+      );
+    }
+    render(<Harness />);
+    expect(screen.getByText("GO:0016301")).toBeInTheDocument();
+    expect(screen.queryByText("Type to search...")).toBeNull();
+  });
+});
+
+describe("Combobox (multiple) unknown values", () => {
+  it("renders a chip with the raw value when not in options", () => {
+    function Harness() {
+      const [value, setValue] = useState<string[]>(["GO:0016301"]);
+      return (
+        <Combobox
+          multiple
+          options={[]}
+          value={value}
+          onChange={setValue}
+          placeholder="Pick options"
+        />
+      );
+    }
+    render(<Harness />);
+    expect(screen.getByText("GO:0016301")).toBeInTheDocument();
+    expect(screen.getByLabelText("Remove GO:0016301")).toBeInTheDocument();
+  });
+
+  it("removes a synthetic chip when the X is clicked", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [value, setValue] = useState<string[]>(["GO:0016301", "GO:0006915"]);
+      return (
+        <Combobox
+          multiple
+          options={[]}
+          value={value}
+          onChange={setValue}
+          placeholder="Pick options"
+        />
+      );
+    }
+    render(<Harness />);
+    expect(screen.getByText("GO:0016301")).toBeInTheDocument();
+    expect(screen.getByText("GO:0006915")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Remove GO:0016301"));
+
+    expect(screen.queryByText("GO:0016301")).toBeNull();
+    expect(screen.getByText("GO:0006915")).toBeInTheDocument();
+  });
+});
+
 describe("Combobox (multiple)", () => {
   function MultiHarness() {
     const [value, setValue] = useState<string[]>([]);

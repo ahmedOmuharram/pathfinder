@@ -19,6 +19,7 @@ from .conversations import (
     PushConversationRequest,
     StepCountsRequest,
     StepCountsResponse,
+    StepPatchRequest,
     UpdateConversationRequest,
 )
 from .health import HealthResponse, SystemConfigResponse
@@ -74,6 +75,7 @@ __all__ = [
     "SiteResponse",
     "StepCountsRequest",
     "StepCountsResponse",
+    "StepPatchRequest",
     "StepResponse",
     "StrategyAst",
     "StrategyAstNormalizeRequest",
