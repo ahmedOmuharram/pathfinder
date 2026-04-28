@@ -92,7 +92,10 @@ import type {
   StrategyLink,
   StrategyMeta,
   ConversationResponse,
+  EnrichmentResultsChunk,
   TaskCompleted,
+  TaskListItem,
+  TaskListResponse,
   TaskProgress as TaskProgressStreamPart,
   TaskProgressEvent,
   TaskStatusResponse,
@@ -405,7 +408,7 @@ export type StepContributionVerdict = "essential" | "helpful" | "neutral" | "har
 export type MemoryKind = MemoryValue["kind"];
 export type { MemoryValue, MemoryItem, MemoryListResponse, MemorySearchResponse, MemoryEditRequest };
 
-export type { TaskProgressEvent, TaskStatusResponse };
+export type { TaskListItem, TaskListResponse, TaskProgressEvent, TaskStatusResponse };
 
 export type {
   GraphSnapshot,
@@ -422,6 +425,7 @@ export type {
   BackgroundTaskStarted,
   TaskCompleted,
   TurnUsage,
+  EnrichmentResultsChunk,
 };
 export type ProblemFramePart = ProblemFrame;
 export type GeneSetPart = GeneSetStreamPart;
@@ -522,6 +526,7 @@ export type DataPartKind =
   | "data-background-task-started"
   | "data-task-progress"
   | "data-task-completed"
+  | "data-enrichment-results"
   | "data-strategy-link"
   | "data-strategy-meta"
   | "data-graph-snapshot"
@@ -551,6 +556,7 @@ export interface DataPartPayloadMap {
   "data-background-task-started": BackgroundTaskStarted;
   "data-task-progress": TaskProgressStreamPart;
   "data-task-completed": TaskCompleted;
+  "data-enrichment-results": EnrichmentResultsChunk;
   "data-strategy-link": StrategyLink;
   "data-strategy-meta": StrategyMeta;
   "data-graph-snapshot": GraphSnapshot;

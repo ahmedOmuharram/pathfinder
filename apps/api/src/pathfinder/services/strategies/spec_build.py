@@ -23,13 +23,18 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import (
     COMBINE_SEARCH_NAME,
     StrategyStepNode,
     walk_step_tree,
 )
-from pathfinder.platform.errors import AppError
+from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.catalog.param_validation import validate_parameters
+from pathfinder.services.catalog.validation_callbacks import (
+    make_validation_callbacks,
+)
 from pathfinder.services.strategies.persist import (
     persist_strategy_ast_to_conversation,
 )
@@ -166,13 +171,44 @@ async def _push_tree_to_wdk(
     sync_state: WDKSyncState,
     outcome: BuildOutcome,
 ) -> None:
-    """Push every node in DFS order, recording per-step failures + skips."""
+    """Push every node in DFS order, recording per-step failures + skips.
+
+    Each leaf/transform's parameters are validated against the *refreshed*
+    WDK param spec (which honors dependent-param chains via
+    ``refreshed-dependent-params``) before any HTTP push, so the agent
+    never gets a chance to send WDK an invalid `go_term_slim` etc and
+    burn a roundtrip on a deterministic 422.
+    """
     failed_node_ids: set[str] = set()
+    callbacks = make_validation_callbacks(site_id)
     for node in nodes:
         if _has_failed_descendant(node, failed_node_ids):
             outcome.skipped_step_ids.append(node.id)
             continue
         search_name = node.search_name or COMBINE_SEARCH_NAME
+        if search_name != COMBINE_SEARCH_NAME:
+            try:
+                await validate_parameters(
+                    SearchContext(
+                        site_id=site_id,
+                        record_type=graph_record_type,
+                        search_name=search_name,
+                    ),
+                    parameters=dict(node.parameters or {}),
+                    callbacks=callbacks,
+                )
+            except ValidationError as exc:
+                detail = exc.detail or exc.title
+                sync_state.wdk_push_errors[node.id] = detail
+                failed_node_ids.add(node.id)
+                outcome.failed_steps.append(
+                    StepPushFailure(
+                        step_id=node.id,
+                        search_name=search_name,
+                        error=detail,
+                    ),
+                )
+                continue
         wdk_id, _validation, push_error = await push_step_to_wdk(
             sync_state=sync_state,
             step=node,

@@ -90,6 +90,8 @@ export function GeneAutocomplete({
             <button
               key={gene.geneId}
               type="button"
+              data-testid="gene-autocomplete-result"
+              data-gene-id={gene.geneId}
               onClick={() => handleSelect(gene.geneId)}
               className="flex w-full items-start gap-2 px-3 py-2 text-left transition-colors duration-75 hover:bg-accent"
             >

@@ -43,6 +43,28 @@ def background_task_started_event(
     )
 
 
+def enrichment_results_event(
+    *,
+    task_id: UUID,
+    gene_set_id: str,
+    gene_set_name: str,
+    gene_count: int,
+    results: list[dict[str, object]],
+    downloads: dict[str, str | int] | None = None,
+) -> DataChunk:
+    return DataChunk(
+        type="data-enrichment-results",
+        data={
+            "taskId": str(task_id),
+            "geneSetId": gene_set_id,
+            "geneSetName": gene_set_name,
+            "geneCount": gene_count,
+            "results": results,
+            "downloads": downloads,
+        },
+    )
+
+
 def conversation_title_event(*, title: str) -> DataChunk:
     return DataChunk(
         type="data-conversation-title",

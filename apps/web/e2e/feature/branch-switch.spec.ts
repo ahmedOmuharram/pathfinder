@@ -231,8 +231,12 @@ test.describe("Branch Switch", () => {
     await expect(branchTree).toBeVisible({ timeout: 15_000 });
 
     const checkpointNodes = branchTree.locator("[data-branch-node]");
+    // TODO(weak-strict-mode): cannot disambiguate from test alone — the
+    // [data-branch-node] selector is not present in current `src/` so the
+    // intended structure (which checkpoint is "first") cannot be inferred.
     await expect(checkpointNodes.first()).toBeVisible({ timeout: 15_000 });
 
+    // TODO(weak-strict-mode): cannot disambiguate from test alone.
     await checkpointNodes.first().click();
 
     const forkButton = page.getByRole("button", {
@@ -256,6 +260,9 @@ test.describe("Branch Switch", () => {
     const treeNodes = branchTree.locator("[data-branch-node]");
     await expect(treeNodes).toHaveCount(5, { timeout: 15_000 });
 
+    // TODO(weak-strict-mode): cannot disambiguate from test alone — the
+    // branch-tree component lives outside src/ (mock-only fixture) so we
+    // cannot select the intended checkpoint node by stable id.
     const originalLeaf = treeNodes.nth(2);
     await originalLeaf.click();
 

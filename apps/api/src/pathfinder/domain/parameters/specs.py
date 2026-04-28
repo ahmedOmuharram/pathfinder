@@ -52,6 +52,83 @@ def find_input_step_param(specs: dict[str, ParamSpecNormalized]) -> str | None:
     return None
 
 
+def topological_fill_order(specs: dict[str, ParamSpecNormalized]) -> list[str]:
+    """Kahn topological sort of param names by dependent_params edges.
+
+    Parents (params whose ``dependent_params`` lists others) come before
+    their children. Cycles fall back to lexical order.
+    """
+    depends_on: dict[str, list[str]] = {}
+    controls: dict[str, list[str]] = {name: [] for name in specs}
+    for name, spec in specs.items():
+        for dep in spec.dependent_params:
+            controls.setdefault(name, []).append(dep)
+            depends_on.setdefault(dep, []).append(name)
+    in_degree = {name: len(depends_on.get(name, [])) for name in specs}
+    queue = [n for n in specs if in_degree[n] == 0]
+    fill: list[str] = []
+    while queue:
+        node = queue.pop(0)
+        fill.append(node)
+        for child in controls.get(node, []):
+            if child in in_degree:
+                in_degree[child] -= 1
+                if in_degree[child] == 0:
+                    queue.append(child)
+    fill.extend(n for n in specs if n not in fill)
+    return fill
+
+
+def find_dependent_value_violations(
+    param_specs: dict[str, ParamSpecNormalized],
+    parameters: JSONObject,
+) -> list[tuple[str, list[str]]]:
+    """Return ``[(param_name, invalid_values)]`` for dependent params with
+    values not present in the (already-refreshed) vocabulary.
+
+    Only applies to params whose name appears in some other spec's
+    ``dependent_params`` list; ie this is a *child of a parent that
+    controls vocab*. Empty / missing values are skipped — those are
+    handled by ``find_missing_required_params``.
+    """
+    dependent_names: set[str] = {
+        dep for spec in param_specs.values() for dep in spec.dependent_params
+    }
+    violations: list[tuple[str, list[str]]] = []
+    for name in dependent_names:
+        spec = param_specs.get(name)
+        if spec is None or spec.vocabulary is None:
+            continue
+        value = parameters.get(name)
+        if value in (None, "", [], {}):
+            continue
+        allowed = _vocab_keys(spec.vocabulary)
+        bad = [str(v) for v in _value_as_list(value) if str(v) not in allowed]
+        if bad:
+            violations.append((name, bad))
+    return violations
+
+
+def _vocab_keys(vocab: JSONObject | JSONArray) -> set[str]:
+    if isinstance(vocab, list):
+        out: set[str] = set()
+        for item in vocab:
+            if isinstance(item, list) and item:
+                out.add(str(item[0]))
+            elif isinstance(item, dict) and "value" in item:
+                out.add(str(item["value"]))
+            else:
+                out.add(str(item))
+        return out
+    return {str(k) for k in vocab}
+
+
+def _value_as_list(value: object) -> list[object]:
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
 def find_missing_required_params(
     param_specs: dict[str, ParamSpecNormalized],
     parameters: JSONObject,

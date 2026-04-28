@@ -18,15 +18,14 @@ entry point.
 
 from __future__ import annotations
 
-import json as _json
 from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Path
 from pydantic import JsonValue
-from sqlalchemy import text
 
 from pathfinder.ai.agents._model_resolution import resolve_specialist_model_id
+from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.graph.stream_events import background_task_started_event
 from pathfinder.ai.specialists.concurrency import (
     ActiveSessionConflictError,
@@ -46,7 +45,7 @@ from pathfinder.integrations.veupathdb.discovery_service import (
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.payloads import DurableTaskPayload
-from pathfinder.persistence.models import ConversationEvent, User
+from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
@@ -351,44 +350,26 @@ def _build_durable_args(
 
 
 async def _persist_started_event(
-    *, conversation_id: UUID, task_id: UUID,
+    *, conversation_id: UUID, task_id: UUID, turn_id: UUID,
 ) -> None:
-    """Persist the ``data-background-task-started`` chunk + NOTIFY listeners.
+    """Persist the ``data-background-task-started`` chunk to the chat stream.
 
-    Mirrors :func:`pathfinder.jobs.runner._persist_chat_event` so any open
-    ``GET /tasks/{id}/events`` SSE stream picks up the new task immediately,
-    and any reconnect after the launcher fired can still replay the chunk.
+    Writes via :class:`ChatEventWriter` (no ``task_id`` tag) so the chat SSE
+    replay surfaces the chunk and the ``DataBackgroundTaskStarted`` part
+    renders inline with the launcher card. Any open chat-stream tail picks
+    it up via the ``conversation_events:<conv>`` ``pg_notify`` channel.
     """
     chunk = background_task_started_event(
         task_id=task_id,
         tool_name=_OPTIMIZE_TOOL_NAME,
         estimated_duration_seconds=_OPTIMIZE_ESTIMATED_DURATION_SECONDS,
     )
-    sse_line = (
-        "data: "
-        + _json.dumps(
-            chunk.model_dump(by_alias=True, mode="json", exclude_none=True),
-            separators=(",", ":"),
-        )
-        + "\n\n"
+    writer = ChatEventWriter(
+        conversation_id=conversation_id, turn_id=turn_id,
     )
-    async with async_session_factory() as session:
-        session.add(
-            ConversationEvent(
-                conversation_id=conversation_id,
-                task_id=task_id,
-                chunk={"sse": sse_line},
-            ),
-        )
-        await session.flush()
-        await session.execute(
-            text("SELECT pg_notify(:channel, :payload)"),
-            {
-                "channel": f"chat_events:{conversation_id}",
-                "payload": str(task_id),
-            },
-        )
-        await session.commit()
+    await writer.write(
+        chunk.model_dump(by_alias=True, mode="json", exclude_none=True),
+    )
 
 
 @router.post(
@@ -506,7 +487,7 @@ async def launch_optimize(
     )
 
     await _persist_started_event(
-        conversation_id=conversation_id, task_id=task_id,
+        conversation_id=conversation_id, task_id=task_id, turn_id=message_id,
     )
 
     logger.info(

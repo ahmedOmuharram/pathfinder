@@ -235,7 +235,10 @@ export function EvaluatePanel() {
         )}
 
         {error !== null && error !== "" && (
-          <div className="rounded border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+          <div
+            data-testid="evaluate-error"
+            className="rounded border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive"
+          >
             {error}
           </div>
         )}

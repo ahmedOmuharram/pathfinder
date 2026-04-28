@@ -79,7 +79,7 @@ const PARAM_SPECS = vi.hoisted(
 );
 
 vi.mock("@/lib/hooks/useParamSpecs", () => ({
-  useParamSpecs: () => ({ paramSpecs: PARAM_SPECS, isLoading: false }),
+  useParamSpecs: () => ({ paramSpecs: PARAM_SPECS, isLoading: false, error: null }),
 }));
 
 vi.mock("@/state/strategy/store", () => ({

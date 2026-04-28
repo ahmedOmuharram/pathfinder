@@ -12,6 +12,7 @@ from shared_py.stream_parts.background_task import (
     TaskCompleted,
     TaskProgress,
 )
+from shared_py.stream_parts.enrichment import EnrichmentResultsChunk
 from shared_py.stream_parts.gene_set import GeneSet
 from shared_py.stream_parts.graph import (
     GraphCleared,
@@ -58,6 +59,7 @@ class StreamPartsSchemaIndex(CamelModel):
     background_task_started: BackgroundTaskStarted | None = None
     task_progress: TaskProgress | None = None
     task_completed: TaskCompleted | None = None
+    enrichment_results: EnrichmentResultsChunk | None = None
 
 
 @router.get(

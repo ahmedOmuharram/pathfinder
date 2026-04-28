@@ -205,6 +205,8 @@ export function MetricsOverview({
               {primary.map((m) => (
                 <div
                   key={m.label}
+                  data-testid="metric-row"
+                  data-metric={m.label}
                   className="flex items-center justify-between border-b border-border px-5 py-2.5 last:border-b-0"
                 >
                   <Tooltip>

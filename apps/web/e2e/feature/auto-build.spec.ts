@@ -272,7 +272,7 @@ test.describe("Mock Engine Response Correctness", () => {
     // no tool calls, no strategy updates, no graph changes.
     // (We verify no graph appears by checking the assistant message content
     // rather than DB state, since DB state can leak from prior serial suites.)
-    const text = await chatPage.assistantMessages.last().textContent();
+    const text = await chatPage.lastAssistantMessageText();
     expect(text).toContain("[mock]");
     expect(text).toContain("hello world");
   });
@@ -304,14 +304,19 @@ test.describe("Mock Engine Response Correctness", () => {
     await chatPage.approvePlan();
     await chatPage.expectIdle();
 
-    // The thinking panel should show tool calls from the pipeline
-    const thinkingButton = page.getByText("Thought").first();
-    if (await thinkingButton.isVisible().catch(() => false)) {
-      await thinkingButton.click();
-      // At least one tool call name should appear in thinking details
-      await expect(page.getByText(/create_leaf_step|create_plan|get_search_overview/i).first()).toBeVisible({
-        timeout: 5_000,
-      });
+    // The thinking panel may or may not render in mock mode; the mock plan
+    // flow produces at most one finished reasoning block. If a single one
+    // exists, expand it and verify a tool call name appears.
+    const thinkingTrigger = page
+      .getByTestId("reasoning-trigger")
+      .filter({ hasText: /Thought/ });
+    const triggerCount = await thinkingTrigger.count();
+    if (triggerCount === 1) {
+      await thinkingTrigger.click();
+      const toolCallText = page.getByText(
+        /create_leaf_step|create_plan|get_search_overview/i,
+      );
+      await expect(toolCallText).not.toHaveCount(0, { timeout: 5_000 });
     }
   });
 });

@@ -98,6 +98,10 @@ def _asyncpg_dsn(database_url: str) -> str:
 async def _fetch_after(
     conversation_id: UUID, after: int,
 ) -> list[tuple[int, dict[str, Any]]]:
+    """Fetch chat-stream chunks. Task-tagged rows belong to the per-task SSE
+    endpoint and use a different envelope shape (``{"sse": "<frame>"}``);
+    pulling them into the chat replay would crash the v6 chunk discriminator.
+    """
     async with async_session_factory() as session:
         rows = (
             await session.scalars(
@@ -105,6 +109,7 @@ async def _fetch_after(
                 .where(
                     ConversationEvent.conversation_id == conversation_id,
                     ConversationEvent.id > after,
+                    ConversationEvent.task_id.is_(None),
                 )
                 .order_by(ConversationEvent.id),
             )
@@ -125,6 +130,29 @@ async def latest_event(
         if row is None:
             return None
         return (row.id, row.chunk)
+
+
+async def latest_turn_boundary(conversation_id: UUID) -> int:
+    """Return the id of the most recent turn-terminator (`done` chunk).
+
+    Used as the SSE replay baseline so a new client never tails into the
+    middle of a tool-call sequence still being written by a prior turn —
+    the failure mode that produces "Received tool-input-delta for missing
+    tool call with ID …" on retry. Task-tagged rows are excluded so the
+    boundary tracks the chat stream alone.
+    """
+    async with async_session_factory() as session:
+        row = await session.scalar(
+            select(ConversationEvent)
+            .where(
+                ConversationEvent.conversation_id == conversation_id,
+                ConversationEvent.task_id.is_(None),
+                ConversationEvent.chunk["type"].astext == "done",
+            )
+            .order_by(ConversationEvent.id.desc())
+            .limit(1),
+        )
+        return row.id if row is not None else 0
 
 
 async def latest_event_with_timestamp(
@@ -199,6 +227,13 @@ async def iter_sse(
     async for event_id, chunk in replay_and_tail(
         conversation_id=conversation_id, after=after,
     ):
+        if not isinstance(chunk, dict) or "type" not in chunk:
+            logger.warning(
+                "skipping persisted chunk without type discriminator",
+                event_id=event_id,
+                conversation_id=str(conversation_id),
+            )
+            continue
         try:
             typed = _CHUNK_ADAPTER.validate_python(chunk)
         except ValidationError:

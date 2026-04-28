@@ -55,6 +55,7 @@ export const useTaskStore = create<TaskState>((set) => ({
     })),
   setProgress: (taskId, progress) =>
     set((state) => {
+      if (!Object.hasOwn(state.tasks, taskId)) return state;
       const current = state.tasks[taskId];
       if (!current) return state;
       return {
@@ -66,6 +67,7 @@ export const useTaskStore = create<TaskState>((set) => ({
     }),
   completeTask: (taskId, status, error) =>
     set((state) => {
+      if (!Object.hasOwn(state.tasks, taskId)) return state;
       const current = state.tasks[taskId];
       if (!current) return state;
       const next: TaskRecord =

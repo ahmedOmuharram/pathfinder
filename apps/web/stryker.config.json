@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for the pure state-machine layer. Verifies that property tests + reducer tests actually catch code mutations. Scope is intentionally narrow so wall time stays bounded.",
+  "packageManager": "yarn",
+  "testRunner": "vitest",
+  "testRunner_comment": "vitest runner spawns one workspace-aware vitest run per mutant.",
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/state/strategy/**/*.ts",
+    "!src/state/strategy/**/*.test.ts",
+    "!src/state/strategy/**/*.property.test.ts",
+    "!src/state/strategy/**/*.d.ts"
+  ],
+  "incremental": true,
+  "incrementalFile": ".stryker-tmp/incremental.json",
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 50
+  },
+  "reporters": ["progress", "clear-text", "html"],
+  "htmlReporter": {
+    "fileName": ".stryker-tmp/report.html"
+  },
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": false,
+  "checkers": ["typescript"],
+  "tsconfigFile": "tsconfig.json",
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "logLevel": "info"
+}

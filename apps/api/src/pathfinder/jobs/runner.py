@@ -12,24 +12,28 @@ after the original request disconnected.
 from __future__ import annotations
 
 import dataclasses
-import json as _json
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import text
+from pydantic_ai.ui.vercel_ai.response_types import (
+    DoneChunk,
+    FinishChunk,
+    StartChunk,
+)
 
+from pathfinder.ai.conversation._turn_helpers import _interrupt_chunks
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.tools.durable import TaskProgressEmitter
-from pathfinder.jobs.auth_context import attach_wdk_auth
+from pathfinder.jobs.auth_context import attach_user_id, attach_wdk_auth
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runtime import build_worker_runtime_context
-from pathfinder.persistence.models import ConversationEvent
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
@@ -87,18 +91,17 @@ async def run_durable_task(
                 conversation_id=thread_id, task_id=task_id
             )
             context = dataclasses.replace(base_context, memory_store=raw_memory)
-            try:
-                payload = await impl(
-                    context=context,
-                    task_id=task_uuid,
-                    progress=progress,
-                    memory_store=mem_store,
-                    **args.get("kwargs", {}),
-                )
-            finally:
-                # Flush any residual buffered progress rows before the impl's
-                # outcome is recorded — clients must see the final steps.
-                await progress.aclose()
+            async with attach_user_id(context.user_id):
+                try:
+                    payload = await impl(
+                        context=context,
+                        task_id=task_uuid,
+                        progress=progress,
+                        memory_store=mem_store,
+                        **args.get("kwargs", {}),
+                    )
+                finally:
+                    await progress.aclose()
     except Exception as exc:  # worker must record every failure
         logger.exception("durable tool failed", tool_name=tool_name)
         error = str(exc) or exc.__class__.__name__
@@ -220,6 +223,15 @@ async def _resume_graph(
     resume_value: dict[str, Any],
     veupathdb_auth_token: str | None = None,
 ) -> None:
+    """Resume the suspended graph and stream the agent continuation back into
+    the main chat.
+
+    Output goes through :class:`ChatEventWriter` (no ``task_id`` tag) so it
+    lands in the same ``conversation_events`` rows the chat dispatcher
+    replays — the resumed assistant message appears inline as a fresh bubble
+    after the durable task completes. The earlier task-tagged sub-stream
+    design hid every post-resume token from the chat.
+    """
     settings = get_settings()
     async with (
         attach_wdk_auth(veupathdb_auth_token),
@@ -241,55 +253,65 @@ async def _resume_graph(
             conversation_id=thread_id, task_id=str(task_id)
         )
         context = dataclasses.replace(base_context, memory_store=raw_memory)
-        async for mode, chunk_payload in graph.astream(
-            Command(resume=resume_value),
-            config=config,
-            context=context,
-            stream_mode=["custom"],
-        ):
-            if mode != "custom":
-                continue
-            sse = _extract_sse(chunk_payload)
-            if sse is None:
-                continue
-            await _persist_chat_event(
-                conversation_id=UUID(thread_id), task_id=task_id, chunk={"sse": sse}
-            )
+        conversation_uuid = UUID(thread_id)
+        turn_id = uuid4()
+        writer = ChatEventWriter(
+            conversation_id=conversation_uuid, turn_id=turn_id,
+        )
+        await _emit_chunk(writer, StartChunk(message_id=str(turn_id)))
+        encountered_error = False
+        async with attach_user_id(context.user_id):
+            try:
+                async for mode, chunk_payload in graph.astream(
+                    Command(resume=resume_value),
+                    config=config,
+                    context=context,
+                    stream_mode=["custom", "updates"],
+                ):
+                    if mode == "custom":
+                        await _emit_resume_custom(writer, chunk_payload)
+                    elif mode == "updates":
+                        for interrupt_chunk in _interrupt_chunks(chunk_payload):
+                            await writer.write(interrupt_chunk)
+            except Exception:
+                encountered_error = True
+                logger.exception(
+                    "resume graph stream raised",
+                    thread_id=thread_id, task_id=str(task_id),
+                )
+                raise
+            finally:
+                await _emit_chunk(
+                    writer,
+                    FinishChunk(
+                        finish_reason="error" if encountered_error else "stop",
+                    ),
+                )
+                await _emit_chunk(writer, DoneChunk())
 
 
 class _ResumedChunkEnvelope(BaseModel):
     chunk: dict[str, Any]
 
 
-def _extract_sse(payload: Any) -> str | None:
-    """Re-encode a resumed-graph custom payload as an AI SDK v6 SSE frame.
+async def _emit_chunk(
+    writer: ChatEventWriter,
+    chunk: StartChunk | FinishChunk | DoneChunk,
+) -> None:
+    await writer.write(
+        chunk.model_dump(by_alias=True, mode="json", exclude_none=True),
+    )
 
-    Node writers emit the ``{"chunk": <v6_chunk_dict>}`` envelope; we
-    re-serialise each chunk as ``data: {json}\\n\\n`` so the persisted
-    ``chat_events.chunk`` rows match the live dispatcher's v6 wire format.
-    """
+
+async def _emit_resume_custom(
+    writer: ChatEventWriter, payload: Any,
+) -> None:
     if not isinstance(payload, dict):
-        return None
+        return
     try:
         envelope = _ResumedChunkEnvelope.model_validate(payload)
     except ValidationError:
-        return None
-    return f"data: {_json.dumps(envelope.chunk, separators=(',', ':'))}\n\n"
+        return
+    await writer.write(envelope.chunk)
 
 
-async def _persist_chat_event(
-    *, conversation_id: UUID, task_id: UUID, chunk: dict[str, Any]
-) -> None:
-    """Persist an SSE chunk + NOTIFY listeners on ``chat_events:<conversation_id>``."""
-    async with async_session_factory() as session:
-        row = ConversationEvent(conversation_id=conversation_id, task_id=task_id, chunk=chunk)
-        session.add(row)
-        await session.flush()
-        await session.execute(
-            text("SELECT pg_notify(:channel, :payload)"),
-            {
-                "channel": f"chat_events:{conversation_id}",
-                "payload": str(task_id),
-            },
-        )
-        await session.commit()

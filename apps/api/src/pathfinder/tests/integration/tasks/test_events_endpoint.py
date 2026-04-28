@@ -13,7 +13,6 @@ from pathfinder.ai.tools.durable import TaskProgressEmitter
 from pathfinder.persistence.models import (
     BackgroundTask,
     Conversation,
-    ConversationEvent,
     TaskProgress,
     User,
 )
@@ -307,26 +306,20 @@ async def test_task_progress_history_returns_404_when_missing(
 
 
 @pytest.mark.asyncio
-async def test_live_stream_emits_chat_event_when_batched_with_progress_and_terminal(
+async def test_live_stream_emits_progress_and_terminal_when_batched(
     authed_client: httpx.AsyncClient,
     authed_user_id: UUID,
     app_notify_dispatcher: Any,
 ) -> None:
-    """Regression: bug_006 — live SSE must yield trailing chat_events rows.
+    """Live SSE must yield trailing progress rows when the terminal flip
+    lands in the same commit.
 
-    When progress NOTIFY, events NOTIFY, and the terminal status flip all
-    land in a single commit (realistic tail-of-stream pattern), the client
-    dequeues both NOTIFYs before its first post-replay iteration. The old
-    :func:`_drain_both_tables` was channel-filtered: a progress NOTIFY
-    drained **only** ``task_progress``, so the events row stayed unread,
-    the terminal check fired, and the client returned without ever yielding
-    the chat_events row on the live stream. The row survived in the DB
-    (replay-on-reconnect could catch it) but the already-connected
-    subscriber silently lost the trailing assistant output.
-
-    This test commits progress + chat_event + status-flip together so both
-    NOTIFYs arrive batched in the listener's queue, then asserts the
-    chat_event's SSE line is present in the response body.
+    Earlier versions of this endpoint dual-channeled task-tagged
+    ``conversation_events`` rows alongside ``task_progress``; resume-graph
+    chunks now go to the main chat stream
+    (:func:`pathfinder.jobs.runner._resume_graph` via
+    :class:`ChatEventWriter`), so this endpoint only carries
+    ``data-task-progress`` + the terminal ``data-task-completed`` chunk.
     """
     del app_notify_dispatcher
     conversation_id = uuid4()
@@ -335,13 +328,9 @@ async def test_live_stream_emits_chat_event_when_batched_with_progress_and_termi
         user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
 
-    sentinel_sse = (
-        'event: stream\ndata: {"type":"custom","kind":"data-sentinel"}\n\n'
-    )
-
     async def producer() -> None:
         # Let the endpoint subscribe, finish replay, and park in _poll_loop
-        # before any of the three writes commit.
+        # before the writes commit.
         await asyncio.sleep(0.3)
         async with async_session_factory() as session:
             session.add(
@@ -360,24 +349,6 @@ async def test_live_stream_emits_chat_event_when_batched_with_progress_and_termi
                     "payload": str(task_id),
                 },
             )
-            session.add(
-                ConversationEvent(
-                    conversation_id=conversation_id,
-                    task_id=task_id,
-                    chunk={"sse": sentinel_sse},
-                ),
-            )
-            await session.flush()
-            await session.execute(
-                text("SELECT pg_notify(:channel, :payload)"),
-                {
-                    "channel": f"chat_events:{conversation_id}",
-                    "payload": str(task_id),
-                },
-            )
-            # Flip status in the same transaction so all three land on one
-            # commit — NOTIFYs are delivered together, terminal is already
-            # visible when the client next checks.
             task_row = (
                 await session.execute(
                     select(BackgroundTask).where(
@@ -395,12 +366,6 @@ async def test_live_stream_emits_chat_event_when_batched_with_progress_and_termi
     await producer_task
 
     assert resp.status_code == 200
-    assert "data-sentinel" in resp.text, (
-        "chat_event row was dropped from the live SSE stream; "
-        f"body=\n{resp.text}"
-    )
-    # The progress row and the terminal marker must also be present — the
-    # fix must not regress the normal case.
     progress_messages = [
         c["data"]["message"]
         for c in _parse_data_chunks(resp.text)

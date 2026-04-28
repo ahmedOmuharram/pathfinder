@@ -1,0 +1,211 @@
+# Existing weak-assertion offenders; trim as tests get fixed.
+# Each line: <relative_path>::<test_title>
+e2e/feature/settings.spec.ts::close settings modal
+e2e/feature/settings.spec.ts::switch between settings tabs
+src/app/api/v1/_proxy.test.ts::omits Authorization, Cookie, and X-Requested-With when absent
+src/components/ai-elements/reasoning.test.tsx::does not auto-open when defaultOpen={false}
+src/features/analysis/components/CrossValidationSection.test.tsx::displays fold count
+src/features/analysis/components/CrossValidationSection.test.tsx::displays mean and std summary
+src/features/analysis/components/CrossValidationSection.test.tsx::renders the section header
+src/features/analysis/components/CrossValidationSection.test.tsx::shows overfitting score with high-level indicator
+src/features/analysis/components/CrossValidationSection.test.tsx::shows overfitting score with low-level indicator
+src/features/analysis/components/CrossValidationSection.test.tsx::shows overfitting score with moderate-level indicator
+src/features/analysis/components/RankMetricsSection.test.tsx::displays enrichment values with fold suffix
+src/features/analysis/components/RankMetricsSection.test.tsx::renders the section header
+src/features/analysis/components/ResultsTable/ExpandedRowDetail.test.tsx::falls back to raw field name when attributeNames has no match
+src/features/analysis/components/ResultsTable/ExpandedRowDetail.test.tsx::renders attribute values using display names from attributeNames
+src/features/analysis/components/ResultsTable/ExpandedRowDetail.test.tsx::shows error state
+src/features/analysis/components/ResultsTable/ExpandedRowDetail.test.tsx::shows fallback when detail has no attributes
+src/features/analysis/components/ResultsTable/ExpandedRowDetail.test.tsx::shows loading state
+src/features/analysis/components/ResultsTable/RecordRow.test.tsx::calls onToggle when the data row is clicked
+src/features/analysis/components/ResultsTable/RecordRow.test.tsx::shows classification badge when the classification column is present
+src/features/analysis/components/ResultsTable/index.test.tsx::shows error state when getAttributes fails
+src/features/analysis/components/RobustnessSection.test.tsx::displays bootstrap iteration count
+src/features/analysis/components/RobustnessSection.test.tsx::displays mean values as percentages
+src/features/analysis/components/RobustnessSection.test.tsx::displays stability score when rank CIs present
+src/features/analysis/components/RobustnessSection.test.tsx::hides stability badge when no rank CIs
+src/features/analysis/components/RobustnessSection.test.tsx::renders CI table with metric rows
+src/features/analysis/components/RobustnessSection.test.tsx::renders negative set sensitivity when present
+src/features/analysis/components/RobustnessSection.test.tsx::renders the section header
+src/features/conversation/composer/__tests__/SlashMenu.test.tsx::disables /optimize and /validate when stepCount === 0; never disables /research
+src/features/conversation/composer/__tests__/SlashMenu.test.tsx::enables /optimize and /validate when stepCount >= 1
+src/features/conversation/content/BranchOrRevertDialog.test.tsx::fires onBranch when branch clicked
+src/features/conversation/content/BranchOrRevertDialog.test.tsx::fires onRevert when revert clicked
+src/features/conversation/content/parts/DataMemoryRetrieved.test.tsx::renders nothing for empty memories
+src/features/conversation/content/parts/DataPhaseChange.test.tsx::renders nothing for noisy status=completed
+src/features/conversation/content/parts/DataPhaseChange.test.tsx::renders nothing for noisy status=started
+src/features/conversation/content/parts/DataTaskProgress.test.tsx::progress bar width reflects percent
+src/features/conversation/content/parts/DataTaskProgress.test.tsx::progress bar width reflects percent in variant lanes
+src/features/conversation/launchers/__tests__/OptimizeLauncherForm.test.tsx::renders nothing when closed
+src/features/conversation/rail/StrategyPanel.test.tsx::renders compact step list and Open button when steps exist
+src/features/conversation/rail/StrategyPanel.test.tsx::shows empty state when no steps
+src/features/conversation/slash/parser.test.ts::returns null for non-slash input
+src/features/strategy/editor/components/SearchPicker.test.tsx::filters by typed query
+src/features/strategy/editor/components/SearchPicker.test.tsx::groups by record type
+src/features/strategy/editor/components/SearchPicker.test.tsx::opens the picker on trigger click
+src/features/strategy/editor/components/SearchPicker.test.tsx::renders the selected search label when a value is picked
+src/features/strategy/editor/components/VennPicker.test.tsx::readout reflects current operator
+src/features/strategy/editor/components/VennPicker.test.tsx::readout renders LONLY as 'Just A'
+src/features/strategy/editor/components/VennPicker.test.tsx::renders custom A/B labels in readout
+src/features/strategy/editor/components/VennPicker.test.tsx::renders three clickable region paths
+src/features/strategy/editor/components/stepEditorUtils.test.ts::returns undefined when vocabulary is absent
+src/features/strategy/editor/components/stepEditorUtils.test.ts::returns undefined when vocabulary is null
+src/features/strategy/editor/hooks/useParamForm.test.ts::skips hidden params in defaults
+src/features/strategy/editor/hooks/useStepDraftPersistence.test.ts::clear removes the localStorage entry
+src/features/strategy/editor/hooks/useStepDraftPersistence.test.ts::dismiss clears storage and returns null thereafter
+src/features/strategy/editor/hooks/useStepDraftPersistence.test.ts::returns null when draft equals baseline
+src/features/strategy/editor/hooks/useStepDraftPersistence.test.ts::returns null when no draft is in storage
+src/features/strategy/editor/integration/paramEditorEdgeCases.test.tsx::renders without blank option when allowEmptyValue is false
+src/features/strategy/editor/widgets/CheckboxParam.test.tsx::does not show 'Select all' when options <= 3
+src/features/strategy/editor/widgets/DatasetParam.test.tsx::does not render Default list tab when defaultIdList is absent
+src/features/strategy/editor/widgets/DatasetParam.test.tsx::emits a sourceType=basket payload when the basket name field is populated
+src/features/strategy/editor/widgets/DatasetParam.test.tsx::parses comma-separated IDs from the paste textarea
+src/features/strategy/editor/widgets/DatasetParam.test.tsx::parses newline-separated IDs from the paste textarea
+src/features/strategy/editor/widgets/DatasetParam.test.tsx::renders Default list tab when spec.initialDisplayValue is a default id list string
+src/features/strategy/editor/widgets/DatasetParam.test.tsx::renders without throwing for empty string value
+src/features/strategy/editor/widgets/DatasetParam.test.tsx::shows '0 IDs' summary when paste tab is empty
+src/features/strategy/editor/widgets/DateRangeParam.test.tsx::renders two date inputs
+src/features/strategy/editor/widgets/FilterParam.test.tsx::clears all filters when 'Clear all' is clicked
+src/features/strategy/editor/widgets/FilterParam.test.tsx::parses an existing filters JSON value and lists each filter
+src/features/strategy/editor/widgets/FilterParam.test.tsx::rejects invalid JSON and shows an error
+src/features/strategy/editor/widgets/FilterParam.test.tsx::removes a filter when its remove button is clicked
+src/features/strategy/editor/widgets/FilterParam.test.tsx::renders without throwing for empty string value
+src/features/strategy/editor/widgets/FilterParam.test.tsx::shows '0 active filters' summary when value is empty
+src/features/strategy/editor/widgets/FilterParam.test.tsx::shows '1 active filter' summary when a filter exists
+src/features/strategy/editor/widgets/PhyleticProfileParam.test.tsx::renders tree nodes from vocab data in form context
+src/features/strategy/editor/widgets/PhyleticProfileParam.test.tsx::search filters tree nodes by label
+src/features/strategy/editor/widgets/PhyleticProfileParam.test.tsx::shows correct summary footer counts
+src/features/strategy/editor/widgets/SelectParam.test.tsx::displays the placeholder when value is empty
+src/features/strategy/editor/widgets/SelectParam.test.tsx::does not show 'Select all' when options <= 3
+src/features/strategy/editor/widgets/SelectParam.test.tsx::opens and lists options on click
+src/features/strategy/editor/widgets/SelectParam.test.tsx::renders a shadcn Select trigger as combobox
+src/features/strategy/editor/widgets/SelectParam.test.tsx::shows 'Select all' toggle when options > 3
+src/features/strategy/editor/widgets/StringParam.test.tsx::does not set aria-required for optional params
+src/features/strategy/editor/widgets/StringParam.test.tsx::renders a text input by default
+src/features/strategy/editor/widgets/TreeBoxParam.multiPick.test.tsx::filters nodes by search term
+src/features/strategy/editor/widgets/TreeBoxParam.multiPick.test.tsx::renders search input
+src/features/strategy/editor/widgets/TreeBoxParam.test.tsx::collapses a branch when its chevron is clicked
+src/features/strategy/editor/widgets/TreeBoxParam.test.tsx::renders the tree with root and branches visible
+src/features/strategy/editor/widgets/TreeBoxParam.test.tsx::shows '0 of N selected' when none selected
+src/features/strategy/editor/widgets/TreeBoxParam.test.tsx::shows leaves when branches are expanded by default
+src/features/strategy/editor/widgets/TreeBoxParam.test.tsx::shows selection count footer
+src/features/strategy/editor/widgets/TypeAheadParam.test.tsx::opens, lists and picks an option
+src/features/strategy/editor/widgets/TypeAheadParam.test.tsx::renders a combobox trigger
+src/features/strategy/editor/widgets/TypeAheadParam.test.tsx::renders chips for selected values
+src/features/strategy/editor/widgets/TypeAheadParam.test.tsx::shows the selected label when value is set initially
+src/features/strategy/graph/components/AddStepSheet.test.tsx::renders the search picker (Combobox)
+src/features/strategy/graph/components/CanvasControls.test.tsx::renders all four buttons
+src/features/strategy/graph/components/CanvasTopbar.test.tsx::renders sync status reflecting saving / error / paused / idle
+src/features/strategy/graph/components/CompactStrategyView.test.tsx::renders combine label between secondary input and result rows
+src/features/strategy/graph/components/CompactStrategyView.test.tsx::renders nothing when strategy is null
+src/features/strategy/graph/components/EdgeContextMenu.test.tsx::does not render operator grid for non-combine edges
+src/features/strategy/graph/components/EmptyState.test.tsx::Add button opens the AddStepSheet
+src/features/strategy/graph/components/EmptyState.test.tsx::renders heading + description + add button
+src/features/strategy/graph/components/OrthologSheet.test.tsx::filters and lists ortholog searches in the Combobox
+src/features/strategy/graph/components/SelectionActionBar.test.tsx::is hidden when no selection
+src/features/strategy/graph/components/SelectionActionBar.test.tsx::is visible when selectedCount > 0
+src/features/strategy/graph/components/ShortcutsOverlay.test.tsx::does not render content when closed
+src/features/strategy/graph/components/SmartMiniMap.test.tsx::renders MiniMap when nodeCount > 8
+src/features/strategy/graph/components/SmartMiniMap.test.tsx::returns null when nodeCount <= 8
+src/features/strategy/graph/components/StrategyGraph.provider.test.tsx::renders graph hooks under ReactFlowProvider
+src/features/strategy/graph/components/ValidationAlert.test.tsx::renders count + View button when mismatchGroups present
+src/features/strategy/graph/components/ValidationAlert.test.tsx::renders when isPaused is true
+src/features/strategy/graph/components/ValidationAlert.test.tsx::returns null when neither paused nor mismatched
+src/features/strategy/graph/components/edges/StepEdge.test.tsx::renders an SVG path with a generated d attribute
+src/features/strategy/graph/components/nodes/CombineNode.test.tsx::renders two input handles on the left + one output on the right
+src/features/strategy/graph/components/nodes/MiniVenn.test.tsx::falls back to separated circles + arrow for COLOCATE
+src/features/strategy/graph/components/nodes/SearchNode.test.tsx::renders an output handle on the right when allowed
+src/features/strategy/graph/components/nodes/SearchNode.test.tsx::renders the step name and result count
+src/features/strategy/graph/components/nodes/SearchNode.test.tsx::shows a shimmer skeleton while count is loading
+src/features/strategy/graph/components/nodes/SearchNode.test.tsx::shows validation error treatment with left border + corner dot
+src/features/strategy/graph/components/nodes/StepNode.test.tsx::dispatches to CombineNode for kind=combine
+src/features/strategy/graph/components/nodes/StepNode.test.tsx::dispatches to SearchNode for kind=search
+src/features/strategy/graph/components/nodes/StepNode.test.tsx::dispatches to TransformNode for kind=transform
+src/features/strategy/graph/components/nodes/StepNode.test.tsx::renders a selection ring on the shell when selected=true
+src/features/strategy/graph/components/nodes/StepNode.test.tsx::renders the hover-revealed action chips (edit, add to chat, more)
+src/features/strategy/graph/components/nodes/TransformNode.test.tsx::applies the chevron clip-path to the surface
+src/features/strategy/graph/components/nodes/TransformNode.test.tsx::renders one input handle on the left and one output on the right
+src/features/strategy/graph/components/nodes/ZeroResultHoverCard.test.tsx::renders the trigger when count is 0
+src/features/strategy/graph/components/nodes/ZeroResultHoverCard.test.tsx::returns null (no trigger) when count > 0
+src/features/strategy/graph/utils/nodeDeletionLogic.test.ts::clears operator when primary input to a combine step is deleted
+src/features/strategy/graph/utils/orthologInsert.test.ts::does not patch downstream when insertBetween is false
+src/features/strategy/page/StrategyPage.test.tsx::renders a spinner while the conversation query is pending
+src/features/strategy/parameters/coerce.test.ts::returns undefined for scalar spec with empty array value
+src/features/workbench/api/geneSets.test.ts::passes optional fields as undefined when not provided
+src/features/workbench/components/ComposeBar.test.tsx::displays operand names
+src/features/workbench/components/ComposeBar.test.tsx::shows live result count for intersection
+src/features/workbench/components/ComposeBar.test.tsx::swap button reverses operands for minus
+src/features/workbench/components/ComposeBar.test.tsx::switches to minus and shows correct count
+src/features/workbench/components/ComposeBar.test.tsx::switches to union and shows correct count
+src/features/workbench/components/ControlSetQuickPick.test.tsx::loads and displays saved control sets
+src/features/workbench/components/ControlSetQuickPick.test.tsx::shows control set details (count of positive/negative)
+src/features/workbench/components/ControlSetQuickPick.test.tsx::shows empty state when no control sets exist
+src/features/workbench/components/CsvImportButton.test.tsx::renders import button
+src/features/workbench/components/GeneAutocomplete.test.tsx::calls searchGenes on input and shows results
+src/features/workbench/components/GeneAutocomplete.test.tsx::closes dropdown on Escape
+src/features/workbench/components/GeneAutocomplete.test.tsx::renders placeholder input
+src/features/workbench/components/GeneChip.test.tsx::applies invalid styling when status is invalid
+src/features/workbench/components/GeneChip.test.tsx::applies verified styling when status is verified
+src/features/workbench/components/GeneChip.test.tsx::renders gene ID text
+src/features/workbench/components/GeneChip.test.tsx::shows rich hover card with gene details when resolvedGene is provided
+src/features/workbench/components/GeneChipInput.test.tsx::renders action buttons (From Gene Set, Import)
+src/features/workbench/components/GeneChipInput.test.tsx::renders chips for each gene ID
+src/features/workbench/components/GeneChipInput.test.tsx::renders label
+src/features/workbench/components/GeneChipInput.test.tsx::renders search input for autocomplete
+src/features/workbench/components/GeneChipInput.test.tsx::shows required marker when required
+src/features/workbench/components/GeneSetPicker.test.tsx::opens dropdown and shows gene sets
+src/features/workbench/components/GeneSetPicker.test.tsx::renders button with gene set count
+src/features/workbench/components/ParamNameSelect.test.tsx::renders param names as select options
+src/features/workbench/components/ParamNameSelect.test.tsx::shows empty state when no param specs available
+src/features/workbench/components/ParamNameSelect.test.tsx::shows loading state while param specs load
+src/features/workbench/components/SaveControlSetForm.test.tsx::collapses form on cancel
+src/features/workbench/components/SaveControlSetForm.test.tsx::shows save button that expands the form
+src/features/workbench/components/panels/ConfidencePanel.test.tsx::calls the backend API and renders scores
+src/features/workbench/components/panels/ConfidencePanel.test.tsx::renders all four score columns including Ensemble
+src/features/workbench/components/panels/ConfidencePanel.test.tsx::shows error message when API call fails
+src/features/workbench/components/panels/ConfidencePanel.test.tsx::shows loading state while API call is in progress
+src/features/workbench/components/panels/EnsemblePanel.test.tsx::clears cross-site error when computation succeeds
+src/features/workbench/components/panels/EnsemblePanel.test.tsx::renders gene set selector when 2+ gene sets exist
+src/features/workbench/components/panels/EnsemblePanel.test.tsx::shows disabled state when fewer than 2 gene sets exist
+src/features/workbench/components/panels/EnsemblePanel.test.tsx::shows ranked table after computation
+src/features/workbench/components/panels/ReverseSearchPanel.test.tsx::disabled when no site selected
+src/features/workbench/components/panels/ReverseSearchPanel.test.tsx::renders GeneChipInput with correct labels
+src/features/workbench/components/panels/ReverseSearchPanel.test.tsx::shows error when searching with no positive genes
+src/features/workbench/components/panels/ReverseSearchPanel.test.tsx::shows ranked results table after search
+src/features/workbench/components/panels/StepContributionPanel.test.tsx::does not render operator comparison section when empty
+src/features/workbench/components/panels/StepContributionPanel.test.tsx::renders contribution table when stepAnalysis data is present
+src/features/workbench/components/panels/StepContributionPanel.test.tsx::renders operator comparison table when available
+src/features/workbench/components/panels/StepContributionPanel.test.tsx::renders per-step evaluation table
+src/features/workbench/components/panels/StepContributionPanel.test.tsx::shows disabled state when experiment has no stepAnalysis
+src/features/workbench/components/panels/StepContributionPanel.test.tsx::shows disabled state when no experiment is available
+src/features/workbench/components/panels/StepContributionPanel.test.tsx::shows disabled state when stepContributions is empty
+src/features/workbench/components/panels/StepContributionPanel.test.tsx::shows disabled when experiment belongs to a different set
+src/features/workbench/utils/export.test.ts::escapes commas in gene set names
+src/features/workbench/utils/export.test.ts::handles gene set with a single gene ID
+src/lib/components/SetVenn.test.tsx::does not render instruction text when no onRegionClick
+src/lib/components/SetVenn.test.tsx::renders instruction text when onRegionClick provided
+src/lib/components/__tests__/QueryBoundary.test.tsx::renders a spinner
+src/lib/components/__tests__/QueryBoundary.test.tsx::renders children after query resolves
+src/lib/components/__tests__/QueryBoundary.test.tsx::renders error message and retry button
+src/lib/components/__tests__/QueryBoundary.test.tsx::shows error fallback when query fails
+src/lib/components/__tests__/QueryBoundary.test.tsx::shows loading fallback while query is pending
+src/lib/components/ui/SearchableMultiSelect.test.tsx::closes dropdown on Escape
+src/lib/components/ui/SearchableMultiSelect.test.tsx::filters options by search text
+src/lib/components/ui/SearchableMultiSelect.test.tsx::opens dropdown on click and shows all options
+src/lib/components/ui/SearchableMultiSelect.test.tsx::renders placeholder when nothing selected
+src/lib/components/ui/SearchableMultiSelect.test.tsx::shows checkmarks next to selected options
+src/lib/components/ui/SearchableMultiSelect.test.tsx::shows loading spinner when loading
+src/lib/components/ui/SearchableMultiSelect.test.tsx::shows selected items as chips
+src/lib/strategyGraph/layout.test.ts::skips edges whose endpoints reference missing steps
+src/lib/strategyGraph/serialize.test.ts::returns null when graph has multiple roots (multiple outputs)
+src/lib/utils/vocab.test.ts::extracts from wrapper object with items array
+src/lib/utils/vocab.test.ts::extracts from wrapper object with options array
+src/lib/utils/vocab.test.ts::extracts from wrapper object with terms array
+src/lib/utils/vocab.test.ts::returns null for array of primitives
+src/lib/utils/vocab.test.ts::returns null for empty array
+src/lib/utils/vocab.test.ts::returns null for flat arrays (no children)
+src/lib/utils/vocab.test.ts::returns null for null/undefined input
+src/lib/utils/vocab.test.ts::returns null for object without values/items/terms/options/children
+src/lib/utils/vocab.test.ts::returns null for primitives
+src/lib/utils/vocab.test.ts::returns null if wrapper values array has no children
+src/state/strategy/lifecycleSlice.test.ts::removes the lifecycle entry for a step id

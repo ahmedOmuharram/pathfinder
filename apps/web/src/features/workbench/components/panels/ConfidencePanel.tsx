@@ -120,7 +120,7 @@ export function ConfidencePanel() {
 
       {!loading && error == null && scores.length > 0 && (
         <div className="max-h-96 overflow-auto">
-          <table role="table" className="w-full text-xs">
+          <table role="table" data-testid="confidence-table" className="w-full text-xs">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
                 <th className="pb-1.5 pr-3 font-medium">Gene ID</th>
@@ -132,9 +132,19 @@ export function ConfidencePanel() {
             </thead>
             <tbody>
               {scores.map((s) => (
-                <tr key={s.geneId} className="border-b border-border/50">
-                  <td className="py-1 pr-3 font-mono">{s.geneId}</td>
-                  <td className={`py-1 pr-3 ${scoreColor(s.compositeScore)}`}>
+                <tr
+                  key={s.geneId}
+                  data-testid="confidence-row"
+                  data-gene-id={s.geneId}
+                  className="border-b border-border/50"
+                >
+                  <td data-cell="gene-id" className="py-1 pr-3 font-mono">
+                    {s.geneId}
+                  </td>
+                  <td
+                    data-cell="composite"
+                    className={`py-1 pr-3 ${scoreColor(s.compositeScore)}`}
+                  >
                     {s.compositeScore.toFixed(3)}
                   </td>
                   <td className={`py-1 pr-3 ${scoreColor(s.classificationScore)}`}>

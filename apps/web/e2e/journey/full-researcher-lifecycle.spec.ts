@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures/test";
+import { test, expect } from "../fixtures/a11y";
 import { clearAllGeneSets } from "../fixtures/api-client";
 import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
@@ -210,7 +210,7 @@ test.describe("Full Researcher Lifecycle", () => {
     await expect(page.getByTestId("message-composer")).toBeVisible();
 
     // Verify conversations still exist in sidebar
-    await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
+    await sidebarPage.expectAtLeastOneConversation();
 
     // Send final message
     await chatPage.send("Summarize my findings from the resistance gene analysis");

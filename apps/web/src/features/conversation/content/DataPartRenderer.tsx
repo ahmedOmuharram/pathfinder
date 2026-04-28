@@ -28,6 +28,7 @@ export function DataPartRenderer({
     .with("data-background-task-started", (k) => renderKind(k, data))
     .with("data-task-progress", (k) => renderKind(k, data))
     .with("data-task-completed", (k) => renderKind(k, data))
+    .with("data-enrichment-results", (k) => renderKind(k, data))
     .with("data-strategy-link", (k) => renderKind(k, data))
     .with("data-strategy-meta", (k) => renderKind(k, data))
     .with("data-graph-snapshot", (k) => renderKind(k, data))

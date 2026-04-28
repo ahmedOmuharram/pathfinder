@@ -76,7 +76,11 @@ export function GeneChipInput({
         : "border-l-muted";
 
   return (
-    <div className={`space-y-1.5 border-l-2 pl-2.5 ${tintBorder}`}>
+    <div
+      data-testid="gene-chip-input"
+      data-tint={tint}
+      className={`space-y-1.5 border-l-2 pl-2.5 ${tintBorder}`}
+    >
       <Label className="text-xs font-medium">
         {label}
         {required && <span className="ml-0.5 text-destructive">*</span>}

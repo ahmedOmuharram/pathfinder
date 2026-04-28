@@ -204,6 +204,11 @@ paths = ["src/pathfinder", "vulture_whitelist.py"]
 exclude = ["tests/", "*/conftest.py"]
 min_confidence = 80
 
+# Mutation testing config lives in apps/api/setup.cfg under [mutmut].
+# mutmut 3.x reads only setup.cfg, not pyproject.toml.
+# Run:    uv run python -m mutmut run
+# Show:   uv run python -m mutmut results
+
 [dependency-groups]
 dev = [
     "hypothesis>=6.151.0",
@@ -219,6 +224,8 @@ dev = [
     "ruff>=0.15.0",
     "testcontainers>=4.14.0",
     "vcrpy>=8.0.0",
+    "schemathesis>=4.16.1",
+    "mutmut>=3.5.0",
 ]
 docs = [
     "furo>=2025.12.19",

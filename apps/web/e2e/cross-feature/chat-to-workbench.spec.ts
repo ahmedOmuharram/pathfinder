@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures/test";
+import { test, expect } from "../fixtures/a11y";
 import { clearAllGeneSets } from "../fixtures/api-client";
 import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 

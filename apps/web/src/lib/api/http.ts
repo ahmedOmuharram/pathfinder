@@ -188,7 +188,8 @@ export async function requestJson<T>(
       console.error(`[SchemaValidation] ${path} failed:`, issues, "raw:", raw);
       if (typeof window !== "undefined") {
         try {
-          const log = JSON.parse(localStorage.getItem("__schema_errors") || "[]") as unknown[];
+          const stored = localStorage.getItem("__schema_errors");
+          const log = JSON.parse(stored ?? "[]") as unknown[];
           log.push({ path, issues, raw, ts: Date.now() });
           localStorage.setItem("__schema_errors", JSON.stringify(log.slice(-10)));
         } catch {

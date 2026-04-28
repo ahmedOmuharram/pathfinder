@@ -24,3 +24,20 @@ class TaskStatusResponse(CamelModel):
     completed_at: datetime | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
+
+
+class TaskListItem(CamelModel):
+    task_id: UUID
+    tool_name: str
+    status: str
+    estimated_duration_seconds: int
+    created_at: datetime
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    latest_percent: float | None = None
+    latest_message: str | None = None
+    error: str | None = None
+
+
+class TaskListResponse(CamelModel):
+    tasks: list[TaskListItem]

@@ -20,9 +20,11 @@ from functools import wraps
 from typing import Any, ParamSpec, TypeVar, cast
 from uuid import UUID
 
+from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 from pydantic import TypeAdapter
 from pydantic_ai.tools import RunContext
+from pydantic_ai.ui.vercel_ai.response_types import BaseChunk
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -156,28 +158,24 @@ class TaskProgressEmitter:
         await self.flush()
 
 
+ChunkBuilder = Callable[[Any, UUID], list[BaseChunk]]
+
+
 def durable_tool(
     *,
     tool_name: str,
     estimated_duration_seconds: int,
+    chunks_from_result: ChunkBuilder | None = None,
 ) -> Callable[
     [Callable[P, Awaitable[R]]],
     Callable[P, Awaitable[R]],
 ]:
     """Mark an agent-side pydantic-ai tool as durable.
 
-    The decorated function is called by the agent with the usual
-    ``RunContext[AgentDeps]`` + tool kwargs. The decorator:
-
-    - Creates a ``BackgroundTask`` row (``pending``)
-    - Defers a Procrastinate job on the ``verification`` queue named
-      ``durable:<tool_name>``
-    - Calls ``interrupt(...)`` to suspend the graph
-
-    The worker picks up the job, runs the real impl registered in
-    ``TOOL_REGISTRY``, writes the result, and resumes the graph via
-    ``Command(resume=...)``. The resumed value becomes this tool's return
-    value.
+    ``chunks_from_result`` lets a tool emit chat-visible SSE chunks built
+    from the resumed payload — runs at resume time inside the LangGraph
+    node, so chunks are persisted/replayed via the same writer as the
+    agent's own stream output.
     """
 
     def decorator(
@@ -196,9 +194,6 @@ def durable_tool(
                 args=tool_args,
                 estimated_duration_seconds=estimated_duration_seconds,
             )
-            # ``procrastinate_app`` is opened in the FastAPI lifespan (api)
-            # and in ``amain()`` (worker), so configure_task + defer_async
-            # share the process-wide connection pool — no per-call reconnect.
             task = procrastinate_app.configure_task(
                 name=f"durable:{tool_name}",
                 queue="verification",
@@ -220,9 +215,16 @@ def durable_tool(
                     "estimated_duration_seconds": estimated_duration_seconds,
                 }
             )
-            # The resumed value comes from the worker via Command(resume=...);
-            # the typed return contract is whatever the tool declared. The
-            # worker impl must honour that contract — cast is the boundary.
+            if chunks_from_result is not None:
+                writer = get_stream_writer()
+                for chunk in chunks_from_result(resumed, task_id):
+                    writer(
+                        {
+                            "chunk": chunk.model_dump(
+                                by_alias=True, mode="json", exclude_none=True,
+                            ),
+                        },
+                    )
             return cast("R", resumed)
 
         return wrapper

@@ -1,35 +1,28 @@
-"""Record type resolution and search catalog lookup helpers.
+"""Record-type resolution for searches that may live under multiple types.
 
-Functions that resolve record types from user input, find which
-record type owns a given search, and interact with the discovery
-service catalog.
+VEuPathDB searches registered under both ``transcript`` and ``gene``
+produce correct results only under ``transcript`` for strategy building,
+so resolution prefers it. Failing that, falls back to a global catalog
+lookup before giving up.
 """
 
-from pathfinder.ai.tools.standalone._validation_helpers import get_graph
-from pathfinder.domain.strategy.ast import StrategyStepNode
-from pathfinder.domain.strategy.session import StrategySession
+from __future__ import annotations
+
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.wdk import SearchCatalog, get_discovery_service
 from pathfinder.services.wdk.record_types import resolve_record_type
 
-logger = get_logger(__name__)
-
-
-def infer_record_type(session: StrategySession, step: StrategyStepNode) -> str | None:
-    # Plan steps no longer store record_type; prefer graph-level context when available.
-    graph = get_graph(session, None)
-    return graph.record_type if graph else None
-
 
 async def get_catalog(site_id: str) -> SearchCatalog:
-    """Get the search catalog for the given site."""
     discovery = get_discovery_service()
     return await discovery.get_catalog(site_id)
 
+logger = get_logger(__name__)
+
 
 async def resolve_record_type_value(
-    site_id: str, record_type: str | None
+    site_id: str, record_type: str | None,
 ) -> str | None:
     if not record_type:
         return record_type
@@ -48,7 +41,7 @@ async def find_record_type_for_search(
     resolved = await resolve_record_type_value(site_id, record_type)
     if not search_name:
         return resolved
-    return await lookup_record_type_for_search(
+    return await _lookup_record_type_for_search(
         site_id,
         search_name,
         resolved,
@@ -57,7 +50,7 @@ async def find_record_type_for_search(
     )
 
 
-async def lookup_record_type_for_search(
+async def _lookup_record_type_for_search(
     site_id: str,
     search_name: str,
     resolved: str | None,
@@ -66,26 +59,19 @@ async def lookup_record_type_for_search(
     allow_fallback: bool,
 ) -> str | None:
     catalog = await get_catalog(site_id)
-    # Prefer "transcript" over "gene" when the search exists under both.
-    # In VEuPathDB, transcript is the superset record type — gene searches
-    # that live under both types produce correct results only under
-    # transcript for strategy building.
     if resolved == "gene" and catalog.find_search("transcript", search_name):
         return "transcript"
-    # Fast path: search exists in the resolved record type.
     if resolved and catalog.find_search(resolved, search_name):
         return resolved
     if not allow_fallback:
         return None if require_match else resolved
-    # Global lookup across all record types.
     found = catalog.find_record_type_for_search(search_name)
     return found or (None if require_match else resolved)
 
 
-def scan_record_type_excluding(
-    catalog: SearchCatalog, search_name: str, exclude: str
+def _scan_record_type_excluding(
+    catalog: SearchCatalog, search_name: str, exclude: str,
 ) -> str | None:
-    """Scan all record types except *exclude* for a search match."""
     for rt_name in catalog._searches:
         if rt_name != exclude and catalog.find_search(rt_name, search_name):
             return rt_name
@@ -93,7 +79,7 @@ def scan_record_type_excluding(
 
 
 async def find_record_type_hint(
-    site_id: str, search_name: str, exclude: str | None = None
+    site_id: str, search_name: str, exclude: str | None = None,
 ) -> str | None:
     try:
         catalog = await get_catalog(site_id)
@@ -104,10 +90,7 @@ async def find_record_type_hint(
             error=str(exc),
         )
         return None
-
     found = catalog.find_record_type_for_search(search_name)
-    # If the result matches the excluded record type, fall back to
-    # manual scanning (the catalog only returns the first match).
     if found and exclude and found == exclude:
-        return scan_record_type_excluding(catalog, search_name, exclude)
+        return _scan_record_type_excluding(catalog, search_name, exclude)
     return found

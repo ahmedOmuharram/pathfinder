@@ -15,9 +15,7 @@ test.describe("Settings / Memory tab", () => {
     // the React strict-mode render-during-render warning that can swallow
     // the first click on dev builds).
     const dialog = page.getByRole("dialog");
-    const settingsButton = page
-      .getByRole("button", { name: "Settings", exact: true })
-      .first();
+    const settingsButton = page.getByTestId("nav-rail-settings-button");
     await expect(async () => {
       await settingsButton.click();
       await expect(dialog).toBeVisible({ timeout: 2_000 });

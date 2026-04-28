@@ -39,6 +39,7 @@ export function SearchTransformBody({
 
   const visibleCount = normalSpecs.length + advancedSpecs.length;
   const hasComposite = compositeSpecs.length > 0;
+  const paramSpecsError = state.paramSpecsError;
 
   return (
     <div className="space-y-5">
@@ -57,7 +58,16 @@ export function SearchTransformBody({
         </div>
       )}
 
-      {visibleCount === 0 && !hasComposite ? (
+      {paramSpecsError != null ? (
+        <div
+          role="alert"
+          data-testid="param-specs-error"
+          className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          <p className="font-medium">Failed to load parameters for this search.</p>
+          <p className="mt-1 text-xs">{paramSpecsError.message}</p>
+        </div>
+      ) : visibleCount === 0 && !hasComposite ? (
         <p className="text-xs text-muted-foreground">
           No parameter options available for this search.
         </p>

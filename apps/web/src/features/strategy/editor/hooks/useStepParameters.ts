@@ -38,7 +38,7 @@ export function useStepParameters({
   resolveRecordTypeForSearch,
   stepParameters,
 }: UseStepParametersArgs) {
-  const { paramSpecs, isLoading } = useParamSpecs({
+  const { paramSpecs, isLoading, error } = useParamSpecs({
     siteId,
     recordType,
     searchName,
@@ -77,6 +77,7 @@ export function useStepParameters({
   return {
     paramSpecs,
     isLoading,
+    error,
     vocabOptions,
     hiddenDefaults,
   };

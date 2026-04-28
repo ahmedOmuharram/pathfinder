@@ -7,6 +7,7 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from langgraph.config import get_stream_writer
+from langgraph.errors import GraphBubbleUp
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 from pydantic import BaseModel, ConfigDict, Field
@@ -59,7 +60,10 @@ from pathfinder.ai.conversation.approval import (
     ApprovalDecision,
     classify_approval_reply,
 )
-from pathfinder.ai.conversation.vercel_adapter import PhaseStreamEmitter
+from pathfinder.ai.conversation.vercel_adapter import (
+    DeferredToolHint,
+    PhaseStreamEmitter,
+)
 from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph.agents import PHASE_AGENTS
 from pathfinder.ai.graph.runtime import (
@@ -116,10 +120,6 @@ PHASE_USAGE_LIMITS: UsageLimits = UsageLimits(
     tool_calls_limit=60,
     total_tokens_limit=2_000_000,
 )
-
-
-class PhaseRunError(RuntimeError):
-    """Raised when a phase agent stream ends without an ``AgentRunResult``."""
 
 
 def model_id(agent: Agent[Any, Any]) -> str:
@@ -352,12 +352,13 @@ def _synthesize_from_orphan_text(
     agent_model: str,
 ) -> None:
     if not capture.orphan_text_parts:
-        msg = (
-            f"phase {phase} stream ended without AgentRunResult "
-            f"(finish_reason={capture.finish_reason})"
-        )
-        logger.error(
-            "phase produced no AgentRunResult and no text",
+        # Model returned ``finish_reason=stop`` with no tool call and no text
+        # (commonly seen after a durable-tool resume when the agent decides
+        # there's nothing more to add). Crashing the whole graph here would
+        # silence the chat — fall back to a neutral AWAITING_USER outcome
+        # routed back to the supervisor instead.
+        logger.warning(
+            "phase produced no AgentRunResult and no text — soft-ended phase",
             phase=phase,
             conversation_id=str(state.conversation_id),
             user_id=str(state.user_id),
@@ -365,7 +366,17 @@ def _synthesize_from_orphan_text(
             model=agent_model,
             finish_reason=capture.finish_reason,
         )
-        raise PhaseRunError(msg)
+        capture.phase_outcome = PhaseOutcome(
+            disposition=PhaseDisposition.AWAITING_USER,
+            prose="",
+            reason=(
+                f"{phase} phase produced no actionable output "
+                f"(finish_reason={capture.finish_reason})"
+            ),
+        )
+        capture.prose_already_streamed = True
+        capture.new_messages = []
+        return
 
     prose = "\n".join(p.content for p in capture.orphan_text_parts).strip()
     capture.phase_outcome = PhaseOutcome(
@@ -607,6 +618,50 @@ def _handle_usage_limit_exceeded(
     capture.prose_already_streamed = False
 
 
+def _emit_residual_prose(
+    writer: Any,
+    capture: _PhaseRunCapture,
+    *,
+    phase_message_id: UUID,
+    new_parts: list[_TurnPart],
+) -> None:
+    outcome = capture.phase_outcome
+    if outcome is None or not outcome.prose or capture.prose_already_streamed:
+        return
+    prose_chunk_id = f"phase-prose-{phase_message_id}"
+    _emit_chunk(writer, TextStartChunk(id=prose_chunk_id))
+    _emit_chunk(
+        writer, TextDeltaChunk(id=prose_chunk_id, delta=outcome.prose),
+    )
+    _emit_chunk(writer, TextEndChunk(id=prose_chunk_id))
+    new_parts.append(_text_part(outcome.prose))
+
+
+def _deferred_hint_for_phase(
+    pending: PendingApproval | None, phase: PhaseName,
+) -> DeferredToolHint | None:
+    if pending is None or pending.phase != phase:
+        return None
+    return DeferredToolHint(
+        tool_call_id=pending.tool_call_id,
+        tool_name=pending.tool_name,
+        tool_args=pending.tool_args,
+    )
+
+
+def _log_phase_stream_error(
+    *, phase: PhaseName, state: PipelineState, agent_model: str,
+) -> None:
+    logger.exception(
+        "phase stream raised",
+        phase=phase,
+        conversation_id=str(state.conversation_id),
+        user_id=str(state.user_id),
+        trace_id=state.turn_trace_id,
+        model=agent_model,
+    )
+
+
 async def _run_phase_node(
     state: PipelineState,
     runtime: Runtime[Context],
@@ -634,7 +689,10 @@ async def _run_phase_node(
     )
 
     capture = _PhaseRunCapture()
-    emitter = PhaseStreamEmitter(message_id=str(phase_message_id))
+    deferred_hint = _deferred_hint_for_phase(state.pending_approval, phase)
+    emitter = PhaseStreamEmitter(
+        message_id=str(phase_message_id), deferred_hint=deferred_hint,
+    )
     deferred_results = _build_deferred_tool_results(state, phase)
     capture.approval_consumed = deferred_results is not None
     resume_prompt = _resume_user_prompt(state)
@@ -677,16 +735,11 @@ async def _run_phase_node(
         _handle_usage_limit_exceeded(
             capture, exc, phase=phase, state=state, agent_model=agent_model,
         )
+    except GraphBubbleUp:
+        raise
     except Exception:
-        # log + rethrow with context: pydantic-ai AgentRunError variants,
-        # CancelledError, transport errors, and arbitrary tool exceptions.
-        logger.exception(
-            "phase stream raised",
-            phase=phase,
-            conversation_id=str(state.conversation_id),
-            user_id=str(state.user_id),
-            trace_id=state.turn_trace_id,
-            model=agent_model,
+        _log_phase_stream_error(
+            phase=phase, state=state, agent_model=agent_model,
         )
         raise
 
@@ -697,19 +750,9 @@ async def _run_phase_node(
         _phase_start_part(phase, state.turn_trace_id, agent_model),
         *_convert_assistant_parts(capture.new_messages),
     ]
-    if (
-        capture.phase_outcome is not None
-        and capture.phase_outcome.prose
-        and not capture.prose_already_streamed
-    ):
-        prose_chunk_id = f"phase-prose-{phase_message_id}"
-        _emit_chunk(writer, TextStartChunk(id=prose_chunk_id))
-        _emit_chunk(
-            writer,
-            TextDeltaChunk(id=prose_chunk_id, delta=capture.phase_outcome.prose),
-        )
-        _emit_chunk(writer, TextEndChunk(id=prose_chunk_id))
-        new_parts.append(_text_part(capture.phase_outcome.prose))
+    _emit_residual_prose(
+        writer, capture, phase_message_id=phase_message_id, new_parts=new_parts,
+    )
 
     cumulative_tokens = state.turn_total_tokens + capture.tokens
     cumulative_cost = state.turn_total_cost_usd + capture.cost_usd

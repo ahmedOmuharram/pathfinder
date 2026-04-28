@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures/test";
+import { test, expect } from "../fixtures/a11y";
 import { clearAllGeneSets } from "../fixtures/api-client";
 
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
@@ -44,31 +44,27 @@ test.describe("Workbench Evaluation Flow", () => {
     const positiveControlIds = genes.slice(0, 2);
 
     // The Positive Controls section uses a GeneAutocomplete search input.
-    // Find the "Positive Controls" container, then type each gene ID into
-    // the search field and select it from the dropdown.
-    const positiveSection = page
-      .locator("div")
-      .filter({ hasText: /^Positive Controls/ })
-      .first();
+    // Identify the positive-controls GeneChipInput container by its
+    // data-tint="positive" attribute and drive the autocomplete inside it.
+    const positiveControls = page
+      .getByTestId("gene-chip-input")
+      .and(page.locator('[data-tint="positive"]'));
 
     for (const geneId of positiveControlIds) {
-      // Type gene ID into the search input within the positive controls container
-      const searchInput = positiveSection
-        .locator("xpath=ancestor::div[contains(@class, 'border-l-green')]")
-        .or(page.locator("[class*='border-l-green']").first())
-        .getByPlaceholder(/search genes/i);
+      const searchInput = positiveControls.getByPlaceholder(/search genes/i);
       await searchInput.fill(geneId);
 
       // Wait for dropdown results to appear (real VEuPathDB API call)
       const dropdownItem = page
-        .locator("button")
-        .filter({ hasText: new RegExp(geneId, "i") })
-        .first();
+        .getByTestId("gene-autocomplete-result")
+        .and(page.locator(`[data-gene-id="${geneId}"]`));
       await expect(dropdownItem).toBeVisible({ timeout: 15_000 });
       await dropdownItem.click();
 
-      // Verify chip appears
-      await expect(page.getByText(geneId).first()).toBeVisible({ timeout: 5_000 });
+      // Verify the chip appears inside the positive-controls container.
+      await expect(
+        positiveControls.locator(`[data-gene-chip]:has-text("${geneId}")`),
+      ).toBeVisible({ timeout: 5_000 });
     }
 
     // ── Phase 4: Run evaluation ───────────────────────────────────
@@ -82,25 +78,34 @@ test.describe("Workbench Evaluation Flow", () => {
 
     // Wait for evaluation to finish: either metrics appear or error shows
     const metricsSection = page.getByTestId("metrics-overview");
-    const errorMsg = page.locator("p.text-destructive").first();
+    const errorMsg = page.getByTestId("evaluate-error");
     await expect(metricsSection.or(errorMsg)).toBeVisible({ timeout: 120_000 });
 
     // ── Phase 5: Verify metrics appear ────────────────────────────
     // If an error occurred (e.g., WDK timeout), skip metric assertions
     const hasError = await errorMsg.isVisible().catch(() => false);
     if (!hasError) {
-      // UI: Classification metrics are displayed (use .first() since metric labels appear in multiple sections)
-      await expect(page.getByText("Sensitivity").first()).toBeVisible();
-      await expect(page.getByText("Specificity").first()).toBeVisible();
-      await expect(page.getByText("Precision").first()).toBeVisible();
-      await expect(page.getByText("F1 Score").first()).toBeVisible();
+      // UI: Classification metrics are displayed — each metric has a unique
+      // metric-row testid keyed by data-metric.
+      await expect(
+        metricsSection.locator('[data-testid="metric-row"][data-metric="Sensitivity"]'),
+      ).toBeVisible();
+      await expect(
+        metricsSection.locator('[data-testid="metric-row"][data-metric="Specificity"]'),
+      ).toBeVisible();
+      await expect(
+        metricsSection.locator('[data-testid="metric-row"][data-metric="Precision"]'),
+      ).toBeVisible();
+      await expect(
+        metricsSection.locator('[data-testid="metric-row"][data-metric="F1 Score"]'),
+      ).toBeVisible();
 
       // ── Phase 6: Gene Confidence panel ────────────────────────────
       await workbenchMainPage.expandPanel("Gene Confidence");
       await workbenchMainPage.expectPanelExpanded("Gene Confidence");
 
       // UI: Confidence table has the expected columns
-      const confidenceTable = page.locator("table[role='table']");
+      const confidenceTable = page.getByTestId("confidence-table");
       await expect(confidenceTable).toBeVisible({ timeout: 10_000 });
 
       // Verify column headers: Gene ID, Composite, Classification, Enrichment
@@ -110,20 +115,23 @@ test.describe("Workbench Evaluation Flow", () => {
       await expect(headers.filter({ hasText: "Classification" })).toBeVisible();
       await expect(headers.filter({ hasText: "Enrichment" })).toBeVisible();
 
-      // UI: No "Ensemble" column in confidence table
+      // TODO(weak-strict-mode): test asserts no Ensemble column but the
+      // ConfidencePanel still renders one. Cannot disambiguate from test
+      // alone — needs a product decision before tightening.
       await expect(headers.filter({ hasText: "Ensemble" })).toHaveCount(0);
 
-      // UI: At least one data row with a gene ID
-      const rows = confidenceTable.locator("tbody tr");
-      await expect(rows.first()).toBeVisible();
-
-      // UI: Rows contain real gene IDs (PF3D7_ pattern)
-      const firstGeneCell = rows.first().locator("td").first();
-      await expect(firstGeneCell).toContainText(/PF3D7_/);
+      // UI: confidence rows contain real PlasmoDB gene IDs (PF3D7_ pattern).
+      // Use a CSS attribute selector instead of nth-child to disambiguate.
+      const plasmoRow = confidenceTable.locator(
+        '[data-testid="confidence-row"][data-gene-id^="PF3D7_"]',
+      );
+      await expect(plasmoRow).not.toHaveCount(0);
+      await expect(plasmoRow.locator('[data-cell="gene-id"]')).toContainText(/PF3D7_/);
 
       // UI: Composite scores are numeric values
-      const compositeCell = rows.first().locator("td").nth(1);
-      await expect(compositeCell).toContainText(/[-]?\d+\.\d+/);
+      await expect(plasmoRow.locator('[data-cell="composite"]')).toContainText(
+        /[-]?\d+\.\d+/,
+      );
     }
 
     // ── Phase 7: Step Contribution panel (disabled without step analysis) ─

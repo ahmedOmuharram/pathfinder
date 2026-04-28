@@ -174,6 +174,7 @@ export const ReasoningTrigger = memo(
 
     return (
       <CollapsibleTrigger
+        data-testid="reasoning-trigger"
         className={cn(
           "flex w-full items-center gap-2 text-muted-foreground text-[13px] leading-[1.65] transition-colors hover:text-foreground",
           className,

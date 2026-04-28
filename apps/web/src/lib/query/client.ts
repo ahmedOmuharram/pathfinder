@@ -18,20 +18,20 @@ export function setQueryErrorHandler(next: NoticeHandler | null): void {
 }
 
 function extractMessage(error: unknown, fallback: string): string {
-  if (error instanceof APIError) {
-    if (error.status >= 400 && error.status < 500) return "";
-    return error.message || fallback;
-  }
   if (error instanceof Error) return error.message || fallback;
   return fallback;
+}
+
+function isSilent(meta: Record<string, unknown> | undefined): boolean {
+  return meta?.["silent"] === true;
 }
 
 function makeQueryClient(): QueryClient {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
+        if (isSilent(query.meta)) return;
         const message = extractMessage(error, "Request failed");
-        if (!message) return;
         handler?.({ message, queryKey: query.queryKey });
       },
     }),
@@ -56,6 +56,10 @@ function makeQueryClient(): QueryClient {
 }
 
 let browserQueryClient: QueryClient | undefined;
+
+export function __makeQueryClientForTests(): QueryClient {
+  return makeQueryClient();
+}
 
 export function getQueryClient(): QueryClient {
   if (typeof window === "undefined") {

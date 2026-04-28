@@ -1,8 +1,15 @@
 """Fork a conversation at a chosen assistant message.
 
-Carries: messages prefix, strategy_ast (minus wdk step ids), step_count,
-pipeline, experiment_id, gene_set_id, scratchpad notes, checkpoint state.
-Drops: wdk_strategy_id, is_saved, estimated_size, specialist_mode.
+When the source has a ``wdk_strategy_id``, WDK is asked to duplicate the
+strategy (``POST /users/{uid}/strategies`` with ``sourceStrategySignature``)
+so the fork ends up with its own WDK strategy id and the AST's
+``wdk_step_ids`` are remapped to the freshly-assigned WDK step ids. Otherwise
+the fork starts without a WDK strategy and re-pushes on first action.
+
+Carries: messages prefix, strategy_ast (with wdk step ids remapped when
+the source had a WDK strategy), step_count, pipeline, experiment_id,
+gene_set_id, scratchpad notes, checkpoint state.
+Drops: is_saved, estimated_size, specialist_mode.
 """
 
 from __future__ import annotations
@@ -15,7 +22,13 @@ from sqlalchemy import asc, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.integrations.veupathdb.factory import get_strategy_api
+from pathfinder.integrations.veupathdb.wdk_models import WDKStepTree
 from pathfinder.persistence.models import Conversation, Message
+from pathfinder.platform.errors import AppError
+from pathfinder.platform.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Persisted ``messages.parts`` entries whose ``type`` matches one of these
 # carry scratchpad note ids in their ``input`` and/or ``output`` payloads.
@@ -188,6 +201,83 @@ def _rewrite_scratchpad_ids_in_parts(
     return result
 
 
+def _walk_step_tree_dfs(tree: WDKStepTree) -> list[int]:
+    """Pre-order DFS traversal yielding wdk step ids.
+
+    WDK's copy preserves topology, so traversing source and copy in the
+    same order produces a stable old-id → new-id pairing.
+    """
+    out: list[int] = []
+    stack: list[WDKStepTree] = [tree]
+    while stack:
+        node = stack.pop()
+        out.append(node.step_id)
+        if node.secondary_input is not None:
+            stack.append(node.secondary_input)
+        if node.primary_input is not None:
+            stack.append(node.primary_input)
+    return out
+
+
+def _remap_wdk_step_ids(
+    old_ids: dict[str, int],
+    old_tree: WDKStepTree,
+    new_tree: WDKStepTree,
+) -> dict[str, int]:
+    """Build local-id → new-wdk-step-id by pairing source/copy DFS order."""
+    old_seq = _walk_step_tree_dfs(old_tree)
+    new_seq = _walk_step_tree_dfs(new_tree)
+    if len(old_seq) != len(new_seq):
+        msg = (
+            "fork: source step tree has "
+            f"{len(old_seq)} steps but copy has {len(new_seq)}"
+        )
+        raise ForkError(msg)
+    pairing = dict(zip(old_seq, new_seq, strict=True))
+    return {
+        local_id: pairing[old_wdk_id]
+        for local_id, old_wdk_id in old_ids.items()
+        if old_wdk_id in pairing
+    }
+
+
+async def _duplicate_wdk_strategy(
+    *,
+    site_id: str,
+    source_wdk_strategy_id: int,
+    forked_ast: dict[str, Any],
+) -> int | None:
+    """Duplicate the source's WDK strategy and remap AST step ids.
+
+    Returns the new WDK strategy id on success, or ``None`` if the WDK
+    side could not be duplicated (caller falls back to the no-WDK fork
+    path — the AST already has wdk step ids stripped).
+    """
+    api = get_strategy_api(site_id)
+    try:
+        source = await api.get_strategy(source_wdk_strategy_id)
+        identifier = await api.copy_strategy(source.signature)
+        copied = await api.get_strategy(identifier.id)
+    except AppError as exc:
+        logger.warning(
+            "fork: WDK strategy duplication failed; fork starts without "
+            "a WDK strategy",
+            source_wdk_strategy_id=source_wdk_strategy_id,
+            error=str(exc),
+        )
+        return None
+    old_ids = forked_ast.get("wdkStepIds") or forked_ast.get("wdk_step_ids")
+    if isinstance(old_ids, dict):
+        new_ids = _remap_wdk_step_ids(
+            {k: int(v) for k, v in old_ids.items()},
+            source.step_tree,
+            copied.step_tree,
+        )
+        forked_ast["wdkStepIds"] = new_ids
+        forked_ast.pop("wdk_step_ids", None)
+    return identifier.id
+
+
 async def fork_conversation(
     session: AsyncSession,
     *,
@@ -235,8 +325,16 @@ async def fork_conversation(
     )
 
     forked_ast = dict(source.strategy_ast or {})
-    forked_ast.pop("wdkStepIds", None)
-    forked_ast.pop("wdk_step_ids", None)
+    new_wdk_strategy_id: int | None = None
+    if source.wdk_strategy_id is not None:
+        new_wdk_strategy_id = await _duplicate_wdk_strategy(
+            site_id=source.site_id,
+            source_wdk_strategy_id=source.wdk_strategy_id,
+            forked_ast=forked_ast,
+        )
+    if new_wdk_strategy_id is None:
+        forked_ast.pop("wdkStepIds", None)
+        forked_ast.pop("wdk_step_ids", None)
 
     new_conv_id = uuid4()
     fork = Conversation(
@@ -255,6 +353,7 @@ async def fork_conversation(
         gene_set_auto_imported=source.gene_set_auto_imported,
         experiment_id=source.experiment_id,
         specialist_mode=None,
+        wdk_strategy_id=new_wdk_strategy_id,
         # Carry consumer references forward so deleting a saved strategy
         # whose subtree is still embedded in the fork is still blocked.
         imported_saved_strategy_ids=list(source.imported_saved_strategy_ids or []),

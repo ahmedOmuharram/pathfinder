@@ -12,10 +12,13 @@
     "typecheck": "tsc --noEmit",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "check:strategy-imports": "node scripts/check-strategy-imports.mjs",
+    "check:weak-assertions": "node scripts/check-weak-assertions.mjs",
+    "check:strict-mode": "node scripts/check-no-first-nth.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:mutation": "stryker run",
     "check:deadcode": "knip"
   },
   "dependencies": {
@@ -97,9 +100,13 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.2",
     "@kubb/core": "^4.37.2",
     "@playwright/test": "^1.58.2",
     "@redux-devtools/extension": "^4.0.0",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/typescript-checker": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -112,6 +119,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.1.6",
+    "fast-check": "^4.7.0",
     "jsdom": "^28.1.0",
     "knip": "^5.86.0",
     "postcss": "^8.5.8",

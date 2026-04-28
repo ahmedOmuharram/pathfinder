@@ -18,7 +18,7 @@ test.describe("Conversations", () => {
   }) => {
     await chatPage.send("create a new conversation");
     await chatPage.expectAssistantMessage(/\[mock\]/);
-    await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
+    await sidebarPage.expectAtLeastOneConversation();
 
     // API confirms strategy exists with messages — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;
@@ -76,7 +76,7 @@ test.describe("Conversations", () => {
   }) => {
     await chatPage.send("conversation to delete");
     await chatPage.expectAssistantMessage(/\[mock\]/);
-    await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
+    await sidebarPage.expectAtLeastOneConversation();
 
     const conversationId = await sidebarPage.firstConversationId();
 

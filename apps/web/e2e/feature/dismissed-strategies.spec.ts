@@ -27,7 +27,7 @@ async function makeWdkLinked(
 ): Promise<string> {
   await chatPage.send(message);
   await chatPage.expectAssistantMessage(/\[mock\]/);
-  await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
+  await sidebarPage.expectAtLeastOneConversation();
 
   const strategyId = await sidebarPage.firstConversationId();
 

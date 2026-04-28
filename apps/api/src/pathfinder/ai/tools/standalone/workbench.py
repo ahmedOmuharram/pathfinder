@@ -9,13 +9,15 @@ Provides:
 from __future__ import annotations
 
 from typing import Any, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
+from pydantic_ai.ui.vercel_ai.response_types import BaseChunk
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.stream_events import enrichment_results_event
 from pathfinder.ai.tools.durable import durable_tool
 from pathfinder.ai.tools.standalone._stream_parts import gene_set_chunk
 from pathfinder.ai.tools.standalone._workbench_models import (
@@ -111,9 +113,35 @@ EnrichmentType = Literal[
 ]
 
 
+def _enrichment_chunks_from_result(
+    resumed: Any, task_id: UUID,
+) -> list[BaseChunk]:
+    if not isinstance(resumed, dict):
+        return []
+    result = resumed.get("result") if resumed.get("status") == "success" else None
+    if not isinstance(result, dict):
+        return []
+    results = result.get("enrichmentResults")
+    if not isinstance(results, list):
+        return []
+    downloads_raw = result.get("downloads")
+    downloads = downloads_raw if isinstance(downloads_raw, dict) else None
+    return [
+        enrichment_results_event(
+            task_id=task_id,
+            gene_set_id=str(result.get("geneSetId") or ""),
+            gene_set_name=str(result.get("geneSetName") or ""),
+            gene_count=int(result.get("geneCount") or 0),
+            results=results,
+            downloads=downloads,
+        ),
+    ]
+
+
 @durable_tool(
     tool_name="geneset_enrichment",
     estimated_duration_seconds=120,
+    chunks_from_result=_enrichment_chunks_from_result,
 )
 async def run_gene_set_enrichment(
     ctx: RunContext[AgentDeps],

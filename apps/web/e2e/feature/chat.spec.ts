@@ -51,8 +51,8 @@ test.describe("Chat", () => {
     await chatPage.approvePlan();
     await chatPage.expectIdle();
 
-    // Wait for strategy update
-    await chatPage.assistantMessages.last().waitFor({ state: "visible", timeout: 15_000 });
+    // Wait for strategy update — at least one assistant message rendered.
+    await expect(chatPage.assistantMessages).not.toHaveCount(0, { timeout: 15_000 });
 
     // Fetch full strategy — verify steps were created from the plan
     const strategyId = chatPage.lastStrategyId;
@@ -158,7 +158,7 @@ test.describe("Chat", () => {
     await chatPage.send("hello world");
     await chatPage.expectAssistantMessage(/\[mock\]/);
 
-    await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
+    await sidebarPage.expectAtLeastOneConversation();
 
     // Strategy ID was captured during newChat
     expect(chatPage.lastStrategyId).toBeTruthy();

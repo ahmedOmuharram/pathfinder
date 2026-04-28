@@ -1,6 +1,11 @@
 # Test credentials
 .env.test
 
+# Mutation-testing scratch
+.stryker-tmp/
+mutants/
+.mutmut-cache/
+
 # Dependencies
 node_modules/
 .yarn/*

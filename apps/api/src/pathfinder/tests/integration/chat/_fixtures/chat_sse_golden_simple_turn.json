@@ -1,0 +1,27 @@
+[
+  {
+    "messageId": "<REDACTED>",
+    "type": "start"
+  },
+  {
+    "data": {
+      "reason": "mock echoes non-strategy prompts",
+      "to": "question"
+    },
+    "type": "data-supervisor-decision"
+  },
+  {
+    "data": {
+      "answer": "[mock] hi",
+      "reason": "mock echoes non-strategy prompts"
+    },
+    "type": "data-turn-qa"
+  },
+  {
+    "finishReason": "stop",
+    "type": "finish"
+  },
+  {
+    "type": "done"
+  }
+]

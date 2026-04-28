@@ -118,17 +118,21 @@ describe("OptimizeLauncherForm", () => {
   it("posts the launcher payload with chosen params + criterion", async () => {
     const { Wrapper } = harness();
     const onClose = vi.fn();
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          taskId: "11111111-1111-1111-1111-111111111111",
-          messageId: "22222222-2222-2222-2222-222222222222",
-        }),
-        {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        },
-      ),
+    const fetchSpy = vi.fn().mockImplementation(
+      () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              // Proper v4 UUIDs (version nibble = 4, variant = 8/9/a/b).
+              taskId: "11111111-1111-4111-8111-111111111111",
+              messageId: "22222222-2222-4222-8222-222222222222",
+            }),
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            },
+          ),
+        ),
     );
     globalThis.fetch = fetchSpy as unknown as typeof fetch;
 

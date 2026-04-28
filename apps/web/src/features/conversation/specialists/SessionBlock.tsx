@@ -11,6 +11,21 @@ const KIND_LABEL: Record<SpecialistKind, string> = {
   research: "Research",
 };
 
+const KIND_TINT: Record<SpecialistKind, string> = {
+  validate: "border-primary/40 bg-primary/10",
+  research: "border-secondary-foreground/20 bg-secondary",
+};
+
+const KIND_HEADER_HOVER: Record<SpecialistKind, string> = {
+  validate: "hover:bg-primary/15",
+  research: "hover:bg-secondary/80",
+};
+
+const KIND_DIVIDER: Record<SpecialistKind, string> = {
+  validate: "border-primary/30",
+  research: "border-secondary-foreground/15",
+};
+
 export interface SessionBlockProps {
   kind: SpecialistKind;
   enteredAt: string;
@@ -56,7 +71,7 @@ export function SessionBlock({
       data-testid="specialist-session-block"
       data-kind={kind}
       data-expanded={expanded ? "true" : "false"}
-      className="my-3 rounded-md border border-border/70 bg-muted/20"
+      className={cn("my-3 rounded-md border", KIND_TINT[kind])}
     >
       <button
         type="button"
@@ -64,18 +79,18 @@ export function SessionBlock({
         onClick={() => setExpanded((prev) => !prev)}
         className={cn(
           "flex w-full items-center gap-2 px-3 py-2 text-left text-xs",
-          "hover:bg-muted/40",
+          KIND_HEADER_HOVER[kind],
         )}
       >
         {expanded ? (
-          <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden />
+          <ChevronDown className="size-3.5" aria-hidden />
         ) : (
-          <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden />
+          <ChevronRight className="size-3.5" aria-hidden />
         )}
-        <Icon className="size-3.5 text-muted-foreground" aria-hidden />
+        <Icon className="size-3.5" aria-hidden />
         <span className="font-medium">{headerLabel}</span>
         {!expanded && collapsedSummary !== undefined ? (
-          <span className="ml-2 truncate text-muted-foreground">
+          <span className="ml-2 truncate opacity-70">
             {collapsedSummary}
           </span>
         ) : null}
@@ -83,7 +98,7 @@ export function SessionBlock({
       {expanded ? (
         <div
           data-testid="specialist-session-body"
-          className="border-t border-border/70 px-3 py-2"
+          className={cn("border-t px-3 py-2", KIND_DIVIDER[kind])}
         >
           {children}
         </div>

@@ -29,8 +29,8 @@ test.describe("Strategy Graph", () => {
     expect(rowCount).toBeGreaterThan(0);
 
     // UI: First step row should show real search-related text
-    const firstRowText = await graphPage.railStepRows.first().textContent();
-    expect(firstRowText).toBeTruthy();
+    const firstRowText = await graphPage.firstRailStepText();
+    expect(firstRowText.length).toBeGreaterThan(0);
 
     // API: Strategy persisted with steps — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;

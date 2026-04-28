@@ -27,18 +27,16 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from shared_py.stream_events import CustomEvent, DoneEvent, StreamEvent
 from sqlalchemy import select
 
 from pathfinder.persistence.models import (
     BackgroundTask,
-    ConversationEvent,
     TaskProgress,
 )
 from pathfinder.persistence.session import async_session_factory
@@ -46,6 +44,8 @@ from pathfinder.platform.notify_dispatcher import NotifyDispatcher
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.security import get_current_user
 from pathfinder.transport.http.schemas.tasks import (
+    TaskListItem,
+    TaskListResponse,
     TaskProgressEvent,
     TaskStatusResponse,
 )
@@ -75,6 +75,85 @@ class _Cursor(CamelModel):
 
     last_progress_id: int = 0
     last_event_id: int = 0
+
+
+@router.get(
+    "/{conversation_id}/tasks",
+    response_model=TaskListResponse,
+)
+async def list_tasks(
+    conversation_id: UUID,
+    user_id: Annotated[UUID, Depends(get_current_user)],
+    status_in: Annotated[
+        str | None,
+        Query(
+            alias="status",
+            description=(
+                "Comma-separated status filter "
+                "(pending, running, resuming, complete, failed)"
+            ),
+        ),
+    ] = None,
+) -> TaskListResponse:
+    """Return durable tasks for a conversation, newest first.
+
+    Used by the right-rail Tasks panel to surface in-flight enrichment /
+    optimization / control-test runs alongside the latest progress
+    snapshot from ``task_progress``.
+    """
+    requested_statuses: set[str] | None = None
+    if status_in:
+        requested_statuses = {
+            s.strip() for s in status_in.split(",") if s.strip()
+        }
+    async with async_session_factory() as session:
+        query = (
+            select(BackgroundTask)
+            .where(
+                BackgroundTask.conversation_id == conversation_id,
+                BackgroundTask.user_id == user_id,
+            )
+            .order_by(BackgroundTask.created_at.desc())
+        )
+        if requested_statuses:
+            query = query.where(BackgroundTask.status.in_(requested_statuses))
+        tasks = (await session.execute(query)).scalars().all()
+        latest_progress: dict[UUID, TaskProgress] = {}
+        if tasks:
+            task_ids = [t.id for t in tasks]
+            progress_rows = (
+                await session.execute(
+                    select(TaskProgress)
+                    .where(TaskProgress.task_id.in_(task_ids))
+                    .order_by(TaskProgress.id.desc())
+                )
+            ).scalars().all()
+            for row in progress_rows:
+                latest_progress.setdefault(row.task_id, row)
+    items = [
+        TaskListItem(
+            task_id=task.id,
+            tool_name=task.tool_name,
+            status=task.status,
+            estimated_duration_seconds=task.estimated_duration_seconds,
+            created_at=task.created_at,
+            started_at=task.started_at,
+            completed_at=task.completed_at,
+            latest_percent=(
+                latest_progress[task.id].percent
+                if task.id in latest_progress
+                else None
+            ),
+            latest_message=(
+                latest_progress[task.id].message
+                if task.id in latest_progress
+                else None
+            ),
+            error=task.error,
+        )
+        for task in tasks
+    ]
+    return TaskListResponse(tasks=items)
 
 
 @router.get(
@@ -199,25 +278,6 @@ def _completed_chunk(
     )
 
 
-class _ChatEventChunk(CamelModel):
-    """Shape persisted in ``chat_events.chunk`` by ``jobs/runner._persist_chat_event``.
-
-    Validating on read catches any schema drift — if a different producer
-    starts writing a different shape, we log a warning instead of silently
-    dropping the row.
-    """
-
-    sse: str
-
-
-def _extract_sse_line(chunk: dict[str, Any]) -> str | None:
-    try:
-        parsed = _ChatEventChunk.model_validate(chunk)
-    except ValueError:
-        return None
-    return parsed.sse
-
-
 async def _event_stream(
     *,
     conversation_id: UUID,
@@ -227,22 +287,22 @@ async def _event_stream(
 ) -> AsyncIterator[str]:
     """Subscribe BEFORE querying so no NOTIFY can be lost.
 
-    Subscriptions go through the process-wide :class:`NotifyDispatcher` so
-    every SSE client shares a single Postgres backend instead of opening
-    its own. The dispatcher holds LISTEN from the moment ``subscribe()``
-    returns, so any NOTIFY fired after that is queued for delivery — even
-    ones that race with the replay and terminal check below.
+    Streams ``data-task-progress`` rows from ``task_progress`` plus the
+    final ``data-task-completed`` chunk derived from ``background_tasks``.
+    Resume-graph chunks live on the main chat stream now (see
+    :func:`pathfinder.jobs.runner._resume_graph`); this endpoint is purely
+    for the per-task progress sub-feed the right-rail TaskCard subscribes
+    to.
     """
     progress_channel = f"task_progress:{conversation_id}"
-    events_channel = f"chat_events:{conversation_id}"
     encountered_error = False
     try:
         cursor = _Cursor()
         async with dispatcher.subscribe(
-            frozenset({progress_channel, events_channel}),
+            frozenset({progress_channel}),
         ) as notify_queue:
-            async for frame in _replay(
-                conversation_id=conversation_id, task_id=task_id, cursor=cursor,
+            async for frame in _replay_progress(
+                task_id=task_id, cursor=cursor,
             ):
                 yield frame
 
@@ -253,11 +313,7 @@ async def _event_stream(
 
             async for frame in _poll_loop(
                 notify_queue=notify_queue,
-                target=_PollTarget(
-                    conversation_id=conversation_id, task_id=task_id,
-                    progress_channel=progress_channel,
-                    events_channel=events_channel,
-                ),
+                task_id=task_id,
                 cursor=cursor,
                 request=request,
             ):
@@ -271,8 +327,8 @@ async def _event_stream(
         )
 
 
-async def _replay(
-    *, conversation_id: UUID, task_id: UUID, cursor: _Cursor
+async def _replay_progress(
+    *, task_id: UUID, cursor: _Cursor,
 ) -> AsyncIterator[str]:
     async with async_session_factory() as session:
         progress_rows = (
@@ -282,41 +338,17 @@ async def _replay(
                 .order_by(TaskProgress.id)
             )
         ).scalars().all()
-        for progress_row in progress_rows:
-            cursor.last_progress_id = max(
-                cursor.last_progress_id, progress_row.id
-            )
-            yield _encode_event(_progress_chunk(task_id, progress_row))
-
-        event_rows = (
-            await session.execute(
-                select(ConversationEvent)
-                .where(
-                    ConversationEvent.conversation_id == conversation_id,
-                    ConversationEvent.task_id == task_id,
-                )
-                .order_by(ConversationEvent.id)
-            )
-        ).scalars().all()
-        for event_row in event_rows:
-            cursor.last_event_id = max(cursor.last_event_id, event_row.id)
-            line = _extract_sse_line(event_row.chunk)
-            if line is not None:
-                yield line
-
-
-@dataclass(frozen=True)
-class _PollTarget:
-    conversation_id: UUID
-    task_id: UUID
-    progress_channel: str
-    events_channel: str
+    for progress_row in progress_rows:
+        cursor.last_progress_id = max(
+            cursor.last_progress_id, progress_row.id
+        )
+        yield _encode_event(_progress_chunk(task_id, progress_row))
 
 
 async def _poll_loop(
     *,
     notify_queue: asyncio.Queue[tuple[str, str]],
-    target: _PollTarget,
+    task_id: UUID,
     cursor: _Cursor,
     request: Request,
 ) -> AsyncIterator[str]:
@@ -326,10 +358,10 @@ async def _poll_loop(
             return
 
         await _wait_for_notify(notify_queue)
-        async for frame in _drain_both_tables(target, cursor):
+        async for frame in _drain_progress(task_id, cursor):
             yield frame
 
-        terminal = await _terminal_chunk_if_done(target.task_id)
+        terminal = await _terminal_chunk_if_done(task_id)
         if terminal is not None:
             yield _encode_event(terminal)
             return
@@ -351,28 +383,6 @@ async def _wait_for_notify(
         return
 
 
-async def _drain_both_tables(
-    target: _PollTarget,
-    cursor: _Cursor,
-) -> AsyncIterator[str]:
-    """Drain progress + events unconditionally.
-
-    Filtering by notified channel used to drop trailing rows whenever a
-    progress NOTIFY and an events NOTIFY both arrived before the terminal
-    flip: the progress iteration drained only progress, the terminal check
-    fired, and the queued events NOTIFY (with its unread row) was
-    discarded. Draining both every iteration is cheap — each query is
-    ``WHERE id > :cursor`` with no rows to return on the no-op side — and
-    closes the race entirely.
-    """
-    async for frame in _drain_progress(target.task_id, cursor):
-        yield frame
-    async for frame in _drain_events(
-        target.conversation_id, target.task_id, cursor,
-    ):
-        yield frame
-
-
 async def _drain_progress(
     task_id: UUID, cursor: _Cursor
 ) -> AsyncIterator[str]:
@@ -390,28 +400,6 @@ async def _drain_progress(
     for row in rows:
         cursor.last_progress_id = row.id
         yield _encode_event(_progress_chunk(task_id, row))
-
-
-async def _drain_events(
-    conversation_id: UUID, task_id: UUID, cursor: _Cursor
-) -> AsyncIterator[str]:
-    async with async_session_factory() as session:
-        rows = (
-            await session.execute(
-                select(ConversationEvent)
-                .where(
-                    ConversationEvent.conversation_id == conversation_id,
-                    ConversationEvent.task_id == task_id,
-                    ConversationEvent.id > cursor.last_event_id,
-                )
-                .order_by(ConversationEvent.id)
-            )
-        ).scalars().all()
-    for row in rows:
-        cursor.last_event_id = row.id
-        line = _extract_sse_line(row.chunk)
-        if line is not None:
-            yield line
 
 
 async def _terminal_chunk_if_done(task_id: UUID) -> CustomEvent | None:

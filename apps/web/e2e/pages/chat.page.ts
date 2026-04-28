@@ -156,6 +156,14 @@ export class ChatPage {
     await expect(this.assistantMessages).toHaveCount(count);
   }
 
+  /** Text content of the most recently rendered assistant message. */
+  async lastAssistantMessageText(): Promise<string> {
+    return this.assistantMessages.evaluateAll((els) => {
+      const last = els[els.length - 1];
+      return last?.textContent ?? "";
+    });
+  }
+
   async expectDelegationDraft() {
     await expect(this.page.getByTestId("delegation-draft-details")).toBeVisible({
       timeout: 30_000,

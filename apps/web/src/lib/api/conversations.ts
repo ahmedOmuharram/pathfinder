@@ -196,13 +196,9 @@ export async function openConversation(payload: {
   return raw;
 }
 
-const beginConversationResponseSchema = z.object({
-  conversationId: z.uuid(),
-  isNew: z.boolean(),
-  name: z.string(),
-});
-
-export type BeginConversationResponse = z.infer<typeof beginConversationResponseSchema>;
+import { beginConversationResponseSchema } from "@pathfinder/shared/generated/zod/beginConversationResponseSchema";
+import type { BeginConversationResponse } from "@pathfinder/shared/generated/types/BeginConversationResponse";
+export type { BeginConversationResponse };
 
 export async function beginConversation(args: {
   conversationId: string;

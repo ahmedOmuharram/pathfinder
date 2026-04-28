@@ -32,6 +32,37 @@ export class GraphPage {
       .locator("[data-testid^='compact-step-row-']");
   }
 
+  /**
+   * Resolve the topologically-first rail row's step id once the rail panel
+   * has rendered. Prefer this helper over `.first()` so the spec layer
+   * remains free of strict-mode escape hatches.
+   */
+  async firstRailStepId(timeout = 30_000): Promise<string> {
+    await expect
+      .poll(() => this.railStepRows.count(), { timeout })
+      .toBeGreaterThan(0);
+    const idList = await this.railStepRows.evaluateAll((rows) =>
+      rows.map((r) => r.getAttribute("data-testid") ?? ""),
+    );
+    const first = idList[0] ?? "";
+    return first.replace(/^compact-step-row-/, "");
+  }
+
+  /** Bounding box of the topologically-first canvas node. */
+  async firstNodeBoundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
+    return this.nodes.evaluateAll((els) => {
+      const first = els[0];
+      if (first == null) return null;
+      const rect = first.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    });
+  }
+
+  /** Text content of the topologically-first rail step row. */
+  async firstRailStepText(): Promise<string> {
+    return this.railStepRows.evaluateAll((rows) => rows[0]?.textContent ?? "");
+  }
+
   /** A specific step row in the rail by step id. */
   railStepRow(stepId: string): Locator {
     return this.page.getByTestId(`compact-step-row-${stepId}`);

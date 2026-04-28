@@ -89,6 +89,28 @@ class StrategiesMixin(StrategyAPIBase):
         )
         return WDKIdentifier.model_validate(raw)
 
+    async def copy_strategy(
+        self,
+        source_signature: str,
+        *,
+        user_id: str | None = None,
+    ) -> WDKIdentifier:
+        """Duplicate a strategy by signature via WDK's copy endpoint.
+
+        WDK's ``POST /users/{uid}/strategies`` accepts
+        ``{"sourceStrategySignature": "<sig>"}`` and creates a deep copy
+        owned by the calling user (StrategyService.copyStrategy /
+        StepFactory.copyStrategy in WDK). All steps are duplicated with
+        fresh step ids; the caller must remap any locally-tracked
+        ``wdk_step_ids`` against the new strategy's step tree.
+        """
+        uid = await self._get_user_id(user_id)
+        raw = await self.client.post(
+            f"/users/{uid}/strategies",
+            json={"sourceStrategySignature": source_signature},
+        )
+        return WDKIdentifier.model_validate(raw)
+
     async def get_strategy(
         self, strategy_id: int, user_id: str | None = None
     ) -> WDKStrategyDetails:

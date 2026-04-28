@@ -7,7 +7,7 @@ from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.conversation.turn_runner import run_turn
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
-from pathfinder.jobs.auth_context import attach_wdk_auth
+from pathfinder.jobs.auth_context import attach_user_id, attach_wdk_auth
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.logging import get_logger
@@ -32,6 +32,7 @@ async def run_chat_turn(payload: dict[str, Any]) -> None:
     settings = get_settings()
     async with (
         attach_wdk_auth(parsed.veupathdb_auth_token),
+        attach_user_id(parsed.user_id),
         lifespan_checkpointer(settings.database_url) as saver,
         lifespan_memory_store(settings.database_url) as store,
     ):

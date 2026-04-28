@@ -33,10 +33,7 @@ async function seedStrategy(
     throw new Error("seedStrategy: chatPage.lastStrategyId was not set");
   }
 
-  const firstRow = graphPage.railStepRows.first();
-  await expect(firstRow).toBeVisible({ timeout: 30_000 });
-  const testId = await firstRow.getAttribute("data-testid");
-  const firstStepId = (testId ?? "").replace(/^compact-step-row-/, "");
+  const firstStepId = await graphPage.firstRailStepId();
   if (firstStepId === "") {
     throw new Error("seedStrategy: could not extract first step id from rail");
   }
@@ -199,7 +196,7 @@ test.describe("Strategy overhaul — walkthrough", () => {
     await graphPage.expectStrategyTopbar();
 
     // Capture node positions before relayout.
-    const before = await graphPage.nodes.first().boundingBox();
+    const before = await graphPage.firstNodeBoundingBox();
     expect(before).not.toBeNull();
 
     // Move the canvas so relayout has something to undo, then press R.
@@ -207,7 +204,7 @@ test.describe("Strategy overhaul — walkthrough", () => {
     await page.keyboard.press("r");
 
     // The graph should remain visible with its nodes intact.
-    const after = await graphPage.nodes.first().boundingBox();
+    const after = await graphPage.firstNodeBoundingBox();
     expect(after).not.toBeNull();
   });
 

@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from langgraph.errors import GraphBubbleUp
 from pydantic_ai.messages import (
     PartDeltaEvent,
     PartEndEvent,
@@ -18,6 +19,14 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     DoneChunk,
     FinishChunk,
     StartChunk,
+    ToolApprovalRequestChunk,
+    ToolInputAvailableChunk,
+    ToolInputDeltaChunk,
+    ToolInputErrorChunk,
+    ToolInputStartChunk,
+    ToolOutputAvailableChunk,
+    ToolOutputDeniedChunk,
+    ToolOutputErrorChunk,
 )
 
 # TODO(upstream): remove once pydantic-ai exposes
@@ -44,6 +53,22 @@ class PinnedVercelAIEventStream(VercelAIEventStream[Any, Any]):
     # ``VercelAIEventStream`` directly in ``PhaseStreamEmitter``.
 
     _index_to_message_id: dict[int, str] = field(default_factory=dict, init=False)
+
+    async def on_error(
+        self, error: Exception,
+    ) -> AsyncIterator[BaseChunk]:
+        # GraphBubbleUp (incl. GraphInterrupt from langgraph.types.interrupt)
+        # is control flow for LangGraph's Pregel loop, not a chat-visible
+        # error. Pydantic-ai's transform_stream catches Exception and routes
+        # everything through on_error, swallowing the exception and emitting
+        # an ErrorChunk with the GraphInterrupt's repr — which both leaks
+        # `(Interrupt(value=...),)` into chat AND prevents Pregel from
+        # suspending the graph (so durable tools never resume). Re-raise so
+        # the suspension reaches Pregel.
+        if isinstance(error, GraphBubbleUp):
+            raise error
+        async for chunk in super().on_error(error):
+            yield chunk
 
     async def handle_part_start(
         self, event: PartStartEvent,
@@ -86,6 +111,21 @@ class PinnedVercelAIEventStream(VercelAIEventStream[Any, Any]):
             self.message_id = saved
 
 
+_TOOL_OUTPUT_CHUNKS = (
+    ToolOutputAvailableChunk,
+    ToolOutputErrorChunk,
+    ToolOutputDeniedChunk,
+    ToolApprovalRequestChunk,
+)
+
+
+@dataclass
+class DeferredToolHint:
+    tool_call_id: str
+    tool_name: str
+    tool_args: dict[str, Any]
+
+
 @dataclass
 class PhaseStreamEmitter:
     # Strips turn-level ``StartChunk``/``FinishChunk``/``DoneChunk`` markers
@@ -93,7 +133,9 @@ class PhaseStreamEmitter:
 
     message_id: str
     sdk_version: Literal[5, 6] = 6
+    deferred_hint: DeferredToolHint | None = None
     _stream: PinnedVercelAIEventStream = field(init=False)
+    _started_tool_call_ids: set[str] = field(default_factory=set, init=False)
 
     def __post_init__(self) -> None:
         self._stream = PinnedVercelAIEventStream(
@@ -109,4 +151,45 @@ class PhaseStreamEmitter:
         async for chunk in self._stream.transform_stream(events):
             if isinstance(chunk, (StartChunk, FinishChunk, DoneChunk)):
                 continue
+            for synthetic in self._synthesize_missing_start(chunk):
+                yield synthetic
             yield chunk
+
+    def _synthesize_missing_start(
+        self, chunk: BaseChunk,
+    ) -> list[BaseChunk]:
+        if isinstance(chunk, ToolInputStartChunk):
+            self._started_tool_call_ids.add(chunk.tool_call_id)
+            return []
+        # ToolInputDeltaChunk / ToolInputAvailableChunk / ToolInputErrorChunk
+        # always follow a ToolInputStartChunk emitted by the upstream stream
+        # in normal turns; for resume turns where pydantic-ai's CallToolsNode
+        # skips part-event replay, the delta/output chunks for the deferred
+        # call land first. Backfill the missing start (and an
+        # input-available stub) so the browser parser accepts them.
+        if isinstance(chunk, _TOOL_OUTPUT_CHUNKS) and not isinstance(
+            chunk, ToolApprovalRequestChunk,
+        ):
+            tool_call_id = chunk.tool_call_id
+            if tool_call_id in self._started_tool_call_ids:
+                return []
+            self._started_tool_call_ids.add(tool_call_id)
+            hint = self.deferred_hint
+            if hint is None or hint.tool_call_id != tool_call_id:
+                return []
+            return [
+                ToolInputStartChunk(
+                    tool_call_id=tool_call_id, tool_name=hint.tool_name,
+                ),
+                ToolInputAvailableChunk(
+                    tool_call_id=tool_call_id,
+                    tool_name=hint.tool_name,
+                    input=hint.tool_args,
+                ),
+            ]
+        if isinstance(
+            chunk,
+            (ToolInputDeltaChunk, ToolInputAvailableChunk, ToolInputErrorChunk),
+        ):
+            self._started_tool_call_ids.add(chunk.tool_call_id)
+        return []

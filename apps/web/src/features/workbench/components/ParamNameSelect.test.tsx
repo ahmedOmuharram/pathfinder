@@ -8,7 +8,7 @@ const mockParamSpecs: ParamSpec[] = [];
 let mockLoading = false;
 
 vi.mock("@/lib/hooks/useParamSpecs", () => ({
-  useParamSpecs: () => ({ paramSpecs: mockParamSpecs, isLoading: mockLoading }),
+  useParamSpecs: () => ({ paramSpecs: mockParamSpecs, isLoading: mockLoading, error: null }),
 }));
 
 import { ParamNameSelect } from "./ParamNameSelect";

@@ -9,7 +9,7 @@ from pathfinder.ai.capabilities.security import scan_user_input
 from pathfinder.ai.conversation._turn_helpers import (
     _persist_user_message,
 )
-from pathfinder.ai.conversation.event_stream import iter_sse, latest_event
+from pathfinder.ai.conversation.event_stream import iter_sse, latest_turn_boundary
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
 from pathfinder.jobs.payloads import ChatTurnPayload
@@ -71,8 +71,7 @@ async def dispatch(
     await _persist_user_message(session, body)
     await session.commit()
 
-    baseline = await latest_event(body.conversation_id)
-    after = baseline[0] if baseline is not None else 0
+    after = await latest_turn_boundary(body.conversation_id)
 
     turn_id = uuid4()
     payload = ChatTurnPayload.from_context(

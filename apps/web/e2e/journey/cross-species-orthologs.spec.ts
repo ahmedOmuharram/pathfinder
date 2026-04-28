@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures/test";
+import { test, expect } from "../fixtures/a11y";
 
 /**
  * Journey: Cross-Species Ortholog Comparison — PlasmoDB → ToxoDB

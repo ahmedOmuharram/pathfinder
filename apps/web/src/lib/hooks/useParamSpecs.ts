@@ -21,7 +21,11 @@ interface AdvancedOptions {
   enabled?: boolean;
 }
 
-type UseParamSpecsResult = { paramSpecs: ParamSpec[]; isLoading: boolean };
+type UseParamSpecsResult = {
+  paramSpecs: ParamSpec[];
+  isLoading: boolean;
+  error: Error | null;
+};
 
 /**
  * Consolidated hook for fetching WDK parameter specifications.
@@ -79,8 +83,8 @@ function useParamSpecsSimple(
   recordType: string,
   searchName: string,
 ): UseParamSpecsResult {
-  const { data, isLoading } = useParamSpecsQuery(siteId, recordType, searchName);
-  return { paramSpecs: data ?? [], isLoading };
+  const { data, isLoading, error } = useParamSpecsQuery(siteId, recordType, searchName);
+  return { paramSpecs: data ?? [], isLoading, error: error ?? null };
 }
 
 // ---------------------------------------------------------------------------
@@ -114,7 +118,7 @@ function useParamSpecsAdvanced({
     resolvedRecordType != null &&
     resolvedRecordType !== "";
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: [
       "param-specs-advanced",
       siteId,
@@ -132,7 +136,8 @@ function useParamSpecsAdvanced({
     enabled: queryEnabled,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+    meta: { silent: true },
   });
 
-  return { paramSpecs: data ?? [], isLoading };
+  return { paramSpecs: data ?? [], isLoading, error: error ?? null };
 }

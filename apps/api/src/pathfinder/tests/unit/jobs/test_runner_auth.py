@@ -16,6 +16,7 @@ from pathfinder.platform.context import veupathdb_auth_token_ctx
 @dataclass
 class _FakeContext:
     memory_store: Any = None
+    user_id: UUID | None = None
 
 
 class _Observer:

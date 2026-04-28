@@ -101,6 +101,7 @@ export function useStepEditorState({
     dependentErrors: dependent.dependentErrors,
     onDependentFieldChange: dependent.handleFieldChange,
     isLoading: paramState.isLoading,
+    paramSpecsError: paramState.error,
 
     operatorValue: metadata.operatorValue,
     setOperatorValue: metadata.setOperatorValue,

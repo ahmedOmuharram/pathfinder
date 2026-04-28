@@ -189,6 +189,9 @@ test.describe("Fork Branch", () => {
 
     const checkpointNodes = branchTree.locator("[data-branch-node]");
     await expect(checkpointNodes).toHaveCount(2, { timeout: 15_000 });
+    // TODO(weak-strict-mode): cannot disambiguate from test alone — the
+    // branch-tree component lives outside src/ so we cannot select the
+    // intended checkpoint by stable id.
     await checkpointNodes.first().click();
 
     const forkButton = page.getByRole("button", {

@@ -143,6 +143,7 @@ export function AppNavRail({
                 size="icon"
                 onClick={onOpenSettings}
                 aria-label="Settings"
+                data-testid="nav-rail-settings-button"
               >
                 <Settings className="h-4 w-4" aria-hidden />
               </Button>

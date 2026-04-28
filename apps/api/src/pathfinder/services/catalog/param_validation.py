@@ -7,7 +7,12 @@ from typing import Protocol, cast
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
-from pathfinder.domain.parameters.specs import find_missing_required_params
+from pathfinder.domain.parameters.specs import (
+    ParamSpecNormalized,
+    find_dependent_value_violations,
+    find_missing_required_params,
+    topological_fill_order,
+)
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery_service import (
     DiscoveryService,
@@ -23,13 +28,17 @@ from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload
 from pathfinder.platform.types import JSONObject
-from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
+from pathfinder.services.catalog.param_adapters import (
+    adapt_param_from_wdk,
+    adapt_param_specs_from_search,
+)
 
 from .param_formatting import format_param_info_typed
 from .param_resolution import (
     _extract_param_names_from_response,
     _filter_context_values,
     expand_search_details_with_params,
+    get_refreshed_dependent_params,
 )
 
 logger = get_logger(__name__)
@@ -296,6 +305,18 @@ async def validate_parameters(
     param_spec_map = adapt_param_specs_from_search(response.search_data)
     canonicalizer = ParameterCanonicalizer(param_spec_map)
     canonical: JSONObject = canonicalizer.canonicalize(parameters)
+    refreshed_ctx = SearchContext(
+        site_id=ctx.site_id,
+        record_type=resolved_record_type,
+        search_name=ctx.search_name,
+    )
+    param_spec_map = await _refresh_dependent_vocabularies(
+        ctx=refreshed_ctx,
+        param_spec_map=param_spec_map,
+        canonical_values=canonical,
+    )
+    canonicalizer = ParameterCanonicalizer(param_spec_map)
+    canonical = canonicalizer.canonicalize(parameters)
     param_names = _extract_param_names_from_response(response)
     extra_params = [key for key in canonical if key not in param_names]
     if extra_params:
@@ -317,6 +338,40 @@ async def validate_parameters(
                 }
             ],
         )
+    invalid_dependents = find_dependent_value_violations(param_spec_map, canonical)
+    if invalid_dependents:
+        full_param_spec = format_param_info_typed(response.search_data.parameters or [])
+        serialized_spec = [
+            p.model_dump(by_alias=True, mode="json", exclude_none=True)
+            for p in full_param_spec
+        ]
+        details = ", ".join(
+            f"{name}={bad}" for name, bad in invalid_dependents
+        )
+        raise ValidationError(
+            title=(
+                f"Invalid dependent-parameter values: {details}. "
+                "Refresh the dependent vocab against the parent's value via "
+                "get_parameter_options(... context_values=...) and pick from there."
+            ),
+            errors=[
+                {
+                    "context": {
+                        "recordType": resolved_record_type,
+                        "searchName": ctx.search_name,
+                        "invalidDependents": cast(
+                            "JsonValue",
+                            [
+                                {"name": name, "values": bad}
+                                for name, bad in invalid_dependents
+                            ],
+                        ),
+                        "parameters": serialized_spec,
+                    },
+                },
+            ],
+        )
+
     missing = find_missing_required_params(param_spec_map, canonical)
 
     if missing:
@@ -339,3 +394,48 @@ async def validate_parameters(
             ],
         )
     return canonical
+
+
+async def _refresh_dependent_vocabularies(
+    *,
+    ctx: SearchContext,
+    param_spec_map: dict[str, ParamSpecNormalized],
+    canonical_values: JSONObject,
+) -> dict[str, ParamSpecNormalized]:
+    """Walk parents in topological order and refresh each dependent param's
+    vocabulary against the parent's *canonical* value.
+
+    Mirrors what the WDK web client does on every parent-param edit:
+    POST refreshed-dependent-params with the running context, replace the
+    children's vocabularies, then move on. Parents whose value is empty
+    are skipped — empty parents leave the static (default) child vocab in
+    place. Refresh failures are logged and swallowed so validation falls
+    back to the static vocab rather than blocking the user.
+    """
+    next_specs = dict(param_spec_map)
+    fill_order = topological_fill_order(next_specs)
+    for parent_name in fill_order:
+        parent = next_specs.get(parent_name)
+        if parent is None or not parent.dependent_params:
+            continue
+        parent_value = canonical_values.get(parent_name)
+        if parent_value in (None, "", [], {}):
+            continue
+        try:
+            refreshed = await get_refreshed_dependent_params(
+                ctx,
+                parameter_name=parent_name,
+                context_values=canonical_values,
+            )
+        except AppError as exc:
+            logger.warning(
+                "refreshed-dependent-params failed; falling back to static vocab",
+                parent=parent_name,
+                search=ctx.search_name,
+                error=str(exc),
+            )
+            continue
+        for refreshed_param in refreshed:
+            if refreshed_param.name in parent.dependent_params:
+                next_specs[refreshed_param.name] = adapt_param_from_wdk(refreshed_param)
+    return next_specs

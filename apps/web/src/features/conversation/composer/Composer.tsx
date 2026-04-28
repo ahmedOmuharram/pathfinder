@@ -191,8 +191,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
     exactMatch !== null
       && exactMatch !== undefined
       && parsed !== null
-      && (parsed.rest === ""
-        || (exactMatch.kind === "specialist-enter" && exactMatch.params.length === 0));
+      && (parsed.rest === "" || exactMatch.kind === "specialist-enter");
 
   return (
     <ComposerPrimitive.Root

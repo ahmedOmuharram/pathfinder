@@ -19,6 +19,7 @@ import { DataStrategyLink } from "./parts/DataStrategyLink";
 import { DataStrategyMeta } from "./parts/DataStrategyMeta";
 import { DataSpecialistSuggestion } from "./parts/DataSpecialistSuggestion";
 import { DataSupervisorDecision } from "./parts/DataSupervisorDecision";
+import { DataEnrichmentResults } from "./parts/DataEnrichmentResults";
 import { DataTaskCompleted } from "./parts/DataTaskCompleted";
 import { DataTaskProgress } from "./parts/DataTaskProgress";
 import { DataToolApprovalRequest } from "./parts/DataToolApprovalRequest";
@@ -38,6 +39,7 @@ export const dataPartComponents: {
   "data-background-task-started": DataBackgroundTaskStarted,
   "data-task-progress": DataTaskProgress,
   "data-task-completed": DataTaskCompleted,
+  "data-enrichment-results": DataEnrichmentResults,
   "data-strategy-link": DataStrategyLink,
   "data-strategy-meta": DataStrategyMeta,
   "data-graph-snapshot": DataGraphSnapshot,

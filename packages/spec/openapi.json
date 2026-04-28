@@ -2158,6 +2158,122 @@
                 }
             }
         },
+        "/api/v1/conversations/saved-strategy-consumers": {
+            "get": {
+                "tags": [
+                    "conversations"
+                ],
+                "summary": "Get Saved Strategy Consumer Counts",
+                "description": "Count how many conversations consume each saved strategy.\n\nReturned map only includes ids with consumers; absent ids have 0.",
+                "operationId": "get_saved_strategy_consumer_counts_api_v1_conversations_saved_strategy_consumers_get",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "siteId",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Siteid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SavedStrategyConsumerCounts"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/{conversation_id}/insert-saved": {
+            "post": {
+                "tags": [
+                    "conversations"
+                ],
+                "summary": "Insert Saved",
+                "description": "Insert a saved WDK strategy as a combine input next to a target step.",
+                "operationId": "insert_saved_api_v1_conversations__conversation_id__insert_saved_post",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    },
+                    {
+                        "name": "siteId",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Siteid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/InsertSavedRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/InsertSavedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/experiments/": {
             "post": {
                 "tags": [
@@ -5365,6 +5481,73 @@
                         "APIKeyCookie": []
                     }
                 ]
+            }
+        },
+        "/api/v1/conversations/{conversation_id}/tasks": {
+            "get": {
+                "tags": [
+                    "tasks"
+                ],
+                "summary": "List Tasks",
+                "description": "Return durable tasks for a conversation, newest first.\n\nUsed by the right-rail Tasks panel to surface in-flight enrichment /\noptimization / control-test runs alongside the latest progress\nsnapshot from ``task_progress``.",
+                "operationId": "list_tasks_api_v1_conversations__conversation_id__tasks_get",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Comma-separated status filter (pending, running, resuming, complete, failed)",
+                            "title": "Status"
+                        },
+                        "description": "Comma-separated status filter (pending, running, resuming, complete, failed)"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TaskListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/api/v1/conversations/{conversation_id}/tasks/{task_id}": {
@@ -8638,6 +8821,64 @@
                 "title": "EnrichmentResultResponse",
                 "description": "Results for a single enrichment analysis type."
             },
+            "EnrichmentResultsChunk": {
+                "properties": {
+                    "taskId": {
+                        "type": "string",
+                        "title": "Taskid"
+                    },
+                    "geneSetId": {
+                        "type": "string",
+                        "title": "Genesetid"
+                    },
+                    "geneSetName": {
+                        "type": "string",
+                        "title": "Genesetname"
+                    },
+                    "geneCount": {
+                        "type": "integer",
+                        "title": "Genecount"
+                    },
+                    "results": {
+                        "items": {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        "type": "array",
+                        "title": "Results"
+                    },
+                    "downloads": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "integer"
+                                        }
+                                    ]
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Downloads"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "taskId",
+                    "geneSetId",
+                    "geneSetName",
+                    "geneCount",
+                    "results"
+                ],
+                "title": "EnrichmentResultsChunk"
+            },
             "EnrichmentRow": {
                 "properties": {
                     "termKey": {
@@ -10890,6 +11131,67 @@
                 ],
                 "title": "HealthResponse",
                 "description": "Health check response."
+            },
+            "InsertSavedRequest": {
+                "properties": {
+                    "targetStepId": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "title": "Targetstepid"
+                    },
+                    "savedWdkStrategyId": {
+                        "type": "integer",
+                        "title": "Savedwdkstrategyid"
+                    },
+                    "operator": {
+                        "type": "string",
+                        "enum": [
+                            "INTERSECT",
+                            "UNION",
+                            "MINUS",
+                            "RMINUS",
+                            "LONLY",
+                            "RONLY"
+                        ],
+                        "title": "Operator",
+                        "default": "INTERSECT"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "targetStepId",
+                    "savedWdkStrategyId"
+                ],
+                "title": "InsertSavedRequest"
+            },
+            "InsertSavedResponse": {
+                "properties": {
+                    "wdkStrategyId": {
+                        "type": "integer",
+                        "title": "Wdkstrategyid"
+                    },
+                    "insertedSavedWdkStrategyId": {
+                        "type": "integer",
+                        "title": "Insertedsavedwdkstrategyid"
+                    },
+                    "insertedSavedName": {
+                        "type": "string",
+                        "title": "Insertedsavedname"
+                    },
+                    "combineStepId": {
+                        "type": "string",
+                        "title": "Combinestepid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "wdkStrategyId",
+                    "insertedSavedWdkStrategyId",
+                    "insertedSavedName",
+                    "combineStepId"
+                ],
+                "title": "InsertSavedResponse"
             },
             "InterruptPayload": {
                 "properties": {
@@ -14370,6 +14672,23 @@
                 ],
                 "title": "SaveSubstrategyResponse"
             },
+            "SavedStrategyConsumerCounts": {
+                "properties": {
+                    "counts": {
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "type": "object",
+                        "title": "Counts"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "counts"
+                ],
+                "title": "SavedStrategyConsumerCounts",
+                "description": "Map of WDK strategy id -> number of conversations that import it."
+            },
             "ScratchpadPatchRequest": {
                 "properties": {
                     "pinned": {
@@ -16405,6 +16724,16 @@
                                 "type": "null"
                             }
                         ]
+                    },
+                    "enrichmentResults": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/EnrichmentResultsChunk"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
                     }
                 },
                 "type": "object",
@@ -16489,6 +16818,114 @@
                     "status"
                 ],
                 "title": "TaskCompleted"
+            },
+            "TaskListItem": {
+                "properties": {
+                    "taskId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "title": "Taskid"
+                    },
+                    "toolName": {
+                        "type": "string",
+                        "title": "Toolname"
+                    },
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "estimatedDurationSeconds": {
+                        "type": "integer",
+                        "title": "Estimateddurationseconds"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Createdat"
+                    },
+                    "startedAt": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Startedat"
+                    },
+                    "completedAt": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Completedat"
+                    },
+                    "latestPercent": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Latestpercent"
+                    },
+                    "latestMessage": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Latestmessage"
+                    },
+                    "error": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Error"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "taskId",
+                    "toolName",
+                    "status",
+                    "estimatedDurationSeconds",
+                    "createdAt"
+                ],
+                "title": "TaskListItem"
+            },
+            "TaskListResponse": {
+                "properties": {
+                    "tasks": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskListItem"
+                        },
+                        "type": "array",
+                        "title": "Tasks"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "tasks"
+                ],
+                "title": "TaskListResponse"
             },
             "TaskProgress": {
                 "properties": {

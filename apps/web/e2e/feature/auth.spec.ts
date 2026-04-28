@@ -55,7 +55,7 @@ test.describe("Auth", () => {
     await chatPage.expectIdle();
 
     // Verify sidebar shows conversation
-    await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
+    await sidebarPage.expectAtLeastOneConversation();
 
     // API: get strategy count before reload
     const beforeResp = await apiClient.get("/api/v1/conversations");
@@ -68,12 +68,14 @@ test.describe("Auth", () => {
 
     // UI: Still signed in — composer visible, message still there
     await authPage.expectSignedIn();
-    await expect(page.getByText("test session persistence").first()).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(
+      page
+        .getByTestId("user-message")
+        .filter({ hasText: "test session persistence" }),
+    ).toBeVisible({ timeout: 15_000 });
 
     // UI: Sidebar still shows conversations
-    await expect(sidebarPage.items.first()).toBeVisible({ timeout: 15_000 });
+    await sidebarPage.expectAtLeastOneConversation();
 
     // API: Same strategy count — no data loss
     const afterResp = await apiClient.get("/api/v1/conversations");

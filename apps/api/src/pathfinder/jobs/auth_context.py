@@ -1,19 +1,17 @@
-"""Lifecycle helper for ``veupathdb_auth_token_ctx`` at the worker boundary.
+"""Re-install request-scoped ContextVars at the worker boundary.
 
-Procrastinate runs tasks in a worker process that has no inherited
-``ContextVar`` state from the dispatching api process. The typed job payload
-(see ``pathfinder.jobs.payloads``) carries the cookie string across the
-process boundary; this context manager is the paired helper that re-installs
-it on the ctxvar for the duration of the job body, then restores the prior
-value on exit (so subsequent worker tasks do not inherit the cookie).
+Procrastinate workers don't inherit the dispatching api process's
+``ContextVar`` state. Job payloads carry the values across; these helpers
+re-install them for the job body and reset them on exit.
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from uuid import UUID
 
-from pathfinder.platform.context import veupathdb_auth_token_ctx
+from pathfinder.platform.context import user_id_ctx, veupathdb_auth_token_ctx
 
 
 @asynccontextmanager
@@ -26,4 +24,14 @@ async def attach_wdk_auth(token: str | None) -> AsyncIterator[None]:
         veupathdb_auth_token_ctx.reset(reset)
 
 
-__all__ = ["attach_wdk_auth"]
+@asynccontextmanager
+async def attach_user_id(user_id: UUID | None) -> AsyncIterator[None]:
+    """Set ``user_id_ctx`` to ``user_id`` inside the block."""
+    reset = user_id_ctx.set(user_id)
+    try:
+        yield
+    finally:
+        user_id_ctx.reset(reset)
+
+
+__all__ = ["attach_user_id", "attach_wdk_auth"]
