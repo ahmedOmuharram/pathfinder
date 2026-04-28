@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
+from pathfinder.ai.specialists.types import SpecialistMode
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.types import DecodedParamsField
@@ -33,6 +34,18 @@ class OpenConversationRequest(CamelModel):
 
 class OpenConversationResponse(CamelModel):
     conversation_id: UUID
+
+
+class BeginConversationRequest(CamelModel):
+    site_id: str = Field(min_length=1, max_length=64)
+    experiment_id: str | None = None
+    seed_text: str | None = Field(default=None, max_length=4000)
+
+
+class BeginConversationResponse(CamelModel):
+    conversation_id: UUID
+    is_new: bool
+    name: str
 
 
 class ConversationSummaryResponse(CamelModel):
@@ -78,6 +91,7 @@ class ConversationResponse(CamelModel):
     supervisor_model_id: str | None = Field(default=None,)
     parent_conversation_id: UUID | None = Field(default=None,)
     parent_message_id: UUID | None = Field(default=None,)
+    specialist_mode: SpecialistMode | None = Field(default=None)
 
 
 class CreateConversationRequest(CamelModel):

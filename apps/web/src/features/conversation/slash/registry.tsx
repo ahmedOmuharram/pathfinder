@@ -9,9 +9,13 @@ import {
   Plus,
   Sparkles,
   Trash,
-  Zap,
 } from "lucide-react";
 
+import {
+  optimizeCommand,
+  researchCommand,
+  validateCommand,
+} from "@/features/conversation/composer/SlashMenu";
 import { exportCommand, importCommand } from "./commandsIO";
 import { fetchJson } from "./registryUtils";
 import type { Command } from "./types";
@@ -104,37 +108,9 @@ export const commands: Command[] = [
       + "and what I should try next.",
     autoSubmit: false,
   },
-  {
-    kind: "llm-prefill",
-    name: "optimize",
-    description: "Optimize parameters on a step",
-    icon: <Zap className="size-3.5" aria-hidden />,
-    params: [
-      {
-        kind: "text",
-        name: "stepHint",
-        label: "Which step? (optional)",
-        placeholder: "e.g. 'last step', 'the text search step', or a step id",
-      },
-    ],
-    prompt: (values) => {
-      const hint = (values["stepHint"] ?? "").trim();
-      if (hint === "") {
-        return (
-          "Run optimize_search_parameters on the step in my current "
-          + "strategy that's most likely to benefit. Pick reasonable "
-          + "objective and controls, and ask for my approval before "
-          + "kicking it off."
-        );
-      }
-      return (
-        `Run optimize_search_parameters on ${hint}. Pick reasonable `
-        + "objective and controls, and ask for my approval before kicking "
-        + "it off."
-      );
-    },
-    autoSubmit: false,
-  },
+  optimizeCommand,
+  validateCommand,
+  researchCommand,
   {
     kind: "llm-prefill",
     name: "summarize",

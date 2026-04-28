@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
+from pathfinder.ai.specialists.types import SpecialistMode
 from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.models import Conversation
@@ -90,6 +91,17 @@ def _parse_strategy_ast(plan_raw: JSONObject) -> StrategyAst | None:
         return None
 
 
+def _parse_specialist_mode(raw: JSONObject | None) -> SpecialistMode | None:
+    """Parse the persisted ``specialist_mode`` JSON column into the typed model."""
+    if raw is None:
+        return None
+    try:
+        return SpecialistMode.model_validate(raw)
+    except (ValueError, KeyError, TypeError) as exc:
+        logger.warning("Failed to parse specialist_mode payload", error=str(exc))
+        return None
+
+
 def build_conversation_response(
     conversation: Conversation,
     *,
@@ -130,6 +142,7 @@ def build_conversation_response(
         supervisor_model_id=conversation.supervisor_model_id,
         parent_conversation_id=conversation.parent_conversation_id,
         parent_message_id=conversation.parent_message_id,
+        specialist_mode=_parse_specialist_mode(conversation.specialist_mode),
     )
 
 

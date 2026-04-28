@@ -2,7 +2,7 @@
 
 Fields:
 
-* ``supervisor_model_id`` — catalog id (e.g. ``anthropic/claude-sonnet-4-5``)
+* ``supervisor_model_id`` — catalog id (e.g. ``openai:gpt-4.1-mini``)
   overriding the orchestrator's default model. ``None`` = auto (use the
   smallest model of the configured default provider).
 * ``pipeline_config`` — per-phase ``{modelId, reasoningEffort}`` overrides,
@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pathfinder.ai.agents._model_resolution import SpecialistCommand
 from pathfinder.ai.models.catalog import get_model_entry
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.platform.pipeline import (
@@ -153,3 +154,33 @@ def phase_config_from_dict(
     """Build a typed per-phase config map from a JSON dict (API input)."""
     payload = _parse_pipeline_config(raw)
     return dict(payload.phases) if payload is not None else {}
+
+
+async def set_specialist_default(
+    session: AsyncSession,
+    *,
+    user_id: UUID,
+    command: SpecialistCommand,
+    model_id: str,
+) -> None:
+    """Persist a sticky model default for a specialist command.
+
+    Validates the model id against the catalog. Reads the current
+    ``specialist_model_defaults`` JSONB, sets ``defaults[command] = model_id``,
+    and writes back.
+    """
+    if get_model_entry(model_id) is None:
+        msg = f"unknown specialist model_id: {model_id}"
+        raise UnknownModelError(msg)
+    raw = await session.scalar(
+        select(User.specialist_model_defaults).where(User.id == user_id),
+    )
+    defaults: dict[str, str] = dict(raw) if raw else {}
+    if defaults.get(command) == model_id:
+        return
+    defaults[command] = model_id
+    await session.execute(
+        update(User)
+        .where(User.id == user_id)
+        .values(specialist_model_defaults=defaults),
+    )

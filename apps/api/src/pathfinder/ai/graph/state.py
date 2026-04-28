@@ -17,6 +17,7 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
+from pathfinder.ai.specialists.types import SpecialistMode
 from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -199,3 +200,5 @@ class PipelineState(BaseModel):
     pending_approval: PendingApproval | None = None
     created_gene_set_ids: list[str] = Field(default_factory=list)
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
+
+    specialist_mode: SpecialistMode | None = None

@@ -1,6 +1,9 @@
 import type { ComponentType } from "react";
 import type { DataPartKind, DataPartPayloadMap } from "@pathfinder/shared";
 
+import { OptimizeLaunchPart } from "@/features/conversation/launchers/OptimizeLaunchPart";
+import { SpecialistEnteredPart } from "@/features/conversation/specialists/SpecialistEnteredPart";
+import { SpecialistExitedPart } from "@/features/conversation/specialists/SpecialistExitedPart";
 import { DataBackgroundTaskStarted } from "./parts/DataBackgroundTaskStarted";
 import { DataConversationTitle } from "./parts/DataConversationTitle";
 import { DataDecisionPresented } from "./parts/DataDecisionPresented";
@@ -15,6 +18,7 @@ import { DataProblemFrame } from "./parts/DataProblemFrame";
 import { DataStrategyLink } from "./parts/DataStrategyLink";
 import { DataStrategyMeta } from "./parts/DataStrategyMeta";
 import { DataStrategyUpdate } from "./parts/DataStrategyUpdate";
+import { DataSpecialistSuggestion } from "./parts/DataSpecialistSuggestion";
 import { DataSupervisorDecision } from "./parts/DataSupervisorDecision";
 import { DataTaskCompleted } from "./parts/DataTaskCompleted";
 import { DataTaskProgress } from "./parts/DataTaskProgress";
@@ -52,6 +56,10 @@ export const dataPartComponents: {
   "data-turn-rejected": DataTurnRejected,
   "data-turn-qa": DataTurnQa,
   "data-supervisor-decision": DataSupervisorDecision,
+  "data-specialist-suggestion": DataSpecialistSuggestion,
+  "data-specialist-entered": SpecialistEnteredPart,
+  "data-specialist-exited": SpecialistExitedPart,
+  "data-optimize-launch": OptimizeLaunchPart,
   "data-scratchpad-updated": () => null,
   "data-turn-usage": () => null,
 };

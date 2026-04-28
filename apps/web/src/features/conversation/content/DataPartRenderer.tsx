@@ -45,6 +45,10 @@ export function DataPartRenderer({
     .with("data-turn-rejected", (k) => renderKind(k, data))
     .with("data-turn-qa", (k) => renderKind(k, data))
     .with("data-supervisor-decision", (k) => renderKind(k, data))
+    .with("data-specialist-suggestion", (k) => renderKind(k, data))
+    .with("data-specialist-entered", (k) => renderKind(k, data))
+    .with("data-specialist-exited", (k) => renderKind(k, data))
+    .with("data-optimize-launch", (k) => renderKind(k, data))
     .with("data-scratchpad-updated", (k) => renderKind(k, data))
     .with("data-turn-usage", (k) => renderKind(k, data))
     .exhaustive();

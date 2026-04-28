@@ -59,6 +59,18 @@ class BackgroundTaskRepository:
             )
             return result.scalar_one_or_none()
 
+    async def list_active_for_conversation(
+        self, *, conversation_id: UUID,
+    ) -> list[BackgroundTask]:
+        active_states = ("pending", "running", "resuming", "result_ready")
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(BackgroundTask)
+                .where(BackgroundTask.conversation_id == conversation_id)
+                .where(BackgroundTask.status.in_(active_states))
+            )
+            return list(result.scalars().all())
+
     async def mark_running(self, *, task_id: UUID) -> None:
         await self._set_values(
             task_id,

@@ -69,6 +69,7 @@ async def run_turn(
         user_id=user_id,
         memory_store=memory_store,
     )
+    conversation_for_input = conversation
 
     turn_message_id = writer.turn_id
     await writer.write(
@@ -83,9 +84,14 @@ async def run_turn(
             generate_conversation_title(body.last_user_text),
         )
 
+    graph_input = _build_turn_input(
+        body, user_id,
+        turn_message_id=writer.turn_id,
+        conversation=conversation_for_input,
+    )
     result = await _drive_graph(
         body=body,
-        user_id=user_id,
+        graph_input=graph_input,
         compiled_graph=compiled_graph,
         runtime_context=runtime_context,
         title_task=title_task,
@@ -114,14 +120,13 @@ async def run_turn(
 async def _drive_graph(
     *,
     body: ChatRequestBody,
-    user_id: UUID,
+    graph_input: dict[str, Any],
     compiled_graph: Any,
     runtime_context: Any,
     title_task: asyncio.Task[str] | None,
     writer: ChatEventWriter,
 ) -> _DriveResult:
     result = _DriveResult()
-    graph_input = _build_turn_input(body, user_id, turn_message_id=writer.turn_id)
     thread_config = {
         "configurable": {"thread_id": str(body.conversation_id)},
         "metadata": {
@@ -147,7 +152,7 @@ async def _drive_graph(
         logger.exception(
             "Turn runner failed",
             conversation_id=str(body.conversation_id),
-            user_id=str(user_id),
+            user_id=str(graph_input.get("user_id")),
             error_type=type(exc).__name__,
         )
         await writer.write(

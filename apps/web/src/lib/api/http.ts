@@ -185,7 +185,16 @@ export async function requestJson<T>(
     const url = buildUrl(path, args?.query);
     const issues = result.error.issues;
     if (process.env.NODE_ENV === "development") {
-      console.warn(`[SchemaValidation] ${path} response failed validation:`, issues);
+      console.error(`[SchemaValidation] ${path} failed:`, issues, "raw:", raw);
+      if (typeof window !== "undefined") {
+        try {
+          const log = JSON.parse(localStorage.getItem("__schema_errors") || "[]") as unknown[];
+          log.push({ path, issues, raw, ts: Date.now() });
+          localStorage.setItem("__schema_errors", JSON.stringify(log.slice(-10)));
+        } catch {
+          // ignore
+        }
+      }
     }
     throw new SchemaValidationError(url, issues);
   }

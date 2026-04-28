@@ -82,6 +82,13 @@ import type {
   StepCountsResponse,
   StepEvaluationResponse,
   StepResponse,
+  StepSummary,
+  ControlTestRun,
+  BiologicalFocus,
+  TurnExcerpt,
+  ValidateContext,
+  ResearchContext,
+  SpecialistMode,
   StrategyLink,
   StrategyMeta,
   StrategyPatch,
@@ -191,6 +198,20 @@ export type Step = StepResponse;
 export type GeneSet = GeneSetResponse;
 export type GeneConfidenceScore = GeneConfidenceScoreResponse;
 export type ControlSet = ControlSetResponse;
+
+export type SpecialistKind = "validate" | "research";
+
+export type SpecialistContext = ValidateContext | ResearchContext;
+export type SpecialistTurnExcerpt = TurnExcerpt;
+export type SpecialistMemoryHit = MemoryValue;
+export type {
+  StepSummary,
+  ControlTestRun,
+  BiologicalFocus,
+  ValidateContext,
+  ResearchContext,
+  SpecialistMode,
+};
 
 export type Strategy = Omit<ConversationResponse, "steps" | "isSaved"> & {
   steps: StepResponse[];
@@ -437,6 +458,34 @@ export interface DataSupervisorDecisionPayload {
   reason: string;
 }
 
+export interface DataSpecialistSuggestionPayload {
+  kind: SpecialistKind;
+}
+
+export interface DataSpecialistEnteredPayload {
+  kind: SpecialistKind;
+  modelId: string;
+  contextSummary: string;
+}
+
+export type DataSpecialistExitedPayload = Record<string, never>;
+
+export interface DataOptimizeLaunchPayload {
+  /** WDK numeric step id (the user-facing step number in the strategy). */
+  stepId: number;
+  /** Local AST step id (string) — what the per-step PATCH endpoint
+   *  expects. Optional for back-compat with payloads written before the
+   *  Apply Best Config button shipped. */
+  localStepId?: string | null | undefined;
+  paramKeys: string[];
+  criterion: string;
+  budget: number;
+  modelId?: string | null | undefined;
+  /** UUID of the durable background task created by the launcher.
+   *  Optional for forward-compat with launches persisted before D-6. */
+  taskId?: string | null | undefined;
+}
+
 export interface DataToolApprovalRequestPayload {
   toolCallId: string;
   toolName: string;
@@ -492,6 +541,10 @@ export type DataPartKind =
   | "data-turn-rejected"
   | "data-turn-qa"
   | "data-supervisor-decision"
+  | "data-specialist-suggestion"
+  | "data-specialist-entered"
+  | "data-specialist-exited"
+  | "data-optimize-launch"
   | "data-scratchpad-updated"
   | "data-turn-usage";
 
@@ -518,6 +571,10 @@ export interface DataPartPayloadMap {
   "data-turn-rejected": DataTurnRejectedPayload;
   "data-turn-qa": DataTurnQaPayload;
   "data-supervisor-decision": DataSupervisorDecisionPayload;
+  "data-specialist-suggestion": DataSpecialistSuggestionPayload;
+  "data-specialist-entered": DataSpecialistEnteredPayload;
+  "data-specialist-exited": DataSpecialistExitedPayload;
+  "data-optimize-launch": DataOptimizeLaunchPayload;
   "data-scratchpad-updated": Record<string, never>;
   "data-turn-usage": TurnUsage;
 }

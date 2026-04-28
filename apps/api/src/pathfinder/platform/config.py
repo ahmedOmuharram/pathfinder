@@ -97,8 +97,8 @@ class Settings(BaseSettings):
     ollama_base_url: str = ""
 
     # Unified model defaults — provider + tier resolve to per-phase models.
-    default_provider: ModelProvider = "anthropic"
-    default_tier: TierName = "balanced"
+    default_provider: ModelProvider = "openai"
+    default_tier: TierName = "fast"
 
     # VEuPathDB
     veupathdb_default_site: str = "veupathdb"

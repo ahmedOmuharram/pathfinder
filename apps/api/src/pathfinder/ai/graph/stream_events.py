@@ -10,6 +10,8 @@ from uuid import UUID
 
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
 
+from pathfinder.ai.specialists.types import SpecialistKind
+
 
 def phase_start_event(*, phase: str, trace_id: str, model: str) -> DataChunk:
     return DataChunk(
@@ -66,6 +68,14 @@ def supervisor_decision_event(*, to: str, reason: str) -> DataChunk:
     return DataChunk(
         type="data-supervisor-decision",
         data={"to": to, "reason": reason},
+    )
+
+
+def specialist_suggestion_event(*, kind: SpecialistKind) -> DataChunk:
+    """``data-specialist-suggestion`` chunk for the supervisor's hint chip."""
+    return DataChunk(
+        type="data-specialist-suggestion",
+        data={"kind": kind},
     )
 
 

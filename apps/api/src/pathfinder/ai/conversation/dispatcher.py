@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.capabilities.security import scan_user_input
 from pathfinder.ai.conversation._turn_helpers import (
-    _ensure_chat_row,
     _persist_user_message,
 )
 from pathfinder.ai.conversation.event_stream import iter_sse, latest_event
@@ -20,6 +19,7 @@ from pathfinder.persistence.repositories.conversation import (
 )
 from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.conversations.begin import begin_conversation
 
 logger = get_logger(__name__)
 
@@ -57,9 +57,9 @@ async def dispatch(
     user_id: UUID,
 ) -> Response:
     """Scan user input, persist it, enqueue a turn job, tail the event stream."""
-    await _ensure_chat_row(
-        session,
-        body.conversation_id,
+    await begin_conversation(
+        session=session,
+        conversation_id=body.conversation_id,
         user_id=user_id,
         site_id=body.site_id,
         experiment_id=body.experiment_id,

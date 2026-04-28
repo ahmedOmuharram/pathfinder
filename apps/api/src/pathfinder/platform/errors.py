@@ -56,6 +56,10 @@ class ErrorCode(StrEnum):
     # Conversation
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
 
+    # Specialists / launchers
+    SPECIALIST_PRECONDITION_FAILED = "SPECIALIST_PRECONDITION_FAILED"
+    SESSION_CONFLICT = "SESSION_CONFLICT"
+
 
 _init_status_map()
 

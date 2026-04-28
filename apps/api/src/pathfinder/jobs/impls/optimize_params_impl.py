@@ -148,14 +148,22 @@ async def optimize_search_parameters_impl(
         specs, cast("dict[str, JsonValue]", fixed_parameters)
     )
 
+    start_data: dict[str, JsonValue] = {
+        "search_name": target_m.search_name,
+        "variant_count": len(variants),
+        "objective": settings_m.objective,
+    }
+    if settings_m.criterion:
+        start_data["criterion"] = settings_m.criterion
+    if settings_m.model_id:
+        start_data["model_id"] = settings_m.model_id
     await progress.update(
         percent=0.0,
-        message=f"Starting parallel sweep ({len(variants)} variants)",
-        data={
-            "search_name": target_m.search_name,
-            "variant_count": len(variants),
-            "objective": settings_m.objective,
-        },
+        message=(
+            f"Starting parallel sweep ({len(variants)} variants)"
+            + (f" — {settings_m.criterion}" if settings_m.criterion else "")
+        ),
+        data=start_data,
     )
 
     cap = settings_m.max_parallel or _DEFAULT_MAX_PARALLEL
@@ -196,6 +204,10 @@ async def optimize_search_parameters_impl(
 
     sweep = SweepResult.model_validate({"variants": raw_results, "best": None})
     result_json: dict[str, Any] = sweep.model_dump(by_alias=True, mode="json")
+    if settings_m.criterion:
+        result_json["criterion"] = settings_m.criterion
+    if settings_m.model_id:
+        result_json["modelId"] = settings_m.model_id
 
     await progress.update(
         percent=0.98, message="Exporting sweep result", data=None,

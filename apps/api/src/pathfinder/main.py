@@ -58,10 +58,12 @@ from pathfinder.transport.http.routers import (
     gene_sets,
     health,
     internal,
+    launchers,
     me,
     memories,
     models,
     sites,
+    specialists,
     streaming_schema,
     tasks,
     tiers,
@@ -171,6 +173,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     shutdown_langfuse()
 
 
+def _register_routers(app: FastAPI) -> None:
+    """Mount every always-on HTTP router on the app."""
+    for router in (
+        health.router,
+        sites.router,
+        models.router,
+        tiers.router,
+        chat.router,
+        conversations.router,
+        experiments.router,
+        control_sets.router,
+        veupathdb_auth.router,
+        gene_sets.router,
+        exports.router,
+        feedback.router,
+        internal.router,
+        _stream_parts_schemas.router,
+        streaming_schema.router,
+        user_data.router,
+        evaluation.router,
+        memories.router,
+        me.router,
+        tasks.router,
+        specialists.router,
+        launchers.router,
+    ):
+        app.include_router(router)
+
+
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     settings = get_settings()
@@ -275,27 +306,7 @@ def create_app() -> FastAPI:
             cast("Callable[[Request, Exception], Awaitable[Response]]", handler),
         )
 
-    # Routers
-    app.include_router(health.router)
-    app.include_router(sites.router)
-    app.include_router(models.router)
-    app.include_router(tiers.router)
-    app.include_router(chat.router)
-    app.include_router(conversations.router)
-    app.include_router(experiments.router)
-    app.include_router(control_sets.router)
-    app.include_router(veupathdb_auth.router)
-    app.include_router(gene_sets.router)
-    app.include_router(exports.router)
-    app.include_router(feedback.router)
-    app.include_router(internal.router)
-    app.include_router(_stream_parts_schemas.router)
-    app.include_router(streaming_schema.router)
-    app.include_router(user_data.router)
-    app.include_router(evaluation.router)
-    app.include_router(memories.router)
-    app.include_router(me.router)
-    app.include_router(tasks.router)
+    _register_routers(app)
 
     # Dev-only routes (e2e / local dev with mock chat provider).
     if settings.pathfinder_chat_provider.strip().lower() == "mock":

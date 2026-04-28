@@ -67,6 +67,11 @@ class AgentDeps(BaseModel):
     db_session_factory: SkipValidation[DBSessionFactory] | None = None
     last_phase_outcome: PhaseOutcome | None = None
     last_phase_name: PhaseName | None = None
+    # Specialist mode payload threaded into deps so the validate /
+    # research agents' module-level dynamic instructions can read it
+    # without registering a new closure per turn (which would leak on
+    # the singleton agent).
+    specialist_mode: object | None = None
 
 
 def build_node_deps(
@@ -95,6 +100,7 @@ def build_node_deps(
         db_session_factory=context.db_session_factory,
         last_phase_outcome=state.last_phase_outcome,
         last_phase_name=state.current_phase,
+        specialist_mode=state.specialist_mode,
     )
 
 

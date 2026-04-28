@@ -51,6 +51,17 @@ class OptimizationSettings(BaseModel):
     """Maximum number of variants to evaluate concurrently in the parallel
     sweep. ``None`` falls back to the impl default (5). Bounded so a large
     parameter grid does not stampede WDK."""
+    criterion: str = ""
+    """Free-text user goal from the launcher form (e.g. 'find params that
+    give 50-200 results', 'maximize overlap with my known positives').
+    The structured scorer (objective / beta / controls) is the source of
+    truth for trial scoring; ``criterion`` is captured for audit, surfaced
+    in progress messages, and reachable from the result for v2 when we
+    add criterion-aware scoring."""
+    model_id: str = ""
+    """Resolved catalog model id from the launcher's model picker. Empty
+    string means the impl uses its own default. Persisted on the result
+    so the user can see which model produced a given sweep."""
 
 
 def _parse_and_validate_inputs(

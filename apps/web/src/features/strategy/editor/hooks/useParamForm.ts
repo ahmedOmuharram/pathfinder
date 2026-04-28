@@ -47,17 +47,6 @@ function extractDefaults(
       ? coerceToMulti(source)
       : coerceToSingle(source);
     defaults[spec.name] = result;
-    if (typeof console !== "undefined") {
-      console.log("DEBUG extractDefaults", {
-        param: spec.name,
-        type: spec.type,
-        isMulti: isMultiParam(spec),
-        overrideHas,
-        overrideValue: overrideHas ? override[spec.name] : undefined,
-        specInitialDisplayValue: spec.initialDisplayValue,
-        result,
-      });
-    }
   }
   return defaults;
 }

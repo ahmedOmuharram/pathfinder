@@ -80,6 +80,7 @@ from pathfinder.ai.graph.stream_events import (
     phase_change_event,
     phase_start_event,
     scratchpad_updated_event,
+    specialist_suggestion_event,
     supervisor_decision_event,
     turn_qa_event,
     turn_rejected_event,
@@ -331,6 +332,8 @@ class _PhaseRunCapture(BaseModel):
     # ``cost_usd - charged_cost``.
     charged_input_tokens: int = 0
     charged_output_tokens: int = 0
+    charged_cache_read_tokens: int = 0
+    charged_cache_write_tokens: int = 0
     charged_cost: Decimal = Field(default_factory=lambda: Decimal(0))
     orphan_text_parts: list[TextPart] = Field(default_factory=list)
     prose_already_streamed: bool = False
@@ -416,8 +419,8 @@ def _absorb_run_result(
         capture.phase_outcome = PhaseOutcome(
             disposition=PhaseDisposition.AWAITING_USER,
             prose=(
-                "The plan is ready for your review. Reply with 'approved' "
-                "/ 'proceed' to run it, or describe changes you'd like."
+                "The plan is ready for your review. Click on 'Approve' "
+                "or 'Deny' in the right sidebar, or describe changes you'd like."
             ),
             reason=f"{approval_call.tool_name} awaiting user approval",
         )
@@ -760,12 +763,25 @@ async def _charge_token_delta(
         return
     delta_input = usage.input_tokens - capture.charged_input_tokens
     delta_output = usage.output_tokens - capture.charged_output_tokens
-    delta_tokens = delta_input + delta_output
+    delta_cache_read = (
+        usage.cache_read_tokens - capture.charged_cache_read_tokens
+    )
+    delta_cache_write = (
+        usage.cache_write_tokens - capture.charged_cache_write_tokens
+    )
+    delta_tokens = (
+        delta_input + delta_output + delta_cache_read + delta_cache_write
+    )
     if delta_tokens <= 0:
         return
     provider_name, model_name = _split_agent_model(agent_model)
     delta_cost = cost_for_run(
-        usage=RunUsage(input_tokens=delta_input, output_tokens=delta_output),
+        usage=RunUsage(
+            input_tokens=delta_input,
+            output_tokens=delta_output,
+            cache_read_tokens=delta_cache_read,
+            cache_write_tokens=delta_cache_write,
+        ),
         model_name=model_name,
         provider_name=provider_name,
         provider_url=None,
@@ -789,6 +805,8 @@ async def _charge_token_delta(
         return
     capture.charged_input_tokens += delta_input
     capture.charged_output_tokens += delta_output
+    capture.charged_cache_read_tokens += delta_cache_read
+    capture.charged_cache_write_tokens += delta_cache_write
     capture.charged_cost += delta_cost
     _emit_chunk(
         writer,
@@ -1168,6 +1186,17 @@ async def supervisor_node(
     new_parts: list[_TurnPart] = [
         _data_part("data-supervisor-decision", {"to": decision.to, "reason": decision.reason}),
     ]
+    if decision.suggested_specialist is not None:
+        _emit_chunk(
+            writer,
+            specialist_suggestion_event(kind=decision.suggested_specialist),
+        )
+        new_parts.append(
+            _data_part(
+                "data-specialist-suggestion",
+                {"kind": decision.suggested_specialist},
+            ),
+        )
 
     if decision.to in ("reject", "question") and state.phase_call_counts:
         logger.info(

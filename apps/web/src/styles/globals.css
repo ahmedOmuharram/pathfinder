@@ -747,3 +747,32 @@
   list-style-type: lower-roman;
 }
 
+
+/* ─── Specialist mode session DOM grouping (spec §D.4) ───
+ * The conversation container carries `data-session-active="validate|research"`
+ * during an open specialist session. Children get a kind-tinted vertical rail
+ * down their left edge, complementing the bracket-styled
+ * data-specialist-entered / data-specialist-exited parts to deliver
+ * DOM-level "these messages belong to one session" grouping. */
+.specialist-rail-validate > * {
+  border-left: 2px solid rgb(147 197 253);
+  padding-left: 0.75rem;
+}
+.dark .specialist-rail-validate > * {
+  border-left-color: rgb(30 64 175);
+}
+.specialist-rail-research > * {
+  border-left: 2px solid rgb(216 180 254);
+  padding-left: 0.75rem;
+}
+.dark .specialist-rail-research > * {
+  border-left-color: rgb(107 33 168);
+}
+
+/* The bracket markers themselves keep their own borders — drop the rail
+ * for them so the open/close bracket geometry isn't broken. */
+.specialist-rail-validate > [data-specialist-bracket],
+.specialist-rail-research > [data-specialist-bracket] {
+  border-left-width: 1px;
+  padding-left: 0.75rem;
+}

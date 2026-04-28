@@ -9,6 +9,8 @@ from pathfinder.services.strategies.schemas import (
 )
 
 from .conversations import (
+    BeginConversationRequest,
+    BeginConversationResponse,
     ConversationDuplicateResponse,
     ConversationPatchBody,
     ConversationResponse,
@@ -51,6 +53,8 @@ from .veupathdb_auth import AuthStatusResponse, AuthSuccessResponse
 __all__ = [
     "AuthStatusResponse",
     "AuthSuccessResponse",
+    "BeginConversationRequest",
+    "BeginConversationResponse",
     "ConversationDuplicateResponse",
     "ConversationPatchBody",
     "ConversationResponse",

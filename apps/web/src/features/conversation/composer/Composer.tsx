@@ -10,12 +10,17 @@ import { Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { OptimizeLauncherForm } from "@/features/conversation/launchers/OptimizeLauncherForm";
+import { useEnterSpecialist } from "@/features/conversation/specialists/useEnterSpecialist";
 import { ParamStepper } from "@/features/conversation/slash/ParamStepper";
 import { SlashPopover } from "@/features/conversation/slash/SlashPopover";
 import { commands, findCommand } from "@/features/conversation/slash/registry";
 import type { Command, CommandResult } from "@/features/conversation/slash/types";
 import { parseSlashInput } from "@/features/conversation/slash/parser";
-import { conversationDetailOptions } from "@/lib/api/conversations";
+import {
+  beginConversation,
+  conversationDetailOptions,
+} from "@/lib/api/conversations";
 import { useSessionStore } from "@/state/useSessionStore";
 
 const tokensCompact = new Intl.NumberFormat("en-US", {
@@ -61,26 +66,65 @@ export function Composer({ conversationId }: { conversationId: string }) {
   const aui = useAui();
   const text = useAuiState((s) => s.composer.text);
   const siteId = useSessionStore((s) => s.selectedSite);
+  const { data: conversationDetail } = useQuery(
+    conversationDetailOptions(conversationId),
+  );
+  const stepCount = conversationDetail?.steps.length ?? 0;
+  const activeSpecialistKind = conversationDetail?.specialistMode?.kind ?? null;
 
+  const enterSpecialistMutation = useEnterSpecialist(conversationId);
   const [pendingCommand, setPendingCommand] = useState<Command | null>(null);
+  const [optimizerOpen, setOptimizerOpen] = useState(false);
 
   const parsed = parseSlashInput(text);
   const showPopover =
-    pendingCommand === null && parsed !== null && parsed.rest === "";
-
-  function chatIdFromLocation(): string | null {
-    if (typeof window === "undefined") return null;
-    const match = window.location.pathname.match(/\/conversation\/([^/]+)/);
-    return match?.[1] ?? null;
-  }
+    pendingCommand === null
+    && !optimizerOpen
+    && parsed !== null
+    && parsed.rest === "";
 
   async function runCommand(command: Command, values: Record<string, string>) {
-    const conversationId = chatIdFromLocation();
-    if (conversationId === null) {
-      toast.error("Slash commands require an active chat.");
+    const ctx = { conversationId, siteId, stepCount, activeSpecialistKind };
+    const rest = (parsed?.rest ?? "").trim();
+
+    try {
+      await beginConversation({
+        conversationId,
+        siteId,
+        ...(command.kind === "specialist-enter" && rest !== "" && { seedText: rest }),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to start conversation";
+      toast.error(msg);
       return;
     }
-    const ctx = { conversationId, siteId };
+
+    if (command.kind === "specialist-enter") {
+      aui.composer().setText("");
+      setPendingCommand(null);
+      enterSpecialistMutation.mutate(
+        {
+          kind: command.name === "validate" ? "validate" : "research",
+          ...(rest !== "" && { arg: rest }),
+        },
+        {
+          onSuccess: () => {
+            if (rest !== "") {
+              aui.composer().setText(rest);
+              aui.composer().send();
+            }
+          },
+        },
+      );
+      return;
+    }
+
+    if (command.kind === "launcher") {
+      aui.composer().setText("");
+      setPendingCommand(null);
+      setOptimizerOpen(true);
+      return;
+    }
 
     if (command.kind === "llm-prefill") {
       aui.composer().setText(command.prompt(values, ctx));
@@ -147,7 +191,8 @@ export function Composer({ conversationId }: { conversationId: string }) {
     exactMatch !== null
       && exactMatch !== undefined
       && parsed !== null
-      && parsed.rest === "";
+      && (parsed.rest === ""
+        || (exactMatch.kind === "specialist-enter" && exactMatch.params.length === 0));
 
   return (
     <ComposerPrimitive.Root
@@ -158,6 +203,12 @@ export function Composer({ conversationId }: { conversationId: string }) {
         open={showPopover}
         query={parsed?.token ?? ""}
         commands={commands}
+        ctx={{
+          conversationId,
+          siteId,
+          stepCount,
+          activeSpecialistKind,
+        }}
         onSelect={selectCommand}
         onDismiss={dismissPopover}
       />
@@ -165,8 +216,10 @@ export function Composer({ conversationId }: { conversationId: string }) {
         open={pendingCommand !== null}
         command={pendingCommand}
         ctx={{
-          conversationId: chatIdFromLocation() ?? "",
+          conversationId,
           siteId,
+          stepCount,
+          activeSpecialistKind,
         }}
         onComplete={(values) => {
           if (pendingCommand !== null) void runCommand(pendingCommand, values);
@@ -175,6 +228,11 @@ export function Composer({ conversationId }: { conversationId: string }) {
           setPendingCommand(null);
           aui.composer().setText("");
         }}
+      />
+      <OptimizeLauncherForm
+        open={optimizerOpen}
+        conversationId={conversationId}
+        onClose={() => setOptimizerOpen(false)}
       />
       <div className="focus-within:shadow-[var(--shadow-composer-focus)] flex flex-col gap-2 rounded-lg border bg-background shadow-[var(--shadow-composer)] transition-shadow">
         <ComposerPrimitive.Input

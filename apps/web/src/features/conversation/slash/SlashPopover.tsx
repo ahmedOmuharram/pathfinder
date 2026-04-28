@@ -4,16 +4,32 @@ import { AnimatePresence, motion } from "motion/react";
 import { useRef, useState } from "react";
 import { useEventListener } from "usehooks-ts";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 
-import type { Command } from "./types";
+import type { Command, CommandContext } from "./types";
 
 export interface SlashPopoverProps {
   open: boolean;
   query: string;
   commands: Command[];
+  ctx?: CommandContext;
   onSelect: (command: Command) => void;
   onDismiss: () => void;
+}
+
+function disabledReasonFor(
+  command: Command,
+  ctx: CommandContext | undefined,
+): string | null {
+  const resolver = command.disabledReason;
+  if (resolver === undefined || ctx === undefined) return null;
+  return resolver(ctx);
 }
 
 function filterCommands(commands: Command[], query: string): Command[] {
@@ -30,6 +46,7 @@ export function SlashPopover({
   open,
   query,
   commands,
+  ctx,
   onSelect,
   onDismiss,
 }: SlashPopoverProps) {
@@ -67,7 +84,7 @@ export function SlashPopover({
     }
     if (event.key === "Enter" || event.key === "Tab") {
       const cmd = filtered[activeIdx];
-      if (cmd !== undefined) {
+      if (cmd !== undefined && disabledReasonFor(cmd, ctx) === null) {
         event.preventDefault();
         onSelect(cmd);
       }
@@ -96,31 +113,54 @@ export function SlashPopover({
             "shadow-[var(--shadow-float)]",
           )}
         >
-          {filtered.map((cmd, i) => (
-            <button
-              key={cmd.name}
-              type="button"
-              data-testid={`slash-item-${cmd.name}`}
-              onMouseEnter={() => setActiveIdx(i)}
-              onClick={() => onSelect(cmd)}
-              className={cn(
-                "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
-                i === activeIdx
-                  ? "bg-accent text-accent-foreground"
-                  : "text-foreground",
-              )}
-            >
-              <span className="text-muted-foreground">
-                {cmd.icon}
-              </span>
-              <span className="font-mono text-[12px] font-medium">
-                /{cmd.name}
-              </span>
-              <span className="truncate text-[12px] text-muted-foreground">
-                {cmd.description}
-              </span>
-            </button>
-          ))}
+          <TooltipProvider delayDuration={150}>
+            {filtered.map((cmd, i) => {
+              const disabled = disabledReasonFor(cmd, ctx);
+              const row = (
+                <button
+                  key={cmd.name}
+                  type="button"
+                  data-testid={`slash-item-${cmd.name}`}
+                  data-disabled={disabled !== null ? "true" : undefined}
+                  disabled={disabled !== null}
+                  onMouseEnter={() => setActiveIdx(i)}
+                  onClick={() => {
+                    if (disabled !== null) return;
+                    onSelect(cmd);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
+                    disabled !== null
+                      ? "cursor-not-allowed opacity-50"
+                      : i === activeIdx
+                        ? "bg-accent text-accent-foreground"
+                        : "text-foreground",
+                  )}
+                >
+                  <span className="text-muted-foreground">
+                    {cmd.icon}
+                  </span>
+                  <span className="font-mono text-[12px] font-medium">
+                    /{cmd.name}
+                  </span>
+                  <span className="truncate text-[12px] text-muted-foreground">
+                    {cmd.description}
+                  </span>
+                </button>
+              );
+              if (disabled === null) return row;
+              return (
+                <Tooltip key={cmd.name}>
+                  <TooltipTrigger asChild>
+                    <span className="block">{row}</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    {disabled}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </TooltipProvider>
         </motion.div>
       )}
     </AnimatePresence>

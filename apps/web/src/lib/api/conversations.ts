@@ -29,46 +29,27 @@ function withDefaults(
   return { steps: [], rootStepId: null, recordType: null, isSaved: false, ...s };
 }
 
-const ConversationSummarySchema = z.object({
-  id: z.uuid(),
-  name: z.string(),
-  siteId: z.string(),
-  experimentId: z.string().nullable(),
-  wdkStrategyId: z.number().int().nullable(),
-  isSaved: z.boolean(),
-  stepCount: z.number().int(),
-  estimatedSize: z.number().int().nullable(),
-  dismissedAt: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-  recordType: z.string().nullable(),
-  parentConversationId: z.uuid().nullable().optional(),
-  parentMessageId: z.uuid().nullable().optional(),
-});
-
-export type ConversationSummary = z.infer<typeof ConversationSummarySchema>;
+export type ConversationSummary = ConversationResponse;
 
 
 export async function listConversations(
   siteId?: string | null,
 ): Promise<ConversationSummary[]> {
-  const raw = await requestJson(
+  return await requestJson(
     conversationListSchema,
     "/api/v1/conversations",
     siteId != null && siteId !== "" ? { query: { siteId } } : {},
   );
-  return raw as unknown as ConversationSummary[];
 }
 
 export async function listDismissedConversations(
   siteId?: string | null,
 ): Promise<ConversationSummary[]> {
-  const raw = await requestJson(
+  return await requestJson(
     conversationListSchema,
     "/api/v1/conversations/dismissed",
     siteId != null && siteId !== "" ? { query: { siteId } } : {},
   );
-  return raw as unknown as ConversationSummary[];
 }
 
 export async function getConversation(
@@ -118,7 +99,7 @@ export async function renameConversation(
   name: string,
 ): Promise<ConversationSummary> {
   const raw = await requestJson(
-    ConversationSummarySchema,
+    conversationResponseSchema,
     `/api/v1/conversations/${conversationId}`,
     { method: "PATCH", body: { name } },
   );
@@ -130,7 +111,7 @@ export async function setConversationSaved(
   isSaved: boolean,
 ): Promise<ConversationSummary> {
   const raw = await requestJson(
-    ConversationSummarySchema,
+    conversationResponseSchema,
     `/api/v1/conversations/${conversationId}`,
     { method: "PATCH", body: { isSaved } },
   );
@@ -142,7 +123,7 @@ export async function forkConversation(
   fromMessageId: string,
 ): Promise<ConversationSummary> {
   const raw = await requestJson(
-    ConversationSummarySchema,
+    conversationResponseSchema,
     `/api/v1/conversations/${sourceConversationId}/fork`,
     { method: "POST", body: { fromMessageId } },
   );
@@ -213,6 +194,34 @@ export async function openConversation(payload: {
     { method: "POST", body: payload },
   );
   return raw;
+}
+
+const beginConversationResponseSchema = z.object({
+  conversationId: z.uuid(),
+  isNew: z.boolean(),
+  name: z.string(),
+});
+
+export type BeginConversationResponse = z.infer<typeof beginConversationResponseSchema>;
+
+export async function beginConversation(args: {
+  conversationId: string;
+  siteId: string;
+  experimentId?: string | null;
+  seedText?: string | null;
+}): Promise<BeginConversationResponse> {
+  const body: { siteId: string; experimentId?: string; seedText?: string } = {
+    siteId: args.siteId,
+  };
+  if (args.experimentId != null && args.experimentId !== "")
+    body.experimentId = args.experimentId;
+  if (args.seedText != null && args.seedText !== "")
+    body.seedText = args.seedText;
+  return await requestJson(
+    beginConversationResponseSchema,
+    `/api/v1/conversations/${args.conversationId}/begin`,
+    { method: "POST", body },
+  );
 }
 
 export async function createConversation(args: {

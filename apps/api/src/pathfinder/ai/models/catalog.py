@@ -343,7 +343,7 @@ def _build_index() -> dict[str, ModelEntry]:
 def get_model_entry(model_id: str) -> ModelEntry | None:
     """Look up a model by catalog ID.
 
-    :param model_id: Model identifier (e.g. ``openai/gpt-5``).
+    :param model_id: Model identifier (e.g. ``openai:gpt-4.1-mini``).
     :returns: Model entry if found, otherwise None.
     """
     return _build_index().get(model_id)

@@ -20,6 +20,7 @@ import { turnUsageSchema } from "@pathfinder/shared/generated/zod/turnUsageSchem
 
 import { getAuthHeaders } from "@/lib/api/http";
 import {
+  beginConversation,
   conversationDetailOptions,
   conversationListOptions,
 } from "@/lib/api/conversations";
@@ -153,6 +154,7 @@ export function useChatRuntime({
         }),
       prepareSendMessagesRequest: async ({ id, messages, trigger, body }) => {
         const siteId = useSessionStore.getState().selectedSite;
+        await beginConversation({ conversationId, siteId });
         return {
           body: buildChatRequestBody({
             conversationId,

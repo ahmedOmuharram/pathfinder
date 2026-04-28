@@ -1,0 +1,110 @@
+"""Conversation orchestrator — single entry point for first-action setup.
+
+Every "first action" on a conversation (chat send, slash command, launcher)
+calls ``begin_conversation`` first. The endpoint:
+
+1. Idempotently inserts the conversation row (``ON CONFLICT (id) DO NOTHING``)
+   so callers don't race when two first actions fire concurrently.
+2. If the row was newly created and the caller supplied ``seed_text``, kicks
+   off async title generation in the background and persists when ready.
+3. Returns the (possibly newly-created) conversation.
+
+Downstream endpoints (``/chat``, ``/specialists/{kind}/enter``,
+``/launchers/optimize``) assume the row exists — they do not lazy-create.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from uuid import UUID
+
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from pathfinder.ai.conversation.title_generator import generate_conversation_title
+from pathfinder.persistence.models import Conversation
+from pathfinder.persistence.repositories.conversation import (
+    ConversationRepository,
+    ConversationUpdate,
+)
+from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.logging import get_logger
+
+logger = get_logger(__name__)
+
+DEFAULT_NEW_CONVERSATION_NAME = ""
+
+_TITLE_TASKS: set[asyncio.Task[None]] = set()
+
+
+@dataclass
+class BeginResult:
+    conversation: Conversation
+    is_new: bool
+
+
+async def begin_conversation(
+    *,
+    session: AsyncSession,
+    conversation_id: UUID,
+    user_id: UUID,
+    site_id: str,
+    experiment_id: str | None = None,
+    seed_text: str | None = None,
+) -> BeginResult:
+    stmt = (
+        insert(Conversation)
+        .values(
+            id=conversation_id,
+            user_id=user_id,
+            site_id=site_id,
+            name=DEFAULT_NEW_CONVERSATION_NAME,
+            experiment_id=experiment_id,
+        )
+        .on_conflict_do_nothing(index_elements=["id"])
+        .returning(Conversation.id)
+    )
+    result = await session.execute(stmt)
+    inserted_id = result.scalar_one_or_none()
+    is_new = inserted_id is not None
+    await session.flush()
+
+    repo = ConversationRepository(session)
+    conversation = await repo.get_by_id(conversation_id)
+    if conversation is None:
+        msg = f"Conversation {conversation_id} not found after upsert"
+        raise RuntimeError(msg)
+
+    if is_new and seed_text and seed_text.strip():
+        task = asyncio.create_task(
+            _persist_generated_title(conversation_id, seed_text),
+        )
+        _TITLE_TASKS.add(task)
+        task.add_done_callback(_TITLE_TASKS.discard)
+
+    return BeginResult(conversation=conversation, is_new=is_new)
+
+
+async def _persist_generated_title(
+    conversation_id: UUID, seed_text: str,
+) -> None:
+    try:
+        title = await generate_conversation_title(seed_text)
+    except Exception:
+        logger.exception(
+            "begin: title generation failed",
+            conversation_id=str(conversation_id),
+        )
+        return
+    if not title:
+        return
+    async with async_session_factory() as session:
+        repo = ConversationRepository(session)
+        existing = await repo.get_by_id(conversation_id)
+        if existing is None or existing.name:
+            return
+        await repo.update_conversation(
+            conversation_id, ConversationUpdate(name=title),
+        )
+        await session.commit()

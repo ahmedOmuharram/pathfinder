@@ -25,11 +25,14 @@ interface CompactStrategyViewProps {
   strategy: Strategy | null;
   /** Click handler for any step row. Receives the step id. */
   onStepClick?: (stepId: string) => void;
+  /** Step id currently focused by the URL / editor sheet. */
+  selectedStepId?: string | null;
 }
 
 export function CompactStrategyView({
   strategy,
   onStepClick,
+  selectedStepId = null,
 }: CompactStrategyViewProps) {
   if (strategy == null) return null;
 
@@ -68,6 +71,7 @@ export function CompactStrategyView({
                   key={seg.step.id}
                   step={seg.step}
                   secondaryInput={seg.secondaryInput}
+                  selectedStepId={selectedStepId}
                   {...(onStepClick !== undefined && { onStepClick })}
                 />
               );
@@ -76,6 +80,7 @@ export function CompactStrategyView({
               <StepRow
                 key={seg.step.id}
                 step={seg.step}
+                selectedStepId={selectedStepId}
                 {...(onStepClick !== undefined && { onStepClick })}
               />
             );
@@ -86,6 +91,7 @@ export function CompactStrategyView({
         <DisconnectedSection
           strategy={strategy}
           orphans={orphans}
+          selectedStepId={selectedStepId}
           {...(onStepClick !== undefined && { onStepClick })}
         />
       )}
@@ -97,12 +103,14 @@ interface DisconnectedSectionProps {
   strategy: Strategy;
   orphans: Step[];
   onStepClick?: (stepId: string) => void;
+  selectedStepId?: string | null;
 }
 
 function DisconnectedSection({
   strategy,
   orphans,
   onStepClick,
+  selectedStepId = null,
 }: DisconnectedSectionProps) {
   const push = usePushStrategyMutation();
   const orphanIds = new Set(orphans.map((s) => s.id));
@@ -133,14 +141,15 @@ function DisconnectedSection({
         </Button>
       </header>
       <p className="px-1 pb-1 text-[10px] text-muted-foreground">
-        These steps aren't connected and block save. Remove or wire them up
-        in the full editor.
+        These steps aren&apos;t connected and block save. Remove or wire
+        them up in the full editor.
       </p>
       <ol className="flex flex-col gap-0.5">
         {orphans.map((step) => (
           <OrphanRow
             key={step.id}
             step={step}
+            isSelected={step.id === selectedStepId}
             {...(onStepClick !== undefined && { onStepClick })}
           />
         ))}
@@ -152,9 +161,10 @@ function DisconnectedSection({
 interface OrphanRowProps {
   step: Step;
   onStepClick?: (stepId: string) => void;
+  isSelected?: boolean;
 }
 
-function OrphanRow({ step, onStepClick }: OrphanRowProps) {
+function OrphanRow({ step, onStepClick, isSelected = false }: OrphanRowProps) {
   const kind = inferStepKind(step);
   const dot = KIND_DOT[kind] ?? "bg-muted";
   const displayName = step.displayName ?? step.searchName ?? step.id;
@@ -164,7 +174,11 @@ function OrphanRow({ step, onStepClick }: OrphanRowProps) {
         type="button"
         onClick={() => onStepClick?.(step.id)}
         data-testid={`compact-orphan-row-${step.id}`}
-        className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-muted-foreground opacity-70 transition-opacity hover:bg-accent hover:opacity-100"
+        aria-current={isSelected ? "true" : undefined}
+        className={cn(
+          "flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-muted-foreground opacity-70 transition-opacity hover:bg-accent hover:opacity-100",
+          isSelected && "bg-accent text-foreground opacity-100 ring-1 ring-primary/50",
+        )}
       >
         <span
           aria-hidden
@@ -180,13 +194,17 @@ interface StepRowProps {
   step: CompactStep;
   onStepClick?: (stepId: string) => void;
   indented?: boolean;
+  selectedStepId?: string | null;
 }
 
-function StepRow({ step, onStepClick, indented = false }: StepRowProps) {
+function StepRow({
+  step, onStepClick, indented = false, selectedStepId = null,
+}: StepRowProps) {
   return (
     <li>
       <StepRowButton
         step={step}
+        selectedStepId={selectedStepId}
         {...(onStepClick !== undefined && { onStepClick })}
         indented={indented}
       />
@@ -194,17 +212,22 @@ function StepRow({ step, onStepClick, indented = false }: StepRowProps) {
   );
 }
 
-function StepRowButton({ step, onStepClick, indented = false }: StepRowProps) {
+function StepRowButton({
+  step, onStepClick, indented = false, selectedStepId = null,
+}: StepRowProps) {
   const dot = KIND_DOT[step.kind] ?? "bg-muted";
   const snapshot = useStepSnapshot(step);
   const liveCount = snapshot.estimatedSize;
+  const isSelected = step.id === selectedStepId;
 
   return (
     <button
       type="button"
       onClick={() => onStepClick?.(step.id)}
       data-testid={`compact-step-row-${step.id}`}
+      aria-current={isSelected ? "true" : undefined}
       className={cn(
+        isSelected && "bg-accent ring-1 ring-primary/50",
         "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent",
         indented && "ml-4",
       )}
@@ -227,9 +250,12 @@ interface CombineRowProps {
   step: CompactStep;
   secondaryInput: CompactStep;
   onStepClick?: (stepId: string) => void;
+  selectedStepId?: string | null;
 }
 
-function CombineRow({ step, secondaryInput, onStepClick }: CombineRowProps) {
+function CombineRow({
+  step, secondaryInput, onStepClick, selectedStepId = null,
+}: CombineRowProps) {
   const operator = step.operator ?? "";
   const operatorLabel = combineOperatorLabel(operator);
 
@@ -237,6 +263,7 @@ function CombineRow({ step, secondaryInput, onStepClick }: CombineRowProps) {
     <li className="space-y-0.5">
       <StepRowButton
         step={secondaryInput}
+        selectedStepId={selectedStepId}
         {...(onStepClick !== undefined && { onStepClick })}
         indented
       />
@@ -246,6 +273,7 @@ function CombineRow({ step, secondaryInput, onStepClick }: CombineRowProps) {
       </div>
       <StepRowButton
         step={step}
+        selectedStepId={selectedStepId}
         {...(onStepClick !== undefined && { onStepClick })}
       />
     </li>

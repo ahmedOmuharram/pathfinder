@@ -1244,6 +1244,65 @@
                 }
             }
         },
+        "/api/v1/conversations/{conversation_id}/begin": {
+            "post": {
+                "tags": [
+                    "conversations"
+                ],
+                "summary": "Begin Strategy",
+                "description": "Idempotent first-action setup for a conversation.\n\nInserts the row if missing (``ON CONFLICT (id) DO NOTHING``), schedules\ntitle generation when ``seedText`` is provided on a fresh row, and\nreturns the conversation. Every first-action client (chat send, slash\ncommand, launcher) calls this before its own request so downstream\nendpoints can assume the row exists.",
+                "operationId": "begin_strategy_api_v1_conversations__conversation_id__begin_post",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BeginConversationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/BeginConversationResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/conversations/step-counts": {
             "post": {
                 "tags": [
@@ -1373,6 +1432,82 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/StrategyAstNormalizeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/{strategyId}/steps/{stepId}": {
+            "patch": {
+                "tags": [
+                    "conversations"
+                ],
+                "summary": "Patch Step",
+                "operationId": "patch_step_api_v1_conversations__strategyId__steps__stepId__patch",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "strategyId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Strategyid"
+                        }
+                    },
+                    {
+                        "name": "stepId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Stepid"
+                        }
+                    },
+                    {
+                        "name": "siteId",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Siteid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StepPatchRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StepResponse"
                                 }
                             }
                         }
@@ -5342,6 +5477,242 @@
                     }
                 }
             }
+        },
+        "/api/v1/conversations/{conversation_id}/specialists/{kind}/enter": {
+            "post": {
+                "tags": [
+                    "specialists"
+                ],
+                "summary": "Enter Specialist",
+                "operationId": "enter_specialist_api_v1_conversations__conversation_id__specialists__kind__enter_post",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    },
+                    {
+                        "name": "kind",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "enum": [
+                                "validate",
+                                "research"
+                            ],
+                            "type": "string",
+                            "title": "Kind"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SpecialistEnterRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SpecialistEnterResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/{conversation_id}/specialists/exit": {
+            "post": {
+                "tags": [
+                    "specialists"
+                ],
+                "summary": "Exit Specialist",
+                "operationId": "exit_specialist_api_v1_conversations__conversation_id__specialists_exit_post",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SpecialistExitResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/{conversation_id}/specialists/state": {
+            "patch": {
+                "tags": [
+                    "specialists"
+                ],
+                "summary": "Update Specialist State",
+                "description": "Swap fields on the active specialist mode mid-session.\n\nCurrently only ``model_id`` is mutable. Validated against the catalog;\npersisted both onto ``Conversation.specialist_mode.model_id`` and the\nuser's sticky default for that command.",
+                "operationId": "update_specialist_state_api_v1_conversations__conversation_id__specialists_state_patch",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SpecialistStateUpdate"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SpecialistStateResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/{conversation_id}/launchers/optimize": {
+            "post": {
+                "tags": [
+                    "launchers"
+                ],
+                "summary": "Launch Optimize",
+                "operationId": "launch_optimize_api_v1_conversations__conversation_id__launchers_optimize_post",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/OptimizeLaunchRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OptimizeLaunchResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -5482,6 +5853,68 @@
                 "title": "BatchOrganismTargetRequest",
                 "description": "Per-organism override for a cross-organism batch experiment."
             },
+            "BeginConversationRequest": {
+                "properties": {
+                    "siteId": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "title": "Siteid"
+                    },
+                    "experimentId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Experimentid"
+                    },
+                    "seedText": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 4000
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Seedtext"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "siteId"
+                ],
+                "title": "BeginConversationRequest"
+            },
+            "BeginConversationResponse": {
+                "properties": {
+                    "conversationId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "title": "Conversationid"
+                    },
+                    "isNew": {
+                        "type": "boolean",
+                        "title": "Isnew"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "conversationId",
+                    "isNew",
+                    "name"
+                ],
+                "title": "BeginConversationResponse"
+            },
             "BenchmarkControlSet": {
                 "properties": {
                     "label": {
@@ -5528,6 +5961,56 @@
                 ],
                 "title": "BenchmarkControlSet",
                 "description": "A single control set within a benchmark suite."
+            },
+            "BiologicalFocus": {
+                "properties": {
+                    "organism": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Organism"
+                    },
+                    "geneFamily": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Genefamily"
+                    },
+                    "pathway": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Pathway"
+                    },
+                    "other": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Other"
+                    }
+                },
+                "type": "object",
+                "title": "BiologicalFocus"
             },
             "BootstrapResultResponse": {
                 "properties": {
@@ -5679,7 +6162,7 @@
                     },
                     "messages": {
                         "items": {
-                            "$ref": "#/components/schemas/_UIMessage"
+                            "$ref": "#/components/schemas/UIMessage"
                         },
                         "type": "array",
                         "title": "Messages"
@@ -5709,11 +6192,6 @@
                             }
                         ],
                         "title": "Experimentid"
-                    },
-                    "userMessageId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "title": "Usermessageid"
                     }
                 },
                 "type": "object",
@@ -6355,6 +6833,53 @@
                 "title": "ControlSetSummaryResponse",
                 "description": "Control set summary for listing."
             },
+            "ControlTestRun": {
+                "properties": {
+                    "taskId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "title": "Taskid"
+                    },
+                    "stepId": {
+                        "type": "integer",
+                        "title": "Stepid"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "succeeded",
+                            "failed",
+                            "running",
+                            "cancelled"
+                        ],
+                        "title": "Status"
+                    },
+                    "summary": {
+                        "type": "string",
+                        "title": "Summary",
+                        "default": ""
+                    },
+                    "completedAt": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Completedat"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "taskId",
+                    "stepId",
+                    "status"
+                ],
+                "title": "ControlTestRun"
+            },
             "ConversationDuplicateResponse": {
                 "properties": {
                     "id": {
@@ -6587,6 +7112,16 @@
                             }
                         ],
                         "title": "Parentmessageid"
+                    },
+                    "specialistMode": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/SpecialistMode"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
                     }
                 },
                 "type": "object",
@@ -7309,6 +7844,37 @@
                 ],
                 "title": "CustomEvent"
             },
+            "DataUIPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "pattern": "^data-",
+                        "title": "Type"
+                    },
+                    "id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Id"
+                    },
+                    "data": {
+                        "title": "Data"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "type",
+                    "data"
+                ],
+                "title": "DataUIPart",
+                "description": "Data part with dynamic type based on data name."
+            },
             "DecisionPresented": {
                 "properties": {
                     "decisionType": {
@@ -7406,6 +7972,486 @@
                     "reason"
                 ],
                 "title": "DoneEvent"
+            },
+            "DynamicToolApprovalRequestedPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "dynamic-tool",
+                        "title": "Type",
+                        "default": "dynamic-tool"
+                    },
+                    "toolName": {
+                        "type": "string",
+                        "title": "Toolname"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "approval-requested",
+                        "title": "State",
+                        "default": "approval-requested"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "toolName",
+                    "toolCallId",
+                    "input"
+                ],
+                "title": "DynamicToolApprovalRequestedPart",
+                "description": "Dynamic tool part in approval-requested state (awaiting user decision)."
+            },
+            "DynamicToolApprovalRespondedPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "dynamic-tool",
+                        "title": "Type",
+                        "default": "dynamic-tool"
+                    },
+                    "toolName": {
+                        "type": "string",
+                        "title": "Toolname"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "approval-responded",
+                        "title": "State",
+                        "default": "approval-responded"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "toolName",
+                    "toolCallId",
+                    "input"
+                ],
+                "title": "DynamicToolApprovalRespondedPart",
+                "description": "Dynamic tool part in approval-responded state (user approved/denied, execution pending)."
+            },
+            "DynamicToolInputAvailablePart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "dynamic-tool",
+                        "title": "Type",
+                        "default": "dynamic-tool"
+                    },
+                    "toolName": {
+                        "type": "string",
+                        "title": "Toolname"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "input-available",
+                        "title": "State",
+                        "default": "input-available"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "toolName",
+                    "toolCallId",
+                    "input"
+                ],
+                "title": "DynamicToolInputAvailablePart",
+                "description": "Dynamic tool part in input-available state."
+            },
+            "DynamicToolInputStreamingPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "dynamic-tool",
+                        "title": "Type",
+                        "default": "dynamic-tool"
+                    },
+                    "toolName": {
+                        "type": "string",
+                        "title": "Toolname"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "input-streaming",
+                        "title": "State",
+                        "default": "input-streaming"
+                    },
+                    "input": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Input"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "toolName",
+                    "toolCallId"
+                ],
+                "title": "DynamicToolInputStreamingPart",
+                "description": "Dynamic tool part in input-streaming state."
+            },
+            "DynamicToolOutputAvailablePart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "dynamic-tool",
+                        "title": "Type",
+                        "default": "dynamic-tool"
+                    },
+                    "toolName": {
+                        "type": "string",
+                        "title": "Toolname"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "output-available",
+                        "title": "State",
+                        "default": "output-available"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "output": {
+                        "title": "Output"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "preliminary": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Preliminary"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "toolName",
+                    "toolCallId",
+                    "input",
+                    "output"
+                ],
+                "title": "DynamicToolOutputAvailablePart",
+                "description": "Dynamic tool part in output-available state."
+            },
+            "DynamicToolOutputDeniedPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "dynamic-tool",
+                        "title": "Type",
+                        "default": "dynamic-tool"
+                    },
+                    "toolName": {
+                        "type": "string",
+                        "title": "Toolname"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "output-denied",
+                        "title": "State",
+                        "default": "output-denied"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "toolName",
+                    "toolCallId",
+                    "input"
+                ],
+                "title": "DynamicToolOutputDeniedPart",
+                "description": "Dynamic tool part in output-denied state (tool was denied, terminal state)."
+            },
+            "DynamicToolOutputErrorPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "dynamic-tool",
+                        "title": "Type",
+                        "default": "dynamic-tool"
+                    },
+                    "toolName": {
+                        "type": "string",
+                        "title": "Toolname"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "output-error",
+                        "title": "State",
+                        "default": "output-error"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "errorText": {
+                        "type": "string",
+                        "title": "Errortext"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "toolName",
+                    "toolCallId",
+                    "input",
+                    "errorText"
+                ],
+                "title": "DynamicToolOutputErrorPart",
+                "description": "Dynamic tool part in output-error state."
             },
             "EnrichmentCompareRequest": {
                 "properties": {
@@ -8939,6 +9985,58 @@
                 ],
                 "title": "FetchGeneIdsRequest",
                 "description": "Fetch gene IDs from an existing PathFinder strategy."
+            },
+            "FileUIPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "file",
+                        "title": "Type",
+                        "default": "file"
+                    },
+                    "mediaType": {
+                        "type": "string",
+                        "title": "Mediatype"
+                    },
+                    "filename": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Filename"
+                    },
+                    "url": {
+                        "type": "string",
+                        "title": "Url"
+                    },
+                    "providerMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providermetadata"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "mediaType",
+                    "url"
+                ],
+                "title": "FileUIPart",
+                "description": "A file part of a message."
             },
             "FoldMetricsResponse": {
                 "properties": {
@@ -11149,6 +12247,74 @@
                 "title": "OptimizationTrialData",
                 "description": "A single optimization trial result."
             },
+            "OptimizeLaunchRequest": {
+                "properties": {
+                    "stepId": {
+                        "type": "integer",
+                        "title": "Stepid"
+                    },
+                    "paramKeys": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "maxItems": 20,
+                        "minItems": 1,
+                        "title": "Paramkeys"
+                    },
+                    "criterion": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "minLength": 1,
+                        "title": "Criterion"
+                    },
+                    "budget": {
+                        "type": "integer",
+                        "maximum": 100.0,
+                        "minimum": 1.0,
+                        "title": "Budget",
+                        "default": 20
+                    },
+                    "modelId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Modelid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stepId",
+                    "paramKeys",
+                    "criterion"
+                ],
+                "title": "OptimizeLaunchRequest"
+            },
+            "OptimizeLaunchResponse": {
+                "properties": {
+                    "taskId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "title": "Taskid"
+                    },
+                    "messageId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "title": "Messageid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "taskId",
+                    "messageId"
+                ],
+                "title": "OptimizeLaunchResponse"
+            },
             "OrganismsResponse": {
                 "properties": {
                     "organisms": {
@@ -12432,6 +13598,57 @@
                 "title": "ReadinessState",
                 "description": "Aggregate readiness for the whole API process."
             },
+            "ReasoningUIPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "reasoning",
+                        "title": "Type",
+                        "default": "reasoning"
+                    },
+                    "text": {
+                        "type": "string",
+                        "title": "Text"
+                    },
+                    "state": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "streaming",
+                                    "done"
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "State"
+                    },
+                    "providerMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providermetadata"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "text"
+                ],
+                "title": "ReasoningUIPart",
+                "description": "A reasoning part of a message."
+            },
             "RecordAttribute": {
                 "properties": {
                     "name": {
@@ -12736,6 +13953,53 @@
                 ],
                 "title": "RefineResponse",
                 "description": "Response from refine_experiment."
+            },
+            "ResearchContext": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "research",
+                        "title": "Kind",
+                        "default": "research"
+                    },
+                    "researchQuestion": {
+                        "type": "string",
+                        "title": "Researchquestion",
+                        "default": ""
+                    },
+                    "currentStrategySummary": {
+                        "type": "string",
+                        "title": "Currentstrategysummary",
+                        "default": ""
+                    },
+                    "biologicalFocus": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/BiologicalFocus"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "relevantMemories": {
+                        "items": {
+                            "$ref": "#/components/schemas/MemoryValue"
+                        },
+                        "type": "array",
+                        "title": "Relevantmemories"
+                    },
+                    "recentTurns": {
+                        "items": {
+                            "$ref": "#/components/schemas/TurnExcerpt"
+                        },
+                        "type": "array",
+                        "maxItems": 5,
+                        "title": "Recentturns"
+                    }
+                },
+                "type": "object",
+                "title": "ResearchContext"
             },
             "ResearchNote": {
                 "properties": {
@@ -13099,6 +14363,295 @@
                 ],
                 "title": "SiteResponse",
                 "description": "VEuPathDB site information."
+            },
+            "SourceDocumentUIPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "source-document",
+                        "title": "Type",
+                        "default": "source-document"
+                    },
+                    "sourceId": {
+                        "type": "string",
+                        "title": "Sourceid"
+                    },
+                    "mediaType": {
+                        "type": "string",
+                        "title": "Mediatype"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "filename": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Filename"
+                    },
+                    "providerMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providermetadata"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "sourceId",
+                    "mediaType",
+                    "title"
+                ],
+                "title": "SourceDocumentUIPart",
+                "description": "A document source part of a message."
+            },
+            "SourceUrlUIPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "source-url",
+                        "title": "Type",
+                        "default": "source-url"
+                    },
+                    "sourceId": {
+                        "type": "string",
+                        "title": "Sourceid"
+                    },
+                    "url": {
+                        "type": "string",
+                        "title": "Url"
+                    },
+                    "title": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Title"
+                    },
+                    "providerMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providermetadata"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "sourceId",
+                    "url"
+                ],
+                "title": "SourceUrlUIPart",
+                "description": "A source part of a message."
+            },
+            "SpecialistEnterRequest": {
+                "properties": {
+                    "arg": {
+                        "type": "string",
+                        "maxLength": 4000,
+                        "title": "Arg",
+                        "default": ""
+                    },
+                    "modelId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Modelid"
+                    }
+                },
+                "type": "object",
+                "title": "SpecialistEnterRequest"
+            },
+            "SpecialistEnterResponse": {
+                "properties": {
+                    "messageId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "title": "Messageid"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "validate",
+                            "research"
+                        ],
+                        "title": "Kind"
+                    },
+                    "modelId": {
+                        "type": "string",
+                        "title": "Modelid"
+                    },
+                    "context": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/ValidateContext"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ResearchContext"
+                            }
+                        ],
+                        "title": "Context",
+                        "discriminator": {
+                            "propertyName": "kind",
+                            "mapping": {
+                                "research": "#/components/schemas/ResearchContext",
+                                "validate": "#/components/schemas/ValidateContext"
+                            }
+                        }
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "messageId",
+                    "kind",
+                    "modelId",
+                    "context"
+                ],
+                "title": "SpecialistEnterResponse"
+            },
+            "SpecialistExitResponse": {
+                "properties": {
+                    "cleared": {
+                        "type": "boolean",
+                        "title": "Cleared"
+                    },
+                    "messageId": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "uuid"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Messageid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "cleared"
+                ],
+                "title": "SpecialistExitResponse"
+            },
+            "SpecialistMode": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "validate",
+                            "research"
+                        ],
+                        "title": "Kind"
+                    },
+                    "enteredAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Enteredat"
+                    },
+                    "modelId": {
+                        "type": "string",
+                        "title": "Modelid"
+                    },
+                    "context": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/ValidateContext"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ResearchContext"
+                            }
+                        ],
+                        "title": "Context",
+                        "discriminator": {
+                            "propertyName": "kind",
+                            "mapping": {
+                                "research": "#/components/schemas/ResearchContext",
+                                "validate": "#/components/schemas/ValidateContext"
+                            }
+                        }
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "kind",
+                    "enteredAt",
+                    "modelId",
+                    "context"
+                ],
+                "title": "SpecialistMode"
+            },
+            "SpecialistStateResponse": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "validate",
+                            "research"
+                        ],
+                        "title": "Kind"
+                    },
+                    "modelId": {
+                        "type": "string",
+                        "title": "Modelid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "kind",
+                    "modelId"
+                ],
+                "title": "SpecialistStateResponse"
+            },
+            "SpecialistStateUpdate": {
+                "properties": {
+                    "modelId": {
+                        "type": "string",
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "title": "Modelid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "modelId"
+                ],
+                "title": "SpecialistStateUpdate",
+                "description": "Mid-session swap of a non-context field on the active specialist mode."
             },
             "StepAnalysis-Input": {
                 "properties": {
@@ -13480,6 +15033,80 @@
                 "title": "StepFilter",
                 "description": "Filter applied to a step's result.\n\nWDK FilterValueArray element: { name: string, value: any, disabled?: boolean }."
             },
+            "StepPatchRequest": {
+                "properties": {
+                    "parameters": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "$ref": "#/components/schemas/JsonValue"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Parameters"
+                    },
+                    "operator": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/CombineOp"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "displayName": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 255
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Displayname"
+                    },
+                    "colocationParams": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ColocationParams"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "wdkWeight": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Wdkweight"
+                    },
+                    "searchName": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Searchname"
+                    }
+                },
+                "type": "object",
+                "title": "StepPatchRequest"
+            },
             "StepReport-Input": {
                 "properties": {
                     "reportName": {
@@ -13719,6 +15346,80 @@
                 ],
                 "title": "StepResponse",
                 "description": "Strategy step \u2014 WDK-aligned fields."
+            },
+            "StepStartUIPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "step-start",
+                        "title": "Type",
+                        "default": "step-start"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "title": "StepStartUIPart",
+                "description": "A step boundary part of a message."
+            },
+            "StepSummary": {
+                "properties": {
+                    "stepId": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Stepid"
+                    },
+                    "localStepId": {
+                        "type": "string",
+                        "title": "Localstepid"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "search",
+                            "combine",
+                            "transform"
+                        ],
+                        "title": "Kind"
+                    },
+                    "displayName": {
+                        "type": "string",
+                        "title": "Displayname"
+                    },
+                    "searchName": {
+                        "type": "string",
+                        "title": "Searchname"
+                    },
+                    "recordClassName": {
+                        "type": "string",
+                        "title": "Recordclassname"
+                    },
+                    "estimatedSize": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Estimatedsize"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "localStepId",
+                    "kind",
+                    "displayName",
+                    "searchName",
+                    "recordClassName"
+                ],
+                "title": "StepSummary"
             },
             "StepValidation": {
                 "properties": {
@@ -14734,6 +16435,57 @@
                 ],
                 "title": "TaskStatusResponse"
             },
+            "TextUIPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "text",
+                        "title": "Type",
+                        "default": "text"
+                    },
+                    "text": {
+                        "type": "string",
+                        "title": "Text"
+                    },
+                    "state": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "streaming",
+                                    "done"
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "State"
+                    },
+                    "providerMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providermetadata"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "text"
+                ],
+                "title": "TextUIPart",
+                "description": "A text part of a message."
+            },
             "ThresholdKnobRequest": {
                 "properties": {
                     "stepId": {
@@ -14946,6 +16698,204 @@
                 "title": "TierPreset",
                 "description": "Per-phase configuration for all five pipeline phases."
             },
+            "ToolApprovalRequested": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "id"
+                ],
+                "title": "ToolApprovalRequested",
+                "description": "Tool approval in requested state (awaiting user response)."
+            },
+            "ToolApprovalRequestedPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "pattern": "^tool-",
+                        "title": "Type"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "approval-requested",
+                        "title": "State",
+                        "default": "approval-requested"
+                    },
+                    "input": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Input"
+                    },
+                    "providerExecuted": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providerexecuted"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "type",
+                    "toolCallId"
+                ],
+                "title": "ToolApprovalRequestedPart",
+                "description": "Tool part in approval-requested state (awaiting user decision)."
+            },
+            "ToolApprovalResponded": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "approved": {
+                        "type": "boolean",
+                        "title": "Approved"
+                    },
+                    "reason": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Reason"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "id",
+                    "approved"
+                ],
+                "title": "ToolApprovalResponded",
+                "description": "Tool approval in responded state (user has approved or denied)."
+            },
+            "ToolApprovalRespondedPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "pattern": "^tool-",
+                        "title": "Type"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "approval-responded",
+                        "title": "State",
+                        "default": "approval-responded"
+                    },
+                    "input": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Input"
+                    },
+                    "providerExecuted": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providerexecuted"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "type",
+                    "toolCallId"
+                ],
+                "title": "ToolApprovalRespondedPart",
+                "description": "Tool part in approval-responded state (user approved/denied, execution pending)."
+            },
             "ToolCallDelta": {
                 "properties": {
                     "toolCallId": {
@@ -14975,6 +16925,420 @@
                     "toolCallId"
                 ],
                 "title": "ToolCallDelta"
+            },
+            "ToolInputAvailablePart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "pattern": "^tool-",
+                        "title": "Type"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "input-available",
+                        "title": "State",
+                        "default": "input-available"
+                    },
+                    "input": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Input"
+                    },
+                    "providerExecuted": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providerexecuted"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "type",
+                    "toolCallId"
+                ],
+                "title": "ToolInputAvailablePart",
+                "description": "Tool part in input-available state."
+            },
+            "ToolInputStreamingPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "pattern": "^tool-",
+                        "title": "Type"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "input-streaming",
+                        "title": "State",
+                        "default": "input-streaming"
+                    },
+                    "input": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Input"
+                    },
+                    "providerExecuted": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providerexecuted"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "type",
+                    "toolCallId"
+                ],
+                "title": "ToolInputStreamingPart",
+                "description": "Tool part in input-streaming state."
+            },
+            "ToolOutputAvailablePart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "pattern": "^tool-",
+                        "title": "Type"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "output-available",
+                        "title": "State",
+                        "default": "output-available"
+                    },
+                    "input": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Input"
+                    },
+                    "output": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Output"
+                    },
+                    "providerExecuted": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providerexecuted"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "preliminary": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Preliminary"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "type",
+                    "toolCallId"
+                ],
+                "title": "ToolOutputAvailablePart",
+                "description": "Tool part in output-available state."
+            },
+            "ToolOutputDeniedPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "pattern": "^tool-",
+                        "title": "Type"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "output-denied",
+                        "title": "State",
+                        "default": "output-denied"
+                    },
+                    "input": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Input"
+                    },
+                    "providerExecuted": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providerexecuted"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "type",
+                    "toolCallId"
+                ],
+                "title": "ToolOutputDeniedPart",
+                "description": "Tool part in output-denied state (tool was denied, terminal state)."
+            },
+            "ToolOutputErrorPart": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "pattern": "^tool-",
+                        "title": "Type"
+                    },
+                    "toolCallId": {
+                        "type": "string",
+                        "title": "Toolcallid"
+                    },
+                    "state": {
+                        "type": "string",
+                        "const": "output-error",
+                        "title": "State",
+                        "default": "output-error"
+                    },
+                    "input": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Input"
+                    },
+                    "rawInput": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Rawinput"
+                    },
+                    "errorText": {
+                        "type": "string",
+                        "title": "Errortext"
+                    },
+                    "providerExecuted": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Providerexecuted"
+                    },
+                    "callProviderMetadata": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Callprovidermetadata"
+                    },
+                    "approval": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalRequested"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ToolApprovalResponded"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Approval"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "type",
+                    "toolCallId",
+                    "errorText"
+                ],
+                "title": "ToolOutputErrorPart",
+                "description": "Tool part in output-error state."
             },
             "TreeOptimizationResultResponse": {
                 "properties": {
@@ -15140,6 +17504,40 @@
                 "title": "TrialProgressDataResponse",
                 "description": "Progress data for a single optimization trial."
             },
+            "TurnExcerpt": {
+                "properties": {
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "user",
+                            "assistant"
+                        ],
+                        "title": "Role"
+                    },
+                    "text": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "title": "Text",
+                        "default": ""
+                    },
+                    "toolCallCount": {
+                        "type": "integer",
+                        "title": "Toolcallcount",
+                        "default": 0
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Createdat"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "role",
+                    "createdAt"
+                ],
+                "title": "TurnExcerpt"
+            },
             "TurnUsage": {
                 "properties": {
                     "totalTokens": {
@@ -15159,6 +17557,100 @@
                 ],
                 "title": "TurnUsage",
                 "description": "Cumulative token + cost totals for the current turn.\n\nEmitted via ``data-turn-usage`` after each phase completes so the\ncomposer footer tracks spend in real time. Persisted independently\nvia ``MessagesRepository.upsert_message`` so a mid-turn failure still\nleaves the totals in the conversation-detail response."
+            },
+            "UIMessage": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "system",
+                            "user",
+                            "assistant"
+                        ],
+                        "title": "Role"
+                    },
+                    "parts": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/schemas/TextUIPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ReasoningUIPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ToolInputStreamingPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ToolInputAvailablePart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ToolOutputAvailablePart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ToolOutputErrorPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ToolApprovalRequestedPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ToolApprovalRespondedPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/ToolOutputDeniedPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DynamicToolInputStreamingPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DynamicToolInputAvailablePart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DynamicToolOutputAvailablePart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DynamicToolOutputErrorPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DynamicToolApprovalRequestedPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DynamicToolApprovalRespondedPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DynamicToolOutputDeniedPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SourceUrlUIPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SourceDocumentUIPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/FileUIPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DataUIPart"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/StepStartUIPart"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Parts"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "role"
+                ],
+                "title": "UIMessage"
             },
             "UpdateConversationRequest": {
                 "properties": {
@@ -15302,6 +17794,70 @@
                 },
                 "type": "object",
                 "title": "UserPreferencesResponse"
+            },
+            "ValidateContext": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "validate",
+                        "title": "Kind",
+                        "default": "validate"
+                    },
+                    "strategyName": {
+                        "type": "string",
+                        "title": "Strategyname"
+                    },
+                    "steps": {
+                        "items": {
+                            "$ref": "#/components/schemas/StepSummary"
+                        },
+                        "type": "array",
+                        "title": "Steps"
+                    },
+                    "focusedStepId": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Focusedstepid"
+                    },
+                    "userSuccessCriteria": {
+                        "type": "string",
+                        "title": "Usersuccesscriteria",
+                        "default": ""
+                    },
+                    "priorControlTestRuns": {
+                        "items": {
+                            "$ref": "#/components/schemas/ControlTestRun"
+                        },
+                        "type": "array",
+                        "title": "Priorcontroltestruns"
+                    },
+                    "relevantMemories": {
+                        "items": {
+                            "$ref": "#/components/schemas/MemoryValue"
+                        },
+                        "type": "array",
+                        "title": "Relevantmemories"
+                    },
+                    "recentTurns": {
+                        "items": {
+                            "$ref": "#/components/schemas/TurnExcerpt"
+                        },
+                        "type": "array",
+                        "maxItems": 5,
+                        "title": "Recentturns"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "strategyName"
+                ],
+                "title": "ValidateContext"
             },
             "ValidationError": {
                 "properties": {
@@ -15510,37 +18066,6 @@
                 ],
                 "title": "WDKRecordIdPart",
                 "description": "One (name, value) segment of a WDK record's composite primary key."
-            },
-            "_UIMessage": {
-                "properties": {
-                    "id": {
-                        "type": "string",
-                        "title": "Id"
-                    },
-                    "role": {
-                        "type": "string",
-                        "enum": [
-                            "system",
-                            "user",
-                            "assistant"
-                        ],
-                        "title": "Role"
-                    },
-                    "parts": {
-                        "items": {
-                            "additionalProperties": true,
-                            "type": "object"
-                        },
-                        "type": "array",
-                        "title": "Parts"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "id",
-                    "role"
-                ],
-                "title": "_UIMessage"
             }
         },
         "securitySchemes": {

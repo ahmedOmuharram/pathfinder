@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { ExternalLink, Workflow } from "lucide-react";
 
 import type { Strategy } from "@pathfinder/shared";
@@ -14,8 +14,13 @@ interface StrategyPanelProps {
   siteId: string;
 }
 
+const STEP_ROUTE_RE = /\/strategy\/step\/([^/?#]+)/;
+
 export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
   const router = useRouter();
+  const pathname = usePathname() as string | null;
+  const selectedStepId =
+    pathname != null ? (pathname.match(STEP_ROUTE_RE)?.[1] ?? null) : null;
   const hasSteps = strategy != null && strategy.steps.length > 0;
 
   const openFullEditor = (): void => {
@@ -52,6 +57,7 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
             <CompactStrategyView
               strategy={strategy}
               onStepClick={openStep}
+              selectedStepId={selectedStepId}
             />
           </div>
           <StrategyFooter strategy={strategy} />

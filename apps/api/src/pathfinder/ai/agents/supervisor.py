@@ -10,6 +10,7 @@ from pathfinder.ai.agents._history_processor import pair_tool_calls
 from pathfinder.ai.agents._model_resolution import (
     resolve_orchestrator_model_entry,
 )
+from pathfinder.ai.specialists.types import SpecialistKind
 from pathfinder.platform.types import ModelProvider
 
 SupervisorTarget = Literal[
@@ -29,6 +30,20 @@ class SupervisorDecision(BaseModel):
     reason: str = Field(min_length=1, max_length=280)
     rejection_message: str | None = Field(default=None, max_length=2000)
     answer: str | None = Field(default=None, max_length=4000)
+    suggested_specialist: SpecialistKind | None = Field(
+        default=None,
+        description=(
+            "Optional hint to the user that a specialist mode might fit "
+            "this turn. The chat UI renders a clickable chip below this "
+            "supervisor decision message. Set when:\n"
+            "  - The user asks 'is this strategy right / does it work?' "
+            "→ 'validate'\n"
+            "  - The user asks an open biological question / 'what's "
+            "known about X' / 'tell me about Y' → 'research'\n"
+            "Leave null for routine routing decisions. Suggesting is "
+            "never a substitute for routing — always set 'to' as well."
+        ),
+    )
 
     @model_validator(mode="after")
     def _require_payload_for_special_kinds(self) -> SupervisorDecision:
@@ -148,6 +163,16 @@ top of one. If any phase has already run this turn, `question` and \
 - Each phase runs at most once per turn. If a phase appears in \
 phase_call_counts_this_turn, do not route to it again this turn — pick \
 `end` or a different phase.
+
+## Specialist suggestions
+
+You may optionally set ``suggested_specialist`` to hint that a focused \
+specialist mode would fit this turn. Set ``"validate"`` when the user is \
+asking whether the current strategy is right / works / answers their \
+question. Set ``"research"`` when the user is asking an open biological \
+question or "what's known about X". Leave null otherwise. The suggestion \
+is a clickable chip — never a substitute for routing, so always set \
+``to`` as well.
 
 ## Response format
 

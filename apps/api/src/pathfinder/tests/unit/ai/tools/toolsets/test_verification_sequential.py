@@ -7,7 +7,6 @@ from pathfinder.ai.tools.toolsets.verification import build_toolset
 
 _DURABLE_TOOLS = {
     "run_control_tests_on_step",
-    "optimize_search_parameters",
     "run_gene_set_enrichment",
 }
 

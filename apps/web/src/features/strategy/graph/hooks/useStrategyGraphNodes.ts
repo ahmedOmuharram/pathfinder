@@ -28,7 +28,23 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [selectedStep, setSelectedStep] = useState<Step | null>(null);
+  const [selectedStep, setSelectedStepInternal] = useState<Step | null>(null);
+
+  // Keep React Flow's per-node `selected` flag in sync with the
+  // app-level `selectedStep` so programmatic selection (URL focus,
+  // rail click, keyboard shortcut) lights up the visual selected ring
+  // — not just opens the editor sheet.
+  const setSelectedStep = (step: Step | null): void => {
+    setSelectedStepInternal(step);
+    const targetId = step?.id ?? null;
+    setNodes((current) =>
+      current.map((n) =>
+        n.selected === (n.id === targetId)
+          ? n
+          : { ...n, selected: n.id === targetId },
+      ),
+    );
+  };
   const nodePositions = new Map(nodes.map((n: Node) => [n.id, { x: n.position.x, y: n.position.y }]));
 
   const applyStepValidationErrors = useStrategyStore(

@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.stream_events import background_task_started_event
+from pathfinder.ai.specialists.types import SpecialistMode
 from pathfinder.domain.strategy.strategy_ast import (
     PersistedStrategyGraph,
     StrategyAst,
@@ -26,32 +27,6 @@ from pathfinder.persistence.session import async_session_factory
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 from pathfinder.services.strategies.session_factory import build_strategy_session
-
-
-async def _ensure_chat_row(
-    session: AsyncSession,
-    conversation_id: UUID,
-    *,
-    user_id: UUID,
-    site_id: str,
-    experiment_id: str | None,
-) -> None:
-    existing = await session.get(Conversation, conversation_id)
-    if existing is None:
-        session.add(
-            Conversation(
-                id=conversation_id,
-                user_id=user_id,
-                site_id=site_id,
-                name="",
-                experiment_id=experiment_id,
-            ),
-        )
-        await session.flush()
-        return
-    if experiment_id and existing.experiment_id != experiment_id:
-        existing.experiment_id = experiment_id
-        await session.flush()
 
 
 async def _persist_user_message(
@@ -125,8 +100,23 @@ def _build_runtime_context(
     )
 
 
+def _load_specialist_mode(
+    conversation: Conversation | None,
+) -> SpecialistMode | None:
+    if conversation is None or conversation.specialist_mode is None:
+        return None
+    try:
+        return SpecialistMode.model_validate(conversation.specialist_mode)
+    except ValidationError:
+        return None
+
+
 def _build_turn_input(
-    incoming: ChatRequestBody, user_id: UUID, *, turn_message_id: UUID,
+    incoming: ChatRequestBody,
+    user_id: UUID,
+    *,
+    turn_message_id: UUID,
+    conversation: Conversation | None = None,
 ) -> dict[str, Any]:
     user_message_id = incoming.last_user_message_id
     user_text = incoming.last_user_text
@@ -152,6 +142,7 @@ def _build_turn_input(
         "turn_total_tokens": 0,
         "turn_total_cost_usd": Decimal(0),
         "retrieved_memories": [],
+        "specialist_mode": _load_specialist_mode(conversation),
     }
 
 

@@ -47,6 +47,8 @@ class ConversationUpdate:
     pipeline: Any | None = field(default=None)
     supervisor_model_id: str | None = None
     supervisor_model_id_set: bool = False
+    specialist_mode: dict[str, Any] | None = None
+    specialist_mode_set: bool = False
     touch_updated_at: bool = True
 
 
@@ -63,6 +65,7 @@ _FLAGGED_FIELDS: tuple[tuple[str, str], ...] = (
     ("gene_set_id_set", "gene_set_id"),
     ("is_saved_set", "is_saved"),
     ("supervisor_model_id_set", "supervisor_model_id"),
+    ("specialist_mode_set", "specialist_mode"),
 )
 
 

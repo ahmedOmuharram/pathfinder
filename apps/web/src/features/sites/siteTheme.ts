@@ -54,21 +54,30 @@ function hexToHsl(hex: string): [number, number, number] {
  * :returns: HSL values as "H S% L%" (without the hsl() wrapper, compatible
  *     with the CSS variable format used by shadcn/tailwind).
  */
-function getSiteHsl(siteId: string): string {
+function getSiteHslParts(siteId: string): [number, number, number] {
   const hex = SITE_COLORS[siteId] ?? DEFAULT_COLOR;
-  const [h, s, l] = hexToHsl(hex);
-  return `${h} ${s}% ${l}%`;
+  return hexToHsl(hex);
 }
 
 /**
- * Applies the site's brand color to CSS custom properties on the document root.
- *
- * Sets `--primary` and `--ring` to the site's brand color so the entire
- * design system (buttons, focus rings, active states, links) adapts.
+ * Applies the site's brand palette to CSS custom properties on the document
+ * root. Derives a coherent secondary/accent from the primary hue so every
+ * theme token (primary, secondary, accent, muted, ring) tracks the site
+ * brand instead of falling back to the default neutral.
  */
 export function applySiteTheme(siteId: string): void {
-  const hsl = getSiteHsl(siteId);
+  const [h, s, l] = getSiteHslParts(siteId);
+  const primary = `${h} ${s}% ${l}%`;
+  // Tinted backgrounds: same hue, low saturation, near-white. The 95/93
+  // lightness pair matches the default theme's secondary/accent split so
+  // contrast against `secondary-foreground` (dark text) stays AA-compliant.
+  const secondary = `${h} 25% 95%`;
+  const accent = `${h} 25% 93%`;
+  const muted = `${h} 20% 96%`;
   const root = document.documentElement;
-  root.style.setProperty("--primary", hsl);
-  root.style.setProperty("--ring", hsl);
+  root.style.setProperty("--primary", primary);
+  root.style.setProperty("--ring", primary);
+  root.style.setProperty("--secondary", secondary);
+  root.style.setProperty("--accent", accent);
+  root.style.setProperty("--muted", muted);
 }

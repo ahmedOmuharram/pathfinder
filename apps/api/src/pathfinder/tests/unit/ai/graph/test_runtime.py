@@ -70,6 +70,7 @@ def test_agent_deps_is_pydantic_and_lists_live_fields() -> None:
         "db_session_factory",
         "last_phase_outcome",
         "last_phase_name",
+        "specialist_mode",
     }
 
 

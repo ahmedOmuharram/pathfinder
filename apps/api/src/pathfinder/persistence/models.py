@@ -97,6 +97,12 @@ class User(Base):
     pipeline_config: Mapped[JSONObject | None] = mapped_column(
         JSONB, nullable=True,
     )
+    specialist_model_defaults: Mapped[dict[str, str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
 
     conversations: Mapped[list[Conversation]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -240,6 +246,9 @@ class Conversation(Base):
     )
     supervisor_model_id: Mapped[str | None] = mapped_column(
         String(128), nullable=True
+    )
+    specialist_mode: Mapped[JSONObject | None] = mapped_column(
+        JSONB, nullable=True,
     )
     parent_conversation_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),

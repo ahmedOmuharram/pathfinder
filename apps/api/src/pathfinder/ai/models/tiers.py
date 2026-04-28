@@ -82,9 +82,9 @@ _OPENAI: dict[TierName, TierPreset] = {
     "fast": TierPreset(
         scoping=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
         discovery=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
-        planning=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
+        planning=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
         execution=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
-        verification=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
+        verification=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
     ),
 }
 

@@ -1,9 +1,8 @@
 """Fork a conversation at a chosen assistant message.
 
-Duplicates messages up through the fork-point into a new ``Conversation`` row.
-The new row carries ``parent_conversation_id`` + ``parent_message_id`` so the
-sidebar can render the branching tree. No WDK strategy link, no gene-set
-binding — a fork is a fresh exploration.
+Carries: messages prefix, strategy_ast (minus wdk step ids), step_count,
+pipeline, experiment_id, gene_set_id, scratchpad notes, checkpoint state.
+Drops: wdk_strategy_id, is_saved, estimated_size, specialist_mode.
 """
 
 from __future__ import annotations
@@ -235,6 +234,10 @@ async def fork_conversation(
         .limit(1),
     )
 
+    forked_ast = dict(source.strategy_ast or {})
+    forked_ast.pop("wdkStepIds", None)
+    forked_ast.pop("wdk_step_ids", None)
+
     new_conv_id = uuid4()
     fork = Conversation(
         id=new_conv_id,
@@ -245,6 +248,13 @@ async def fork_conversation(
         supervisor_model_id=source.supervisor_model_id,
         parent_conversation_id=source_conversation_id,
         parent_message_id=from_message_id,
+        strategy_ast=forked_ast,
+        step_count=source.step_count,
+        pipeline=dict(source.pipeline) if source.pipeline is not None else None,
+        gene_set_id=source.gene_set_id,
+        gene_set_auto_imported=source.gene_set_auto_imported,
+        experiment_id=source.experiment_id,
+        specialist_mode=None,
     )
     session.add(fork)
     await session.flush()

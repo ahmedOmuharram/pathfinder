@@ -26,6 +26,7 @@ from pathfinder.platform.errors import (
 )
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.conversations.begin import begin_conversation
 from pathfinder.services.conversations.fork import (
     ForkError,
     fork_conversation,
@@ -52,6 +53,8 @@ from pathfinder.services.wdk import get_strategy_api
 from pathfinder.transport.http.deps import ConversationRepo, CurrentUser, DBSession
 from pathfinder.transport.http.routers._authz import get_owned_conversation_or_404
 from pathfinder.transport.http.schemas import (
+    BeginConversationRequest,
+    BeginConversationResponse,
     ConversationResponse,
     CreateConversationRequest,
     PushConversationRequest,
@@ -475,3 +478,43 @@ async def restore_strategy(
             code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
         )
     return build_conversation_summary(updated)
+
+
+@router.post(
+    "/{conversation_id}/begin",
+    response_model=BeginConversationResponse,
+)
+async def begin_strategy(
+    conversation_id: Annotated[UUID, "Conversation id (client-generated UUID)."],
+    body: BeginConversationRequest,
+    conv_repo: ConversationRepo,
+    user_id: CurrentUser,
+) -> BeginConversationResponse:
+    """Idempotent first-action setup for a conversation.
+
+    Inserts the row if missing (``ON CONFLICT (id) DO NOTHING``), schedules
+    title generation when ``seedText`` is provided on a fresh row, and
+    returns the conversation. Every first-action client (chat send, slash
+    command, launcher) calls this before its own request so downstream
+    endpoints can assume the row exists.
+    """
+    existing = await conv_repo.get_by_id(conversation_id)
+    if existing is not None and existing.user_id != user_id:
+        raise NotFoundError(
+            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found",
+        )
+
+    result = await begin_conversation(
+        session=conv_repo.session,
+        conversation_id=conversation_id,
+        user_id=user_id,
+        site_id=body.site_id,
+        experiment_id=body.experiment_id,
+        seed_text=body.seed_text,
+    )
+    await conv_repo.session.commit()
+    return BeginConversationResponse(
+        conversation_id=result.conversation.id,
+        is_new=result.is_new,
+        name=result.conversation.name,
+    )
