@@ -49,6 +49,7 @@ class ConversationUpdate:
     supervisor_model_id_set: bool = False
     specialist_mode: dict[str, Any] | None = None
     specialist_mode_set: bool = False
+    imported_saved_strategy_ids: list[int] | None = None
     touch_updated_at: bool = True
 
 
@@ -84,6 +85,9 @@ def _collect_chat_values(upd: ConversationUpdate) -> dict[str, Any]:
         values["strategy_ast"] = upd.strategy_ast.model_dump(
             by_alias=True, exclude_none=True, mode="json"
         )
+
+    if upd.imported_saved_strategy_ids is not None:
+        values["imported_saved_strategy_ids"] = list(upd.imported_saved_strategy_ids)
 
     for flag, attr in _FLAGGED_FIELDS:
         if getattr(upd, flag):
@@ -271,6 +275,53 @@ class ConversationRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def count_consumers_per_saved_strategy(
+        self,
+        user_id: UUID,
+        site_id: str,
+    ) -> dict[int, int]:
+        """Return {wdk_strategy_id: consumer_count} for the user's saved strategies.
+
+        Used by the library UI to show "X consumers" before delete. Iterates
+        every conversation row once and tallies wdk strategy ids found in
+        ``imported_saved_strategy_ids`` arrays — fine at our row counts.
+        """
+        result = await self.session.execute(
+            select(Conversation.imported_saved_strategy_ids).where(
+                Conversation.user_id == user_id,
+                Conversation.site_id == site_id,
+                Conversation.dismissed_at.is_(None),
+            ),
+        )
+        counts: dict[int, int] = {}
+        for (ids,) in result.all():
+            for sid in ids or []:
+                if isinstance(sid, int):
+                    counts[sid] = counts.get(sid, 0) + 1
+        return counts
+
+    async def list_consumers_of_saved_strategy(
+        self,
+        user_id: UUID,
+        wdk_strategy_id: int,
+        *,
+        exclude_conversation_id: UUID | None = None,
+    ) -> list[Conversation]:
+        """Return conversations that import the given saved WDK strategy.
+
+        Used as the deletion guard: a conversation whose ``wdk_strategy_id``
+        appears in another conversation's ``imported_saved_strategy_ids``
+        cannot be hard-deleted without breaking that consumer.
+        """
+        stmt = select(Conversation).where(
+            Conversation.user_id == user_id,
+            Conversation.imported_saved_strategy_ids.contains([wdk_strategy_id]),
+        )
+        if exclude_conversation_id is not None:
+            stmt = stmt.where(Conversation.id != exclude_conversation_id)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     # ── Strategy metadata writes ──
 

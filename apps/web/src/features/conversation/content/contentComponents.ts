@@ -17,7 +17,6 @@ import { DataPlanArtifact } from "./parts/DataPlanArtifact";
 import { DataProblemFrame } from "./parts/DataProblemFrame";
 import { DataStrategyLink } from "./parts/DataStrategyLink";
 import { DataStrategyMeta } from "./parts/DataStrategyMeta";
-import { DataStrategyUpdate } from "./parts/DataStrategyUpdate";
 import { DataSpecialistSuggestion } from "./parts/DataSpecialistSuggestion";
 import { DataSupervisorDecision } from "./parts/DataSupervisorDecision";
 import { DataTaskCompleted } from "./parts/DataTaskCompleted";
@@ -40,7 +39,6 @@ export const dataPartComponents: {
   "data-task-progress": DataTaskProgress,
   "data-task-completed": DataTaskCompleted,
   "data-strategy-link": DataStrategyLink,
-  "data-strategy-update": DataStrategyUpdate,
   "data-strategy-meta": DataStrategyMeta,
   "data-graph-snapshot": DataGraphSnapshot,
   "data-graph-cleared": DataGraphCleared,

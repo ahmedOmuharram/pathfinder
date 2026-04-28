@@ -2090,6 +2090,74 @@
                 }
             }
         },
+        "/api/v1/conversations/{conversation_id}/save-substrategy": {
+            "post": {
+                "tags": [
+                    "conversations"
+                ],
+                "summary": "Save Substrategy",
+                "description": "Save a subtree of the active strategy as a new WDK saved strategy.\n\nThe cloned subtree is pushed to WDK as fresh steps under a new strategy\nwith ``isSaved=true``. The source conversation is not modified \u2014 the\ncaller is expected to insert the saved strategy back via a combine step\non a follow-up turn (which will set ``imported_saved_strategy_ids`` on\nthe source conversation as the deletion guard).",
+                "operationId": "save_substrategy_api_v1_conversations__conversation_id__save_substrategy_post",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    },
+                    {
+                        "name": "siteId",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Siteid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SaveSubstrategyRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SaveSubstrategyResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/experiments/": {
             "post": {
                 "tags": [
@@ -14228,6 +14296,80 @@
                 "title": "RunEnrichmentRequest",
                 "description": "Request to run enrichment on an existing experiment."
             },
+            "SaveSubstrategyRequest": {
+                "properties": {
+                    "stepId": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "title": "Stepid"
+                    },
+                    "name": {
+                        "type": "string",
+                        "maxLength": 255,
+                        "minLength": 1,
+                        "title": "Name"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 2000
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stepId",
+                    "name"
+                ],
+                "title": "SaveSubstrategyRequest",
+                "description": "POST body for saving a subtree of the active strategy."
+            },
+            "SaveSubstrategyResponse": {
+                "properties": {
+                    "wdkStrategyId": {
+                        "type": "integer",
+                        "title": "Wdkstrategyid"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "recordType": {
+                        "type": "string",
+                        "title": "Recordtype"
+                    },
+                    "rootStepId": {
+                        "type": "integer",
+                        "title": "Rootstepid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "wdkStrategyId",
+                    "name",
+                    "recordType",
+                    "rootStepId"
+                ],
+                "title": "SaveSubstrategyResponse"
+            },
             "ScratchpadPatchRequest": {
                 "properties": {
                     "pinned": {
@@ -15338,6 +15480,28 @@
                             }
                         ],
                         "title": "Reports"
+                    },
+                    "expandedStrategyId": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Expandedstrategyid"
+                    },
+                    "expandedName": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Expandedname"
                     }
                 },
                 "type": "object",
@@ -15906,6 +16070,28 @@
                         ],
                         "title": "Wdkweight"
                     },
+                    "expandedStrategyId": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Expandedstrategyid"
+                    },
+                    "expandedName": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Expandedname"
+                    },
                     "id": {
                         "type": "string",
                         "title": "Id"
@@ -16013,6 +16199,28 @@
                             }
                         ],
                         "title": "Wdkweight"
+                    },
+                    "expandedStrategyId": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Expandedstrategyid"
+                    },
+                    "expandedName": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Expandedname"
                     },
                     "id": {
                         "type": "string",

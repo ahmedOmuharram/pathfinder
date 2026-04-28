@@ -15,7 +15,6 @@ import { graphSnapshotSchema } from "@pathfinder/shared/generated/zod/graphSnaps
 import { planArtifactSchema } from "@pathfinder/shared/generated/zod/planArtifactSchema";
 import { problemFrameSchema } from "@pathfinder/shared/generated/zod/problemFrameSchema";
 import { strategyMetaSchema } from "@pathfinder/shared/generated/zod/strategyMetaSchema";
-import { strategyPatchSchema } from "@pathfinder/shared/generated/zod/strategyPatchSchema";
 import { turnUsageSchema } from "@pathfinder/shared/generated/zod/turnUsageSchema";
 
 import { getAuthHeaders } from "@/lib/api/http";
@@ -92,12 +91,6 @@ export function useChatRuntime({
           // conversation-detail query. Invalidate so the panel refetches the
           // authoritative AST from the server as the turn builds the strategy.
           graphSnapshotSchema.parse(dataPart.data);
-          void queryClient.invalidateQueries({
-            queryKey: conversationDetailOptions(conversationId).queryKey,
-          });
-          break;
-        case "data-strategy-update":
-          strategyPatchSchema.parse(dataPart.data);
           void queryClient.invalidateQueries({
             queryKey: conversationDetailOptions(conversationId).queryKey,
           });

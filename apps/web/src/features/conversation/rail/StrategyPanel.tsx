@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { ExternalLink, Workflow } from "lucide-react";
 
 import type { Strategy } from "@pathfinder/shared";
 import { Button } from "@/components/ui/button";
 import { CompactStrategyView } from "@/features/strategy/graph/components/CompactStrategyView";
+import { InsertSavedDialog } from "@/features/saved/InsertSavedDialog";
+import { SaveSubstrategyDialog } from "@/features/strategy/editor/SaveSubstrategyDialog";
+import { useSaveSubstrategyMutation } from "@/features/strategy/mutations/useSaveSubstrategyMutation";
 
 import { RailEmptyState, RailPanelShell } from "./RailPanelShell";
 
@@ -23,6 +27,15 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
     pathname != null ? (pathname.match(STEP_ROUTE_RE)?.[1] ?? null) : null;
   const hasSteps = strategy != null && strategy.steps.length > 0;
 
+  const [saveStepId, setSaveStepId] = useState<string | null>(null);
+  const [insertTargetId, setInsertTargetId] = useState<string | null>(null);
+
+  const saveMutation = useSaveSubstrategyMutation({
+    conversationId: strategy?.id ?? "",
+    siteId,
+    onSuccess: () => setSaveStepId(null),
+  });
+
   const openFullEditor = (): void => {
     if (strategy == null) return;
     router.push(`/${siteId}/conversation/${strategy.id}/strategy`);
@@ -32,6 +45,11 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
     if (strategy == null) return;
     router.push(`/${siteId}/conversation/${strategy.id}/strategy/step/${stepId}`);
   };
+
+  const saveTargetStep =
+    saveStepId != null
+      ? (strategy?.steps.find((s) => s.id === saveStepId) ?? null)
+      : null;
 
   return (
     <RailPanelShell
@@ -58,6 +76,8 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
               strategy={strategy}
               onStepClick={openStep}
               selectedStepId={selectedStepId}
+              onSaveStep={setSaveStepId}
+              onInsertSavedAt={setInsertTargetId}
             />
           </div>
           <StrategyFooter strategy={strategy} />
@@ -68,6 +88,39 @@ export function StrategyPanel({ strategy, siteId }: StrategyPanelProps) {
           heading="No strategy built yet"
           description="The execution agent will build a WDK strategy here once the plan is approved."
         />
+      )}
+      {strategy != null && (
+        <>
+          <SaveSubstrategyDialog
+            open={saveStepId != null}
+            onOpenChange={(o) => {
+              if (!o) setSaveStepId(null);
+            }}
+            defaultName={
+              saveTargetStep?.displayName ??
+              saveTargetStep?.searchName ??
+              "Saved strategy"
+            }
+            isSaving={saveMutation.isPending}
+            onConfirm={(input) => {
+              if (saveStepId == null) return;
+              saveMutation.mutate({
+                stepId: saveStepId,
+                name: input.name,
+                description: input.description === "" ? null : input.description,
+              });
+            }}
+          />
+          <InsertSavedDialog
+            open={insertTargetId != null}
+            onOpenChange={(o) => {
+              if (!o) setInsertTargetId(null);
+            }}
+            conversationId={strategy.id}
+            siteId={siteId}
+            targetStepId={insertTargetId ?? ""}
+          />
+        </>
       )}
     </RailPanelShell>
   );

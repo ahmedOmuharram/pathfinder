@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, MoreVertical, Trash2, Code2 } from "lucide-react";
+import { Bookmark, Copy, MoreVertical, Trash2, Code2 } from "lucide-react";
 import type { Step, StepKind } from "@pathfinder/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ interface EditorHeaderProps {
   onDelete: () => void;
   onDuplicate: () => void;
   onCopyUrl: () => void;
+  onSaveAsReusable: () => void;
 }
 
 const KIND_BG: Record<StepKind, string> = {
@@ -41,6 +42,7 @@ export function EditorHeader({
   onDelete,
   onDuplicate,
   onCopyUrl,
+  onSaveAsReusable,
 }: EditorHeaderProps) {
   const initialName = step.displayName ?? "";
   const [draft, setDraft] = useState(initialName);
@@ -103,6 +105,13 @@ export function EditorHeader({
           <DropdownMenuItem onSelect={onCopyUrl}>
             <Copy className="size-4" />
             Copy step URL
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={onSaveAsReusable}
+            data-testid="step-editor-save-substrategy"
+          >
+            <Bookmark className="size-4" />
+            Save as reusable…
           </DropdownMenuItem>
           {isDevEnv && (
             <DropdownMenuItem onSelect={() => setShowRaw((prev) => !prev)}>

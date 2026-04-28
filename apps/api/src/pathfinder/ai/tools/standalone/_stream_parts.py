@@ -34,14 +34,10 @@ from shared_py.stream_parts.problem_frame import ProblemFrame as ProblemFramePar
 from shared_py.stream_parts.strategy import (
     StrategyLink,
     StrategyMeta,
-    StrategyOperation,
-    StrategyPatch,
 )
 
 from pathfinder.ai.graph.state import ProblemFrame
-from pathfinder.ai.tools.standalone._graph_helpers import build_step_response
 from pathfinder.ai.tools.standalone._plan_models import DecisionOption
-from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
 from pathfinder.domain.strategy.types import SyncStateProtocol
 from pathfinder.platform.pydantic_base import CamelModel
@@ -178,60 +174,7 @@ def graph_cleared_chunk(*, reason: str | None = None) -> DataChunk:
     )
 
 
-# ── Strategy patches and metadata ──────────────────────────────────────────
-
-
-def _step_payload(
-    graph: StrategyGraph,
-    step: StrategyStepNode,
-    sync_state: SyncStateProtocol | None,
-) -> dict[str, object]:
-    """Serialize a step to the wire shape used in a StrategyPatch.step field.
-
-    Deliberately keeps the existing ``StepResponse`` shape to match what the
-    frontend already consumes for tool-result update events.
-    """
-    return build_step_response(graph, step, sync_state).model_dump(
-        by_alias=True, exclude_none=True, mode="json"
-    )
-
-
-def strategy_patch_chunk(
-    graph: StrategyGraph,
-    step: StrategyStepNode,
-    *,
-    operation: StrategyOperation,
-    sync_state: SyncStateProtocol | None,
-) -> DataChunk:
-    """Build the ``data-strategy-update`` DataChunk for an add/update/remove."""
-    payload = StrategyPatch(
-        strategy_id=graph.id,
-        operation=operation,
-        step=_step_payload(graph, step, sync_state),
-    )
-    return DataChunk(
-        type="data-strategy-update",
-        data=payload.model_dump(by_alias=True, mode="json"),
-    )
-
-
-def strategy_remove_chunk(
-    graph: StrategyGraph,
-    step_id: str,
-) -> DataChunk:
-    """Build the ``data-strategy-update`` DataChunk for a remove_step op.
-
-    Uses a minimal step payload (just the id) because the step is gone.
-    """
-    payload = StrategyPatch(
-        strategy_id=graph.id,
-        operation="remove_step",
-        step={"id": step_id},
-    )
-    return DataChunk(
-        type="data-strategy-update",
-        data=payload.model_dump(by_alias=True, mode="json"),
-    )
+# ── Strategy metadata ──────────────────────────────────────────────────────
 
 
 def strategy_meta_chunk(graph: StrategyGraph) -> DataChunk:

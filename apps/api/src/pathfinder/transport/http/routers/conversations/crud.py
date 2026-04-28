@@ -414,6 +414,22 @@ async def delete_strategy(
 
     is_wdk_linked = conversation.wdk_strategy_id is not None
 
+    if is_wdk_linked and delete_from_wdk and conversation.wdk_strategy_id is not None:
+        consumers = await conv_repo.list_consumers_of_saved_strategy(
+            user_id,
+            conversation.wdk_strategy_id,
+            exclude_conversation_id=strategyId,
+        )
+        if consumers:
+            consumer_names = ", ".join(c.name for c in consumers[:5])
+            raise ValidationError(
+                title="saved strategy still in use",
+                detail=(
+                    f"{len(consumers)} other conversation(s) import this saved "
+                    f"strategy: {consumer_names}"
+                ),
+            )
+
     if is_wdk_linked and not delete_from_wdk:
         await conv_repo.dismiss(strategyId)
     else:

@@ -20,6 +20,10 @@ export interface CompactStep {
   operator?: string | null;
   /** 1-based index in the strategy execution order. */
   stepNumber: number;
+  /** WDK strategy id this combine's secondary input was inserted from. */
+  expandedStrategyId?: number | null;
+  /** Display label for the collapsed saved-strategy reference. */
+  expandedName?: string | null;
 }
 
 /**
@@ -79,6 +83,12 @@ function toCompact(step: Step, stepNumber: number): CompactStep {
   }
   if (step.operator != null) {
     compact.operator = step.operator;
+  }
+  if (step.expandedStrategyId != null) {
+    compact.expandedStrategyId = step.expandedStrategyId;
+  }
+  if (step.expandedName != null) {
+    compact.expandedName = step.expandedName;
   }
   return compact;
 }

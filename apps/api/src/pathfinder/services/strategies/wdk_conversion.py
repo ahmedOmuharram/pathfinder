@@ -46,6 +46,31 @@ def _extract_operator(parameters: dict[str, str]) -> str | None:
     return None
 
 
+def _resolve_expanded_reference(
+    combine_step: WDKStep,
+    secondary_node: StrategyStepNode,
+    steps: dict[str, WDKStep],
+) -> tuple[int | None, str | None]:
+    """Map WDK ``expanded``/``expandedName`` onto the secondary input.
+
+    WDK marks the *secondary input* of a combine as expanded when that
+    branch was inserted from a saved strategy. We carry the saved
+    strategy's id and label on our combine node so the UI can collapse
+    the branch back to a "Insert saved strategy" pill.
+    """
+    if not combine_step.expanded:
+        return (None, None)
+    secondary_step_id = (
+        int(secondary_node.id) if secondary_node.id.isdigit() else None
+    )
+    if secondary_step_id is None:
+        return (None, None)
+    secondary_wdk = steps.get(str(secondary_step_id))
+    if secondary_wdk is None or secondary_wdk.strategy_id is None:
+        return (None, None)
+    return (secondary_wdk.strategy_id, combine_step.expanded_name)
+
+
 def _build_node(
     tree_node: WDKStepTree,
     steps: dict[str, WDKStep],
@@ -76,12 +101,17 @@ def _build_node(
                 f"searchConfig.parameters (keys: {list(parameters.keys())})"
             )
             raise DataParsingError(msg)
+        expanded_strategy_id, expanded_name = _resolve_expanded_reference(
+            step, right, steps,
+        )
         return StrategyStepNode(
             search_name=search_name,
             operator=parse_op(raw_operator),
             primary_input=left,
             secondary_input=right,
             display_name=display_name,
+            expanded_strategy_id=expanded_strategy_id,
+            expanded_name=expanded_name,
             id=str(step_id),
         )
     if tree_node.primary_input:

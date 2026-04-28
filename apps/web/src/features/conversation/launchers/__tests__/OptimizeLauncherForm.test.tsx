@@ -120,7 +120,10 @@ describe("OptimizeLauncherForm", () => {
     const onClose = vi.fn();
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
-        JSON.stringify({ taskId: "t-1", messageId: "m-1" }),
+        JSON.stringify({
+          taskId: "11111111-1111-1111-1111-111111111111",
+          messageId: "22222222-2222-2222-2222-222222222222",
+        }),
         {
           status: 200,
           headers: { "content-type": "application/json" },

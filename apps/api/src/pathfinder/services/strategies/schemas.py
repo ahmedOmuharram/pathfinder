@@ -35,6 +35,8 @@ class StepResponse(CamelModel):
     filters: list[StepFilter] | None = None
     analyses: list[StepAnalysis] | None = None
     reports: list[StepReport] | None = None
+    expanded_strategy_id: int | None = None
+    expanded_name: str | None = None
 
 
 def step_response_from_strategy_ast(
@@ -69,4 +71,6 @@ def step_response_from_strategy_ast(
         filters=step.filters or None,
         analyses=step.analyses or None,
         reports=step.reports or None,
+        expanded_strategy_id=step.expanded_strategy_id,
+        expanded_name=step.expanded_name,
     )

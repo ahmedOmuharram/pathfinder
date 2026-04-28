@@ -127,6 +127,22 @@ class ConversationDuplicateResponse(CamelModel):
     name: str
 
 
+class SaveSubstrategyRequest(CamelModel):
+    """POST body for saving a subtree of the active strategy."""
+
+    step_id: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class SaveSubstrategyResponse(CamelModel):
+    wdk_strategy_id: int
+    name: str
+    description: str | None = None
+    record_type: str
+    root_step_id: int
+
+
 class ForkConversationRequest(CamelModel):
     from_message_id: UUID
 

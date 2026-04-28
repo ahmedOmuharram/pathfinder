@@ -12,10 +12,7 @@ from pydantic_ai.messages import ToolReturn
 
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._graph_helpers import step_ok_response
-from pathfinder.ai.tools.standalone._stream_parts import (
-    graph_snapshot_chunk,
-    strategy_patch_chunk,
-)
+from pathfinder.ai.tools.standalone._stream_parts import graph_snapshot_chunk
 from pathfinder.ai.tools.standalone._validation_helpers import (
     StepOkResponse,
     get_graph_and_step,
@@ -34,17 +31,10 @@ from pathfinder.platform.types import JSONObject
 def _step_updated_return(
     session: StrategySession, graph: StrategyGraph, step: StrategyStepNode
 ) -> ToolReturn[StepOkResponse]:
-    """Wrap an attachment-mutation success into a ToolReturn with chunks."""
+    """Wrap an attachment-mutation success in a ToolReturn with one snapshot."""
     return ToolReturn(
         return_value=step_ok_response(session, graph, step),
-        metadata=[
-            graph_snapshot_chunk(session, graph),
-            strategy_patch_chunk(
-                graph, step,
-                operation="update_step",
-                sync_state=session.sync_state,
-            ),
-        ],
+        metadata=[graph_snapshot_chunk(session, graph)],
     )
 
 async def add_step_filter(

@@ -1,4 +1,4 @@
-"""Execution-phase toolset — tools for building and editing strategies."""
+"""Execution-phase toolset — declarative strategy build + atomic edits."""
 
 from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.tools import RunContext, Tool, ToolDefinition
@@ -15,20 +15,19 @@ from pathfinder.ai.tools.standalone.escape_hatch import (
     request_search_inspection,
 )
 from pathfinder.ai.tools.standalone.memory_tools import remember, search_memory
+from pathfinder.ai.tools.standalone.strategy import (
+    build_strategy,
+    delete_step,
+    insert_saved_strategy,
+    replace_subtree,
+    update_combine_operator,
+    update_leaf_params,
+    update_step_metadata,
+)
 from pathfinder.ai.tools.standalone.strategy_attach import (
     add_step_analysis,
     add_step_filter,
     add_step_report,
-)
-from pathfinder.ai.tools.standalone.strategy_build import (
-    combine_steps,
-    create_leaf_step,
-    transform_step,
-)
-from pathfinder.ai.tools.standalone.strategy_edit import (
-    delete_step,
-    undo_last_change,
-    update_step,
 )
 from pathfinder.ai.tools.standalone.strategy_graph import get_strategy
 from pathfinder.ai.tools.standalone.think import think
@@ -75,46 +74,40 @@ async def _prepare(
 def _execution_enum_overrides(
     ctx: RunContext[AgentDeps],
 ) -> EnumOverrides:
-    """Constrain step-id and search-name args to live-graph reality.
+    """Constrain step-id args on edit tools to live-graph reality.
 
-    * Every ``step_id`` arg → ``Literal[live_step_ids]``. The model
-      literally cannot reference a step that doesn't exist in the
-      strategy right now.
-    * ``search_name`` args on step-creating tools → ``Literal``
-      restricted to searches the discovery phase committed to.
-      Combined with the F1/F2 work, the model can only build steps
-      from searches it actually inspected and selected.
+    The model literally cannot reference a step that doesn't exist in
+    the strategy right now. ``build_strategy`` and ``replace_subtree``
+    construct fresh subtrees so they are not constrained here.
     """
     overrides: EnumOverrides = {}
     step_ids = live_step_ids(ctx.deps)
     if step_ids:
         for tool, arg in (
-            ("combine_steps", "step_a_id"),
-            ("combine_steps", "step_b_id"),
-            ("transform_step", "input_step_id"),
-            ("update_step", "step_id"),
+            ("update_leaf_params", "step_id"),
+            ("update_combine_operator", "step_id"),
+            ("update_step_metadata", "step_id"),
             ("delete_step", "step_id"),
+            ("replace_subtree", "step_id"),
+            ("insert_saved_strategy", "target_step_id"),
             ("add_step_filter", "step_id"),
             ("add_step_analysis", "step_id"),
             ("add_step_report", "step_id"),
         ):
             overrides[(tool, arg)] = step_ids
-    selected = sorted(ctx.deps.agent_state.selected_search_names())
-    if selected:
-        overrides[("create_leaf_step", "search_name")] = selected
-        overrides[("update_step", "search_name")] = selected
     return overrides
 
 
 def build_toolset() -> AbstractToolset[AgentDeps]:
     base = FunctionToolset[AgentDeps](
         tools=[
-            create_leaf_step,
-            combine_steps,
-            transform_step,
-            update_step,
+            build_strategy,
+            update_leaf_params,
+            update_combine_operator,
+            update_step_metadata,
             Tool(delete_step, requires_approval=True),
-            undo_last_change,
+            replace_subtree,
+            insert_saved_strategy,
             add_step_filter,
             add_step_analysis,
             add_step_report,

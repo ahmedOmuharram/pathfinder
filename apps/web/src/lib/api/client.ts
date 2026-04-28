@@ -50,7 +50,9 @@ export async function client<TData>(cfg: RequestConfig): Promise<ResponseConfig<
   }
   const resp = await fetch(url.toString(), init);
   const contentType = resp.headers.get("content-type") ?? "";
-  const data: unknown = contentType.includes("application/json")
+  // Match both ``application/json`` and ``application/problem+json`` so the
+  // FastAPI ProblemDetail body lands on ``data`` as a parsed object.
+  const data: unknown = contentType.includes("json")
     ? await (resp.json() as Promise<unknown>)
     : await resp.text();
   if (!resp.ok) {

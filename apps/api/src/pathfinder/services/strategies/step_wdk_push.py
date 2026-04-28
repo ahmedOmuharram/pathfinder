@@ -196,6 +196,17 @@ async def _push_combine_step(
         else None,
         wdk_weight=step.wdk_weight,
     )
+    if step.expanded_strategy_id is not None:
+        # WDK's create-combined-step endpoint doesn't accept expanded; PATCH
+        # immediately after creation so the saved-strategy reference renders
+        # as a collapsed input on next reload.
+        await api.update_step_properties(
+            wdk_result.id,
+            spec=PatchStepSpec(
+                expanded=True,
+                expanded_name=step.expanded_name,
+            ),
+        )
     return wdk_result.id
 
 

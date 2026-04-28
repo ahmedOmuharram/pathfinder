@@ -9,6 +9,8 @@ import {
   useDuplicateStepMutation,
   useUpdateStepMutation,
 } from "@/features/strategy/mutations";
+import { useSaveSubstrategyMutation } from "@/features/strategy/mutations/useSaveSubstrategyMutation";
+import { SaveSubstrategyDialog } from "./SaveSubstrategyDialog";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
 import { useStrategyData } from "@/state/strategy/useStrategyQuery";
@@ -55,6 +57,8 @@ export function EditorContent({
   const deleteStep = useDeleteStepMutation(conversationId);
   const duplicateStep = useDuplicateStepMutation(conversationId);
   const updateStep = useUpdateStepMutation(conversationId);
+  const saveSubstrategy = useSaveSubstrategyMutation({ conversationId, siteId });
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const stepNumber = useStepNumber(conversationId, step.id);
   const wdkUrl = useStrategyData(conversationId)?.wdkUrl ?? null;
   const isPaused = useGraphValidationPaused(conversationId);
@@ -151,6 +155,21 @@ export function EditorContent({
     duplicateStep.mutate({ stepId: step.id });
   };
 
+  const handleSaveAsReusable = (): void => {
+    setSaveDialogOpen(true);
+  };
+
+  const handleConfirmSave = (input: { name: string; description: string }): void => {
+    saveSubstrategy.mutate(
+      {
+        stepId: step.id,
+        name: input.name,
+        description: input.description === "" ? null : input.description,
+      },
+      { onSuccess: () => setSaveDialogOpen(false) },
+    );
+  };
+
   const handleCopyUrl = (): void => {
     if (typeof window === "undefined") return;
     const origin = window.location.origin;
@@ -243,6 +262,7 @@ export function EditorContent({
         onDelete={handleDelete}
         onDuplicate={handleDuplicate}
         onCopyUrl={handleCopyUrl}
+        onSaveAsReusable={handleSaveAsReusable}
       />
       {recovered.draft !== null && (
         <RecoveryBanner
@@ -267,6 +287,13 @@ export function EditorContent({
         onOpenChange={setConfirmDiscardOpen}
         changeCount={changes.changeCount}
         onConfirm={handleDiscardConfirmed}
+      />
+      <SaveSubstrategyDialog
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        defaultName={step.displayName ?? step.searchName ?? "Saved strategy"}
+        isSaving={saveSubstrategy.isPending}
+        onConfirm={handleConfirmSave}
       />
     </div>
   );

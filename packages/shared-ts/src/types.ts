@@ -91,7 +91,6 @@ import type {
   SpecialistMode,
   StrategyLink,
   StrategyMeta,
-  StrategyPatch,
   ConversationResponse,
   TaskCompleted,
   TaskProgress as TaskProgressStreamPart,
@@ -412,7 +411,6 @@ export type {
   GraphSnapshot,
   GraphPlan,
   GraphCleared,
-  StrategyPatch,
   StrategyMeta,
   StrategyLink,
   PlanArtifact,
@@ -525,7 +523,6 @@ export type DataPartKind =
   | "data-task-progress"
   | "data-task-completed"
   | "data-strategy-link"
-  | "data-strategy-update"
   | "data-strategy-meta"
   | "data-graph-snapshot"
   | "data-graph-cleared"
@@ -555,7 +552,6 @@ export interface DataPartPayloadMap {
   "data-task-progress": TaskProgressStreamPart;
   "data-task-completed": TaskCompleted;
   "data-strategy-link": StrategyLink;
-  "data-strategy-update": StrategyPatch;
   "data-strategy-meta": StrategyMeta;
   "data-graph-snapshot": GraphSnapshot;
   "data-graph-cleared": GraphCleared;

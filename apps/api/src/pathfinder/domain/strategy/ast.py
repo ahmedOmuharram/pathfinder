@@ -170,6 +170,12 @@ class StrategyStepNode(CamelModel):
     analyses: list[StepAnalysis] = Field(default_factory=list)
     reports: list[StepReport] = Field(default_factory=list)
     wdk_weight: int | None = None
+    # Saved sub-strategy reference (WDK ``expanded`` / ``expandedName``).
+    # Only valid on combine steps. When set, this combiner's input subtree
+    # is rendered as a collapsed reference to the saved strategy in the UI
+    # and serialized to WDK with ``expanded=true``.
+    expanded_strategy_id: int | None = None
+    expanded_name: str | None = None
     id: str = Field(default_factory=generate_step_id)
 
     @model_validator(mode="after")
@@ -180,11 +186,40 @@ class StrategyStepNode(CamelModel):
         if self.secondary_input is not None and not self.operator:
             msg = "operator is required when secondaryInput is present"
             raise ValueError(msg)
+        if (
+            self.primary_input is not None
+            and self.secondary_input is not None
+            and self.primary_input.id == self.secondary_input.id
+        ):
+            msg = (
+                f"combine step cannot use the same step on both inputs "
+                f"(stepId={self.primary_input.id!r}); use a single leaf "
+                f"or combine with a different step"
+            )
+            raise ValueError(msg)
         if self.operator == CombineOp.COLOCATE and self.colocation_params is None:
             msg = "colocationParams is required when operator is COLOCATE"
             raise ValueError(msg)
         if self.operator != CombineOp.COLOCATE and self.colocation_params is not None:
             msg = "colocationParams is only allowed when operator is COLOCATE"
+            raise ValueError(msg)
+        is_combine = (
+            self.primary_input is not None and self.secondary_input is not None
+        )
+        if self.expanded_strategy_id is not None and not is_combine:
+            msg = (
+                "expandedStrategyId is only valid on combine steps "
+                "(WDK requires the saved strategy to feed an input slot)"
+            )
+            raise ValueError(msg)
+        if (
+            self.expanded_strategy_id is not None
+            and not (self.expanded_name and self.expanded_name.strip())
+        ):
+            msg = (
+                "expandedName is required when expandedStrategyId is set "
+                "(WDK uses it as the visible label of the collapsed input)"
+            )
             raise ValueError(msg)
         return self
 

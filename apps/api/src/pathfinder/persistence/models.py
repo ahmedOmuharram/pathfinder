@@ -260,6 +260,12 @@ class Conversation(Base):
         ForeignKey("messages.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # WDK strategy ids of saved sub-strategies referenced by this conversation
+    # (via expanded combiner inputs). Used as a deletion guard: a saved
+    # strategy with at least one consumer cannot be deleted.
+    imported_saved_strategy_ids: Mapped[list[int]] = mapped_column(
+        JSONB, nullable=False, default=list,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

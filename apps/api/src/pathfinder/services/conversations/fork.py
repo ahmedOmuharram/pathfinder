@@ -255,6 +255,9 @@ async def fork_conversation(
         gene_set_auto_imported=source.gene_set_auto_imported,
         experiment_id=source.experiment_id,
         specialist_mode=None,
+        # Carry consumer references forward so deleting a saved strategy
+        # whose subtree is still embedded in the fork is still blocked.
+        imported_saved_strategy_ids=list(source.imported_saved_strategy_ids or []),
     )
     session.add(fork)
     await session.flush()

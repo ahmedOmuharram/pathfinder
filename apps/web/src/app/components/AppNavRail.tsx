@@ -1,7 +1,14 @@
 "use client";
 
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Brain, Layers, MessageCircle, PanelLeft, Settings } from "lucide-react";
+import {
+  Bookmark,
+  Brain,
+  Layers,
+  MessageCircle,
+  PanelLeft,
+  Settings,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -40,7 +47,7 @@ interface AppNavRailProps {
 }
 
 interface NavSpec {
-  slug: "conversation" | "workbench";
+  slug: "conversation" | "workbench" | "saved";
   icon: LucideIcon;
   label: string;
 }
@@ -48,6 +55,7 @@ interface NavSpec {
 const NAV: NavSpec[] = [
   { slug: "conversation", icon: MessageCircle, label: "Chat" },
   { slug: "workbench", icon: Layers, label: "Workbench" },
+  { slug: "saved", icon: Bookmark, label: "Saved strategies" },
 ];
 
 export function AppNavRail({

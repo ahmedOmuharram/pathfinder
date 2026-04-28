@@ -89,7 +89,7 @@ export function getAuthHeaders(opts?: {
 
 async function parseResponseBody(resp: Response): Promise<unknown> {
   const contentType = resp.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
+  if (contentType.includes("json")) {
     try {
       return await resp.json();
     } catch {
