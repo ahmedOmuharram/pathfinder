@@ -477,8 +477,8 @@ async def create_plan(
         raise ModelRetry(msg) from exc
 
     ctx.deps.agent_state.set_plan(plan)
+    _validate_domain_parameters(plan, ctx.deps.agent_state)
 
-    # Build the planning artifact for the frontend's plan panel.
     proposed_plan = _build_proposed_plan(plan)
 
     artifact = {
@@ -646,6 +646,7 @@ async def update_plan(
         raise ModelRetry(msg) from exc
 
     _validate_domain_topology(plan)
+    _validate_domain_parameters(plan, ctx.deps.agent_state)
 
     plan.version += 1
     plan.updated_at = datetime.now(UTC)
@@ -684,9 +685,6 @@ async def submit_plan(
     if plan is None:
         msg = "NO_ACTIVE_PLAN: No plan exists yet. Call create_plan first."
         raise ModelRetry(msg)
-
-    _validate_domain_parameters(plan, deps.agent_state)
-    _validate_domain_topology(plan)
 
     plan.status = PlanStatus.APPROVED
     plan.updated_at = datetime.now(UTC)

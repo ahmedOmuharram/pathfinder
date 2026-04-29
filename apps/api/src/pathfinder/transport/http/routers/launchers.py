@@ -26,6 +26,7 @@ from pydantic import JsonValue
 
 from pathfinder.ai.agents._model_resolution import resolve_specialist_model_id
 from pathfinder.ai.conversation.event_writer import ChatEventWriter
+from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
 from pathfinder.ai.graph.stream_events import background_task_started_event
 from pathfinder.ai.specialists.concurrency import (
     ActiveSessionConflictError,
@@ -49,7 +50,6 @@ from pathfinder.persistence.models import User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.errors import (
     AppError,
@@ -65,7 +65,7 @@ from pathfinder.services.parameter_optimization.config import ParameterSpec
 from pathfinder.services.user_preferences import set_specialist_default
 from pathfinder.transport.http.deps import (
     ConversationRepo,
-    CurrentUser,
+    QuotaCheckedUser,
 )
 from pathfinder.transport.http.routers._authz import (
     get_owned_conversation_or_404,
@@ -380,7 +380,7 @@ async def launch_optimize(
     conversation_id: Annotated[UUID, Path()],
     body: OptimizeLaunchRequest,
     conv_repo: ConversationRepo,
-    user_id: CurrentUser,
+    user_id: QuotaCheckedUser,
 ) -> OptimizeLaunchResponse:
     conversation = await get_owned_conversation_or_404(
         conv_repo, conversation_id, user_id,
@@ -451,20 +451,6 @@ async def launch_optimize(
     )
 
     message_id = uuid4()
-    await MessagesRepository(conv_repo.session).insert_message(
-        message_id=message_id,
-        conversation_id=conversation_id,
-        role="user",
-        parts=[
-            _launch_part_payload(
-                body,
-                model_id=model_id,
-                task_id=task_id,
-                local_step_id=step_node.id,
-            ),
-        ],
-        metadata={},
-    )
     await set_specialist_default(
         conv_repo.session,
         user_id=user_id,
@@ -472,6 +458,21 @@ async def launch_optimize(
         model_id=model_id,
     )
     await conv_repo.session.commit()
+    await ChatEventWriter(
+        conversation_id=conversation_id, turn_id=message_id,
+    ).write(
+        user_message_chunk(
+            message_id=str(message_id),
+            parts=[
+                _launch_part_payload(
+                    body,
+                    model_id=model_id,
+                    task_id=task_id,
+                    local_step_id=step_node.id,
+                ),
+            ],
+        ),
+    )
 
     procrastinate_task = procrastinate_app.configure_task(
         name=f"durable:{_OPTIMIZE_TOOL_NAME}",

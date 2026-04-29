@@ -37,6 +37,14 @@ async def revert_conversation_to_message(
         select(Conversation).where(Conversation.id == conversation_id),
     )
     if conv is None or conv.user_id != user_id:
+        logger.warning(
+            "revert: conversation lookup failed",
+            conversation_id=str(conversation_id),
+            target_message_id=str(target_message_id),
+            user_id=str(user_id),
+            row_exists=conv is not None,
+            owner_match=conv is not None and conv.user_id == user_id,
+        )
         msg = "Conversation not found"
         raise RevertError(msg)
 
@@ -47,9 +55,30 @@ async def revert_conversation_to_message(
         ),
     )
     if target is None:
+        wrong_conv_owner = await session.scalar(
+            select(Message.conversation_id).where(
+                Message.id == target_message_id,
+            ),
+        )
+        logger.warning(
+            "revert: target message not in conversation",
+            conversation_id=str(conversation_id),
+            target_message_id=str(target_message_id),
+            message_belongs_to=(
+                str(wrong_conv_owner)
+                if wrong_conv_owner is not None
+                else None
+            ),
+        )
         msg = "Target message not found"
         raise RevertError(msg)
     if target.role != "user":
+        logger.warning(
+            "revert: target is not user-authored",
+            conversation_id=str(conversation_id),
+            target_message_id=str(target_message_id),
+            actual_role=target.role,
+        )
         msg = "Can only revert to a user-authored message"
         raise RevertError(msg)
 

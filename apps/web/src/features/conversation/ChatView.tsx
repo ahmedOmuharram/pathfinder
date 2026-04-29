@@ -7,7 +7,7 @@ import { redirect, useParams } from "next/navigation";
 
 import type { Strategy } from "@pathfinder/shared";
 import { conversationDetailOptions } from "@/lib/api/conversations";
-import { conversationMessagesOptions } from "@/lib/api/conversationMessages";
+import { conversationSnapshotOptions } from "@/lib/api/conversationSnapshot";
 import { Spinner } from "@/components/ui/spinner";
 import { useSessionStore } from "@/state/useSessionStore";
 
@@ -28,7 +28,7 @@ export function ChatView({
 
   const detailQuery = useQuery(conversationDetailOptions(conversationId));
   const messagesQuery = useQuery({
-    ...conversationMessagesOptions(conversationId),
+    ...conversationSnapshotOptions(conversationId),
     enabled: allowMissing || detailQuery.data != null,
   });
 

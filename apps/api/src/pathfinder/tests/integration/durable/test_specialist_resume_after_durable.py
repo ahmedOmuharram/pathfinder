@@ -183,7 +183,10 @@ async def test_specialist_mode_survives_durable_completion_and_routes_back(
         )
     assert loaded is not None
     turn_input = _build_turn_input(
-        body, user_id, turn_message_id=uuid4(), conversation=loaded,
+        body, user_id,
+        turn_message_id=uuid4(),
+        turn_start_event_id=0,
+        conversation=loaded,
     )
     assert turn_input["specialist_mode"] is not None
 

@@ -10,13 +10,15 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pathfinder.ai.conversation.event_stream import fetch_chunks_from_zero
+from pathfinder.ai.conversation.ui_message_reducer import reduce_chunks_to_messages
 from pathfinder.ai.memory.retrieval import retrieve_relevant_memories
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.ai.memory.store import MemoryStore
@@ -37,7 +39,6 @@ from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.models import (
     BackgroundTask,
     Conversation,
-    Message,
 )
 from pathfinder.persistence.repositories.message import MessagesRepository
 
@@ -146,10 +147,15 @@ def _control_test_runs(rows: list[BackgroundTask]) -> list[ControlTestRun]:
     return out
 
 
-def _excerpt_from_message(msg: Message) -> TurnExcerpt:
+def _excerpt_from_ui_message(
+    ui_msg: dict[str, Any], created_at: datetime,
+) -> TurnExcerpt:
     text_chunks: list[str] = []
     tool_call_count = 0
-    for part_raw in msg.parts or []:
+    raw_parts = ui_msg.get("parts") or []
+    if not isinstance(raw_parts, list):
+        raw_parts = []
+    for part_raw in raw_parts:
         try:
             part = _RawTextPart.model_validate(part_raw)
         except (TypeError, ValueError):
@@ -160,13 +166,14 @@ def _excerpt_from_message(msg: Message) -> TurnExcerpt:
             text_chunks.append(f"[reasoning] {part.text.strip()}")
         elif part.type.startswith("tool-"):
             tool_call_count += 1
-    role = "user" if msg.role == "user" else "assistant"
+    role_raw = ui_msg.get("role")
+    role = "user" if role_raw == "user" else "assistant"
     text = "\n".join(text_chunks)[:_RECENT_TURN_TEXT_CAP]
     return TurnExcerpt(
         role=role,
         text=text,
         tool_call_count=tool_call_count,
-        created_at=msg.created_at,
+        created_at=created_at,
     )
 
 
@@ -192,13 +199,26 @@ def _enforce_total_budget(
 async def _recent_turns(
     session: AsyncSession, conversation_id: UUID,
 ) -> list[TurnExcerpt]:
+    _, chunks = await fetch_chunks_from_zero(conversation_id)
+    if not chunks:
+        return []
+    ui_messages = reduce_chunks_to_messages(chunks)
     rows = await MessagesRepository(session).list_messages_for_conversation(
         conversation_id,
     )
-    rows = [r for r in rows if r.role in ("user", "assistant")]
-    last = rows[-_RECENT_TURN_LIMIT:]
-    excerpts = [_excerpt_from_message(m) for m in last]
-    return _enforce_total_budget(excerpts)
+    created_by_id: dict[str, datetime] = {
+        str(r.id): r.created_at for r in rows
+    }
+    excerpts: list[TurnExcerpt] = []
+    for ui_msg in ui_messages:
+        if ui_msg.get("role") not in ("user", "assistant"):
+            continue
+        msg_id = ui_msg.get("id")
+        created_at = created_by_id.get(str(msg_id)) if msg_id else None
+        if created_at is None:
+            created_at = datetime.now(UTC)
+        excerpts.append(_excerpt_from_ui_message(ui_msg, created_at))
+    return _enforce_total_budget(excerpts[-_RECENT_TURN_LIMIT:])
 
 
 async def _list_conversation_background_tasks(

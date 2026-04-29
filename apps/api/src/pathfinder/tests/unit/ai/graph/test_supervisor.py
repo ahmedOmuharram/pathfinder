@@ -520,14 +520,8 @@ async def test_supervisor_reject_emits_turn_rejected_and_persists(
     assert rejected[0]["reason"] == "off-topic"
     assert "biological research" in rejected[0]["message"]
     assert sess.inserted_parts == []
-    update = cmd.update
-    assert isinstance(update, dict)
-    accumulator = update["turn_message_parts"]
-    assert any(
-        p.type == "data-turn-rejected" and p.data["reason"] == "off-topic"
-        for p in accumulator
-    )
-    assert any(p.type == "data-supervisor-decision" for p in accumulator)
+    decisions = _data_parts(capture_writer, "data-supervisor-decision")
+    assert decisions != []
 
 
 @pytest.mark.asyncio
@@ -750,11 +744,5 @@ async def test_supervisor_question_emits_turn_qa_and_persists(
     assert qa[0]["reason"] == "methodological"
     assert "harmonic mean" in qa[0]["answer"]
     assert sess.inserted_parts == []
-    update = cmd.update
-    assert isinstance(update, dict)
-    accumulator = update["turn_message_parts"]
-    assert any(
-        p.type == "data-turn-qa" and "harmonic" in p.data["answer"]
-        for p in accumulator
-    )
-    assert any(p.type == "data-supervisor-decision" for p in accumulator)
+    decisions = _data_parts(capture_writer, "data-supervisor-decision")
+    assert decisions != []

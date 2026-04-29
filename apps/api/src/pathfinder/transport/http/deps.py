@@ -4,7 +4,7 @@ import asyncio
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.persistence.repositories import (
@@ -15,6 +15,7 @@ from pathfinder.persistence.repositories import (
 from pathfinder.persistence.session import get_db_session
 from pathfinder.platform.errors import ForbiddenError, NotFoundError
 from pathfinder.platform.security import get_current_user
+from pathfinder.services import quota as quota_service
 from pathfinder.services.experiment.store import get_experiment_store
 from pathfinder.services.experiment.types import Experiment
 
@@ -56,6 +57,27 @@ async def get_current_user_with_db_row(
 
 
 CurrentUser = Annotated[UUID, Depends(get_current_user_with_db_row)]
+
+
+async def require_quota_available(
+    session: DBSession, user_id: CurrentUser,
+) -> UUID:
+    quota = await quota_service.check_allowed(session, user_id)
+    if quota.used_usd >= quota.limit_usd:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "monthly_quota_exhausted",
+                "usedUsd": str(quota.used_usd),
+                "limitUsd": str(quota.limit_usd),
+                "resetsAt": quota.resets_at.isoformat(),
+                "totalTokens": quota.total_tokens,
+            },
+        )
+    return user_id
+
+
+QuotaCheckedUser = Annotated[UUID, Depends(require_quota_available)]
 
 
 async def get_experiment_owned_by_user(

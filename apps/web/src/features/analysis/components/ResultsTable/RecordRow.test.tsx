@@ -48,6 +48,7 @@ function Harness({
   isExpanded = false,
   onToggle = () => {},
 }: HarnessProps) {
+  "use no memo";
   const tableColumns = buildColumns(attributes, includeClassification);
   const rowId = getPrimaryKey(record);
   const table = useReactTable<ClassifiedRecord>({

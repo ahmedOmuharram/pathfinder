@@ -8,7 +8,7 @@ import pytest
 from pathfinder.ai.specialists.context import (
     _control_test_runs,
     _enforce_total_budget,
-    _excerpt_from_message,
+    _excerpt_from_ui_message,
     _step_summaries,
 )
 from pathfinder.ai.specialists.types import TurnExcerpt
@@ -151,17 +151,17 @@ def test_control_test_runs_maps_statuses() -> None:
 
 
 def test_excerpt_from_message_drops_tool_payloads_and_counts() -> None:
-    msg = MagicMock()
-    msg.role = "assistant"
-    msg.created_at = datetime.now(UTC)
-    msg.parts = [
-        {"type": "text", "text": "  Hello there.  "},
-        {"type": "reasoning", "text": "thinking..."},
-        {"type": "tool-search_memory", "input": {"q": "x"}},
-        {"type": "tool-think", "input": {}},
-        {"type": "data-graph-snapshot", "data": {}},
-    ]
-    excerpt = _excerpt_from_message(msg)
+    ui_msg = {
+        "role": "assistant",
+        "parts": [
+            {"type": "text", "text": "  Hello there.  "},
+            {"type": "reasoning", "text": "thinking..."},
+            {"type": "tool-search_memory", "input": {"q": "x"}},
+            {"type": "tool-think", "input": {}},
+            {"type": "data-graph-snapshot", "data": {}},
+        ],
+    }
+    excerpt = _excerpt_from_ui_message(ui_msg, datetime.now(UTC))
     assert excerpt.role == "assistant"
     assert "Hello there." in excerpt.text
     assert "[reasoning] thinking..." in excerpt.text
@@ -195,9 +195,9 @@ def test_enforce_total_budget_passthrough_when_under() -> None:
 
 
 def test_excerpt_from_message_caps_text_length() -> None:
-    msg = MagicMock()
-    msg.role = "user"
-    msg.created_at = datetime.now(UTC)
-    msg.parts = [{"type": "text", "text": "x" * 5000}]
-    excerpt = _excerpt_from_message(msg)
+    ui_msg = {
+        "role": "user",
+        "parts": [{"type": "text", "text": "x" * 5000}],
+    }
+    excerpt = _excerpt_from_ui_message(ui_msg, datetime.now(UTC))
     assert len(excerpt.text) == 2000

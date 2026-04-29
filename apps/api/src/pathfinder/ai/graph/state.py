@@ -6,14 +6,7 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
-from pydantic_ai.ui.vercel_ai.request_types import (
-    DataUIPart,
-    ReasoningUIPart,
-    TextUIPart,
-    ToolInputAvailablePart,
-    ToolOutputAvailablePart,
-    ToolOutputErrorPart,
-)
+from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
@@ -176,6 +169,7 @@ class PipelineState(BaseModel):
     turn_trace_id: str | None = None
     turn_created_at: str | None = None
     turn_message_id: UUID = Field(default_factory=uuid4)
+    turn_start_event_id: int = 0
 
     current_phase: PhaseName | None = None
     last_routing_reason: str | None = None
@@ -184,11 +178,6 @@ class PipelineState(BaseModel):
     last_assistant_prose: str = ""
     last_phase_outcome: PhaseOutcome | None = None
     last_verification_message_id: UUID | None = None
-
-    turn_message_parts: list[
-        TextUIPart | ReasoningUIPart | ToolInputAvailablePart
-        | ToolOutputAvailablePart | ToolOutputErrorPart | DataUIPart
-    ] = Field(default_factory=list)
 
     turn_total_tokens: int = 0
     turn_total_cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))

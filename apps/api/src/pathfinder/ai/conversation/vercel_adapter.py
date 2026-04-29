@@ -29,6 +29,10 @@ from pydantic_ai.ui.vercel_ai.response_types import (
     ToolOutputErrorChunk,
 )
 
+from pathfinder.platform.logging import get_logger
+
+logger = get_logger(__name__)
+
 # TODO(upstream): remove once pydantic-ai exposes
 # ``VERCEL_AI_DSP_HEADERS`` from ``pydantic_ai.ui.vercel_ai`` (currently
 # only available via the private ``_event_stream`` module).
@@ -57,16 +61,14 @@ class PinnedVercelAIEventStream(VercelAIEventStream[Any, Any]):
     async def on_error(
         self, error: Exception,
     ) -> AsyncIterator[BaseChunk]:
-        # GraphBubbleUp (incl. GraphInterrupt from langgraph.types.interrupt)
-        # is control flow for LangGraph's Pregel loop, not a chat-visible
-        # error. Pydantic-ai's transform_stream catches Exception and routes
-        # everything through on_error, swallowing the exception and emitting
-        # an ErrorChunk with the GraphInterrupt's repr — which both leaks
-        # `(Interrupt(value=...),)` into chat AND prevents Pregel from
-        # suspending the graph (so durable tools never resume). Re-raise so
-        # the suspension reaches Pregel.
+        # GraphBubbleUp is langgraph control flow; re-raise so Pregel sees it.
         if isinstance(error, GraphBubbleUp):
             raise error
+        logger.exception(
+            "pydantic-ai stream raised; converting to chat-visible ErrorChunk",
+            error_type=type(error).__name__,
+            error_msg=str(error),
+        )
         async for chunk in super().on_error(error):
             yield chunk
 

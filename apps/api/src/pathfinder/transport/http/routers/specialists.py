@@ -14,6 +14,8 @@ from fastapi import APIRouter, Path, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.agents._model_resolution import resolve_specialist_model_id
+from pathfinder.ai.conversation.event_writer import ChatEventWriter
+from pathfinder.ai.conversation.ui_message_reducer import system_message_chunk
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.models.catalog import get_model_entry
 from pathfinder.ai.specialists.concurrency import (
@@ -35,7 +37,6 @@ from pathfinder.ai.specialists.types import (
 )
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.repositories.conversation import ConversationUpdate
-from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
@@ -47,6 +48,7 @@ from pathfinder.services.user_preferences import set_specialist_default
 from pathfinder.transport.http.deps import (
     ConversationRepo,
     CurrentUser,
+    QuotaCheckedUser,
 )
 from pathfinder.transport.http.routers._authz import (
     get_owned_conversation_or_404,
@@ -174,7 +176,7 @@ async def enter_specialist(
     body: SpecialistEnterRequest,
     request: Request,
     conv_repo: ConversationRepo,
-    user_id: CurrentUser,
+    user_id: QuotaCheckedUser,
 ) -> SpecialistEnterResponse:
     conversation = await get_owned_conversation_or_404(
         conv_repo, conversation_id, user_id,
@@ -223,18 +225,19 @@ async def enter_specialist(
     )
 
     message_id = uuid4()
-    await MessagesRepository(conv_repo.session).insert_message(
-        message_id=message_id,
-        conversation_id=conversation_id,
-        role="assistant",
-        parts=[
-            _entered_part_payload(
-                kind=kind, model_id=model_id, context=context,
-            ),
-        ],
-        metadata={},
-    )
     await conv_repo.session.commit()
+    await ChatEventWriter(
+        conversation_id=conversation_id, turn_id=message_id,
+    ).write(
+        system_message_chunk(
+            message_id=str(message_id),
+            parts=[
+                _entered_part_payload(
+                    kind=kind, model_id=model_id, context=context,
+                ),
+            ],
+        ),
+    )
 
     logger.info(
         "specialist entered",
@@ -274,13 +277,6 @@ async def exit_specialist(
         raise _conflict_to_error(conflict) from conflict
 
     message_id = uuid4()
-    await MessagesRepository(conv_repo.session).insert_message(
-        message_id=message_id,
-        conversation_id=conversation_id,
-        role="assistant",
-        parts=[_exited_part_payload()],
-        metadata={},
-    )
     await conv_repo.update_conversation(
         conversation_id,
         ConversationUpdate(
@@ -289,6 +285,14 @@ async def exit_specialist(
         ),
     )
     await conv_repo.session.commit()
+    await ChatEventWriter(
+        conversation_id=conversation_id, turn_id=message_id,
+    ).write(
+        system_message_chunk(
+            message_id=str(message_id),
+            parts=[_exited_part_payload()],
+        ),
+    )
 
     logger.info(
         "specialist exited",

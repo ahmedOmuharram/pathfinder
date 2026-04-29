@@ -277,12 +277,8 @@ class Conversation(Base):
 
 
 class Message(Base):
-    """A single turn's parts-based message row.
-
-    One row per AI-SDK v6 ``UIMessage`` — stores all parts (text, tool calls,
-    reasoning, data chunks, etc.) as a JSONB array. ``metadata`` carries
-    phase/model/usage/trace-id fields outside the parts list.
-    """
+    """Per-turn metadata row — the chunk log in ``conversation_events`` is the
+    canonical source for ``parts``. Kept for usage accounting + trace ids."""
 
     __tablename__ = "messages"
     __table_args__ = (
@@ -304,7 +300,6 @@ class Message(Base):
         nullable=False,
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
-    parts: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
     # Python attribute name uses a trailing underscore because ``metadata`` is
     # reserved on SQLAlchemy's ``DeclarativeBase``. The underlying column name
     # is still ``metadata``.

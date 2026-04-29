@@ -55,6 +55,16 @@ GRAPH_MODIFYING_TOOLS: frozenset[str] = frozenset(
 
 REPETITION_THRESHOLD: int = 3
 
+# Read-only tools the model spams to look productive without making
+# progress. The eject counts ALL calls per tool in the window since the
+# last state-changing tool — interleaving with other read-only calls
+# (the get_strategy → search_memory → get_strategy pattern) does not
+# launder the count.
+SPAM_PRONE_TOOLS: frozenset[str] = frozenset(
+    {"get_strategy", "search_memory"},
+)
+SPAM_EJECT_THRESHOLD: int = 3
+
 
 def _args_fingerprint(args: object) -> str:
     serialized = json.dumps(args, sort_keys=True, default=str)
@@ -69,6 +79,10 @@ class ToolRepetitionGuard:
     _last_fingerprint: str = field(default="", init=False, repr=False)
     _consecutive_count: int = field(default=0, init=False, repr=False)
     _total_blocked: int = field(default=0, init=False, repr=False)
+    _spam_counts: dict[str, int] = field(
+        default_factory=dict, init=False, repr=False,
+    )
+    eject_to_discovery: bool = field(default=False, init=False, repr=False)
 
     @property
     def total_blocked(self) -> int:
@@ -81,9 +95,31 @@ class ToolRepetitionGuard:
 
     def check(self, tool_name: str, tool_args: object) -> str | None:
         """Return ``None`` to proceed, or a warning string to block the call."""
-        if tool_name in GRAPH_MODIFYING_TOOLS or tool_name not in READ_ONLY_TOOLS:
+        if tool_name in GRAPH_MODIFYING_TOOLS:
+            self._reset()
+            self._spam_counts.clear()
+            return None
+        if tool_name not in READ_ONLY_TOOLS:
             self._reset()
             return None
+
+        if tool_name in SPAM_PRONE_TOOLS:
+            count = self._spam_counts.get(tool_name, 0) + 1
+            self._spam_counts[tool_name] = count
+            if count >= SPAM_EJECT_THRESHOLD:
+                self._total_blocked += 1
+                self.eject_to_discovery = True
+                return (
+                    f"STOP. You have called {tool_name} {count} times since "
+                    f"the last state change. You are being ejected back to "
+                    f"the discovery phase. End your turn with prose "
+                    f"explaining in detail: (1) why the strategy/memory "
+                    f"state keeps being insufficient for what you are trying "
+                    f"to do, and (2) the specific information discovery must "
+                    f"surface for you to proceed (search names, parameter "
+                    f"values, gene set ids, prior decisions). Do NOT call "
+                    f"any more tools."
+                )
 
         fingerprint = _args_fingerprint(tool_args)
         if tool_name == self._last_tool and fingerprint == self._last_fingerprint:

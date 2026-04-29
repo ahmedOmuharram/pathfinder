@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import dataclasses
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command
@@ -254,7 +254,7 @@ async def _resume_graph(
         )
         context = dataclasses.replace(base_context, memory_store=raw_memory)
         conversation_uuid = UUID(thread_id)
-        turn_id = uuid4()
+        turn_id = _resume_turn_message_id(snapshot)
         writer = ChatEventWriter(
             conversation_id=conversation_uuid, turn_id=turn_id,
         )
@@ -288,6 +288,16 @@ async def _resume_graph(
                     ),
                 )
                 await _emit_chunk(writer, DoneChunk())
+
+
+def _resume_turn_message_id(snapshot: Any) -> UUID:
+    raw = snapshot.values.get("turn_message_id")
+    if isinstance(raw, UUID):
+        return raw
+    if isinstance(raw, str):
+        return UUID(raw)
+    msg = "checkpoint snapshot missing turn_message_id"
+    raise RuntimeError(msg)
 
 
 class _ResumedChunkEnvelope(BaseModel):

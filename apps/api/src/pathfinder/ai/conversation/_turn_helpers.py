@@ -11,7 +11,6 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from langgraph.types import Interrupt
 from pydantic import BaseModel, ValidationError
 from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.graph.runtime import Context
@@ -22,25 +21,10 @@ from pathfinder.domain.strategy.strategy_ast import (
     StrategyAst,
 )
 from pathfinder.persistence.models import Conversation
-from pathfinder.persistence.repositories import MessagesRepository
 from pathfinder.persistence.session import async_session_factory
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 from pathfinder.services.strategies.session_factory import build_strategy_session
-
-
-async def _persist_user_message(
-    session: AsyncSession, incoming: ChatRequestBody,
-) -> None:
-    repo = MessagesRepository(session)
-    text = incoming.last_user_text
-    await repo.insert_message(
-        message_id=incoming.last_user_message_id,
-        conversation_id=incoming.conversation_id,
-        role="user",
-        parts=[{"type": "text", "text": text}],
-        metadata={"siteId": incoming.site_id, "mode": incoming.mode},
-    )
 
 
 def resolve_site_id(
@@ -116,6 +100,7 @@ def _build_turn_input(
     user_id: UUID,
     *,
     turn_message_id: UUID,
+    turn_start_event_id: int,
     conversation: Conversation | None = None,
 ) -> dict[str, Any]:
     user_message_id = incoming.last_user_message_id
@@ -131,6 +116,7 @@ def _build_turn_input(
         "turn_trace_id": str(uuid4()),
         "turn_created_at": datetime.now(UTC).isoformat(),
         "turn_message_id": turn_message_id,
+        "turn_start_event_id": turn_start_event_id,
         "supervisor_call_count": 0,
         "phase_call_counts": {},
         "current_phase": None,
@@ -138,7 +124,6 @@ def _build_turn_input(
         "last_assistant_prose": "",
         "last_phase_outcome": None,
         "last_verification_message_id": None,
-        "turn_message_parts": [],
         "turn_total_tokens": 0,
         "turn_total_cost_usd": Decimal(0),
         "retrieved_memories": [],

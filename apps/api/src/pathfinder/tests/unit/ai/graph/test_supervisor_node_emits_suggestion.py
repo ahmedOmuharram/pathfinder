@@ -11,7 +11,7 @@ from langgraph.runtime import Runtime
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
-from pydantic_ai.ui.vercel_ai.request_types import DataUIPart, TextUIPart
+from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
 
 import pathfinder.ai.graph.nodes as nodes_module
 from pathfinder.ai.agents.supervisor import SupervisorDecision
@@ -148,16 +148,6 @@ async def test_supervisor_node_emits_suggestion_part(
     cmd = await supervisor_node(state, cast("Runtime[Context]", runtime))
 
     assert cmd.goto == "execution"
-    update = cmd.update
-    assert isinstance(update, dict)
-    parts = update["turn_message_parts"]
-    suggestion_parts = [
-        p for p in parts
-        if isinstance(p, DataUIPart) and p.type == "data-specialist-suggestion"
-    ]
-    assert len(suggestion_parts) == 1
-    assert suggestion_parts[0].data["kind"] == "validate"
-
     chunks = _suggestion_chunks(capture_writer)
     assert len(chunks) == 1
     assert chunks[0]["data"]["kind"] == "validate"
@@ -179,16 +169,8 @@ async def test_supervisor_node_omits_suggestion_when_unset(
     )
     state = _state()
     runtime = _Runtime(context=None)
-    cmd = await supervisor_node(state, cast("Runtime[Context]", runtime))
+    await supervisor_node(state, cast("Runtime[Context]", runtime))
 
-    update = cmd.update
-    assert isinstance(update, dict)
-    parts = update["turn_message_parts"]
-    suggestion_parts = [
-        p for p in parts
-        if isinstance(p, DataUIPart) and p.type == "data-specialist-suggestion"
-    ]
-    assert suggestion_parts == []
     assert _suggestion_chunks(capture_writer) == []
 
 
@@ -210,17 +192,7 @@ async def test_supervisor_node_emits_research_suggestion(
     )
     state = _state()
     runtime = _Runtime(context=None)
-    cmd = await supervisor_node(state, cast("Runtime[Context]", runtime))
-
-    update = cmd.update
-    assert isinstance(update, dict)
-    parts = update["turn_message_parts"]
-    suggestion_parts = [
-        p for p in parts
-        if isinstance(p, DataUIPart) and p.type == "data-specialist-suggestion"
-    ]
-    assert len(suggestion_parts) == 1
-    assert suggestion_parts[0].data["kind"] == "research"
+    await supervisor_node(state, cast("Runtime[Context]", runtime))
 
     chunks = _suggestion_chunks(capture_writer)
     assert chunks[0]["data"]["kind"] == "research"

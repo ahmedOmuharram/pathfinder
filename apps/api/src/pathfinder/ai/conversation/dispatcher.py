@@ -6,18 +6,24 @@ from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.capabilities.security import scan_user_input
-from pathfinder.ai.conversation._turn_helpers import (
-    _persist_user_message,
+from pathfinder.ai.conversation.event_stream import (
+    fetch_chunks_from_zero,
+    iter_sse,
+    latest_turn_boundary,
 )
-from pathfinder.ai.conversation.event_stream import iter_sse, latest_turn_boundary
+from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.conversation.request_body import ChatRequestBody
+from pathfinder.ai.conversation.ui_message_reducer import (
+    reduce_chunks_to_messages,
+    user_message_chunk,
+)
 from pathfinder.ai.conversation.vercel_adapter import VERCEL_AI_DSP_HEADERS
 from pathfinder.jobs.payloads import ChatTurnPayload
 from pathfinder.jobs.tasks import run_chat_turn_job
+from pathfinder.persistence.repositories import MessagesRepository
 from pathfinder.persistence.repositories.conversation import (
     ConversationRepository,
 )
-from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.conversations.begin import begin_conversation
 
@@ -36,17 +42,20 @@ async def _is_approval_reply(
     )
     if conversation is None:
         return False
-    last = await MessagesRepository(session).get_latest_by_role(
-        conversation_id=conversation_id, role="assistant",
-    )
-    if last is None:
+    _, chunks = await fetch_chunks_from_zero(conversation_id)
+    if not chunks:
         return False
-    parts = last.parts or []
-    for part in parts:
-        if part.get("type") == "data-supervisor-decision":
-            decision = part.get("data") or {}
-            if decision.get("to") == "end":
+    messages = reduce_chunks_to_messages(chunks)
+    for message in reversed(messages):
+        if message.get("role") != "assistant":
+            continue
+        for part in message.get("parts") or []:
+            if (
+                part.get("type") == "data-supervisor-decision"
+                and (part.get("data") or {}).get("to") == "end"
+            ):
                 return True
+        return False
     return False
 
 
@@ -68,8 +77,23 @@ async def dispatch(
     is_approval = await _is_approval_reply(session, body.conversation_id)
     scan_user_input(body.last_user_text, is_approval_reply=is_approval)
 
-    await _persist_user_message(session, body)
+    await MessagesRepository(session).insert_message(
+        message_id=body.last_user_message_id,
+        conversation_id=body.conversation_id,
+        role="user",
+        metadata={"siteId": body.site_id, "mode": body.mode},
+    )
     await session.commit()
+
+    await ChatEventWriter(
+        conversation_id=body.conversation_id,
+        turn_id=body.last_user_message_id,
+    ).write(
+        user_message_chunk(
+            message_id=str(body.last_user_message_id),
+            parts=[{"type": "text", "text": body.last_user_text}],
+        ),
+    )
 
     after = await latest_turn_boundary(body.conversation_id)
 

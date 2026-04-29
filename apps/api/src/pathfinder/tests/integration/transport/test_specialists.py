@@ -9,17 +9,18 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import httpx
 import pytest
 from fastapi import FastAPI
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.persistence.models import (
     BackgroundTask,
     Conversation,
-    Message,
+    ConversationEvent,
     User,
 )
 from pathfinder.platform.security import create_user_token
@@ -156,11 +157,20 @@ async def test_enter_validate_happy_path(
         assert conv.specialist_mode is not None
         assert conv.specialist_mode["kind"] == "validate"
 
-        msg = await session.get(Message, UUID(body["messageId"]))
-        assert msg is not None
-        assert msg.role == "system"
-        assert isinstance(msg.parts, list)
-        assert msg.parts[0]["type"] == "data-specialist-entered"
+        events = (
+            await session.scalars(
+                select(ConversationEvent).where(
+                    ConversationEvent.conversation_id
+                    == conversation_one_step.id,
+                ),
+            )
+        ).all()
+        envelope = next(
+            e.chunk for e in events
+            if e.chunk.get("type") == "system-message"
+            and e.chunk.get("message", {}).get("id") == body["messageId"]
+        )
+        assert envelope["message"]["parts"][0]["type"] == "data-specialist-entered"
 
 
 async def test_enter_research_works_without_steps(

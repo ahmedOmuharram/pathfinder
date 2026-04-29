@@ -37,7 +37,6 @@ async def test_preferences_autowrite_only_after_three_successes(
                     id=uuid4(),
                     conversation_id=cid,
                     role="assistant",
-                    parts=[],
                     metadata_={
                         "phase": "verification",
                         "turnCompleted": True,
@@ -87,7 +86,6 @@ async def test_preferences_not_written_with_fewer_than_three_successes(
                     id=uuid4(),
                     conversation_id=cid,
                     role="assistant",
-                    parts=[],
                     metadata_={
                         "phase": "verification",
                         "turnCompleted": True,

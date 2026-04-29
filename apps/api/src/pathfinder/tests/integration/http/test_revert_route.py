@@ -95,7 +95,7 @@ async def conv_with_messages(
     await db_session.flush()
     msgs: list[Message] = []
     base = datetime.now(UTC)
-    for i, (role, text_body) in enumerate((
+    for i, (role, _text_body) in enumerate((
         ("user", "one"),
         ("assistant", "reply one"),
         ("user", "two"),
@@ -105,7 +105,6 @@ async def conv_with_messages(
             id=uuid4(),
             conversation_id=conv.id,
             role=role,
-            parts=[{"type": "text", "text": text_body}],
             metadata_={},
             created_at=base + timedelta(seconds=i),
         )

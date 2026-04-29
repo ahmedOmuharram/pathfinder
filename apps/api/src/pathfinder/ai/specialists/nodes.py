@@ -25,19 +25,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from pathfinder.ai.conversation.vercel_adapter import PhaseStreamEmitter
 from pathfinder.ai.cost import cost_for_run
 from pathfinder.ai.graph.nodes import (
-    _convert_assistant_parts,
-    _data_part,
-    _dump_parts,
     _emit_chunk,
     _split_agent_model,
-    _text_part,
 )
 from pathfinder.ai.graph.runtime import AgentDeps, Context, build_node_deps
 from pathfinder.ai.graph.state import PipelineState
-from pathfinder.ai.graph.stream_events import turn_usage_event
+from pathfinder.ai.graph.stream_events import (
+    specialist_turn_start_event,
+    turn_usage_event,
+)
 from pathfinder.ai.specialists.agents import research_agent, validate_agent
 from pathfinder.ai.specialists.types import SpecialistKind, SpecialistMode
-from pathfinder.persistence.repositories import MessagesRepository
 from pathfinder.persistence.repositories.conversation import (
     ConversationRepository,
     ConversationUpdate,
@@ -199,36 +197,6 @@ async def _drain_agent(args: _DrainArgs) -> tuple[list[ModelMessage], str, RunUs
     return new_messages, final_text, usage_acc
 
 
-async def _persist_assistant_message(
-    *,
-    runtime_context: Context | None,
-    state: PipelineState,
-    parts: list[Any],
-) -> None:
-    if runtime_context is None or not parts:
-        return
-    async with runtime_context.db_session_factory() as session:
-        try:
-            await MessagesRepository(session).upsert_message(
-                message_id=state.turn_message_id,
-                conversation_id=state.conversation_id,
-                role="assistant",
-                parts=_dump_parts(parts),
-                metadata={
-                    "traceId": state.turn_trace_id,
-                    "createdAt": state.turn_created_at,
-                    "siteId": state.site_id,
-                    "mode": state.mode,
-                },
-            )
-            await session.commit()
-        except SQLAlchemyError:
-            logger.warning(
-                "specialist message persist failed",
-                conversation_id=str(state.conversation_id),
-            )
-
-
 async def clear_specialist_mode(
     *, runtime_context: Context | None, conversation_id: Any,
 ) -> None:
@@ -287,6 +255,10 @@ async def _run_specialist(
 
     turn_message_id = uuid4()
     emitter = PhaseStreamEmitter(message_id=str(turn_message_id))
+    _emit_chunk(
+        writer,
+        specialist_turn_start_event(kind=kind, model_id=mode.model_id),
+    )
     with override_ctx:
         new_messages, final_text, usage = await _drain_agent(
             _DrainArgs(
@@ -301,21 +273,7 @@ async def _run_specialist(
             ),
         )
 
-    new_parts: list[Any] = [
-        _data_part(
-            "data-specialist-turn-start",
-            {"kind": kind, "modelId": mode.model_id},
-        ),
-        *_convert_assistant_parts(new_messages),
-    ]
-
     prose = final_text or _last_text(new_messages)
-    if prose and prose not in {p.text for p in new_parts if hasattr(p, "text")}:
-        new_parts.append(_text_part(prose))
-
-    await _persist_assistant_message(
-        runtime_context=runtime.context, state=state, parts=new_parts,
-    )
 
     provider_name, model_name = _split_agent_model(agent_model)
     turn_cost = cost_for_run(
@@ -325,7 +283,6 @@ async def _run_specialist(
         provider_url=None,
     )
     update: dict[str, Any] = {
-        "turn_message_parts": [*state.turn_message_parts, *new_parts],
         "last_assistant_prose": prose,
         "turn_total_tokens": state.turn_total_tokens + usage.total_tokens,
         "turn_total_cost_usd": state.turn_total_cost_usd + turn_cost,

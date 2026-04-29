@@ -6,7 +6,7 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
-import { Send } from "lucide-react";
+import { Send, Square } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +22,11 @@ import {
   conversationDetailOptions,
 } from "@/lib/api/conversations";
 import { useSessionStore } from "@/state/useSessionStore";
+
+import {
+  QuotaExhaustedBanner,
+  useQuotaExhausted,
+} from "./QuotaExhaustedBanner";
 
 const tokensCompact = new Intl.NumberFormat("en-US", {
   notation: "compact",
@@ -66,6 +71,8 @@ export function Composer({ conversationId }: { conversationId: string }) {
   const aui = useAui();
   const text = useAuiState((s) => s.composer.text);
   const siteId = useSessionStore((s) => s.selectedSite);
+  const quotaExhausted = useQuotaExhausted();
+  const isRunning = useAuiState((s) => s.thread.isRunning);
   const { data: conversationDetail } = useQuery(
     conversationDetailOptions(conversationId),
   );
@@ -233,12 +240,20 @@ export function Composer({ conversationId }: { conversationId: string }) {
         conversationId={conversationId}
         onClose={() => setOptimizerOpen(false)}
       />
-      <div className="focus-within:shadow-[var(--shadow-composer-focus)] flex flex-col gap-2 rounded-lg border bg-background shadow-[var(--shadow-composer)] transition-shadow">
+      <QuotaExhaustedBanner />
+      <div className="focus-within:shadow-[var(--shadow-composer-focus)] flex flex-col gap-2 rounded-lg border bg-background shadow-[var(--shadow-composer)] transition-shadow aria-disabled:opacity-60"
+        aria-disabled={quotaExhausted}
+      >
         <ComposerPrimitive.Input
           data-testid="message-input"
-          placeholder="Ask about strategies, genes, or data... (try /help)"
-          className="w-full resize-none bg-transparent p-3 text-sm outline-none"
+          placeholder={
+            quotaExhausted
+              ? "Monthly quota reached — try again after the reset date."
+              : "Ask about strategies, genes, or data... (try /help)"
+          }
+          className="w-full resize-none bg-transparent p-3 text-sm outline-none disabled:cursor-not-allowed"
           autoFocus
+          disabled={quotaExhausted}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && wantsDirectRun) {
               e.preventDefault();
@@ -247,13 +262,24 @@ export function Composer({ conversationId }: { conversationId: string }) {
           }}
         />
         <div className="flex justify-end p-2">
-          <ComposerPrimitive.Send
-            data-testid="send-button"
-            aria-label="Send"
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground shadow-[var(--shadow-card)] transition-transform hover:-translate-y-px disabled:opacity-50 disabled:hover:translate-y-0"
-          >
-            <Send className="h-4 w-4" /> Send
-          </ComposerPrimitive.Send>
+          {isRunning ? (
+            <ComposerPrimitive.Cancel
+              data-testid="stop-button"
+              aria-label="Stop"
+              className="inline-flex items-center gap-2 rounded-md bg-destructive px-3 py-2 text-sm text-destructive-foreground shadow-[var(--shadow-card)] transition-transform hover:-translate-y-px"
+            >
+              <Square className="h-4 w-4" /> Stop
+            </ComposerPrimitive.Cancel>
+          ) : (
+            <ComposerPrimitive.Send
+              data-testid="send-button"
+              aria-label="Send"
+              disabled={quotaExhausted}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground shadow-[var(--shadow-card)] transition-transform hover:-translate-y-px disabled:opacity-50 disabled:hover:translate-y-0"
+            >
+              <Send className="h-4 w-4" /> Send
+            </ComposerPrimitive.Send>
+          )}
         </div>
       </div>
       <ConversationUsageFooter conversationId={conversationId} />

@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 import asyncpg
-from pydantic import Discriminator, Tag, TypeAdapter, ValidationError
+from pydantic import BaseModel, Discriminator, Tag, TypeAdapter, ValidationError
 from pydantic_ai.ui.vercel_ai.response_types import (
     AbortChunk,
     BaseChunk,
@@ -48,6 +48,39 @@ from pathfinder.platform.logging import get_logger
 logger = get_logger(__name__)
 
 
+class UserMessage(BaseModel):
+    id: str
+    role: Literal["user"]
+    parts: list[dict[str, Any]]
+
+
+class SystemMessage(BaseModel):
+    id: str
+    role: Literal["system"]
+    parts: list[dict[str, Any]]
+
+
+class AssistantMessage(BaseModel):
+    id: str
+    role: Literal["assistant"]
+    parts: list[dict[str, Any]]
+
+
+class UserMessageChunk(BaseModel):
+    type: Literal["user-message"]
+    message: UserMessage
+
+
+class SystemMessageChunk(BaseModel):
+    type: Literal["system-message"]
+    message: SystemMessage
+
+
+class AssistantMessageChunk(BaseModel):
+    type: Literal["assistant-message"]
+    message: AssistantMessage
+
+
 def _chunk_tag(value: Any) -> str:
     raw_type = value["type"] if isinstance(value, dict) else value.type
     if not isinstance(raw_type, str):
@@ -81,11 +114,16 @@ _ChunkUnion = Annotated[
     | Annotated[FinishChunk, Tag("finish")]
     | Annotated[AbortChunk, Tag("abort")]
     | Annotated[MessageMetadataChunk, Tag("message-metadata")]
-    | Annotated[DoneChunk, Tag("done")],
+    | Annotated[DoneChunk, Tag("done")]
+    | Annotated[UserMessageChunk, Tag("user-message")]
+    | Annotated[SystemMessageChunk, Tag("system-message")]
+    | Annotated[AssistantMessageChunk, Tag("assistant-message")],
     Discriminator(_chunk_tag),
 ]
 
-_CHUNK_ADAPTER: TypeAdapter[BaseChunk] = TypeAdapter(_ChunkUnion)
+_CHUNK_ADAPTER: TypeAdapter[
+    BaseChunk | UserMessageChunk | SystemMessageChunk | AssistantMessageChunk
+] = TypeAdapter(_ChunkUnion)
 
 
 def _asyncpg_dsn(database_url: str) -> str:
@@ -115,6 +153,95 @@ async def _fetch_after(
             )
         ).all()
         return [(r.id, r.chunk) for r in rows]
+
+
+async def fetch_chunks_from_zero(
+    conversation_id: UUID,
+) -> tuple[int, list[dict[str, Any]]]:
+    return await fetch_chunks_after(conversation_id, 0)
+
+
+async def fetch_chunks_after(
+    conversation_id: UUID, after: int,
+) -> tuple[int, list[dict[str, Any]]]:
+    rows = await _fetch_after(conversation_id, after)
+    chunks: list[dict[str, Any]] = []
+    cursor = after
+    for event_id, chunk in rows:
+        cursor = max(cursor, event_id)
+        if not isinstance(chunk, dict) or "type" not in chunk:
+            continue
+        try:
+            _CHUNK_ADAPTER.validate_python(chunk)
+        except ValidationError:
+            continue
+        chunks.append(chunk)
+    return cursor, chunks
+
+
+_PROMPT_ENVELOPE_TYPES: tuple[str, ...] = ("user-message", "system-message")
+
+
+async def latest_snapshot_boundary(conversation_id: UUID) -> int:
+    async with async_session_factory() as session:
+        last_done = await session.scalar(
+            select(ConversationEvent.id)
+            .where(
+                ConversationEvent.conversation_id == conversation_id,
+                ConversationEvent.task_id.is_(None),
+                ConversationEvent.chunk["type"].astext == "done",
+            )
+            .order_by(ConversationEvent.id.desc())
+            .limit(1),
+        )
+        last_done_id = last_done if last_done is not None else 0
+        first_prompt_after_done = await session.scalar(
+            select(ConversationEvent.id)
+            .where(
+                ConversationEvent.conversation_id == conversation_id,
+                ConversationEvent.task_id.is_(None),
+                ConversationEvent.id > last_done_id,
+                ConversationEvent.chunk["type"].astext.in_(
+                    _PROMPT_ENVELOPE_TYPES,
+                ),
+            )
+            .order_by(ConversationEvent.id.asc())
+            .limit(1),
+        )
+        if first_prompt_after_done is not None:
+            return first_prompt_after_done
+        return last_done_id
+
+
+async def fetch_snapshot_chunks(
+    conversation_id: UUID,
+) -> tuple[int, list[dict[str, Any]]]:
+    boundary = await latest_snapshot_boundary(conversation_id)
+    if boundary == 0:
+        return 0, []
+    async with async_session_factory() as session:
+        rows = (
+            await session.scalars(
+                select(ConversationEvent)
+                .where(
+                    ConversationEvent.conversation_id == conversation_id,
+                    ConversationEvent.task_id.is_(None),
+                    ConversationEvent.id <= boundary,
+                )
+                .order_by(ConversationEvent.id),
+            )
+        ).all()
+    chunks: list[dict[str, Any]] = []
+    for row in rows:
+        chunk = row.chunk
+        if not isinstance(chunk, dict) or "type" not in chunk:
+            continue
+        try:
+            _CHUNK_ADAPTER.validate_python(chunk)
+        except ValidationError:
+            continue
+        chunks.append(chunk)
+    return boundary, chunks
 
 
 async def latest_event(
@@ -242,6 +369,11 @@ async def iter_sse(
                 event_id=event_id,
                 conversation_id=str(conversation_id),
             )
+            continue
+        if isinstance(
+            typed,
+            UserMessageChunk | SystemMessageChunk | AssistantMessageChunk,
+        ):
             continue
         yield _frame_event(event_id, typed)
         if isinstance(typed, DoneChunk):

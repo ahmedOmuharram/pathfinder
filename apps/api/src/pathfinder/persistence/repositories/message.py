@@ -22,25 +22,14 @@ class MessagesRepository:
         message_id: UUID,
         conversation_id: UUID,
         role: str,
-        parts: list[dict[str, Any]],
         metadata: dict[str, Any],
     ) -> None:
-        """Add a new message row idempotently — same ``message_id`` is a no-op.
-
-        ``useChat`` keeps message ids stable across submits for resumability,
-        so a user double-clicking Send (or any client retry) re-POSTs the
-        same id. ``ON CONFLICT DO NOTHING`` makes that the same logical turn
-        instead of a 500 Internal Server Error. The graph's own per-phase
-        upserts use ``upsert_message`` and are unaffected. Caller is still
-        responsible for ``commit``.
-        """
         stmt = (
             pg_insert(Message)
             .values(
                 id=message_id,
                 conversation_id=conversation_id,
                 role=role,
-                parts=parts,
                 metadata_=metadata,
             )
             .on_conflict_do_nothing(index_elements=[Message.id])
@@ -53,31 +42,19 @@ class MessagesRepository:
         message_id: UUID,
         conversation_id: UUID,
         role: str,
-        parts: list[dict[str, Any]],
         metadata: dict[str, Any],
     ) -> None:
-        """Insert or replace the ``parts`` / ``metadata`` of ``message_id``.
-
-        Used by the graph pipeline to persist partial turn progress at each
-        phase end — a mid-turn failure leaves the partial row behind so the
-        conversation-detail ``sum_usage_for_conversation`` still reflects
-        consumed tokens.
-        """
         stmt = (
             pg_insert(Message)
             .values(
                 id=message_id,
                 conversation_id=conversation_id,
                 role=role,
-                parts=parts,
                 metadata_=metadata,
             )
             .on_conflict_do_update(
                 index_elements=[Message.id],
-                set_={
-                    Message.parts: parts,
-                    Message.metadata_: metadata,
-                },
+                set_={Message.metadata_: metadata},
             )
         )
         await self.session.execute(stmt)
@@ -91,20 +68,6 @@ class MessagesRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
-
-    async def get_latest_by_role(
-        self, *, conversation_id: UUID, role: str,
-    ) -> Message | None:
-        """Return the newest message of ``role`` in ``conversation_id`` or ``None``."""
-        stmt = (
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .where(Message.role == role)
-            .order_by(Message.created_at.desc())
-            .limit(1)
-        )
-        result = await self.session.execute(stmt)
-        return result.scalars().first()
 
     async def sum_usage_for_conversation(
         self, conversation_id: UUID,

@@ -1,19 +1,6 @@
-"""Fork a conversation at a chosen assistant message.
-
-When the source has a ``wdk_strategy_id``, WDK is asked to duplicate the
-strategy (``POST /users/{uid}/strategies`` with ``sourceStrategySignature``)
-so the fork ends up with its own WDK strategy id and the AST's
-``wdk_step_ids`` are remapped to the freshly-assigned WDK step ids. Otherwise
-the fork starts without a WDK strategy and re-pushes on first action.
-
-Carries: messages prefix, strategy_ast (with wdk step ids remapped when
-the source had a WDK strategy), step_count, pipeline, experiment_id,
-gene_set_id, scratchpad notes, checkpoint state.
-Drops: is_saved, estimated_size, specialist_mode.
-"""
-
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -30,11 +17,6 @@ from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Persisted ``messages.parts`` entries whose ``type`` matches one of these
-# carry scratchpad note ids in their ``input`` and/or ``output`` payloads.
-# When forking, we copy scratchpad rows with fresh ids; every reference
-# baked into the copied parts needs to be rewritten so the frontend (and any
-# later message-history replay) points at the new rows, not the source's.
 _SCRATCHPAD_TOOL_PART_TYPES = frozenset({
     "tool-note",
     "tool-update_note",
@@ -50,6 +32,92 @@ _SCRATCHPAD_TOOL_PART_TYPES = frozenset({
 
 class ForkError(ValueError):
     """Raised when the fork request references missing or unauthorized rows."""
+
+
+async def _copy_conversation_events(
+    session: AsyncSession,
+    *,
+    source_conversation_id: UUID,
+    new_conversation_id: UUID,
+    cutoff_ts: datetime | None,
+    id_map: dict[str, str],
+) -> None:
+    rows = await session.execute(
+        text(
+            """
+            SELECT id, turn_id, task_id, chunk
+            FROM conversation_events
+            WHERE conversation_id = :src
+              AND emitted_at
+                  < COALESCE(CAST(:cutoff AS timestamptz), 'infinity'::timestamptz)
+            ORDER BY id ASC
+            """,
+        ),
+        {"src": str(source_conversation_id), "cutoff": cutoff_ts},
+    )
+    inserts: list[dict[str, Any]] = []
+    for row in rows.mappings():
+        chunk = _rewrite_scratchpad_ids_in_chunk(dict(row["chunk"]), id_map)
+        inserts.append({
+            "conversation_id": str(new_conversation_id),
+            "turn_id": str(row["turn_id"]) if row["turn_id"] is not None else None,
+            "task_id": str(row["task_id"]) if row["task_id"] is not None else None,
+            "chunk": chunk,
+        })
+    if not inserts:
+        return
+    await session.execute(
+        text(
+            """
+            INSERT INTO conversation_events (
+                conversation_id, turn_id, task_id, chunk
+            )
+            VALUES (
+                CAST(:conversation_id AS uuid),
+                CAST(:turn_id AS uuid),
+                CAST(:task_id AS uuid),
+                CAST(:chunk AS jsonb)
+            )
+            """,
+        ),
+        [
+            {**ins, "chunk": json.dumps(ins["chunk"])}
+            for ins in inserts
+        ],
+    )
+
+
+def _rewrite_scratchpad_ids_in_chunk(
+    chunk: dict[str, Any], id_map: dict[str, str],
+) -> dict[str, Any]:
+    if not id_map:
+        return chunk
+    chunk_type = chunk.get("type")
+    if (
+        isinstance(chunk_type, str)
+        and chunk_type in _SCRATCHPAD_TOOL_PART_TYPES
+    ):
+        rewritten = dict(chunk)
+        if "input" in rewritten:
+            rewritten["input"] = _rewrite_note_ids_in_payload(
+                rewritten["input"], id_map,
+            )
+        if "output" in rewritten:
+            rewritten["output"] = _rewrite_note_ids_in_payload(
+                rewritten["output"], id_map,
+            )
+        return rewritten
+    if chunk_type == "user-message":
+        message = chunk.get("message")
+        if isinstance(message, dict):
+            rewritten_msg = dict(message)
+            parts = rewritten_msg.get("parts")
+            if isinstance(parts, list):
+                rewritten_msg["parts"] = [
+                    _rewrite_note_ids_in_payload(p, id_map) for p in parts
+                ]
+            return {**chunk, "message": rewritten_msg}
+    return chunk
 
 
 async def _copy_checkpoint_state(
@@ -167,38 +235,6 @@ def _rewrite_note_ids_in_payload(
     if isinstance(payload, list):
         return [_rewrite_note_ids_in_payload(item, id_map) for item in payload]
     return payload
-
-
-def _rewrite_scratchpad_ids_in_parts(
-    parts: list[dict[str, Any]], id_map: dict[str, str],
-) -> list[dict[str, Any]]:
-    """Walk persisted message parts; rewrite scratchpad ids where present.
-
-    Only touches parts whose ``type`` is a scratchpad tool-call/return. Other
-    parts pass through unchanged.
-    """
-    if not id_map:
-        return parts
-    result: list[dict[str, Any]] = []
-    for part in parts:
-        part_type = part.get("type")
-        if (
-            isinstance(part_type, str)
-            and part_type in _SCRATCHPAD_TOOL_PART_TYPES
-        ):
-            new_part: dict[str, Any] = dict(part)
-            if "input" in new_part:
-                new_part["input"] = _rewrite_note_ids_in_payload(
-                    new_part["input"], id_map,
-                )
-            if "output" in new_part:
-                new_part["output"] = _rewrite_note_ids_in_payload(
-                    new_part["output"], id_map,
-                )
-            result.append(new_part)
-        else:
-            result.append(part)
-    return result
 
 
 def _walk_step_tree_dfs(tree: WDKStepTree) -> list[int]:
@@ -361,18 +397,11 @@ async def fork_conversation(
     session.add(fork)
     await session.flush()
 
-    # Copy scratchpad rows under the fork with fresh ids. We must do this
-    # before copying messages so the id_map is ready for rewriting persisted
-    # tool-call parts (see ``_rewrite_scratchpad_ids_in_parts``). The agent
-    # no longer sees the source's ids on a resumed run — but the LangGraph
-    # checkpoint blobs (which also hold message history) are NOT rewritten;
-    # doing so safely would require decoding LangGraph's msgpack-serialized
-    # ModelMessage objects and re-encoding them, and the frame can shift
-    # with pydantic-ai versions. Stale ids reaching the agent via replay
-    # are recoverable: each scratchpad tool raises ``ModelRetry`` with an
-    # actionable "note id 'n-...' not found — call list_notes()" message,
-    # so the agent reorients on next call. User-visible ``messages.parts``
-    # IS rewritten so the chat UI never shows dangling ids.
+    # Scratchpad notes copy first so the id_map is ready before chunks copy
+    # rewrites tool-call payloads. LangGraph checkpoint blobs are not
+    # rewritten (msgpack frame shifts across pydantic-ai versions); stale
+    # ids reaching the agent via replay raise ModelRetry, so the agent
+    # reorients on next call.
     scratchpad_repo = ScratchpadRepository(session)
     id_map = await scratchpad_repo.copy_notes_for_fork(
         source_conversation_id=source_conversation_id,
@@ -380,20 +409,23 @@ async def fork_conversation(
     )
 
     for src_msg in prefix:
-        rewritten_parts = _rewrite_scratchpad_ids_in_parts(
-            list(src_msg.parts), id_map,
-        )
         session.add(
             Message(
                 id=uuid4(),
                 conversation_id=new_conv_id,
                 role=src_msg.role,
-                parts=rewritten_parts,
                 metadata_=dict(src_msg.metadata_ or {}),
             ),
         )
 
     await session.flush()
+    await _copy_conversation_events(
+        session,
+        source_conversation_id=source_conversation_id,
+        new_conversation_id=new_conv_id,
+        cutoff_ts=next_message_ts,
+        id_map=id_map,
+    )
     await _copy_checkpoint_state(
         session,
         source_thread_id=str(source_conversation_id),

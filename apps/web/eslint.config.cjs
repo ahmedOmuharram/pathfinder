@@ -119,6 +119,10 @@ module.exports = defineConfig([
           rules: { "react-hooks/rules-of-hooks": "off" },
         },
         {
+          files: ["src/features/analysis/components/ResultsTable/**"],
+          rules: { "react-hooks/incompatible-library": "off" },
+        },
+        {
           files: ["**/*.cjs", "next.config.js"],
           plugins: { "@typescript-eslint": tsPlugin },
           rules: { "@typescript-eslint/no-require-imports": "off" },

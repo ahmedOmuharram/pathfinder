@@ -1,11 +1,3 @@
-"""Integration tests for ``POST /api/v1/conversations/{id}/launchers/optimize``.
-
-The launcher fires the existing ``optimize_search_parameters`` durable
-flow without going through the LLM tool-call path. Tests cover the happy
-path (message inserted, background task created, SSE chunk persisted)
-and the precondition + concurrency failure modes.
-"""
-
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
@@ -32,15 +24,11 @@ from pathfinder.persistence.models import (
     BackgroundTask,
     Conversation,
     ConversationEvent,
-    Message,
     User,
 )
 from pathfinder.platform.security import create_user_token
 
 pytestmark = pytest.mark.asyncio
-
-
-# --- Fixtures ---------------------------------------------------------------
 
 
 @pytest.fixture
@@ -167,9 +155,6 @@ async def procrastinate_open(
         yield
 
 
-# --- Tests -----------------------------------------------------------------
-
-
 async def test_launch_optimize_happy_path(
     api_client: httpx.AsyncClient,
     session_maker: async_sessionmaker[AsyncSession],
@@ -193,14 +178,22 @@ async def test_launch_optimize_happy_path(
     message_id = UUID(body["messageId"])
 
     async with session_maker() as session:
-        msg = await session.get(Message, message_id)
-        assert msg is not None
-        assert msg.role == "user"
-        assert isinstance(msg.parts, list)
-        assert len(msg.parts) == 1
-        part = msg.parts[0]
-        assert part["type"] == "data-optimize-launch"
-        data = part["data"]
+        launch_events = (
+            await session.scalars(
+                select(ConversationEvent).where(
+                    ConversationEvent.conversation_id
+                    == conversation_with_step.id,
+                ),
+            )
+        ).all()
+        launch_envelope = next(
+            e.chunk for e in launch_events
+            if e.chunk.get("type") == "user-message"
+            and e.chunk.get("message", {}).get("id") == str(message_id)
+        )
+        envelope_part = launch_envelope["message"]["parts"][0]
+        assert envelope_part["type"] == "data-optimize-launch"
+        data = envelope_part["data"]
         assert data["stepId"] == 42
         assert data["paramKeys"] == ["exon_count"]
         assert data["criterion"] == "find params that give 50-200 results"
@@ -219,14 +212,18 @@ async def test_launch_optimize_happy_path(
         events = (
             await session.scalars(
                 select(ConversationEvent).where(
-                    ConversationEvent.task_id == task_id,
+                    ConversationEvent.conversation_id
+                    == conversation_with_step.id,
+                    ConversationEvent.task_id.is_(None),
                 ),
             )
         ).all()
-        assert len(events) == 1
-        sse = events[0].chunk["sse"]
-        assert "data-background-task-started" in sse
-        assert str(task_id) in sse
+        started = [
+            e for e in events
+            if e.chunk.get("type") == "data-background-task-started"
+        ]
+        assert len(started) == 1
+        assert started[0].chunk["data"]["taskId"] == str(task_id)
 
 
 async def test_launch_optimize_unknown_param_key_returns_409(

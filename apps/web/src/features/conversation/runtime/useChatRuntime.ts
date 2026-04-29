@@ -130,9 +130,6 @@ export function useChatRuntime({
       void queryClient.invalidateQueries({
         queryKey: ["conversations", conversationId, "detail"],
       });
-      void queryClient.invalidateQueries({
-        queryKey: ["conversations", conversationId, "messages"],
-      });
       invalidateConversationList();
       void queryClient.invalidateQueries({ queryKey: userQuotaQueryKey });
     },

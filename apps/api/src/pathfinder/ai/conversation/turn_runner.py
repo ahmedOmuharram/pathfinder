@@ -72,7 +72,7 @@ async def run_turn(
     conversation_for_input = conversation
 
     turn_message_id = writer.turn_id
-    await writer.write(
+    start_event_id = await writer.write(
         StartChunk(message_id=str(turn_message_id)).model_dump(
             by_alias=True, mode="json", exclude_none=True,
         ),
@@ -87,6 +87,7 @@ async def run_turn(
     graph_input = _build_turn_input(
         body, user_id,
         turn_message_id=writer.turn_id,
+        turn_start_event_id=start_event_id - 1,
         conversation=conversation_for_input,
     )
     result = await _drive_graph(

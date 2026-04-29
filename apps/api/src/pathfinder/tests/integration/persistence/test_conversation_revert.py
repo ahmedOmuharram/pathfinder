@@ -9,6 +9,7 @@ from sqlalchemy import select, text
 
 import pathfinder.persistence.session as session_module
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
+from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
 from pathfinder.ai.scratchpad.models import NoteCreate
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
 from pathfinder.persistence.models import (
@@ -66,12 +67,12 @@ async def _seed_conversation(user_id: UUID) -> Conversation:
 
 
 async def _seed_message(conv_id: UUID, role: str, text_body: str) -> Message:
+    del text_body
     async with session_module.async_session_factory() as session:
         msg = Message(
             id=uuid4(),
             conversation_id=conv_id,
             role=role,
-            parts=[{"type": "text", "text": text_body}],
             metadata_={},
         )
         session.add(msg)
@@ -163,6 +164,43 @@ class TestRevertConversation:
         assert pre.id in ids
         assert post.id not in ids
         assert t1.role == "user"
+
+    async def test_deletes_user_message_chunk_when_reverting_to_it(self) -> None:
+        user = await _seed_user()
+        conv = await _seed_conversation(user.id)
+        target = await _seed_message(conv.id, "user", "edit me")
+
+        async with session_module.async_session_factory() as session:
+            session.add(
+                ConversationEvent(
+                    conversation_id=conv.id,
+                    chunk=user_message_chunk(
+                        message_id=str(target.id),
+                        parts=[{"type": "text", "text": "edit me"}],
+                    ),
+                    emitted_at=datetime.now(UTC),
+                ),
+            )
+            await session.commit()
+
+        async with session_module.async_session_factory() as session:
+            await revert_conversation_to_message(
+                session,
+                conversation_id=conv.id,
+                target_message_id=target.id,
+                user_id=user.id,
+            )
+            await session.commit()
+
+        async with session_module.async_session_factory() as session:
+            remaining = (
+                await session.scalars(
+                    select(ConversationEvent).where(
+                        ConversationEvent.conversation_id == conv.id,
+                    ),
+                )
+            ).all()
+        assert remaining == []
 
     async def test_deletes_conversation_events_at_and_after_target(self) -> None:
         user = await _seed_user()

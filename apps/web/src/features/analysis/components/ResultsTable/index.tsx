@@ -38,6 +38,7 @@ function initialVisibility(attributes: RecordAttribute[]): VisibilityState {
 }
 
 export function ResultsTable({ entityRef }: ResultsTableProps) {
+  "use no memo";
   const [attributes, setAttributes] = useState<RecordAttribute[]>([]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});

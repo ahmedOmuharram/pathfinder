@@ -21,9 +21,6 @@ from pydantic_ai.messages import (
     ModelResponse,
     PartEndEvent,
     TextPart,
-    ThinkingPart,
-    ToolCallPart,
-    ToolReturnPart,
     UserPromptPart,
 )
 from pydantic_ai.models.function import FunctionModel
@@ -32,14 +29,6 @@ from pydantic_ai.tools import (
     DeferredToolRequests,
     DeferredToolResults,
     ToolDenied,
-)
-from pydantic_ai.ui.vercel_ai.request_types import (
-    DataUIPart,
-    ReasoningUIPart,
-    TextUIPart,
-    ToolInputAvailablePart,
-    ToolOutputAvailablePart,
-    ToolOutputErrorPart,
 )
 from pydantic_ai.ui.vercel_ai.response_types import (
     BaseChunk,
@@ -60,6 +49,8 @@ from pathfinder.ai.conversation.approval import (
     ApprovalDecision,
     classify_approval_reply,
 )
+from pathfinder.ai.conversation.event_stream import fetch_chunks_after
+from pathfinder.ai.conversation.ui_message_reducer import reduce_chunks
 from pathfinder.ai.conversation.vercel_adapter import (
     DeferredToolHint,
     PhaseStreamEmitter,
@@ -131,121 +122,6 @@ def model_id(agent: Agent[Any, Any]) -> str:
     return model.model_id
 
 
-# Mirrors pydantic_ai._output.DEFAULT_OUTPUT_TOOL_NAME (private). Union output
-# types fan out to ``<base>_<TypeName>``, so prefix-match too.
-_FINAL_RESULT_NAME = "final_result"
-_FINAL_RESULT_PREFIX = "final_result_"
-
-
-def _is_final_result_tool(name: str) -> bool:
-    return name == _FINAL_RESULT_NAME or name.startswith(_FINAL_RESULT_PREFIX)
-
-
-def _index_tool_returns(
-    new_messages: list[ModelMessage],
-) -> dict[str, ToolReturnPart]:
-    """Map ``tool_call_id`` → ``ToolReturnPart`` across every ModelRequest.
-
-    Tool outputs live on the ``ModelRequest`` that carries the result back into
-    the next model turn. Persistence of tool-call parts needs to merge both
-    sides — input (from ``ModelResponse``) and output (from ``ModelRequest``) —
-    so the reload-from-DB view shows the same result the user saw streamed.
-    """
-    returns: dict[str, ToolReturnPart] = {}
-    for msg in new_messages:
-        if not isinstance(msg, ModelRequest):
-            continue
-        for part in msg.parts:
-            if isinstance(part, ToolReturnPart):
-                returns[part.tool_call_id] = part
-    return returns
-
-
-def _convert_assistant_parts(
-    new_messages: list[ModelMessage],
-) -> list[_PersistedPart]:
-    tool_returns = _index_tool_returns(new_messages)
-    parts: list[_PersistedPart] = []
-    for msg in new_messages:
-        if not isinstance(msg, ModelResponse):
-            continue
-        for part in msg.parts:
-            converted = _convert_response_part(part, tool_returns)
-            if converted is not None:
-                parts.append(converted)
-    return parts
-
-
-type _PersistedPart = (
-    TextUIPart
-    | ReasoningUIPart
-    | ToolInputAvailablePart
-    | ToolOutputAvailablePart
-    | ToolOutputErrorPart
-)
-
-type _TurnPart = _PersistedPart | DataUIPart
-
-
-def _dump_parts(parts: list[_TurnPart]) -> list[dict[str, Any]]:
-    return [
-        p.model_dump(by_alias=True, mode="json", exclude_none=True)
-        for p in parts
-    ]
-
-
-def _convert_response_part(
-    part: object,
-    tool_returns: dict[str, ToolReturnPart],
-) -> _PersistedPart | None:
-    match part:
-        case TextPart(content=content) if content:
-            return TextUIPart(text=content, state="done")
-        case ThinkingPart(content=content) if content:
-            return ReasoningUIPart(text=content, state="done")
-        case ToolCallPart() as tc if not _is_final_result_tool(tc.tool_name):
-            ret = tool_returns.get(tc.tool_call_id)
-            if ret is None:
-                return ToolInputAvailablePart(
-                    type=f"tool-{tc.tool_name}",
-                    tool_call_id=tc.tool_call_id,
-                    input=tc.args_as_dict(),
-                )
-            if ret.outcome == "failed":
-                return ToolOutputErrorPart(
-                    type=f"tool-{tc.tool_name}",
-                    tool_call_id=tc.tool_call_id,
-                    input=tc.args_as_dict(),
-                    error_text=str(ret.content),
-                )
-            return ToolOutputAvailablePart(
-                type=f"tool-{tc.tool_name}",
-                tool_call_id=tc.tool_call_id,
-                input=tc.args_as_dict(),
-                # Pydantic v2 walks ``Any`` recursively in mode="json",
-                # so BaseModel/dataclass returns serialize without our
-                # old hand-rolled ``_serialize_tool_return_content``.
-                output=ret.content,
-            )
-        case _:
-            return None
-
-
-def _phase_start_part(phase: PhaseName, trace_id: str | None, model: str) -> DataUIPart:
-    return DataUIPart(
-        type="data-phase-start",
-        data={"phase": phase, "traceId": trace_id or "", "model": model},
-    )
-
-
-def _data_part(part_type: str, data: dict[str, Any]) -> DataUIPart:
-    return DataUIPart(type=part_type, data=data)
-
-
-def _text_part(text: str) -> TextUIPart:
-    return TextUIPart(text=text, state="done")
-
-
 def _build_turn_metadata(
     *,
     state: PipelineState,
@@ -270,15 +146,18 @@ async def _write_turn_message(
     *,
     context: Context,
     state: PipelineState,
-    parts: list[_TurnPart],
 ) -> UUID | None:
-    """Finalize the turn's assistant message row.
-
-    ``_persist_phase_progress`` already upserted progressively at each phase,
-    so this upsert replaces the partial row with the final parts and usage.
-    """
+    _, chunks = await fetch_chunks_after(
+        state.conversation_id, state.turn_start_event_id,
+    )
+    if not chunks:
+        return None
+    msg = reduce_chunks(chunks, default_message_id=str(state.turn_message_id))
+    parts = msg["parts"]
     if not parts:
         return None
+    raw_id = msg.get("id") or str(state.turn_message_id)
+    message_id = UUID(raw_id)
     metadata = _build_turn_metadata(
         state=state,
         total_tokens=state.turn_total_tokens,
@@ -286,14 +165,13 @@ async def _write_turn_message(
     )
     async with context.db_session_factory() as session:
         await MessagesRepository(session).upsert_message(
-            message_id=state.turn_message_id,
+            message_id=message_id,
             conversation_id=state.conversation_id,
             role="assistant",
-            parts=_dump_parts(parts),
             metadata=metadata,
         )
         await session.commit()
-    return state.turn_message_id
+    return message_id
 
 
 def _extract_latest_assistant_prose(new_messages: list[ModelMessage]) -> str:
@@ -368,7 +246,10 @@ def _synthesize_from_orphan_text(
         )
         capture.phase_outcome = PhaseOutcome(
             disposition=PhaseDisposition.AWAITING_USER,
-            prose="",
+            prose=(
+                "I couldn't produce a useful response for this turn. "
+                "Please rephrase or provide more context and I'll try again."
+            ),
             reason=(
                 f"{phase} phase produced no actionable output "
                 f"(finish_reason={capture.finish_reason})"
@@ -450,12 +331,10 @@ def _build_phase_delta(
     state: PipelineState,
     deps: AgentDeps,
     phase: PhaseName,
-    new_parts: list[_TurnPart],
     capture: _PhaseRunCapture,
 ) -> dict[str, Any]:
     delta = extract_state_delta(deps)
     delta["current_phase"] = phase
-    delta["turn_message_parts"] = state.turn_message_parts + new_parts
     delta["turn_total_tokens"] = state.turn_total_tokens + capture.tokens
     delta["turn_total_cost_usd"] = state.turn_total_cost_usd + capture.cost_usd
     if capture.phase_outcome is not None:
@@ -623,7 +502,6 @@ def _emit_residual_prose(
     capture: _PhaseRunCapture,
     *,
     phase_message_id: UUID,
-    new_parts: list[_TurnPart],
 ) -> None:
     outcome = capture.phase_outcome
     if outcome is None or not outcome.prose or capture.prose_already_streamed:
@@ -634,7 +512,6 @@ def _emit_residual_prose(
         writer, TextDeltaChunk(id=prose_chunk_id, delta=outcome.prose),
     )
     _emit_chunk(writer, TextEndChunk(id=prose_chunk_id))
-    new_parts.append(_text_part(outcome.prose))
 
 
 def _deferred_hint_for_phase(
@@ -746,23 +623,32 @@ async def _run_phase_node(
     if not capture.new_messages:
         _synthesize_from_orphan_text(capture, state, phase, agent_model)
 
-    new_parts: list[_TurnPart] = [
-        _phase_start_part(phase, state.turn_trace_id, agent_model),
-        *_convert_assistant_parts(capture.new_messages),
-    ]
+    if deps.tool_repetition_guard.eject_to_discovery:
+        capture.phase_outcome = PhaseOutcome(
+            disposition=PhaseDisposition.HANDOFF,
+            handoff_to="discovery",
+            prose=(
+                capture.phase_outcome.prose
+                if capture.phase_outcome is not None
+                and capture.phase_outcome.prose
+                else _extract_latest_assistant_prose(capture.new_messages)
+                or "Ejected to discovery: agent was looping on read-only "
+                "tools without making progress."
+            ),
+            reason=f"{phase} ejected after read-only tool spam",
+        )
+
     _emit_residual_prose(
-        writer, capture, phase_message_id=phase_message_id, new_parts=new_parts,
+        writer, capture, phase_message_id=phase_message_id,
     )
 
     cumulative_tokens = state.turn_total_tokens + capture.tokens
     cumulative_cost = state.turn_total_cost_usd + capture.cost_usd
-    cumulative_parts = state.turn_message_parts + new_parts
 
     await _persist_phase_progress(
         runtime.context,
         state=state,
         capture=capture,
-        cumulative_parts=cumulative_parts,
     )
     _emit_chunk(
         writer,
@@ -773,7 +659,7 @@ async def _run_phase_node(
     )
 
     return _build_phase_delta(
-        state=state, deps=deps, phase=phase, new_parts=new_parts, capture=capture,
+        state=state, deps=deps, phase=phase, capture=capture,
     )
 
 
@@ -865,58 +751,29 @@ async def _persist_phase_progress(
     *,
     state: PipelineState,
     capture: _PhaseRunCapture,
-    cumulative_parts: list[_TurnPart],
 ) -> None:
-    """Persist per-phase quota + the turn message's partial state.
-
-    Charges the user for this phase immediately (so mid-turn failures still
-    charge) and upserts the turn's assistant message so the conversation
-    detail endpoint reflects accumulated usage without waiting for
-    ``finalize_turn_node``.
-    """
-    if context is None or not cumulative_parts:
+    if context is None:
         return
-
-    cumulative_tokens = state.turn_total_tokens + capture.tokens
-    cumulative_cost = state.turn_total_cost_usd + capture.cost_usd
-
+    residual_tokens = max(capture.tokens - capture.charged_tokens, 0)
+    residual_cost = max(capture.cost_usd - capture.charged_cost, Decimal(0))
+    if residual_tokens == 0 and residual_cost == 0:
+        return
     async with context.db_session_factory() as session:
-        residual_tokens = max(capture.tokens - capture.charged_tokens, 0)
-        residual_cost = max(capture.cost_usd - capture.charged_cost, Decimal(0))
-        if residual_tokens > 0 or residual_cost > 0:
-            try:
-                await quota_service.accumulate(
-                    session,
-                    user_id=state.user_id,
-                    tokens=residual_tokens,
-                    cost_usd=residual_cost,
-                )
-                capture.charged_output_tokens += residual_tokens
-                capture.charged_cost += residual_cost
-            except SQLAlchemyError:
-                logger.warning(
-                    "failed to accumulate phase quota",
-                    user_id=str(state.user_id),
-                    conversation_id=str(state.conversation_id),
-                    phase=state.current_phase,
-                )
-        metadata = _build_turn_metadata(
-            state=state,
-            total_tokens=cumulative_tokens,
-            cost_usd=cumulative_cost,
-        )
         try:
-            await MessagesRepository(session).upsert_message(
-                message_id=state.turn_message_id,
-                conversation_id=state.conversation_id,
-                role="assistant",
-                parts=_dump_parts(cumulative_parts),
-                metadata=metadata,
+            await quota_service.accumulate(
+                session,
+                user_id=state.user_id,
+                tokens=residual_tokens,
+                cost_usd=residual_cost,
             )
+            capture.charged_output_tokens += residual_tokens
+            capture.charged_cost += residual_cost
         except SQLAlchemyError:
             logger.warning(
-                "failed to upsert partial turn message",
+                "failed to accumulate phase quota",
+                user_id=str(state.user_id),
                 conversation_id=str(state.conversation_id),
+                phase=state.current_phase,
             )
         await session.commit()
 
@@ -1040,14 +897,12 @@ def _supervisor_goto(target: SupervisorTarget) -> SupervisorGoto:
 def _supervisor_finalize(
     state: PipelineState,
     reason: str,
-    extra_part: _TurnPart,
 ) -> Command[SupervisorGoto]:
     return Command(
         goto=_FINALIZE,
         update={
             "last_routing_reason": reason,
             "supervisor_call_count": state.supervisor_call_count + 1,
-            "turn_message_parts": [*state.turn_message_parts, extra_part],
         },
     )
 
@@ -1098,13 +953,6 @@ def _resume_pending_approval(
             "current_phase": approval.phase,
             "last_routing_reason": reason,
             "supervisor_call_count": state.supervisor_call_count + 1,
-            "turn_message_parts": [
-                *state.turn_message_parts,
-                _data_part(
-                    "data-supervisor-decision",
-                    {"to": approval.phase, "reason": reason},
-                ),
-            ],
         },
     )
 
@@ -1126,14 +974,7 @@ def _supervisor_budget_exhausted(
             phase="completed", status="failed", reason=abort_reason,
         ),
     )
-    return _supervisor_finalize(
-        state,
-        abort_reason,
-        _data_part(
-            "data-phase-change",
-            {"phase": "completed", "status": "failed", "reason": abort_reason},
-        ),
-    )
+    return _supervisor_finalize(state, abort_reason)
 
 
 def _supervisor_halt_on_awaiting_user(
@@ -1144,13 +985,30 @@ def _supervisor_halt_on_awaiting_user(
         return None
     halt_reason = outcome.reason
     _emit_chunk(writer, supervisor_decision_event(to="end", reason=halt_reason))
-    return _supervisor_finalize(
-        state,
-        halt_reason,
-        _data_part(
-            "data-supervisor-decision",
-            {"to": "end", "reason": halt_reason},
-        ),
+    return _supervisor_finalize(state, halt_reason)
+
+
+def _supervisor_forced_handoff(
+    state: PipelineState, writer: Any,
+) -> Command[SupervisorGoto] | None:
+    outcome = state.last_phase_outcome
+    if (
+        outcome is None
+        or outcome.disposition != PhaseDisposition.HANDOFF
+        or outcome.handoff_to is None
+        or "ejected" not in (outcome.reason or "").lower()
+    ):
+        return None
+    target = outcome.handoff_to
+    reason = outcome.reason
+    _emit_chunk(writer, supervisor_decision_event(to=target, reason=reason))
+    return Command(
+        goto=target,
+        update={
+            "current_phase": target,
+            "last_routing_reason": reason,
+            "supervisor_call_count": state.supervisor_call_count + 1,
+        },
     )
 
 
@@ -1196,6 +1054,7 @@ async def supervisor_node(
     for guard in (
         _supervisor_budget_exhausted(state, writer),
         _resume_pending_approval(state, writer),
+        _supervisor_forced_handoff(state, writer),
         _supervisor_halt_on_awaiting_user(state, writer),
     ):
         if guard is not None:
@@ -1210,35 +1069,15 @@ async def supervisor_node(
                 phase="completed", status="failed", reason=fallback_reason,
             ),
         )
-        return _supervisor_finalize(
-            state,
-            fallback_reason,
-            _data_part(
-                "data-phase-change",
-                {
-                    "phase": "completed",
-                    "status": "failed",
-                    "reason": fallback_reason,
-                },
-            ),
-        )
+        return _supervisor_finalize(state, fallback_reason)
     _emit_chunk(
         writer,
         supervisor_decision_event(to=decision.to, reason=decision.reason),
     )
-    new_parts: list[_TurnPart] = [
-        _data_part("data-supervisor-decision", {"to": decision.to, "reason": decision.reason}),
-    ]
     if decision.suggested_specialist is not None:
         _emit_chunk(
             writer,
             specialist_suggestion_event(kind=decision.suggested_specialist),
-        )
-        new_parts.append(
-            _data_part(
-                "data-specialist-suggestion",
-                {"kind": decision.suggested_specialist},
-            ),
         )
 
     if decision.to in ("reject", "question") and state.phase_call_counts:
@@ -1255,7 +1094,6 @@ async def supervisor_node(
                     f"suppressed {decision.to} — phase already responded this turn"
                 ),
                 "supervisor_call_count": state.supervisor_call_count + 1,
-                "turn_message_parts": [*state.turn_message_parts, *new_parts],
             },
         )
 
@@ -1267,23 +1105,16 @@ async def supervisor_node(
             writer,
             turn_rejected_event(message=message_text, reason=decision.reason),
         )
-        new_parts.append(
-            _data_part("data-turn-rejected", {"message": message_text, "reason": decision.reason}),
-        )
     elif decision.to == "question":
         answer_text = decision.answer or ""
         _emit_chunk(
             writer,
             turn_qa_event(answer=answer_text, reason=decision.reason),
         )
-        new_parts.append(
-            _data_part("data-turn-qa", {"answer": answer_text, "reason": decision.reason}),
-        )
 
     update: dict[str, Any] = {
         "last_routing_reason": decision.reason,
         "supervisor_call_count": state.supervisor_call_count + 1,
-        "turn_message_parts": [*state.turn_message_parts, *new_parts],
     }
     if decision.to not in ("end", "reject", "question"):
         update["current_phase"] = decision.to
@@ -1294,12 +1125,11 @@ async def supervisor_node(
 async def finalize_turn_node(
     state: PipelineState, runtime: Runtime[Context]
 ) -> Command[Literal["__end__"]]:
-    if runtime.context is not None and state.turn_message_parts:
+    if runtime.context is not None:
         try:
             await _write_turn_message(
                 context=runtime.context,
                 state=state,
-                parts=state.turn_message_parts,
             )
         except SQLAlchemyError:
             logger.warning(
@@ -1348,4 +1178,4 @@ async def finalize_turn_node(
                 },
             )
 
-    return Command(goto=_END, update={"turn_message_parts": []})
+    return Command(goto=_END)

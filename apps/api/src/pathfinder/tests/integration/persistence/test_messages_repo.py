@@ -13,9 +13,6 @@ async def test_insert_and_fetch_message(
     conversation_id = uuid4()
     user_id = uuid4()
     message_id = uuid4()
-    parts: list[dict[str, object]] = [
-        {"type": "text", "text": "hello", "state": "done"},
-    ]
     metadata: dict[str, object] = {
         "phase": "scoping",
         "model": "anthropic:claude-sonnet-4-5",
@@ -32,7 +29,6 @@ async def test_insert_and_fetch_message(
             message_id=message_id,
             conversation_id=conversation_id,
             role="user",
-            parts=parts,
             metadata=metadata,
         )
         await session.commit()
@@ -45,5 +41,4 @@ async def test_insert_and_fetch_message(
     assert rows[0].id == message_id
     assert rows[0].conversation_id == conversation_id
     assert rows[0].role == "user"
-    assert rows[0].parts == parts
     assert rows[0].metadata_ == metadata

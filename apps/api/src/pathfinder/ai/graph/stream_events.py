@@ -101,6 +101,15 @@ def specialist_suggestion_event(*, kind: SpecialistKind) -> DataChunk:
     )
 
 
+def specialist_turn_start_event(
+    *, kind: SpecialistKind, model_id: str | None,
+) -> DataChunk:
+    return DataChunk(
+        type="data-specialist-turn-start",
+        data={"kind": kind, "modelId": model_id},
+    )
+
+
 def scratchpad_updated_event() -> DataChunk:
     """Chunk that instructs the client to invalidate its scratchpad query."""
     return DataChunk(type="data-scratchpad-updated", data={})

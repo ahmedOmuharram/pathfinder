@@ -1355,7 +1355,7 @@
                 "tags": [
                     "conversations"
                 ],
-                "summary": "SSE: tail live turn chunks. 204 when no active stream.",
+                "summary": "SSE: tail live turn chunks plus any post-resume continuation from a suspended durable task. 204 only when nothing is in flight.",
                 "operationId": "conversation_events_api_v1_conversations__conversation_id__events_get",
                 "security": [
                     {
@@ -1391,6 +1391,54 @@
                         "content": {
                             "application/json": {
                                 "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/{conversation_id}/events/snapshot": {
+            "get": {
+                "tags": [
+                    "conversations"
+                ],
+                "summary": "Conversation Events Snapshot",
+                "operationId": "conversation_events_snapshot_api_v1_conversations__conversation_id__events_snapshot_get",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EventsSnapshotResponse"
+                                }
                             }
                         }
                     },
@@ -9078,6 +9126,28 @@
                     "message"
                 ],
                 "title": "ErrorEvent"
+            },
+            "EventsSnapshotResponse": {
+                "properties": {
+                    "chunks": {
+                        "items": {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        "type": "array",
+                        "title": "Chunks"
+                    },
+                    "cursor": {
+                        "type": "integer",
+                        "title": "Cursor"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "chunks",
+                    "cursor"
+                ],
+                "title": "EventsSnapshotResponse"
             },
             "ExperimentConfigResponse": {
                 "properties": {

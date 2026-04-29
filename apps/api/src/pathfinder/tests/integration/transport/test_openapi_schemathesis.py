@@ -150,6 +150,14 @@ async def patched_app(
     procrastinate_app.connector = test_connector
     procrastinate_app.job_manager.connector = test_connector
 
+    async with db_engine.begin() as conn:
+        await conn.exec_driver_sql(
+            "TRUNCATE TABLE "
+            "messages, conversations, exports, "
+            "experiments, gene_sets, control_sets, users "
+            "RESTART IDENTITY CASCADE",
+        )
+
     app = create_app()
     app.router.lifespan_context = _noop_lifespan
 

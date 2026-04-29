@@ -30,7 +30,12 @@ import pathfinder.persistence.session as session_module
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
 from pathfinder.ai.scratchpad.models import NoteCreate
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
-from pathfinder.persistence.models import Conversation, Message, User
+from pathfinder.persistence.models import (
+    Conversation,
+    ConversationEvent,
+    Message,
+    User,
+)
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.platform.config import get_settings
@@ -158,12 +163,12 @@ async def _seed_conversation(
 async def _insert_message(
     repo: MessagesRepository, *, conv_id: UUID, role: str, text: str,
 ) -> UUID:
+    del text
     message_id = uuid4()
     await repo.insert_message(
         message_id=message_id,
         conversation_id=conv_id,
         role=role,
-        parts=[{"type": "text", "text": text, "state": "done"}],
         metadata={"mode": "strategy"},
     )
     return message_id
@@ -222,10 +227,9 @@ async def test_fork_copies_prefix_and_sets_parent_refs(
 
     async with session_module.async_session_factory() as session:
         rows = await MessagesRepository(session).list_messages_for_conversation(fork_id)
-        # Prefix = first user + first assistant = 2 messages.
         assert len(rows) == 2
-        texts = [r.parts[0]["text"] for r in rows]
-        assert texts == ["hi", "first reply"]
+        roles = [r.role for r in rows]
+        assert roles == ["user", "assistant"]
 
 
 async def test_fork_rejects_unknown_source(
@@ -298,7 +302,6 @@ async def test_delete_non_cascade_promotes_children(
                 id=anchor_msg,
                 conversation_id=a_id,
                 role="assistant",
-                parts=[],
                 metadata_={},
             ),
         )
@@ -315,7 +318,6 @@ async def test_delete_non_cascade_promotes_children(
                 id=fork_anchor,
                 conversation_id=b_id,
                 role="assistant",
-                parts=[],
                 metadata_={},
             ),
         )
@@ -410,7 +412,6 @@ async def test_delete_root_non_cascade_promotes_children_to_roots(
                 id=anchor_msg,
                 conversation_id=root_id,
                 role="assistant",
-                parts=[],
                 metadata_={},
             ),
         )
@@ -912,10 +913,6 @@ async def test_fork_messages_are_copied_in_order(
             fork_id,
         )
         assert [r.role for r in fork_rows] == [r.role for r in source_rows]
-        assert [r.parts[0]["text"] for r in fork_rows] == [
-            r.parts[0]["text"] for r in source_rows
-        ]
-        # Fork rows are new records — ids differ from source.
         assert {r.id for r in source_rows}.isdisjoint({r.id for r in fork_rows})
 
 
@@ -1506,16 +1503,9 @@ async def test_fork_copies_scratchpad_notes_with_fresh_ids(
     assert src_note_2.id not in fork_ids
 
 
-async def test_fork_rewrites_scratchpad_ids_in_copied_message_parts(
+async def test_fork_rewrites_scratchpad_ids_in_copied_chunks(
     patch_app_db_engine: None, db_cleaner: None,
 ) -> None:
-    """Message parts that cite old scratchpad ids are rewritten to the new ids.
-
-    A turn transcript may contain tool-note / tool-read_note parts where
-    ``input.note_id`` or ``output.id`` holds ``n-xxxxxx``. After fork the
-    fork's messages must cite the fork-scope ids, not the source-scope ids
-    — otherwise the chat UI shows dangling links.
-    """
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
     source_id = uuid4()
@@ -1538,9 +1528,6 @@ async def test_fork_rewrites_scratchpad_ids_in_copied_message_parts(
         await session.commit()
     src_note_id = src_note.id
 
-    # Persist a message whose parts reference the source note id in both
-    # the tool-note output (what the UI renders after creation) and a
-    # follow-up tool-read_note input (what the agent did next).
     async with session_module.async_session_factory() as session:
         msg_id = uuid4()
         session.add(
@@ -1548,30 +1535,37 @@ async def test_fork_rewrites_scratchpad_ids_in_copied_message_parts(
                 id=msg_id,
                 conversation_id=source_id,
                 role="assistant",
-                parts=[
-                    {"type": "text", "text": "saving a note", "state": "done"},
-                    {
-                        "type": "tool-note",
-                        "toolCallId": "tc-1",
-                        "state": "output-available",
-                        "input": {
-                            "title": "The one",
-                            "summary": "A note",
-                            "body": "Body here.",
-                        },
-                        "output": {"id": src_note_id, "title": "The one"},
-                    },
-                    {
-                        "type": "tool-read_note",
-                        "toolCallId": "tc-2",
-                        "state": "output-available",
-                        "input": {"note_id": src_note_id},
-                        "output": {"id": src_note_id, "body": "Body here."},
-                    },
-                ],
                 metadata_={"mode": "strategy"},
             ),
         )
+        session.add_all([
+            ConversationEvent(
+                conversation_id=source_id,
+                turn_id=msg_id,
+                chunk={
+                    "type": "tool-note",
+                    "toolCallId": "tc-1",
+                    "state": "output-available",
+                    "input": {
+                        "title": "The one",
+                        "summary": "A note",
+                        "body": "Body here.",
+                    },
+                    "output": {"id": src_note_id, "title": "The one"},
+                },
+            ),
+            ConversationEvent(
+                conversation_id=source_id,
+                turn_id=msg_id,
+                chunk={
+                    "type": "tool-read_note",
+                    "toolCallId": "tc-2",
+                    "state": "output-available",
+                    "input": {"note_id": src_note_id},
+                    "output": {"id": src_note_id, "body": "Body here."},
+                },
+            ),
+        ])
         await session.commit()
 
     async with session_module.async_session_factory() as session:
@@ -1587,22 +1581,19 @@ async def test_fork_rewrites_scratchpad_ids_in_copied_message_parts(
     async with session_module.async_session_factory() as session:
         sc = ScratchpadRepository(session)
         fork_notes = await sc.list_notes(conversation_id=fork_id, limit=10)
-        fork_messages = await MessagesRepository(session).list_messages_for_conversation(
-            fork_id,
-        )
+        fork_chunks = (
+            await session.scalars(
+                select(ConversationEvent)
+                .where(ConversationEvent.conversation_id == fork_id)
+                .order_by(ConversationEvent.id),
+            )
+        ).all()
 
     assert len(fork_notes) == 1
     new_id = fork_notes[0].id
     assert new_id != src_note_id
 
-    assert len(fork_messages) == 1
-    parts = fork_messages[0].parts
-    tool_note_part = next(p for p in parts if p["type"] == "tool-note")
-    tool_read_part = next(p for p in parts if p["type"] == "tool-read_note")
-
-    assert tool_note_part["output"]["id"] == new_id
-    assert tool_read_part["input"]["note_id"] == new_id
-    assert tool_read_part["output"]["id"] == new_id
-    # Non-scratchpad parts untouched.
-    text_part = next(p for p in parts if p["type"] == "text")
-    assert text_part["text"] == "saving a note"
+    by_type = {e.chunk["type"]: e.chunk for e in fork_chunks}
+    assert by_type["tool-note"]["output"]["id"] == new_id
+    assert by_type["tool-read_note"]["input"]["note_id"] == new_id
+    assert by_type["tool-read_note"]["output"]["id"] == new_id

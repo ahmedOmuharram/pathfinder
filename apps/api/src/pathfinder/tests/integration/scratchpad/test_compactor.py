@@ -190,7 +190,6 @@ async def test_finalize_triggers_compactor(
         site_id="plasmodb",
         mode="strategy",
         current_phase="verification",
-        turn_message_parts=[{"type": "text", "text": "ok", "state": "done"}],
     )
     context = Context(
         site_id="plasmodb",

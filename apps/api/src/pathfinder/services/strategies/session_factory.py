@@ -42,39 +42,34 @@ def build_strategy_session(
     site_id: str,
     strategy_graph: PersistedStrategyGraph | None,
 ) -> StrategySession:
-    """Build a StrategySession from a persisted strategy graph payload.
+    if strategy_graph is None or not strategy_graph.id:
+        msg = (
+            "build_strategy_session requires a PersistedStrategyGraph "
+            "with id=str(conversation.id)"
+        )
+        raise ValueError(msg)
 
-    Hydration uses the canonical ``plan`` field exclusively.
-    """
     session = StrategySession(site_id)
+    name = strategy_graph.name or DEFAULT_STREAM_NAME
+    graph = StrategyGraph(strategy_graph.id, name, site_id)
+    if strategy_graph.strategy_ast is not None:
+        payload = strategy_graph.strategy_ast
+        try:
+            graph.record_type = payload.record_type
+            graph.name = payload.name or name
+            all_steps = walk_step_tree(payload.root)
+            graph.steps = {step.id: step for step in all_steps}
+            graph.recompute_roots()
+            graph.last_step_id = payload.root.id
+            graph.description = payload.description
+            graph.save_history(f"Loaded graph: {payload.name or name}")
+        except (ValueError, TypeError, KeyError) as e:
+            logger.warning(
+                "Failed to load graph plan",
+                error=str(e),
+                graph_id=strategy_graph.id,
+            )
 
-    if strategy_graph:
-        graph_id = strategy_graph.id or strategy_graph.graph_id or "unknown"
-        name = strategy_graph.name or DEFAULT_STREAM_NAME
-
-        graph = StrategyGraph(graph_id, name, site_id)
-        if strategy_graph.strategy_ast is not None:
-            payload = strategy_graph.strategy_ast
-            try:
-                graph.record_type = payload.record_type
-                graph.name = payload.name or name
-                all_steps = walk_step_tree(payload.root)
-                graph.steps = {step.id: step for step in all_steps}
-                graph.recompute_roots()
-                graph.last_step_id = payload.root.id
-                graph.description = payload.description
-                graph.save_history(f"Loaded graph: {payload.name or name}")
-            except (ValueError, TypeError, KeyError) as e:
-                logger.warning(
-                    "Failed to load graph plan",
-                    error=str(e),
-                    graph_id=graph_id,
-                )
-
-        session.sync_state = _restore_wdk_state(strategy_graph, graph)
-        session.add_graph(graph)
-
-    if not session.get_graph(None):
-        session.create_graph(DEFAULT_STREAM_NAME)
-
+    session.sync_state = _restore_wdk_state(strategy_graph, graph)
+    session.add_graph(graph)
     return session
