@@ -12,6 +12,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_last_phase_outcome,
     pinned_problem_frame,
     pinned_scratchpad,
+    pinned_supervisor_log,
     pinned_user_memories,
 )
 from pathfinder.ai.capabilities.resilience import ToolResilience
@@ -129,13 +130,13 @@ confirmations ("I'm assuming X; tell me if you'd rather Y"). Every \
 question you asked in ``blocking_questions`` / ``optional_questions`` on \
 the frame must also appear in prose so the user actually sees it.
 - ``reason`` (required, short): one sentence for the orchestrator card.
-- ``disposition``: ``awaiting_user`` if the frame has ANY \
-``blocking_questions``, ANY ``optional_questions``, or you made \
-assumptions worth confirming. This is the DEFAULT for a first-turn scope \
-— the user needs to confirm or correct before discovery spends tokens. \
-Use ``handoff`` only when the prompt was fully unambiguous AND you made \
-no assumptions AND no questions (rare — usually a follow-up turn \
-continuing a confirmed frame).
+- ``disposition``: ``awaiting_user`` ONLY when the frame has \
+``blocking_questions`` — questions whose answer would change which WDK \
+search you'd run. Optional questions and stated assumptions do NOT halt \
+the pipeline: they surface in prose so the user can correct mid-flight, \
+but discovery proceeds with the assumed defaults. Use ``handoff`` (with \
+``handoff_to="discovery"``) whenever there are no blocking questions, \
+even if you made several assumptions or asked optional confirmations.
 - ``handoff_to`` (optional): hint the next phase on ``handoff`` (usually \
 ``discovery``).
 
@@ -172,6 +173,7 @@ for _fn in (
     pinned_user_memories,
     pinned_scratchpad,
     pinned_last_phase_outcome,
+    pinned_supervisor_log,
 ):
     scoping_agent.instructions(_fn)
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
-import type { ConversationSummary } from "@/lib/api/conversations";
+import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
 
 import { countDescendants, toTreeRoots } from "./conversationTree";
 
@@ -11,7 +11,7 @@ function makeItem(
       Pick<ConversationItem, "title" | "parentConversationId" | "parentMessageId">
     >,
 ): ConversationItem {
-  const chat: ConversationSummary = {
+  const chat: ConversationResponse = {
     id: partial.id,
     name: partial.title ?? partial.id,
     siteId: "plasmodb",

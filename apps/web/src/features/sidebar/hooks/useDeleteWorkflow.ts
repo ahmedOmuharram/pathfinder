@@ -15,14 +15,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
-import {
-  conversationListOptions,
-  deleteConversation,
-  dismissConversation,
-  dismissedConversationsOptions,
-  restoreConversation,
-  type ConversationSummary,
-} from "@/lib/api/conversations";
+import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
+import { listDismissedStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListDismissedStrategies";
+import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
+import { dismissConversation } from "@pathfinder/shared/generated/hooks/useDismissConversation";
+import { restoreStrategy } from "@pathfinder/shared/generated/hooks/useRestoreStrategy";
 import { toUserMessage } from "@/lib/api/errors";
 
 interface UseDeleteWorkflowArgs {
@@ -58,8 +56,8 @@ export function useDeleteWorkflow({
     string | null
   >(null);
 
-  const listKey = conversationListOptions(siteId).queryKey;
-  const dismissedKey = dismissedConversationsOptions(siteId).queryKey;
+  const listKey = listStrategiesQueryOptions({ siteId }).queryKey;
+  const dismissedKey = listDismissedStrategiesQueryOptions({ siteId }).queryKey;
 
   const confirmDelete = async (options: { cascade?: boolean } = {}) => {
     if (!deleteTarget) return;
@@ -69,10 +67,10 @@ export function useDeleteWorkflow({
       const isWdkLinked = target.chat.wdkStrategyId != null;
       if (isWdkLinked) {
         // Soft dismiss for WDK-linked chats so sync won't reimport them.
-        queryClient.setQueryData<ConversationSummary[]>(listKey, (old) =>
+        queryClient.setQueryData<ConversationResponse[]>(listKey, (old) =>
           (old ?? []).filter((c) => c.id !== target.id),
         );
-        queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) => [
+        queryClient.setQueryData<ConversationResponse[]>(dismissedKey, (old) => [
           target.chat,
           ...(old ?? []).filter((c) => c.id !== target.id),
         ]);
@@ -82,11 +80,11 @@ export function useDeleteWorkflow({
         try {
           await dismissConversation(target.id);
         } catch (err) {
-          queryClient.setQueryData<ConversationSummary[]>(listKey, (old) => [
+          queryClient.setQueryData<ConversationResponse[]>(listKey, (old) => [
             target.chat,
             ...(old ?? []).filter((c) => c.id !== target.id),
           ]);
-          queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) =>
+          queryClient.setQueryData<ConversationResponse[]>(dismissedKey, (old) =>
             (old ?? []).filter((c) => c.id !== target.id),
           );
           reportError(toUserMessage(err, "Failed to dismiss conversation."));
@@ -102,9 +100,9 @@ export function useDeleteWorkflow({
         router.push(`/${siteId}/conversation`);
       }
       try {
-        await deleteConversation(
+        await deleteStrategy(
           target.id,
-          options.cascade === true ? { cascade: true } : {},
+          options.cascade === true ? { cascade: true } : undefined,
         );
       } catch (err) {
         reportError(toUserMessage(err, "Failed to delete conversation."));
@@ -120,7 +118,7 @@ export function useDeleteWorkflow({
 
   const handleRestore = async (conversationId: string) => {
     try {
-      await restoreConversation(conversationId);
+      await restoreStrategy(conversationId);
     } catch (err) {
       reportError(toUserMessage(err, "Failed to restore conversation."));
     } finally {
@@ -135,8 +133,11 @@ export function useDeleteWorkflow({
     if (permanentDeleteTarget === null) return;
     const id = permanentDeleteTarget;
     try {
-      await deleteConversation(id, options.cascade === true ? { cascade: true } : {});
-      queryClient.setQueryData<ConversationSummary[]>(dismissedKey, (old) =>
+      await deleteStrategy(
+        id,
+        options.cascade === true ? { cascade: true } : undefined,
+      );
+      queryClient.setQueryData<ConversationResponse[]>(dismissedKey, (old) =>
         (old ?? []).filter((c) => c.id !== id),
       );
     } catch (err) {

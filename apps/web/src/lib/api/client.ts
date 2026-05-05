@@ -1,10 +1,34 @@
+import {
+  APIError,
+  buildUrl,
+  extractErrorMessage,
+  getAuthHeaders,
+  parseResponseBody,
+} from "./http";
+
+export type HttpMethod =
+  | "GET"
+  | "POST"
+  | "PUT"
+  | "PATCH"
+  | "DELETE"
+  | "get"
+  | "post"
+  | "put"
+  | "patch"
+  | "delete";
+
+export type QueryParams = {
+  [key: string]: unknown;
+};
+
 export type RequestConfig<D = unknown> = {
-  method: "get" | "post" | "put" | "patch" | "delete";
+  method: HttpMethod;
   url: string;
-  params?: Record<string, string | number | boolean | undefined>;
-  data?: D;
-  headers?: Record<string, string>;
-  signal?: AbortSignal;
+  params?: QueryParams | undefined;
+  data?: D | undefined;
+  headers?: Record<string, string> | undefined;
+  signal?: AbortSignal | undefined;
 };
 
 export type ResponseConfig<T = unknown> = {
@@ -14,49 +38,45 @@ export type ResponseConfig<T = unknown> = {
   headers: Headers;
 };
 
-export class ApiError extends Error {
-  readonly status: number;
-  readonly statusText: string;
-  readonly data: unknown;
-  constructor(init: { status: number; statusText: string; data: unknown }) {
-    super(`${init.status} ${init.statusText}`);
-    this.status = init.status;
-    this.statusText = init.statusText;
-    this.data = init.data;
-  }
-}
+export type ResponseErrorConfig<E = unknown> = APIError & { data: E };
 
-export async function client<TData>(cfg: RequestConfig): Promise<ResponseConfig<TData>> {
-  const url = new URL(cfg.url, window.location.origin);
-  if (cfg.params) {
-    for (const [k, v] of Object.entries(cfg.params)) {
-      if (v !== undefined) url.searchParams.set(k, String(v));
-    }
-  }
+export type Client = <TData = unknown, _TError = unknown, TVariables = unknown>(
+  config: RequestConfig<TVariables>,
+) => Promise<ResponseConfig<TData>>;
+
+export async function client<TData = unknown, _TError = unknown, TVariables = unknown>(
+  cfg: RequestConfig<TVariables>,
+): Promise<ResponseConfig<TData>> {
+  const url = buildUrl(cfg.url, cfg.params);
+  const hasBody = cfg.data !== undefined;
   const init: RequestInit = {
     method: cfg.method.toUpperCase(),
     headers: {
-      "content-type": "application/json",
-      "X-Requested-With": "XMLHttpRequest",
-      ...cfg.headers,
+      ...getAuthHeaders({
+        accept: "application/json",
+        ...(hasBody ? { contentType: "application/json" } : {}),
+      }),
+      ...(cfg.headers ?? {}),
     },
     credentials: "include",
   };
-  if (cfg.data !== undefined) {
+  if (hasBody) {
     init.body = JSON.stringify(cfg.data);
   }
   if (cfg.signal !== undefined) {
     init.signal = cfg.signal;
   }
-  const resp = await fetch(url.toString(), init);
-  const contentType = resp.headers.get("content-type") ?? "";
-  // Match both ``application/json`` and ``application/problem+json`` so the
-  // FastAPI ProblemDetail body lands on ``data`` as a parsed object.
-  const data: unknown = contentType.includes("json")
-    ? await (resp.json() as Promise<unknown>)
-    : await resp.text();
+  const resp = await fetch(url, init);
+  const data = await parseResponseBody(resp);
   if (!resp.ok) {
-    throw new ApiError({ status: resp.status, statusText: resp.statusText, data });
+    const msg =
+      extractErrorMessage(data) ?? `HTTP ${resp.status} ${resp.statusText}`;
+    throw new APIError(msg, {
+      status: resp.status,
+      statusText: resp.statusText,
+      url,
+      data,
+    });
   }
   return {
     data: data as TData,

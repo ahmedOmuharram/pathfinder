@@ -1,4 +1,4 @@
-import type { Connection, Edge } from "@xyflow/react";
+import type { Connection } from "@xyflow/react";
 import type { Step } from "@pathfinder/shared";
 import { inferStepKind } from "@/lib/strategyGraph";
 import { resolveRecordType } from "@/lib/strategyGraph";
@@ -125,19 +125,6 @@ export function getConnectionEffect(
     return { type: "patch", targetId, patch: { secondaryInputStepId: sourceId } };
   }
   return { type: "pendingCombine", sourceId, targetId };
-}
-
-export function edgeToInputPatch(edge: Edge): Partial<Step> | null {
-  if (edge.targetHandle === "left") return { primaryInputStepId: null };
-  if (edge.targetHandle === "left-secondary")
-    return {
-      secondaryInputStepId: null,
-      operator: null,
-      colocationParams: null,
-    };
-  if (edge.id.endsWith("-primary")) return { primaryInputStepId: null };
-  if (edge.id.endsWith("-secondary")) return { secondaryInputStepId: null };
-  return null;
 }
 
 export function inferCombineRecordTypeOrMismatch(args: {

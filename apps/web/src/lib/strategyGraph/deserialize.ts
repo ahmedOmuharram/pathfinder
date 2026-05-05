@@ -1,6 +1,7 @@
 import type { Edge, Node } from "@xyflow/react";
 import { MarkerType, Position } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
+import { walkSubtreeIds } from "@/features/strategy/operations";
 import { inferStepKind } from "./kind";
 import type { StepPositions } from "./layout";
 
@@ -59,6 +60,25 @@ export function deserializeStrategyToGraph(
     .filter((id) => (usedAsInputCount.get(id) ?? 0) === 0);
   const rootSet = new Set(rootStepIds);
   const shouldShowRootOutputs = rootStepIds.length !== 1;
+
+  // Match serialize: prefer Strategy.rootStepId when it is still a real root,
+  // else fall back to the unique root if any. Anything not reachable from the
+  // chosen root is an orphan and rendered with an "isOrphan" tag.
+  let chosenRoot: string | null = null;
+  if (
+    strategy.rootStepId != null &&
+    strategy.rootStepId !== "" &&
+    stepMap.has(strategy.rootStepId) &&
+    rootSet.has(strategy.rootStepId)
+  ) {
+    chosenRoot = strategy.rootStepId;
+  } else if (rootStepIds.length === 1) {
+    chosenRoot = rootStepIds[0]!;
+  }
+  const reachable =
+    chosenRoot != null
+      ? new Set(walkSubtreeIds(strategy.steps, chosenRoot))
+      : new Set<string>();
 
   const gridSize = 28;
   const snap = (value: number) => Math.round(value / gridSize) * gridSize;
@@ -121,6 +141,7 @@ export function deserializeStrategyToGraph(
         onAddToChat,
         onOpenDetails,
         isUnsaved: unsavedStepIds?.has(step.id) ?? false,
+        isOrphan: !reachable.has(step.id),
         showOutputHandle: shouldShowRootOutputs && rootSet.has(step.id),
         showPrimaryInputHandle:
           (kind === "transform" || kind === "combine") &&

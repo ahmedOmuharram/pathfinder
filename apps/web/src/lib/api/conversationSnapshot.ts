@@ -32,36 +32,43 @@ export async function loadSnapshotMessages(
 
 interface ChunkLike {
   type: string;
+  messageId?: string;
   message?: { id: string; role: "user"; parts: unknown[] };
 }
-
 
 export async function reduceSnapshotChunks(
   chunks: ChunkLike[],
 ): Promise<UIMessage[]> {
   const messages: UIMessage[] = [];
   let pending: ChunkLike[] = [];
+  let pendingMessageId: string | undefined;
+  const flush = async () => {
+    if (pending.length === 0) return;
+    messages.push(await reduceAssistantSlice(pending));
+    pending = [];
+    pendingMessageId = undefined;
+  };
   for (const chunk of chunks) {
     if (chunk.type === USER_MESSAGE_TYPE) {
-      if (pending.length > 0) {
-        messages.push(await reduceAssistantSlice(pending));
-        pending = [];
-      }
+      await flush();
       const raw = chunk.message;
-      if (raw != null) {
-        messages.push(raw as unknown as UIMessage);
-      }
+      if (raw != null) messages.push(raw as unknown as UIMessage);
       continue;
     }
-    pending.push(chunk);
-    if (chunk.type === "done") {
-      messages.push(await reduceAssistantSlice(pending));
-      pending = [];
+    if (
+      chunk.type === "start"
+      && chunk.messageId != null
+      && pendingMessageId != null
+      && chunk.messageId !== pendingMessageId
+    ) {
+      await flush();
     }
+    if (chunk.type === "start" && chunk.messageId != null) {
+      pendingMessageId = chunk.messageId;
+    }
+    pending.push(chunk);
   }
-  if (pending.length > 0) {
-    messages.push(await reduceAssistantSlice(pending));
-  }
+  await flush();
   return messages;
 }
 

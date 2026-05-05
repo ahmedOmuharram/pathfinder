@@ -15,6 +15,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_last_phase_outcome,
     pinned_problem_frame,
     pinned_scratchpad,
+    pinned_supervisor_log,
     pinned_user_memories,
 )
 from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
@@ -133,6 +134,7 @@ for _fn in (
     pinned_scratchpad,
     pinned_last_phase_outcome,
     pinned_discovered_searches,
+    pinned_supervisor_log,
 ):
     planning_agent.instructions(_fn)
 

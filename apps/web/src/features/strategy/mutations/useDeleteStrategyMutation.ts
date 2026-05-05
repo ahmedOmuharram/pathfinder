@@ -3,7 +3,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { conversationDetailKey, deleteConversation } from "@/lib/api/conversations";
+import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
+import { strategyQueryKey } from "@/lib/api/strategy";
 import { toUserMessage } from "@/lib/api/errors";
 
 export interface DeleteStrategyVars {
@@ -16,10 +17,10 @@ export function useDeleteStrategyMutation() {
   const queryClient = useQueryClient();
   return useMutation<void, Error, DeleteStrategyVars>({
     mutationFn: async ({ conversationId }) => {
-      await deleteConversation(conversationId);
+      await deleteStrategy(conversationId);
     },
     onSuccess: (_data, { siteId, conversationId }) => {
-      queryClient.removeQueries({ queryKey: conversationDetailKey(conversationId) });
+      queryClient.removeQueries({ queryKey: strategyQueryKey(conversationId) });
       router.push(`/${siteId}/conversation`);
       toast.success("Strategy deleted");
     },

@@ -3,7 +3,10 @@
 Error payloads, graph/step lookup, and validation utilities.
 """
 
+import json
+
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
@@ -138,6 +141,15 @@ def validation_error_payload(
             )
     details.update({k: v for k, v in context.items() if v is not None})
     return tool_error(ErrorCode.VALIDATION_ERROR, exc.title, **details)
+
+
+def validation_model_retry(
+    exc: ValidationError, **context: JsonValue,
+) -> ModelRetry:
+    payload = validation_error_payload(exc, **context).model_dump(
+        by_alias=True, mode="json", exclude_none=True,
+    )
+    return ModelRetry(json.dumps(payload))
 
 def is_placeholder_name(name: str | None) -> bool:
     if not name:

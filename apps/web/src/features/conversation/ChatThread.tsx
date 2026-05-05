@@ -13,7 +13,7 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import { conversationDetailOptions } from "@/lib/api/conversations";
+import { strategyQueryOptions } from "@/lib/api/strategy";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { ChatEmptyState } from "./ChatEmptyState";
@@ -70,7 +70,7 @@ export function ChatThread({
 
 
 function SessionAwareBody({ conversationId }: { conversationId: string }) {
-  const { data } = useQuery(conversationDetailOptions(conversationId));
+  const { data } = useQuery(strategyQueryOptions(conversationId));
   const mode = data?.specialistMode;
   const sessionKind = mode?.kind ?? null;
   return (

@@ -17,10 +17,9 @@ import { SlashPopover } from "@/features/conversation/slash/SlashPopover";
 import { commands, findCommand } from "@/features/conversation/slash/registry";
 import type { Command, CommandResult } from "@/features/conversation/slash/types";
 import { parseSlashInput } from "@/features/conversation/slash/parser";
-import {
-  beginConversation,
-  conversationDetailOptions,
-} from "@/lib/api/conversations";
+import { beginStrategy } from "@pathfinder/shared/generated/hooks/useBeginStrategy";
+import { getAuthHeaders } from "@/lib/api/http";
+import { strategyQueryOptions } from "@/lib/api/strategy";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import {
@@ -54,7 +53,7 @@ function formatCost(cost: number): string {
 }
 
 function ConversationUsageFooter({ conversationId }: { conversationId: string }) {
-  const { data } = useQuery(conversationDetailOptions(conversationId));
+  const { data } = useQuery(strategyQueryOptions(conversationId));
   const tokens = data?.totalTokens ?? 0;
   const cost = Number(data?.totalCostUsd ?? 0);
   if (tokens === 0 && cost === 0) return null;
@@ -73,8 +72,14 @@ export function Composer({ conversationId }: { conversationId: string }) {
   const siteId = useSessionStore((s) => s.selectedSite);
   const quotaExhausted = useQuotaExhausted();
   const isRunning = useAuiState((s) => s.thread.isRunning);
+  const requestServerCancel = (): void => {
+    void fetch(`/api/v1/conversations/${conversationId}/cancel`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    }).catch(() => {});
+  };
   const { data: conversationDetail } = useQuery(
-    conversationDetailOptions(conversationId),
+    strategyQueryOptions(conversationId),
   );
   const stepCount = conversationDetail?.steps.length ?? 0;
   const activeSpecialistKind = conversationDetail?.specialistMode?.kind ?? null;
@@ -95,8 +100,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
     const rest = (parsed?.rest ?? "").trim();
 
     try {
-      await beginConversation({
-        conversationId,
+      await beginStrategy(conversationId, {
         siteId,
         ...(command.kind === "specialist-enter" && rest !== "" && { seedText: rest }),
       });
@@ -266,6 +270,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
             <ComposerPrimitive.Cancel
               data-testid="stop-button"
               aria-label="Stop"
+              onClick={requestServerCancel}
               className="inline-flex items-center gap-2 rounded-md bg-destructive px-3 py-2 text-sm text-destructive-foreground shadow-[var(--shadow-card)] transition-transform hover:-translate-y-px"
             >
               <Square className="h-4 w-4" /> Stop

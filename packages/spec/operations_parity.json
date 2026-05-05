@@ -1,0 +1,75 @@
+{
+  "_doc": "Shared FE/BE parity fixtures for graph operation appliers. Each case asserts both implementations produce the same post-state for the same op against the same initial graph. Edit both tests when adding cases.",
+  "cases": [
+    {
+      "name": "delete-leaf-of-nested-combine-collapse",
+      "initial": {
+        "steps": [
+          { "id": "A", "kind": "search" },
+          { "id": "B", "kind": "search" },
+          { "id": "D", "kind": "search" },
+          { "id": "C", "kind": "combine", "primaryInputStepId": "A", "secondaryInputStepId": "B" },
+          { "id": "R", "kind": "combine", "primaryInputStepId": "C", "secondaryInputStepId": "D" }
+        ],
+        "rootStepId": "R"
+      },
+      "op": { "kind": "deleteStep", "stepId": "A", "resolution": "collapse-combine" },
+      "expected": {
+        "stepIds": ["B", "D", "R"],
+        "rootInputs": { "R": { "primary": "B", "secondary": "D" } },
+        "droppedStepIds": ["A", "C"]
+      }
+    },
+    {
+      "name": "delete-leaf-of-root-combine-collapse",
+      "initial": {
+        "steps": [
+          { "id": "a", "kind": "search" },
+          { "id": "b", "kind": "search" },
+          { "id": "c", "kind": "combine", "primaryInputStepId": "a", "secondaryInputStepId": "b" }
+        ],
+        "rootStepId": "c"
+      },
+      "op": { "kind": "deleteStep", "stepId": "a", "resolution": "collapse-combine" },
+      "expected": {
+        "stepIds": ["b"],
+        "rootInputs": {},
+        "droppedStepIds": ["a", "c"]
+      }
+    },
+    {
+      "name": "promote-primary-on-root-combine",
+      "initial": {
+        "steps": [
+          { "id": "a", "kind": "search" },
+          { "id": "b", "kind": "search" },
+          { "id": "c", "kind": "combine", "primaryInputStepId": "a", "secondaryInputStepId": "b" }
+        ],
+        "rootStepId": "c"
+      },
+      "op": { "kind": "deleteStep", "stepId": "c", "resolution": "promote-primary" },
+      "expected": {
+        "stepIds": ["a"],
+        "rootInputs": {},
+        "droppedStepIds": ["b", "c"]
+      }
+    },
+    {
+      "name": "delete-subtree-cascades-transform",
+      "initial": {
+        "steps": [
+          { "id": "a", "kind": "search" },
+          { "id": "t", "kind": "transform", "primaryInputStepId": "a" },
+          { "id": "r", "kind": "search", "primaryInputStepId": "t" }
+        ],
+        "rootStepId": "r"
+      },
+      "op": { "kind": "deleteStep", "stepId": "a", "resolution": "delete-subtree" },
+      "expected": {
+        "stepIds": ["r"],
+        "rootInputs": { "r": { "primary": null } },
+        "droppedStepIds": ["a", "t"]
+      }
+    }
+  ]
+}

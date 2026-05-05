@@ -59,8 +59,11 @@ vi.mock("@/lib/api/http", () => ({
 }));
 
 // Mock GeneChipInput's dependencies
-vi.mock("@/lib/api/genes", () => ({
-  resolveGeneIds: vi.fn().mockResolvedValue({ resolved: [], unresolved: [] }),
+vi.mock("@pathfinder/shared/generated/hooks/useResolveGenes", () => ({
+  resolveGenes: vi.fn().mockResolvedValue({ resolved: [], unresolved: [] }),
+}));
+
+vi.mock("@pathfinder/shared/generated/hooks/useSearchGenes", () => ({
   searchGenes: vi.fn().mockResolvedValue([]),
 }));
 

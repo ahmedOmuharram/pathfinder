@@ -56,6 +56,7 @@ export const dataPartComponents: {
   "data-turn-rejected": DataTurnRejected,
   "data-turn-qa": DataTurnQa,
   "data-supervisor-decision": DataSupervisorDecision,
+  "data-supervisor-context": () => null,
   "data-specialist-suggestion": DataSpecialistSuggestion,
   "data-specialist-entered": SpecialistEnteredPart,
   "data-specialist-exited": SpecialistExitedPart,

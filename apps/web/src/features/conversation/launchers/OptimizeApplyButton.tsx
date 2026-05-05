@@ -5,7 +5,7 @@ import { Sparkles } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
-import { conversationDetailKey } from "@/lib/api/conversations";
+import { strategyQueryKey } from "@/lib/api/strategy";
 import { taskStatusOptions } from "@/lib/api/tasks";
 import { useUpdateStepMutation } from "@/features/strategy/mutations/useUpdateStepMutation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,24 +58,21 @@ export function OptimizeApplyButton({
   const best = parsed.data.best;
 
   const onApply = (): void => {
-    updateStep.mutate(
-      {
+    void updateStep
+      .mutateAsync({
         stepId: localStepId,
         patch: { parameters: paramsToStrings(best.params) },
-      },
-      {
-        onSuccess: () => {
-          void queryClient.invalidateQueries({
-            queryKey: conversationDetailKey(conversationId),
-          });
-          toast.success("Best config applied to step");
-        },
-        onError: (err: unknown) => {
-          const msg = err instanceof Error ? err.message : "Failed to apply";
-          toast.error(msg);
-        },
-      },
-    );
+      })
+      .then(() => {
+        void queryClient.invalidateQueries({
+          queryKey: strategyQueryKey(conversationId),
+        });
+        toast.success("Best config applied to step");
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : "Failed to apply";
+        toast.error(msg);
+      });
   };
 
   return (

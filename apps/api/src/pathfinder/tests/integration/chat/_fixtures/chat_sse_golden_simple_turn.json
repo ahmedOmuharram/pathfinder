@@ -5,17 +5,11 @@
   },
   {
     "data": {
-      "reason": "mock echoes non-strategy prompts",
-      "to": "question"
+      "phase": "completed",
+      "reason": "supervisor failed \u2014 ending turn",
+      "status": "failed"
     },
-    "type": "data-supervisor-decision"
-  },
-  {
-    "data": {
-      "answer": "[mock] hi",
-      "reason": "mock echoes non-strategy prompts"
-    },
-    "type": "data-turn-qa"
+    "type": "data-phase-change"
   },
   {
     "finishReason": "stop",

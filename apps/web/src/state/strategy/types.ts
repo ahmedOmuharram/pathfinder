@@ -1,18 +1,19 @@
 import type { Patch } from "immer";
 import type { Strategy } from "@pathfinder/shared";
+import type { GraphOperation } from "@/features/strategy/operations";
 import type {
   StepLifecycleSeed,
   StepMachineEvent,
   StepMachineSnapshot,
 } from "./stepMachine";
 
-export interface FailedPushPayload {
-  optimistic: Strategy;
+export interface FailedOperationPayload {
+  op: GraphOperation;
 }
 
 export interface DraftSlice {
-  lastFailedPush: FailedPushPayload | null;
-  setLastFailedPush: (payload: FailedPushPayload | null) => void;
+  lastFailedOperation: FailedOperationPayload | null;
+  setLastFailedOperation: (payload: FailedOperationPayload | null) => void;
   clear: () => void;
 }
 

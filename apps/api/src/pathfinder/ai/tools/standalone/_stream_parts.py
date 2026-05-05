@@ -261,6 +261,7 @@ def plan_artifact_chunk(
         rationale=rationale,
     )
     return DataChunk(
+        id=plan_id,
         type="data-plan-artifact",
         data=payload.model_dump(by_alias=True, mode="json"),
     )

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
-import type { ConversationSummary } from "@/lib/api/conversations";
+import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
 
 import { groupConversationsByTime } from "./groupByTime";
 
@@ -9,7 +9,7 @@ function makeItem(
   partial: Pick<ConversationItem, "id" | "updatedAt"> &
     Partial<Pick<ConversationItem, "isSaved" | "title">>,
 ): ConversationItem {
-  const chat: ConversationSummary = {
+  const chat: ConversationResponse = {
     id: partial.id,
     name: partial.title ?? "conv",
     siteId: "plasmodb",

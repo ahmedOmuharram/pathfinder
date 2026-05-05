@@ -8,8 +8,9 @@ const fitViewMock = vi.fn();
 const zoomInMock = vi.fn();
 const zoomOutMock = vi.fn();
 const pushMock = vi.fn();
-const deleteMutateMock = vi.fn();
 const addStepMutateMock = vi.fn();
+let requestDeleteMock = vi.fn();
+let requestDeleteManyMock = vi.fn();
 
 vi.mock("@xyflow/react", () => ({
   useReactFlow: () => ({
@@ -24,7 +25,6 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/features/strategy/mutations", () => ({
-  useDeleteStepMutation: () => ({ mutate: deleteMutateMock }),
   useAddStepMutation: () => ({ mutate: addStepMutateMock }),
 }));
 
@@ -99,6 +99,9 @@ function makeWrapper(overrides: CtxOverrides = {}) {
     combineMismatchGroups: [],
     draftStrategy: null,
     updateStep: vi.fn(),
+    requestDelete: requestDeleteMock,
+    requestDeleteMany: requestDeleteManyMock,
+    deleteDialogProps: null,
     strategy,
     siteId: "plasmodb",
   };
@@ -139,7 +142,8 @@ describe("useStrategyKeyboardShortcuts", () => {
     zoomInMock.mockReset();
     zoomOutMock.mockReset();
     pushMock.mockReset();
-    deleteMutateMock.mockReset();
+    requestDeleteMock = vi.fn();
+    requestDeleteManyMock = vi.fn();
     addStepMutateMock.mockReset();
   });
 
@@ -170,10 +174,16 @@ describe("useStrategyKeyboardShortcuts", () => {
     expect(setSelectedStep).toHaveBeenCalledWith(step);
   });
 
-  it("Backspace fires deleteStep mutation for selected", () => {
+  it("Backspace fires requestDelete for the selected step", () => {
     renderShortcuts({ overrides: { selectedNodeIds: ["doomed"] } });
     fireEvent.keyDown(document, { key: "Backspace" });
-    expect(deleteMutateMock).toHaveBeenCalledWith({ stepId: "doomed" });
+    expect(requestDeleteMock).toHaveBeenCalledWith("doomed");
+  });
+
+  it("Backspace fires requestDeleteMany when multiple steps selected", () => {
+    renderShortcuts({ overrides: { selectedNodeIds: ["a", "b"] } });
+    fireEvent.keyDown(document, { key: "Backspace" });
+    expect(requestDeleteManyMock).toHaveBeenCalledWith(["a", "b"]);
   });
 
   it("skips when target is an input", () => {

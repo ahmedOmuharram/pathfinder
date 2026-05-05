@@ -3,20 +3,14 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+from pydantic_ai.ui.vercel_ai._utils import iter_tool_approval_responses
 from pydantic_ai.ui.vercel_ai.request_types import (
     TextUIPart,
-    UIMessagePart,
+    UIMessage,
 )
 
 from pathfinder.platform.pydantic_base import CamelModel
-
-
-class UIMessage(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    role: Literal["system", "user", "assistant"]
-    parts: list[UIMessagePart] = Field(default_factory=list)
 
 
 class ChatRequestBody(CamelModel):
@@ -26,7 +20,9 @@ class ChatRequestBody(CamelModel):
     (``trigger``, ``id``, ``messages``) with PathFinder-scoped fields
     (``conversationId``, ``siteId``, ``mode``, ``experimentId``) layered on
     via ``body`` on the client transport. The authenticated user UUID still
-    comes from the ``pathfinder-auth`` cookie.
+    comes from the ``pathfinder-auth`` cookie. ``messages`` uses pydantic-ai's
+    ``UIMessage`` so deferred-tool approval-responded parts deserialize into
+    the discriminated union and ``iter_tool_approval_responses`` works.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -60,3 +56,23 @@ class ChatRequestBody(CamelModel):
             msg = "ChatRequestBody.messages must end with a user message"
             raise ValueError(msg)
         return UUID(self.messages[-1].id)
+
+    @property
+    def is_approval_resume(self) -> bool:
+        """True when this turn is the user's structured approve/deny click.
+
+        SDK v6 fires a chat POST automatically (via ``sendAutomaticallyWhen``)
+        after ``addToolApprovalResponse``; the request carries the assistant
+        message with the ``approval-responded`` part instead of a new user
+        message.
+        """
+        return any(True for _ in iter_tool_approval_responses(self.messages))
+
+    @property
+    def prior_assistant_message_id(self) -> UUID | None:
+        if not self.is_approval_resume:
+            return None
+        for msg in reversed(self.messages):
+            if msg.role == "assistant":
+                return UUID(msg.id)
+        return None

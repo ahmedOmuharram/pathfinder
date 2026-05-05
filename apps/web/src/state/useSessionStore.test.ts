@@ -4,7 +4,6 @@ import { useSessionStore } from "./useSessionStore";
 beforeEach(() => {
   useSessionStore.setState({
     selectedSite: "veupathdb",
-    selectedSiteDisplayName: "VEuPathDB",
     strategyId: null,
     strategyBySite: {},
     chatIsStreaming: false,
@@ -18,12 +17,6 @@ describe("state/useSessionStore", () => {
   it("setSelectedSite updates selected site", () => {
     useSessionStore.getState().setSelectedSite("tritrypdb");
     expect(useSessionStore.getState().selectedSite).toBe("tritrypdb");
-  });
-
-  it("setSelectedSiteInfo updates site and display name", () => {
-    useSessionStore.getState().setSelectedSiteInfo("tritrypdb", "TriTrypDB");
-    expect(useSessionStore.getState().selectedSite).toBe("tritrypdb");
-    expect(useSessionStore.getState().selectedSiteDisplayName).toBe("TriTrypDB");
   });
 
   it("setStrategyId updates strategyId and strategyBySite atomically", () => {
@@ -50,14 +43,6 @@ describe("state/useSessionStore", () => {
     expect(useSessionStore.getState().strategyId).toBe("s-veu");
     useSessionStore.getState().setSelectedSite("toxodb");
     expect(useSessionStore.getState().strategyId).toBe("s-toxo");
-  });
-
-  it("setSelectedSiteInfo also restores strategyId from strategyBySite", () => {
-    useSessionStore.getState().setStrategyId("s-veu");
-    useSessionStore.getState().setSelectedSiteInfo("toxodb", "ToxoDB");
-    expect(useSessionStore.getState().strategyId).toBeNull();
-    useSessionStore.getState().setSelectedSiteInfo("veupathdb", "VEuPathDB");
-    expect(useSessionStore.getState().strategyId).toBe("s-veu");
   });
 
   it("setChatIsStreaming updates streaming state", () => {

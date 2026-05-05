@@ -5,15 +5,14 @@ import type { Connection, Edge } from "@xyflow/react";
 import type { Step } from "@pathfinder/shared";
 import {
   buildGraphIndices,
-  edgeToInputPatch,
   getConnectionEffect,
   inferCombineRecordTypeOrMismatch,
   isValidGraphConnection,
 } from "@/features/strategy/graph/utils/graphConnectionsLogic";
 import {
   useAddStepMutation,
-  useUpdateStepMutation,
 } from "@/features/strategy/mutations";
+import { useApplyOperation } from "@/features/strategy/mutations/useApplyOperation";
 
 interface UseGraphConnectionsArgs {
   steps: Step[];
@@ -33,7 +32,7 @@ const generateStepId = () => `step_${Math.random().toString(16).slice(2, 10)}`;
  */
 export function useGraphConnections({ steps, conversationId }: UseGraphConnectionsArgs) {
   const addStep = useAddStepMutation(conversationId);
-  const updateStep = useUpdateStepMutation(conversationId);
+  const apply = useApplyOperation(conversationId);
   const indices = buildGraphIndices(steps);
 
   const isValidConnection = (connection: Edge | Connection) =>
@@ -42,7 +41,22 @@ export function useGraphConnections({ steps, conversationId }: UseGraphConnectio
   const handleConnect = (connection: Connection) => {
     const effect = getConnectionEffect(connection, indices);
     if (effect.type === "patch") {
-      updateStep.mutate({ stepId: effect.targetId, patch: effect.patch });
+      const slotKey: keyof typeof effect.patch =
+        "primaryInputStepId" in effect.patch
+          ? "primaryInputStepId"
+          : "secondaryInputStepId";
+      const sourceId = effect.patch[slotKey];
+      if (typeof sourceId !== "string") return;
+      const slot: "primary" | "secondary" =
+        slotKey === "primaryInputStepId" ? "primary" : "secondary";
+      apply.mutate({
+        op: {
+          kind: "wireInput",
+          targetStepId: effect.targetId,
+          slot,
+          sourceStepId: sourceId,
+        },
+      });
       return;
     }
     if (effect.type === "pendingCombine") {
@@ -71,9 +85,20 @@ export function useGraphConnections({ steps, conversationId }: UseGraphConnectio
   };
 
   const handleDeleteEdge = (edge: Edge) => {
-    const patch = edgeToInputPatch(edge);
-    if (!patch) return;
-    updateStep.mutate({ stepId: edge.target, patch });
+    const slot: "primary" | "secondary" =
+      edge.targetHandle === "left-secondary" ||
+      edge.id.endsWith("-secondary")
+        ? "secondary"
+        : "primary";
+    apply.mutate({
+      op: {
+        kind: "deleteEdge",
+        sourceId: edge.source,
+        targetId: edge.target,
+        slot,
+        resolution: "detach",
+      },
+    });
   };
 
   const startCombine = (sourceId: string, targetId: string) => {

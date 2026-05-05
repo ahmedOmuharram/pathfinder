@@ -4,6 +4,8 @@ import { AuiIf, ThreadPrimitive } from "@assistant-ui/react";
 import { motion } from "motion/react";
 import { Settings2, X } from "lucide-react";
 
+import { siteDisplayName } from "@pathfinder/shared";
+
 import suggestedQuestions from "@/features/conversation/data/suggestedQuestions.json";
 import { cn } from "@/lib/utils/cn";
 import { useSessionStore } from "@/state/useSessionStore";
@@ -27,7 +29,7 @@ const suggestionEase = [0.22, 1, 0.36, 1] as const;
 
 export function ChatEmptyState() {
   const siteId = useSessionStore((s) => s.selectedSite);
-  const displayName = useSessionStore((s) => s.selectedSiteDisplayName);
+  const displayName = siteDisplayName(siteId);
   const hintDismissed = useSettingsStore((s) => s.firstRunHintDismissed);
   const dismissHint = useSettingsStore((s) => s.dismissFirstRunHint);
   const suggestions = suggestionsForSite(siteId);

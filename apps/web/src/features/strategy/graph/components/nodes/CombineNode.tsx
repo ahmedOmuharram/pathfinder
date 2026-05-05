@@ -24,6 +24,7 @@ export function CombineNode(props: StepNodeProps) {
     step,
     selected,
     isUnsaved = false,
+    isOrphan = false,
     showOutputHandle = false,
     showPrimaryInputHandle = false,
     showSecondaryInputHandle = false,
@@ -43,6 +44,7 @@ export function CombineNode(props: StepNodeProps) {
       step={step}
       selected={selected}
       isUnsaved={isUnsaved}
+      isOrphan={isOrphan}
       width={COMBINE_NODE_WIDTH}
       height={COMBINE_NODE_HEIGHT}
       snapshot={snapshot}

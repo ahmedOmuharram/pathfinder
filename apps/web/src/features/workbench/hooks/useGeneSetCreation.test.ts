@@ -9,8 +9,8 @@ import type { GeneSet } from "@pathfinder/shared";
 // Mocks
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/api/genes", () => ({
-  resolveGeneIds: vi.fn(),
+vi.mock("@pathfinder/shared/generated/hooks/useResolveGenes", () => ({
+  resolveGenes: vi.fn(),
 }));
 
 vi.mock("../api/geneSets", () => ({
@@ -31,9 +31,9 @@ vi.mock("@/lib/query/hooks/useInvalidateGeneSets", () => ({
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-const { resolveGeneIds } = await import("@/lib/api/genes");
+const { resolveGenes } = await import("@pathfinder/shared/generated/hooks/useResolveGenes");
 const { createGeneSet } = await import("../api/geneSets");
-const mockResolve = vi.mocked(resolveGeneIds);
+const mockResolve = vi.mocked(resolveGenes);
 const mockCreate = vi.mocked(createGeneSet);
 
 import { useGeneSetCreation } from "./useGeneSetCreation";
@@ -82,7 +82,7 @@ describe("useGeneSetCreation", () => {
     vi.clearAllMocks();
   });
 
-  it("handleVerify calls resolveGeneIds and sets resolved/unresolved state", async () => {
+  it("handleVerify calls resolveGenes and sets resolved/unresolved state", async () => {
     const resolved = makeResolvedGene("PF3D7_0100100");
     mockResolve.mockResolvedValue({
       resolved: [resolved],
@@ -97,10 +97,9 @@ describe("useGeneSetCreation", () => {
       await result.current.handleVerify(["PF3D7_0100100", "INVALID_ID"]);
     });
 
-    expect(mockResolve).toHaveBeenCalledWith("PlasmoDB", [
-      "PF3D7_0100100",
-      "INVALID_ID",
-    ]);
+    expect(mockResolve).toHaveBeenCalledWith("PlasmoDB", {
+      geneIds: ["PF3D7_0100100", "INVALID_ID"],
+    });
     await waitFor(() => {
       expect(result.current.verified).toBe(true);
       expect(result.current.resolvedGenes).toEqual([resolved]);

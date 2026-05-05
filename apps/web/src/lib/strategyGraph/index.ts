@@ -4,6 +4,7 @@ export { layoutStrategyGraph, type StepPositions } from "./layout";
 export { serializeStrategyAst } from "./serialize";
 export { inferStepKind } from "./kind";
 export { isFallbackDisplayName } from "./displayName";
+export { findOrphanSteps } from "./orphans";
 export {
   resolveRecordType,
   getCombineMismatchGroups,

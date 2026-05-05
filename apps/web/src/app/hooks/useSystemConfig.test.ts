@@ -11,9 +11,9 @@ import { createSuspenseWrapper } from "@/lib/query/testing";
 
 const mockGetSystemConfig = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/api/health", () => ({
-  getSystemConfig: mockGetSystemConfig,
-  systemConfigOptions: () => ({
+vi.mock("@pathfinder/shared/generated/hooks/useSystemConfig", () => ({
+  systemConfig: mockGetSystemConfig,
+  systemConfigQueryOptions: () => ({
     queryKey: ["config", "system"] as const,
     queryFn: mockGetSystemConfig,
     staleTime: Infinity,

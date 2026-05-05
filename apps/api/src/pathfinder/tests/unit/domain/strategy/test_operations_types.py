@@ -1,0 +1,134 @@
+from pydantic import TypeAdapter
+
+from pathfinder.domain.strategy.operations import (
+    AddCombineOp,
+    AddLeafOp,
+    AddTransformOp,
+    DeleteResolution,
+    DeleteStepOp,
+    GraphOperation,
+    ReplaceSubtreeOp,
+    UpdateCombineOperatorOp,
+    UpdateStepMetaOp,
+    UpdateStepParamsOp,
+)
+
+_ADAPTER: TypeAdapter[GraphOperation] = TypeAdapter(GraphOperation)
+
+
+def _step_payload(step_id: str = "a") -> dict:
+    return {"id": step_id, "searchName": "geneById"}
+
+
+class TestDiscriminatorParsing:
+    def test_add_leaf_new_root(self) -> None:
+        op = _ADAPTER.validate_python(
+            {
+                "kind": "addLeaf",
+                "step": _step_payload(),
+                "attach": {"mode": "new-root"},
+            }
+        )
+        assert isinstance(op, AddLeafOp)
+        assert op.attach.mode == "new-root"
+
+    def test_add_leaf_into_slot(self) -> None:
+        op = _ADAPTER.validate_python(
+            {
+                "kind": "addLeaf",
+                "step": _step_payload(),
+                "attach": {"mode": "into-slot", "targetStepId": "x", "slot": "primary"},
+            }
+        )
+        assert isinstance(op, AddLeafOp)
+        assert op.attach.mode == "into-slot"
+
+    def test_add_combine(self) -> None:
+        op = _ADAPTER.validate_python(
+            {
+                "kind": "addCombine",
+                "step": {"id": "c", "searchName": "__combine__", "operator": "INTERSECT"},
+                "leftId": "a",
+                "rightId": "b",
+            }
+        )
+        assert isinstance(op, AddCombineOp)
+        assert op.left_id == "a"
+        assert op.right_id == "b"
+
+    def test_add_transform(self) -> None:
+        op = _ADAPTER.validate_python(
+            {
+                "kind": "addTransform",
+                "step": _step_payload("t"),
+                "inputId": "a",
+                "mode": "before-consumer",
+            }
+        )
+        assert isinstance(op, AddTransformOp)
+        assert op.mode == "before-consumer"
+
+    def test_delete_step_collapse_combine(self) -> None:
+        op = _ADAPTER.validate_python(
+            {"kind": "deleteStep", "stepId": "a", "resolution": "collapse-combine"}
+        )
+        assert isinstance(op, DeleteStepOp)
+        assert op.resolution == DeleteResolution.COLLAPSE_COMBINE
+
+    def test_delete_step_promote_primary(self) -> None:
+        op = _ADAPTER.validate_python(
+            {"kind": "deleteStep", "stepId": "c", "resolution": "promote-primary"}
+        )
+        assert isinstance(op, DeleteStepOp)
+        assert op.resolution == DeleteResolution.PROMOTE_PRIMARY
+
+    def test_delete_step_rejects_unknown_resolution(self) -> None:
+        try:
+            _ADAPTER.validate_python(
+                {"kind": "deleteStep", "stepId": "a", "resolution": "orphan-sibling"}
+            )
+        except ValueError:
+            return
+        msg = "expected ValueError on unknown resolution"
+        raise AssertionError(msg)
+
+    def test_replace_subtree(self) -> None:
+        op = _ADAPTER.validate_python(
+            {
+                "kind": "replaceSubtree",
+                "stepId": "old",
+                "subtree": _step_payload("new"),
+            }
+        )
+        assert isinstance(op, ReplaceSubtreeOp)
+        assert op.subtree.id == "new"
+
+    def test_update_step_params(self) -> None:
+        op = _ADAPTER.validate_python(
+            {
+                "kind": "updateStepParams",
+                "stepId": "a",
+                "parameters": {"foo": "bar"},
+            }
+        )
+        assert isinstance(op, UpdateStepParamsOp)
+        assert op.parameters == {"foo": "bar"}
+
+    def test_update_combine_operator(self) -> None:
+        op = _ADAPTER.validate_python(
+            {
+                "kind": "updateCombineOperator",
+                "stepId": "c",
+                "operator": "UNION",
+                "colocationParams": None,
+            }
+        )
+        assert isinstance(op, UpdateCombineOperatorOp)
+        assert op.operator.value == "UNION"
+
+    def test_update_step_meta(self) -> None:
+        op = _ADAPTER.validate_python(
+            {"kind": "updateStepMeta", "stepId": "a", "displayName": "renamed"}
+        )
+        assert isinstance(op, UpdateStepMetaOp)
+        assert op.display_name == "renamed"

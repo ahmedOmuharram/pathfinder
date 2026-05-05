@@ -13,6 +13,7 @@ export function SearchNode(props: StepNodeProps) {
     step,
     selected,
     isUnsaved = false,
+    isOrphan = false,
     showOutputHandle = false,
     enterDelayIndex,
     onAddToChat,
@@ -29,6 +30,7 @@ export function SearchNode(props: StepNodeProps) {
       step={step}
       selected={selected}
       isUnsaved={isUnsaved}
+      isOrphan={isOrphan}
       width={SEARCH_NODE_WIDTH}
       height={SEARCH_NODE_HEIGHT}
       snapshot={snapshot}

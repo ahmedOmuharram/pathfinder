@@ -2,17 +2,14 @@
  * @vitest-environment jsdom
  */
 
-import type * as ConversationsModule from "@/lib/api/conversations";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
 
-const deleteConversationMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api/conversations", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof ConversationsModule>();
-  return { ...actual, deleteConversation: deleteConversationMock };
-});
+const deleteStrategyMock = vi.hoisted(() => vi.fn());
+vi.mock("@pathfinder/shared/generated/hooks/useDeleteStrategy", () => ({
+  deleteStrategy: deleteStrategyMock,
+}));
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
 const toastSuccessMock = vi.hoisted(() => vi.fn());
@@ -65,7 +62,7 @@ function makeStrategy(): Strategy {
 
 beforeEach(() => {
   useStrategyStore.getState().clear();
-  deleteConversationMock.mockReset();
+  deleteStrategyMock.mockReset();
   toastErrorMock.mockReset();
   toastSuccessMock.mockReset();
   routerPushMock.mockReset();
@@ -75,7 +72,7 @@ describe("useDeleteStrategyMutation", () => {
   it("calls DELETE endpoint, removes the cache entry, navigates, and toasts success", async () => {
     const initial = makeStrategy();
     const harness = makeQueryHarness(initial);
-    deleteConversationMock.mockResolvedValueOnce(undefined);
+    deleteStrategyMock.mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() => useDeleteStrategyMutation(), {
       wrapper: harness.wrapper,
@@ -88,7 +85,7 @@ describe("useDeleteStrategyMutation", () => {
       });
     });
 
-    expect(deleteConversationMock).toHaveBeenCalledWith(initial.id);
+    expect(deleteStrategyMock).toHaveBeenCalledWith(initial.id);
     expect(harness.getStrategy(initial.id)).toBeNull();
     expect(routerPushMock).toHaveBeenCalledWith("/plasmodb/conversation");
     expect(toastSuccessMock).toHaveBeenCalled();
@@ -97,7 +94,7 @@ describe("useDeleteStrategyMutation", () => {
   it("does NOT remove cache entry or navigate on error, toasts the error", async () => {
     const initial = makeStrategy();
     const harness = makeQueryHarness(initial);
-    deleteConversationMock.mockRejectedValueOnce(new Error("Boom"));
+    deleteStrategyMock.mockRejectedValueOnce(new Error("Boom"));
 
     const { result } = renderHook(() => useDeleteStrategyMutation(), {
       wrapper: harness.wrapper,

@@ -4,11 +4,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useAuthRefresh } from "@/lib/query/hooks/useAuthRefresh";
-import {
-  conversationListOptions,
-  dismissedConversationsOptions,
-  type ConversationSummary,
-} from "@/lib/api/conversations";
+import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
+import { listDismissedStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListDismissedStrategies";
 import { authStatusOptions } from "@/lib/api/veupathdb-auth";
 
 interface UseChatListFetchingArgs {
@@ -16,8 +14,8 @@ interface UseChatListFetchingArgs {
 }
 
 export interface ChatListFetchingResult {
-  chats: ConversationSummary[];
-  dismissedChats: ConversationSummary[];
+  chats: ConversationResponse[];
+  dismissedChats: ConversationResponse[];
   isLoading: boolean;
   isFetched: boolean;
   isSyncing: boolean;
@@ -37,8 +35,8 @@ export function useChatListFetching({
   const queryEnabled =
     authStatus?.signedIn === true && authRefreshed && siteId !== "";
 
-  const listOpts = conversationListOptions(siteId);
-  const dismissedOpts = dismissedConversationsOptions(siteId);
+  const listOpts = listStrategiesQueryOptions({ siteId });
+  const dismissedOpts = listDismissedStrategiesQueryOptions({ siteId });
 
   const listQuery = useQuery({ ...listOpts, enabled: queryEnabled });
   const dismissedQuery = useQuery({ ...dismissedOpts, enabled: queryEnabled });

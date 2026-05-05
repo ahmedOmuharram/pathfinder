@@ -54,6 +54,7 @@ _ALLOWED_CHUNK_TYPES: frozenset[str] = frozenset({
     "data-turn-qa",
     "data-turn-usage",
     "data-conversation-title",
+    "data-phase-change",
     "message-metadata",
 })
 

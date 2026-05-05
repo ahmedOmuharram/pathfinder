@@ -1,15 +1,13 @@
 export { useAddStepMutation } from "./useAddStepMutation";
-export { useDeleteStepMutation } from "./useDeleteStepMutation";
+export { useApplyOperation } from "./useApplyOperation";
 export { useDeleteStrategyMutation } from "./useDeleteStrategyMutation";
 export { useDuplicateStepMutation } from "./useDuplicateStepMutation";
-export { usePushStrategyMutation } from "./usePushStrategyMutation";
 export { useRetryLastPush } from "./useRetryLastPush";
 export { useUpdateStepMutation } from "./useUpdateStepMutation";
 export { useUpdateStrategyMetaMutation } from "./useUpdateStrategyMetaMutation";
 export type { AddStepVars } from "./useAddStepMutation";
-export type { DeleteStepVars } from "./useDeleteStepMutation";
+export type { ApplyOperationVars } from "./useApplyOperation";
 export type { DeleteStrategyVars } from "./useDeleteStrategyMutation";
 export type { DuplicateStepVars } from "./useDuplicateStepMutation";
-export type { PushStrategyVars } from "./usePushStrategyMutation";
 export type { UpdateStepVars } from "./useUpdateStepMutation";
 export type { UpdateStrategyMetaVars } from "./useUpdateStrategyMetaMutation";

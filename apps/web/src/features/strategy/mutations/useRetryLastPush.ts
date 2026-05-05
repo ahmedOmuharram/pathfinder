@@ -1,19 +1,18 @@
 "use client";
 
 import { useStrategyStore } from "@/state/strategy/store";
-import { usePushStrategyMutation } from "./usePushStrategyMutation";
+import { useApplyOperation } from "./useApplyOperation";
 
 /**
- * Returns a callback that re-fires the most recent failed push, if any.
- * `lastFailedPush` is set in the store by `usePushStrategyMutation.onError`
- * and cleared by its `onSuccess`. The retry uses the same optimistic strategy
- * payload that originally failed.
+ * Returns a callback that re-fires the most recent failed graph operation,
+ * if any. `lastFailedOperation` is set by `useApplyOperation.onError` and
+ * cleared on success.
  */
-export function useRetryLastPush(): () => void {
-  const push = usePushStrategyMutation();
+export function useRetryLastPush(conversationId: string): () => void {
+  const apply = useApplyOperation(conversationId);
   return () => {
-    const failed = useStrategyStore.getState().lastFailedPush;
+    const failed = useStrategyStore.getState().lastFailedOperation;
     if (failed === null) return;
-    push.mutate({ optimistic: failed.optimistic });
+    apply.mutate({ op: failed.op });
   };
 }

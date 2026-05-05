@@ -4,9 +4,8 @@ import { CombineOperator } from "@pathfinder/shared";
 import type { Strategy } from "@pathfinder/shared";
 import { useIsMutating } from "@tanstack/react-query";
 import { useStrategyStore } from "@/state/strategy/store";
-import { computeStepCounts } from "@/lib/api/conversations";
-import { PUSH_STRATEGY_MUTATION_KEY } from "@/features/strategy/mutations/usePushStrategyMutation";
-import { STEP_PATCH_MUTATION_KEY } from "@/features/strategy/mutations/useUpdateStepMutation";
+import { computeStepCounts } from "@pathfinder/shared/generated/hooks/useComputeStepCounts";
+import { APPLY_OPERATION_MUTATION_KEY } from "@/features/strategy/mutations/useApplyOperation";
 import { useStepCounts } from "@/features/strategy/services/useStepCounts";
 import { useGraphConnections } from "@/features/strategy/graph/hooks/useGraphConnections";
 import { useGraphSelection } from "@/features/strategy/graph/hooks/useGraphSelection";
@@ -89,13 +88,13 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     planHash: graphNodes.graphHasValidationIssues ? null : graphNodes.planHash,
     stepIds: (strategy?.steps ?? []).map((step) => step.id),
     applyStepCounts,
-    fetchCounts: computeStepCounts,
+    fetchCounts: (siteId, strategyAst) =>
+      computeStepCounts({ siteId, strategyAst }),
   });
 
-  const inFlightPushes = useIsMutating({ mutationKey: PUSH_STRATEGY_MUTATION_KEY });
-  const inFlightStepPatches = useIsMutating({ mutationKey: STEP_PATCH_MUTATION_KEY });
+  const inFlightOps = useIsMutating({ mutationKey: APPLY_OPERATION_MUTATION_KEY });
   const syncStatus: "idle" | "syncing" | "error" =
-    inFlightPushes + inFlightStepPatches > 0
+    inFlightOps > 0
       ? "syncing"
       : addStepMutation.isError ||
           updateStepMutation.isError ||
@@ -138,5 +137,8 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     combineMismatchGroups: graphNodes.combineMismatchGroups,
     updateStep: (stepId: string, patch: Parameters<typeof updateStepMutation.mutate>[0]["patch"]) =>
       updateStepMutation.mutate({ stepId, patch }),
+    requestDelete: handlers.requestDelete,
+    requestDeleteMany: handlers.requestDeleteMany,
+    deleteDialogProps: handlers.deleteDialogProps,
   } as const;
 }

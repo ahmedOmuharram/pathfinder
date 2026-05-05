@@ -3,11 +3,10 @@
 import { useState } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import type { Step, Strategy } from "@pathfinder/shared";
-import { computeNodeDeletionResult } from "@/features/strategy/graph/utils/nodeDeletionLogic";
 import { computeOrthologInsert } from "@/features/strategy/graph/utils/orthologInsert";
+import { useDeleteOperation } from "@/features/strategy/graph/hooks/useDeleteOperation";
 import {
   useAddStepMutation,
-  useDeleteStepMutation,
   useUpdateStepMutation,
 } from "@/features/strategy/mutations";
 
@@ -38,7 +37,7 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
 
   const conversationId = strategy?.id ?? "";
   const updateStep = useUpdateStepMutation(conversationId);
-  const deleteStep = useDeleteStepMutation(conversationId);
+  const deleteOp = useDeleteOperation(conversationId);
   const addStep = useAddStepMutation(conversationId);
 
   const [edgeMenu, setEdgeMenu] = useState<{
@@ -50,21 +49,13 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
 
   const handleNodesDelete = (deletedNodes: Node[]) => {
     if (isCompact || deletedNodes.length === 0) return;
-    const stepsList = strategy?.steps ?? [];
-    if (stepsList.length === 0) return;
-    const result = computeNodeDeletionResult({
-      steps: stepsList,
-      deletedNodeIds: deletedNodes.map((n) => n.id),
-    });
-    if (result.removeIds.length === 0) return;
-
-    for (const { stepId, patch } of result.patches) {
-      updateStep.mutate({ stepId, patch });
+    const ids = deletedNodes.map((n) => n.id);
+    if (ids.length === 1) {
+      deleteOp.requestDelete(ids[0]!);
+    } else {
+      deleteOp.requestDeleteMany(ids);
     }
-    for (const stepId of result.removeIds) {
-      deleteStep.mutate({ stepId });
-    }
-    if (selectedStep && result.removeIds.includes(selectedStep.id)) {
+    if (selectedStep && ids.includes(selectedStep.id)) {
       setSelectedStep(null);
     }
   };
@@ -133,5 +124,8 @@ export function useStrategyGraphHandlers(options: UseStrategyGraphHandlersOption
     /** Single-step patch — wraps useUpdateStepMutation. */
     updateStep: (stepId: string, patch: Partial<Step>) =>
       updateStep.mutate({ stepId, patch }),
+    requestDelete: deleteOp.requestDelete,
+    requestDeleteMany: deleteOp.requestDeleteMany,
+    deleteDialogProps: deleteOp.dialogProps,
   } as const;
 }

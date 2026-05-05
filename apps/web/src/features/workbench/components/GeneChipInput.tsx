@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
 import type { ResolvedGene } from "@pathfinder/shared";
-import { resolveGeneIds } from "@/lib/api/genes";
+import { resolveGenes } from "@pathfinder/shared/generated/hooks/useResolveGenes";
 import { GeneChip, type ChipStatus } from "./GeneChip";
 import { GeneAutocomplete } from "./GeneAutocomplete";
 import { GeneSetPicker } from "./GeneSetPicker";
@@ -34,7 +34,7 @@ export function GeneChipInput({
   const { data: verification } = useQuery({
     queryKey: ["gene-verify", siteId, sortedKey] as const,
     queryFn: async () => {
-      const result = await resolveGeneIds(siteId, debouncedValue);
+      const result = await resolveGenes(siteId, { geneIds: debouncedValue });
       const resolved = new Map<string, ResolvedGene>();
       const invalid = new Set<string>();
       for (const gene of result.resolved) resolved.set(gene.geneId, gene);

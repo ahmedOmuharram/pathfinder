@@ -1,10 +1,8 @@
 "use client";
 
-import { type UIMessage } from "ai";
-import {
-  useChatRuntime as useAssistantUIChatRuntime,
-  type UseChatRuntimeOptions,
-} from "@assistant-ui/react-ai-sdk";
+import { useChat } from "@ai-sdk/react";
+import { type UIMessage, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
+import { useAISDKRuntime } from "@assistant-ui/react-ai-sdk";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { Strategy } from "@pathfinder/shared";
@@ -18,18 +16,21 @@ import { strategyMetaSchema } from "@pathfinder/shared/generated/zod/strategyMet
 import { turnUsageSchema } from "@pathfinder/shared/generated/zod/turnUsageSchema";
 
 import { getAuthHeaders } from "@/lib/api/http";
+import { beginStrategy } from "@pathfinder/shared/generated/hooks/useBeginStrategy";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
+import { strategyQueryKey, strategyQueryOptions } from "@/lib/api/strategy";
+import { getMyQuotaQueryKey } from "@pathfinder/shared/generated/hooks/useGetMyQuota";
+import { listScratchpadNotesQueryOptions } from "@pathfinder/shared/generated/hooks/useListScratchpadNotes";
 import {
-  beginConversation,
-  conversationDetailOptions,
-  conversationListOptions,
-} from "@/lib/api/conversations";
-import { userQuotaQueryKey } from "@/lib/api/quota";
-import { scratchpadNotesOptions } from "@/lib/api/scratchpad";
+  supervisorEventSchema,
+  useOrchestratorStore,
+} from "@/state/useOrchestratorStore";
 import { usePlanStore } from "@/state/usePlanStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
 
 import { buildChatRequestBody } from "./buildRequestBody";
+import type { ChatHelpers } from "./chatHelpersContext";
 import { DurableChatTransport } from "./DurableChatTransport";
 import { createFeedbackAdapter } from "./feedbackAdapter";
 
@@ -43,24 +44,49 @@ export function useChatRuntime({
   conversationId,
   initialMessages,
   allowMissing = false,
-}: UseChatRuntimeArgs) {
+}: UseChatRuntimeArgs): {
+  runtime: ReturnType<typeof useAISDKRuntime<UIMessage>>;
+  chat: ChatHelpers;
+} {
   const queryClient = useQueryClient();
   const invalidateConversationList = () => {
     const siteId = useSessionStore.getState().selectedSite;
     void queryClient.invalidateQueries({
-      queryKey: conversationListOptions(siteId).queryKey,
+      queryKey: listStrategiesQueryOptions({ siteId }).queryKey,
     });
   };
-  // `resume` isn't on the public UseChatRuntimeOptions type but is spread
-  // through to the underlying useChat at runtime.
-  const runtimeOptions: UseChatRuntimeOptions<UIMessage> & {
-    resume?: boolean;
-  } = {
+  const transport = new DurableChatTransport({
+    conversationId,
+    eventsUrlFor: (id) => `/api/v1/conversations/${id}/events`,
+    api: "/api/v1/chat",
+    headers: () =>
+      getAuthHeaders({
+        accept: "text/event-stream",
+        contentType: "application/json",
+      }),
+    prepareSendMessagesRequest: async ({ id, messages, trigger, body }) => {
+      const siteId = useSessionStore.getState().selectedSite;
+      await beginStrategy(conversationId, { siteId });
+      return {
+        body: buildChatRequestBody({
+          conversationId,
+          siteId,
+          id,
+          trigger,
+          messages,
+          baseBody: body as Record<string, unknown> | undefined,
+        }),
+      };
+    },
+  });
+
+  const chat = useChat<UIMessage>({
     id: conversationId,
     resume: !allowMissing,
     generateId: () => crypto.randomUUID(),
     ...(initialMessages !== undefined && { messages: initialMessages }),
-    adapters: { feedback: createFeedbackAdapter() },
+    transport,
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onData: (dataPart) => {
       switch (dataPart.type) {
         case "data-conversation-title":
@@ -68,13 +94,13 @@ export function useChatRuntime({
           break;
         case "data-scratchpad-updated":
           void queryClient.invalidateQueries({
-            queryKey: scratchpadNotesOptions(conversationId).queryKey,
+            queryKey: listScratchpadNotesQueryOptions(conversationId).queryKey,
           });
           break;
         case "data-plan-artifact":
           usePlanStore
             .getState()
-            .setActivePlanArtifact(planArtifactSchema.parse(dataPart.data));
+            .appendPlanArtifact(planArtifactSchema.parse(dataPart.data));
           break;
         case "data-problem-frame":
           useSessionStore
@@ -87,12 +113,9 @@ export function useChatRuntime({
             .recordGeneSet(geneSetSchema.parse(dataPart.data));
           break;
         case "data-graph-snapshot":
-          // Validate shape; the StrategyPanel reads the full Strategy from the
-          // conversation-detail query. Invalidate so the panel refetches the
-          // authoritative AST from the server as the turn builds the strategy.
           graphSnapshotSchema.parse(dataPart.data);
           void queryClient.invalidateQueries({
-            queryKey: conversationDetailOptions(conversationId).queryKey,
+            queryKey: strategyQueryOptions(conversationId).queryKey,
           });
           break;
         case "data-strategy-meta":
@@ -102,16 +125,20 @@ export function useChatRuntime({
           graphClearedSchema.parse(dataPart.data);
           useStrategyStore.getState().clear();
           void queryClient.invalidateQueries({
-            queryKey: conversationDetailOptions(conversationId).queryKey,
+            queryKey: strategyQueryOptions(conversationId).queryKey,
           });
           break;
         case "data-decision-presented":
           decisionPresentedSchema.parse(dataPart.data);
           break;
+        case "data-supervisor-context":
+          useOrchestratorStore
+            .getState()
+            .appendEvent(supervisorEventSchema.parse(dataPart.data));
+          break;
         case "data-turn-usage": {
           const usage = turnUsageSchema.parse(dataPart.data);
-          const detailKey =
-            conversationDetailOptions(conversationId).queryKey;
+          const detailKey = strategyQueryOptions(conversationId).queryKey;
           queryClient.setQueryData<Strategy | null>(detailKey, (prev) =>
             prev == null
               ? prev
@@ -121,42 +148,23 @@ export function useChatRuntime({
                   totalCostUsd: usage.costUsd,
                 },
           );
-          void queryClient.invalidateQueries({ queryKey: userQuotaQueryKey });
+          void queryClient.invalidateQueries({ queryKey: getMyQuotaQueryKey() });
           break;
         }
       }
     },
     onFinish: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["conversations", conversationId, "detail"],
+        queryKey: strategyQueryKey(conversationId),
       });
       invalidateConversationList();
-      void queryClient.invalidateQueries({ queryKey: userQuotaQueryKey });
+      void queryClient.invalidateQueries({ queryKey: getMyQuotaQueryKey() });
     },
-    transport: new DurableChatTransport({
-      conversationId,
-      eventsUrlFor: (id) => `/api/v1/conversations/${id}/events`,
-      api: "/api/v1/chat",
-      headers: () =>
-        getAuthHeaders({
-          accept: "text/event-stream",
-          contentType: "application/json",
-        }),
-      prepareSendMessagesRequest: async ({ id, messages, trigger, body }) => {
-        const siteId = useSessionStore.getState().selectedSite;
-        await beginConversation({ conversationId, siteId });
-        return {
-          body: buildChatRequestBody({
-            conversationId,
-            siteId,
-            id,
-            trigger,
-            messages,
-            baseBody: body as Record<string, unknown> | undefined,
-          }),
-        };
-      },
-    }),
-  };
-  return useAssistantUIChatRuntime(runtimeOptions);
+  });
+
+  const runtime = useAISDKRuntime(chat, {
+    adapters: { feedback: createFeedbackAdapter() },
+  });
+
+  return { runtime, chat };
 }

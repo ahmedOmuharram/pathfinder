@@ -6,7 +6,7 @@ import { useDebounce } from "use-debounce";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Search } from "lucide-react";
 import type { GeneSearchResult } from "@pathfinder/shared";
-import { searchGenes } from "@/lib/api/genes";
+import { searchGenes } from "@pathfinder/shared/generated/hooks/useSearchGenes";
 import { Input } from "@/lib/components/ui/Input";
 
 interface GeneAutocompleteProps {
@@ -31,7 +31,7 @@ export function GeneAutocomplete({
 
   const { data: searchResults, isFetching } = useQuery({
     queryKey: ["genes", "search", siteId, trimmedQuery] as const,
-    queryFn: () => searchGenes(siteId, trimmedQuery, null, 10),
+    queryFn: () => searchGenes(siteId, { q: trimmedQuery, limit: 10 }),
     enabled: trimmedQuery.length > 0 && siteId !== "",
     staleTime: 30_000,
   });

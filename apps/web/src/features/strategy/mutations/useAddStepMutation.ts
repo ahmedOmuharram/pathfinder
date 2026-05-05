@@ -1,33 +1,50 @@
 "use client";
 
-import type { Step, Strategy } from "@pathfinder/shared";
-import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
-import { usePushStrategyMutation } from "./usePushStrategyMutation";
+import type { Step } from "@pathfinder/shared";
+import { inferStepKind } from "@/lib/strategyGraph";
+import type { GraphOperation } from "@/features/strategy/operations";
+import { useApplyOperation } from "./useApplyOperation";
 
 export interface AddStepVars {
   step: Step;
 }
 
-function applyAdd(strategy: Strategy, step: Step): Strategy {
-  return { ...strategy, steps: [...strategy.steps, step] };
+function stepToOp(step: Step): GraphOperation {
+  const kind = inferStepKind(step);
+  if (kind === "combine") {
+    if (step.primaryInputStepId == null || step.secondaryInputStepId == null) {
+      throw new Error("Combine step missing primary or secondary input");
+    }
+    return {
+      kind: "addCombine",
+      step,
+      leftId: step.primaryInputStepId,
+      rightId: step.secondaryInputStepId,
+    };
+  }
+  if (kind === "transform") {
+    if (step.primaryInputStepId == null) {
+      throw new Error("Transform step missing primary input");
+    }
+    return {
+      kind: "addTransform",
+      step,
+      inputId: step.primaryInputStepId,
+      mode: "new-root",
+    };
+  }
+  return { kind: "addLeaf", step, attach: { mode: "new-root" } };
 }
 
 export function useAddStepMutation(conversationId: string) {
-  const push = usePushStrategyMutation();
-  const cache = useStrategyCacheUtils();
+  const apply = useApplyOperation(conversationId);
   return {
-    ...push,
+    ...apply,
     mutate: (vars: AddStepVars) => {
-      const current = cache.get(conversationId);
-      if (!current) return;
-      push.mutate({ optimistic: applyAdd(current, vars.step) });
+      apply.mutate({ op: stepToOp(vars.step) });
     },
     mutateAsync: async (vars: AddStepVars) => {
-      const current = cache.get(conversationId);
-      if (!current) {
-        throw new Error("Cannot add step: no strategy loaded");
-      }
-      return push.mutateAsync({ optimistic: applyAdd(current, vars.step) });
+      return apply.mutateAsync({ op: stepToOp(vars.step) });
     },
   };
 }

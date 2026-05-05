@@ -1,7 +1,7 @@
 "use client";
 
 import { useIsMutating, useQueryClient } from "@tanstack/react-query";
-import { PUSH_STRATEGY_MUTATION_KEY } from "@/features/strategy/mutations/usePushStrategyMutation";
+import { APPLY_OPERATION_MUTATION_KEY } from "@/features/strategy/mutations/useApplyOperation";
 
 interface AutoFlushState {
   /** True when at least one push mutation is currently in flight. */
@@ -22,11 +22,11 @@ interface AutoFlushState {
  */
 export function useStrategyAutoFlush(): AutoFlushState {
   const queryClient = useQueryClient();
-  const inFlight = useIsMutating({ mutationKey: PUSH_STRATEGY_MUTATION_KEY });
+  const inFlight = useIsMutating({ mutationKey: APPLY_OPERATION_MUTATION_KEY });
 
   const awaitFlush = async () => {
     const cache = queryClient.getMutationCache();
-    const pushKeyJson = JSON.stringify(PUSH_STRATEGY_MUTATION_KEY);
+    const pushKeyJson = JSON.stringify(APPLY_OPERATION_MUTATION_KEY);
     const pendingFor = () =>
       cache
         .getAll()

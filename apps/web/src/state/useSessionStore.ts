@@ -17,7 +17,6 @@ import type {
 
 interface SessionState {
   selectedSite: string;
-  selectedSiteDisplayName: string;
   strategyId: string | null;
   /** Maps siteId -> last-used strategyId for cross-site restore. */
   strategyBySite: Record<string, string>;
@@ -39,7 +38,6 @@ interface SessionState {
   setSelectedSite: (siteId: string) => void;
   /** Switch site with full cleanup — clears strategy data and resets workbench. */
   switchSite: (siteId: string) => void;
-  setSelectedSiteInfo: (siteId: string, displayName: string) => void;
   setStrategyId: (id: string | null) => void;
   setChatIsStreaming: (value: boolean) => void;
 
@@ -61,7 +59,6 @@ export const useSessionStore = createPersistedStore<SessionState>(
   "SessionStore",
   (set, get) => ({
     selectedSite: "veupathdb",
-    selectedSiteDisplayName: "VEuPathDB",
     strategyId: null,
     strategyBySite: {},
     chatIsStreaming: false,
@@ -91,18 +88,6 @@ export const useSessionStore = createPersistedStore<SessionState>(
       useStrategyStore.getState().clear();
       useWorkbenchStore.getState().reset();
     },
-
-    setSelectedSiteInfo: (siteId, displayName) =>
-      set((s) => {
-        if (s.selectedSite === siteId) {
-          return { selectedSite: siteId, selectedSiteDisplayName: displayName };
-        }
-        return {
-          selectedSite: siteId,
-          selectedSiteDisplayName: displayName,
-          strategyId: s.strategyBySite[siteId] ?? null,
-        };
-      }),
 
     setStrategyId: (id) => {
       const site = get().selectedSite;
@@ -140,7 +125,6 @@ export const useSessionStore = createPersistedStore<SessionState>(
     name: "pathfinder-session",
     partialize: (s) => ({
       selectedSite: s.selectedSite,
-      selectedSiteDisplayName: s.selectedSiteDisplayName,
       strategyId: s.strategyId,
       strategyBySite: s.strategyBySite,
     }),

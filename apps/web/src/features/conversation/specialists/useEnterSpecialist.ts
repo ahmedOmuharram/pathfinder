@@ -11,7 +11,7 @@ import {
   type SpecialistEnterResponse,
   type SpecialistExitResponse,
 } from "@/lib/api/specialists";
-import { conversationDetailKey } from "@/lib/api/conversations";
+import { strategyQueryKey } from "@/lib/api/strategy";
 
 interface EnterArgs {
   kind: SpecialistKind;
@@ -31,7 +31,7 @@ export function useEnterSpecialist(conversationId: string) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: conversationDetailKey(conversationId),
+        queryKey: strategyQueryKey(conversationId),
       });
       void queryClient.invalidateQueries({
         queryKey: ["conversations", conversationId, "messages"],
@@ -53,7 +53,7 @@ export function useExitSpecialist(conversationId: string) {
     mutationFn: () => exitSpecialist(conversationId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: conversationDetailKey(conversationId),
+        queryKey: strategyQueryKey(conversationId),
       });
       void queryClient.invalidateQueries({
         queryKey: ["conversations", conversationId, "messages"],

@@ -4,6 +4,8 @@ Provides :class:`StepsMixin` with methods to create search steps,
 combined (boolean) steps, transform steps, and update existing steps.
 """
 
+from http import HTTPStatus
+
 from pathfinder.integrations.veupathdb.strategy_api.base import StrategyAPIBase
 from pathfinder.integrations.veupathdb.wdk_models import (
     NewStepSpec,
@@ -327,6 +329,24 @@ class StepsMixin(StrategyAPIBase):
             f"/users/{uid}/steps/{step_id}/search-config",
             json=config_payload.model_dump(by_alias=True, exclude_defaults=True),
         )
+
+    async def delete_step(
+        self,
+        step_id: int,
+        *,
+        user_id: str | None = None,
+    ) -> None:
+        """Delete a step. Tolerant of 404 (already gone).
+
+        Endpoint: ``DELETE /users/{uid}/steps/{step_id}``.
+        """
+        uid = await self._get_user_id(user_id)
+        try:
+            await self.client.delete(f"/users/{uid}/steps/{step_id}")
+        except AppError as exc:
+            if exc.status == HTTPStatus.NOT_FOUND:
+                return
+            raise
 
     async def update_step_properties(
         self,

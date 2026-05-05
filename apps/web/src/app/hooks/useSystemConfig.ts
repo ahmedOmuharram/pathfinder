@@ -1,7 +1,7 @@
 "use client";
 
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { systemConfigOptions } from "@/lib/api/health";
+import { systemConfigQueryOptions } from "@pathfinder/shared/generated/hooks/useSystemConfig";
 
 /**
  * Checks whether the backend has at least one LLM provider configured.
@@ -12,7 +12,7 @@ export function useSystemConfig(): {
   setupRequired: boolean;
   retry: () => void;
 } {
-  const { data, refetch } = useSuspenseQuery(systemConfigOptions());
+  const { data, refetch } = useSuspenseQuery(systemConfigQueryOptions());
   const setupRequired = data.llmConfigured === false;
   return { setupRequired, retry: () => { void refetch(); } };
 }

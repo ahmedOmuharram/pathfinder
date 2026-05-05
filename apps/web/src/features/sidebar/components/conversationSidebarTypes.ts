@@ -1,4 +1,4 @@
-import type { ConversationSummary } from "@/lib/api/conversations";
+import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
 
 export interface ConversationItem {
   id: string;
@@ -12,10 +12,10 @@ export interface ConversationItem {
   parentConversationId: string | null;
   parentMessageId: string | null;
   /** Full backend payload — kept so downstream handlers can inspect server state. */
-  chat: ConversationSummary;
+  chat: ConversationResponse;
 }
 
-export function chatToConversationItem(chat: ConversationSummary): ConversationItem {
+export function chatToConversationItem(chat: ConversationResponse): ConversationItem {
   return {
     id: chat.id,
     title: chat.name.trim() === "" ? "New conversation" : chat.name,

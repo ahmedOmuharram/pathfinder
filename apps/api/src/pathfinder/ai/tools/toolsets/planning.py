@@ -42,13 +42,21 @@ def _loop_hidden_reads(ctx: RunContext[AgentDeps]) -> frozenset[str]:
     return frozenset({n for n, c in counts.items() if c >= _MAX_CONSECUTIVE_READ})
 
 
+def _plan_state_gated(
+    ctx: RunContext[AgentDeps],
+) -> frozenset[str]:
+    if ctx.deps.agent_state.active_plan is None:
+        return frozenset({"update_plan"})
+    return frozenset({"create_plan"})
+
+
 async def _prepare(
     ctx: RunContext[AgentDeps], tool_defs: list[ToolDefinition],
 ) -> list[ToolDefinition]:
-    hidden = _loop_hidden_reads(ctx)
-    if not hidden:
+    excluded = _loop_hidden_reads(ctx) | _plan_state_gated(ctx)
+    if not excluded:
         return tool_defs
-    return [td for td in tool_defs if td.name not in hidden]
+    return [td for td in tool_defs if td.name not in excluded]
 
 
 def build_toolset() -> AbstractToolset[AgentDeps]:

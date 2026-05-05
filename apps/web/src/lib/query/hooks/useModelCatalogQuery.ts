@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { modelCatalogOptions } from "@/lib/api/models";
+import { listModelsQueryOptions } from "@pathfinder/shared/generated/hooks/useListModels";
 
 export function useModelCatalogQuery() {
-  return useQuery(modelCatalogOptions());
+  return useQuery(listModelsQueryOptions());
 }

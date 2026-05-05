@@ -12,6 +12,7 @@ from pathfinder.ai.agents._instructions import (
     pinned_graph_state,
     pinned_last_phase_outcome,
     pinned_scratchpad,
+    pinned_supervisor_log,
     pinned_user_memories,
 )
 from pathfinder.ai.capabilities.resilience import ToolResilience
@@ -130,6 +131,7 @@ for _fn in (
     pinned_scratchpad,
     pinned_last_phase_outcome,
     pinned_discovered_searches,
+    pinned_supervisor_log,
 ):
     verification_agent.instructions(_fn)
 

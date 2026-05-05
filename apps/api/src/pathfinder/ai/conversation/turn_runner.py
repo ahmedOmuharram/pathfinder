@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any
@@ -24,10 +25,15 @@ from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
 from pathfinder.ai.graph.stream_events import conversation_title_event
-from pathfinder.persistence.repositories import ConversationRepository
+from pathfinder.persistence.repositories import (
+    ChatTurnCancellationRepository,
+    ConversationRepository,
+)
 from pathfinder.persistence.repositories.conversation import ConversationUpdate
 from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.logging import get_logger
+
+_CANCEL_POLL_INTERVAL_SECONDS = 1.0
 
 logger = get_logger(__name__)
 
@@ -37,6 +43,47 @@ class _DriveResult:
     saw_interrupt: bool = False
     encountered_error: bool = False
     title_emitted: bool = False
+    cancelled: bool = False
+
+
+@dataclass
+class _StreamConsumerCtx:
+    compiled_graph: Any
+    graph_input: dict[str, Any]
+    thread_config: dict[str, Any]
+    runtime_context: Any
+    title_task: asyncio.Task[str] | None
+    body: ChatRequestBody
+    writer: ChatEventWriter
+    result: _DriveResult
+
+
+async def _watch_for_cancel(
+    *,
+    conversation_id: UUID,
+    turn_id: UUID,
+    cancel_event: asyncio.Event,
+) -> None:
+    repo = ChatTurnCancellationRepository(session_factory=async_session_factory)
+    while not cancel_event.is_set():
+        try:
+            cancelled = await repo.is_cancelled(
+                conversation_id=conversation_id, turn_id=turn_id,
+            )
+        except Exception:
+            logger.exception(
+                "Cancel watcher poll failed",
+                conversation_id=str(conversation_id),
+                turn_id=str(turn_id),
+            )
+            return
+        if cancelled:
+            cancel_event.set()
+            return
+        try:
+            await asyncio.sleep(_CANCEL_POLL_INTERVAL_SECONDS)
+        except asyncio.CancelledError:
+            return
 
 
 async def run_turn(
@@ -105,7 +152,7 @@ async def run_turn(
 
     finish_reason = (
         "error" if result.encountered_error
-        else "other" if result.saw_interrupt
+        else "other" if result.saw_interrupt or result.cancelled
         else "stop"
     )
     await writer.write(
@@ -118,6 +165,23 @@ async def run_turn(
     )
 
 
+async def _consume_graph_stream(ctx: _StreamConsumerCtx) -> None:
+    async for mode, payload in ctx.compiled_graph.astream(
+        ctx.graph_input,
+        config=ctx.thread_config,
+        context=ctx.runtime_context,
+        stream_mode=["custom", "updates"],
+    ):
+        if mode == "custom":
+            await _handle_custom(
+                payload, ctx.title_task, ctx.body.conversation_id, ctx.result, ctx.writer,
+            )
+        elif mode == "updates":
+            for interrupt_chunk in _interrupt_chunks(payload):
+                ctx.result.saw_interrupt = True
+                await ctx.writer.write(interrupt_chunk)
+
+
 async def _drive_graph(
     *,
     body: ChatRequestBody,
@@ -128,26 +192,50 @@ async def _drive_graph(
     writer: ChatEventWriter,
 ) -> _DriveResult:
     result = _DriveResult()
+    turn_message_id: UUID = graph_input["turn_message_id"]
     thread_config = {
         "configurable": {"thread_id": str(body.conversation_id)},
         "metadata": {
-            "turn_id": str(body.last_user_message_id),
+            "turn_id": str(turn_message_id),
             "user_prompt_preview": body.last_user_text[:120],
         },
     }
+    cancel_event: asyncio.Event = runtime_context.cancel_event
+
+    consume_task = asyncio.create_task(
+        _consume_graph_stream(
+            _StreamConsumerCtx(
+                compiled_graph=compiled_graph,
+                graph_input=graph_input,
+                thread_config=thread_config,
+                runtime_context=runtime_context,
+                title_task=title_task,
+                body=body,
+                writer=writer,
+                result=result,
+            ),
+        ),
+    )
+
+    async def _kill_on_cancel() -> None:
+        await cancel_event.wait()
+        consume_task.cancel()
+
+    cancel_watcher = asyncio.create_task(
+        _watch_for_cancel(
+            conversation_id=body.conversation_id,
+            turn_id=turn_message_id,
+            cancel_event=cancel_event,
+        ),
+    )
+    killer = asyncio.create_task(_kill_on_cancel())
     try:
-        async for mode, payload in compiled_graph.astream(
-            graph_input,
-            config=thread_config,
-            context=runtime_context,
-            stream_mode=["custom", "updates"],
-        ):
-            if mode == "custom":
-                await _handle_custom(payload, title_task, body.conversation_id, result, writer)
-            elif mode == "updates":
-                for interrupt_chunk in _interrupt_chunks(payload):
-                    result.saw_interrupt = True
-                    await writer.write(interrupt_chunk)
+        await consume_task
+    except asyncio.CancelledError:
+        if cancel_event.is_set():
+            result.cancelled = True
+        else:
+            raise
     except Exception as exc:
         result.encountered_error = True
         logger.exception(
@@ -161,6 +249,12 @@ async def _drive_graph(
                 by_alias=True, mode="json", exclude_none=True,
             ),
         )
+    finally:
+        cancel_watcher.cancel()
+        killer.cancel()
+        for task in (cancel_watcher, killer):
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
     return result
 
 

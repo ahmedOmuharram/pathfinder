@@ -7,7 +7,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import type { Strategy } from "@pathfinder/shared";
-import { conversationDetailKey } from "@/lib/api/conversations";
+import { strategyQueryKey } from "@/lib/api/strategy";
+import { listModelsQueryKey } from "@pathfinder/shared/generated/hooks/useListModels";
 
 import { OptimizeLauncherForm } from "../OptimizeLauncherForm";
 
@@ -39,8 +40,9 @@ function harness() {
   const client = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
-  client.setQueryData(conversationDetailKey(conversationId), fakeStrategy);
-  client.setQueryData(["models", "catalog"], { models: [] });
+  client.setQueryData(strategyQueryKey(conversationId), fakeStrategy);
+  client.setQueryDefaults(listModelsQueryKey(), { staleTime: Infinity });
+  client.setQueryData(listModelsQueryKey(), { models: [] });
   // Pre-seed the param-specs query so the new ParamPicker (D-4) does not
   // fire a fetch during these tests — they only care about the launcher
   // submit path.

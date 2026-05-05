@@ -7,8 +7,10 @@ annotation and vocabulary rendering.
 
 from dataclasses import dataclass
 
+from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.platform.types import JSONArray, JSONObject
 from pathfinder.services.catalog.vocab_rendering import (
     _MAX_VOCAB_ENTRIES,
     VocabEntry,
@@ -105,10 +107,20 @@ class _VocabFields:
 
 
 def _format_vocabulary(param: WDKParameter) -> _VocabFields:
-    """Extract vocabulary fields from a parameter."""
-    vocabulary = param.vocabulary
+    return _format_vocabulary_raw(
+        param_name=param.name,
+        param_type=param.type,
+        vocabulary=param.vocabulary,
+    )
 
-    if param.type == "multi-pick-vocabulary" and isinstance(vocabulary, dict):
+
+def _format_vocabulary_raw(
+    *,
+    param_name: str,
+    param_type: str,
+    vocabulary: JSONObject | JSONArray | None,
+) -> _VocabFields:
+    if param_type == "multi-pick-vocabulary" and isinstance(vocabulary, dict):
         tree_lines = render_vocab_tree(vocabulary, max_lines=80)
         if tree_lines:
             tree_text = "\n".join(tree_lines)
@@ -117,13 +129,12 @@ def _format_vocabulary(param: WDKParameter) -> _VocabFields:
             if truncated:
                 suffix += (
                     f"\nNote: tree truncated — use get_dependent_vocab("
-                    f"param_name='{param.name}', query='<keyword>') "
+                    f"param_name='{param_name}', query='<keyword>') "
                     f"to see values for a specific category."
                 )
             return _VocabFields(allowed_values_tree=tree_text + suffix)
     elif vocabulary is not None:
-        vocab_for_allowed = vocabulary if isinstance(vocabulary, (dict, list)) else None
-        allowed_entries = allowed_values(vocab_for_allowed)
+        allowed_entries = allowed_values(vocabulary)
         if allowed_entries:
             note: str | None = None
             if len(allowed_entries) >= _MAX_VOCAB_ENTRIES:
@@ -176,6 +187,52 @@ def format_typed_param(
         controls_vocab_of=controls.get(name),
         vocab_depends_on=vocab_depends_on,
         note=note,
+    )
+
+
+def format_normalized_param_info(
+    specs: dict[str, ParamSpecNormalized],
+) -> list[ParameterInfo]:
+    depends_on: dict[str, list[str]] = {}
+    controls: dict[str, list[str]] = {}
+    for parent_name, parent_spec in specs.items():
+        for child_name in parent_spec.dependent_params:
+            depends_on.setdefault(child_name, []).append(parent_name)
+            controls.setdefault(parent_name, []).append(child_name)
+
+    return [
+        _format_normalized_one(spec, depends_on, controls)
+        for name, spec in specs.items()
+        if name not in _PHYLETIC_STRUCTURAL_PARAMS
+    ]
+
+
+def _format_normalized_one(
+    spec: ParamSpecNormalized,
+    depends_on: dict[str, list[str]],
+    controls: dict[str, list[str]],
+) -> ParameterInfo:
+    vocab = _format_vocabulary_raw(
+        param_name=spec.name,
+        param_type=spec.param_type,
+        vocabulary=spec.vocabulary,
+    )
+    is_required = not spec.allow_empty_value or (
+        spec.min_selected_count is not None and spec.min_selected_count >= 1
+    )
+    return ParameterInfo(
+        name=spec.name,
+        display_name=spec.name,
+        type=spec.param_type,
+        required=is_required,
+        is_visible=spec.is_visible,
+        help=spec.help or "",
+        default_value=spec.initial_display_value,
+        allowed_values=vocab.allowed_values,
+        allowed_values_tree=vocab.allowed_values_tree,
+        allowed_values_note=vocab.allowed_values_note,
+        controls_vocab_of=controls.get(spec.name),
+        vocab_depends_on=depends_on.get(spec.name),
     )
 
 

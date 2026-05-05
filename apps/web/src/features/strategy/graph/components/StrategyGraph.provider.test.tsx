@@ -2,7 +2,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
-import type * as StrategiesApi from "@/lib/api/conversations";
 import { createTestWrapper } from "@/lib/query/testing";
 import { StrategyGraph } from "./StrategyGraph";
 
@@ -68,14 +67,13 @@ vi.mock("@/lib/api/sites", () => ({
   }),
 }));
 
-vi.mock("@/lib/api/conversations", async (importOriginal) => {
-  const actual = await importOriginal<typeof StrategiesApi>();
-  return {
-    ...actual,
-    computeStepCounts: vi.fn(async () => ({ counts: {} })),
-    pushConversation: vi.fn(),
-  };
-});
+vi.mock("@pathfinder/shared/generated/hooks/useComputeStepCounts", () => ({
+  computeStepCounts: vi.fn(async () => ({ counts: {} })),
+}));
+
+vi.mock("@pathfinder/shared/generated/hooks/usePushStrategy", () => ({
+  pushStrategy: vi.fn(),
+}));
 
 const STRATEGY: Strategy = {
   id: "strategy-1",

@@ -5,10 +5,7 @@ import { useReactFlow } from "@xyflow/react";
 import { useRouter } from "next/navigation";
 import { useEventListener } from "usehooks-ts";
 import { useStrategyGraphCtx } from "@/features/strategy/graph/StrategyGraphContext";
-import {
-  useAddStepMutation,
-  useDeleteStepMutation,
-} from "@/features/strategy/mutations";
+import { useAddStepMutation } from "@/features/strategy/mutations";
 
 interface UseStrategyKeyboardShortcutsArgs {
   onOpenQuickSwitcher: () => void;
@@ -33,7 +30,6 @@ export function useStrategyKeyboardShortcuts({
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   const router = useRouter();
   const conversationId = ctx.strategy?.id ?? "";
-  const deleteStep = useDeleteStepMutation(conversationId);
   useAddStepMutation(conversationId);
 
   const leaderRef = useRef<{ key: "g"; expires: number } | null>(null);
@@ -126,8 +122,10 @@ export function useStrategyKeyboardShortcuts({
       case "Delete": {
         if (ctx.selectedNodeIds.length === 0) return;
         event.preventDefault();
-        for (const id of ctx.selectedNodeIds) {
-          deleteStep.mutate({ stepId: id });
+        if (ctx.selectedNodeIds.length === 1) {
+          ctx.requestDelete(ctx.selectedNodeIds[0]!);
+        } else {
+          ctx.requestDeleteMany(ctx.selectedNodeIds);
         }
         return;
       }

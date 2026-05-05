@@ -67,6 +67,21 @@ def pinned_graph_state(ctx: RunContext[AgentDeps]) -> str | None:
     return render_graph_state(graph, session.sync_state)
 
 
+def pinned_supervisor_log(ctx: RunContext[AgentDeps]) -> str | None:
+    log = ctx.deps.supervisor_log
+    if not log:
+        return None
+    recent = log[-15:]
+    lines = ["## Orchestrator running context (last events)"]
+    for ev in recent:
+        prefix = f"- [{ev.kind}"
+        if ev.phase is not None:
+            prefix += f"/{ev.phase}"
+        prefix += "]"
+        lines.append(f"{prefix} {ev.summary}")
+    return "\n".join(lines)
+
+
 def pinned_user_memories(ctx: RunContext[AgentDeps]) -> str | None:
     memories = ctx.deps.retrieved_memories
     if not memories:

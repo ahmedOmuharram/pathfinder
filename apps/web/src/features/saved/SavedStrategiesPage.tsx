@@ -15,11 +15,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { client } from "@/lib/api/client";
-import {
-  conversationListOptions,
-  deleteConversation,
-  type ConversationSummary,
-} from "@/lib/api/conversations";
+import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
+import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
 import { toUserMessage } from "@/lib/api/errors";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
 
@@ -56,7 +54,7 @@ function consumerCountsOptions(siteId: string) {
 }
 
 function SavedStrategiesPageInner({ siteId }: SavedStrategiesPageProps) {
-  const { data: all } = useSuspenseQuery(conversationListOptions(siteId));
+  const { data: all } = useSuspenseQuery(listStrategiesQueryOptions({ siteId }));
   const { data: counts } = useSuspenseQuery(consumerCountsOptions(siteId));
   const saved = all.filter((c) => c.isSaved === true);
   const [filter, setFilter] = useState("");
@@ -146,7 +144,7 @@ function SavedRow({
   siteId,
   consumerCount,
 }: {
-  conv: ConversationSummary;
+  conv: ConversationResponse;
   siteId: string;
   consumerCount: number;
 }) {
@@ -154,7 +152,7 @@ function SavedRow({
   const queryClient = useQueryClient();
   const del = useMutation({
     mutationFn: () =>
-      deleteConversation(conv.id, { deleteFromWdk: true, cascade: true }),
+      deleteStrategy(conv.id, { deleteFromWdk: true, cascade: true }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["conversations", "list", siteId],

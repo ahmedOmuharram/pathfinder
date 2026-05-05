@@ -6,6 +6,7 @@ import type { ApplyResult, GraphOperation } from "./types";
 type AddLeafOp = Extract<GraphOperation, { kind: "addLeaf" }>;
 type AddCombineOp = Extract<GraphOperation, { kind: "addCombine" }>;
 type AddTransformOp = Extract<GraphOperation, { kind: "addTransform" }>;
+type DuplicateStepOp = Extract<GraphOperation, { kind: "duplicateStep" }>;
 
 export function applyAddLeaf(strategy: Strategy, op: AddLeafOp): ApplyResult {
   const attach = op.attach;
@@ -86,5 +87,54 @@ export function applyAddTransform(
     kind: "applied",
     next: { ...strategy, steps: nextSteps },
     description: `Inserted transform ${op.step.displayName ?? op.step.id}`,
+  };
+}
+
+export function applyDuplicateStep(
+  strategy: Strategy,
+  op: DuplicateStepOp,
+): ApplyResult {
+  const source = strategy.steps.find((s) => s.id === op.sourceStepId);
+  if (!source)
+    return { kind: "rejected", reason: `Step ${op.sourceStepId} not found` };
+
+  const duplicate: Step = {
+    ...source,
+    id: op.duplicateStepId,
+    wdkStepId: null,
+    estimatedSize: null,
+    isBuilt: false,
+    validation: null,
+  };
+
+  const combine: Step = {
+    id: op.combineStepId,
+    kind: "combine",
+    displayName: op.combineDisplayName ?? "INTERSECT combine",
+    operator: "INTERSECT",
+    recordType: source.recordType ?? null,
+    primaryInputStepId: op.sourceStepId,
+    secondaryInputStepId: op.duplicateStepId,
+    isBuilt: false,
+    isFiltered: false,
+  };
+
+  const parentInfo = findParent(strategy.steps, op.sourceStepId);
+  let nextSteps: Step[] = strategy.steps.map((s) => s);
+  if (parentInfo !== null) {
+    const slotKey =
+      parentInfo.slot === "primary"
+        ? "primaryInputStepId"
+        : "secondaryInputStepId";
+    nextSteps = patchSteps(nextSteps, parentInfo.parent.id, {
+      [slotKey]: op.combineStepId,
+    });
+  }
+  nextSteps = [...nextSteps, duplicate, combine];
+
+  return {
+    kind: "applied",
+    next: { ...strategy, steps: nextSteps },
+    description: `Duplicated ${op.sourceStepId}`,
   };
 }

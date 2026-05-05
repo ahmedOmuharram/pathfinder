@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { CircleAlert } from "lucide-react";
 
-import { userQuotaOptions } from "@/lib/api/quota";
+import { getMyQuotaQueryOptions } from "@pathfinder/shared/generated/hooks/useGetMyQuota";
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
   month: "long",
@@ -19,7 +19,7 @@ const currency = new Intl.NumberFormat("en-US", {
 });
 
 export function QuotaExhaustedBanner() {
-  const { data } = useQuery(userQuotaOptions());
+  const { data } = useQuery(getMyQuotaQueryOptions());
   if (data == null) return null;
   const used = Number(data.usedUsd);
   const limit = Number(data.limitUsd);
@@ -45,7 +45,7 @@ export function QuotaExhaustedBanner() {
 }
 
 export function useQuotaExhausted(): boolean {
-  const { data } = useQuery(userQuotaOptions());
+  const { data } = useQuery(getMyQuotaQueryOptions());
   if (data == null) return false;
   const used = Number(data.usedUsd);
   const limit = Number(data.limitUsd);

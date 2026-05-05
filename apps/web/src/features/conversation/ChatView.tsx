@@ -6,13 +6,14 @@ import type { UIMessage } from "ai";
 import { redirect, useParams } from "next/navigation";
 
 import type { Strategy } from "@pathfinder/shared";
-import { conversationDetailOptions } from "@/lib/api/conversations";
+import { strategyQueryOptions } from "@/lib/api/strategy";
 import { conversationSnapshotOptions } from "@/lib/api/conversationSnapshot";
 import { Spinner } from "@/components/ui/spinner";
 import { useSessionStore } from "@/state/useSessionStore";
 
 import { ChatThread } from "./ChatThread";
 import { RightRail } from "./rail/RightRail";
+import { ChatHelpersProvider } from "./runtime/chatHelpersContext";
 import { useChatRuntime } from "./runtime/useChatRuntime";
 
 export function ChatView({
@@ -26,7 +27,7 @@ export function ChatView({
   const siteSegment = params.siteId ?? "";
   const chatResetCounter = useSessionStore((s) => s.chatResetCounter);
 
-  const detailQuery = useQuery(conversationDetailOptions(conversationId));
+  const detailQuery = useQuery(strategyQueryOptions(conversationId));
   const messagesQuery = useQuery({
     ...conversationSnapshotOptions(conversationId),
     enabled: allowMissing || detailQuery.data != null,
@@ -76,23 +77,25 @@ function ChatViewBody({
   strategy: Strategy | null;
   siteId: string;
 }) {
-  const runtime = useChatRuntime({
+  const { runtime, chat } = useChatRuntime({
     conversationId,
     allowMissing,
     initialMessages,
   });
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div className="flex min-h-0 min-w-0 flex-1">
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
-          <ChatThread conversationId={conversationId} />
+      <ChatHelpersProvider value={chat}>
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-card">
+            <ChatThread conversationId={conversationId} />
+          </div>
+          <RightRail
+            conversationId={conversationId}
+            strategy={strategy}
+            siteId={siteId}
+          />
         </div>
-        <RightRail
-          conversationId={conversationId}
-          strategy={strategy}
-          siteId={siteId}
-        />
-      </div>
+      </ChatHelpersProvider>
     </AssistantRuntimeProvider>
   );
 }

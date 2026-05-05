@@ -26,18 +26,17 @@ from pathfinder.ai.tools.standalone._plan_models import (
 from pathfinder.ai.tools.standalone.plan import (
     create_plan,
     get_plan,
-    submit_plan,
     update_plan,
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
-    PlannedParameter,
     PlanStatus,
     StepType,
     StrategyPlan,
 )
 from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.platform.errors import ValidationError
 
 
 def _unwrap(result: Any) -> Any:
@@ -138,13 +137,6 @@ _DEFAULT_ORGANISM_SPEC = ParamSpecNormalized(
 
 @pytest.fixture(autouse=True)
 def _stub_fetch_specs_by_search(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Replace ``_fetch_specs_by_search`` with a deterministic stub.
-
-    Unit tests must not hit live WDK. The stub returns a spec map for
-    every referenced search containing canned specs for the param names
-    the helpers use (``organism`` for ``_leaf_step``, ``num_genes`` for
-    patch tests).
-    """
     canned_specs: dict[str, ParamSpecNormalized] = {
         "organism": _DEFAULT_ORGANISM_SPEC,
         "num_genes": ParamSpecNormalized(
@@ -168,8 +160,14 @@ def _stub_fetch_specs_by_search(monkeypatch: pytest.MonkeyPatch) -> None:
             out[step.search_name] = dict(canned_specs)
         return out
 
+    async def _stub_validate(*_args: Any, **kwargs: Any) -> dict[str, Any]:
+        return dict(kwargs.get("parameters") or {})
+
     monkeypatch.setattr(
         "pathfinder.ai.tools.standalone.plan._fetch_specs_by_search", _stub,
+    )
+    monkeypatch.setattr(
+        "pathfinder.ai.tools.standalone.plan.validate_parameters", _stub_validate,
     )
 
 
@@ -241,55 +239,53 @@ async def test_submit_plan_validates_topology() -> None:
 
 
 @pytest.mark.asyncio
-async def test_submit_plan_validates_parameters() -> None:
-    """submit_plan should reject when a leaf step has unset required params."""
+async def test_create_plan_rejects_invalid_param_value_with_structured_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     deps = _make_deps()
     ctx = _make_ctx(deps)
 
-    # Create a step with an explicitly NEEDS_DISCOVERY param
-    step_a = PlannedStepInput(
-        id="step_a",
-        search_name="GenesByTaxon",
-        display_name="Genes by Taxon",
-        record_type="transcript",
-        step_type=StepType.LEAF,
-        parameters={},  # No parameters set
-    )
-
-    # First create the plan
-    create_result = await create_plan(
-        ctx,
-        title="Missing Params Plan",
-        description="This plan has missing parameters",
-        rationale="Testing parameter validation",
-        steps=[step_a],
-        connections=[],
-    )
-    assert isinstance(_unwrap(create_result), PlanCreatedResponse)
-
-    plan = deps.agent_state.active_plan
-    assert plan is not None
-    existing = next(
-        (p for p in plan.steps[0].parameters if p.name == "organism"), None,
-    )
-    if existing is None:
-        plan.steps[0].parameters.append(
-            PlannedParameter(
-                name="organism",
-                display_name="Organism",
-                param_type="string",
-                value=None,
-                status=ParamStatus.NEEDS_DISCOVERY,
-                required=True,
-            ),
+    async def _raising_validate(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise ValidationError(
+            title="Invalid parameter value",
+            detail="Parameter 'organism' does not accept 'Bogus'.",
+            errors=[
+                {
+                    "param": "organism",
+                    "value": "Bogus",
+                    "validOptions": ["Plasmodium falciparum 3D7", "Plasmodium vivax"],
+                },
+            ],
         )
 
+    monkeypatch.setattr(
+        "pathfinder.ai.tools.standalone.plan.validate_parameters",
+        _raising_validate,
+    )
+
+    bad_step = PlannedStepInput(
+        id="step_a",
+        search_name="GenesByTaxon",
+        display_name="Step",
+        record_type="transcript",
+        step_type=StepType.LEAF,
+        parameters={"organism": '["Bogus"]'},
+    )
+
     with pytest.raises(ModelRetry) as excinfo:
-        await submit_plan(ctx)
+        await create_plan(
+            ctx,
+            title="Test",
+            description="Bad params",
+            rationale="r",
+            steps=[bad_step],
+            connections=[],
+        )
 
     msg = str(excinfo.value)
-    assert "PARAMETER_ERROR" in msg
-    assert "organism" in msg
+    assert "validOptions" in msg
+    assert "Bogus" in msg
+    assert "step_a" in msg
 
 
 @pytest.mark.asyncio

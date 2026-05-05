@@ -386,4 +386,50 @@ describe("deserializeStrategyToGraph", () => {
     );
     expect(nodes.map((n) => n.id)).toEqual(["a"]);
   });
+
+  test("tags unreachable steps with data.isOrphan when rootStepId is set", () => {
+    const strategy = {
+      id: "s-orphan",
+      steps: [
+        { id: "a", displayName: "A" },
+        { id: "b", displayName: "B" },
+      ],
+      rootStepId: "a",
+    } as unknown as Strategy;
+
+    const { nodes } = deserializeStrategyToGraph(
+      strategy,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { computedPositions: syntheticPositions(["a", "b"]) },
+    );
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
+    expect(nodeById.get("a")?.data["isOrphan"]).toBe(false);
+    expect(nodeById.get("b")?.data["isOrphan"]).toBe(true);
+  });
+
+  test("connected steps are not flagged as orphans", () => {
+    const strategy = {
+      id: "s-conn",
+      steps: [
+        { id: "a", displayName: "A" },
+        { id: "b", displayName: "B", primaryInputStepId: "a" },
+      ],
+      rootStepId: "b",
+    } as unknown as Strategy;
+
+    const { nodes } = deserializeStrategyToGraph(
+      strategy,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { computedPositions: syntheticPositions(["a", "b"]) },
+    );
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
+    expect(nodeById.get("a")?.data["isOrphan"]).toBe(false);
+    expect(nodeById.get("b")?.data["isOrphan"]).toBe(false);
+  });
 });

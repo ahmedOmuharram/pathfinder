@@ -1,17 +1,27 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext, Tool
 
 from pathfinder.ai.agents._history_processor import pair_tool_calls
 from pathfinder.ai.agents._model_resolution import (
     resolve_orchestrator_model_entry,
 )
+from pathfinder.ai.graph.state import SupervisorEvent
 from pathfinder.ai.specialists.types import SpecialistKind
+from pathfinder.ai.tools.standalone.cognition import journal
+from pathfinder.ai.tools.standalone.think import think
 from pathfinder.platform.types import ModelProvider
+
+
+@dataclass
+class SupervisorDeps:
+    state_block: str
+    supervisor_log: list[SupervisorEvent] = field(default_factory=list)
+    writer: Any = None
 
 SupervisorTarget = Literal[
     "scoping",
@@ -58,11 +68,6 @@ class SupervisorDecision(BaseModel):
             msg = "answer is required when to='question'"
             raise ValueError(msg)
         return self
-
-
-@dataclass
-class SupervisorDeps:
-    state_block: str
 
 
 _SUPERVISOR_INSTRUCTIONS = """\
@@ -193,6 +198,7 @@ def build_supervisor_agent(
         deps_type=SupervisorDeps,
         output_type=SupervisorDecision,
         instructions=_SUPERVISOR_INSTRUCTIONS,
+        tools=[Tool(think), Tool(journal)],
         history_processors=[pair_tool_calls],
         retries=2,
         name="supervisor",

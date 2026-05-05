@@ -4,7 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { client } from "@/lib/api/client";
-import { openConversation } from "@/lib/api/conversations";
+import { openStrategy } from "@pathfinder/shared/generated/hooks/useOpenStrategy";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
 import { toUserMessage } from "@/lib/api/errors";
 
 export interface SaveSubstrategyVars {
@@ -47,7 +48,7 @@ export function useSaveSubstrategyMutation({
       });
       // Pull the new WDK strategy into the local conversations table so it
       // appears in the sidebar's Saved group + library page immediately.
-      await openConversation({
+      await openStrategy({
         siteId,
         wdkStrategyId: resp.data.wdkStrategyId,
       });
@@ -55,7 +56,7 @@ export function useSaveSubstrategyMutation({
     },
     onSuccess: (data) => {
       void queryClient.invalidateQueries({
-        queryKey: ["conversations", "list", siteId],
+        queryKey: listStrategiesQueryOptions({ siteId }).queryKey,
       });
       toast.success("Saved as reusable strategy", { description: data.name });
       onSuccess?.(data);

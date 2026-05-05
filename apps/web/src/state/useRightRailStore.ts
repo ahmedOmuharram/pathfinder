@@ -6,6 +6,7 @@ export const RIGHT_RAIL_PANELS = [
   "tasks",
   "memories",
   "scratchpad",
+  "orchestrator",
 ] as const;
 
 export type RightRailPanel = (typeof RIGHT_RAIL_PANELS)[number];

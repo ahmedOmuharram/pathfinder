@@ -15,9 +15,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from langgraph.errors import GraphInterrupt
+from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai.capabilities.abstract import AbstractCapability
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
 from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.result import FinalResult
 from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_graph.nodes import End
 
@@ -27,6 +29,7 @@ from pathfinder.ai.capabilities.error_classification import (
     classify_error,
 )
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.state import PhaseDisposition, PhaseOutcome
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.logging import get_logger
 
@@ -46,6 +49,96 @@ _SEARCH_LOOKUP_TOOLS = frozenset(
         "get_parameter_dependencies",
     }
 )
+
+_STEP_TREE_FIELDS = frozenset(
+    {
+        "primaryInput",
+        "secondaryInput",
+        "primary_input",
+        "secondary_input",
+        "searchName",
+        "search_name",
+        "parameters",
+        "operator",
+        "displayName",
+        "display_name",
+    },
+)
+
+_BUILD_STRATEGY_TOPLEVEL_ALLOWED = frozenset(
+    {"root", "name", "description", "graph_id", "graphId"},
+)
+
+
+def _shape_error_hint(
+    tool_name: str,
+    args: object,
+    error: PydanticValidationError,
+) -> str | None:
+    if not isinstance(args, dict):
+        return None
+    if len(args) == 1:
+        return _wrapped_args_hint(tool_name, args, error)
+    if tool_name == "build_strategy":
+        return _build_strategy_misplaced_hint(args, error)
+    return None
+
+
+def _build_strategy_misplaced_hint(
+    args: object,
+    error: PydanticValidationError,
+) -> str | None:
+    if not isinstance(args, dict):
+        return None
+    misplaced = [
+        key for key in args
+        if key in _STEP_TREE_FIELDS
+        and key not in _BUILD_STRATEGY_TOPLEVEL_ALLOWED
+    ]
+    if not misplaced:
+        return None
+    del error
+    return (
+        f"build_strategy received {misplaced!r} at the top level of the "
+        "tool arguments. These fields belong INSIDE `root`, not next to "
+        "it. The whole strategy tree — including every combine and every "
+        "leaf — must be nested under a single `root`. To add a new set "
+        "as a sibling of the existing tree, wrap the existing tree in a "
+        "new combine: existing tree becomes `primaryInput`, new set "
+        "becomes `secondaryInput`, the new combine replaces `root`. "
+        "See the build_strategy docstring for a worked example."
+    )
+
+
+def _wrapped_args_hint(
+    tool_name: str,
+    args: object,
+    error: PydanticValidationError,
+) -> str | None:
+    if not isinstance(args, dict) or len(args) != 1:
+        return None
+    wrapper_key, wrapper_val = next(iter(args.items()))
+    if not isinstance(wrapper_val, dict):
+        return None
+    missing_top_level: set[str] = set()
+    for entry in error.errors():
+        if entry.get("type") != "missing":
+            continue
+        loc = entry.get("loc") or ()
+        if len(loc) == 1 and isinstance(loc[0], str):
+            missing_top_level.add(loc[0])
+    if not missing_top_level:
+        return None
+    if not missing_top_level.issubset(set(wrapper_val.keys())):
+        return None
+    return (
+        f"{tool_name} received its arguments nested under a single wrapper "
+        f"key {wrapper_key!r}. The arguments must be at the TOP LEVEL of "
+        f"the tool call, not inside another object. Move the contents of "
+        f"{wrapper_key!r} up one level. Specifically, "
+        f"{sorted(missing_top_level)!r} must be top-level fields of the "
+        f"tool call, not nested under {wrapper_key!r}."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +231,22 @@ class ToolResilience(AbstractCapability[AgentDeps]):
 
     _CIRCUIT_BREAK_THRESHOLD: int = 3
 
+    async def on_tool_validate_error(
+        self,
+        ctx: RunContext[AgentDeps],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: Any,
+        error: PydanticValidationError | ModelRetry,
+    ) -> Any:
+        del ctx, call
+        if isinstance(error, PydanticValidationError):
+            hint = _shape_error_hint(tool_def.name, args, error)
+            if hint is not None:
+                raise ModelRetry(hint) from error
+        raise error
+
     async def on_tool_execute_error(
         self,
         ctx: RunContext[AgentDeps],
@@ -211,11 +320,17 @@ class ToolResilience(AbstractCapability[AgentDeps]):
                 node=repr(node),
                 error=str(error),
             )
-            return End(
-                "I encountered repeated errors while trying to complete this step. "
-                "The VEuPathDB service may be experiencing issues. "
-                "Please try again in a moment, or rephrase your request."
+            outcome = PhaseOutcome(
+                disposition=PhaseDisposition.AWAITING_USER,
+                prose=(
+                    "I encountered repeated errors while trying to complete "
+                    "this step. The VEuPathDB service may be experiencing "
+                    "issues. Please try again in a moment, or rephrase your "
+                    "request."
+                ),
+                reason="UnexpectedModelBehavior; ended turn gracefully",
             )
+            return End(FinalResult(output=outcome))
         raise error
 
     async def prepare_tools(

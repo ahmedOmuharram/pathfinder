@@ -3,14 +3,18 @@ import {
   applyAddCombine,
   applyAddLeaf,
   applyAddTransform,
+  applyDuplicateStep,
 } from "./applyAdd";
 import { applyDeleteStep } from "./applyDelete";
 import {
   applyDeleteEdge,
+  applyReplaceStrategy,
   applyReplaceSubtree,
   applyUpdateCombineOperator,
   applyUpdateStepMeta,
   applyUpdateStepParams,
+  applyUpdateStrategyMeta,
+  applyWireInput,
 } from "./applyUpdate";
 import type { ApplyResult, GraphOperation } from "./types";
 
@@ -25,6 +29,8 @@ export function applyOperation(
       return applyAddCombine(strategy, op);
     case "addTransform":
       return applyAddTransform(strategy, op);
+    case "duplicateStep":
+      return applyDuplicateStep(strategy, op);
     case "deleteStep":
       return applyDeleteStep(strategy, op);
     case "deleteEdge":
@@ -37,5 +43,11 @@ export function applyOperation(
       return applyUpdateCombineOperator(strategy, op);
     case "updateStepMeta":
       return applyUpdateStepMeta(strategy, op);
+    case "updateStrategyMeta":
+      return applyUpdateStrategyMeta(strategy, op);
+    case "wireInput":
+      return applyWireInput(strategy, op);
+    case "replaceStrategy":
+      return applyReplaceStrategy(strategy, op);
   }
 }

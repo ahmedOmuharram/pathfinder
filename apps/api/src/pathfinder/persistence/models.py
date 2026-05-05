@@ -473,6 +473,25 @@ class ConversationEvent(Base):
     )
 
 
+class ChatTurnCancellation(Base):
+    __tablename__ = "chat_turn_cancellations"
+
+    conversation_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    turn_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+    )
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
 class ScratchpadNote(Base):
     """Agent-written working-memory note, conversation-scoped."""
 

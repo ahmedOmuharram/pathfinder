@@ -8,7 +8,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { userQuotaOptions } from "@/lib/api/quota";
+import { getMyQuotaQueryOptions } from "@pathfinder/shared/generated/hooks/useGetMyQuota";
 import { cn } from "@/lib/utils/cn";
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -42,7 +42,7 @@ function formatResetsAt(iso: string): string {
 }
 
 export function QuotaPill() {
-  const { data } = useQuery(userQuotaOptions());
+  const { data } = useQuery(getMyQuotaQueryOptions());
   if (data == null) return null;
 
   const used = Number(data.usedUsd);

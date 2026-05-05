@@ -12,12 +12,14 @@ import {
 import type { Step } from "@pathfinder/shared";
 import { StepNode } from "@/features/strategy/graph/components/nodes/StepNode";
 import { CanvasControls } from "@/features/strategy/graph/components/CanvasControls";
+import { OrphanNotice } from "@/features/strategy/graph/components/OrphanNotice";
 import { SelectionActionBar } from "@/features/strategy/graph/components/SelectionActionBar";
 import { SmartMiniMap } from "@/features/strategy/graph/components/SmartMiniMap";
 import { StepEdge } from "@/features/strategy/graph/components/edges/StepEdge";
 import { ValidationAlert } from "@/features/strategy/graph/components/ValidationAlert";
 import { useStrategyGraphCtx } from "@/features/strategy/graph/StrategyGraphContext";
 import { usePrefersReducedMotion } from "@/lib/hooks/usePrefersReducedMotion";
+import { findOrphanSteps } from "@/lib/strategyGraph";
 import { useStrategyStore } from "@/state/strategy/store";
 
 const NODE_TYPES: NodeTypes = {
@@ -42,6 +44,22 @@ export function StrategyGraphLayout() {
     if (step !== undefined) {
       g.setSelectedStep(step);
     }
+  };
+
+  const orphanSteps = findOrphanSteps(
+    g.strategy?.steps ?? [],
+    g.strategy?.rootStepId ?? null,
+  );
+  const firstOrphanId = orphanSteps[0]?.id ?? null;
+  const handleOrphanView = (stepId: string): void => {
+    const step = g.editableSteps.find((s) => s.id === stepId);
+    if (step !== undefined) g.setSelectedStep(step);
+  };
+  const handleOrphanRemoveAll = (): void => {
+    g.requestDeleteMany(
+      orphanSteps.map((s) => s.id),
+      { skipConfirm: true },
+    );
   };
 
   return (
@@ -101,11 +119,19 @@ export function StrategyGraphLayout() {
         <Background color="#e2e8f0" gap={28} size={1} />
         {!g.isCompact && (
           <Panel position="top-center" className="pointer-events-none">
-            <ValidationAlert
-              mismatchGroups={g.combineMismatchGroups}
-              isPaused={isPaused}
-              onView={handleViewMismatch}
-            />
+            <div className="flex flex-col items-center gap-2">
+              <ValidationAlert
+                mismatchGroups={g.combineMismatchGroups}
+                isPaused={isPaused}
+                onView={handleViewMismatch}
+              />
+              <OrphanNotice
+                count={orphanSteps.length}
+                firstOrphanId={firstOrphanId}
+                onClickFirst={handleOrphanView}
+                onRemoveAll={handleOrphanRemoveAll}
+              />
+            </div>
           </Panel>
         )}
         {!g.isCompact && (

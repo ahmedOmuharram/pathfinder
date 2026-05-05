@@ -14,6 +14,7 @@ export function StepNode({ data, selected }: NodeProps<Node<StepNodeData>>) {
     step: data.step,
     selected,
     isUnsaved: data.isUnsaved,
+    isOrphan: data.isOrphan,
     showOutputHandle: data.showOutputHandle,
     showPrimaryInputHandle: data.showPrimaryInputHandle,
     showSecondaryInputHandle: data.showSecondaryInputHandle,

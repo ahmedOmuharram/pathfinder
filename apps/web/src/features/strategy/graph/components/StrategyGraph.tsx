@@ -8,6 +8,7 @@ import { Editor } from "@/features/strategy/editor/Editor";
 import { CanvasTopbar, type SyncState } from "@/features/strategy/graph/components/CanvasTopbar";
 import { EmptyState } from "@/features/strategy/graph/components/EmptyState";
 import { EdgeContextMenu } from "@/features/strategy/graph/components/EdgeContextMenu";
+import { GraphActionConfirm } from "@/features/strategy/graph/components/GraphActionConfirm";
 import { OrthologSheet } from "@/features/strategy/graph/components/OrthologSheet";
 import { QuickSwitcher } from "@/features/strategy/graph/components/QuickSwitcher";
 import { ShortcutsOverlay } from "@/features/strategy/graph/components/ShortcutsOverlay";
@@ -103,7 +104,7 @@ function StrategyGraphChrome({
 }: StrategyGraphChromeProps) {
   const g = useStrategyGraphCtx();
   const quickSwitcher = useQuickSwitcher();
-  const retryLastPush = useRetryLastPush();
+  const retryLastPush = useRetryLastPush(strategy.id);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useStrategyKeyboardShortcuts({
@@ -167,6 +168,9 @@ function StrategyGraphChrome({
         strategy={strategy}
       />
       <ShortcutsOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      {g.deleteDialogProps !== null && (
+        <GraphActionConfirm {...g.deleteDialogProps} />
+      )}
     </div>
   );
 }

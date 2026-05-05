@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { getVeupathdbAuthStatus, loginVeupathdb } from "@/lib/api/veupathdb-auth";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  authStatusOptions,
+  getVeupathdbAuthStatus,
+  loginVeupathdb,
+} from "@/lib/api/veupathdb-auth";
 import { useSessionStore } from "@/state/useSessionStore";
 import { Input } from "@/lib/components/ui/Input";
 
@@ -22,6 +27,7 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
   const [authBusy, setAuthBusy] = useState(false);
 
   const selectedSite = useSessionStore((state) => state.selectedSite);
+  const queryClient = useQueryClient();
 
   const handleSubmit = async () => {
     setAuthError(null);
@@ -30,6 +36,10 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
       await loginVeupathdb(email, password, selectedSite);
       const status = await getVeupathdbAuthStatus(selectedSite);
       if (status.signedIn) {
+        queryClient.setQueryData(
+          authStatusOptions(selectedSite).queryKey,
+          status,
+        );
         onSuccess?.();
       } else {
         setAuthError("Login failed. Please check your credentials.");

@@ -12,10 +12,7 @@ from fastapi import APIRouter, Query, Response
 
 from pathfinder.ai.models.catalog import get_model_entry
 from pathfinder.domain.strategy.ast import walk_step_tree
-from pathfinder.domain.strategy.strategy_ast import (
-    PersistedStrategyGraph,
-    StrategyAst,
-)
+from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.repositories import ConversationUpdate
 from pathfinder.persistence.repositories.message import MessagesRepository
 from pathfinder.platform.errors import (
@@ -31,20 +28,7 @@ from pathfinder.services.conversations.fork import (
     ForkError,
     fork_conversation,
 )
-from pathfinder.services.strategies.plan_normalize import (
-    canonicalize_strategy_ast_parameters,
-)
 from pathfinder.services.strategies.plan_validation import validate_plan_or_raise
-from pathfinder.services.strategies.session_factory import build_strategy_session
-from pathfinder.services.strategies.step_push_planner import (
-    CreateAction,
-    RecreateAction,
-    plan_step_pushes,
-    topology_changed,
-)
-from pathfinder.services.strategies.step_wdk_push import push_steps_with_plan
-from pathfinder.services.strategies.sync import sync_strategy_for_site
-from pathfinder.services.strategies.sync_state import ensure_sync_state
 from pathfinder.services.strategies.wdk_sync import (
     lazy_fetch_wdk_detail,
     sync_is_saved_to_wdk,
@@ -57,7 +41,6 @@ from pathfinder.transport.http.schemas import (
     BeginConversationResponse,
     ConversationResponse,
     CreateConversationRequest,
-    PushConversationRequest,
     UpdateConversationRequest,
 )
 from pathfinder.transport.http.schemas.conversations import (
@@ -236,158 +219,6 @@ async def fork_strategy(
         ) from exc
     await session.commit()
     return build_conversation_summary(fork, site_id=fork.site_id)
-
-
-def _combine_op_snapshot(node: object) -> list[dict[str, object]]:
-    """Walk an AST tree and return ``[{id, operator}]`` for every combine.
-    Used by ``push_strategy`` debug logs to trace operator preservation
-    through the validate → canonicalize → persist → derive round-trip."""
-    out: list[dict[str, object]] = []
-    stack: list[object] = [node]
-    while stack:
-        cur = stack.pop()
-        secondary = getattr(cur, "secondary_input", None)
-        operator = getattr(cur, "operator", None)
-        if secondary is not None:
-            out.append(
-                {
-                    "id": getattr(cur, "id", None),
-                    "operator": operator.value if operator is not None else None,
-                    "search_name": getattr(cur, "search_name", None),
-                },
-            )
-        primary = getattr(cur, "primary_input", None)
-        if primary is not None:
-            stack.append(primary)
-        if secondary is not None:
-            stack.append(secondary)
-    return out
-
-
-@router.post("/{strategyId:uuid}/push", response_model=ConversationResponse)
-async def push_strategy(
-    strategyId: UUID,
-    request: PushConversationRequest,
-    conv_repo: ConversationRepo,
-    user_id: CurrentUser,
-) -> ConversationResponse:
-    """Push a strategy to WDK: normalize plan, persist locally, sync to WDK."""
-    conversation = await get_owned_conversation_or_404(conv_repo, strategyId, user_id)
-
-    plan_in = request.strategy_ast.model_dump(exclude_none=True)
-    payload = validate_plan_or_raise(plan_in)
-    logger.info(
-        "DEBUG push.combine_ops.received",
-        strategy_id=str(strategyId),
-        ops=_combine_op_snapshot(payload.root),
-    )
-
-    payload = await canonicalize_strategy_ast_parameters(
-        strategy_ast=payload, site_id=request.site_id,
-    )
-    logger.info(
-        "DEBUG push.combine_ops.after_canonicalize",
-        strategy_id=str(strategyId),
-        ops=_combine_op_snapshot(payload.root),
-    )
-
-    # Preserve WDK sync state from existing chat — old values fill
-    # in where the new payload has None; new values always take precedence.
-    sync_fields = {"wdk_step_ids", "step_counts", "step_validations"}
-    old_ast: StrategyAst | None = None
-    if conversation.strategy_ast:
-        old_ast = StrategyAst.model_validate(conversation.strategy_ast)
-        preserved = old_ast.model_dump(include=sync_fields, exclude_none=True)
-        current = payload.model_dump(include=sync_fields, exclude_none=True)
-        merged = {**preserved, **current}
-        if merged:
-            payload = payload.model_copy(update=merged)
-
-    await conv_repo.update_conversation(
-        strategyId,
-        ConversationUpdate(
-            name=request.name,
-            strategy_ast=payload,
-            record_type=payload.record_type,
-            step_count=len(walk_step_tree(payload.root)),
-        ),
-    )
-
-    wdk_strategy_id: int | None = conversation.wdk_strategy_id
-    strategy_graph_persisted = PersistedStrategyGraph(
-        id=str(strategyId),
-        name=request.name,
-        strategy_ast=payload,
-        wdk_strategy_id=wdk_strategy_id,
-    )
-    session = build_strategy_session(
-        site_id=request.site_id, strategy_graph=strategy_graph_persisted
-    )
-    graph = session.get_graph(None)
-    if graph is not None:
-        sync_state = ensure_sync_state(session)
-        plan = plan_step_pushes(
-            old_ast=old_ast,
-            new_ast=payload,
-            existing_wdk_ids=sync_state.wdk_step_ids,
-        )
-        has_recreate = any(isinstance(p.action, RecreateAction) for p in plan)
-        has_create = any(isinstance(p.action, CreateAction) for p in plan)
-        topology_changed_flag = topology_changed(old_ast, payload)
-        sync_strategy_skipped = not (
-            topology_changed_flag or has_recreate or has_create
-        )
-        logger.info(
-            "DEBUG push.plan",
-            strategy_id=str(strategyId),
-            actions=[(p.step_id, p.action.kind) for p in plan],
-            topology_changed=topology_changed_flag,
-            sync_strategy_skipped=sync_strategy_skipped,
-        )
-
-        failed_steps = await push_steps_with_plan(
-            graph, sync_state, request.site_id, plan,
-        )
-        if failed_steps:
-            logger.warning(
-                "Some steps failed to push to WDK",
-                strategy_id=str(strategyId),
-                failed_steps=failed_steps,
-            )
-
-        if not sync_strategy_skipped:
-            sync_result = await sync_strategy_for_site(
-                graph=graph,
-                sync_state=sync_state,
-                site_id=request.site_id,
-                strategy_name=request.name,
-            )
-            wdk_strategy_id = sync_result.wdk_strategy_id
-
-            await conv_repo.update_conversation(
-                strategyId,
-                ConversationUpdate(
-                    wdk_strategy_id=wdk_strategy_id,
-                    wdk_strategy_id_set=True,
-                ),
-            )
-
-    updated = await conv_repo.get_by_id(strategyId)
-    if not updated:
-        raise NotFoundError(
-            code=ErrorCode.STRATEGY_NOT_FOUND, title="Strategy not found"
-        )
-    response = build_conversation_response(updated)
-    logger.info(
-        "DEBUG push.combine_ops.response",
-        strategy_id=str(strategyId),
-        ops=[
-            {"id": s.id, "operator": s.operator, "search_name": s.search_name}
-            for s in response.steps
-            if s.kind == "combine"
-        ],
-    )
-    return response
 
 
 @router.delete("/{strategyId:uuid}", status_code=204, response_class=Response)

@@ -361,11 +361,11 @@ async def test_resume_stream_after_snapshot_cap_replays_tool_input_start(
     ]
     await _seed_chunks(conversation_id=conversation.id, chunks=completion)
 
-    frames: list[str] = []
-    async for frame in iter_sse(
-        conversation_id=conversation.id, after=snap["cursor"],
-    ):
-        frames.append(frame)
+    frames: list[str] = [
+        frame async for frame in iter_sse(
+            conversation_id=conversation.id, after=snap["cursor"],
+        )
+    ]
     resume_chunks = _parse_sse_frames(frames)
 
     resume_types = [c["type"] for c in resume_chunks]

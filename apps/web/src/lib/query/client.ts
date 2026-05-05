@@ -1,7 +1,10 @@
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 
 import { APIError } from "@/lib/api/http";
-import { modelCatalogOptions } from "@/lib/api/models";
+import {
+  listModelsQueryKey,
+  listModelsQueryOptions,
+} from "@pathfinder/shared/generated/hooks/useListModels";
 import { sitesOptions } from "@/lib/api/sites";
 
 export interface QueryErrorNotice {
@@ -27,10 +30,11 @@ function isSilent(meta: Record<string, unknown> | undefined): boolean {
 }
 
 function makeQueryClient(): QueryClient {
-  return new QueryClient({
+  const client = new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
         if (isSilent(query.meta)) return;
+        if (error instanceof APIError && error.status === 401) return;
         const message = extractMessage(error, "Request failed");
         handler?.({ message, queryKey: query.queryKey });
       },
@@ -53,6 +57,8 @@ function makeQueryClient(): QueryClient {
       },
     },
   });
+  client.setQueryDefaults(listModelsQueryKey(), { staleTime: Infinity });
+  return client;
 }
 
 let browserQueryClient: QueryClient | undefined;
@@ -68,7 +74,7 @@ export function getQueryClient(): QueryClient {
   if (browserQueryClient == null) {
     browserQueryClient = makeQueryClient();
     void browserQueryClient.prefetchQuery(sitesOptions());
-    void browserQueryClient.prefetchQuery(modelCatalogOptions());
+    void browserQueryClient.prefetchQuery(listModelsQueryOptions());
   }
   return browserQueryClient;
 }

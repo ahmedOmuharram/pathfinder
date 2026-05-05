@@ -115,13 +115,22 @@ describe("core/strategyGraph/validate", () => {
     ).toBe(true);
   });
 
-  it("reports MULTIPLE_ROOTS when graph has multiple outputs", () => {
+  it("reports MULTIPLE_ROOTS as severity=info when graph has multiple outputs", () => {
     const steps: Step[] = [
       step({ id: "a", displayName: "A", searchName: "q1", recordType: "gene" }),
       step({ id: "b", displayName: "B", searchName: "q2", recordType: "gene" }),
     ];
     const errors = validateStrategySteps(steps);
-    expect(errors.some((e) => e.code === "MULTIPLE_ROOTS")).toBe(true);
+    const multi = errors.find((e) => e.code === "MULTIPLE_ROOTS");
+    expect(multi).toBeDefined();
+    expect(multi!.severity).toBe("info");
+  });
+
+  it("structural errors carry severity=error", () => {
+    const steps: Step[] = [step({ id: "a", displayName: "A", recordType: "gene" })];
+    const errors = validateStrategySteps(steps);
+    const missing = errors.find((e) => e.code === "MISSING_SEARCH_NAME");
+    expect(missing?.severity).toBe("error");
   });
 
   it("detects a broken combine (operator set, secondary input removed)", () => {

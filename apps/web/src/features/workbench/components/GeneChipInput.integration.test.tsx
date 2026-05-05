@@ -44,9 +44,12 @@ vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
 const mockSearchGenes = vi.fn();
 const mockResolveGeneIds = vi.fn();
 
-vi.mock("@/lib/api/genes", () => ({
+vi.mock("@pathfinder/shared/generated/hooks/useSearchGenes", () => ({
   searchGenes: (...args: unknown[]) => mockSearchGenes(...args),
-  resolveGeneIds: (...args: unknown[]) => mockResolveGeneIds(...args),
+}));
+
+vi.mock("@pathfinder/shared/generated/hooks/useResolveGenes", () => ({
+  resolveGenes: (...args: unknown[]) => mockResolveGeneIds(...args),
 }));
 
 // ---------------------------------------------------------------------------
@@ -131,7 +134,7 @@ describe("GeneChipInput integration", () => {
       />,
     );
 
-    // After debounce (500ms), resolveGeneIds fires and chip transitions to verified
+    // After debounce (500ms), resolveGenes fires and chip transitions to verified
     await waitFor(
       () => {
         const chip = screen.getByText("PF3D7_0100100").closest("[data-gene-chip]");

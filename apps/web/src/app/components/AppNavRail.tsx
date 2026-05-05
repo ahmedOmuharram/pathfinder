@@ -164,19 +164,13 @@ function SiteSwitcherButton({
   onChange: (id: string) => void;
 }) {
   const { data: sites } = useSuspenseQuery(sitesOptions());
-  const setSelectedSiteInfo = useSessionStore((s) => s.setSelectedSiteInfo);
+  const setSelectedSite = useSessionStore((s) => s.setSelectedSite);
 
   const components = sites.filter((s) => !s.isPortal);
   const portal = sites.filter((s) => s.isPortal);
 
   const pick = (id: string) => {
-    const site = sites.find((s) => s.id === id);
-    if (site) {
-      setSelectedSiteInfo(
-        id,
-        site.displayName !== "" ? site.displayName : site.name,
-      );
-    }
+    setSelectedSite(id);
     onChange(id);
   };
 

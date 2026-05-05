@@ -6,21 +6,10 @@ construction (the model rejects multi-root, duplicate ids, combine-with-
 self, etc.), persist eagerly, and push to WDK in dependency order with
 per-step retry.
 
-After build, edits are kind-discriminated and atomic:
-
-- ``update_leaf_params`` — leaf only, validates against the search's
-  param shape, PUTs to WDK first, mutates AST on success.
-- ``update_combine_operator`` — combine only, atomic.
-- ``update_step_metadata`` — display name only, no WDK call.
-- ``delete_step`` — preserves the single-root invariant by re-wiring
-  parent to grandparent. Refuses to delete the root.
-- ``replace_subtree`` — replaces the subtree at ``step_id`` with a new
-  ``StrategyStepNode`` tree, atomically pushing the new subtree and
-  cleaning up orphaned WDK steps.
-
-These five edit tools are the entire post-build surface. There is no
-imperative ``create_leaf_step`` / ``combine_steps`` / polymorphic
-``update_step`` — the architectural shift in SC-D22 deletes them.
+After build, edits are kind-discriminated and atomic. Every edit tool is
+a thin wrapper that builds a ``GraphOperation`` and forwards to
+``apply_and_commit`` — a single chokepoint that owns persist + WDK push +
+WDK step cleanup + sync + history.
 """
 
 from __future__ import annotations
@@ -46,18 +35,22 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     get_graph_and_step,
     graph_not_found,
     validation_error_payload,
+    validation_model_retry,
 )
 from pathfinder.domain.search import SearchContext
-from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
+from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.operations import (
+    DeleteResolution,
+    DeleteStepOp,
+    ReplaceSubtreeOp,
+    UpdateCombineOperatorOp,
+    UpdateStepMetaOp,
+    UpdateStepParamsOp,
+)
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.types import DecodedParamsField
-from pathfinder.integrations.veupathdb.value_decoding import encode_params
-from pathfinder.persistence.repositories.conversation import (
-    ConversationRepository,
-    ConversationUpdate,
-)
-from pathfinder.platform.errors import AppError, ErrorCode, ValidationError
+from pathfinder.platform.errors import ErrorCode, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONArray, JSONObject
@@ -68,32 +61,16 @@ from pathfinder.services.catalog.param_validation import (
 from pathfinder.services.catalog.validation_callbacks import (
     make_validation_callbacks,
 )
-from pathfinder.services.strategies.persist import (
-    persist_strategy_ast_to_conversation,
-)
-from pathfinder.services.strategies.save_substrategy import (
-    deep_clone_with_fresh_ids,
+from pathfinder.services.strategies.commit import apply_and_commit
+from pathfinder.services.strategies.insert_saved import (
+    insert_saved_into_conversation,
 )
 from pathfinder.services.strategies.spec_build import (
     BuildOutcome,
     build_strategy_from_spec,
 )
-from pathfinder.services.strategies.step_deletion import delete_step_connected
-from pathfinder.services.strategies.sync_state import (
-    WDKSyncState,
-    ensure_sync_state,
-)
-from pathfinder.services.strategies.wdk_conversion import (
-    build_snapshot_from_wdk,
-)
-from pathfinder.services.wdk import WDKSearchConfig, get_strategy_api
 
 logger = get_logger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _make_callbacks(site_id: str) -> ValidationCallbacks:
@@ -134,41 +111,6 @@ def _build_outcome_payload(outcome: BuildOutcome, graph: StrategyGraph) -> JSONO
     return payload
 
 
-async def _push_via_search_config(
-    *,
-    sync_state: WDKSyncState,
-    step: StrategyStepNode,
-    site_id: str,
-    record_type: str,
-    search_name: str,
-) -> str | None:
-    """PUT new ``search_config`` for an already-pushed step. Returns error."""
-    wdk_step_id = sync_state.wdk_step_ids.get(step.id)
-    if wdk_step_id is None:
-        return None
-    try:
-        api = get_strategy_api(site_id)
-        await api.update_step_search_config(
-            wdk_step_id,
-            WDKSearchConfig(parameters=encode_params(step.parameters)),
-            record_type=record_type,
-            search_name=search_name,
-        )
-    except (AppError, OSError) as exc:
-        logger.warning(
-            "PUT search-config failed",
-            step_id=step.id,
-            error=str(exc),
-        )
-        return str(exc)
-    return None
-
-
-# ---------------------------------------------------------------------------
-# build_strategy — declarative tree builder
-# ---------------------------------------------------------------------------
-
-
 async def build_strategy(
     ctx: RunContext[AgentDeps],
     root: StrategyStepNode,
@@ -179,19 +121,30 @@ async def build_strategy(
 ) -> ToolReturn[JSONObject]:
     """Materialize a complete strategy from a single declarative tree.
 
-    Pass the entire tree in one call. The AST validators reject combine-
-    with-self, duplicate step ids, and other malformed shapes at
-    construction time. We persist the AST eagerly, then push each step to
-    WDK in DFS dependency order. Per-step push failures are recorded and
-    do not abort sibling subtrees.
+    The ENTIRE strategy is passed as a single `root` argument — a recursive
+    StrategyStepNode where every combine has its inputs nested inside it.
+    Do NOT put `primaryInput`, `secondaryInput`, `searchName`, or
+    `parameters` at the top level of the tool args — they ONLY exist
+    inside `root` (and inside nodes within `root`).
 
-    Args:
-        root: The root ``StrategyStepNode`` for the entire strategy.
-            Combine nodes have ``primary_input`` and ``secondary_input``;
-            transforms have ``primary_input`` only; leaves have neither.
-        name: Optional strategy name (default: keep current graph name).
-        description: Optional strategy description.
-        graph_id: Target graph; uses the active graph when omitted.
+    Example — INTERSECT(UNION(A, B), C) where A, B, C are leaf searches:
+
+        build_strategy(
+            root={
+                "operator": "INTERSECT",
+                "primaryInput": {
+                    "operator": "UNION",
+                    "primaryInput":   {"searchName": "A", "parameters": {...}},
+                    "secondaryInput": {"searchName": "B", "parameters": {...}},
+                },
+                "secondaryInput": {"searchName": "C", "parameters": {...}},
+            },
+            name="...",
+        )
+
+    To add a NEW set as a sibling of an existing tree, wrap the existing
+    tree in a new combine: the existing tree becomes `primaryInput`, the
+    new set becomes `secondaryInput`, and the new combine replaces `root`.
     """
     deps = ctx.deps
     session = deps.strategy_session
@@ -220,11 +173,6 @@ async def build_strategy(
     return ToolReturn(return_value=payload, metadata=metadata)
 
 
-# ---------------------------------------------------------------------------
-# Edit tools — atomic, kind-discriminated
-# ---------------------------------------------------------------------------
-
-
 async def update_leaf_params(
     ctx: RunContext[AgentDeps],
     step_id: str,
@@ -232,13 +180,7 @@ async def update_leaf_params(
     *,
     graph_id: str | None = None,
 ) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
-    """Update a leaf step's parameters atomically.
-
-    Validates against the search's param shape, PUTs to WDK first, only
-    mutates the local AST on WDK success. A failed PUT leaves the step
-    untouched — the agent gets the error and can retry with corrected
-    parameters.
-    """
+    """Update a leaf step's parameters atomically."""
     deps = ctx.deps
     session = deps.strategy_session
     resolved = get_graph_and_step(session, graph_id, step_id)
@@ -263,30 +205,13 @@ async def update_leaf_params(
             callbacks=_make_callbacks(deps.site_id),
         )
     except ValidationError as exc:
-        return validation_error_payload(
+        raise validation_model_retry(
             exc, recordType=record_type, searchName=step.search_name,
-        )
+        ) from exc
 
-    sync_state = ensure_sync_state(session)
-    proposed = step.model_copy(update={"parameters": canonical})
-    push_error = await _push_via_search_config(
-        sync_state=sync_state,
-        step=proposed,
-        site_id=deps.site_id,
-        record_type=record_type,
-        search_name=step.search_name,
-    )
-    if push_error is not None:
-        return tool_error(
-            ErrorCode.WDK_ERROR,
-            f"WDK rejected the parameter change: {push_error}. The local "
-            "step is unchanged; fix the parameters and retry.",
-            stepId=step.id,
-        )
-
-    step.parameters = canonical
-    await persist_strategy_ast_to_conversation(
-        deps=deps, graph=graph, sync_result=None,
+    await apply_and_commit(
+        deps=deps,
+        op=UpdateStepParamsOp(step_id=step_id, parameters=dict(canonical)),
     )
     return ToolReturn(
         return_value=step_ok_response(session, graph, step),
@@ -302,10 +227,7 @@ async def update_combine_operator(
     *,
     graph_id: str | None = None,
 ) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
-    """Update a combine step's operator (and colocation params if COLOCATE).
-
-    Combine-only. PUTs to WDK first, mutates local AST on success.
-    """
+    """Update a combine step's operator (and colocation params if COLOCATE)."""
     deps = ctx.deps
     session = deps.strategy_session
     resolved = get_graph_and_step(session, graph_id, step_id)
@@ -321,39 +243,19 @@ async def update_combine_operator(
         raise ModelRetry(msg)
 
     if operator == CombineOp.COLOCATE and colocation_params is None:
-        msg = (
-            "VALIDATION_ERROR: COLOCATE operator requires colocation_params."
-        )
+        msg = "VALIDATION_ERROR: COLOCATE operator requires colocation_params."
         raise ModelRetry(msg)
     if operator != CombineOp.COLOCATE and colocation_params is not None:
-        msg = (
-            "VALIDATION_ERROR: colocation_params is only valid for COLOCATE."
-        )
+        msg = "VALIDATION_ERROR: colocation_params is only valid for COLOCATE."
         raise ModelRetry(msg)
 
-    sync_state = ensure_sync_state(session)
-    proposed = step.model_copy(
-        update={"operator": operator, "colocation_params": colocation_params},
-    )
-    record_type = graph.record_type or "transcript"
-    push_error = await _push_via_search_config(
-        sync_state=sync_state,
-        step=proposed,
-        site_id=deps.site_id,
-        record_type=record_type,
-        search_name=step.search_name,
-    )
-    if push_error is not None:
-        return tool_error(
-            ErrorCode.WDK_ERROR,
-            f"WDK rejected the operator change: {push_error}.",
-            stepId=step.id,
-        )
-
-    step.operator = operator
-    step.colocation_params = colocation_params
-    await persist_strategy_ast_to_conversation(
-        deps=deps, graph=graph, sync_result=None,
+    await apply_and_commit(
+        deps=deps,
+        op=UpdateCombineOperatorOp(
+            step_id=step_id,
+            operator=operator,
+            colocation_params=colocation_params,
+        ),
     )
     return ToolReturn(
         return_value=step_ok_response(session, graph, step),
@@ -375,9 +277,10 @@ async def update_step_metadata(
     if isinstance(resolved, ToolErrorPayload):
         return resolved
     graph, step = resolved
-    step.display_name = display_name
-    await persist_strategy_ast_to_conversation(
-        deps=deps, graph=graph, sync_result=None,
+
+    await apply_and_commit(
+        deps=deps,
+        op=UpdateStepMetaOp(step_id=step_id, display_name=display_name),
     )
     return ToolReturn(
         return_value=step_ok_response(session, graph, step),
@@ -389,14 +292,14 @@ async def delete_step(
     ctx: RunContext[AgentDeps],
     step_id: str,
     *,
+    resolution: DeleteResolution = DeleteResolution.COLLAPSE_COMBINE,
     graph_id: str | None = None,
 ) -> ToolReturn[JSONObject] | ToolErrorPayload:
     """Delete a step and re-wire the tree to preserve a single root.
 
-    The deletion service handles parent re-wiring (parent's input slot
-    moves up to the deleted step's primary input). Refuses to delete the
-    root if it would leave the graph empty — use a fresh ``build_strategy``
-    instead.
+    ``resolution`` selects the disambiguation policy. Defaults to
+    ``collapse-combine`` which drops the step + its parent combine and
+    reconnects the sibling to the grandparent.
     """
     deps = ctx.deps
     session = deps.strategy_session
@@ -409,21 +312,14 @@ async def delete_step(
             f"ids: {sorted(graph.steps.keys())}."
         )
         raise ModelRetry(msg)
-    if len(graph.steps) == 1:
-        msg = (
-            "VALIDATION_ERROR: Deleting this step would empty the graph. "
-            "Call build_strategy with a new root to start over."
-        )
-        raise ModelRetry(msg)
 
-    sync_state = ensure_sync_state(session)
-    result = await delete_step_connected(graph, sync_state, step_id)
-    await persist_strategy_ast_to_conversation(
-        deps=deps, graph=graph, sync_result=None,
+    result = await apply_and_commit(
+        deps=deps,
+        op=DeleteStepOp(step_id=step_id, resolution=resolution),
     )
     response: JSONObject = {
         "ok": True,
-        "deleted": cast("JSONArray", result.deleted_ids),
+        "deleted": cast("JSONArray", result.dropped_step_ids),
         "graphId": graph.id,
     }
     return ToolReturn(
@@ -439,13 +335,7 @@ async def replace_subtree(
     *,
     graph_id: str | None = None,
 ) -> ToolReturn[JSONObject] | ToolErrorPayload:
-    """Replace the subtree rooted at ``step_id`` with a new tree.
-
-    The new subtree is validated by AST construction. Old subtree's WDK
-    steps are abandoned (sync state forgets their ids); the new subtree
-    is pushed via the standard build flow. The parent's input slot is
-    re-wired to the new subtree's root, preserving single-root invariant.
-    """
+    """Replace the subtree rooted at ``step_id`` with a new tree."""
     deps = ctx.deps
     session = deps.strategy_session
     graph = get_graph(session, graph_id)
@@ -458,39 +348,30 @@ async def replace_subtree(
         )
         raise ModelRetry(msg)
 
-    old_root_node = graph.steps[step_id]
-    old_subtree_ids = {n.id for n in walk_step_tree(old_root_node)}
-    parent_info = graph.find_parent(step_id)
-
-    new_full_root = _rebuild_root_with_replacement(
-        graph=graph,
-        new_subtree=new_subtree,
-        parent_info=parent_info,
-    )
-
-    sync_state = ensure_sync_state(session)
-    for sid in old_subtree_ids:
-        sync_state.wdk_step_ids.pop(sid, None)
-        sync_state.wdk_push_errors.pop(sid, None)
-
-    outcome = await build_strategy_from_spec(
+    result = await apply_and_commit(
         deps=deps,
-        root=new_full_root,
-        name=graph.name,
-        description=graph.description,
+        op=ReplaceSubtreeOp(step_id=step_id, subtree=new_subtree),
     )
-    payload = _build_outcome_payload(outcome, graph)
-    payload["replacedStepId"] = step_id
+    payload: JSONObject = {
+        "ok": True,
+        "replacedStepId": step_id,
+        "droppedStepIds": cast("JSONArray", result.dropped_step_ids),
+        "graphId": graph.id,
+    }
     metadata = [graph_snapshot_chunk(session, graph)]
-    if outcome.wdk_url is not None:
+    sync_result = result.sync_result
+    if sync_result is not None and sync_result.wdk_url is not None:
         metadata.append(
             strategy_link_chunk(
                 strategy_id=graph.id,
-                url=outcome.wdk_url,
+                url=sync_result.wdk_url,
                 title=graph.name,
             ),
         )
-    return ToolReturn(return_value=payload, metadata=metadata)
+    return ToolReturn(
+        return_value=with_full_graph(session, graph, payload),
+        metadata=metadata,
+    )
 
 
 async def insert_saved_strategy(
@@ -501,20 +382,7 @@ async def insert_saved_strategy(
     operator: CombineOp = CombineOp.INTERSECT,
     graph_id: str | None = None,
 ) -> ToolReturn[JSONObject] | ToolErrorPayload:
-    """Insert a saved strategy as a new combine input next to ``target_step_id``.
-
-    Fetches the saved WDK strategy, builds its ``StrategyStepNode`` subtree,
-    deep-clones it with fresh local ids, and wraps it in a new combine step
-    where ``target_step_id`` becomes the primary input and the cloned saved
-    subtree becomes the secondary input. The combine carries
-    ``expanded_strategy_id`` + ``expanded_name`` so the UI renders the
-    secondary branch as a collapsed pill.
-
-    The new combine slots into the parent of ``target_step_id`` (or becomes
-    the new root if ``target_step_id`` was the root). The conversation's
-    ``imported_saved_strategy_ids`` is amended so the saved strategy cannot
-    be hard-deleted while in use.
-    """
+    """Insert a saved WDK strategy as a new combine input next to ``target_step_id``."""
     deps = ctx.deps
     session = deps.strategy_session
     graph = get_graph(session, graph_id)
@@ -527,112 +395,31 @@ async def insert_saved_strategy(
         )
         raise ModelRetry(msg)
 
-    api = get_strategy_api(deps.site_id)
-    try:
-        saved = await api.get_strategy(saved_wdk_strategy_id)
-    except AppError as exc:
-        return tool_error(
-            ErrorCode.STRATEGY_NOT_FOUND,
-            "Saved strategy not found in WDK",
-            detail=(
-                f"Could not load saved strategy {saved_wdk_strategy_id}: {exc}"
-            ),
-        )
-
-    saved_ast = build_snapshot_from_wdk(saved)
-    cloned_secondary = deep_clone_with_fresh_ids(saved_ast.root)
-
-    target_node = graph.steps[target_step_id]
-    parent_info = graph.find_parent(target_step_id)
-    new_combine = StrategyStepNode(
-        search_name="__combine__",
-        operator=operator,
-        primary_input=target_node,
-        secondary_input=cloned_secondary,
-        expanded_strategy_id=saved_wdk_strategy_id,
-        expanded_name=saved.name or f"Saved strategy {saved_wdk_strategy_id}",
-    )
-    new_full_root = _rebuild_root_with_replacement(
-        graph=graph,
-        new_subtree=new_combine,
-        parent_info=parent_info,
-    )
-
-    outcome = await build_strategy_from_spec(
-        deps=deps,
-        root=new_full_root,
-        name=graph.name,
-        description=graph.description,
-    )
-
-    await _record_saved_strategy_consumer(
-        deps=deps,
-        wdk_strategy_id=saved_wdk_strategy_id,
-    )
-
-    payload = _build_outcome_payload(outcome, graph)
-    payload["insertedSavedStrategyId"] = saved_wdk_strategy_id
-    payload["insertedSavedStrategyName"] = saved.name
-    payload["combineStepId"] = new_combine.id
-    metadata = [graph_snapshot_chunk(session, graph)]
-    if outcome.wdk_url is not None:
-        metadata.append(
-            strategy_link_chunk(
-                strategy_id=graph.id,
-                url=outcome.wdk_url,
-                title=graph.name,
-            ),
-        )
-    return ToolReturn(return_value=payload, metadata=metadata)
-
-
-async def _record_saved_strategy_consumer(
-    *,
-    deps: AgentDeps,
-    wdk_strategy_id: int,
-) -> None:
-    """Append ``wdk_strategy_id`` to the conversation's consumer list."""
     if deps.conversation_id is None or deps.db_session_factory is None:
-        return
-    async with deps.db_session_factory() as session:
-        repo = ConversationRepository(session)
-        conv = await repo.get_by_id(deps.conversation_id)
-        if conv is None:
-            return
-        existing = list(conv.imported_saved_strategy_ids or [])
-        if wdk_strategy_id in existing:
-            return
-        existing.append(wdk_strategy_id)
-        await repo.update_conversation(
-            conv.id,
-            ConversationUpdate(imported_saved_strategy_ids=existing),
+        return tool_error(
+            ErrorCode.INTERNAL_ERROR,
+            "insert_saved_strategy requires a persistent conversation context",
         )
-        await session.commit()
 
+    result = await insert_saved_into_conversation(
+        session=session,
+        site_id=deps.site_id,
+        conversation_id=deps.conversation_id,
+        db_session_factory=deps.db_session_factory,
+        target_step_id=target_step_id,
+        saved_wdk_strategy_id=saved_wdk_strategy_id,
+        operator=operator,
+    )
 
-def _swap_input(
-    parent: StrategyStepNode,
-    slot: str,
-    replacement: StrategyStepNode,
-) -> StrategyStepNode:
-    field = "primary_input" if slot == "primary" else "secondary_input"
-    return parent.model_copy(update={field: replacement})
-
-
-def _rebuild_root_with_replacement(
-    *,
-    graph: StrategyGraph,
-    new_subtree: StrategyStepNode,
-    parent_info: tuple[StrategyStepNode, str] | None,
-) -> StrategyStepNode:
-    """Walk up to the graph root, rebuilding parents to point at the new subtree."""
-    if parent_info is None:
-        return new_subtree
-    parent, slot = parent_info
-    current = _swap_input(parent, slot, new_subtree)
-    while True:
-        up = graph.find_parent(current.id)
-        if up is None:
-            return current
-        up_parent, up_slot = up
-        current = _swap_input(up_parent, up_slot, current)
+    payload: JSONObject = {
+        "ok": True,
+        "insertedSavedStrategyId": result.inserted_saved_wdk_strategy_id,
+        "insertedSavedStrategyName": result.inserted_saved_name,
+        "combineStepId": result.combine_step_id,
+        "wdkStrategyId": result.wdk_strategy_id,
+        "graphId": graph.id,
+    }
+    return ToolReturn(
+        return_value=with_full_graph(session, graph, payload),
+        metadata=[graph_snapshot_chunk(session, graph)],
+    )

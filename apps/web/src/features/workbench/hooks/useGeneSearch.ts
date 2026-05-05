@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
 import type { GeneSearchResult } from "@pathfinder/shared";
-import { searchGenes, organismsOptions } from "@/lib/api/genes";
+import { searchGenes } from "@pathfinder/shared/generated/hooks/useSearchGenes";
+import { getOrganismsQueryOptions } from "@pathfinder/shared/generated/hooks/useGetOrganisms";
 import { useSessionStore } from "@/state/useSessionStore";
 
 const PAGE_SIZE = 30;
@@ -42,7 +43,11 @@ export function useGeneSearch(onSelectionsCleared: () => void): GeneSearchState 
   const [error, setError] = useState<string | null>(null);
 
   // Organism filter
-  const { data: organisms = [] } = useQuery(organismsOptions(selectedSite));
+  const { data: organismsResponse } = useQuery({
+    ...getOrganismsQueryOptions(selectedSite),
+    enabled: selectedSite !== "",
+  });
+  const organisms = organismsResponse?.organisms ?? [];
   const [selectedOrganism, setSelectedOrganism] = useState<string | null>(null);
   const [organismFilter, setOrganismFilter] = useState("");
 
@@ -74,13 +79,12 @@ export function useGeneSearch(onSelectionsCleared: () => void): GeneSearchState 
       selectedOrganism,
     ],
     queryFn: ({ pageParam }) =>
-      searchGenes(
-        selectedSite,
-        debouncedQuery,
-        selectedOrganism,
-        PAGE_SIZE,
-        pageParam,
-      ),
+      searchGenes(selectedSite, {
+        q: debouncedQuery,
+        organism: selectedOrganism,
+        limit: PAGE_SIZE,
+        offset: pageParam,
+      }),
     initialPageParam: 0,
     getNextPageParam: (_lastPage, allPages) => {
       const loaded = allPages.reduce(

@@ -45,6 +45,7 @@ export function DataPartRenderer({
     .with("data-turn-rejected", (k) => renderKind(k, data))
     .with("data-turn-qa", (k) => renderKind(k, data))
     .with("data-supervisor-decision", (k) => renderKind(k, data))
+    .with("data-supervisor-context", (k) => renderKind(k, data))
     .with("data-specialist-suggestion", (k) => renderKind(k, data))
     .with("data-specialist-entered", (k) => renderKind(k, data))
     .with("data-specialist-exited", (k) => renderKind(k, data))

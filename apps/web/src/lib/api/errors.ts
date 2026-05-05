@@ -1,4 +1,3 @@
-import { ApiError } from "./client";
 import { APIError } from "./http";
 import { AppError } from "@/lib/errors/AppError";
 import { isRecord } from "@/lib/utils/isRecord";
@@ -39,7 +38,7 @@ export function toUserMessage(err: unknown, fallback = "Request failed."): strin
     return msg !== "" ? msg : fallback;
   }
 
-  if (err instanceof APIError || err instanceof ApiError) {
+  if (err instanceof APIError) {
     const data = err.data;
     if (isProblemDetail(data)) {
       const msg = (data.detail ?? data.title ?? "").trim();

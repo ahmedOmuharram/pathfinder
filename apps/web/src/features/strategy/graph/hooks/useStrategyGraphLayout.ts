@@ -7,17 +7,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useEventListener } from "usehooks-ts";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { useStrategyHistory } from "@/state/useStrategySelectors";
-import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
+import { useStrategyCacheUtils } from "@/lib/api/strategy";
 import { useNodePositionHistory } from "@/features/strategy/graph/hooks/useNodePositionHistory";
 import {
   deserializeStrategyToGraph,
   layoutStrategyGraph,
   type StepPositions,
 } from "@/lib/strategyGraph";
-import {
-  usePushStrategyMutation,
-  useUpdateStepMutation,
-} from "@/features/strategy/mutations";
+import { useUpdateStepMutation } from "@/features/strategy/mutations";
+import { useApplyOperation } from "@/features/strategy/mutations/useApplyOperation";
+import { serializeStrategyAst } from "@/lib/strategyGraph/serialize";
 
 interface UseStrategyGraphLayoutOptions {
   strategy: Strategy | null;
@@ -65,8 +64,28 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
   const conversationId = strategy?.id ?? "";
   const cache = useStrategyCacheUtils();
   const updateStepMutation = useUpdateStepMutation(conversationId);
-  const pushMutation = usePushStrategyMutation();
+  const apply = useApplyOperation(conversationId);
   const { undo, redo, canUndo, canRedo } = useStrategyHistory(conversationId);
+
+  const replayCachedStrategy = (): void => {
+    const next = cache.get(conversationId);
+    if (!next) return;
+    const stepsById = Object.fromEntries(
+      next.steps.map((s) => [s.id, s]),
+    );
+    const result = serializeStrategyAst(stepsById, next);
+    if (!result) return;
+    apply.mutate({
+      op: {
+        kind: "replaceStrategy",
+        root: result.plan.root,
+        name: next.name,
+        ...(next.description !== undefined && {
+          description: next.description,
+        }),
+      },
+    });
+  };
 
   const {
     pushSnapshot,
@@ -101,16 +120,14 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
       if (tryRedo()) return;
       if (canRedo()) {
         redo();
-        const next = cache.get(conversationId);
-        if (next) pushMutation.mutate({ optimistic: next });
+        replayCachedStrategy();
       }
       return;
     }
     if (tryUndo()) return;
     if (canUndo()) {
       undo();
-      const next = cache.get(conversationId);
-      if (next) pushMutation.mutate({ optimistic: next });
+      replayCachedStrategy();
     }
   };
   useEventListener("keydown", handleUndoRedoKeyDown);

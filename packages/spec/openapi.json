@@ -1087,65 +1087,6 @@
                 }
             }
         },
-        "/api/v1/conversations/{strategyId}/push": {
-            "post": {
-                "tags": [
-                    "conversations"
-                ],
-                "summary": "Push Strategy",
-                "description": "Push a strategy to WDK: normalize plan, persist locally, sync to WDK.",
-                "operationId": "push_strategy_api_v1_conversations__strategyId__push_post",
-                "security": [
-                    {
-                        "APIKeyCookie": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "strategyId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid",
-                            "title": "Strategyid"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/PushConversationRequest"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ConversationResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/conversations/{strategyId}/ast": {
             "get": {
                 "tags": [
@@ -1497,13 +1438,14 @@
                 }
             }
         },
-        "/api/v1/conversations/{strategyId}/steps/{stepId}": {
-            "patch": {
+        "/api/v1/conversations/{strategyId}/operations": {
+            "post": {
                 "tags": [
                     "conversations"
                 ],
-                "summary": "Patch Step",
-                "operationId": "patch_step_api_v1_conversations__strategyId__steps__stepId__patch",
+                "summary": "Apply Operation Endpoint",
+                "description": "Apply a single graph operation through the unified commit pipeline.",
+                "operationId": "apply_operation_endpoint_api_v1_conversations__strategyId__operations_post",
                 "security": [
                     {
                         "APIKeyCookie": []
@@ -1521,15 +1463,6 @@
                         }
                     },
                     {
-                        "name": "stepId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "title": "Stepid"
-                        }
-                    },
-                    {
                         "name": "siteId",
                         "in": "query",
                         "required": true,
@@ -1544,7 +1477,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/StepPatchRequest"
+                                "$ref": "#/components/schemas/ApplyOperationRequest"
                             }
                         }
                     }
@@ -1555,7 +1488,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/StepResponse"
+                                    "$ref": "#/components/schemas/ConversationResponse"
                                 }
                             }
                         }
@@ -1744,58 +1677,6 @@
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ConversationDuplicateResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/conversations/{conversation_id}/messages": {
-            "get": {
-                "tags": [
-                    "conversations"
-                ],
-                "summary": "Ordered UIMessage[] history (oldest first).",
-                "operationId": "list_conversation_messages_api_v1_conversations__conversation_id__messages_get",
-                "security": [
-                    {
-                        "APIKeyCookie": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "conversation_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "title": "Conversation Id"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "additionalProperties": true
-                                    },
-                                    "title": "Response List Conversation Messages Api V1 Conversations  Conversation Id  Messages Get"
                                 }
                             }
                         }
@@ -6016,6 +5897,210 @@
     },
     "components": {
         "schemas": {
+            "AddCombineOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "addCombine",
+                        "title": "Kind",
+                        "default": "addCombine"
+                    },
+                    "step": {
+                        "$ref": "#/components/schemas/StrategyStepNode-Input"
+                    },
+                    "leftId": {
+                        "type": "string",
+                        "title": "Leftid"
+                    },
+                    "rightId": {
+                        "type": "string",
+                        "title": "Rightid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "step",
+                    "leftId",
+                    "rightId"
+                ],
+                "title": "AddCombineOp"
+            },
+            "AddLeafOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "addLeaf",
+                        "title": "Kind",
+                        "default": "addLeaf"
+                    },
+                    "step": {
+                        "$ref": "#/components/schemas/StrategyStepNode-Input"
+                    },
+                    "attach": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/AttachNewRoot"
+                            },
+                            {
+                                "$ref": "#/components/schemas/AttachIntoSlot"
+                            }
+                        ],
+                        "title": "Attach",
+                        "discriminator": {
+                            "propertyName": "mode",
+                            "mapping": {
+                                "into-slot": "#/components/schemas/AttachIntoSlot",
+                                "new-root": "#/components/schemas/AttachNewRoot"
+                            }
+                        }
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "step",
+                    "attach"
+                ],
+                "title": "AddLeafOp"
+            },
+            "AddTransformOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "addTransform",
+                        "title": "Kind",
+                        "default": "addTransform"
+                    },
+                    "step": {
+                        "$ref": "#/components/schemas/StrategyStepNode-Input"
+                    },
+                    "inputId": {
+                        "type": "string",
+                        "title": "Inputid"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "before-consumer",
+                            "new-root"
+                        ],
+                        "title": "Mode"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "step",
+                    "inputId",
+                    "mode"
+                ],
+                "title": "AddTransformOp"
+            },
+            "ApplyOperationRequest": {
+                "properties": {
+                    "op": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/components/schemas/AddLeafOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/AddCombineOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/AddTransformOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/DuplicateStepOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/DeleteStepOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ReplaceSubtreeOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/UpdateStepParamsOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/UpdateCombineOperatorOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/UpdateStepMetaOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/UpdateStrategyMetaOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/WireInputOp"
+                            },
+                            {
+                                "$ref": "#/components/schemas/ReplaceStrategyOp"
+                            }
+                        ],
+                        "title": "Op",
+                        "discriminator": {
+                            "propertyName": "kind",
+                            "mapping": {
+                                "addCombine": "#/components/schemas/AddCombineOp",
+                                "addLeaf": "#/components/schemas/AddLeafOp",
+                                "addTransform": "#/components/schemas/AddTransformOp",
+                                "deleteStep": "#/components/schemas/DeleteStepOp",
+                                "duplicateStep": "#/components/schemas/DuplicateStepOp",
+                                "replaceStrategy": "#/components/schemas/ReplaceStrategyOp",
+                                "replaceSubtree": "#/components/schemas/ReplaceSubtreeOp",
+                                "updateCombineOperator": "#/components/schemas/UpdateCombineOperatorOp",
+                                "updateStepMeta": "#/components/schemas/UpdateStepMetaOp",
+                                "updateStepParams": "#/components/schemas/UpdateStepParamsOp",
+                                "updateStrategyMeta": "#/components/schemas/UpdateStrategyMetaOp",
+                                "wireInput": "#/components/schemas/WireInputOp"
+                            }
+                        }
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "op"
+                ],
+                "title": "ApplyOperationRequest"
+            },
+            "AttachIntoSlot": {
+                "properties": {
+                    "mode": {
+                        "type": "string",
+                        "const": "into-slot",
+                        "title": "Mode",
+                        "default": "into-slot"
+                    },
+                    "targetStepId": {
+                        "type": "string",
+                        "title": "Targetstepid"
+                    },
+                    "slot": {
+                        "type": "string",
+                        "enum": [
+                            "primary",
+                            "secondary"
+                        ],
+                        "title": "Slot"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "targetStepId",
+                    "slot"
+                ],
+                "title": "AttachIntoSlot"
+            },
+            "AttachNewRoot": {
+                "properties": {
+                    "mode": {
+                        "type": "string",
+                        "const": "new-root",
+                        "title": "Mode",
+                        "default": "new-root"
+                    }
+                },
+                "type": "object",
+                "title": "AttachNewRoot"
+            },
             "AttributesResponse": {
                 "properties": {
                     "attributes": {
@@ -6498,7 +6583,7 @@
                     "conversationId"
                 ],
                 "title": "ChatRequestBody",
-                "description": "Typed body for ``POST /api/v1/chat`` (AI SDK v6 + PathFinder extras).\n\nThe shape matches ``@ai-sdk/react``'s ``useChat`` submit payload\n(``trigger``, ``id``, ``messages``) with PathFinder-scoped fields\n(``conversationId``, ``siteId``, ``mode``, ``experimentId``) layered on\nvia ``body`` on the client transport. The authenticated user UUID still\ncomes from the ``pathfinder-auth`` cookie."
+                "description": "Typed body for ``POST /api/v1/chat`` (AI SDK v6 + PathFinder extras).\n\nThe shape matches ``@ai-sdk/react``'s ``useChat`` submit payload\n(``trigger``, ``id``, ``messages``) with PathFinder-scoped fields\n(``conversationId``, ``siteId``, ``mode``, ``experimentId``) layered on\nvia ``body`` on the client transport. The authenticated user UUID still\ncomes from the ``pathfinder-auth`` cookie. ``messages`` uses pydantic-ai's\n``UIMessage`` so deferred-tool approval-responded parts deserialize into\nthe discriminated union and ``iter_tool_approval_responses`` works."
             },
             "CheckpointEvent": {
                 "properties": {
@@ -8210,6 +8295,39 @@
                 "title": "DecisionPresented",
                 "description": "A branching decision for the user to resolve."
             },
+            "DeleteResolution": {
+                "type": "string",
+                "enum": [
+                    "collapse-combine",
+                    "delete-subtree",
+                    "promote-primary",
+                    "delete-strategy"
+                ],
+                "title": "DeleteResolution"
+            },
+            "DeleteStepOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "deleteStep",
+                        "title": "Kind",
+                        "default": "deleteStep"
+                    },
+                    "stepId": {
+                        "type": "string",
+                        "title": "Stepid"
+                    },
+                    "resolution": {
+                        "$ref": "#/components/schemas/DeleteResolution"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stepId",
+                    "resolution"
+                ],
+                "title": "DeleteStepOp"
+            },
             "DependentParamsRequest": {
                 "properties": {
                     "parameterName": {
@@ -8271,6 +8389,46 @@
                     "reason"
                 ],
                 "title": "DoneEvent"
+            },
+            "DuplicateStepOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "duplicateStep",
+                        "title": "Kind",
+                        "default": "duplicateStep"
+                    },
+                    "sourceStepId": {
+                        "type": "string",
+                        "title": "Sourcestepid"
+                    },
+                    "duplicateStepId": {
+                        "type": "string",
+                        "title": "Duplicatestepid"
+                    },
+                    "combineStepId": {
+                        "type": "string",
+                        "title": "Combinestepid"
+                    },
+                    "combineDisplayName": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Combinedisplayname"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "sourceStepId",
+                    "duplicateStepId",
+                    "combineStepId"
+                ],
+                "title": "DuplicateStepOp"
             },
             "DynamicToolApprovalRequestedPart": {
                 "properties": {
@@ -13837,42 +13995,6 @@
                 "title": "ProviderStatus",
                 "description": "Per-provider API-key availability."
             },
-            "PushConversationRequest": {
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "maxLength": 255,
-                        "minLength": 1,
-                        "title": "Name"
-                    },
-                    "siteId": {
-                        "type": "string",
-                        "title": "Siteid"
-                    },
-                    "strategyAst": {
-                        "$ref": "#/components/schemas/StrategyAst-Input"
-                    },
-                    "description": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "maxLength": 2000
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Description"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "name",
-                    "siteId",
-                    "strategyAst"
-                ],
-                "title": "PushConversationRequest"
-            },
             "QuotaResponse": {
                 "properties": {
                     "usedUsd": {
@@ -14393,6 +14515,70 @@
                 ],
                 "title": "RefineResponse",
                 "description": "Response from refine_experiment."
+            },
+            "ReplaceStrategyOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "replaceStrategy",
+                        "title": "Kind",
+                        "default": "replaceStrategy"
+                    },
+                    "root": {
+                        "$ref": "#/components/schemas/StrategyStepNode-Input"
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "root"
+                ],
+                "title": "ReplaceStrategyOp",
+                "description": "Whole-strategy replacement; used by undo/redo replay."
+            },
+            "ReplaceSubtreeOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "replaceSubtree",
+                        "title": "Kind",
+                        "default": "replaceSubtree"
+                    },
+                    "stepId": {
+                        "type": "string",
+                        "title": "Stepid"
+                    },
+                    "subtree": {
+                        "$ref": "#/components/schemas/StrategyStepNode-Input"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stepId",
+                    "subtree"
+                ],
+                "title": "ReplaceSubtreeOp"
             },
             "ResearchContext": {
                 "properties": {
@@ -15563,80 +15749,6 @@
                 ],
                 "title": "StepFilter",
                 "description": "Filter applied to a step's result.\n\nWDK FilterValueArray element: { name: string, value: any, disabled?: boolean }."
-            },
-            "StepPatchRequest": {
-                "properties": {
-                    "parameters": {
-                        "anyOf": [
-                            {
-                                "additionalProperties": {
-                                    "$ref": "#/components/schemas/JsonValue"
-                                },
-                                "type": "object"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Parameters"
-                    },
-                    "operator": {
-                        "anyOf": [
-                            {
-                                "$ref": "#/components/schemas/CombineOp"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "displayName": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "maxLength": 255
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Displayname"
-                    },
-                    "colocationParams": {
-                        "anyOf": [
-                            {
-                                "$ref": "#/components/schemas/ColocationParams"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "wdkWeight": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Wdkweight"
-                    },
-                    "searchName": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Searchname"
-                    }
-                },
-                "type": "object",
-                "title": "StepPatchRequest"
             },
             "StepReport-Input": {
                 "properties": {
@@ -18288,6 +18400,15 @@
                         ],
                         "title": "Role"
                     },
+                    "metadata": {
+                        "anyOf": [
+                            {},
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Metadata"
+                    },
                     "parts": {
                         "items": {
                             "anyOf": [
@@ -18360,12 +18481,48 @@
                         "title": "Parts"
                     }
                 },
+                "additionalProperties": false,
                 "type": "object",
                 "required": [
                     "id",
-                    "role"
+                    "role",
+                    "parts"
                 ],
-                "title": "UIMessage"
+                "title": "UIMessage",
+                "description": "A message as displayed in the UI by Vercel AI Elements."
+            },
+            "UpdateCombineOperatorOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "updateCombineOperator",
+                        "title": "Kind",
+                        "default": "updateCombineOperator"
+                    },
+                    "stepId": {
+                        "type": "string",
+                        "title": "Stepid"
+                    },
+                    "operator": {
+                        "$ref": "#/components/schemas/CombineOp"
+                    },
+                    "colocationParams": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ColocationParams"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stepId",
+                    "operator"
+                ],
+                "title": "UpdateCombineOperatorOp"
             },
             "UpdateConversationRequest": {
                 "properties": {
@@ -18428,6 +18585,87 @@
                 },
                 "type": "object",
                 "title": "UpdateConversationRequest"
+            },
+            "UpdateStepMetaOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "updateStepMeta",
+                        "title": "Kind",
+                        "default": "updateStepMeta"
+                    },
+                    "stepId": {
+                        "type": "string",
+                        "title": "Stepid"
+                    },
+                    "displayName": {
+                        "type": "string",
+                        "title": "Displayname"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stepId",
+                    "displayName"
+                ],
+                "title": "UpdateStepMetaOp"
+            },
+            "UpdateStepParamsOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "updateStepParams",
+                        "title": "Kind",
+                        "default": "updateStepParams"
+                    },
+                    "stepId": {
+                        "type": "string",
+                        "title": "Stepid"
+                    },
+                    "parameters": {
+                        "$ref": "#/components/schemas/JSONObject"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stepId",
+                    "parameters"
+                ],
+                "title": "UpdateStepParamsOp"
+            },
+            "UpdateStrategyMetaOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "updateStrategyMeta",
+                        "title": "Kind",
+                        "default": "updateStrategyMeta"
+                    },
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    }
+                },
+                "type": "object",
+                "title": "UpdateStrategyMetaOp"
             },
             "UpdatesEvent": {
                 "properties": {
@@ -18781,6 +19019,39 @@
                 ],
                 "title": "WDKRecordIdPart",
                 "description": "One (name, value) segment of a WDK record's composite primary key."
+            },
+            "WireInputOp": {
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "const": "wireInput",
+                        "title": "Kind",
+                        "default": "wireInput"
+                    },
+                    "targetStepId": {
+                        "type": "string",
+                        "title": "Targetstepid"
+                    },
+                    "slot": {
+                        "type": "string",
+                        "enum": [
+                            "primary",
+                            "secondary"
+                        ],
+                        "title": "Slot"
+                    },
+                    "sourceStepId": {
+                        "type": "string",
+                        "title": "Sourcestepid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "targetStepId",
+                    "slot",
+                    "sourceStepId"
+                ],
+                "title": "WireInputOp"
             }
         },
         "securitySchemes": {

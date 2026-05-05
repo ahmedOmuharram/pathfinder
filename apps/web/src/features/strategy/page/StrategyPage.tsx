@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { Spinner } from "@/components/ui/spinner";
-import { useStrategyQuery } from "@/state/strategy/useStrategyQuery";
+import { useStrategyQuery } from "@/lib/api/strategy";
 import { StrategyGraph } from "@/features/strategy/graph/components/StrategyGraph";
 
 interface StrategyPageProps {

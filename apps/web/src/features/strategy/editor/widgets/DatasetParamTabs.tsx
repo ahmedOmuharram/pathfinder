@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import { conversationListOptions } from "@/lib/api/conversations";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
 import { useSessionStore } from "@/state/useSessionStore";
 import { parseIdsFromText } from "./datasetParamLogic";
 
@@ -152,7 +152,7 @@ interface StrategyTabProps {
 export function StrategyTab({ value, onChange }: StrategyTabProps) {
   const siteId = useSessionStore((s) => s.selectedSite);
   const { data, isPending, isError } = useQuery({
-    ...conversationListOptions(siteId),
+    ...listStrategiesQueryOptions({ siteId }),
     enabled: siteId !== "",
   });
 

@@ -10,12 +10,12 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { Note } from "@pathfinder/shared/generated/types/Note";
 import {
-  deleteScratchpadNote,
-  patchScratchpadNote,
-  scratchpadNotesOptions,
-  type Note,
-} from "@/lib/api/scratchpad";
+  listScratchpadNotesQueryOptions,
+} from "@pathfinder/shared/generated/hooks/useListScratchpadNotes";
+import { patchScratchpadNote } from "@pathfinder/shared/generated/hooks/usePatchScratchpadNote";
+import { deleteScratchpadNote } from "@pathfinder/shared/generated/hooks/useDeleteScratchpadNote";
 
 import { RailPanelShell } from "./RailPanelShell";
 
@@ -27,26 +27,26 @@ interface ScratchpadPanelProps {
 
 export function ScratchpadPanel({ conversationId }: ScratchpadPanelProps) {
   const queryClient = useQueryClient();
-  const notesQuery = useQuery(scratchpadNotesOptions(conversationId));
+  const notesQuery = useQuery(listScratchpadNotesQueryOptions(conversationId));
 
   const pinMutation = useMutation({
     mutationFn: (args: { noteId: string; pinned: boolean }) =>
-      patchScratchpadNote(conversationId, args.noteId, {
+      patchScratchpadNote(args.noteId, conversationId, {
         pinned: args.pinned,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: scratchpadNotesOptions(conversationId).queryKey,
+        queryKey: listScratchpadNotesQueryOptions(conversationId).queryKey,
       });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (noteId: string) =>
-      deleteScratchpadNote(conversationId, noteId),
+      deleteScratchpadNote(noteId, conversationId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: scratchpadNotesOptions(conversationId).queryKey,
+        queryKey: listScratchpadNotesQueryOptions(conversationId).queryKey,
       });
     },
   });

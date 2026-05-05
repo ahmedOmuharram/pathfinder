@@ -95,6 +95,16 @@ function AppShellInner({
 
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
 
+  if (!embedded && !veupathdbSignedIn) {
+    return (
+      <LoginModal
+        open
+        selectedSite={selectedSite}
+        onSiteChange={handleSiteChange}
+      />
+    );
+  }
+
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
       {!embedded && (

@@ -9,15 +9,15 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
-  conversationDetailKey,
-  conversationDetailOptions,
-} from "@/lib/api/conversations";
+  strategyQueryKey,
+  strategyQueryOptions,
+} from "@/lib/api/strategy";
 import {
   LauncherPreconditionError,
   postOptimizeLaunch,
   type OptimizeLaunchRequest,
 } from "@/lib/api/launchers";
-import { modelCatalogOptions } from "@/lib/api/models";
+import { listModelsQueryOptions } from "@pathfinder/shared/generated/hooks/useListModels";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -43,8 +43,8 @@ export function OptimizeLauncherForm({
   onClose,
 }: OptimizeLauncherFormProps) {
   const queryClient = useQueryClient();
-  const detailQuery = useQuery(conversationDetailOptions(conversationId));
-  const modelsQuery = useQuery(modelCatalogOptions());
+  const detailQuery = useQuery(strategyQueryOptions(conversationId));
+  const modelsQuery = useQuery(listModelsQueryOptions());
 
   const steps = detailQuery.data?.steps ?? [];
   const focusedStep = steps[steps.length - 1];
@@ -54,7 +54,7 @@ export function OptimizeLauncherForm({
       postOptimizeLaunch(conversationId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: conversationDetailKey(conversationId),
+        queryKey: strategyQueryKey(conversationId),
       });
       void queryClient.invalidateQueries({
         queryKey: ["conversations", conversationId, "messages"],

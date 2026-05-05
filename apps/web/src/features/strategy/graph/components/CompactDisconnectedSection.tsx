@@ -4,7 +4,7 @@ import type { Step, Strategy } from "@pathfinder/shared";
 import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { usePushStrategyMutation } from "@/features/strategy/mutations/usePushStrategyMutation";
+import { useDeleteOperation } from "@/features/strategy/graph/hooks/useDeleteOperation";
 import { inferStepKind } from "@/lib/strategyGraph";
 import { cn } from "@/lib/utils/cn";
 
@@ -27,15 +27,12 @@ export function CompactDisconnectedSection({
   onStepClick,
   selectedStepId = null,
 }: DisconnectedSectionProps) {
-  const push = usePushStrategyMutation();
-  const orphanIds = new Set(orphans.map((s) => s.id));
+  const deleteOp = useDeleteOperation(strategy.id);
   const handleClear = () => {
-    push.mutate({
-      optimistic: {
-        ...strategy,
-        steps: strategy.steps.filter((s) => !orphanIds.has(s.id)),
-      },
-    });
+    deleteOp.requestDeleteMany(
+      orphans.map((s) => s.id),
+      { skipConfirm: true },
+    );
   };
   return (
     <section
@@ -49,7 +46,6 @@ export function CompactDisconnectedSection({
           size="xs"
           variant="ghost"
           onClick={handleClear}
-          disabled={push.isPending}
           className="h-5 gap-1 px-1.5 text-[10px] text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
         >
           <Trash2 className="size-3" aria-hidden /> Remove all

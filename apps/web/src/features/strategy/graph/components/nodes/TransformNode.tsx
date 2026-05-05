@@ -16,6 +16,7 @@ export function TransformNode(props: StepNodeProps) {
     step,
     selected,
     isUnsaved = false,
+    isOrphan = false,
     showOutputHandle = false,
     showPrimaryInputHandle = false,
     enterDelayIndex,
@@ -33,6 +34,7 @@ export function TransformNode(props: StepNodeProps) {
       step={step}
       selected={selected}
       isUnsaved={isUnsaved}
+      isOrphan={isOrphan}
       width={TRANSFORM_NODE_WIDTH}
       height={TRANSFORM_NODE_HEIGHT}
       snapshot={snapshot}

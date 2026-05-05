@@ -2,6 +2,9 @@
 
 import math
 import re
+from typing import cast
+
+from pydantic import JsonValue
 
 from pathfinder.platform.errors import ValidationError
 from pathfinder.platform.logging import get_logger
@@ -92,11 +95,20 @@ def match_vocab_value(
             f" then pass exactly that full string as the value."
         )
 
+    valid_options = [
+        (entry.get("value") or entry.get("display") or "")
+        for entry in entries
+    ][:50]
     raise ValidationError(
         title="Invalid parameter value",
         detail=detail,
         errors=[
-            {"param": param_name, "value": value, "suggestions": ", ".join(suggestions)}
+            {
+                "param": param_name,
+                "value": value,
+                "suggestions": ", ".join(suggestions),
+                "validOptions": cast("JsonValue", valid_options),
+            },
         ],
     )
 

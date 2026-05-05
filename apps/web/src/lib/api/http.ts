@@ -54,10 +54,7 @@ function getApiBaseUrl(): string {
   return getConfiguredServerApiBaseUrl();
 }
 
-export function buildUrl(
-  path: string,
-  query?: Record<string, string | number | boolean | null | undefined>,
-): string {
+export function buildUrl(path: string, query?: Record<string, unknown>): string {
   const base = getApiBaseUrl();
   const url =
     path.startsWith("http://") || path.startsWith("https://")
@@ -87,7 +84,7 @@ export function getAuthHeaders(opts?: {
   };
 }
 
-async function parseResponseBody(resp: Response): Promise<unknown> {
+export async function parseResponseBody(resp: Response): Promise<unknown> {
   const contentType = resp.headers.get("content-type") ?? "";
   if (contentType.includes("json")) {
     try {
@@ -111,7 +108,7 @@ type RequestArgs = {
   signal?: AbortSignal;
 };
 
-function extractErrorMessage(data: unknown): string | null {
+export function extractErrorMessage(data: unknown): string | null {
   if (typeof data !== "object" || data === null || !("detail" in data)) return null;
   const detail = (data as { detail: unknown }).detail;
   if (typeof detail === "string") return detail;

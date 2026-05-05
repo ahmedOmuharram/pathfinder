@@ -4,6 +4,9 @@ import { pluginTs } from "@kubb/plugin-ts";
 import { pluginZod } from "@kubb/plugin-zod";
 import { pluginReactQuery } from "@kubb/plugin-react-query";
 
+const stripPathSuffix = (name: string): string =>
+  name.replace(/(?:ApiV1|Health).*?(?:Get|Post|Put|Patch|Delete)/, "");
+
 export default defineConfig({
   root: ".",
   input: { path: "../spec/openapi.json" },
@@ -15,9 +18,7 @@ export default defineConfig({
       enumType: "asConst",
       dateType: "string",
       unknownType: "unknown",
-      transformers: {
-        name: (name) => name,
-      },
+      transformers: { name: stripPathSuffix },
     }),
     pluginZod({
       output: { path: "zod" },
@@ -26,6 +27,7 @@ export default defineConfig({
       unknownType: "unknown",
       inferred: true,
       coercion: false,
+      transformers: { name: stripPathSuffix },
     }),
     pluginReactQuery({
       output: { path: "hooks" },
@@ -39,6 +41,7 @@ export default defineConfig({
         methods: ["post", "put", "patch", "delete"],
       },
       parser: "zod",
+      transformers: { name: stripPathSuffix },
     }),
   ],
 });

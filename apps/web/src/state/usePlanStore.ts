@@ -31,6 +31,12 @@ export interface PhaseTiming {
   durationMs: number | null;
 }
 
+export interface PendingPlanApproval {
+  id: string;
+  planId: string;
+  toolCallId: string;
+}
+
 interface PlanState {
   activePlan: InteractivePlan | null;
   activePlanTraceId: string | null;
@@ -43,8 +49,9 @@ interface PlanState {
   phaseStatus: PhaseStatus | null;
   phaseTimings: Partial<Record<TimedPipelinePhase, PhaseTiming>>;
 
-  // Stream-derived plan state (from data-* parts)
-  activePlanArtifact: PlanArtifact | null;
+  plans: PlanArtifact[];
+  focusedPlanIndex: number;
+  pendingApproval: PendingPlanApproval | null;
   planPreview: GraphPlan | null;
   lastPlanUpdate: PlanUpdate | null;
 
@@ -68,8 +75,10 @@ interface PlanState {
   clearPhase: () => void;
   clearPhaseTimings: () => void;
 
-  // Stream-derived plan setters (from data-* parts)
-  setActivePlanArtifact: (artifact: PlanArtifact) => void;
+  appendPlanArtifact: (artifact: PlanArtifact) => void;
+  setFocusedPlanIndex: (index: number) => void;
+  setPendingApproval: (approval: PendingPlanApproval | null) => void;
+  resolvePendingApproval: () => void;
   setPlanPreview: (preview: GraphPlan) => void;
   applyPlanUpdate: (update: PlanUpdate) => void;
   recordPhaseChange: (
@@ -91,7 +100,9 @@ export const usePlanStore = createStore<PlanState>("PlanStore", (set) => ({
   phaseStatus: null,
   phaseTimings: {},
 
-  activePlanArtifact: null,
+  plans: [],
+  focusedPlanIndex: 0,
+  pendingApproval: null,
   planPreview: null,
   lastPlanUpdate: null,
 
@@ -118,7 +129,9 @@ export const usePlanStore = createStore<PlanState>("PlanStore", (set) => ({
       currentPhase: null,
       phaseStatus: null,
       phaseTimings: {},
-      activePlanArtifact: null,
+      plans: [],
+      focusedPlanIndex: 0,
+      pendingApproval: null,
       planPreview: null,
       lastPlanUpdate: null,
     }),
@@ -152,7 +165,19 @@ export const usePlanStore = createStore<PlanState>("PlanStore", (set) => ({
   clearPhase: () => set({ currentPhase: null, phaseStatus: null }),
   clearPhaseTimings: () => set({ phaseTimings: {} }),
 
-  setActivePlanArtifact: (artifact) => set({ activePlanArtifact: artifact }),
+  appendPlanArtifact: (artifact) =>
+    set((state) => {
+      const plans = [...state.plans, artifact];
+      return { plans, focusedPlanIndex: plans.length - 1 };
+    }),
+  setFocusedPlanIndex: (index) =>
+    set((state) => {
+      if (state.plans.length === 0) return { focusedPlanIndex: 0 };
+      const clamped = Math.max(0, Math.min(index, state.plans.length - 1));
+      return { focusedPlanIndex: clamped };
+    }),
+  setPendingApproval: (approval) => set({ pendingApproval: approval }),
+  resolvePendingApproval: () => set({ pendingApproval: null }),
   setPlanPreview: (preview) => set({ planPreview: preview }),
   applyPlanUpdate: (update) => set({ lastPlanUpdate: update }),
   recordPhaseChange: (phase, status, durationMs) =>

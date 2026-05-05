@@ -69,7 +69,6 @@ import type {
   PlanArtifact,
   PlannedStep,
   PlanUpdate,
-  PushConversationRequest,
   ProblemFrame,
   RankMetricsResponse,
   RecordTypeResponse,
@@ -139,7 +138,6 @@ export type {
   CreateConversationRequest,
   OpenConversationRequest,
   OpenConversationResponse,
-  PushConversationRequest,
   StepCountsResponse,
   UpdateConversationRequest,
 };
@@ -310,6 +308,11 @@ export interface VEuPathDBSite {
   baseUrl: string;
   projectId: string;
   isPortal: boolean;
+}
+
+export function siteDisplayName(siteId: string): string {
+  const site = VEUPATHDB_SITES.find((s) => s.id === siteId);
+  return site?.displayName ?? site?.name ?? siteId;
 }
 
 export const VEUPATHDB_SITES: VEuPathDBSite[] = [
@@ -543,6 +546,7 @@ export type DataPartKind =
   | "data-turn-rejected"
   | "data-turn-qa"
   | "data-supervisor-decision"
+  | "data-supervisor-context"
   | "data-specialist-suggestion"
   | "data-specialist-entered"
   | "data-specialist-exited"
@@ -573,6 +577,7 @@ export interface DataPartPayloadMap {
   "data-turn-rejected": DataTurnRejectedPayload;
   "data-turn-qa": DataTurnQaPayload;
   "data-supervisor-decision": DataSupervisorDecisionPayload;
+  "data-supervisor-context": Record<string, unknown>;
   "data-specialist-suggestion": DataSpecialistSuggestionPayload;
   "data-specialist-entered": DataSpecialistEnteredPayload;
   "data-specialist-exited": DataSpecialistExitedPayload;

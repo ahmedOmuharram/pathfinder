@@ -12,11 +12,9 @@ import {
   useRenameWorkflow,
   type RenameWorkflow,
 } from "@/features/sidebar/hooks/useRenameWorkflow";
-import {
-  conversationListOptions,
-  setConversationSaved,
-  type ConversationSummary,
-} from "@/lib/api/conversations";
+import type { ConversationResponse } from "@pathfinder/shared/generated/types/ConversationResponse";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
+import { updateStrategy } from "@pathfinder/shared/generated/hooks/useUpdateStrategy";
 import { toUserMessage } from "@/lib/api/errors";
 
 interface UseConversationSidebarActionsArgs {
@@ -49,7 +47,7 @@ export function useConversationSidebarActions({
     activeChatId: activeId,
   });
 
-  const listKey = conversationListOptions(siteId).queryKey;
+  const listKey = listStrategiesQueryOptions({ siteId }).queryKey;
 
   const handleNewConversation = async (): Promise<void> => {
     router.push(`/${siteId}/conversation`);
@@ -58,8 +56,8 @@ export function useConversationSidebarActions({
   const handleToggleSaved = async (item: ConversationItem): Promise<void> => {
     const nextSaved = !item.isSaved;
     try {
-      const updated = await setConversationSaved(item.id, nextSaved);
-      queryClient.setQueryData<ConversationSummary[]>(listKey, (old) =>
+      const updated = await updateStrategy(item.id, { isSaved: nextSaved });
+      queryClient.setQueryData<ConversationResponse[]>(listKey, (old) =>
         (old ?? []).map((c) => (c.id === item.id ? updated : c)),
       );
     } catch (err) {

@@ -8,15 +8,15 @@ export const createDraftSlice: StateCreator<
   [],
   DraftSlice
 > = (set) => ({
-  lastFailedPush: null,
+  lastFailedOperation: null,
 
-  setLastFailedPush: (payload) => {
-    set({ lastFailedPush: payload });
+  setLastFailedOperation: (payload) => {
+    set({ lastFailedOperation: payload });
   },
 
   clear: () => {
     set({
-      lastFailedPush: null,
+      lastFailedOperation: null,
       stepLifecycleById: {},
       undoStack: [],
       redoStack: [],

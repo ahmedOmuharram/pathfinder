@@ -17,8 +17,8 @@ import {
   useUpdateUserPreferences,
   userPreferencesOptions,
 } from "@/lib/api/me";
-import { modelCatalogOptions } from "@/lib/api/models";
-import { tierPresetsOptions } from "@/lib/api/tiers";
+import { listModelsQueryOptions } from "@pathfinder/shared/generated/hooks/useListModels";
+import { listTiersQueryOptions } from "@pathfinder/shared/generated/hooks/useListTiers";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
 import { Button } from "@/lib/components/ui/Button";
 
@@ -66,8 +66,8 @@ function EngineModalContent() {
     { data: prefs },
   ] = useSuspenseQueries({
     queries: [
-      modelCatalogOptions(),
-      tierPresetsOptions(),
+      listModelsQueryOptions(),
+      listTiersQueryOptions(),
       userPreferencesOptions(),
     ],
   });

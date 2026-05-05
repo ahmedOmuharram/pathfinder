@@ -1,6 +1,8 @@
 import type { Step } from "@pathfinder/shared";
 
-type StrategyGraphError = {
+export type StrategyGraphErrorSeverity = "error" | "info";
+
+export type StrategyGraphError = {
   code:
     | "MISSING_INPUT"
     | "UNKNOWN_STEP"
@@ -8,6 +10,7 @@ type StrategyGraphError = {
     | "MISSING_SEARCH_NAME"
     | "ORPHAN_STEP"
     | "MULTIPLE_ROOTS";
+  severity: StrategyGraphErrorSeverity;
   message: string;
   stepId?: string;
   inputStepId?: string;
@@ -144,6 +147,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
     if ((step.searchName == null || step.searchName === "") && kind !== "combine") {
       errors.push({
         code: "MISSING_SEARCH_NAME",
+        severity: "error",
         message: "searchName is required.",
         stepId: step.id,
       });
@@ -152,6 +156,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
     if (kind === "invalid") {
       errors.push({
         code: "MISSING_INPUT",
+        severity: "error",
         message: "secondaryInput requires primaryInput.",
         stepId: step.id,
       });
@@ -161,6 +166,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
       if (step.operator == null || step.operator === "") {
         errors.push({
           code: "MISSING_OPERATOR",
+          severity: "error",
           message: "Combine steps require an operator.",
           stepId: step.id,
         });
@@ -168,6 +174,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
       if (step.operator === "COLOCATE" && step.colocationParams == null) {
         errors.push({
           code: "MISSING_INPUT",
+          severity: "error",
           message: "COLOCATE requires colocationParams.",
           stepId: step.id,
         });
@@ -175,6 +182,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
       if (step.primaryInputStepId == null || step.secondaryInputStepId == null) {
         errors.push({
           code: "MISSING_INPUT",
+          severity: "error",
           message: "Combine steps require two inputs.",
           stepId: step.id,
         });
@@ -187,6 +195,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
     if (step.primaryInputStepId != null && !stepIds.has(step.primaryInputStepId)) {
       errors.push({
         code: "UNKNOWN_STEP",
+        severity: "error",
         message: "Primary input step does not exist.",
         stepId: step.id,
         inputStepId: step.primaryInputStepId,
@@ -195,6 +204,7 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
     if (step.secondaryInputStepId != null && !stepIds.has(step.secondaryInputStepId)) {
       errors.push({
         code: "UNKNOWN_STEP",
+        severity: "error",
         message: "Secondary input step does not exist.",
         stepId: step.id,
         inputStepId: step.secondaryInputStepId,
@@ -206,12 +216,14 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
   if (roots.length === 0) {
     errors.push({
       code: "ORPHAN_STEP",
+      severity: "info",
       message: "Strategy graph has no root steps.",
     });
   } else if (roots.length > 1) {
     errors.push({
       code: "MULTIPLE_ROOTS",
-      message: "Strategy graph must have a single final output step.",
+      severity: "info",
+      message: "Strategy graph has more than one root; only the rooted component is pushed.",
     });
   }
 

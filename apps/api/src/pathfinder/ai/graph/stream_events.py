@@ -93,6 +93,28 @@ def supervisor_decision_event(*, to: str, reason: str) -> DataChunk:
     )
 
 
+def supervisor_context_event(
+    *,
+    kind: str,
+    summary: str,
+    detail: str | None,
+    phase: str | None,
+    refs: list[str],
+    at: str,
+) -> DataChunk:
+    return DataChunk(
+        type="data-supervisor-context",
+        data={
+            "kind": kind,
+            "summary": summary,
+            "detail": detail,
+            "phase": phase,
+            "refs": refs,
+            "at": at,
+        },
+    )
+
+
 def specialist_suggestion_event(*, kind: SpecialistKind) -> DataChunk:
     """``data-specialist-suggestion`` chunk for the supervisor's hint chip."""
     return DataChunk(

@@ -1,36 +1,11 @@
 "use client";
 
 import type { FeedbackAdapter } from "@assistant-ui/react";
-import type { ThreadAssistantMessagePart, ThreadMessage } from "@assistant-ui/react";
 import { toast } from "sonner";
 
 import { requestVoid } from "@/lib/api/http";
 
-type PhaseStartDataPart = {
-  type: "data";
-  name: "phase-start";
-  data: { traceId?: string };
-};
-
-function isPhaseStartPart(
-  part: ThreadAssistantMessagePart,
-): part is PhaseStartDataPart {
-  return (
-    part.type === "data"
-    && "name" in part
-    && part.name === "phase-start"
-  );
-}
-
-function extractTraceId(message: ThreadMessage): string | null {
-  if (message.role !== "assistant") return null;
-  for (const part of message.content) {
-    if (!isPhaseStartPart(part)) continue;
-    const traceId = part.data.traceId;
-    if (typeof traceId === "string" && traceId.length > 0) return traceId;
-  }
-  return null;
-}
+import { extractTraceId } from "./traceId";
 
 export function createFeedbackAdapter(): FeedbackAdapter {
   return {

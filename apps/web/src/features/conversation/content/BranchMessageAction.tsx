@@ -7,7 +7,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { MessageAction } from "@/components/ai-elements/message";
-import { forkConversation } from "@/lib/api/conversations";
+import { forkStrategy } from "@pathfinder/shared/generated/hooks/useForkStrategy";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
 
 const ROUTE_RE = /^\/([^/]+)\/conversation\/([^/?#]+)/;
 
@@ -25,11 +26,12 @@ export function BranchMessageAction() {
       if (conversationId == null || siteId == null) {
         throw new Error("Missing conversation or site context");
       }
-      return forkConversation(conversationId, messageId);
+      return forkStrategy(conversationId, { fromMessageId: messageId });
     },
     onSuccess: (fork) => {
+      if (siteId == null) return;
       void queryClient.invalidateQueries({
-        queryKey: ["conversations", "list", siteId],
+        queryKey: listStrategiesQueryOptions({ siteId }).queryKey,
       });
       router.push(`/${siteId}/conversation/${fork.id}`);
     },

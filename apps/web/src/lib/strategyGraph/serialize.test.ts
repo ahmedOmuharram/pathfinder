@@ -70,6 +70,74 @@ describe("core/strategyGraph/serialize", () => {
     expect(res?.plan.description).toBe("desc");
   });
 
+  it("uses rootStepId when set, emits orphans for unreachable steps", () => {
+    const stepsById: Record<string, Step> = {
+      a: step({ id: "a", displayName: "A", searchName: "q1", recordType: "gene" }),
+      b: step({ id: "b", displayName: "B", searchName: "q2", recordType: "gene" }),
+    };
+    const strategy: Strategy = {
+      id: "s",
+      name: "S",
+      siteId: "plasmodb",
+      recordType: "gene",
+      steps: Object.values(stepsById),
+      rootStepId: "a",
+      isSaved: false,
+      createdAt: "t",
+      updatedAt: "t",
+    };
+    const res = serializeStrategyAst(stepsById, strategy);
+    expect(res).not.toBeNull();
+    expect(res?.plan.root.id).toBe("a");
+    expect(res?.orphanIds).toEqual(["b"]);
+  });
+
+  it("falls through to single-root selection when rootStepId is null and exactly one root exists", () => {
+    const stepsById: Record<string, Step> = {
+      a: step({ id: "a", displayName: "A", searchName: "q1", recordType: "gene" }),
+    };
+    const strategy: Strategy = {
+      id: "s",
+      name: "S",
+      siteId: "plasmodb",
+      recordType: "gene",
+      steps: Object.values(stepsById),
+      rootStepId: null,
+      isSaved: false,
+      createdAt: "t",
+      updatedAt: "t",
+    };
+    const res = serializeStrategyAst(stepsById, strategy);
+    expect(res?.plan.root.id).toBe("a");
+    expect(res?.orphanIds).toEqual([]);
+  });
+
+  it("orphanIds is [] when graph is fully connected from rootStepId", () => {
+    const stepsById: Record<string, Step> = {
+      a: step({ id: "a", displayName: "A", searchName: "q1", recordType: "gene" }),
+      b: step({
+        id: "b",
+        displayName: "B",
+        searchName: "q2",
+        recordType: "gene",
+        primaryInputStepId: "a",
+      }),
+    };
+    const strategy: Strategy = {
+      id: "s",
+      name: "S",
+      siteId: "plasmodb",
+      recordType: "gene",
+      steps: Object.values(stepsById),
+      rootStepId: "b",
+      isSaved: false,
+      createdAt: "t",
+      updatedAt: "t",
+    };
+    const res = serializeStrategyAst(stepsById, strategy);
+    expect(res?.orphanIds).toEqual([]);
+  });
+
   it("serializes combine nodes with __combine__ searchName and requires operator", () => {
     const stepsById: Record<string, Step> = {
       l: step({ id: "l", displayName: "L", searchName: "q1", recordType: "gene" }),

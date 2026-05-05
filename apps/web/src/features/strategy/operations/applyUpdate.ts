@@ -1,4 +1,4 @@
-import type { Strategy } from "@pathfinder/shared";
+import type { Step, Strategy, StrategyStepNode } from "@pathfinder/shared";
 import { findParent, walkSubtreeIds } from "./utils";
 import { patchSteps } from "./_patch";
 import type { ApplyResult, GraphOperation } from "./types";
@@ -6,8 +6,11 @@ import type { ApplyResult, GraphOperation } from "./types";
 type UpdateParamsOp = Extract<GraphOperation, { kind: "updateStepParams" }>;
 type UpdateOpOp = Extract<GraphOperation, { kind: "updateCombineOperator" }>;
 type UpdateMetaOp = Extract<GraphOperation, { kind: "updateStepMeta" }>;
+type UpdateStrategyMetaOp = Extract<GraphOperation, { kind: "updateStrategyMeta" }>;
 type ReplaceOp = Extract<GraphOperation, { kind: "replaceSubtree" }>;
 type DeleteEdgeOp = Extract<GraphOperation, { kind: "deleteEdge" }>;
+type WireInputOp = Extract<GraphOperation, { kind: "wireInput" }>;
+type ReplaceStrategyOp = Extract<GraphOperation, { kind: "replaceStrategy" }>;
 
 export function applyUpdateStepParams(
   strategy: Strategy,
@@ -59,6 +62,96 @@ export function applyUpdateStepMeta(
       }),
     },
     description: `Renamed ${op.stepId}`,
+  };
+}
+
+export function applyUpdateStrategyMeta(
+  strategy: Strategy,
+  op: UpdateStrategyMetaOp,
+): ApplyResult {
+  const next = { ...strategy };
+  if (op.name !== undefined) next.name = op.name;
+  if (op.description !== undefined) next.description = op.description;
+  return {
+    kind: "applied",
+    next,
+    description: "Updated strategy metadata",
+  };
+}
+
+export function applyReplaceStrategy(
+  strategy: Strategy,
+  op: ReplaceStrategyOp,
+): ApplyResult {
+  const flat = treeToFlatSteps(op.root, strategy);
+  const next: Strategy = {
+    ...strategy,
+    steps: flat,
+    rootStepId: op.root.id ?? null,
+  };
+  if (op.name !== undefined) next.name = op.name;
+  if (op.description !== undefined) next.description = op.description;
+  return {
+    kind: "applied",
+    next,
+    description: "Replaced strategy",
+  };
+}
+
+function treeToFlatSteps(
+  root: StrategyStepNode,
+  strategy: Strategy,
+): Step[] {
+  const existingById = new Map(strategy.steps.map((s) => [s.id, s]));
+  const out: Step[] = [];
+  const visit = (node: StrategyStepNode): void => {
+    if (node.primaryInput !== undefined) visit(node.primaryInput);
+    if (node.secondaryInput !== undefined) visit(node.secondaryInput);
+    const nodeId = node.id ?? "";
+    const existing = existingById.get(nodeId);
+    const flat: Step = {
+      ...(existing ?? ({ id: nodeId } as Step)),
+      id: nodeId,
+      kind:
+        node.primaryInput !== undefined && node.secondaryInput !== undefined
+          ? "combine"
+          : node.primaryInput !== undefined
+            ? "transform"
+            : "search",
+      displayName: node.displayName ?? null,
+      searchName: node.searchName,
+      parameters: node.parameters ?? null,
+      operator: node.operator ?? null,
+      colocationParams: node.colocationParams ?? null,
+      primaryInputStepId: node.primaryInput?.id ?? null,
+      secondaryInputStepId: node.secondaryInput?.id ?? null,
+    };
+    out.push(flat);
+  };
+  visit(root);
+  return out;
+}
+
+
+export function applyWireInput(
+  strategy: Strategy,
+  op: WireInputOp,
+): ApplyResult {
+  if (!strategy.steps.some((s) => s.id === op.targetStepId))
+    return { kind: "rejected", reason: `Target ${op.targetStepId} not found` };
+  if (!strategy.steps.some((s) => s.id === op.sourceStepId))
+    return { kind: "rejected", reason: `Source ${op.sourceStepId} not found` };
+  const slotKey =
+    op.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
+  return {
+    kind: "applied",
+    next: {
+      ...strategy,
+      steps: patchSteps(strategy.steps, op.targetStepId, {
+        [slotKey]: op.sourceStepId,
+      }),
+    },
+    description: `Wired ${op.sourceStepId} → ${op.targetStepId}`,
   };
 }
 

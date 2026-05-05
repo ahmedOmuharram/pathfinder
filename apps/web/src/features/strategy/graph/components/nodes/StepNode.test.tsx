@@ -124,4 +124,25 @@ describe("StepNode dispatcher", () => {
     expect(screen.getByTestId(`rf-add-to-chat-${step.id}`)).toBeTruthy();
     expect(screen.getByTestId(`rf-more-${step.id}`)).toBeTruthy();
   });
+
+  it("tags the rendered node with data-orphan when isOrphan is true", () => {
+    const step = makeStep();
+    const { container } = render(
+      <StepNode {...makeNodeProps(step, false, { isOrphan: true })} />,
+    );
+    expect(
+      container.querySelector('[data-orphan="true"]'),
+    ).not.toBeNull();
+  });
+
+  it("data-orphan is false by default", () => {
+    const step = makeStep();
+    const { container } = render(<StepNode {...makeNodeProps(step, false)} />);
+    expect(
+      container.querySelector('[data-orphan="true"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-orphan="false"]'),
+    ).not.toBeNull();
+  });
 });

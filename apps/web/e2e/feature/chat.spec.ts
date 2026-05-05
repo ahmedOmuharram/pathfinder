@@ -129,6 +129,42 @@ test.describe("Chat", () => {
     await chatPage.expectIdle();
   });
 
+  test("stop posts a server cancel that records a cancellation row", async ({
+    chatPage,
+    page,
+  }) => {
+    // Hold the chat SSE open so the stop button stays visible long enough
+    // to click. We never let the stream complete; cancellation is the test.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/api/v1/chat", async (route) => {
+      await held;
+      await route.continue();
+    });
+
+    const cancelRequest = page.waitForRequest(
+      (r) =>
+        r.method() === "POST" &&
+        /\/api\/v1\/conversations\/[^/]+\/cancel$/.test(r.url()),
+      { timeout: 30_000 },
+    );
+
+    await chatPage.send("hello cancel");
+    await expect(page.getByTestId("stop-button")).toBeVisible({
+      timeout: 15_000,
+    });
+    await chatPage.stopStreaming();
+
+    const req = await cancelRequest;
+    const resp = await req.response();
+    expect(resp).not.toBeNull();
+    expect(resp?.status()).toBe(204);
+
+    release();
+  });
+
   test("multiple messages stored sequentially in conversation", async ({
     chatPage,
     apiClient,

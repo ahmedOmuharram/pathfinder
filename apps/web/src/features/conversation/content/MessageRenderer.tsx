@@ -29,6 +29,7 @@ import {
 
 import { BranchMessageAction } from "./BranchMessageAction";
 import { EditComposerBranchOrRevert } from "./EditComposerSend";
+import { RegenerateAction } from "./RegenerateAction";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 
@@ -295,9 +296,7 @@ export function AssistantMessage() {
               </MessageAction>
             </ActionBarPrimitive.Copy>
             <ActionBarPrimitive.Reload asChild>
-              <MessageAction tooltip="Regenerate">
-                <RefreshCw />
-              </MessageAction>
+              <RegenerateAction />
             </ActionBarPrimitive.Reload>
             <ActionBarPrimitive.FeedbackPositive asChild>
               <MessageAction tooltip="Good response">

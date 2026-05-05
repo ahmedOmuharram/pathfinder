@@ -7,13 +7,14 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  forkConversation,
-  revertConversationToMessage,
-} from "@/lib/api/conversations";
+import { forkStrategy } from "@pathfinder/shared/generated/hooks/useForkStrategy";
+import { revertToMessage } from "@pathfinder/shared/generated/hooks/useRevertToMessage";
+import { submitProductAction } from "@pathfinder/shared/generated/hooks/useSubmitProductAction";
+import { strategyQueryKey } from "@/lib/api/strategy";
 import { toUserMessage } from "@/lib/api/errors";
 import { useSessionStore } from "@/state/useSessionStore";
 
+import { extractTraceId } from "../runtime/traceId";
 import { BranchOrRevertDialog } from "./BranchOrRevertDialog";
 
 const ROUTE_RE = /^\/([^/]+)\/conversation\/([^/?#]+)/;
@@ -21,6 +22,7 @@ const ROUTE_RE = /^\/([^/]+)\/conversation\/([^/?#]+)/;
 export function EditComposerBranchOrRevert() {
   const messageId = useMessage((s) => s.id);
   const parentId = useMessage((s) => s.parentId);
+  const fullMessage = useMessage((s) => s);
   const composerText = useEditComposer((s) => s.text);
   const pathname = usePathname();
   const router = useRouter();
@@ -45,7 +47,7 @@ export function EditComposerBranchOrRevert() {
       ) {
         throw new Error("Cannot branch from here");
       }
-      return forkConversation(conversationId, parentId);
+      return forkStrategy(conversationId, { fromMessageId: parentId });
     },
     onSuccess: (fork) => {
       if (siteId === null) return;
@@ -64,7 +66,16 @@ export function EditComposerBranchOrRevert() {
   const revertMutation = useMutation({
     mutationFn: async () => {
       if (conversationId === null) throw new Error("No conversation");
-      await revertConversationToMessage(conversationId, messageId);
+      await revertToMessage(conversationId, { messageId });
+      const traceId = extractTraceId(fullMessage);
+      void submitProductAction({
+        action: "undo_turn",
+        streamId: messageId,
+        ...(traceId !== null && { traceId }),
+      }).catch((err: unknown) => {
+         
+        console.warn("submitProductAction(undo_turn) failed", err);
+      });
     },
     onSuccess: async () => {
       if (conversationId === null) return;
@@ -73,7 +84,7 @@ export function EditComposerBranchOrRevert() {
           queryKey: ["conversations", conversationId, "messages"],
         }),
         queryClient.invalidateQueries({
-          queryKey: ["conversations", conversationId, "detail"],
+          queryKey: strategyQueryKey(conversationId),
         }),
         queryClient.invalidateQueries({
           queryKey: ["conversations", conversationId, "scratchpad"],

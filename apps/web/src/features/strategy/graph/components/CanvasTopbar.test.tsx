@@ -2,7 +2,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { Strategy } from "@pathfinder/shared";
-import type * as ConvApi from "@/lib/api/conversations";
 import { createTestWrapper } from "@/lib/query/testing";
 import { CanvasTopbar } from "./CanvasTopbar";
 
@@ -12,17 +11,16 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/conversation/conv-1/strategy",
 }));
 
-vi.mock("@/lib/api/conversations", async (importOriginal) => {
-  const actual = await importOriginal<typeof ConvApi>();
-  return {
-    ...actual,
-    pushConversation: vi.fn(async (_id: string, body: { name: string }) => ({
-      ...STRATEGY,
-      name: body.name,
-    })),
-    computeStepCounts: vi.fn(async () => ({ counts: {} })),
-  };
-});
+vi.mock("@pathfinder/shared/generated/hooks/usePushStrategy", () => ({
+  pushStrategy: vi.fn(async (_id: string, body: { name: string }) => ({
+    ...STRATEGY,
+    name: body.name,
+  })),
+}));
+
+vi.mock("@pathfinder/shared/generated/hooks/useComputeStepCounts", () => ({
+  computeStepCounts: vi.fn(async () => ({ counts: {} })),
+}));
 
 const STRATEGY: Strategy = {
   id: "conv-1",

@@ -1,4 +1,10 @@
-import type { CombineOperator, ColocationParams, Step, Strategy } from "@pathfinder/shared";
+import type {
+  CombineOperator,
+  ColocationParams,
+  Step,
+  Strategy,
+  StrategyStepNode,
+} from "@pathfinder/shared";
 
 export type AttachPoint =
   | { mode: "new-root" }
@@ -22,6 +28,13 @@ export type GraphOperation =
       inputId: string;
       mode: "before-consumer" | "new-root";
     }
+  | {
+      kind: "duplicateStep";
+      sourceStepId: string;
+      duplicateStepId: string;
+      combineStepId: string;
+      combineDisplayName?: string;
+    }
   | { kind: "deleteStep"; stepId: string; resolution: DeleteResolution }
   | {
       kind: "deleteEdge";
@@ -38,7 +51,24 @@ export type GraphOperation =
       operator: CombineOperator;
       colocationParams?: ColocationParams | null;
     }
-  | { kind: "updateStepMeta"; stepId: string; displayName: string };
+  | { kind: "updateStepMeta"; stepId: string; displayName: string }
+  | {
+      kind: "updateStrategyMeta";
+      name?: string;
+      description?: string | null;
+    }
+  | {
+      kind: "wireInput";
+      targetStepId: string;
+      slot: "primary" | "secondary";
+      sourceStepId: string;
+    }
+  | {
+      kind: "replaceStrategy";
+      root: StrategyStepNode;
+      name?: string;
+      description?: string | null;
+    };
 
 export interface OperationChoice<R extends string = string> {
   resolution: R;

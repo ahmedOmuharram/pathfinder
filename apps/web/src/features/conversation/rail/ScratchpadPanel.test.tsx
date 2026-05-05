@@ -4,22 +4,28 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/api/scratchpad", () => ({
+vi.mock("@pathfinder/shared/generated/hooks/useListScratchpadNotes", () => ({
   listScratchpadNotes: vi.fn(),
-  patchScratchpadNote: vi.fn(),
-  deleteScratchpadNote: vi.fn(),
-  scratchpadNotesOptions: (conversationId: string) => ({
-    queryKey: ["conversations", conversationId, "scratchpad", "notes"] as const,
+  listScratchpadNotesQueryOptions: (conversationId: string) => ({
+    queryKey: [
+      { url: "/api/v1/conversations/:conversation_id/scratchpad/notes", params: { conversation_id: conversationId } },
+    ] as const,
     queryFn: () => mockedList(conversationId),
   }),
 }));
 
-import {
-  deleteScratchpadNote,
-  listScratchpadNotes,
-  patchScratchpadNote,
-  type Note,
-} from "@/lib/api/scratchpad";
+vi.mock("@pathfinder/shared/generated/hooks/usePatchScratchpadNote", () => ({
+  patchScratchpadNote: vi.fn(),
+}));
+
+vi.mock("@pathfinder/shared/generated/hooks/useDeleteScratchpadNote", () => ({
+  deleteScratchpadNote: vi.fn(),
+}));
+
+import { listScratchpadNotes } from "@pathfinder/shared/generated/hooks/useListScratchpadNotes";
+import { patchScratchpadNote } from "@pathfinder/shared/generated/hooks/usePatchScratchpadNote";
+import { deleteScratchpadNote } from "@pathfinder/shared/generated/hooks/useDeleteScratchpadNote";
+import type { Note } from "@pathfinder/shared/generated/types/Note";
 
 import { ScratchpadPanel } from "./ScratchpadPanel";
 
@@ -100,6 +106,6 @@ describe("ScratchpadPanel", () => {
     render(wrap(<ScratchpadPanel conversationId="c1" />));
     const pinBtn = await screen.findByRole("button", { name: /^pin$/i });
     await userEvent.click(pinBtn);
-    expect(mockedPatch).toHaveBeenCalledWith("c1", "n-xyz", { pinned: true });
+    expect(mockedPatch).toHaveBeenCalledWith("n-xyz", "c1", { pinned: true });
   });
 });

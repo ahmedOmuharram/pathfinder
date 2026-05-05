@@ -2,7 +2,7 @@ import type { Step, Strategy } from "@pathfinder/shared";
 import { validateSearchParams } from "@/lib/api/sites";
 import { toUserMessage } from "@/lib/api/errors";
 import { formatSearchValidationResponse } from "./format";
-import { getRootSteps, validateStrategySteps } from "@/lib/strategyGraph";
+import { validateStrategySteps } from "@/lib/strategyGraph";
 import { normalizeRecordType } from "@/lib/utils/normalizeRecordType";
 import { inferStepKind } from "@/lib/strategyGraph";
 
@@ -19,27 +19,12 @@ export async function validateStepsForSave(args: {
 
   if (steps.length === 0) return { errorsByStepId, hasErrors: false };
 
-  const structuralErrors = validateStrategySteps(steps);
+  const structuralErrors = validateStrategySteps(steps).filter(
+    (e) => e.severity === "error",
+  );
   for (const issue of structuralErrors) {
     if (issue.stepId != null && issue.stepId !== "") {
       errorsByStepId[issue.stepId] = `Cannot be saved: ${issue.message}`;
-      continue;
-    }
-
-    // Some structural errors are graph-level (no specific stepId). Assign them to
-    // relevant steps so the UI can surface the issue and saving is blocked.
-    if (issue.code === "MULTIPLE_ROOTS") {
-      const roots = getRootSteps(steps);
-      for (const root of roots) {
-        errorsByStepId[root.id] = `Cannot be saved: ${issue.message}`;
-      }
-      continue;
-    }
-    if (issue.code === "ORPHAN_STEP") {
-      for (const step of steps) {
-        errorsByStepId[step.id] = `Cannot be saved: ${issue.message}`;
-      }
-      continue;
     }
   }
 

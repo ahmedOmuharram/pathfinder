@@ -33,7 +33,7 @@ from pathfinder.services.catalog.param_adapters import (
     adapt_param_specs_from_search,
 )
 
-from .param_formatting import format_param_info_typed
+from .param_formatting import format_normalized_param_info
 from .param_resolution import (
     _extract_param_names_from_response,
     _filter_context_values,
@@ -320,7 +320,7 @@ async def validate_parameters(
     param_names = _extract_param_names_from_response(response)
     extra_params = [key for key in canonical if key not in param_names]
     if extra_params:
-        full_param_spec = format_param_info_typed(response.search_data.parameters or [])
+        full_param_spec = format_normalized_param_info(param_spec_map)
         serialized_spec: JsonValue = [
             p.model_dump(by_alias=True, mode="json", exclude_none=True)
             for p in full_param_spec
@@ -340,19 +340,31 @@ async def validate_parameters(
         )
     invalid_dependents = find_dependent_value_violations(param_spec_map, canonical)
     if invalid_dependents:
-        full_param_spec = format_param_info_typed(response.search_data.parameters or [])
+        full_param_spec = format_normalized_param_info(param_spec_map)
         serialized_spec = [
             p.model_dump(by_alias=True, mode="json", exclude_none=True)
             for p in full_param_spec
         ]
+        spec_by_name = {p.name: p for p in full_param_spec}
         details = ", ".join(
             f"{name}={bad}" for name, bad in invalid_dependents
         )
+        invalid_dependents_payload: list[JSONObject] = []
+        for name, bad in invalid_dependents:
+            entry: JSONObject = {"name": name, "values": cast("JsonValue", bad)}
+            spec = spec_by_name.get(name)
+            if spec is not None and spec.allowed_values is not None:
+                entry["validOptions"] = cast(
+                    "JsonValue",
+                    [v.model_dump(by_alias=True, mode="json") for v in spec.allowed_values],
+                )
+            invalid_dependents_payload.append(entry)
         raise ValidationError(
             title=(
                 f"Invalid dependent-parameter values: {details}. "
-                "Refresh the dependent vocab against the parent's value via "
-                "get_parameter_options(... context_values=...) and pick from there."
+                "Use the values from the validOptions list for each invalid "
+                "dependent parameter — these are the post-refresh vocabulary "
+                "for the parent's current value."
             ),
             errors=[
                 {
@@ -360,11 +372,7 @@ async def validate_parameters(
                         "recordType": resolved_record_type,
                         "searchName": ctx.search_name,
                         "invalidDependents": cast(
-                            "JsonValue",
-                            [
-                                {"name": name, "values": bad}
-                                for name, bad in invalid_dependents
-                            ],
+                            "JsonValue", invalid_dependents_payload,
                         ),
                         "parameters": serialized_spec,
                     },
@@ -375,7 +383,7 @@ async def validate_parameters(
     missing = find_missing_required_params(param_spec_map, canonical)
 
     if missing:
-        full_param_spec = format_param_info_typed(response.search_data.parameters or [])
+        full_param_spec = format_normalized_param_info(param_spec_map)
         serialized_spec = [
             p.model_dump(by_alias=True, mode="json", exclude_none=True)
             for p in full_param_spec

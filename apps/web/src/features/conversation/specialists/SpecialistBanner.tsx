@@ -20,8 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { SpecialistKind, SpecialistMode } from "@pathfinder/shared";
-import { conversationDetailKey } from "@/lib/api/conversations";
-import { modelCatalogOptions } from "@/lib/api/models";
+import { strategyQueryKey } from "@/lib/api/strategy";
+import { listModelsQueryOptions } from "@pathfinder/shared/generated/hooks/useListModels";
 import { patchSpecialistModel } from "@/lib/api/specialists";
 import { cn } from "@/lib/utils/cn";
 
@@ -117,7 +117,7 @@ function ModelSwapBody({
   isRunning: boolean;
   onClose: () => void;
 }) {
-  const modelsQuery = useQuery(modelCatalogOptions());
+  const modelsQuery = useQuery(listModelsQueryOptions());
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState(currentModelId);
 
@@ -126,7 +126,7 @@ function ModelSwapBody({
       patchSpecialistModel({ conversationId, modelId }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: conversationDetailKey(conversationId),
+        queryKey: strategyQueryKey(conversationId),
       });
       toast.success("Model swapped for upcoming turns");
       onClose();

@@ -1,6 +1,13 @@
 "use client";
 
-import { Brain, ClipboardList, Notebook, Timer, Workflow } from "lucide-react";
+import {
+  Brain,
+  ClipboardList,
+  Cloud,
+  Notebook,
+  Timer,
+  Workflow,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 
@@ -13,13 +20,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
-import { usePlanStore } from "@/state/usePlanStore";
+import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
 import {
   useRightRailStore,
   type RightRailPanel,
 } from "@/state/useRightRailStore";
 
 import { MemoriesPanel } from "./MemoriesPanel";
+import { OrchestratorPanel } from "./OrchestratorPanel";
 import { PlanPanel } from "./PlanPanel";
 import { ScratchpadPanel } from "./ScratchpadPanel";
 import { StrategyPanel } from "./StrategyPanel";
@@ -48,6 +56,7 @@ const RAIL_ICONS: RailIconSpec[] = [
   { id: "tasks", icon: Timer, label: "Tasks" },
   { id: "memories", icon: Brain, label: "Memories" },
   { id: "scratchpad", icon: Notebook, label: "Scratchpad" },
+  { id: "orchestrator", icon: Cloud, label: "Orchestrator" },
 ];
 
 export function RightRail({ conversationId, strategy, siteId }: RightRailProps) {
@@ -56,8 +65,22 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
   const togglePanel = useRightRailStore((s) => s.togglePanel);
 
   const strategyStepCount = strategy?.steps.length ?? 0;
-  const activePlan = usePlanStore((s) => s.activePlanArtifact);
-  const activePlanId = activePlan?.planId ?? null;
+  const chat = useChatHelpersOptional();
+  const activePlanId = (() => {
+    if (chat == null) return null;
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      const message = chat.messages[i];
+      if (message?.role !== "assistant") continue;
+      for (let j = message.parts.length - 1; j >= 0; j--) {
+        const part = message.parts[j];
+        if (part?.type === "data-plan-artifact") {
+          const data = (part as { data?: { planId?: string } }).data;
+          return data?.planId ?? null;
+        }
+      }
+    }
+    return null;
+  })();
 
   const hasUpdate: Record<RightRailPanel, boolean> = {
     strategy: strategyStepCount !== lastSeen.strategyStepCount,
@@ -65,6 +88,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
     tasks: false,
     memories: false,
     scratchpad: false,
+    orchestrator: false,
   };
 
   const markersFor = (panel: RightRailPanel) => {
@@ -76,6 +100,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
       case "tasks":
       case "memories":
       case "scratchpad":
+      case "orchestrator":
         return {};
     }
   };
@@ -113,6 +138,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
                   {openPanel === "scratchpad" && (
                     <ScratchpadPanel conversationId={conversationId} />
                   )}
+                  {openPanel === "orchestrator" && <OrchestratorPanel />}
                 </motion.div>
               </AnimatePresence>
             </div>

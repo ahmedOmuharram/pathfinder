@@ -17,6 +17,7 @@ from pathfinder.ai.graph.state import (
     PhaseOutcome,
     PipelineState,
     ProblemFrame,
+    SupervisorEvent,
 )
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.session import StrategySession
@@ -72,6 +73,8 @@ class AgentDeps(BaseModel):
     # without registering a new closure per turn (which would leak on
     # the singleton agent).
     specialist_mode: object | None = None
+    supervisor_log: list[SupervisorEvent] = Field(default_factory=list)
+    writer: SkipValidation[Any] = None
 
 
 def build_node_deps(
@@ -101,6 +104,7 @@ def build_node_deps(
         last_phase_outcome=state.last_phase_outcome,
         last_phase_name=state.current_phase,
         specialist_mode=state.specialist_mode,
+        supervisor_log=state.supervisor_log,
     )
 
 

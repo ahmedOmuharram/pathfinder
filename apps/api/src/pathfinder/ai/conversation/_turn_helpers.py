@@ -10,7 +10,11 @@ from uuid import UUID, uuid4
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from langgraph.types import Interrupt
 from pydantic import BaseModel, ValidationError
-from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
+from pydantic_ai.ui.vercel_ai._utils import iter_tool_approval_responses
+from pydantic_ai.ui.vercel_ai.request_types import (
+    TextUIPart,
+    ToolApprovalResponded,
+)
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.graph.runtime import Context
@@ -95,6 +99,12 @@ def _load_specialist_mode(
         return None
 
 
+def _extract_approval_responses(
+    incoming: ChatRequestBody,
+) -> dict[str, ToolApprovalResponded]:
+    return dict(iter_tool_approval_responses(incoming.messages))
+
+
 def _build_turn_input(
     incoming: ChatRequestBody,
     user_id: UUID,
@@ -103,16 +113,12 @@ def _build_turn_input(
     turn_start_event_id: int,
     conversation: Conversation | None = None,
 ) -> dict[str, Any]:
-    user_message_id = incoming.last_user_message_id
-    user_text = incoming.last_user_text
-    return {
+    base: dict[str, Any] = {
         "conversation_id": incoming.conversation_id,
         "user_id": user_id,
         "site_id": incoming.site_id,
         "mode": incoming.mode,
-        "user_message_id": user_message_id,
-        "user_prompt": user_text,
-        "user_parts": [TextUIPart(text=user_text, state="done")],
+        "approval_responses": _extract_approval_responses(incoming),
         "turn_trace_id": str(uuid4()),
         "turn_created_at": datetime.now(UTC).isoformat(),
         "turn_message_id": turn_message_id,
@@ -128,6 +134,14 @@ def _build_turn_input(
         "turn_total_cost_usd": Decimal(0),
         "retrieved_memories": [],
         "specialist_mode": _load_specialist_mode(conversation),
+    }
+    if incoming.is_approval_resume:
+        return base
+    return {
+        **base,
+        "user_message_id": incoming.last_user_message_id,
+        "user_prompt": incoming.last_user_text,
+        "user_parts": [TextUIPart(text=incoming.last_user_text, state="done")],
     }
 
 

@@ -11,11 +11,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import type { ConversationItem } from "@/features/sidebar/components/conversationSidebarTypes";
-import {
-  conversationListOptions,
-  dismissedConversationsOptions,
-  renameConversation,
-} from "@/lib/api/conversations";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
+import { listDismissedStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListDismissedStrategies";
+import { updateStrategy } from "@pathfinder/shared/generated/hooks/useUpdateStrategy";
 import { toUserMessage } from "@/lib/api/errors";
 
 interface UseRenameWorkflowArgs {
@@ -52,12 +50,12 @@ export function useRenameWorkflow({
       return;
     }
     try {
-      await renameConversation(item.id, next);
+      await updateStrategy(item.id, { name: next });
       void queryClient.invalidateQueries({
-        queryKey: conversationListOptions(siteId).queryKey,
+        queryKey: listStrategiesQueryOptions({ siteId }).queryKey,
       });
       void queryClient.invalidateQueries({
-        queryKey: dismissedConversationsOptions(siteId).queryKey,
+        queryKey: listDismissedStrategiesQueryOptions({ siteId }).queryKey,
       });
     } catch (err) {
       reportError(toUserMessage(err, "Failed to rename conversation."));

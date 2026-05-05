@@ -4,7 +4,7 @@ import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/re
 import type { GeneSearchResponse } from "@pathfinder/shared";
 
 const mockSearchGenes = vi.fn<(...args: unknown[]) => Promise<GeneSearchResponse>>();
-vi.mock("@/lib/api/genes", () => ({
+vi.mock("@pathfinder/shared/generated/hooks/useSearchGenes", () => ({
   searchGenes: (...args: unknown[]) => mockSearchGenes(...args),
 }));
 

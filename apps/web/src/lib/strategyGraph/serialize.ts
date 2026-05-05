@@ -1,12 +1,15 @@
 import type { CombineOperator, StrategyStepNode, StrategyAst } from "@pathfinder/shared";
 import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Step, Strategy } from "@pathfinder/shared";
+import { walkSubtreeIds } from "@/features/strategy/operations";
 import type { StepParameters } from "./types";
 
 export type SerializedStrategyPlan = {
   plan: StrategyAst;
   name: string;
   recordType: string | null;
+  /** Step IDs not reachable from the chosen root. Excluded from the pushed plan. */
+  orphanIds: string[];
 };
 
 function sanitizeParametersForPlan(params: StepParameters): StepParameters {
@@ -35,10 +38,27 @@ export function serializeStrategyAst(
     if (step.secondaryInputStepId != null) inputStepIds.add(step.secondaryInputStepId);
   }
   const rootSteps = steps.filter((s) => !inputStepIds.has(s.id));
-  // Single-output invariant: do not serialize a plan if the graph has multiple outputs.
-  // This prevents silently "picking" an arbitrary root and saving a broken strategy.
-  if (rootSteps.length !== 1) return null;
-  const rootStep = rootSteps[0]!;
+  // Choose the canonical root: prefer Strategy.rootStepId when it is still an
+  // actual root (i.e. not consumed by another step). Otherwise fall back to the
+  // unique root if there is exactly one. When neither resolves, the graph is
+  // genuinely ambiguous (multi-root with no choice committed) and we refuse.
+  // Tolerating stale rootStepId is critical because optimistic mutations append
+  // a combine before the cache rootStepId is refreshed by the server response.
+  let chosenRootId: string | null = null;
+  if (
+    strategy?.rootStepId != null &&
+    strategy.rootStepId !== "" &&
+    stepsById[strategy.rootStepId] !== undefined &&
+    !inputStepIds.has(strategy.rootStepId)
+  ) {
+    chosenRootId = strategy.rootStepId;
+  } else if (rootSteps.length === 1) {
+    chosenRootId = rootSteps[0]!.id;
+  }
+  if (chosenRootId == null) return null;
+  const rootStep = stepsById[chosenRootId]!;
+  const reachable = new Set(walkSubtreeIds(steps, chosenRootId));
+  const orphanIds = steps.filter((s) => !reachable.has(s.id)).map((s) => s.id);
 
   const buildNode = (stepId: string): StrategyStepNode | null => {
     const step = stepsById[stepId];
@@ -96,6 +116,7 @@ export function serializeStrategyAst(
   return {
     name,
     recordType,
+    orphanIds,
     plan: {
       recordType,
       root: rootNode,

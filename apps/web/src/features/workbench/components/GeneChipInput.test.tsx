@@ -23,9 +23,12 @@ vi.mock("@/lib/query/hooks/useGeneSetsQuery", () => ({
 
 const mockSearchGenes = vi.fn();
 const mockResolveGeneIds = vi.fn();
-vi.mock("@/lib/api/genes", () => ({
+vi.mock("@pathfinder/shared/generated/hooks/useSearchGenes", () => ({
   searchGenes: (...args: unknown[]) => mockSearchGenes(...args),
-  resolveGeneIds: (...args: unknown[]) => mockResolveGeneIds(...args),
+}));
+
+vi.mock("@pathfinder/shared/generated/hooks/useResolveGenes", () => ({
+  resolveGenes: (...args: unknown[]) => mockResolveGeneIds(...args),
 }));
 
 import { GeneChipInput } from "./GeneChipInput";
@@ -141,10 +144,9 @@ describe("GeneChipInput", () => {
     // Auto-verification fires after debounce
     await waitFor(
       () => {
-        expect(mockResolveGeneIds).toHaveBeenCalledWith("PlasmoDB", [
-          "PF3D7_0100100",
-          "INVALID_001",
-        ]);
+        expect(mockResolveGeneIds).toHaveBeenCalledWith("PlasmoDB", {
+          geneIds: ["PF3D7_0100100", "INVALID_001"],
+        });
       },
       { timeout: 2000 },
     );

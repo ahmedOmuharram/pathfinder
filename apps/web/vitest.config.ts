@@ -5,6 +5,9 @@ const srcDir = fileURLToPath(new URL("./src", import.meta.url));
 const sharedDir = fileURLToPath(
   new URL("../../packages/shared-ts/src", import.meta.url),
 );
+const webNodeModules = fileURLToPath(
+  new URL("./node_modules", import.meta.url),
+);
 
 export default defineConfig({
   resolve: {
@@ -15,6 +18,12 @@ export default defineConfig({
         replacement: `${sharedDir}/generated/$1`,
       },
       { find: "@pathfinder/shared", replacement: sharedDir },
+      {
+        find: "@tanstack/react-query",
+        replacement: `${webNodeModules}/@tanstack/react-query`,
+      },
+      { find: /^react$/, replacement: `${webNodeModules}/react` },
+      { find: /^react-dom$/, replacement: `${webNodeModules}/react-dom` },
     ],
   },
   test: {

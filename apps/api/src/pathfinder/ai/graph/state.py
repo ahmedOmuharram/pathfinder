@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
-from pydantic_ai.ui.vercel_ai.request_types import TextUIPart
+from pydantic_ai.ui.vercel_ai.request_types import (
+    TextUIPart,
+    ToolApprovalResponded,
+)
 
 from pathfinder.ai.agents.state import SearchOverview
 from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
@@ -142,6 +146,29 @@ class ProblemFrame(CamelModel):
     confidence: float = 0.0
 
 
+SupervisorEventKind = Literal[
+    "phase_enter",
+    "phase_exit",
+    "ejection",
+    "approval",
+    "deny",
+    "plan_event",
+    "build_outcome",
+    "supervisor_note",
+    "route",
+    "summary",
+]
+
+
+class SupervisorEvent(CamelModel):
+    kind: SupervisorEventKind
+    summary: str = Field(min_length=1, max_length=400)
+    detail: str | None = Field(default=None, max_length=4000)
+    phase: PhaseName | None = None
+    refs: list[str] = Field(default_factory=list, max_length=10)
+    at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class PendingApproval(CamelModel):
     phase: PhaseName
     tool_call_id: str
@@ -187,7 +214,12 @@ class PipelineState(BaseModel):
     active_plan: StrategyPlan | None = None
     verification_digest: VerificationDigest | None = None
     pending_approval: PendingApproval | None = None
+    approval_responses: dict[str, ToolApprovalResponded] = Field(
+        default_factory=dict,
+    )
     created_gene_set_ids: list[str] = Field(default_factory=list)
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
 
     specialist_mode: SpecialistMode | None = None
+
+    supervisor_log: list[SupervisorEvent] = Field(default_factory=list)

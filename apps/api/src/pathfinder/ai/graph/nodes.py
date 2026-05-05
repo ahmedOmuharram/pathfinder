@@ -21,9 +21,10 @@ from pydantic_ai.messages import (
     ModelResponse,
     PartEndEvent,
     TextPart,
+    ToolCallPart,
     UserPromptPart,
 )
-from pydantic_ai.models.function import FunctionModel
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import (
     DeferredToolRequests,
@@ -45,10 +46,6 @@ from pathfinder.ai.agents.supervisor import (
     SupervisorTarget,
     build_supervisor_agent,
 )
-from pathfinder.ai.conversation.approval import (
-    ApprovalDecision,
-    classify_approval_reply,
-)
 from pathfinder.ai.conversation.event_stream import fetch_chunks_after
 from pathfinder.ai.conversation.ui_message_reducer import reduce_chunks
 from pathfinder.ai.conversation.vercel_adapter import (
@@ -69,6 +66,7 @@ from pathfinder.ai.graph.state import (
     PhaseName,
     PhaseOutcome,
     PipelineState,
+    SupervisorEvent,
     VerificationDigest,
 )
 from pathfinder.ai.graph.stream_events import (
@@ -80,6 +78,10 @@ from pathfinder.ai.graph.stream_events import (
     turn_qa_event,
     turn_rejected_event,
     turn_usage_event,
+)
+from pathfinder.ai.graph.supervisor_log import (
+    format_supervisor_log,
+    record_supervisor_event,
 )
 from pathfinder.ai.memory.autowrite import auto_write_memories
 from pathfinder.ai.memory.retrieval import retrieve_relevant_memories
@@ -371,16 +373,28 @@ def _build_deferred_tool_results(
     state: PipelineState,
     phase: PhaseName,
 ) -> DeferredToolResults | None:
+    """Resolve a pending approval from the SDK v6 structured response.
+
+    The frontend submits decisions via `chat.addToolApprovalResponse({id, approved})`,
+    which lands on the next chat POST as a `tool-{name}` part with
+    `state: "approval-responded"`. `_extract_approval_responses` (in
+    `_turn_helpers.py`) pulls these into `state.approval_responses` keyed by
+    `tool_call_id` at turn start; we resolve from there.
+    """
     approval = state.pending_approval
     if approval is None or approval.phase != phase:
         return None
-    decision = classify_approval_reply(state.user_prompt)
-    if decision == ApprovalDecision.APPROVED:
+    response = state.approval_responses.get(approval.tool_call_id)
+    if response is None:
+        # No structured response — leave the approval pending; the user has not
+        # yet acted (or they typed in the composer instead of clicking buttons).
+        return None
+    if response.approved:
         return DeferredToolResults(approvals={approval.tool_call_id: True})
     return DeferredToolResults(
         approvals={
             approval.tool_call_id: ToolDenied(
-                message=f"User did not approve. Message: {state.user_prompt}",
+                message=response.reason or "User denied the plan.",
             ),
         },
     )
@@ -436,6 +450,62 @@ async def _resolve_phase_model_override(
         return None
 
 
+DENY_PROSE = "Plan denied — what would you like to change?"
+
+
+def _is_deny_resume(state: PipelineState, phase: PhaseName) -> bool:
+    approval = state.pending_approval
+    if approval is None or approval.phase != phase:
+        return False
+    response = state.approval_responses.get(approval.tool_call_id)
+    return response is not None and not response.approved
+
+
+def _deny_short_circuit_response(
+    _messages: list[ModelMessage], _info: AgentInfo,
+) -> ModelResponse:
+    """One-shot response for the deny resume — emits a fixed PhaseOutcome
+    without invoking the LLM. The deferred tool is consumed via
+    ``DeferredToolResults`` (ToolDenied), and this response provides the
+    follow-up assistant message that the planning agent would normally
+    generate."""
+    outcome = PhaseOutcome(
+        disposition=PhaseDisposition.AWAITING_USER,
+        prose=DENY_PROSE,
+        reason="user denied submit_plan",
+    )
+    return ModelResponse(parts=[
+        ToolCallPart(
+            tool_name="final_result",
+            args=outcome.model_dump(by_alias=True, mode="json"),
+            tool_call_id="deny_short_circuit",
+        ),
+    ])
+
+
+async def _deny_short_circuit_stream(
+    messages: list[ModelMessage], info: AgentInfo,
+) -> AsyncGenerator[str | dict[int, DeltaToolCall]]:
+    response = _deny_short_circuit_response(messages, info)
+    for index, part in enumerate(response.parts):
+        if isinstance(part, ToolCallPart):
+            yield {
+                index: DeltaToolCall(
+                    name=part.tool_name,
+                    json_args=part.args_as_json_str(),
+                    tool_call_id=part.tool_call_id,
+                ),
+            }
+
+
+def _make_deny_short_circuit_model() -> FunctionModel:
+    return FunctionModel(
+        _deny_short_circuit_response,
+        stream_function=_deny_short_circuit_stream,
+        model_name="deny:short-circuit",
+    )
+
+
 async def _resolve_phase_model_context(
     agent: Agent[AgentDeps, Any],
     state: PipelineState,
@@ -447,7 +517,18 @@ async def _resolve_phase_model_context(
     Mock chat provider (E2E mode) swaps in the deterministic FunctionModel
     so chat doesn't depend on a real LLM API key. User-pref overrides are
     ignored in mock mode because the mock fakes every phase.
+
+    Deny short-circuit: when resuming a denied ``submit_plan`` approval,
+    swap in a deterministic FunctionModel that emits the canned deny prose
+    without an LLM round-trip. The deferred tool is still consumed via
+    ``DeferredToolResults({tool_call_id: ToolDenied(...)})`` so pydantic-ai's
+    message history closes cleanly.
     """
+    if _is_deny_resume(state, phase):
+        return (
+            agent.override(model=_make_deny_short_circuit_model()),
+            "deny:short-circuit",
+        )
     if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
         if isinstance(agent.model, FunctionModel):
             return contextlib.nullcontext(), f"mock:{phase}"
@@ -564,6 +645,15 @@ async def _run_phase_node(
             model=agent_model,
         ),
     )
+    record_supervisor_event(
+        state.supervisor_log, writer,
+        SupervisorEvent(
+            kind="phase_enter",
+            summary=f"entered {phase}",
+            phase=phase,
+            detail=f"model={agent_model}",
+        ),
+    )
 
     capture = _PhaseRunCapture()
     deferred_hint = _deferred_hint_for_phase(state.pending_approval, phase)
@@ -623,21 +713,7 @@ async def _run_phase_node(
     if not capture.new_messages:
         _synthesize_from_orphan_text(capture, state, phase, agent_model)
 
-    if deps.tool_repetition_guard.eject_to_discovery:
-        capture.phase_outcome = PhaseOutcome(
-            disposition=PhaseDisposition.HANDOFF,
-            handoff_to="discovery",
-            prose=(
-                capture.phase_outcome.prose
-                if capture.phase_outcome is not None
-                and capture.phase_outcome.prose
-                else _extract_latest_assistant_prose(capture.new_messages)
-                or "Ejected to discovery: agent was looping on read-only "
-                "tools without making progress."
-            ),
-            reason=f"{phase} ejected after read-only tool spam",
-        )
-
+    _apply_ejection_if_set(state, deps, writer, capture, phase)
     _emit_residual_prose(
         writer, capture, phase_message_id=phase_message_id,
     )
@@ -658,8 +734,65 @@ async def _run_phase_node(
         ),
     )
 
+    _record_phase_exit(state, writer, capture, phase)
+
     return _build_phase_delta(
         state=state, deps=deps, phase=phase, capture=capture,
+    )
+
+
+def _apply_ejection_if_set(
+    state: PipelineState,
+    deps: AgentDeps,
+    writer: Any,
+    capture: _PhaseRunCapture,
+    phase: PhaseName,
+) -> None:
+    if not deps.tool_repetition_guard.eject_to_discovery:
+        return
+    capture.phase_outcome = PhaseOutcome(
+        disposition=PhaseDisposition.HANDOFF,
+        handoff_to="discovery",
+        prose=(
+            capture.phase_outcome.prose
+            if capture.phase_outcome is not None
+            and capture.phase_outcome.prose
+            else _extract_latest_assistant_prose(capture.new_messages)
+            or "Ejected to discovery: agent was looping on read-only "
+            "tools without making progress."
+        ),
+        reason=f"{phase} ejected after read-only tool spam",
+    )
+    record_supervisor_event(
+        state.supervisor_log, writer,
+        SupervisorEvent(
+            kind="ejection",
+            summary=f"ejected {phase} → discovery (read-only spam)",
+            phase=phase,
+        ),
+    )
+
+
+def _record_phase_exit(
+    state: PipelineState,
+    writer: Any,
+    capture: _PhaseRunCapture,
+    phase: PhaseName,
+) -> None:
+    outcome = capture.phase_outcome
+    if outcome is None:
+        return
+    handoff = (
+        f" → {outcome.handoff_to}" if outcome.handoff_to is not None else ""
+    )
+    record_supervisor_event(
+        state.supervisor_log, writer,
+        SupervisorEvent(
+            kind="phase_exit",
+            summary=f"{phase} exited [{outcome.disposition}{handoff}]",
+            detail=outcome.reason,
+            phase=phase,
+        ),
     )
 
 
@@ -873,6 +1006,9 @@ async def _render_supervisor_state(
         lines.append("- last_phase_prose_to_user: |")
         lines.extend(f"    {prose_line}" for prose_line in state.last_assistant_prose.splitlines())
     body = "\n".join(lines)
+    log_block = format_supervisor_log(state.supervisor_log)
+    if log_block:
+        body = f"{log_block}\n\n{body}"
     if context is None:
         return body
     async with context.db_session_factory() as session:
@@ -934,11 +1070,18 @@ def _resume_pending_approval(
     """Short-circuit supervisor when a tool approval is pending.
 
     The pending approval implies the last turn halted on a deferred tool;
-    this turn must resume that exact phase to hand the user's reply back
-    to pydantic-ai as a ``DeferredToolResults``.
+    this turn must resume that exact phase to hand the user's structured
+    decision back to pydantic-ai as a ``DeferredToolResults``. Only resumes
+    when the request body actually carries an ``approval-responded`` part for
+    that ``tool_call_id`` (extracted into ``state.approval_responses``); a
+    free-text user message does not trigger resume — the user must click the
+    plan-card buttons.
     """
     approval = state.pending_approval
     if approval is None or state.phase_call_counts:
+        return None
+    response = state.approval_responses.get(approval.tool_call_id)
+    if response is None:
         return None
     reason = (
         f"resuming {approval.tool_name} approval on {approval.phase} phase"
@@ -946,6 +1089,17 @@ def _resume_pending_approval(
     _emit_chunk(
         writer,
         supervisor_decision_event(to=approval.phase, reason=reason),
+    )
+    kind = "approval" if response.approved else "deny"
+    verb = "approved" if response.approved else "denied"
+    record_supervisor_event(
+        state.supervisor_log, writer,
+        SupervisorEvent(
+            kind=kind,
+            summary=f"user {verb} {approval.tool_name} on {approval.phase}",
+            phase=approval.phase,
+            refs=[approval.tool_call_id],
+        ),
     )
     return Command(
         goto=approval.phase,
@@ -1019,6 +1173,8 @@ async def _run_supervisor_agent(
     agent = build_supervisor_agent(model_id=supervisor_model_id)
     deps = SupervisorDeps(
         state_block=await _render_supervisor_state(state, runtime.context),
+        supervisor_log=state.supervisor_log,
+        writer=get_stream_writer(),
     )
     user_prompt_for_run = (
         "Decide the next action."
@@ -1073,6 +1229,14 @@ async def supervisor_node(
     _emit_chunk(
         writer,
         supervisor_decision_event(to=decision.to, reason=decision.reason),
+    )
+    record_supervisor_event(
+        state.supervisor_log, writer,
+        SupervisorEvent(
+            kind="route",
+            summary=f"supervisor → {decision.to}",
+            detail=decision.reason,
+        ),
     )
     if decision.suggested_specialist is not None:
         _emit_chunk(

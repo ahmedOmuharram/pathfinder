@@ -19,6 +19,7 @@ type NodeShellProps = {
   step: Step;
   selected: boolean;
   isUnsaved: boolean;
+  isOrphan?: boolean | undefined;
   width: number;
   height: number;
   snapshot: StepSnapshot;
@@ -55,6 +56,7 @@ export function NodeShell({
   step,
   selected,
   isUnsaved,
+  isOrphan = false,
   width,
   height,
   snapshot,
@@ -90,6 +92,7 @@ export function NodeShell({
     !hasError && "hover:-translate-y-px hover:shadow-md",
     hasError && "border-l-[3px] !border-l-destructive",
     isSyncing && "node-syncing-pulse",
+    isOrphan && "border-dashed !border-amber-500/60",
   );
 
   function handleRenameCommit(next: string) {
@@ -116,8 +119,9 @@ export function NodeShell({
       data-selected={selected ? "true" : "false"}
       data-validation={hasError ? "error" : undefined}
       data-syncing={isSyncing ? "true" : "false"}
+      data-orphan={isOrphan ? "true" : "false"}
       data-enter-delay-index={safeIndex}
-      className="group relative"
+      className={cn("group relative", isOrphan && "opacity-70")}
       style={{ width, height }}
       initial={enterInitial}
       animate={{ opacity: 1, y: 0 }}

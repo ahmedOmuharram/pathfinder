@@ -15,8 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { client } from "@/lib/api/client";
-import { conversationListOptions } from "@/lib/api/conversations";
-import { conversationDetailKey } from "@/lib/api/conversations";
+import { listStrategiesQueryOptions } from "@pathfinder/shared/generated/hooks/useListStrategies";
+import { strategyQueryKey } from "@/lib/api/strategy";
 import { toUserMessage } from "@/lib/api/errors";
 import { QueryBoundary } from "@/lib/components/QueryBoundary";
 import { cn } from "@/lib/utils/cn";
@@ -98,7 +98,7 @@ function InsertSavedDialogBody({
   onOpenChange,
 }: InsertSavedDialogProps) {
   const queryClient = useQueryClient();
-  const { data: convs } = useSuspenseQuery(conversationListOptions(siteId));
+  const { data: convs } = useSuspenseQuery(listStrategiesQueryOptions({ siteId }));
   const saved = convs
     .filter(
       (c) => c.isSaved === true && c.wdkStrategyId != null && c.id !== conversationId,
@@ -127,7 +127,7 @@ function InsertSavedDialogBody({
       }),
     onSuccess: (data) => {
       void queryClient.invalidateQueries({
-        queryKey: conversationDetailKey(conversationId),
+        queryKey: strategyQueryKey(conversationId),
       });
       void queryClient.invalidateQueries({
         queryKey: ["conversations", "list", siteId],

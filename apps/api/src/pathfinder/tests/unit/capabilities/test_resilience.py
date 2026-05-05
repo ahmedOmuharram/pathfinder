@@ -14,8 +14,11 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
+from pydantic import BaseModel, ConfigDict
+from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
 from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.result import FinalResult
 from pydantic_ai.tools import ToolDefinition
 from pydantic_graph.nodes import End
 
@@ -25,6 +28,7 @@ from pathfinder.ai.capabilities.error_classification import (
     classify_error,
 )
 from pathfinder.ai.capabilities.resilience import ToolResilience
+from pathfinder.ai.graph.state import PhaseDisposition, PhaseOutcome
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
@@ -554,6 +558,14 @@ class TestOnNodeRunError:
             error=error,
         )
         assert isinstance(result, End)
+        # The End must wrap a FinalResult whose .output is a PhaseOutcome.
+        # pydantic-ai's beta GraphRun pulls .output off End.data and accesses
+        # .output / .tool_name on it; passing a bare string crashes the run
+        # with "'str' object has no attribute 'output'" inside iter __aexit__.
+        assert isinstance(result.data, FinalResult)
+        assert isinstance(result.data.output, PhaseOutcome)
+        assert result.data.output.disposition == PhaseDisposition.AWAITING_USER
+        assert result.data.output.prose
 
     @pytest.mark.asyncio
     async def test_other_errors_re_raise(self) -> None:
@@ -606,3 +618,147 @@ class TestPrepareTools:
         tool_defs = [_make_tool_def("get_record_types"), _make_tool_def("list_searches")]
         result = await capability.prepare_tools(ctx, tool_defs)
         assert result == tool_defs
+
+
+class TestOnToolValidateError:
+    """on_tool_validate_error rewrites build_strategy shape errors with hints."""
+
+    @pytest.mark.asyncio
+    async def test_misplaced_secondary_input_raises_helpful_model_retry(
+        self,
+    ) -> None:
+        class _ArgsModel(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+            root: dict[str, Any]
+
+        try:
+            _ArgsModel.model_validate(
+                {"root": {}, "secondaryInput": {"searchName": "X"}},
+            )
+            pytest.fail("expected ValidationError")
+        except PydanticValidationError as exc:
+            error = exc
+
+        capability = ToolResilience()
+        ctx = _make_ctx()
+        with pytest.raises(ModelRetry) as excinfo:
+            await capability.on_tool_validate_error(
+                ctx,
+                call=_make_call("build_strategy"),
+                tool_def=_make_tool_def("build_strategy"),
+                args={"root": {}, "secondaryInput": {"searchName": "X"}},
+                error=error,
+            )
+        msg = str(excinfo.value)
+        assert "secondaryInput" in msg
+        assert "INSIDE `root`" in msg
+        assert "primaryInput" in msg
+
+    @pytest.mark.asyncio
+    async def test_clean_args_propagate_original_error(self) -> None:
+        class _ArgsModel(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+            root: dict[str, Any]
+
+        try:
+            _ArgsModel.model_validate({})
+            pytest.fail("expected ValidationError")
+        except PydanticValidationError as exc:
+            error = exc
+
+        capability = ToolResilience()
+        ctx = _make_ctx()
+        with pytest.raises(PydanticValidationError):
+            await capability.on_tool_validate_error(
+                ctx,
+                call=_make_call("build_strategy"),
+                tool_def=_make_tool_def("build_strategy"),
+                args={},
+                error=error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_other_tools_propagate_unchanged(self) -> None:
+        class _ArgsModel(BaseModel):
+            x: int
+
+        try:
+            _ArgsModel.model_validate({"x": "not-an-int", "primaryInput": {}})
+            pytest.fail("expected ValidationError")
+        except PydanticValidationError as exc:
+            error = exc
+
+        capability = ToolResilience()
+        ctx = _make_ctx()
+        with pytest.raises(PydanticValidationError):
+            await capability.on_tool_validate_error(
+                ctx,
+                call=_make_call("some_other_tool"),
+                tool_def=_make_tool_def("some_other_tool"),
+                args={"x": "not-an-int", "primaryInput": {}},
+                error=error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_set_problem_frame_wrapped_args_raises_helpful_hint(self) -> None:
+        class _ArgsModel(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+            userGoal: str
+            interpretedGoal: str
+
+        wrapped_args: dict[str, Any] = {
+            "frame": {
+                "userGoal": "Find genes",
+                "interpretedGoal": "Identify P. falciparum genes",
+            },
+        }
+        try:
+            _ArgsModel.model_validate(wrapped_args)
+            pytest.fail("expected ValidationError")
+        except PydanticValidationError as exc:
+            error = exc
+
+        capability = ToolResilience()
+        ctx = _make_ctx()
+        with pytest.raises(ModelRetry) as excinfo:
+            await capability.on_tool_validate_error(
+                ctx,
+                call=_make_call("set_problem_frame"),
+                tool_def=_make_tool_def("set_problem_frame"),
+                args=wrapped_args,
+                error=error,
+            )
+        msg = str(excinfo.value)
+        assert "frame" in msg
+        assert "top" in msg.lower()
+        assert "set_problem_frame" in msg
+
+    @pytest.mark.asyncio
+    async def test_wrapped_args_hint_works_for_any_tool(self) -> None:
+        class _ArgsModel(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+            query: str
+            top_k: int
+
+        wrapped_args: dict[str, Any] = {
+            "input": {"query": "kinase", "top_k": 10},
+        }
+        try:
+            _ArgsModel.model_validate(wrapped_args)
+            pytest.fail("expected ValidationError")
+        except PydanticValidationError as exc:
+            error = exc
+
+        capability = ToolResilience()
+        ctx = _make_ctx()
+        with pytest.raises(ModelRetry) as excinfo:
+            await capability.on_tool_validate_error(
+                ctx,
+                call=_make_call("search_tool"),
+                tool_def=_make_tool_def("search_tool"),
+                args=wrapped_args,
+                error=error,
+            )
+        msg = str(excinfo.value)
+        assert "input" in msg
+        assert "search_tool" in msg

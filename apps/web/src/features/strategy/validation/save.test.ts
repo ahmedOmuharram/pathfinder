@@ -357,8 +357,9 @@ describe("validateStepsForSave", () => {
       expect(result.errorsByStepId["step-1"]).toContain("Cannot be saved:");
     });
 
-    it("reports MULTIPLE_ROOTS error assigned to all root steps", async () => {
-      // Two disconnected search steps = two roots
+    it("multiple roots is no longer a save-blocking error (orphans are first-class)", async () => {
+      // Two disconnected search steps = two roots. With the orphan-as-info change,
+      // this is not a save-blocking error; only the rooted component is pushed.
       const s1 = makeSearchStep({ id: "root-1", displayName: "Root 1" });
       const s2 = makeSearchStep({ id: "root-2", displayName: "Root 2" });
       mockValidateSearchParams.mockResolvedValue(validResponse());
@@ -369,9 +370,9 @@ describe("validateStepsForSave", () => {
         strategy: null,
       });
 
-      expect(result.hasErrors).toBe(true);
-      expect(result.errorsByStepId["root-1"]).toContain("Cannot be saved:");
-      expect(result.errorsByStepId["root-2"]).toContain("Cannot be saved:");
+      expect(result.hasErrors).toBe(false);
+      expect(result.errorsByStepId["root-1"]).toBeUndefined();
+      expect(result.errorsByStepId["root-2"]).toBeUndefined();
     });
 
     it("reports MISSING_OPERATOR for combine step without operator", async () => {
@@ -547,8 +548,10 @@ describe("validateStepsForSave", () => {
 
   // ----- ORPHAN_STEP structural error -----
   describe("ORPHAN_STEP error", () => {
-    it("assigns orphan error to all steps when graph has no roots", async () => {
-      // Create a circular reference: each step references the other as input
+    it("orphan-only graph is no longer save-blocking (severity downgraded to info)", async () => {
+      // Cycle (no roots): each step references the other as input. This used to
+      // emit ORPHAN_STEP as save-blocking; under the orphan-as-info regime it
+      // does not block save by itself.
       const s1: Step = {
         id: "s1",
         displayName: "Step 1",
@@ -575,10 +578,8 @@ describe("validateStepsForSave", () => {
         strategy: null,
       });
 
-      expect(result.hasErrors).toBe(true);
-      // ORPHAN_STEP assigns error to all steps
-      expect(result.errorsByStepId["s1"]).toContain("Cannot be saved:");
-      expect(result.errorsByStepId["s2"]).toContain("Cannot be saved:");
+      expect(result.errorsByStepId["s1"]).toBeUndefined();
+      expect(result.errorsByStepId["s2"]).toBeUndefined();
     });
   });
 

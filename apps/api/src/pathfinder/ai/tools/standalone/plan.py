@@ -15,7 +15,7 @@ from difflib import get_close_matches
 from uuid import uuid4
 
 import httpx
-from pydantic import ValidationError
+from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -44,6 +44,9 @@ from pathfinder.ai.tools.standalone._stream_parts import (
     decision_presented_chunk,
     plan_artifact_chunk,
 )
+from pathfinder.ai.tools.standalone._validation_helpers import (
+    validation_model_retry,
+)
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
@@ -58,11 +61,15 @@ from pathfinder.domain.strategy.plan import (
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
-from pathfinder.platform.errors import WDKError
+from pathfinder.platform.errors import ValidationError, WDKError
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import (
     adapt_param_specs_from_search,
+)
+from pathfinder.services.catalog.param_validation import validate_parameters
+from pathfinder.services.catalog.validation_callbacks import (
+    make_validation_callbacks,
 )
 
 
@@ -392,7 +399,34 @@ _CREATE_PLAN_BLOCKING_STATUSES: frozenset[PlanStatus] = frozenset(
 )
 
 
-def _topology_error_message(exc: ValidationError | PlanTopologyError) -> str:
+async def _validate_plan_against_wdk(plan: StrategyPlan, site_id: str) -> None:
+    callbacks = make_validation_callbacks(site_id)
+    for step in plan.steps:
+        if step.step_type != StepType.LEAF or not step.search_name:
+            continue
+        params: JSONObject = {
+            p.name: p.value for p in step.parameters if p.value is not None
+        }
+        if not params:
+            continue
+        try:
+            await validate_parameters(
+                SearchContext(site_id, step.record_type, step.search_name),
+                parameters=params,
+                callbacks=callbacks,
+            )
+        except ValidationError as exc:
+            raise validation_model_retry(
+                exc,
+                stepId=step.id,
+                searchName=step.search_name,
+                recordType=step.record_type,
+            ) from exc
+
+
+def _topology_error_message(
+    exc: PydanticValidationError | PlanTopologyError,
+) -> str:
     if isinstance(exc, PlanTopologyError):
         return str(exc)
     for err in exc.errors():
@@ -472,12 +506,13 @@ async def create_plan(
             questions=domain_questions,
             uncertainties=uncertainties or [],
         )
-    except (ValidationError, PlanTopologyError) as exc:
+    except (PydanticValidationError, PlanTopologyError) as exc:
         msg = f"TOPOLOGY_ERROR: {_topology_error_message(exc)}"
         raise ModelRetry(msg) from exc
 
     ctx.deps.agent_state.set_plan(plan)
     _validate_domain_parameters(plan, ctx.deps.agent_state)
+    await _validate_plan_against_wdk(plan, ctx.deps.site_id)
 
     proposed_plan = _build_proposed_plan(plan)
 
@@ -628,9 +663,10 @@ async def update_plan(
             f"Failed to fetch WDK param specs for plan update: {exc}",
         )
 
+    candidate = plan.model_copy(deep=True)
     try:
         _mutate_plan(
-            plan,
+            candidate,
             title=title,
             description=description,
             step_updates=step_updates,
@@ -645,19 +681,21 @@ async def update_plan(
         msg = f"DISCOVERY_ERROR: {exc}"
         raise ModelRetry(msg) from exc
 
-    _validate_domain_topology(plan)
-    _validate_domain_parameters(plan, ctx.deps.agent_state)
+    _validate_domain_topology(candidate)
+    _validate_domain_parameters(candidate, ctx.deps.agent_state)
+    await _validate_plan_against_wdk(candidate, ctx.deps.site_id)
 
-    plan.version += 1
-    plan.updated_at = datetime.now(UTC)
+    candidate.version += 1
+    candidate.updated_at = datetime.now(UTC)
+    ctx.deps.agent_state.active_plan = candidate
 
     return ToolReturn(
-        return_value=plan,
+        return_value=candidate,
         metadata=[
             plan_artifact_chunk(
-                plan_id=plan.id,
-                steps=_planned_steps_for_stream(plan),
-                rationale=plan.rationale or "",
+                plan_id=candidate.id,
+                steps=_planned_steps_for_stream(candidate),
+                rationale=candidate.rationale or "",
             ),
         ],
     )

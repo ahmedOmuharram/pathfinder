@@ -40,7 +40,7 @@ function SitePickerContent({
   headerTextVariant,
 }: SitePickerProps) {
   const { data: sites } = useSuspenseQuery(sitesOptions());
-  const setSelectedSiteInfo = useSessionStore((state) => state.setSelectedSiteInfo);
+  const setSelectedSite = useSessionStore((state) => state.setSelectedSite);
 
   return (
     <div data-testid="site-picker" className="flex items-center gap-3">
@@ -59,13 +59,7 @@ function SitePickerContent({
           value={value}
           onChange={(e) => {
             const siteId = e.target.value;
-            const site = sites.find((s) => s.id === siteId);
-            if (site) {
-              setSelectedSiteInfo(
-                siteId,
-                site.displayName !== "" ? site.displayName : site.name,
-              );
-            }
+            setSelectedSite(siteId);
             onChange(siteId);
           }}
           data-testid="site-select"

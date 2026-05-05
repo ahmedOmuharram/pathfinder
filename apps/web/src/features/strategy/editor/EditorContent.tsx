@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useStore } from "@tanstack/react-form";
 import { toast } from "sonner";
-import type { Step } from "@pathfinder/shared";
+import { siteDisplayName, type Step } from "@pathfinder/shared";
+import { useStrategyGraphCtx } from "@/features/strategy/graph/StrategyGraphContext";
 import {
-  useDeleteStepMutation,
   useDuplicateStepMutation,
   useUpdateStepMutation,
 } from "@/features/strategy/mutations";
@@ -13,7 +13,7 @@ import { useSaveSubstrategyMutation } from "@/features/strategy/mutations/useSav
 import { SaveSubstrategyDialog } from "./SaveSubstrategyDialog";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useStrategyStore } from "@/state/strategy/store";
-import { useStrategyData } from "@/state/strategy/useStrategyQuery";
+import { useStrategyData } from "@/lib/api/strategy";
 import { useStepSnapshot } from "@/state/strategy/useStepSnapshot";
 import { EditorHeader } from "./EditorHeader";
 import { EditorBody } from "./EditorBody";
@@ -54,7 +54,7 @@ export function EditorContent({
   onClosed,
 }: EditorContentProps) {
   const state = useStepEditorState({ step, siteId, recordType });
-  const deleteStep = useDeleteStepMutation(conversationId);
+  const { requestDelete } = useStrategyGraphCtx();
   const duplicateStep = useDuplicateStepMutation(conversationId);
   const updateStep = useUpdateStepMutation(conversationId);
   const saveSubstrategy = useSaveSubstrategyMutation({ conversationId, siteId });
@@ -147,7 +147,7 @@ export function EditorContent({
 
   const handleDelete = (): void => {
     persistence.clear();
-    deleteStep.mutate({ stepId: step.id });
+    requestDelete(step.id);
     onClosed();
   };
 
@@ -238,7 +238,7 @@ export function EditorContent({
     updateError: updateStep.isError,
   });
 
-  const dbName = useSessionStore((s) => s.selectedSiteDisplayName);
+  const dbName = siteDisplayName(useSessionStore((s) => s.selectedSite));
   const footerProps = {
     syncState,
     changeCount: changes.changeCount,

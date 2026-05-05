@@ -1,9 +1,8 @@
 import { describe, expect, test } from "vitest";
-import type { Connection, Edge } from "@xyflow/react";
+import type { Connection } from "@xyflow/react";
 import type { Step } from "@pathfinder/shared";
 import {
   buildGraphIndices,
-  edgeToInputPatch,
   getConnectionEffect,
   inferCombineRecordTypeOrMismatch,
   isUpstream,
@@ -141,31 +140,6 @@ describe("graphConnectionsLogic", () => {
       sourceId: "r1",
       targetId: "r2",
     });
-  });
-
-  test("edgeToInputPatch detaches primary/secondary by handle or id suffix", () => {
-    expect(edgeToInputPatch({ targetHandle: "left" } as Edge)).toEqual({
-      primaryInputStepId: null,
-    });
-    expect(edgeToInputPatch({ targetHandle: "left-secondary" } as Edge)).toEqual({
-      secondaryInputStepId: null,
-      operator: null,
-      colocationParams: null,
-    });
-    expect(edgeToInputPatch({ id: "a-b-primary" } as Edge)).toEqual({
-      primaryInputStepId: null,
-    });
-    expect(edgeToInputPatch({ id: "a-b-secondary" } as Edge)).toEqual({
-      secondaryInputStepId: null,
-    });
-    expect(edgeToInputPatch({ id: "weird" } as Edge)).toBeNull();
-  });
-
-  test("edgeToInputPatch clears operator and colocationParams when secondary edge removed", () => {
-    const patch = edgeToInputPatch({ targetHandle: "left-secondary" } as Edge);
-    expect(patch).toHaveProperty("operator", null);
-    expect(patch).toHaveProperty("colocationParams", null);
-    expect(patch).toHaveProperty("secondaryInputStepId", null);
   });
 
   test("inferCombineRecordTypeOrMismatch detects real mismatch and infers recordType", () => {

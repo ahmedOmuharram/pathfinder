@@ -2453,11 +2453,13 @@ __metadata:
     "@kubb/plugin-ts": "npm:^4.37.2"
     "@kubb/plugin-zod": "npm:^4.37.2"
     "@kubb/react-fabric": "npm:^0.14.0"
+    "@tanstack/react-query": "npm:^5.95.2"
     "@types/node": "npm:^25.3.5"
     prettier: "npm:^3.8.1"
     typescript: "npm:^5.9.3"
     zod: "npm:^4.3.6"
   peerDependencies:
+    "@tanstack/react-query": ^5.95.0
     zod: ^4.3.6
   languageName: unknown
   linkType: soft

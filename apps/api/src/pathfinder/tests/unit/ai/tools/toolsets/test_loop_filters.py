@@ -7,12 +7,17 @@ from uuid import uuid4
 from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
 from pydantic_ai.tools import RunContext
 
+from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.scratchpad.tools import _loop_hidden_read_tools
 from pathfinder.ai.tools.toolsets.execution import (
     _get_strategy_repeated_without_mutation,
 )
-from pathfinder.ai.tools.toolsets.planning import _loop_hidden_reads
+from pathfinder.ai.tools.toolsets.planning import (
+    _loop_hidden_reads,
+    _plan_state_gated,
+)
+from pathfinder.domain.strategy.plan import StrategyPlan
 
 
 def _tc(name: str) -> ToolCallPart:
@@ -24,13 +29,34 @@ def _resp(*names: str) -> ModelResponse:
 
 
 @dataclass
+class _FakeDeps:
+    agent_state: AgentToolState
+
+
+@dataclass
 class _FakeCtx:
     messages: list[ModelMessage] = field(default_factory=list)
+    deps: _FakeDeps | None = None
 
 
 def _ctx(names: list[str]) -> RunContext[AgentDeps]:
     messages: list[ModelMessage] = [_resp(n) for n in names]
     return cast("RunContext[AgentDeps]", _FakeCtx(messages=messages))
+
+
+def _ctx_with_plan(active_plan: StrategyPlan | None) -> RunContext[AgentDeps]:
+    deps = _FakeDeps(agent_state=AgentToolState(active_plan=active_plan))
+    return cast("RunContext[AgentDeps]", _FakeCtx(messages=[], deps=deps))
+
+
+def _make_plan() -> StrategyPlan:
+    return StrategyPlan(
+        title="t",
+        description="d",
+        rationale="r",
+        steps=[],
+        connections=[],
+    )
 
 
 class TestScratchpadLoopFilter:
@@ -127,3 +153,13 @@ class TestPlanningLoopFilter:
         assert _loop_hidden_reads(
             _ctx(["get_plan", "get_strategy"]),
         ) == frozenset()
+
+
+class TestPlanStateGated:
+    def test_no_active_plan_hides_update_plan(self) -> None:
+        ctx = _ctx_with_plan(None)
+        assert _plan_state_gated(ctx) == frozenset({"update_plan"})
+
+    def test_active_plan_hides_create_plan(self) -> None:
+        ctx = _ctx_with_plan(_make_plan())
+        assert _plan_state_gated(ctx) == frozenset({"create_plan"})

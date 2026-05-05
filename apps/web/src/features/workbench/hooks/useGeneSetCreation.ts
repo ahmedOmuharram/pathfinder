@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { ResolvedGene } from "@pathfinder/shared";
-import { resolveGeneIds } from "@/lib/api/genes";
+import { resolveGenes } from "@pathfinder/shared/generated/hooks/useResolveGenes";
 import { createGeneSet } from "../api/geneSets";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useInvalidateGeneSets } from "@/lib/query/hooks/useInvalidateGeneSets";
@@ -28,7 +28,8 @@ export function useGeneSetCreation({ onCreated }: UseGeneSetCreationOptions) {
   });
 
   const verifyMutation = useMutation({
-    mutationFn: (parsedIds: string[]) => resolveGeneIds(selectedSite, parsedIds),
+    mutationFn: (parsedIds: string[]) =>
+      resolveGenes(selectedSite, { geneIds: parsedIds }),
     onSuccess: (data) => {
       setVerificationState({
         verified: true,

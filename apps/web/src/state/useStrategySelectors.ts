@@ -2,7 +2,7 @@
 
 import { useShallow } from "zustand/react/shallow";
 import { useStrategyStore } from "@/state/strategy/store";
-import { useStrategyCacheUtils } from "@/state/strategy/useStrategyQuery";
+import { useStrategyCacheUtils } from "@/lib/api/strategy";
 
 export function useStrategyHistory(conversationId: string) {
   const cache = useStrategyCacheUtils();

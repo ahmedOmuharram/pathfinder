@@ -12,7 +12,8 @@
 
 import { useState } from "react";
 import { requestVoid } from "@/lib/api/http";
-import { listConversations, deleteConversation } from "@/lib/api/conversations";
+import { listStrategies } from "@pathfinder/shared/generated/hooks/useListStrategies";
+import { deleteStrategy } from "@pathfinder/shared/generated/hooks/useDeleteStrategy";
 import { useAsyncAction } from "@/lib/utils/asyncAction";
 import { Loader2, Trash2, AlertTriangle } from "lucide-react";
 import { Input } from "@/lib/components/ui/Input";
@@ -30,10 +31,8 @@ export function DataSettings({ siteId }: DataSettingsProps) {
   const clearStrategies = async () => {
     setClearing("strategies");
     await run(async () => {
-      const all = await listConversations(siteId);
-      await Promise.allSettled(
-        all.map((s: { id: string }) => deleteConversation(s.id)),
-      );
+      const all = await listStrategies({ siteId });
+      await Promise.allSettled(all.map((s) => deleteStrategy(s.id)));
       window.location.reload();
     });
     setClearing(null);
