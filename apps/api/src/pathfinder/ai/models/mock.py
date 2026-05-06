@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import re
 from collections.abc import AsyncIterator, Callable
+from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
+from uuid import uuid4
 
 from pydantic_ai.messages import (
     ModelMessage,
@@ -34,6 +37,13 @@ _PLAN_TRIGGER = re.compile(
 )
 _DELEGATION_DRAFT_TRIGGER = re.compile(
     r"create\s+delegation\s+draft", re.IGNORECASE,
+)
+_RESEARCH_QUESTION_TRIGGER = re.compile(
+    r"\b(gene|genes|kinase|kinases|plasmodium|gametocyte|transcript|"
+    r"protein|orthology|orthologs?|expression|GO[\s:]+term|GO:\d+|"
+    r"taxon|organism|signal\s+peptide|transmembrane|metabolic|"
+    r"enrichment|upregulated|downregulated|differentially\s+expressed)\b",
+    re.IGNORECASE,
 )
 _SUPERVISOR_PHASE_COUNT_RE = re.compile(
     r"phase_call_counts_this_turn:\s*([^\n]+)",
@@ -78,30 +88,63 @@ def _function_tool_names(info: AgentInfo) -> frozenset[str]:
     return frozenset(t.name for t in info.function_tools)
 
 
-def _output_tool_names(info: AgentInfo) -> frozenset[str]:
-    return frozenset(t.name for t in info.output_tools)
-
-
-def _detect_role(info: AgentInfo) -> _Role:
+def _detect_role(
+    info: AgentInfo, messages: list[ModelMessage] | None = None,
+) -> _Role:
     fn = _function_tool_names(info)
-    out = _output_tool_names(info)
-    if "final_result_VerificationDigest" in out:
-        return _Role.VERIFICATION
     for marker, role in _ROLE_MARKERS:
         if marker in fn:
             return role
     if "think" in fn and fn.issubset(_SCOPING_TOOL_UNIVERSE):
         return _Role.SCOPING
+    if messages is not None:
+        history_role = _role_from_history(messages)
+        if history_role is not None:
+            return history_role
     if not info.function_tools:
         return _Role.SUPERVISOR
     return _Role.UNKNOWN
 
 
+# Each marker is a tool that ONLY appears in that one agent's surface.
+# Confirmed by inspecting agent.override(model=FunctionModel(capture)).run()
+# against each agent in graph/runtime — see /tmp/inspect_agents.py output.
 _ROLE_MARKERS: tuple[tuple[str, _Role], ...] = (
-    ("create_leaf_step", _Role.EXECUTION),
+    ("journal", _Role.SUPERVISOR),
+    ("search_for_searches", _Role.DISCOVERY),
     ("create_plan", _Role.PLANNING),
-    ("get_search_overview", _Role.DISCOVERY),
+    ("build_strategy", _Role.EXECUTION),
+    ("run_gene_set_enrichment", _Role.VERIFICATION),
 )
+
+_HISTORY_ROLE_MARKERS: tuple[tuple[str, _Role], ...] = (
+    ("set_problem_frame", _Role.SCOPING),
+    ("search_for_searches", _Role.DISCOVERY),
+    ("update_search_decision", _Role.DISCOVERY),
+    ("create_plan", _Role.PLANNING),
+    ("submit_plan", _Role.PLANNING),
+    ("build_strategy", _Role.EXECUTION),
+    ("run_gene_set_enrichment", _Role.VERIFICATION),
+)
+
+
+def _role_from_history(messages: list[ModelMessage]) -> _Role | None:
+    boundary = -1
+    for i, msg in enumerate(messages):
+        if not isinstance(msg, ModelRequest):
+            continue
+        if any(isinstance(p, UserPromptPart) for p in msg.parts):
+            boundary = i
+    for msg in reversed(messages[boundary + 1:]):
+        if not isinstance(msg, ModelResponse):
+            continue
+        for part in msg.parts:
+            if not isinstance(part, ToolCallPart):
+                continue
+            for marker, role in _HISTORY_ROLE_MARKERS:
+                if part.tool_name == marker:
+                    return role
+    return None
 
 
 def _latest_user_text(messages: list[ModelMessage]) -> str:
@@ -141,221 +184,263 @@ def _is_delegation_draft(text: str) -> bool:
     return bool(_DELEGATION_DRAFT_TRIGGER.search(text))
 
 
-def _tool_call(name: str, args: dict[str, object], call_id: str) -> ToolCallPart:
-    return ToolCallPart(tool_name=name, args=args, tool_call_id=call_id)
+def _is_research_question(text: str) -> bool:
+    return bool(_RESEARCH_QUESTION_TRIGGER.search(text))
 
 
-def _scoping_problem_frame() -> ProblemFrame:
+def _tool_call(
+    name: str, args: dict[str, object], label: str,
+) -> ToolCallPart:
+    return ToolCallPart(
+        tool_name=name, args=args, tool_call_id=f"{label}_{uuid4().hex[:12]}",
+    )
+
+
+def _scoping_problem_frame(user_text: str) -> ProblemFrame:
     return ProblemFrame(
-        user_goal="Create a test strategy",
-        interpreted_goal="Build a simple WDK strategy for testing",
+        user_goal=user_text or "Find Plasmodium kinase genes",
+        interpreted_goal=(
+            "Identify Plasmodium falciparum genes annotated with kinase "
+            "activity (GO:0016301), with curated or computed evidence."
+        ),
         organism_scope="Plasmodium falciparum 3D7",
         record_type="transcript",
-        biological_entities=["genes"],
-        inclusion_criteria=["taxon membership"],
-        success_criteria=["strategy contains a valid WDK leaf step"],
-        assumptions=["mock mode uses a deterministic GenesByTaxon plan"],
+        biological_entities=["kinase", "GO:0016301"],
+        inclusion_criteria=[
+            "GO:0016301 kinase activity annotation",
+            "Curated or Computed evidence",
+        ],
+        success_criteria=[
+            "Ranked list of Plasmodium kinase genes",
+            "Each gene annotated with GO term and evidence",
+        ],
+        assumptions=[
+            "Using P. falciparum 3D7 reference strain (PlasmoDB default)",
+            "Using GO:0016301 (kinase activity) as the canonical kinase term",
+        ],
         blocking_questions=[],
         optional_questions=[
             ClarificationQuestion(
-                question="Confirm taxon scope is P. falciparum 3D7?",
+                question="Should we narrow to a specific kinase family (e.g. tyrosine kinases) or include all kinase activity annotations?",
+                context="GO:0016301 is the broad kinase activity term; subterms exist for specific families.",
+                field="biological_entities",
                 priority="optional",
             ),
         ],
         ready_for_wdk_discovery=True,
-        confidence=0.9,
+        confidence=0.85,
     )
 
 
-def _scoping_response(messages: list[ModelMessage]) -> ModelResponse:
-    called = _called_tools_this_phase(messages)
-    if "think" not in called:
-        return ModelResponse(parts=[
-            _tool_call(
-                "think",
-                {"thought": "Frame the test prompt as a P. falciparum strategy."},
-                "mock_scoping_think",
-            ),
-        ])
-    if not (called & {"web_search", "literature_search"}):
-        return ModelResponse(parts=[
-            _tool_call(
-                "literature_search",
-                {"query": "Plasmodium falciparum gene catalog overview"},
-                "mock_scoping_lit",
-            ),
-        ])
-    if "set_problem_frame" not in called:
-        frame = _scoping_problem_frame()
-        return ModelResponse(parts=[
-            _tool_call(
-                "set_problem_frame",
-                {"frame": frame.model_dump(by_alias=True, mode="json")},
-                "mock_scoping_frame",
-            ),
-        ])
-    outcome = PhaseOutcome(
-        disposition=PhaseDisposition.HANDOFF,
-        prose=(
-            f"{_MOCK_PREFIX}Scoped the request: P. falciparum 3D7 transcripts. "
-            "Continuing to WDK catalog discovery."
-        ),
-        reason="frame complete; handing off to discovery",
-        handoff_to="discovery",
+_StepArgs = dict[str, Any] | Callable[[list[ModelMessage]], dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class _Step:
+    tool: str
+    args: _StepArgs
+    aliases: frozenset[str] = field(default_factory=frozenset)
+
+
+@dataclass(frozen=True)
+class _Flow:
+    steps: tuple[_Step, ...]
+    final: PhaseOutcome | VerificationDigest
+
+
+def _scoping_frame_args(messages: list[ModelMessage]) -> dict[str, Any]:
+    return _scoping_problem_frame(_latest_user_text(messages)).model_dump(
+        by_alias=True, mode="json", exclude_none=True,
     )
-    return ModelResponse(parts=[
-        _tool_call(
-            "final_result",
-            outcome.model_dump(by_alias=True, mode="json"),
-            "mock_scoping_final",
-        ),
-    ])
 
 
-def _discovery_response(messages: list[ModelMessage]) -> ModelResponse:
-    called = _called_tools_this_phase(messages)
-    if "get_search_overview" not in called:
-        return ModelResponse(parts=[
-            _tool_call(
-                "get_search_overview",
-                {"search_name": "GenesByTaxon"},
-                "mock_discovery_overview",
+_KINASE_PLAN: dict[str, Any] = {
+    "title": "Plasmodium kinase genes (GO:0016301)",
+    "description": (
+        "Single-step strategy returning Plasmodium falciparum transcripts "
+        "annotated with kinase activity."
+    ),
+    "rationale": (
+        "GenesByGoTerm with GO:0016301 (kinase activity) and Curated/Computed "
+        "evidence captures the canonical kinase set on PlasmoDB."
+    ),
+    "steps": [
+        {
+            "id": "kinase",
+            "search_name": "GenesByGoTerm",
+            "display_name": "Plasmodium Kinases (GO:0016301)",
+            "record_type": "transcript",
+            "rationale": (
+                "Find Plasmodium genes annotated with kinase activity "
+                "(curated or computed evidence)."
             ),
-        ])
-    if "update_search_decision" not in called:
-        return ModelResponse(parts=[
-            _tool_call(
-                "update_search_decision",
-                {
-                    "search_name": "GenesByTaxon",
+            "step_type": "leaf",
+            "parameters": {
+                "organism": ["Plasmodium falciparum 3D7"],
+                "go_term": "GO:0016301",
+                "go_term_slim": "No",
+                "go_typeahead": ["GO:0016301"],
+                "go_term_evidence": ["Curated", "Computed"],
+            },
+        },
+    ],
+    "connections": [],
+}
+
+_KINASE_BUILD: dict[str, Any] = {
+    "root": {
+        "searchName": "GenesByGoTerm",
+        "displayName": "Plasmodium Kinases (GO:0016301)",
+        "parameters": {
+            "organism": ["Plasmodium falciparum 3D7"],
+            "go_term": "GO:0016301",
+            "go_term_slim": "No",
+            "go_typeahead": ["GO:0016301"],
+            "go_term_evidence": ["Curated", "Computed"],
+        },
+    },
+    "name": "Plasmodium kinase genes (mock)",
+    "description": (
+        "Plasmodium falciparum genes annotated with kinase activity "
+        "(GO:0016301)."
+    ),
+}
+
+_FLOWS: dict[_Role, _Flow] = {
+    _Role.SCOPING: _Flow(
+        steps=(
+            _Step(
+                tool="think",
+                args={
+                    "thought": (
+                        "Frame as a Plasmodium kinase gene query. "
+                        "GO:0016301 is the canonical kinase activity term."
+                    ),
+                },
+            ),
+            _Step(
+                tool="literature_search",
+                args={"query": "Plasmodium falciparum kinase GO:0016301 review"},
+                aliases=frozenset({"web_search"}),
+            ),
+            _Step(tool="set_problem_frame", args=_scoping_frame_args),
+        ),
+        final=PhaseOutcome(
+            disposition=PhaseDisposition.HANDOFF,
+            prose=(
+                f"{_MOCK_PREFIX}Scoped: Plasmodium falciparum kinase genes "
+                "(GO:0016301). Handing off to WDK catalog discovery."
+            ),
+            reason="frame complete; handing off to discovery",
+            handoff_to="discovery",
+        ),
+    ),
+    _Role.DISCOVERY: _Flow(
+        steps=(
+            _Step(
+                tool="search_for_searches",
+                args={
+                    "query": "kinase activity GO term Plasmodium",
+                    "record_type": "gene",
+                    "limit": 10,
+                },
+            ),
+            _Step(
+                tool="get_search_overview",
+                args={"search_name": "GenesByGoTerm"},
+            ),
+            _Step(
+                tool="update_search_decision",
+                args={
+                    "search_name": "GenesByGoTerm",
                     "selection_status": "selected",
-                    "rationale": "GenesByTaxon returns all transcripts for a taxon.",
-                    "selection_reason": "primary anchor for the test strategy",
+                    "rationale": (
+                        "GenesByGoTerm finds genes by GO annotation. "
+                        "Use GO:0016301 (kinase activity) for the kinase scope."
+                    ),
+                    "selection_reason": "Primary anchor for kinase activity scoping.",
                     "confidence": 0.95,
-                    "param_hints": {"organism": "Plasmodium falciparum 3D7"},
+                    "param_hints": {
+                        "organism": "Plasmodium falciparum 3D7",
+                        "go_term": "GO:0016301",
+                        "go_term_evidence": "Curated, Computed",
+                    },
                 },
-                "mock_discovery_decision",
             ),
-        ])
-    outcome = PhaseOutcome(
-        disposition=PhaseDisposition.HANDOFF,
-        prose=(
-            f"{_MOCK_PREFIX}Selected GenesByTaxon for the P. falciparum scope. "
-            "Continuing to plan."
         ),
-        reason="search universe locked; handing off to planning",
-        handoff_to="planning",
-    )
+        final=PhaseOutcome(
+            disposition=PhaseDisposition.HANDOFF,
+            prose=(
+                f"{_MOCK_PREFIX}Selected GenesByGoTerm with GO:0016301 "
+                "(kinase activity) as the primary search. Handing off to planning."
+            ),
+            reason="search universe locked; handing off to planning",
+            handoff_to="planning",
+        ),
+    ),
+    _Role.PLANNING: _Flow(
+        steps=(
+            _Step(tool="create_plan", args=_KINASE_PLAN),
+            _Step(tool="submit_plan", args={}),
+        ),
+        final=PhaseOutcome(
+            disposition=PhaseDisposition.HANDOFF,
+            prose=f"{_MOCK_PREFIX}Plan approved. Handing off to execution.",
+            reason="plan approved; running execution",
+            handoff_to="execution",
+        ),
+    ),
+    _Role.EXECUTION: _Flow(
+        steps=(_Step(tool="build_strategy", args=_KINASE_BUILD),),
+        final=PhaseOutcome(
+            disposition=PhaseDisposition.HANDOFF,
+            prose=(
+                f"{_MOCK_PREFIX}Built the GenesByGoTerm strategy for kinase "
+                "activity. Handing off to verification."
+            ),
+            reason="strategy built; verification next",
+            handoff_to="verification",
+        ),
+    ),
+    _Role.VERIFICATION: _Flow(
+        steps=(),
+        final=VerificationDigest(
+            disposition=PhaseDisposition.DONE,
+            prose=(
+                f"{_MOCK_PREFIX}Strategy built and verified end-to-end. "
+                "GenesByGoTerm with GO:0016301 (kinase activity) returns the "
+                "Plasmodium kinase set."
+            ),
+            reason="mock verification complete",
+            success=True,
+            key_findings=[
+                "Strategy contains a GenesByGoTerm leaf with GO:0016301.",
+                "Organism scoped to Plasmodium falciparum 3D7.",
+                "Evidence filter: Curated + Computed.",
+            ],
+            caveats=[
+                "Mock response — no real LLM reasoning. The kinase scope is "
+                "hardcoded; for other questions reuse this strategy as a template.",
+            ],
+            remember=[],
+        ),
+    ),
+}
+
+
+def _drive_phase(role: _Role, messages: list[ModelMessage]) -> ModelResponse:
+    flow = _FLOWS[role]
+    called = _called_tools_this_phase(messages)
+    for step in flow.steps:
+        if step.tool in called or (step.aliases & called):
+            continue
+        args = step.args(messages) if callable(step.args) else step.args
+        return ModelResponse(parts=[_tool_call(step.tool, args, step.tool)])
     return ModelResponse(parts=[
         _tool_call(
             "final_result",
-            outcome.model_dump(by_alias=True, mode="json"),
-            "mock_discovery_final",
-        ),
-    ])
-
-
-def _planning_response(messages: list[ModelMessage]) -> ModelResponse:
-    called = _called_tools_this_phase(messages)
-    if "create_plan" not in called:
-        return ModelResponse(parts=[
-            _tool_call(
-                "create_plan",
-                {
-                    "title": "Mock P. falciparum strategy",
-                    "description": "Single-step P. falciparum transcript strategy.",
-                    "rationale": "Smallest realistic test strategy.",
-                    "steps": [
-                        {
-                            "id": "step_pftaxon",
-                            "search_name": "GenesByTaxon",
-                            "display_name": "P. falciparum genes",
-                            "record_type": "transcript",
-                            "rationale": "All P. falciparum transcripts.",
-                            "step_type": "leaf",
-                            "parameters": {
-                                "organism": ["Plasmodium falciparum 3D7"],
-                            },
-                        },
-                    ],
-                    "connections": [],
-                },
-                "mock_planning_create",
-            ),
-        ])
-    if "submit_plan" not in called:
-        return ModelResponse(parts=[
-            _tool_call(
-                "submit_plan", {}, "mock_planning_submit",
-            ),
-        ])
-    outcome = PhaseOutcome(
-        disposition=PhaseDisposition.HANDOFF,
-        prose=(
-            f"{_MOCK_PREFIX}Plan approved. Handing off to execution."
-        ),
-        reason="plan approved; running execution",
-        handoff_to="execution",
-    )
-    return ModelResponse(parts=[
-        _tool_call(
-            "final_result_PhaseOutcome",
-            outcome.model_dump(by_alias=True, mode="json"),
-            "mock_planning_final",
-        ),
-    ])
-
-
-def _execution_response(messages: list[ModelMessage]) -> ModelResponse:
-    called = _called_tools_this_phase(messages)
-    if "create_leaf_step" not in called:
-        return ModelResponse(parts=[
-            _tool_call(
-                "create_leaf_step",
-                {
-                    "search_name": "GenesByTaxon",
-                    "parameters": {"organism": ["Plasmodium falciparum 3D7"]},
-                    "display_name": "P. falciparum genes",
-                    "record_type": "transcript",
-                },
-                "mock_execution_leaf",
-            ),
-        ])
-    outcome = PhaseOutcome(
-        disposition=PhaseDisposition.HANDOFF,
-        prose=(
-            f"{_MOCK_PREFIX}Built the GenesByTaxon step. Handing off to "
-            "verification."
-        ),
-        reason="strategy built; verification next",
-        handoff_to="verification",
-    )
-    return ModelResponse(parts=[
-        _tool_call(
-            "final_result_PhaseOutcome",
-            outcome.model_dump(by_alias=True, mode="json"),
-            "mock_execution_final",
-        ),
-    ])
-
-
-def _verification_response() -> ModelResponse:
-    digest = VerificationDigest(
-        disposition=PhaseDisposition.DONE,
-        prose=(
-            f"{_MOCK_PREFIX}Strategy built and verified end-to-end."
-        ),
-        reason="mock verification complete",
-        success=True,
-        key_findings=["Strategy contains the planned GenesByTaxon step."],
-        caveats=[],
-        remember=[],
-    )
-    return ModelResponse(parts=[
-        _tool_call(
-            "final_result_VerificationDigest",
-            digest.model_dump(by_alias=True, mode="json"),
-            "mock_verification_final",
+            flow.final.model_dump(by_alias=True, mode="json"),
+            f"{role.value}_final",
         ),
     ])
 
@@ -401,7 +486,11 @@ def _decide_supervisor(
             answer=f"{_MOCK_PREFIX}delegation draft acknowledged",
         )
 
-    if _is_plan_trigger(user_text) or already_run:
+    if (
+        _is_plan_trigger(user_text)
+        or _is_research_question(user_text)
+        or already_run
+    ):
         target: SupervisorTarget
         if (
             state.get("plan_status") == "approved"
@@ -444,26 +533,14 @@ def _supervisor_decision_response(decision: SupervisorDecision) -> ModelResponse
     ])
 
 
-_PHASE_HANDLERS: dict[
-    _Role, Callable[[list[ModelMessage]], ModelResponse],
-] = {
-    _Role.SCOPING: _scoping_response,
-    _Role.DISCOVERY: _discovery_response,
-    _Role.PLANNING: _planning_response,
-    _Role.EXECUTION: _execution_response,
-    _Role.VERIFICATION: lambda _messages: _verification_response(),
-}
-
-
 def _resolve_response(
     messages: list[ModelMessage], info: AgentInfo,
 ) -> ModelResponse:
-    role = _detect_role(info)
+    role = _detect_role(info, messages)
     if role is _Role.SUPERVISOR:
         return _supervisor_response(messages, info)
-    handler = _PHASE_HANDLERS.get(role)
-    if handler is not None:
-        return handler(messages)
+    if role in _FLOWS:
+        return _drive_phase(role, messages)
     user_text = _latest_user_text(messages)
     echo = user_text or "your request"
     return ModelResponse(parts=[TextPart(content=f"{_MOCK_PREFIX}{echo}")])
@@ -479,7 +556,7 @@ async def _mock_stream_function(
     messages: list[ModelMessage], info: AgentInfo,
 ) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
     user_text = _latest_user_text(messages)
-    if user_text.lower() == _SLOW_KEYWORD and _detect_role(info) is not _Role.SUPERVISOR:
+    if user_text.lower() == _SLOW_KEYWORD and _detect_role(info, messages) is not _Role.SUPERVISOR:
         text = f"{_MOCK_PREFIX}Processing slowly..."
         for char in text:
             yield char
