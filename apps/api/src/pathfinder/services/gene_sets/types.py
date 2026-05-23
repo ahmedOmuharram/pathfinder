@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from pathfinder.domain.parameters.values import ParamValue
+
 GeneSetSource = Literal["strategy", "paste", "upload", "derived", "saved"]
 
 
@@ -23,7 +25,7 @@ class GeneSet:
     wdk_step_id: int | None = None
     search_name: str | None = None
     record_type: str | None = None
-    parameters: dict[str, str] | None = None
+    parameters: dict[str, ParamValue] | None = None
     parent_set_ids: list[str] = field(default_factory=list)
     operation: str | None = None  # "intersect" | "union" | "minus"
     step_count: int = 1

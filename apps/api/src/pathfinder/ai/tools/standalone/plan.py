@@ -20,9 +20,18 @@ from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
-from shared_py.stream_parts.plan import PlannedStep as StreamPlannedStep
+from shared_py.stream_parts.plan import (
+    PlannedStep as StreamPlannedStep,
+)
+from shared_py.stream_parts.plan import (
+    PlanSlotForm as StreamPlanSlotForm,
+)
+from shared_py.stream_parts.plan import (
+    PlanSlotOption as StreamPlanSlotOption,
+)
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.ai.graph.state import PlanSlotAnswer
 from pathfinder.ai.tools.standalone._plan_models import (
     ConnectionRef,
     DecisionOption,
@@ -48,9 +57,11 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     validation_model_retry,
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.values import ParamValue, from_decoded, to_decoded
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.plan import (
+    ParamStatus,
     PlannedStep,
     PlanStatus,
     PlanTopologyError,
@@ -278,7 +289,9 @@ def _step_to_node(step: PlannedStep) -> StrategyStepNode:
     return StrategyStepNode(
         search_name=step.search_name,
         display_name=step.display_name,
-        parameters={p.name: p.value for p in step.parameters},
+        parameters={
+            p.name: p.value for p in step.parameters if p.value is not None
+        },
     )
 
 
@@ -353,6 +366,33 @@ def _question_key(question: UserQuestion | UserQuestionInput) -> tuple[str, str,
     )
 
 
+def _slot_questions_from_inputs(
+    inputs: list[PlannedStepInput] | list[StepPatch],
+) -> list[UserQuestionInput]:
+    """Aggregate UserQuestionInput from any unfilled_slot with reason=needs_user_input.
+
+    Plan-level ``questions`` is the SSOT for what the submit_plan card
+    renders, so slot-level questions get hoisted there during plan
+    construction/update. Returning the inputs (not domain models) lets the
+    same merge dedup logic in ``_merge_questions`` apply.
+    """
+    out: list[UserQuestionInput] = []
+    for s in inputs:
+        if s.unfilled_slots is None:
+            continue
+        for slot in s.unfilled_slots:
+            if slot.reason == "needs_user_input" and slot.question is not None:
+                step_id = getattr(s, "id", None) or getattr(s, "step_id", None)
+                question = slot.question.model_copy(
+                    update={
+                        "related_param": slot.question.related_param or slot.name,
+                        "related_step": slot.question.related_step or step_id,
+                    },
+                )
+                out.append(question)
+    return out
+
+
 def _merge_questions(
     existing: list[UserQuestion],
     incoming: list[UserQuestionInput],
@@ -381,17 +421,68 @@ def _merge_questions(
     return merged
 
 
-def _planned_steps_for_stream(plan: StrategyPlan) -> list[StreamPlannedStep]:
+def planned_steps_for_stream(plan: StrategyPlan) -> list[StreamPlannedStep]:
     """Derive stream-part PlannedStep list from a domain plan, in order."""
     return [
         StreamPlannedStep(
             order=i,
             search_name=step.search_name,
             rationale=step.rationale or None,
-            parameters={param.name: param.value for param in step.parameters},
+            parameters={
+                param.name: to_decoded(param.value)
+                for param in step.parameters
+                if param.value is not None
+            },
         )
         for i, step in enumerate(plan.steps)
     ]
+
+
+def slot_forms_for_stream(plan: StrategyPlan) -> list[StreamPlanSlotForm]:
+    """Derive stream-part PlanSlotForm list — one entry per NEEDS_* param.
+
+    The submit_plan card iterates this to render inline form fields.
+    NEEDS_USER_INPUT slots get an actual question + options pulled from
+    the plan-level ``UserQuestion`` (matched by ``related_step`` +
+    ``related_param``); NEEDS_DISCOVERY slots are surfaced for visibility
+    but the form does not let the user fill them (the agent must route
+    back to discovery).
+    """
+    questions_by_slot: dict[tuple[str, str], UserQuestion] = {
+        (q.related_step, q.related_param): q
+        for q in plan.questions
+        if q.related_step is not None and q.related_param is not None
+    }
+    out: list[StreamPlanSlotForm] = []
+    for step in plan.steps:
+        for p in step.parameters:
+            if p.status not in (
+                ParamStatus.NEEDS_USER_INPUT, ParamStatus.NEEDS_DISCOVERY,
+            ):
+                continue
+            question = questions_by_slot.get((step.id, p.name))
+            options = [
+                StreamPlanSlotOption(
+                    label=opt.label,
+                    value=opt.label,
+                    description=opt.description,
+                    recommended=opt.recommended,
+                )
+                for opt in (question.options if question else None) or []
+            ]
+            out.append(
+                StreamPlanSlotForm(
+                    step_id=step.id,
+                    param_name=p.name,
+                    param_type=p.param_type,
+                    status=p.status.value,
+                    required=p.required,
+                    question=question.question if question else "",
+                    context=question.context if question else "",
+                    options=options,
+                ),
+            )
+    return out
 
 
 _CREATE_PLAN_BLOCKING_STATUSES: frozenset[PlanStatus] = frozenset(
@@ -404,7 +495,7 @@ async def _validate_plan_against_wdk(plan: StrategyPlan, site_id: str) -> None:
     for step in plan.steps:
         if step.step_type != StepType.LEAF or not step.search_name:
             continue
-        params: JSONObject = {
+        params: dict[str, ParamValue] = {
             p.name: p.value for p in step.parameters if p.value is not None
         }
         if not params:
@@ -493,7 +584,8 @@ async def create_plan(
         msg = f"DISCOVERY_ERROR: {exc}"
         raise ModelRetry(msg) from exc
     domain_connections = [_convert_connection(c) for c in connections]
-    domain_questions = _merge_questions([], questions or [])
+    slot_questions = _slot_questions_from_inputs(steps)
+    domain_questions = _merge_questions([], (questions or []) + slot_questions)
 
     try:
         plan = StrategyPlan(
@@ -510,9 +602,9 @@ async def create_plan(
         msg = f"TOPOLOGY_ERROR: {_topology_error_message(exc)}"
         raise ModelRetry(msg) from exc
 
-    ctx.deps.agent_state.set_plan(plan)
     _validate_domain_parameters(plan, ctx.deps.agent_state)
     await _validate_plan_against_wdk(plan, ctx.deps.site_id)
+    ctx.deps.agent_state.set_plan(plan)
 
     proposed_plan = _build_proposed_plan(plan)
 
@@ -535,8 +627,9 @@ async def create_plan(
         metadata=[
             plan_artifact_chunk(
                 plan_id=plan.id,
-                steps=_planned_steps_for_stream(plan),
+                steps=planned_steps_for_stream(plan),
                 rationale=plan.rationale or "",
+                slots=slot_forms_for_stream(plan),
             ),
         ],
     )
@@ -638,13 +731,16 @@ async def update_plan(
 
     _validate_update_plan_inputs(ctx.deps, plan, add_steps, step_updates)
 
-    # Fetch WDK specs for any new or patched steps.
+    # Fetch WDK specs for any new or patched steps. unfilled_slots-only
+    # patches need specs too — _build_unfilled_param requires the spec to
+    # construct the PlannedParameter (raises ValueError otherwise).
     enrichable_steps = list(add_steps or [])
     if step_updates:
         step_map = {s.id: s for s in plan.steps}
         for patch in step_updates:
             existing = step_map.get(patch.step_id)
-            if existing is not None and patch.parameters:
+            needs_spec = patch.parameters or patch.unfilled_slots
+            if existing is not None and needs_spec:
                 enrichable_steps.append(
                     PlannedStepInput(
                         search_name=patch.search_name or existing.search_name,
@@ -663,6 +759,11 @@ async def update_plan(
             f"Failed to fetch WDK param specs for plan update: {exc}",
         )
 
+    slot_questions = _slot_questions_from_inputs(
+        list(add_steps or []),
+    ) + _slot_questions_from_inputs(list(step_updates or []))
+    aggregated_questions = list(questions or []) + slot_questions
+
     candidate = plan.model_copy(deep=True)
     try:
         _mutate_plan(
@@ -674,7 +775,7 @@ async def update_plan(
             remove_steps=remove_steps,
             add_connections=add_connections,
             remove_connections=remove_connections,
-            questions=questions,
+            questions=aggregated_questions or None,
             specs_by_search=specs_by_search,
         )
     except ValueError as exc:
@@ -694,8 +795,9 @@ async def update_plan(
         metadata=[
             plan_artifact_chunk(
                 plan_id=candidate.id,
-                steps=_planned_steps_for_stream(candidate),
+                steps=planned_steps_for_stream(candidate),
                 rationale=candidate.rationale or "",
+                slots=slot_forms_for_stream(candidate),
             ),
         ],
     )
@@ -710,13 +812,15 @@ async def submit_plan(
     agent with a ``DeferredToolRequests`` on the first call. The adapter
     emits a ``ToolApprovalRequestChunk``; the backend writes a
     ``PendingApproval`` onto graph state and hands the turn back to the
-    user. On the next turn the agent resumes with
-    ``DeferredToolResults(approvals={id: True})`` and this body runs,
-    setting status to APPROVED. A ``ToolDenied`` result surfaces a denial
-    to the agent without running this body.
+    user. The submit_plan card surfaces NEEDS_USER_INPUT slots as inline
+    form fields. On approval, the next turn carries an
+    ``approval-responded`` part PLUS a sibling ``data-plan-slot-answers``
+    part with the form values.  This body resumes with
+    ``DeferredToolResults(approvals={id: True})``, applies slot answers
+    via ``deps.plan_slot_answers``, refuses if any NEEDS_DISCOVERY remain
+    (Stage F), then sets status=APPROVED.
 
-    Call after create_plan or update_plan. Put user-facing questions on
-    the plan via those tools before calling submit_plan.
+    Call after create_plan or update_plan.
     """
     deps = ctx.deps
     plan = deps.agent_state.active_plan
@@ -724,18 +828,84 @@ async def submit_plan(
         msg = "NO_ACTIVE_PLAN: No plan exists yet. Call create_plan first."
         raise ModelRetry(msg)
 
+    _apply_slot_answers_to_plan(plan, deps.plan_slot_answers)
+    _refuse_if_unresolved_slots(plan)
+
     plan.status = PlanStatus.APPROVED
     plan.updated_at = datetime.now(UTC)
 
     metadata: list[DataChunk] = [
         plan_artifact_chunk(
             plan_id=plan.id,
-            steps=_planned_steps_for_stream(plan),
+            steps=planned_steps_for_stream(plan),
             rationale=plan.rationale or "",
+            slots=slot_forms_for_stream(plan),
         ),
     ]
 
     return ToolReturn(return_value=plan, metadata=metadata)
+
+
+def _apply_slot_answers_to_plan(
+    plan: StrategyPlan, answers: list[PlanSlotAnswer],
+) -> None:
+    if not answers:
+        return
+    step_map = {s.id: s for s in plan.steps}
+    for ans in answers:
+        step = step_map.get(ans.step_id)
+        if step is None:
+            continue
+        param = next(
+            (p for p in step.parameters if p.name == ans.param_name), None,
+        )
+        if param is None:
+            continue
+        param.value = from_decoded(param.param_type, ans.value)
+        param.status = ParamStatus.USER_SET
+    answered_keys = {(a.step_id, a.param_name) for a in answers}
+    for q in plan.questions:
+        if q.related_step is None or q.related_param is None:
+            continue
+        key = (q.related_step, q.related_param)
+        if key in answered_keys:
+            value = next(
+                a.value for a in answers
+                if (a.step_id, a.param_name) == key
+            )
+            q.answer = value
+
+
+def _refuse_if_unresolved_slots(plan: StrategyPlan) -> None:
+    """Stage F: refuse submission if any param still NEEDS_DISCOVERY.
+
+    NEEDS_USER_INPUT slots that weren't answered are also refused —
+    they're a contract failure (the form must be fully filled before
+    approve). The agent must update_plan to either route back through
+    discovery (NEEDS_DISCOVERY) or rephrase the question
+    (NEEDS_USER_INPUT). The refusal payload tells the agent which slots
+    are blocking.
+
+    The Lead reads the open slots from the Ledger and routes accordingly.
+    """
+    blocking: list[tuple[str, str, ParamStatus]] = [
+        (step.id, p.name, p.status)
+        for step in plan.steps
+        for p in step.parameters
+        if p.status in (ParamStatus.NEEDS_DISCOVERY, ParamStatus.NEEDS_USER_INPUT)
+    ]
+    if not blocking:
+        return
+    summary = ", ".join(
+        f"{sid}.{pname}={status.value}" for sid, pname, status in blocking
+    )
+    msg = (
+        f"UNRESOLVED_SLOTS: Plan has unresolved slots — {summary}. "
+        "NEEDS_DISCOVERY: route back to discovery to enumerate vocab. "
+        "NEEDS_USER_INPUT: the user did not fill the form field; "
+        "rephrase the question or convert to NEEDS_DISCOVERY."
+    )
+    raise ModelRetry(msg)
 
 
 async def present_decision(

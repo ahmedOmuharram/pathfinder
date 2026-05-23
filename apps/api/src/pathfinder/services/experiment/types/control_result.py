@@ -8,15 +8,15 @@ field extraction.
 
 from pydantic import Field
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 
 
 class ControlTargetData(CamelModel):
     """Target step info in a control-test result."""
 
     search_name: str = ""
-    parameters: JSONObject = Field(default_factory=dict)
+    parameters: dict[str, ParamValue] = Field(default_factory=dict)
     step_id: int | None = None
     estimated_size: int | None = None
 

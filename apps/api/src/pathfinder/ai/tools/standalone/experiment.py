@@ -11,11 +11,10 @@ from pathfinder.ai.tools.standalone._experiment_models import (
     SearchControlTestResult,
     StepControlTestResult,
 )
-from pathfinder.domain.strategy.types import DecodedParamsField
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_tests import (
     IntersectionConfig,
     run_positive_negative_controls,
@@ -97,7 +96,7 @@ async def run_control_tests_on_step(
 async def run_control_tests_on_search(
     ctx: RunContext[AgentDeps],
     target_search_name: str,
-    target_parameters: DecodedParamsField,
+    target_parameters: dict[str, ParamValue],
     positive_controls: list[str] | None = None,
     negative_controls: list[str] | None = None,
     record_type: str = "transcript",
@@ -113,7 +112,9 @@ async def run_control_tests_on_search(
     Args:
         ctx: Agent run context.
         target_search_name: WDK search/question urlSegment to test.
-        target_parameters: Target search parameter mapping.
+        target_parameters: Target search parameter mapping. Each value MUST be
+            wrapped in its typed shape — see the ``valueFormat`` field from
+            ``get_search_overview`` for the per-param template.
         positive_controls: Known-positive IDs that should be returned.
         negative_controls: Known-negative IDs that should NOT be returned.
         record_type: Record type. Defaults to 'transcript'.
@@ -125,12 +126,11 @@ async def run_control_tests_on_search(
             ErrorCode.VALIDATION_ERROR,
             "At least one of positive_controls or negative_controls must be provided.",
         )
-    params_dict: JSONObject = dict(target_parameters)
     _cfg = IntersectionConfig(
         site_id=ctx.deps.site_id,
         record_type=record_type,
         target_search_name=target_search_name,
-        target_parameters=params_dict,
+        target_parameters=dict(target_parameters),
         controls_search_name="GeneByLocusTag",
         controls_param_name="ds_gene_ids",
         controls_value_format="newline",

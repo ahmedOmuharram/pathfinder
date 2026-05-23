@@ -199,6 +199,35 @@ export class GraphPage {
     await this.page.getByTestId(`rf-add-to-chat-${stepId}`).click();
   }
 
+  primaryEdgeInto(targetStepId: string): Locator {
+    return this.page.locator(`[data-testid$='-${targetStepId}-primary']`);
+  }
+
+  async openEdgeMenu(targetStepId: string) {
+    const edge = this.primaryEdgeInto(targetStepId);
+    await expect(edge.first()).toBeVisible({ timeout: 10_000 });
+    await edge.first().click({ force: true });
+    await expect(this.edgeContextMenuOperatorGrid).toBeVisible({
+      timeout: 5_000,
+    });
+  }
+
+  async changeOperator(
+    targetStepId: string,
+    op: "UNION" | "INTERSECT" | "MINUS" | "RMINUS",
+  ) {
+    await this.openEdgeMenu(targetStepId);
+    const labelByOp: Record<typeof op, string> = {
+      UNION: "Set operator to Union",
+      INTERSECT: "Set operator to Intersect",
+      MINUS: "Set operator to A only",
+      RMINUS: "Set operator to B only",
+    };
+    await this.edgeContextMenuOperatorGrid
+      .getByRole("menuitemradio", { name: labelByOp[op] })
+      .click();
+  }
+
   // ── Navigation helpers ──────────────────────────────────────────
 
   /** Navigate directly to the strategy editor route for a conversation. */

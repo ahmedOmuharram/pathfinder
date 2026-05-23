@@ -425,6 +425,7 @@ async def _prepare_scratchpad_tools(
 
 def build_scratchpad_toolset() -> AbstractToolset[AgentDeps]:
     base = FunctionToolset[AgentDeps](
+        max_retries=3,
         tools=[
             note,
             update_note,

@@ -9,6 +9,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Literal
 
+from pathfinder.domain.parameters.values import from_wire
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.tree import walk_plan_tree
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
@@ -214,7 +215,9 @@ async def run_sweep_point(
             )
         else:
             modified_params = dict(exp.config.parameters)
-            modified_params[param_name] = value
+            existing = modified_params.get(param_name)
+            kind = existing.type if existing is not None else "string"
+            modified_params[param_name] = from_wire(kind, value)
             result = await asyncio.wait_for(
                 run_positive_negative_controls(
                     IntersectionConfig.from_experiment_config(
@@ -261,8 +264,10 @@ async def _run_sweep_point_tree(
     tree = exp.config.step_tree.model_copy(deep=True)
 
     def _inject(node: StrategyStepNode) -> None:
-        if param_name in node.parameters:
-            node.parameters[param_name] = value
+        existing = node.parameters.get(param_name)
+        if existing is None:
+            return
+        node.parameters[param_name] = from_wire(existing.type, value)
 
     walk_plan_tree(tree, _inject)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
@@ -21,7 +22,7 @@ class OptimizationTarget(BaseModel):
     site_id: str = ""
     record_type: str = "transcript"
     search_name: str
-    fixed_parameters: dict[str, str] = Field(default_factory=dict)
+    fixed_parameters: dict[str, ParamValue] = Field(default_factory=dict)
     parameter_space: list[dict[str, object]] = Field(default_factory=list)
 
 
@@ -35,7 +36,7 @@ class OptimizationControls(BaseModel):
     controls_search_name: str = "GeneByLocusTag"
     controls_param_name: str = "ds_gene_ids"
     controls_value_format: str = "newline"
-    controls_extra_parameters: dict[str, str] = Field(default_factory=dict)
+    controls_extra_parameters: dict[str, ParamValue] = Field(default_factory=dict)
     id_field: str = "primary_key"
 
 
@@ -67,7 +68,7 @@ class OptimizationSettings(BaseModel):
 def _parse_and_validate_inputs(
     target: OptimizationTarget,
     controls: OptimizationControls,
-) -> tuple[list[ParameterSpec], dict[str, str], dict[str, str]]:
+) -> tuple[list[ParameterSpec], dict[str, ParamValue], dict[str, ParamValue]]:
     """Parse and validate optimization inputs, returning specs and fixed params."""
     specs = [ParameterSpec.model_validate(raw) for raw in target.parameter_space]
     if not specs:

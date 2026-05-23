@@ -13,7 +13,7 @@ function renderKind<K extends DataPartKind>(
   });
 }
 
-// ts-pattern exhaustive dispatch over all 15 data-part kinds.
+// ts-pattern exhaustive dispatch over all DataPartKind literals.
 // If DataPartKind gains a new literal, .exhaustive() fails compilation.
 export function DataPartRenderer({
   kind,
@@ -23,8 +23,9 @@ export function DataPartRenderer({
   data: unknown;
 }) {
   return match(kind)
-    .with("data-phase-start", (k) => renderKind(k, data))
-    .with("data-phase-change", (k) => renderKind(k, data))
+    .with("data-sub-agent-call", (k) => renderKind(k, data))
+    .with("data-sub-agent-step", (k) => renderKind(k, data))
+    .with("data-ledger-update", (k) => renderKind(k, data))
     .with("data-background-task-started", (k) => renderKind(k, data))
     .with("data-task-progress", (k) => renderKind(k, data))
     .with("data-task-completed", (k) => renderKind(k, data))
@@ -42,14 +43,6 @@ export function DataPartRenderer({
     .with("data-gene-set", (k) => renderKind(k, data))
     .with("data-verification-summary", (k) => renderKind(k, data))
     .with("data-conversation-title", (k) => renderKind(k, data))
-    .with("data-turn-rejected", (k) => renderKind(k, data))
-    .with("data-turn-qa", (k) => renderKind(k, data))
-    .with("data-supervisor-decision", (k) => renderKind(k, data))
-    .with("data-supervisor-context", (k) => renderKind(k, data))
-    .with("data-specialist-suggestion", (k) => renderKind(k, data))
-    .with("data-specialist-entered", (k) => renderKind(k, data))
-    .with("data-specialist-exited", (k) => renderKind(k, data))
-    .with("data-optimize-launch", (k) => renderKind(k, data))
     .with("data-scratchpad-updated", (k) => renderKind(k, data))
     .with("data-turn-usage", (k) => renderKind(k, data))
     .exhaustive();

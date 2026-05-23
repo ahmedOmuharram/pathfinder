@@ -5,10 +5,10 @@ from typing import Annotated, Literal
 
 from pydantic import Discriminator, Field
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONObject
 
 
 class DeleteResolution(StrEnum):
@@ -69,7 +69,7 @@ class ReplaceSubtreeOp(CamelModel):
 class UpdateStepParamsOp(CamelModel):
     kind: Literal["updateStepParams"] = "updateStepParams"
     step_id: str
-    parameters: JSONObject
+    parameters: dict[str, ParamValue]
 
 
 class UpdateCombineOperatorOp(CamelModel):

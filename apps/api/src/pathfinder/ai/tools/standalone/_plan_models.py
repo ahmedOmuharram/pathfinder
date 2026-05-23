@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import uuid4
 
 from pydantic import (
@@ -11,10 +12,13 @@ from pydantic import (
     JsonValue,
     TypeAdapter,
     ValidationError,
+    model_validator,
 )
 from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.values import ParamValue, as_param_kind
+from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
     PlannedConnection,
@@ -27,9 +31,48 @@ from pathfinder.domain.strategy.plan import (
     StrategyPlan,
     UserQuestion,
 )
-from pathfinder.domain.strategy.types import DecodedParamsField
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONArray, JSONObject
+
+UnfilledSlotReason = Literal["needs_discovery", "needs_user_input"]
+_PARAM_STATUS_FOR_REASON: dict[UnfilledSlotReason, ParamStatus] = {
+    "needs_discovery": ParamStatus.NEEDS_DISCOVERY,
+    "needs_user_input": ParamStatus.NEEDS_USER_INPUT,
+}
+
+
+class UnfilledSlotInput(BaseModel):
+    """A parameter slot the planning agent cannot fill from discovery.
+
+    The planner emits one of these when (a) the parameter's vocabulary is
+    unknown and discovery must enumerate it (``needs_discovery``), or (b)
+    the vocabulary is known but the user's intent does not map cleanly
+    to one option and the user must answer (``needs_user_input``). For
+    ``needs_user_input``, ``question`` is required so the submit_plan
+    card can render a form field; for ``needs_discovery``, the supervisor
+    routes back to discovery scoped to this parameter.
+    """
+
+    name: str
+    reason: UnfilledSlotReason
+    question: UserQuestionInput | None = None
+
+    @model_validator(mode="after")
+    def _question_required_for_user_input(self) -> UnfilledSlotInput:
+        if self.reason == "needs_user_input" and self.question is None:
+            msg = (
+                "UnfilledSlotInput.question is required when "
+                "reason='needs_user_input' — the question is what the "
+                "submit_plan card renders as a form field for the user."
+            )
+            raise ValueError(msg)
+        return self
+
+
+_OPERATOR_STRINGS_AS_SEARCH_NAME: frozenset[str] = frozenset({
+    "intersect", "union", "minus", "rminus",
+    "lonly", "ronly", "colocate",
+})
 
 
 class PlannedStepInput(BaseModel):
@@ -43,8 +86,24 @@ class PlannedStepInput(BaseModel):
     record_type: str = "transcript"
     rationale: str = ""
     step_type: StepType = StepType.LEAF
-    parameters: DecodedParamsField = Field(default_factory=dict)
+    parameters: dict[str, ParamValue] = Field(
+        default_factory=dict,
+        description=(
+            "Each value MUST be wrapped in its typed shape (`type` discriminator). "
+            "Use the `valueFormat` field from `get_search_overview` per param. "
+            'Example: `{"organism": {"type": "multi-pick-vocabulary", "values": ["Pf3D7"]}}`.'
+        ),
+    )
+    unfilled_slots: list[UnfilledSlotInput] = Field(default_factory=list)
     operator: str | None = None
+
+    @model_validator(mode="after")
+    def _normalize_combine_search_name(self) -> PlannedStepInput:
+        if self.step_type != StepType.COMBINE:
+            return self
+        if self.search_name.lower() in _OPERATOR_STRINGS_AS_SEARCH_NAME or not self.search_name:
+            self.search_name = COMBINE_SEARCH_NAME
+        return self
 
 class PlannedConnectionInput(BaseModel):
     """Input model for a planned connection from the LLM."""
@@ -75,7 +134,14 @@ class StepPatch(BaseModel):
     step_id: str
     search_name: str | None = None
     display_name: str | None = None
-    parameters: DecodedParamsField | None = None
+    parameters: dict[str, ParamValue] | None = Field(
+        default=None,
+        description=(
+            "Each value MUST be wrapped in its typed shape (`type` discriminator). "
+            "See `valueFormat` from `get_search_overview` for the per-param template."
+        ),
+    )
+    unfilled_slots: list[UnfilledSlotInput] | None = None
     rationale: str | None = None
     operator: str | None = None
 
@@ -127,12 +193,21 @@ def _convert_step(
 
     When *param_specs* is provided (keyed by parameter name), real WDK
     metadata (param_type, description, depends_on, required) is used
-    instead of the default ``"string"`` placeholder.
+    instead of the default ``"string"`` placeholder. ``unfilled_slots``
+    overrides ``parameters``: if a name appears in both, the slot wins
+    (the explicit gap is the source of truth — prevents the agent from
+    emitting a guess AND a question for the same param).
     """
-    params: list[PlannedParameter] = [
-        _build_param(name, value, param_specs.get(name) if param_specs else None)
-        for name, value in s.parameters.items()
-    ]
+    unfilled_by_name = {slot.name: slot for slot in s.unfilled_slots}
+    params: list[PlannedParameter] = []
+    for name, value in s.parameters.items():
+        if name in unfilled_by_name:
+            continue
+        spec = param_specs.get(name) if param_specs else None
+        params.append(_build_param(name, value, spec))
+    for slot in s.unfilled_slots:
+        spec = param_specs.get(slot.name) if param_specs else None
+        params.append(_build_unfilled_param(slot, spec))
     return PlannedStep(
         id=s.id,
         search_name=s.search_name,
@@ -145,31 +220,60 @@ def _convert_step(
         operator=s.operator,
     )
 
-def _build_param(
-    name: str,
-    value: JsonValue,
+
+def _build_unfilled_param(
+    slot: UnfilledSlotInput,
     spec: ParamSpecNormalized | None,
 ) -> PlannedParameter:
-    """Build a PlannedParameter, enriching from the WDK spec.
+    """Construct a PlannedParameter for an unfilled slot.
 
-    The spec is mandatory. Silent fallback to ``param_type="string"`` is
-    forbidden because the frontend widget registry requires real WDK types
-    (treebox, typeahead, select, checkbox, number, ...) to render the
-    correct input. A bogus "string" type corrupts the UI layer.
+    Spec is required (same rationale as ``_build_param``): the frontend
+    widget registry needs the real WDK type to render the right form
+    control. Only the status differs from a SET param.
     """
     if spec is None:
         msg = (
+            f"Cannot build PlannedParameter for unfilled slot {slot.name!r}: "
+            "no WDK ParamSpec available. Discovery must inspect the search "
+            "before planning emits unfilled slots for it."
+        )
+        raise ValueError(msg)
+    kind = as_param_kind(spec.param_type)
+    return PlannedParameter(
+        name=slot.name,
+        display_name=slot.name,
+        param_type=kind,
+        value=None,
+        status=_PARAM_STATUS_FOR_REASON[slot.reason],
+        required=not spec.allow_empty_value,
+        description=spec.help,
+        depends_on=list(spec.dependent_params),
+        constraints=_build_constraints(spec),
+        options=_extract_vocab_values(spec.vocabulary),
+    )
+
+def _build_param(
+    name: str,
+    value: ParamValue | None,
+    spec: ParamSpecNormalized | None,
+) -> PlannedParameter:
+    if spec is None:
+        msg = (
             f"Cannot build PlannedParameter for {name!r}: no WDK ParamSpec "
-            "available. Callers must supply a spec (or run discovery first). "
-            "Silent fallback to param_type='string' is forbidden — the "
-            "frontend widget registry requires real WDK types to render "
-            "the correct input."
+            "available. Callers must supply a spec (or run discovery first)."
+        )
+        raise ValueError(msg)
+    kind = as_param_kind(spec.param_type)
+    if value is not None and value.type != kind:
+        msg = (
+            f"PlannedParameter {name!r}: value.type {value.type!r} does not "
+            f"match spec.param_type {kind!r}"
         )
         raise ValueError(msg)
     return PlannedParameter(
         name=name,
         display_name=name,
-        param_type=spec.param_type,
+        param_type=kind,
         value=value,
         status=ParamStatus.SET if value is not None else ParamStatus.NEEDS_DISCOVERY,
         required=not spec.allow_empty_value,
@@ -283,7 +387,16 @@ def _validate_domain_parameters(
     plan: StrategyPlan,
     agent_state: object,
 ) -> None:
-    """Validate that leaf steps have required parameters set."""
+    """Validate that leaf steps have required parameters set.
+
+    NEEDS_DISCOVERY and NEEDS_USER_INPUT count as legitimate slot states —
+    they're the explicit-gap protocol from Stage A, not errors. The
+    submit-time guard in ``submit_plan`` and the execution-time refusal
+    in ``build_strategy_from_spec`` enforce that NEEDS_* are resolved
+    before the plan ships to WDK; ``_validate_domain_parameters`` only
+    catches *silently* unset required params.
+    """
+    legit_unset = {ParamStatus.NEEDS_DISCOVERY, ParamStatus.NEEDS_USER_INPUT}
     non_leaf_ids = {c.to_step for c in plan.connections}
     for step in plan.steps:
         if step.id in non_leaf_ids:
@@ -291,7 +404,9 @@ def _validate_domain_parameters(
         if step.step_type == StepType.LEAF:
             missing = [
                 param.name for param in step.parameters
-                if param.required and param.status != ParamStatus.SET
+                if param.required
+                and param.status != ParamStatus.SET
+                and param.status not in legit_unset
             ]
             if missing:
                 msg = (
@@ -321,27 +436,60 @@ def _apply_step_patches(
                 f"Valid step ids: {sorted(step_map.keys())}."
             )
             raise ModelRetry(msg)
-        if patch.search_name is not None:
-            step.search_name = patch.search_name
-        if patch.display_name is not None:
-            step.display_name = patch.display_name
-        if patch.rationale is not None:
-            step.rationale = patch.rationale
-        if patch.operator is not None:
-            step.operator = patch.operator
+        _apply_metadata_patch(step, patch)
+        param_specs = (
+            specs_by_search.get(step.search_name)
+            if specs_by_search
+            else None
+        )
         if patch.parameters is not None:
-            param_specs = (
-                specs_by_search.get(step.search_name)
-                if specs_by_search
-                else None
-            )
-            for name, value in patch.parameters.items():
-                existing = next(
-                    (p for p in step.parameters if p.name == name), None,
-                )
-                if existing is not None:
-                    existing.value = value
-                    existing.status = ParamStatus.SET
-                else:
-                    spec = param_specs.get(name) if param_specs else None
-                    step.parameters.append(_build_param(name, value, spec))
+            _apply_parameters_patch(step, patch.parameters, param_specs)
+        if patch.unfilled_slots is not None:
+            _apply_unfilled_slots_patch(step, patch.unfilled_slots, param_specs)
+
+
+def _apply_metadata_patch(step: PlannedStep, patch: StepPatch) -> None:
+    if patch.search_name is not None:
+        step.search_name = patch.search_name
+    if patch.display_name is not None:
+        step.display_name = patch.display_name
+    if patch.rationale is not None:
+        step.rationale = patch.rationale
+    if patch.operator is not None:
+        step.operator = patch.operator
+
+
+def _apply_parameters_patch(
+    step: PlannedStep,
+    parameters: dict[str, ParamValue],
+    param_specs: dict[str, ParamSpecNormalized] | None,
+) -> None:
+    for name, value in parameters.items():
+        existing = next(
+            (p for p in step.parameters if p.name == name), None,
+        )
+        if existing is not None:
+            existing.value = value
+            existing.status = ParamStatus.SET
+        else:
+            spec = param_specs.get(name) if param_specs else None
+            step.parameters.append(_build_param(name, value, spec))
+
+
+def _apply_unfilled_slots_patch(
+    step: PlannedStep,
+    slots: list[UnfilledSlotInput],
+    param_specs: dict[str, ParamSpecNormalized] | None,
+) -> None:
+    for slot in slots:
+        spec = param_specs.get(slot.name) if param_specs else None
+        existing = next(
+            (p for p in step.parameters if p.name == slot.name), None,
+        )
+        rebuilt = _build_unfilled_param(slot, spec)
+        if existing is not None:
+            existing.value = None
+            existing.status = rebuilt.status
+            existing.param_type = rebuilt.param_type
+        else:
+            step.parameters.append(rebuilt)

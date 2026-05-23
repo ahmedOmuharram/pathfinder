@@ -15,7 +15,6 @@ from pathfinder.ai.scratchpad._ids import approx_body_tokens
 from pathfinder.ai.scratchpad.models import CompactionRun, Note, NoteCreate
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
 from pathfinder.platform.logging import get_logger
-from pathfinder.services import user_preferences as prefs_service
 
 logger = get_logger(__name__)
 
@@ -62,13 +61,12 @@ async def maybe_compact_scratchpad(
     repeated LLM calls that cannot reduce the count — see MAJOR 2 in the
     scratchpad design review.
     """
+    del user_id
     async with db_session_factory() as session:
         repo = ScratchpadRepository(session)
         compactable_count, compactable_tokens = await repo.compactable_totals(
             conversation_id=conversation_id,
         )
-        # Separate read for the audit row's "before_*" fields — users expect
-        # the audit log to reflect the full scratchpad size at trigger time.
         total_count, total_tokens = await repo.totals(
             conversation_id=conversation_id,
         )
@@ -87,11 +85,9 @@ async def maybe_compact_scratchpad(
         non_pinned = await repo.list_notes(
             conversation_id=conversation_id, pinned=False, limit=1000,
         )
-        model_id = await prefs_service.resolve_supervisor_model_id(
-            session, user_id=user_id, conversation_id=conversation_id,
-        )
 
-    agent = build_compactor_agent(model_id=model_id)
+    agent = build_compactor_agent(model_id=None)
+    model_id: str | None = None
     deps = CompactorDeps(
         input_notes_markdown=_format_notes_for_compactor(non_pinned),
     )

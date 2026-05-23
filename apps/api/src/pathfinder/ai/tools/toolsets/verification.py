@@ -90,14 +90,15 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
     (see ``transport/http/routers/launchers.py``).
     """
     base: FunctionToolset[AgentDeps] = FunctionToolset(
+        max_retries=3,
         tools=[
             get_estimated_size,
             get_sample_records,
             get_download_url,
-            Tool(run_control_tests_on_step, sequential=True),
+            Tool(run_control_tests_on_step, sequential=True, max_retries=3),
             run_control_tests_on_search,
             create_workbench_gene_set,
-            Tool(run_gene_set_enrichment, sequential=True),
+            Tool(run_gene_set_enrichment, sequential=True, max_retries=3),
             list_workbench_gene_sets,
             export_gene_set,
             get_evaluation_summary,

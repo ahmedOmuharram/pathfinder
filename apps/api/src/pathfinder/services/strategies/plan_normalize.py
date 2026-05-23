@@ -1,32 +1,32 @@
 """Strategy plan normalization helpers.
 
-Produce canonical JSON shapes for frontend consumption. Multi-pick becomes
-list[str], ranges become ``{min, max}``, etc.
+Produce canonicalized typed parameter values for frontend consumption.
+Multi-pick values are vocab-matched + leaf-enforced, ranges are
+normalized, scalars are bounds-checked — all expressed as the typed
+``ParamValue`` discriminated union.
 """
 
 import hashlib
 import json
 from collections.abc import Awaitable, Callable, Mapping
 
-from pydantic import JsonValue
-
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearchResponse
 from pathfinder.platform.errors import ValidationError, WDKError
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.wdk import get_strategy_api
 
-"""Callback that loads WDK search details for a (record_type, search_name)
-pair, returning a fully validated ``WDKSearchResponse``."""
 LoadSearchDetails = Callable[
-    [str, str, Mapping[str, JsonValue]],
+    [str, str, Mapping[str, ParamValue]],
     Awaitable[WDKSearchResponse],
 ]
+"""Callback that loads WDK search details for a (record_type, search_name)
+pair, returning a fully validated ``WDKSearchResponse``."""
 
 async def make_search_detail_loader(site_id: str) -> LoadSearchDetails:
     """Create a search detail loader for a site.
@@ -38,7 +38,7 @@ async def make_search_detail_loader(site_id: str) -> LoadSearchDetails:
     api = get_strategy_api(site_id)
 
     async def _load(
-        record_type: str, name: str, params: Mapping[str, JsonValue],
+        record_type: str, name: str, params: Mapping[str, ParamValue],
     ) -> WDKSearchResponse:
         context = encode_params(dict(params))
         try:
@@ -52,7 +52,7 @@ async def make_search_detail_loader(site_id: str) -> LoadSearchDetails:
 
     return _load
 
-def _strip_combine_bq_keys(params: DecodedParams) -> None:
+def _strip_combine_bq_keys(params: dict[str, ParamValue]) -> None:
     """Remove WDK boolean-question parameter keys from a combine node's params dict."""
     for k in list(params.keys()):
         key = str(k)
@@ -65,10 +65,11 @@ async def _load_and_cache_spec(
     record_type: str,
     name: str,
     site_id: str,
-    params: DecodedParams,
+    params: dict[str, ParamValue],
 ) -> dict[str, ParamSpecNormalized]:
     """Load search spec into cache if not already present, then return it."""
-    ctx_raw = json.dumps(params, sort_keys=True, default=str)
+    encoded = encode_params(params)
+    ctx_raw = json.dumps(encoded, sort_keys=True, default=str)
     ctx_hash = hashlib.sha256(ctx_raw.encode("utf-8")).hexdigest()
     cache_key = (record_type, name, ctx_hash)
     cached = specs_cache.get(cache_key)
@@ -114,7 +115,7 @@ async def canonicalize_strategy_ast_parameters(
 
     async def canonicalize_node(node: StrategyStepNode) -> None:
         name = node.search_name
-        params: DecodedParams = dict(node.parameters)
+        params: dict[str, ParamValue] = dict(node.parameters)
 
         is_combine = (
             (node.primary_input is not None and node.secondary_input is not None)

@@ -3,7 +3,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   Bookmark,
-  Brain,
   Layers,
   MessageCircle,
   PanelLeft,
@@ -41,7 +40,6 @@ interface AppNavRailProps {
   siteId: string;
   onSiteChange: (siteId: string) => void;
   onOpenSettings: () => void;
-  onOpenEngine: () => void;
   onToggleSidebar: () => void;
   sidebarExpanded: boolean;
 }
@@ -62,7 +60,6 @@ export function AppNavRail({
   siteId,
   onSiteChange,
   onOpenSettings,
-  onOpenEngine,
   onToggleSidebar,
   sidebarExpanded,
 }: AppNavRailProps) {
@@ -121,20 +118,6 @@ export function AppNavRail({
 
         <div className="mt-auto flex flex-col items-center gap-1">
           <SiteSwitcherButton siteId={siteId} onChange={onSiteChange} />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onOpenEngine}
-                aria-label="AI Engine"
-              >
-                <Brain className="h-4 w-4" aria-hidden />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">AI Engine</TooltipContent>
-          </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>

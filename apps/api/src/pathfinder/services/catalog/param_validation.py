@@ -13,6 +13,12 @@ from pathfinder.domain.parameters.specs import (
     find_missing_required_params,
     topological_fill_order,
 )
+from pathfinder.domain.parameters.values import (
+    ParamValue,
+    as_param_kind,
+    from_decoded,
+    to_decoded_map,
+)
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery_service import (
     DiscoveryService,
@@ -95,10 +101,35 @@ class ValidationCallbacks:
     find_record_type_hint: Callable[[str, str | None], Awaitable[str | None]]
     validation_error_payload: Callable[[ValidationError], ToolErrorPayload] | None = None
 
+
+def _fill_required_defaults(
+    param_spec_map: dict[str, ParamSpecNormalized],
+    canonical: dict[str, ParamValue],
+) -> dict[str, ParamValue]:
+    filled = dict(canonical)
+    for name, spec in param_spec_map.items():
+        if name in filled:
+            continue
+        default = spec.initial_display_value
+        if default is None or default == "":
+            continue
+        is_required = (
+            not spec.allow_empty_value
+            or (
+                spec.min_selected_count is not None
+                and spec.min_selected_count >= 1
+            )
+        )
+        if not is_required:
+            continue
+        filled[name] = from_decoded(as_param_kind(spec.param_type), default)
+    return filled
+
+
 async def validate_search_params(
     ctx: SearchContext,
     *,
-    context_values: JSONObject | None,
+    context_values: dict[str, ParamValue] | None,
 ) -> ValidationResponse:
     """Validate and canonicalize search parameters for UI consumption.
 
@@ -108,8 +139,7 @@ async def validate_search_params(
     The goal is to keep the frontend a consumer of backend normalization + validation,
     without requiring the UI to interpret raw WDK payloads.
     """
-    raw_context = context_values or {}
-    normalized_context: JSONObject = {}
+    raw_context: dict[str, ParamValue] = context_values or {}
     response: WDKSearchResponse | None = None
     allowed: set[str] = set()
 
@@ -154,15 +184,17 @@ async def validate_search_params(
             )
         )
 
+    decoded_normalized = to_decoded_map(normalized_context)
+
     # Required checks using raw WDK specs (keeps semantics aligned with WDK).
-    missing = find_missing_required_params(spec_map, normalized_context)
+    missing = find_missing_required_params(spec_map, decoded_normalized)
 
     if missing:
         by_key = {name: ["Required"] for name in missing}
         return ValidationResponse(
             validation=ValidationResult(
                 is_valid=False,
-                normalized_context_values=normalized_context,
+                normalized_context_values=decoded_normalized,
                 errors=ValidationErrors(
                     general=[f"Missing required parameters: {', '.join(missing)}"],
                     by_key=by_key,
@@ -173,7 +205,7 @@ async def validate_search_params(
     return ValidationResponse(
         validation=ValidationResult(
             is_valid=True,
-            normalized_context_values=normalized_context,
+            normalized_context_values=decoded_normalized,
         )
     )
 
@@ -181,7 +213,7 @@ async def _resolve_search_details(
     ctx: SearchContext,
     *,
     resolved_record_type: str,
-    parameters: JSONObject,
+    parameters: dict[str, ParamValue],
 ) -> WDKSearchResponse:
     """Fetch search details with contextual params, with fallback.
 
@@ -265,17 +297,9 @@ async def _find_search_record_type_hint(
 async def validate_parameters(
     ctx: SearchContext,
     *,
-    parameters: JSONObject,
+    parameters: dict[str, ParamValue],
     callbacks: ValidationCallbacks,
-) -> JSONObject:
-    """Validate parameters against WDK search specs.
-
-    Returns the **canonicalized** parameters as a new dict (decoded form:
-    multi-pick → ``list[str]``, single-pick → ``str``, ranges → dict).
-    Does NOT mutate *parameters*. Raises ``ValidationError`` when the
-    search is unknown, extra/unknown parameters are provided, or required
-    parameters are missing.
-    """
+) -> dict[str, ParamValue]:
     resolved_record_type = await callbacks.resolve_record_type_for_search(
         ctx.record_type, ctx.search_name, require_match=True, allow_fallback=True
     )
@@ -304,7 +328,7 @@ async def validate_parameters(
 
     param_spec_map = adapt_param_specs_from_search(response.search_data)
     canonicalizer = ParameterCanonicalizer(param_spec_map)
-    canonical: JSONObject = canonicalizer.canonicalize(parameters)
+    canonical: dict[str, ParamValue] = canonicalizer.canonicalize(parameters)
     refreshed_ctx = SearchContext(
         site_id=ctx.site_id,
         record_type=resolved_record_type,
@@ -338,7 +362,10 @@ async def validate_parameters(
                 }
             ],
         )
-    invalid_dependents = find_dependent_value_violations(param_spec_map, canonical)
+    decoded_canonical = to_decoded_map(canonical)
+    invalid_dependents = find_dependent_value_violations(
+        param_spec_map, decoded_canonical,
+    )
     if invalid_dependents:
         full_param_spec = format_normalized_param_info(param_spec_map)
         serialized_spec = [
@@ -380,7 +407,8 @@ async def validate_parameters(
             ],
         )
 
-    missing = find_missing_required_params(param_spec_map, canonical)
+    canonical = _fill_required_defaults(param_spec_map, canonical)
+    missing = find_missing_required_params(param_spec_map, to_decoded_map(canonical))
 
     if missing:
         full_param_spec = format_normalized_param_info(param_spec_map)
@@ -408,7 +436,7 @@ async def _refresh_dependent_vocabularies(
     *,
     ctx: SearchContext,
     param_spec_map: dict[str, ParamSpecNormalized],
-    canonical_values: JSONObject,
+    canonical_values: dict[str, ParamValue],
 ) -> dict[str, ParamSpecNormalized]:
     """Walk parents in topological order and refresh each dependent param's
     vocabulary against the parent's *canonical* value.
@@ -422,11 +450,12 @@ async def _refresh_dependent_vocabularies(
     """
     next_specs = dict(param_spec_map)
     fill_order = topological_fill_order(next_specs)
+    decoded_values = to_decoded_map(canonical_values)
     for parent_name in fill_order:
         parent = next_specs.get(parent_name)
         if parent is None or not parent.dependent_params:
             continue
-        parent_value = canonical_values.get(parent_name)
+        parent_value = decoded_values.get(parent_name)
         if parent_value in (None, "", [], {}):
             continue
         try:

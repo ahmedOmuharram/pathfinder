@@ -13,11 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.capabilities.repetition_guard import ToolRepetitionGuard
 from pathfinder.ai.graph.state import (
-    PhaseName,
-    PhaseOutcome,
     PipelineState,
+    PlanSlotAnswer,
     ProblemFrame,
-    SupervisorEvent,
 )
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.session import StrategySession
@@ -66,15 +64,8 @@ class AgentDeps(BaseModel):
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
     conversation_id: UUID | None = None
     db_session_factory: SkipValidation[DBSessionFactory] | None = None
-    last_phase_outcome: PhaseOutcome | None = None
-    last_phase_name: PhaseName | None = None
-    # Specialist mode payload threaded into deps so the validate /
-    # research agents' module-level dynamic instructions can read it
-    # without registering a new closure per turn (which would leak on
-    # the singleton agent).
-    specialist_mode: object | None = None
-    supervisor_log: list[SupervisorEvent] = Field(default_factory=list)
     writer: SkipValidation[Any] = None
+    plan_slot_answers: list[PlanSlotAnswer] = Field(default_factory=list)
 
 
 def build_node_deps(
@@ -86,6 +77,16 @@ def build_node_deps(
     agent_state = AgentToolState(
         discovered_searches=dict(state.discovered_searches),
         active_plan=state.active_plan,
+    )
+    pending_id = (
+        state.pending_approval.tool_call_id
+        if state.pending_approval is not None
+        else None
+    )
+    slot_answers = (
+        state.plan_slot_answers.get(pending_id, [])
+        if pending_id is not None
+        else []
     )
     return AgentDeps(
         site_id=context.site_id,
@@ -101,10 +102,7 @@ def build_node_deps(
         retrieved_memories=memories or [],
         conversation_id=state.conversation_id,
         db_session_factory=context.db_session_factory,
-        last_phase_outcome=state.last_phase_outcome,
-        last_phase_name=state.current_phase,
-        specialist_mode=state.specialist_mode,
-        supervisor_log=state.supervisor_log,
+        plan_slot_answers=list(slot_answers),
     )
 
 

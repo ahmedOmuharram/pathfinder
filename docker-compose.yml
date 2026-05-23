@@ -5,6 +5,9 @@ services:
       dockerfile: apps/api/Dockerfile
     ports:
       - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       API_ENV: ${API_ENV:-production}
       API_SECRET_KEY: ${API_SECRET_KEY:-}
@@ -40,6 +43,9 @@ services:
     # ``restart: always`` if the worker loop dies.
     healthcheck:
       disable: true
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       API_ENV: ${API_ENV:-production}
       API_SECRET_KEY: ${API_SECRET_KEY:-}

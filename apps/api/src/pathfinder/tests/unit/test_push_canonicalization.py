@@ -11,6 +11,11 @@ from collections.abc import Mapping
 import pytest
 from pydantic import JsonValue
 
+from pathfinder.domain.parameters.values import (
+    MultiPickValue,
+    NumberValue,
+    StringValue,
+)
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.domain.strategy.validation import StepValidation
@@ -85,7 +90,7 @@ async def test_canonicalize_expands_parent_to_leaves():
         record_type="transcript",
         root=StrategyStepNode(
             search_name="GenesByTaxon",
-            parameters={"organism": ["Plasmodium"]},
+            parameters={"organism": MultiPickValue(values=["Plasmodium"])},
             id="step_1",
         ),
     )
@@ -113,7 +118,7 @@ async def test_canonicalize_expands_parent_to_leaves():
     )
 
     # Parent "Plasmodium" must be expanded to leaf nodes.
-    assert result.root.parameters["organism"] == ["Pf3D7", "PvP01"]
+    assert result.root.parameters["organism"] == MultiPickValue(values=["Pf3D7", "PvP01"])
 
 async def test_canonicalize_validates_unknown_param():
     """Unknown parameters must raise ValidationError, not pass through."""
@@ -121,7 +126,7 @@ async def test_canonicalize_validates_unknown_param():
         record_type="transcript",
         root=StrategyStepNode(
             search_name="GenesByTaxon",
-            parameters={"bogus_param": "value"},
+            parameters={"bogus_param": StringValue(value="value")},
             id="step_1",
         ),
     )
@@ -154,16 +159,16 @@ async def test_canonicalize_leaves_combine_nodes_untouched():
         record_type="transcript",
         root=StrategyStepNode(
             search_name="BooleanQuestion",
-            parameters={"bq_operator": "INTERSECT"},
+            parameters={"bq_operator": StringValue(value="INTERSECT")},
             operator="INTERSECT",
             primary_input=StrategyStepNode(
                 search_name="GenesByTaxon",
-                parameters={"organism": ["Pf3D7"]},
+                parameters={"organism": MultiPickValue(values=["Pf3D7"])},
                 id="step_1",
             ),
             secondary_input=StrategyStepNode(
                 search_name="GenesByTextSearch",
-                parameters={"text_expression": "kinase"},
+                parameters={"text_expression": StringValue(value="kinase")},
                 id="step_2",
             ),
             id="step_combine",
@@ -207,9 +212,9 @@ async def test_canonicalize_leaves_combine_nodes_untouched():
 
     # Children still canonicalized
     assert result.root.primary_input is not None
-    assert result.root.primary_input.parameters["organism"] == ["Pf3D7"]
+    assert result.root.primary_input.parameters["organism"] == MultiPickValue(values=["Pf3D7"])
     assert result.root.secondary_input is not None
-    assert result.root.secondary_input.parameters["text_expression"] == "kinase"
+    assert result.root.secondary_input.parameters["text_expression"] == StringValue(value="kinase")
 
 async def test_canonicalize_numeric_range_validation():
     """Out-of-range numeric values must be caught."""
@@ -217,7 +222,7 @@ async def test_canonicalize_numeric_range_validation():
         record_type="transcript",
         root=StrategyStepNode(
             search_name="GenesByExpression",
-            parameters={"fold_change": "999"},
+            parameters={"fold_change": NumberValue(value=999)},
             id="step_1",
         ),
     )

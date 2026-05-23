@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -19,70 +18,6 @@ from pathfinder.persistence.models import Conversation, Message
 from pathfinder.persistence.session import async_session_factory
 
 PREFERENCE_MIN_SUCCESSES = 3
-
-
-@dataclass(frozen=True)
-class DraftWriteContext:
-    """Identity and tagging context for a batched specialist-driven write."""
-
-    user_id: UUID
-    site_id: str
-    kind: str
-    source_conversation_id: UUID | None = None
-    key_prefix: str | None = None
-
-
-async def write_drafts_with_tombstones(
-    *,
-    store: MemoryStore,
-    tombstones: TombstoneRepository,
-    drafts: list[MemoryEntryDraft],
-    context: DraftWriteContext,
-) -> int:
-    """Write a batch of drafts to the Store, skipping any whose content
-    matches a user-deleted tombstone. Returns the number of memories
-    actually written.
-
-    Used by ``exit_specialist`` so a specialist's parting findings do not
-    re-introduce memories the user has previously removed. Tags get the
-    ``site_id`` automatically when present.
-    """
-    if not drafts:
-        return 0
-    values: list[tuple[MemoryValue, str]] = []
-    prefix = context.key_prefix or f"{context.kind}:specialist"
-    for idx, draft in enumerate(drafts):
-        tags = list(draft.tags)
-        if context.site_id and context.site_id not in tags:
-            tags.append(context.site_id)
-        value = MemoryValue.model_validate({
-            "kind": context.kind,
-            "name": draft.name,
-            "summary": draft.summary,
-            "tags": tags,
-            "site_id": context.site_id,
-            "content": dict(draft.content),
-            "auto_retrieve": True,
-            "source_conversation_id": context.source_conversation_id,
-            "created_at": datetime.now(UTC),
-        })
-        key = f"{prefix}:{idx}"
-        if context.source_conversation_id is not None:
-            key = (
-                f"{prefix}:{context.source_conversation_id.hex}:{idx}"
-            )
-        values.append((value, key))
-    tombstoned = await tombstones.existing_hashes(
-        user_id=context.user_id, values=[v for v, _key in values],
-    )
-    written = 0
-    for value, key in values:
-        content_hash = compute_content_hash(value.content)
-        if (value.kind, content_hash) in tombstoned:
-            continue
-        await store.put(user_id=context.user_id, value=value, key=key)
-        written += 1
-    return written
 
 
 async def auto_write_memories(

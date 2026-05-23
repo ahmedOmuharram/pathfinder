@@ -20,15 +20,15 @@ are deleted in the same change set.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import (
     COMBINE_SEARCH_NAME,
     StrategyStepNode,
     walk_step_tree,
 )
+from pathfinder.domain.strategy.build_outcome import BuildOutcome, StepPushFailure
 from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.param_validation import validate_parameters
@@ -44,31 +44,6 @@ from pathfinder.services.strategies.sync import sync_strategy_for_site
 from pathfinder.services.strategies.sync_state import WDKSyncState, ensure_sync_state
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class StepPushFailure:
-    step_id: str
-    search_name: str
-    error: str
-
-
-@dataclass
-class BuildOutcome:
-    """Structured result of a declarative strategy build."""
-
-    pushed_step_ids: list[str] = field(default_factory=list)
-    failed_steps: list[StepPushFailure] = field(default_factory=list)
-    skipped_step_ids: list[str] = field(default_factory=list)
-    wdk_strategy_id: int | None = None
-    wdk_url: str | None = None
-    counts: dict[str, int | None] = field(default_factory=dict)
-    root_count: int | None = None
-    zero_step_ids: list[str] = field(default_factory=list)
-
-    @property
-    def fully_succeeded(self) -> bool:
-        return not self.failed_steps and not self.skipped_step_ids
 
 
 async def build_strategy_from_spec(
@@ -186,15 +161,16 @@ async def _push_tree_to_wdk(
             outcome.skipped_step_ids.append(node.id)
             continue
         search_name = node.search_name or COMBINE_SEARCH_NAME
+        push_parameters: dict[str, ParamValue] = dict(node.parameters)
         if search_name != COMBINE_SEARCH_NAME:
             try:
-                await validate_parameters(
+                push_parameters = await validate_parameters(
                     SearchContext(
                         site_id=site_id,
                         record_type=graph_record_type,
                         search_name=search_name,
                     ),
-                    parameters=dict(node.parameters or {}),
+                    parameters=dict(node.parameters),
                     callbacks=callbacks,
                 )
             except ValidationError as exc:
@@ -215,7 +191,7 @@ async def _push_tree_to_wdk(
             site_id=site_id,
             record_type=graph_record_type,
             search_name=search_name,
-            parameters=node.parameters or {},
+            parameters=push_parameters,
         )
         if push_error:
             sync_state.wdk_push_errors[node.id] = push_error

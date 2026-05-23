@@ -379,16 +379,13 @@ async def fork_conversation(
         site_id=source.site_id,
         name=new_name or f"{source.name} (branch)",
         record_type=source.record_type,
-        supervisor_model_id=source.supervisor_model_id,
         parent_conversation_id=source_conversation_id,
         parent_message_id=from_message_id,
         strategy_ast=forked_ast,
         step_count=source.step_count,
-        pipeline=dict(source.pipeline) if source.pipeline is not None else None,
         gene_set_id=source.gene_set_id,
         gene_set_auto_imported=source.gene_set_auto_imported,
         experiment_id=source.experiment_id,
-        specialist_mode=None,
         wdk_strategy_id=new_wdk_strategy_id,
         # Carry consumer references forward so deleting a saved strategy
         # whose subtree is still embedded in the fork is still blocked.

@@ -2,6 +2,7 @@ from collections.abc import Iterable
 
 import pytest
 
+from pathfinder.domain.parameters.values import StringValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.operations import (
     AddCombineOp,
@@ -251,9 +252,12 @@ class TestApplyUpdateOps:
         g = _graph_with([_leaf("a")])
         apply_operation(
             g,
-            UpdateStepParamsOp(step_id="a", parameters={"foo": "bar"}),
+            UpdateStepParamsOp(
+                step_id="a",
+                parameters={"foo": StringValue(value="bar")},
+            ),
         )
-        assert g.steps["a"].parameters == {"foo": "bar"}
+        assert g.steps["a"].parameters == {"foo": StringValue(value="bar")}
 
     def test_update_combine_operator(self) -> None:
         a = _leaf("a")

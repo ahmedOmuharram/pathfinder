@@ -4,8 +4,26 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from pathfinder.domain.strategy.plan import StrategyPlan
+from pathfinder.services.catalog.vocab_rendering import VocabEntry
 
 SearchSelectionStatus = Literal["candidate", "selected", "rejected"]
+
+
+class ParamVocabSnapshot(BaseModel):
+    """Frozen vocabulary view for a parameter, captured during discovery.
+
+    Mirrors the vocabulary fields of ``ParameterInfo``: a flat list of
+    enum entries (``allowed_values``) OR a rendered tree string
+    (``allowed_values_tree``) for multi-pick-vocabulary params. Planning
+    consults this snapshot to commit values verbatim — never invents
+    values not in the snapshot.
+    """
+
+    param_type: str
+    required: bool
+    default_value: str | None = None
+    allowed_values: list[VocabEntry] | None = None
+    allowed_values_tree: str | None = None
 
 
 class SearchOverview(BaseModel):
@@ -21,6 +39,7 @@ class SearchOverview(BaseModel):
     selection_reason: str = ""
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     param_hints: dict[str, str | list[str]] = Field(default_factory=dict)
+    param_vocab: dict[str, ParamVocabSnapshot] = Field(default_factory=dict)
 
 
 @dataclass

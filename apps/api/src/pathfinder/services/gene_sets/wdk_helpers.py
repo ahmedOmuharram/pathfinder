@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from pathfinder.domain.parameters.values import InputDatasetValue, ParamValue
 from pathfinder.integrations.veupathdb.factory import (
     get_strategy_api,
 )
@@ -13,7 +14,6 @@ from pathfinder.integrations.veupathdb.wdk_models import (
 )
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.wdk.helpers import extract_record_ids
 
 logger = get_logger(__name__)
@@ -29,7 +29,7 @@ class GeneSetWdkContext:
     wdk_step_id: int | None = None
     search_name: str | None = None
     record_type: str | None = None
-    parameters: dict[str, str] | None = None
+    parameters: dict[str, ParamValue] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +40,7 @@ class GeneSetWdkContext:
 async def build_enrichment_params_from_gene_ids(
     site_id: str,
     gene_ids: list[str],
-) -> tuple[str, JSONObject, str]:
+) -> tuple[str, dict[str, ParamValue], str]:
     """Create a WDK dataset from gene IDs and return enrichment parameters.
 
     Returns ``(search_name, parameters, record_type)`` suitable for passing
@@ -55,7 +55,7 @@ async def build_enrichment_params_from_gene_ids(
     dataset_id = await api.create_dataset(config)
     return (
         "GeneByLocusTag",
-        {"ds_gene_ids": str(dataset_id)},
+        {"ds_gene_ids": InputDatasetValue(dataset_id=str(dataset_id))},
         "transcript",
     )
 
@@ -185,16 +185,21 @@ async def _extract_step_search_context(
     api: StrategyAPI,
     step_id: int,
     record_type: str | None,
-) -> tuple[str | None, str | None, dict[str, str] | None]:
-    """Extract searchName, recordType, parameters from a WDK step."""
+) -> tuple[str | None, str | None, dict[str, ParamValue] | None]:
+    """Extract searchName, recordType, parameters from a WDK step.
+
+    Returns ``parameters=None`` when the step's wire parameters cannot be
+    decoded without a search spec; callers fall back to running enrichment
+    via ``step_id`` alone.
+    """
     search_name: str | None = None
-    parameters: dict[str, str] | None = None
+    parameters: dict[str, ParamValue] | None = None
     try:
         step = await api.find_step(step_id)
         sn = step.search_name
         if not sn.startswith("boolean_question_"):
             search_name = sn
-            parameters = dict(step.search_config.parameters)
+            parameters = None
         if not record_type:
             rcn = step.record_class_name
             if rcn:
@@ -207,7 +212,6 @@ async def _extract_step_search_context(
             "Extracted search context from WDK step",
             step_id=step_id,
             search_name=search_name,
-            has_params=parameters is not None,
         )
     except AppError as exc:
         logger.warning(

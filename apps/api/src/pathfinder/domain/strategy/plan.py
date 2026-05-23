@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from pydantic import Field, JsonValue, model_validator
 
+from pathfinder.domain.parameters.values import ParamKind, ParamValue
 from pathfinder.platform.pydantic_base import CamelModel
 
 # ── Enums ───────────────────────────────────────────────────────────
@@ -78,18 +79,27 @@ def _utc_now() -> datetime:
 # ── Data Models ─────────────────────────────────────────────────────
 
 class PlannedParameter(CamelModel):
-    """A parameter within a planned step, with its resolution status."""
-
     name: str
     display_name: str
-    param_type: str
-    value: JsonValue | None = None
+    param_type: ParamKind
+    value: ParamValue | None = None
     status: ParamStatus
     required: bool
     description: str | None = None
     constraints: dict[str, JsonValue] | None = None
     depends_on: list[str] = Field(default_factory=list)
     options: list[str] | None = None
+
+    @model_validator(mode="after")
+    def _value_kind_matches_param_type(self) -> PlannedParameter:
+        if self.value is not None and self.value.type != self.param_type:
+            msg = (
+                f"PlannedParameter {self.name!r}: value.type "
+                f"{self.value.type!r} does not match param_type "
+                f"{self.param_type!r}"
+            )
+            raise ValueError(msg)
+        return self
 
 class QuestionOption(CamelModel):
     """One option presented to the user for a UserQuestion."""

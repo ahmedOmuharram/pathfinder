@@ -44,6 +44,7 @@ async def _prepare(
 
 def build_toolset() -> AbstractToolset[AgentDeps]:
     base = FunctionToolset[AgentDeps](
+        max_retries=3,
         tools=[
             set_problem_frame,
             web_search,

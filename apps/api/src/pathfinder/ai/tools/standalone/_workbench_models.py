@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.services.enrichment.types import EnrichmentResult
 from pathfinder.services.experiment.types.core import ExperimentStatus
@@ -24,7 +25,7 @@ class WdkSourceSpec(BaseModel):
     """WDK provenance info for a gene set."""
 
     search_name: str | None = None
-    parameters: dict[str, str] | None = None
+    parameters: dict[str, ParamValue] | None = None
     wdk_strategy_id: int | None = None
     wdk_step_id: int | None = None
 

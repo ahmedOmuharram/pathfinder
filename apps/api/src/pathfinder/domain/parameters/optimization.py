@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Literal, Self
 
-from pydantic import ConfigDict, Field, JsonValue, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat
 
 
@@ -17,7 +18,7 @@ class VariantSpec(CamelModel):
     model_config = ConfigDict(frozen=True)
 
     id: str = Field(min_length=1)
-    params: dict[str, JsonValue] = Field(default_factory=dict)
+    params: dict[str, ParamValue] = Field(default_factory=dict)
 
 VariantStatus = Literal["success", "failed"]
 
@@ -33,7 +34,7 @@ class VariantResult(CamelModel):
 
     variant_id: str
     status: VariantStatus
-    params: dict[str, JsonValue] = Field(default_factory=dict)
+    params: dict[str, ParamValue] = Field(default_factory=dict)
     score: RoundedFloat | None = None
     recall: RoundedFloat | None = None
     false_positive_rate: RoundedFloat | None = None

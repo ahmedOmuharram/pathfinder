@@ -27,12 +27,6 @@ async def run_enrichment_for_gene_set(
 
     Returns a summary dict with enrichment results, download links, and errors.
     """
-    params: JSONObject | None = (
-        {k: cast("JsonValue", v) for k, v in gene_set.parameters.items()}
-        if gene_set.parameters is not None
-        else None
-    )
-
     svc = EnrichmentService()
     results, errors = await svc.run_batch(
         site_id=gene_set.site_id,
@@ -40,7 +34,7 @@ async def run_enrichment_for_gene_set(
         step_id=gene_set.wdk_step_id,
         search_name=gene_set.search_name,
         record_type=gene_set.record_type or "transcript",
-        parameters=params,
+        parameters=gene_set.parameters,
     )
 
     serialized = [r.model_dump(by_alias=True) for r in results]

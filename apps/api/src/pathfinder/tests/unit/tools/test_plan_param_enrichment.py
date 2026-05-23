@@ -30,6 +30,12 @@ from pathfinder.ai.tools.standalone._plan_models import (
     _convert_step,
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.values import (
+    MultiPickValue,
+    NumberValue,
+    SinglePickValue,
+    StringValue,
+)
 from pathfinder.domain.strategy.plan import ParamStatus, StepType
 
 # ---------------------------------------------------------------------------
@@ -38,18 +44,9 @@ from pathfinder.domain.strategy.plan import ParamStatus, StepType
 
 
 def test_build_param_preserves_wdk_param_type_treebox() -> None:
-    """_build_param MUST use spec.param_type verbatim, not coerce to 'string'.
-
-    A TreeBox-enum parameter in WDK has ``param_type="treebox-enum-param"``
-    and ``display_type="treeBox"``. The frontend widget registry in
-    ``apps/web/src/features/strategy/editor/widgets/registry.ts`` dispatches
-    on displayType, and the paramType is used for validation/coercion. If we
-    overwrite it with "string", the frontend sees a mismatched shape and
-    falls back to a plain text input.
-    """
     spec = ParamSpecNormalized(
         name="organism",
-        param_type="treebox-enum-param",
+        param_type="multi-pick-vocabulary",
         display_type="treeBox",
         vocabulary=[
             {"value": "pfal", "label": "P. falciparum"},
@@ -60,17 +57,12 @@ def test_build_param_preserves_wdk_param_type_treebox() -> None:
         dependent_params=("geneBooleanFilter",),
     )
 
-    planned = _build_param("organism", '["pfal"]', spec)
+    planned = _build_param("organism", MultiPickValue(values=["pfal"]), spec)
 
-    # The WDK param_type must survive end-to-end.
-    assert planned.param_type == "treebox-enum-param"
-    # Required because allow_empty_value is False.
+    assert planned.param_type == "multi-pick-vocabulary"
     assert planned.required is True
-    # Description copied from spec.help.
     assert planned.description == "Select one or more organisms"
-    # dependent_params becomes depends_on.
     assert planned.depends_on == ["geneBooleanFilter"]
-    # Status reflects the value presence.
     assert planned.status == ParamStatus.SET
 
 
@@ -92,7 +84,7 @@ def test_build_param_preserves_constraints_for_numeric() -> None:
         increment=0.5,
     )
 
-    planned = _build_param("expression_threshold", "42", spec)
+    planned = _build_param("expression_threshold", NumberValue(value=42.0), spec)
 
     assert planned.param_type == "number"
     assert planned.constraints is not None
@@ -122,7 +114,7 @@ def test_build_param_preserves_vocabulary_options() -> None:
         ],
     )
 
-    planned = _build_param("species", "opt-a", spec)
+    planned = _build_param("species", SinglePickValue(value="opt-a"), spec)
 
     assert planned.options == ["opt-a", "opt-b"]
     assert planned.param_type == "single-pick-vocabulary"
@@ -149,7 +141,7 @@ def test_build_param_raises_when_no_spec_available() -> None:
     ``param_type="string"`` instead of raising.
     """
     with pytest.raises(ValueError, match=r"spec|wdk|discover|param"):
-        _build_param("organism", '["pfal"]', None)
+        _build_param("organism", MultiPickValue(values=["pfal"]), None)
 
 
 # ---------------------------------------------------------------------------
@@ -171,16 +163,16 @@ def test_convert_step_with_param_specs_enriches_all_params() -> None:
         record_type="transcript",
         step_type=StepType.LEAF,
         parameters={
-            "organism": '["pfal", "pvivax"]',
-            "min_expression": "2.5",
-            "tissue": "blood",
+            "organism": MultiPickValue(values=["pfal", "pvivax"]),
+            "min_expression": NumberValue(value=2.5),
+            "tissue": StringValue(value="blood"),
         },
     )
 
     specs = {
         "organism": ParamSpecNormalized(
             name="organism",
-            param_type="treebox-enum-param",
+            param_type="multi-pick-vocabulary",
             display_type="treeBox",
             vocabulary=[
                 {"value": "pfal", "label": "P. falciparum"},
@@ -201,7 +193,7 @@ def test_convert_step_with_param_specs_enriches_all_params() -> None:
         ),
         "tissue": ParamSpecNormalized(
             name="tissue",
-            param_type="string-param",
+            param_type="string",
             display_type="",
             max_length=64,
             help="Target tissue type",
@@ -214,7 +206,7 @@ def test_convert_step_with_param_specs_enriches_all_params() -> None:
     assert set(by_name.keys()) == {"organism", "min_expression", "tissue"}
 
     organism = by_name["organism"]
-    assert organism.param_type == "treebox-enum-param"
+    assert organism.param_type == "multi-pick-vocabulary"
     assert organism.options == ["pfal", "pvivax"]
     assert organism.constraints is not None
     assert organism.constraints["displayType"] == "treeBox"
@@ -234,7 +226,7 @@ def test_convert_step_with_param_specs_enriches_all_params() -> None:
     assert min_expr.options is None
 
     tissue = by_name["tissue"]
-    assert tissue.param_type == "string-param"
+    assert tissue.param_type == "string"
     assert tissue.constraints is not None
     assert tissue.constraints["maxLength"] == 64
     assert tissue.description == "Target tissue type"

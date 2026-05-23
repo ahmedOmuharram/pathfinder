@@ -8,7 +8,7 @@ chats, updating strategy metadata, and driving the conversation sidebar.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -44,11 +44,6 @@ class ConversationUpdate:
     gene_set_id: str | None = None
     gene_set_id_set: bool = False
     gene_set_auto_imported: bool | None = None
-    pipeline: Any | None = field(default=None)
-    supervisor_model_id: str | None = None
-    supervisor_model_id_set: bool = False
-    specialist_mode: dict[str, Any] | None = None
-    specialist_mode_set: bool = False
     imported_saved_strategy_ids: list[int] | None = None
     touch_updated_at: bool = True
 
@@ -57,7 +52,6 @@ _SIMPLE_FIELDS: tuple[str, ...] = (
     "record_type",
     "step_count",
     "gene_set_auto_imported",
-    "pipeline",
 )
 
 _FLAGGED_FIELDS: tuple[tuple[str, str], ...] = (
@@ -65,8 +59,6 @@ _FLAGGED_FIELDS: tuple[tuple[str, str], ...] = (
     ("estimated_size_set", "estimated_size"),
     ("gene_set_id_set", "gene_set_id"),
     ("is_saved_set", "is_saved"),
-    ("supervisor_model_id_set", "supervisor_model_id"),
-    ("specialist_mode_set", "specialist_mode"),
 )
 
 

@@ -16,17 +16,17 @@ from typing import Annotated, Literal
 from pydantic import ConfigDict, Discriminator, Field, JsonValue
 from pydantic.alias_generators import to_camel
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 
 
-def encode_wdk_params(params: JSONObject | None) -> dict[str, str]:
-    """Encode a parameter dict to WDK's ``Record<string, string>``, dropping ``None``."""
+def encode_wdk_params(params: dict[str, ParamValue] | None) -> dict[str, str]:
     if params is None:
         return {}
-    return encode_params({k: v for k, v in params.items() if v is not None})
+    return encode_params(params)
 
 class WDKModel(CamelModel):
     """Base for all WDK REST API response models."""

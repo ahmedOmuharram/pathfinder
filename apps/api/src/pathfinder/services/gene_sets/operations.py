@@ -7,6 +7,7 @@ set operations, enrichment, and step-results access.
 
 from uuid import UUID, uuid4
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.integrations.veupathdb.factory import (
     get_strategy_api,
 )
@@ -19,7 +20,6 @@ from pathfinder.platform.errors import (
     ValidationError,
 )
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.service import EnrichmentService
 from pathfinder.services.enrichment.types import (
     EnrichmentAnalysisType,
@@ -207,11 +207,9 @@ class GeneSetService:
         step_id = gs.wdk_step_id
         search_name = gs.search_name
         record_type = gs.record_type or "transcript"
-        enrichment_params: JSONObject | None = None
-        if gs.parameters:
-            params: JSONObject = {}
-            params.update(gs.parameters)
-            enrichment_params = params
+        enrichment_params: dict[str, ParamValue] | None = (
+            dict(gs.parameters) if gs.parameters else None
+        )
 
         # Paste gene sets have gene IDs but no WDK step or search.
         # Create a temporary WDK dataset so enrichment can run via GeneByLocusTag.

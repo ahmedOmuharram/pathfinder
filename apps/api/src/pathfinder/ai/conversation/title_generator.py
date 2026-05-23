@@ -12,14 +12,17 @@ see `pipeline_dispatcher._drive_pipeline` for where it is attached to the
 
 from __future__ import annotations
 
+import contextlib
 import re
 
 import httpx
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import AgentRunError
+from pydantic_ai.exceptions import AgentRunError, UserError
+from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.models.catalog import get_smallest_model
+from pathfinder.ai.models.mock import get_mock_model
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.types import ModelProvider
 
@@ -101,14 +104,18 @@ async def generate_conversation_title(
     if not cleaned:
         return "New conversation"
 
-    resolved_provider: ModelProvider = provider or get_settings().default_provider
+    settings = get_settings()
+    is_mock = settings.pathfinder_chat_provider.strip().lower() == "mock"
+    resolved_provider: ModelProvider = provider or settings.default_provider
     try:
         entry = get_smallest_model(resolved_provider)
     except LookupError:
-        return _fallback_title(first_user_message)
+        if not is_mock:
+            return _fallback_title(first_user_message)
+        entry = None
 
     agent: Agent[None, str] = Agent(
-        entry.id,
+        entry.id if entry is not None else "openai:gpt-4o-mini",
         output_type=str,
         instructions=_TITLE_INSTRUCTIONS,
         retries=1,
@@ -116,12 +123,18 @@ async def generate_conversation_title(
         defer_model_check=True,
     )
 
+    override_ctx = (
+        agent.override(model=get_mock_model())
+        if is_mock and not isinstance(agent.model, FunctionModel)
+        else contextlib.nullcontext()
+    )
     try:
-        result = await agent.run(
-            f"User's first message:\n{cleaned}",
-            usage_limits=_TITLE_USAGE_LIMITS,
-        )
-    except (AgentRunError, httpx.HTTPError, TimeoutError, OSError):
+        with override_ctx:
+            result = await agent.run(
+                f"User's first message:\n{cleaned}",
+                usage_limits=_TITLE_USAGE_LIMITS,
+            )
+    except (AgentRunError, UserError, httpx.HTTPError, TimeoutError, OSError):
         return _fallback_title(first_user_message)
 
     return _trim_title(result.output) or _fallback_title(first_user_message)

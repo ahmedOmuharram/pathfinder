@@ -12,23 +12,81 @@ from langgraph.types import Interrupt
 from pydantic import BaseModel, ValidationError
 from pydantic_ai.ui.vercel_ai._utils import iter_tool_approval_responses
 from pydantic_ai.ui.vercel_ai.request_types import (
+    DataUIPart,
     TextUIPart,
     ToolApprovalResponded,
 )
 
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.graph.runtime import Context
+from pathfinder.ai.graph.state import PlanSlotAnswer
 from pathfinder.ai.graph.stream_events import background_task_started_event
-from pathfinder.ai.specialists.types import SpecialistMode
+from pathfinder.domain.research.citations import (
+    LiteratureFilters,
+    LiteratureOutputOptions,
+    LiteratureSort,
+    LiteratureSource,
+)
 from pathfinder.domain.strategy.strategy_ast import (
     PersistedStrategyGraph,
     StrategyAst,
 )
 from pathfinder.persistence.models import Conversation
 from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.config import get_settings
 from pathfinder.services.research.literature_search import LiteratureSearchService
-from pathfinder.services.research.web_search import WebSearchService
+from pathfinder.services.research.processing import LiteratureSearchResponse
+from pathfinder.services.research.web_search import (
+    SearchDiagnostics,
+    WebSearchResponse,
+    WebSearchService,
+)
 from pathfinder.services.strategies.session_factory import build_strategy_session
+
+
+class _StubLiteratureSearchService(LiteratureSearchService):
+    async def search(
+        self,
+        query: str,
+        *,
+        source: LiteratureSource = "all",
+        limit: int = 5,
+        sort: LiteratureSort = "relevance",
+        options: LiteratureOutputOptions | None = None,
+        filters: LiteratureFilters | None = None,
+    ) -> LiteratureSearchResponse:
+        del limit, options
+        return LiteratureSearchResponse(
+            query=query,
+            source=source,
+            sort=sort,
+            include_abstract=False,
+            abstract_max_chars=500,
+            max_authors=2,
+            filters=filters or LiteratureFilters(),
+            results=[],
+            citations=[],
+        )
+
+
+class _StubWebSearchService(WebSearchService):
+    async def search(
+        self,
+        query: str,
+        limit: int = 5,
+        *,
+        include_summary: bool = False,
+        summary_max_chars: int = 600,
+    ) -> WebSearchResponse:
+        del limit, include_summary, summary_max_chars
+        return WebSearchResponse(
+            query=query,
+            effective_query=query,
+            search_adjusted=False,
+            search_diagnostics=SearchDiagnostics(),
+            results=[],
+            citations=[],
+        )
 
 
 def resolve_site_id(
@@ -75,28 +133,22 @@ def _build_runtime_context(
     strategy_session = build_strategy_session(
         site_id=site_id, strategy_graph=persisted,
     )
+    is_mock = (
+        get_settings().pathfinder_chat_provider.strip().lower() == "mock"
+    )
     return Context(
         site_id=site_id,
         user_id=user_id,
         strategy_session=strategy_session,
         db_session_factory=async_session_factory,
-        web_search_service=WebSearchService(),
-        literature_search_service=LiteratureSearchService(),
+        web_search_service=_StubWebSearchService() if is_mock else WebSearchService(),
+        literature_search_service=(
+            _StubLiteratureSearchService() if is_mock else LiteratureSearchService()
+        ),
         cancel_event=asyncio.Event(),
         memory_store=memory_store,
         experiment_id=experiment_id,
     )
-
-
-def _load_specialist_mode(
-    conversation: Conversation | None,
-) -> SpecialistMode | None:
-    if conversation is None or conversation.specialist_mode is None:
-        return None
-    try:
-        return SpecialistMode.model_validate(conversation.specialist_mode)
-    except ValidationError:
-        return None
 
 
 def _extract_approval_responses(
@@ -105,13 +157,53 @@ def _extract_approval_responses(
     return dict(iter_tool_approval_responses(incoming.messages))
 
 
+_PLAN_SLOT_ANSWERS_TYPE = "data-plan-slot-answers"
+
+
+class _PlanSlotAnswersPayload(BaseModel):
+    """Shape of a ``data-plan-slot-answers`` UI part's ``data`` field.
+
+    Frontend sends this on the assistant message that carries the
+    ``approval-responded`` part for ``submit_plan``. The pairing is by
+    ``tool_call_id``.
+    """
+
+    tool_call_id: str
+    answers: list[PlanSlotAnswer]
+
+
+def _extract_plan_slot_answers(
+    incoming: ChatRequestBody,
+) -> dict[str, list[PlanSlotAnswer]]:
+    """Pull ``data-plan-slot-answers`` parts out of assistant messages.
+
+    Returns ``{tool_call_id: [PlanSlotAnswer, ...]}``. The submit_plan
+    body resolves its own ``tool_call_id`` from ``ctx`` and applies the
+    matched list to the active plan.
+    """
+    out: dict[str, list[PlanSlotAnswer]] = {}
+    for msg in incoming.messages:
+        if msg.role != "assistant":
+            continue
+        for part in msg.parts:
+            if not isinstance(part, DataUIPart):
+                continue
+            if part.type != _PLAN_SLOT_ANSWERS_TYPE:
+                continue
+            try:
+                payload = _PlanSlotAnswersPayload.model_validate(part.data)
+            except ValidationError:
+                continue
+            out[payload.tool_call_id] = payload.answers
+    return out
+
+
 def _build_turn_input(
     incoming: ChatRequestBody,
     user_id: UUID,
     *,
     turn_message_id: UUID,
     turn_start_event_id: int,
-    conversation: Conversation | None = None,
 ) -> dict[str, Any]:
     base: dict[str, Any] = {
         "conversation_id": incoming.conversation_id,
@@ -119,21 +211,14 @@ def _build_turn_input(
         "site_id": incoming.site_id,
         "mode": incoming.mode,
         "approval_responses": _extract_approval_responses(incoming),
+        "plan_slot_answers": _extract_plan_slot_answers(incoming),
         "turn_trace_id": str(uuid4()),
         "turn_created_at": datetime.now(UTC).isoformat(),
         "turn_message_id": turn_message_id,
         "turn_start_event_id": turn_start_event_id,
-        "supervisor_call_count": 0,
-        "phase_call_counts": {},
-        "current_phase": None,
-        "last_routing_reason": None,
-        "last_assistant_prose": "",
-        "last_phase_outcome": None,
-        "last_verification_message_id": None,
         "turn_total_tokens": 0,
         "turn_total_cost_usd": Decimal(0),
         "retrieved_memories": [],
-        "specialist_mode": _load_specialist_mode(conversation),
     }
     if incoming.is_approval_resume:
         return base

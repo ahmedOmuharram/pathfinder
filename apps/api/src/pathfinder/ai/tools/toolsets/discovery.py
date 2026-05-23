@@ -74,6 +74,7 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
     at all.
     """
     base: FunctionToolset[AgentDeps] = FunctionToolset(
+        max_retries=3,
         tools=[
             get_record_types,
             search_for_searches,

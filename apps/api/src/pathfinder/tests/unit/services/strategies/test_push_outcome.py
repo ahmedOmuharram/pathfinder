@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
@@ -148,7 +149,7 @@ def counting_api(monkeypatch: pytest.MonkeyPatch) -> CountingStrategyAPI:
 def _leaf(step_id: str, search: str = "GenesByTaxon") -> StrategyStepNode:
     return StrategyStepNode(
         search_name=search,
-        parameters={"organism": ["Pf3D7"]},
+        parameters={"organism": MultiPickValue(values=["Pf3D7"])},
         id=step_id,
     )
 

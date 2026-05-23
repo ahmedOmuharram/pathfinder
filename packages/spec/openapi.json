@@ -2203,6 +2203,98 @@
                 }
             }
         },
+        "/api/v1/conversations/{conversation_id}/turns/{turn_id}/cancel": {
+            "post": {
+                "tags": [
+                    "conversations"
+                ],
+                "summary": "Cancel Turn",
+                "operationId": "cancel_turn_api_v1_conversations__conversation_id__turns__turn_id__cancel_post",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    },
+                    {
+                        "name": "turn_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Turn Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/{conversation_id}/cancel": {
+            "post": {
+                "tags": [
+                    "conversations"
+                ],
+                "summary": "Cancel Conversation",
+                "operationId": "cancel_conversation_api_v1_conversations__conversation_id__cancel_post",
+                "security": [
+                    {
+                        "APIKeyCookie": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "conversation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid",
+                            "title": "Conversation Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/experiments/": {
             "post": {
                 "tags": [
@@ -5342,76 +5434,6 @@
                 ]
             }
         },
-        "/api/v1/me/preferences": {
-            "get": {
-                "tags": [
-                    "me"
-                ],
-                "summary": "Get My Preferences",
-                "operationId": "get_my_preferences_api_v1_me_preferences_get",
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/UserPreferencesResponse"
-                                }
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "APIKeyCookie": []
-                    }
-                ]
-            },
-            "patch": {
-                "tags": [
-                    "me"
-                ],
-                "summary": "Update My Preferences",
-                "operationId": "update_my_preferences_api_v1_me_preferences_patch",
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/UserPreferencesPatch"
-                            }
-                        }
-                    },
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/UserPreferencesResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "APIKeyCookie": []
-                    }
-                ]
-            }
-        },
         "/api/v1/conversations/{conversation_id}/tasks": {
             "get": {
                 "tags": [
@@ -5642,242 +5664,6 @@
                         "content": {
                             "application/json": {
                                 "schema": {}
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/conversations/{conversation_id}/specialists/{kind}/enter": {
-            "post": {
-                "tags": [
-                    "specialists"
-                ],
-                "summary": "Enter Specialist",
-                "operationId": "enter_specialist_api_v1_conversations__conversation_id__specialists__kind__enter_post",
-                "security": [
-                    {
-                        "APIKeyCookie": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "conversation_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid",
-                            "title": "Conversation Id"
-                        }
-                    },
-                    {
-                        "name": "kind",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "enum": [
-                                "validate",
-                                "research"
-                            ],
-                            "type": "string",
-                            "title": "Kind"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/SpecialistEnterRequest"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/SpecialistEnterResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/conversations/{conversation_id}/specialists/exit": {
-            "post": {
-                "tags": [
-                    "specialists"
-                ],
-                "summary": "Exit Specialist",
-                "operationId": "exit_specialist_api_v1_conversations__conversation_id__specialists_exit_post",
-                "security": [
-                    {
-                        "APIKeyCookie": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "conversation_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid",
-                            "title": "Conversation Id"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/SpecialistExitResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/conversations/{conversation_id}/specialists/state": {
-            "patch": {
-                "tags": [
-                    "specialists"
-                ],
-                "summary": "Update Specialist State",
-                "description": "Swap fields on the active specialist mode mid-session.\n\nCurrently only ``model_id`` is mutable. Validated against the catalog;\npersisted both onto ``Conversation.specialist_mode.model_id`` and the\nuser's sticky default for that command.",
-                "operationId": "update_specialist_state_api_v1_conversations__conversation_id__specialists_state_patch",
-                "security": [
-                    {
-                        "APIKeyCookie": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "conversation_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid",
-                            "title": "Conversation Id"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/SpecialistStateUpdate"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/SpecialistStateResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/conversations/{conversation_id}/launchers/optimize": {
-            "post": {
-                "tags": [
-                    "launchers"
-                ],
-                "summary": "Launch Optimize",
-                "operationId": "launch_optimize_api_v1_conversations__conversation_id__launchers_optimize_post",
-                "security": [
-                    {
-                        "APIKeyCookie": []
-                    }
-                ],
-                "parameters": [
-                    {
-                        "name": "conversation_id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid",
-                            "title": "Conversation Id"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/OptimizeLaunchRequest"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/OptimizeLaunchResponse"
-                                }
                             }
                         }
                     },
@@ -6345,56 +6131,6 @@
                 ],
                 "title": "BenchmarkControlSet",
                 "description": "A single control set within a benchmark suite."
-            },
-            "BiologicalFocus": {
-                "properties": {
-                    "organism": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Organism"
-                    },
-                    "geneFamily": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Genefamily"
-                    },
-                    "pathway": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Pathway"
-                    },
-                    "other": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Other"
-                    }
-                },
-                "type": "object",
-                "title": "BiologicalFocus"
             },
             "BootstrapResultResponse": {
                 "properties": {
@@ -7217,53 +6953,6 @@
                 "title": "ControlSetSummaryResponse",
                 "description": "Control set summary for listing."
             },
-            "ControlTestRun": {
-                "properties": {
-                    "taskId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "title": "Taskid"
-                    },
-                    "stepId": {
-                        "type": "integer",
-                        "title": "Stepid"
-                    },
-                    "status": {
-                        "type": "string",
-                        "enum": [
-                            "succeeded",
-                            "failed",
-                            "running",
-                            "cancelled"
-                        ],
-                        "title": "Status"
-                    },
-                    "summary": {
-                        "type": "string",
-                        "title": "Summary",
-                        "default": ""
-                    },
-                    "completedAt": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "date-time"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Completedat"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "taskId",
-                    "stepId",
-                    "status"
-                ],
-                "title": "ControlTestRun"
-            },
             "ConversationDuplicateResponse": {
                 "properties": {
                     "id": {
@@ -7365,16 +7054,6 @@
                         "title": "Issaved",
                         "default": false
                     },
-                    "pipeline": {
-                        "anyOf": [
-                            {
-                                "$ref": "#/components/schemas/JSONObject"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
                     "createdAt": {
                         "type": "string",
                         "format": "date-time",
@@ -7462,17 +7141,6 @@
                         "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
                         "title": "Totalcostusd"
                     },
-                    "supervisorModelId": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Supervisormodelid"
-                    },
                     "parentConversationId": {
                         "anyOf": [
                             {
@@ -7496,16 +7164,6 @@
                             }
                         ],
                         "title": "Parentmessageid"
-                    },
-                    "specialistMode": {
-                        "anyOf": [
-                            {
-                                "$ref": "#/components/schemas/SpecialistMode"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
                     }
                 },
                 "type": "object",
@@ -7690,7 +7348,61 @@
                         "default": ""
                     },
                     "parameters": {
-                        "$ref": "#/components/schemas/JSONObject"
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/StringValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TimestampValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SinglePickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/MultiPickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/FilterValue-Input"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputDatasetValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputStepValue"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "date": "#/components/schemas/DateValue",
+                                    "date-range": "#/components/schemas/DateRangeValue",
+                                    "filter": "#/components/schemas/FilterValue-Input",
+                                    "input-dataset": "#/components/schemas/InputDatasetValue",
+                                    "input-step": "#/components/schemas/InputStepValue",
+                                    "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                    "number": "#/components/schemas/NumberValue",
+                                    "number-range": "#/components/schemas/NumberRangeValue",
+                                    "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                    "string": "#/components/schemas/StringValue",
+                                    "timestamp": "#/components/schemas/TimestampValue"
+                                }
+                            }
+                        },
+                        "type": "object",
+                        "title": "Parameters"
                     },
                     "stepTree": {
                         "$ref": "#/components/schemas/JsonValue"
@@ -8058,7 +7770,57 @@
                         "anyOf": [
                             {
                                 "additionalProperties": {
-                                    "type": "string"
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/StringValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/NumberValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/NumberRangeValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DateValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DateRangeValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/TimestampValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/SinglePickValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/MultiPickValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/FilterValue-Input"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/InputDatasetValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/InputStepValue"
+                                        }
+                                    ],
+                                    "discriminator": {
+                                        "propertyName": "type",
+                                        "mapping": {
+                                            "date": "#/components/schemas/DateValue",
+                                            "date-range": "#/components/schemas/DateRangeValue",
+                                            "filter": "#/components/schemas/FilterValue-Input",
+                                            "input-dataset": "#/components/schemas/InputDatasetValue",
+                                            "input-step": "#/components/schemas/InputStepValue",
+                                            "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                            "number": "#/components/schemas/NumberValue",
+                                            "number-range": "#/components/schemas/NumberRangeValue",
+                                            "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                            "string": "#/components/schemas/StringValue",
+                                            "timestamp": "#/components/schemas/TimestampValue"
+                                        }
+                                    }
                                 },
                                 "type": "object"
                             },
@@ -8259,6 +8021,60 @@
                 "title": "DataUIPart",
                 "description": "Data part with dynamic type based on data name."
             },
+            "DateRangeValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "date-range",
+                        "title": "Type",
+                        "default": "date-range"
+                    },
+                    "min": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Min"
+                    },
+                    "max": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Max"
+                    }
+                },
+                "type": "object",
+                "title": "DateRangeValue"
+            },
+            "DateValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "date",
+                        "title": "Type",
+                        "default": "date"
+                    },
+                    "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "title": "Value"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "value"
+                ],
+                "title": "DateValue"
+            },
             "DecisionPresented": {
                 "properties": {
                     "decisionType": {
@@ -8335,7 +8151,61 @@
                         "title": "Parametername"
                     },
                     "contextValues": {
-                        "$ref": "#/components/schemas/JSONObject"
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/StringValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TimestampValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SinglePickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/MultiPickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/FilterValue-Input"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputDatasetValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputStepValue"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "date": "#/components/schemas/DateValue",
+                                    "date-range": "#/components/schemas/DateRangeValue",
+                                    "filter": "#/components/schemas/FilterValue-Input",
+                                    "input-dataset": "#/components/schemas/InputDatasetValue",
+                                    "input-step": "#/components/schemas/InputStepValue",
+                                    "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                    "number": "#/components/schemas/NumberValue",
+                                    "number-range": "#/components/schemas/NumberRangeValue",
+                                    "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                    "string": "#/components/schemas/StringValue",
+                                    "timestamp": "#/components/schemas/TimestampValue"
+                                }
+                            }
+                        },
+                        "type": "object",
+                        "title": "Contextvalues"
                     }
                 },
                 "type": "object",
@@ -10575,6 +10445,62 @@
                 "title": "FileUIPart",
                 "description": "A file part of a message."
             },
+            "FilterTermClause": {
+                "properties": {
+                    "field": {
+                        "type": "string",
+                        "title": "Field"
+                    },
+                    "value": {
+                        "$ref": "#/components/schemas/JsonValue"
+                    }
+                },
+                "additionalProperties": true,
+                "type": "object",
+                "required": [
+                    "field",
+                    "value"
+                ],
+                "title": "FilterTermClause"
+            },
+            "FilterValue-Input": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "filter",
+                        "title": "Type",
+                        "default": "filter"
+                    },
+                    "filters": {
+                        "items": {
+                            "$ref": "#/components/schemas/FilterTermClause"
+                        },
+                        "type": "array",
+                        "title": "Filters"
+                    }
+                },
+                "type": "object",
+                "title": "FilterValue"
+            },
+            "FilterValue-Output": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "filter",
+                        "title": "Type",
+                        "default": "filter"
+                    },
+                    "filters": {
+                        "items": {
+                            "$ref": "#/components/schemas/FilterTermClause"
+                        },
+                        "type": "array",
+                        "title": "Filters"
+                    }
+                },
+                "type": "object",
+                "title": "FilterValue"
+            },
             "FoldMetricsResponse": {
                 "properties": {
                     "foldIndex": {
@@ -11115,7 +11041,57 @@
                         "anyOf": [
                             {
                                 "additionalProperties": {
-                                    "type": "string"
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/StringValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/NumberValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/NumberRangeValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DateValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DateRangeValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/TimestampValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/SinglePickValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/MultiPickValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/FilterValue-Output"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/InputDatasetValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/InputStepValue"
+                                        }
+                                    ],
+                                    "discriminator": {
+                                        "propertyName": "type",
+                                        "mapping": {
+                                            "date": "#/components/schemas/DateValue",
+                                            "date-range": "#/components/schemas/DateRangeValue",
+                                            "filter": "#/components/schemas/FilterValue-Output",
+                                            "input-dataset": "#/components/schemas/InputDatasetValue",
+                                            "input-step": "#/components/schemas/InputStepValue",
+                                            "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                            "number": "#/components/schemas/NumberValue",
+                                            "number-range": "#/components/schemas/NumberRangeValue",
+                                            "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                            "string": "#/components/schemas/StringValue",
+                                            "timestamp": "#/components/schemas/TimestampValue"
+                                        }
+                                    }
                                 },
                                 "type": "object"
                             },
@@ -11359,6 +11335,46 @@
                 ],
                 "title": "HealthResponse",
                 "description": "Health check response."
+            },
+            "InputDatasetValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "input-dataset",
+                        "title": "Type",
+                        "default": "input-dataset"
+                    },
+                    "datasetId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "title": "Datasetid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "datasetId"
+                ],
+                "title": "InputDatasetValue"
+            },
+            "InputStepValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "input-step",
+                        "title": "Type",
+                        "default": "input-step"
+                    },
+                    "stepId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "title": "Stepid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stepId"
+                ],
+                "title": "InputStepValue"
             },
             "InsertSavedRequest": {
                 "properties": {
@@ -11965,6 +11981,29 @@
                 "title": "ModelListResponse",
                 "description": "Response for the /models endpoint."
             },
+            "MultiPickValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "multi-pick-vocabulary",
+                        "title": "Type",
+                        "default": "multi-pick-vocabulary"
+                    },
+                    "values": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "minItems": 1,
+                        "title": "Values"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "values"
+                ],
+                "title": "MultiPickValue"
+            },
             "NegativeSetVariantResponse": {
                 "properties": {
                     "label": {
@@ -12058,6 +12097,59 @@
                     "updatedAt"
                 ],
                 "title": "Note"
+            },
+            "NumberRangeValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "number-range",
+                        "title": "Type",
+                        "default": "number-range"
+                    },
+                    "min": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Min"
+                    },
+                    "max": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Max"
+                    }
+                },
+                "type": "object",
+                "title": "NumberRangeValue"
+            },
+            "NumberValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "number",
+                        "title": "Type",
+                        "default": "number"
+                    },
+                    "value": {
+                        "type": "number",
+                        "title": "Value"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "value"
+                ],
+                "title": "NumberValue"
             },
             "OpenConversationRequest": {
                 "properties": {
@@ -12845,74 +12937,6 @@
                 "title": "OptimizationTrialData",
                 "description": "A single optimization trial result."
             },
-            "OptimizeLaunchRequest": {
-                "properties": {
-                    "stepId": {
-                        "type": "integer",
-                        "title": "Stepid"
-                    },
-                    "paramKeys": {
-                        "items": {
-                            "type": "string"
-                        },
-                        "type": "array",
-                        "maxItems": 20,
-                        "minItems": 1,
-                        "title": "Paramkeys"
-                    },
-                    "criterion": {
-                        "type": "string",
-                        "maxLength": 2000,
-                        "minLength": 1,
-                        "title": "Criterion"
-                    },
-                    "budget": {
-                        "type": "integer",
-                        "maximum": 100.0,
-                        "minimum": 1.0,
-                        "title": "Budget",
-                        "default": 20
-                    },
-                    "modelId": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Modelid"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "stepId",
-                    "paramKeys",
-                    "criterion"
-                ],
-                "title": "OptimizeLaunchRequest"
-            },
-            "OptimizeLaunchResponse": {
-                "properties": {
-                    "taskId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "title": "Taskid"
-                    },
-                    "messageId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "title": "Messageid"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "taskId",
-                    "messageId"
-                ],
-                "title": "OptimizeLaunchResponse"
-            },
             "OrganismsResponse": {
                 "properties": {
                     "organisms": {
@@ -13338,7 +13362,61 @@
             "ParamSpecsRequest": {
                 "properties": {
                     "contextValues": {
-                        "$ref": "#/components/schemas/JSONObject"
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/StringValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TimestampValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SinglePickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/MultiPickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/FilterValue-Input"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputDatasetValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputStepValue"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "date": "#/components/schemas/DateValue",
+                                    "date-range": "#/components/schemas/DateRangeValue",
+                                    "filter": "#/components/schemas/FilterValue-Input",
+                                    "input-dataset": "#/components/schemas/InputDatasetValue",
+                                    "input-step": "#/components/schemas/InputStepValue",
+                                    "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                    "number": "#/components/schemas/NumberValue",
+                                    "number-range": "#/components/schemas/NumberRangeValue",
+                                    "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                    "string": "#/components/schemas/StringValue",
+                                    "timestamp": "#/components/schemas/TimestampValue"
+                                }
+                            }
+                        },
+                        "type": "object",
+                        "title": "Contextvalues"
                     }
                 },
                 "type": "object",
@@ -13539,30 +13617,6 @@
                 ],
                 "title": "PhaseChange"
             },
-            "PhaseConfigPayload": {
-                "properties": {
-                    "modelId": {
-                        "type": "string",
-                        "title": "Modelid"
-                    },
-                    "reasoningEffort": {
-                        "type": "string",
-                        "enum": [
-                            "none",
-                            "low",
-                            "medium",
-                            "high"
-                        ],
-                        "title": "Reasoningeffort"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "modelId",
-                    "reasoningEffort"
-                ],
-                "title": "PhaseConfigPayload"
-            },
             "PhaseTierConfig": {
                 "properties": {
                     "modelId": {
@@ -13588,55 +13642,6 @@
                 "title": "PhaseTierConfig",
                 "description": "Model + reasoning effort for a single pipeline phase."
             },
-            "PipelineConfigPayload": {
-                "properties": {
-                    "provider": {
-                        "type": "string",
-                        "enum": [
-                            "openai",
-                            "anthropic",
-                            "google",
-                            "ollama",
-                            "mock"
-                        ],
-                        "title": "Provider"
-                    },
-                    "tier": {
-                        "type": "string",
-                        "enum": [
-                            "quality",
-                            "balanced",
-                            "fast",
-                            "custom"
-                        ],
-                        "title": "Tier"
-                    },
-                    "phases": {
-                        "additionalProperties": {
-                            "$ref": "#/components/schemas/PhaseConfigPayload"
-                        },
-                        "propertyNames": {
-                            "enum": [
-                                "scoping",
-                                "discovery",
-                                "planning",
-                                "execution",
-                                "verification"
-                            ]
-                        },
-                        "type": "object",
-                        "title": "Phases"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "provider",
-                    "tier",
-                    "phases"
-                ],
-                "title": "PipelineConfigPayload",
-                "description": "Per-phase model + effort, plus the picker's provider/tier state."
-            },
             "PlanArtifact": {
                 "properties": {
                     "planId": {
@@ -13653,6 +13658,13 @@
                     "rationale": {
                         "type": "string",
                         "title": "Rationale"
+                    },
+                    "slots": {
+                        "items": {
+                            "$ref": "#/components/schemas/PlanSlotForm"
+                        },
+                        "type": "array",
+                        "title": "Slots"
                     }
                 },
                 "type": "object",
@@ -13663,6 +13675,92 @@
                 ],
                 "title": "PlanArtifact",
                 "description": "A proposed plan (not yet applied)."
+            },
+            "PlanSlotForm": {
+                "properties": {
+                    "stepId": {
+                        "type": "string",
+                        "title": "Stepid"
+                    },
+                    "paramName": {
+                        "type": "string",
+                        "title": "Paramname"
+                    },
+                    "paramType": {
+                        "type": "string",
+                        "title": "Paramtype"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "set",
+                            "default",
+                            "needs_discovery",
+                            "needs_user_input",
+                            "user_set"
+                        ],
+                        "title": "Status"
+                    },
+                    "required": {
+                        "type": "boolean",
+                        "title": "Required",
+                        "default": false
+                    },
+                    "question": {
+                        "type": "string",
+                        "title": "Question"
+                    },
+                    "context": {
+                        "type": "string",
+                        "title": "Context",
+                        "default": ""
+                    },
+                    "options": {
+                        "items": {
+                            "$ref": "#/components/schemas/PlanSlotOption"
+                        },
+                        "type": "array",
+                        "title": "Options"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "stepId",
+                    "paramName",
+                    "paramType",
+                    "status",
+                    "question"
+                ],
+                "title": "PlanSlotForm",
+                "description": "A NEEDS_USER_INPUT slot the submit_plan card must render as a form field.\n\nCarries everything the React component needs: the param's WDK type\n(so it picks the right widget), the question text, optional select\noptions, and the step+param keys used when posting the answer back\nvia ``data-plan-slot-answers``."
+            },
+            "PlanSlotOption": {
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "title": "Label"
+                    },
+                    "value": {
+                        "$ref": "#/components/schemas/JsonValue"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description",
+                        "default": ""
+                    },
+                    "recommended": {
+                        "type": "boolean",
+                        "title": "Recommended",
+                        "default": false
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "label",
+                    "value"
+                ],
+                "title": "PlanSlotOption",
+                "description": "One option presented inside a NEEDS_USER_INPUT slot's question."
             },
             "PlanUpdate": {
                 "properties": {
@@ -14471,7 +14569,61 @@
                         "default": ""
                     },
                     "parameters": {
-                        "$ref": "#/components/schemas/JSONObject"
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/StringValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TimestampValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SinglePickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/MultiPickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/FilterValue-Input"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputDatasetValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputStepValue"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "date": "#/components/schemas/DateValue",
+                                    "date-range": "#/components/schemas/DateRangeValue",
+                                    "filter": "#/components/schemas/FilterValue-Input",
+                                    "input-dataset": "#/components/schemas/InputDatasetValue",
+                                    "input-step": "#/components/schemas/InputStepValue",
+                                    "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                    "number": "#/components/schemas/NumberValue",
+                                    "number-range": "#/components/schemas/NumberRangeValue",
+                                    "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                    "string": "#/components/schemas/StringValue",
+                                    "timestamp": "#/components/schemas/TimestampValue"
+                                }
+                            }
+                        },
+                        "type": "object",
+                        "title": "Parameters"
                     },
                     "operator": {
                         "type": "string",
@@ -14579,53 +14731,6 @@
                     "subtree"
                 ],
                 "title": "ReplaceSubtreeOp"
-            },
-            "ResearchContext": {
-                "properties": {
-                    "kind": {
-                        "type": "string",
-                        "const": "research",
-                        "title": "Kind",
-                        "default": "research"
-                    },
-                    "researchQuestion": {
-                        "type": "string",
-                        "title": "Researchquestion",
-                        "default": ""
-                    },
-                    "currentStrategySummary": {
-                        "type": "string",
-                        "title": "Currentstrategysummary",
-                        "default": ""
-                    },
-                    "biologicalFocus": {
-                        "anyOf": [
-                            {
-                                "$ref": "#/components/schemas/BiologicalFocus"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    },
-                    "relevantMemories": {
-                        "items": {
-                            "$ref": "#/components/schemas/MemoryValue"
-                        },
-                        "type": "array",
-                        "title": "Relevantmemories"
-                    },
-                    "recentTurns": {
-                        "items": {
-                            "$ref": "#/components/schemas/TurnExcerpt"
-                        },
-                        "type": "array",
-                        "maxItems": 5,
-                        "title": "Recentturns"
-                    }
-                },
-                "type": "object",
-                "title": "ResearchContext"
             },
             "ResearchNote": {
                 "properties": {
@@ -14999,7 +15104,61 @@
             "SearchValidationRequest": {
                 "properties": {
                     "contextValues": {
-                        "$ref": "#/components/schemas/JSONObject"
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/StringValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TimestampValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SinglePickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/MultiPickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/FilterValue-Input"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputDatasetValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputStepValue"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "date": "#/components/schemas/DateValue",
+                                    "date-range": "#/components/schemas/DateRangeValue",
+                                    "filter": "#/components/schemas/FilterValue-Input",
+                                    "input-dataset": "#/components/schemas/InputDatasetValue",
+                                    "input-step": "#/components/schemas/InputStepValue",
+                                    "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                    "number": "#/components/schemas/NumberValue",
+                                    "number-range": "#/components/schemas/NumberRangeValue",
+                                    "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                    "string": "#/components/schemas/StringValue",
+                                    "timestamp": "#/components/schemas/TimestampValue"
+                                }
+                            }
+                        },
+                        "type": "object",
+                        "title": "Contextvalues"
                     }
                 },
                 "type": "object",
@@ -15041,6 +15200,26 @@
                 ],
                 "title": "SetOperationRequest",
                 "description": "Perform set operations between two gene sets."
+            },
+            "SinglePickValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "single-pick-vocabulary",
+                        "title": "Type",
+                        "default": "single-pick-vocabulary"
+                    },
+                    "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "title": "Value"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "value"
+                ],
+                "title": "SinglePickValue"
             },
             "SiteResponse": {
                 "properties": {
@@ -15189,186 +15368,6 @@
                 ],
                 "title": "SourceUrlUIPart",
                 "description": "A source part of a message."
-            },
-            "SpecialistEnterRequest": {
-                "properties": {
-                    "arg": {
-                        "type": "string",
-                        "maxLength": 4000,
-                        "title": "Arg",
-                        "default": ""
-                    },
-                    "modelId": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Modelid"
-                    }
-                },
-                "type": "object",
-                "title": "SpecialistEnterRequest"
-            },
-            "SpecialistEnterResponse": {
-                "properties": {
-                    "messageId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "title": "Messageid"
-                    },
-                    "kind": {
-                        "type": "string",
-                        "enum": [
-                            "validate",
-                            "research"
-                        ],
-                        "title": "Kind"
-                    },
-                    "modelId": {
-                        "type": "string",
-                        "title": "Modelid"
-                    },
-                    "context": {
-                        "oneOf": [
-                            {
-                                "$ref": "#/components/schemas/ValidateContext"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ResearchContext"
-                            }
-                        ],
-                        "title": "Context",
-                        "discriminator": {
-                            "propertyName": "kind",
-                            "mapping": {
-                                "research": "#/components/schemas/ResearchContext",
-                                "validate": "#/components/schemas/ValidateContext"
-                            }
-                        }
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "messageId",
-                    "kind",
-                    "modelId",
-                    "context"
-                ],
-                "title": "SpecialistEnterResponse"
-            },
-            "SpecialistExitResponse": {
-                "properties": {
-                    "cleared": {
-                        "type": "boolean",
-                        "title": "Cleared"
-                    },
-                    "messageId": {
-                        "anyOf": [
-                            {
-                                "type": "string",
-                                "format": "uuid"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Messageid"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "cleared"
-                ],
-                "title": "SpecialistExitResponse"
-            },
-            "SpecialistMode": {
-                "properties": {
-                    "kind": {
-                        "type": "string",
-                        "enum": [
-                            "validate",
-                            "research"
-                        ],
-                        "title": "Kind"
-                    },
-                    "enteredAt": {
-                        "type": "string",
-                        "format": "date-time",
-                        "title": "Enteredat"
-                    },
-                    "modelId": {
-                        "type": "string",
-                        "title": "Modelid"
-                    },
-                    "context": {
-                        "oneOf": [
-                            {
-                                "$ref": "#/components/schemas/ValidateContext"
-                            },
-                            {
-                                "$ref": "#/components/schemas/ResearchContext"
-                            }
-                        ],
-                        "title": "Context",
-                        "discriminator": {
-                            "propertyName": "kind",
-                            "mapping": {
-                                "research": "#/components/schemas/ResearchContext",
-                                "validate": "#/components/schemas/ValidateContext"
-                            }
-                        }
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "kind",
-                    "enteredAt",
-                    "modelId",
-                    "context"
-                ],
-                "title": "SpecialistMode"
-            },
-            "SpecialistStateResponse": {
-                "properties": {
-                    "kind": {
-                        "type": "string",
-                        "enum": [
-                            "validate",
-                            "research"
-                        ],
-                        "title": "Kind"
-                    },
-                    "modelId": {
-                        "type": "string",
-                        "title": "Modelid"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "kind",
-                    "modelId"
-                ],
-                "title": "SpecialistStateResponse"
-            },
-            "SpecialistStateUpdate": {
-                "properties": {
-                    "modelId": {
-                        "type": "string",
-                        "maxLength": 128,
-                        "minLength": 1,
-                        "title": "Modelid"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "modelId"
-                ],
-                "title": "SpecialistStateUpdate",
-                "description": "Mid-session swap of a non-context field on the active specialist mode."
             },
             "StepAnalysis-Input": {
                 "properties": {
@@ -15834,7 +15833,57 @@
                         "anyOf": [
                             {
                                 "additionalProperties": {
-                                    "$ref": "#/components/schemas/JsonValue"
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/StringValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/NumberValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/NumberRangeValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DateValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DateRangeValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/TimestampValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/SinglePickValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/MultiPickValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/FilterValue-Output"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/InputDatasetValue"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/InputStepValue"
+                                        }
+                                    ],
+                                    "discriminator": {
+                                        "propertyName": "type",
+                                        "mapping": {
+                                            "date": "#/components/schemas/DateValue",
+                                            "date-range": "#/components/schemas/DateRangeValue",
+                                            "filter": "#/components/schemas/FilterValue-Output",
+                                            "input-dataset": "#/components/schemas/InputDatasetValue",
+                                            "input-step": "#/components/schemas/InputStepValue",
+                                            "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                            "number": "#/components/schemas/NumberValue",
+                                            "number-range": "#/components/schemas/NumberRangeValue",
+                                            "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                            "string": "#/components/schemas/StringValue",
+                                            "timestamp": "#/components/schemas/TimestampValue"
+                                        }
+                                    }
                                 },
                                 "type": "object"
                             },
@@ -16025,66 +16074,6 @@
                 "type": "object",
                 "title": "StepStartUIPart",
                 "description": "A step boundary part of a message."
-            },
-            "StepSummary": {
-                "properties": {
-                    "stepId": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Stepid"
-                    },
-                    "localStepId": {
-                        "type": "string",
-                        "title": "Localstepid"
-                    },
-                    "kind": {
-                        "type": "string",
-                        "enum": [
-                            "search",
-                            "combine",
-                            "transform"
-                        ],
-                        "title": "Kind"
-                    },
-                    "displayName": {
-                        "type": "string",
-                        "title": "Displayname"
-                    },
-                    "searchName": {
-                        "type": "string",
-                        "title": "Searchname"
-                    },
-                    "recordClassName": {
-                        "type": "string",
-                        "title": "Recordclassname"
-                    },
-                    "estimatedSize": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Estimatedsize"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "localStepId",
-                    "kind",
-                    "displayName",
-                    "searchName",
-                    "recordClassName"
-                ],
-                "title": "StepSummary"
             },
             "StepValidation": {
                 "properties": {
@@ -16483,7 +16472,57 @@
                     },
                     "parameters": {
                         "additionalProperties": {
-                            "$ref": "#/components/schemas/JsonValue"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/StringValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TimestampValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SinglePickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/MultiPickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/FilterValue-Input"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputDatasetValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputStepValue"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "date": "#/components/schemas/DateValue",
+                                    "date-range": "#/components/schemas/DateRangeValue",
+                                    "filter": "#/components/schemas/FilterValue-Input",
+                                    "input-dataset": "#/components/schemas/InputDatasetValue",
+                                    "input-step": "#/components/schemas/InputStepValue",
+                                    "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                    "number": "#/components/schemas/NumberValue",
+                                    "number-range": "#/components/schemas/NumberRangeValue",
+                                    "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                    "string": "#/components/schemas/StringValue",
+                                    "timestamp": "#/components/schemas/TimestampValue"
+                                }
+                            }
                         },
                         "type": "object",
                         "title": "Parameters"
@@ -16603,7 +16642,7 @@
                     "searchName"
                 ],
                 "title": "StrategyStepNode",
-                "description": "Recursive strategy node.\n\nKind is inferred from structure:\n- combine: primary_input and secondary_input\n- transform: primary_input only\n- search: no inputs\n\n``parameters`` holds decoded JSON-typed values\n(``DecodedParams = dict[str, JsonValue]``). Encoding to WDK wire\nformat happens at integration boundaries via\n``integrations.veupathdb.value_decoding.encode_params``."
+                "description": "Recursive strategy node.\n\nKind is inferred from structure:\n- combine: primary_input and secondary_input\n- transform: primary_input only\n- search: no inputs"
             },
             "StrategyStepNode-Output": {
                 "properties": {
@@ -16613,7 +16652,57 @@
                     },
                     "parameters": {
                         "additionalProperties": {
-                            "$ref": "#/components/schemas/JsonValue"
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/StringValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TimestampValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SinglePickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/MultiPickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/FilterValue-Output"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputDatasetValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputStepValue"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "date": "#/components/schemas/DateValue",
+                                    "date-range": "#/components/schemas/DateRangeValue",
+                                    "filter": "#/components/schemas/FilterValue-Output",
+                                    "input-dataset": "#/components/schemas/InputDatasetValue",
+                                    "input-step": "#/components/schemas/InputStepValue",
+                                    "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                    "number": "#/components/schemas/NumberValue",
+                                    "number-range": "#/components/schemas/NumberRangeValue",
+                                    "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                    "string": "#/components/schemas/StringValue",
+                                    "timestamp": "#/components/schemas/TimestampValue"
+                                }
+                            }
                         },
                         "type": "object",
                         "title": "Parameters"
@@ -16733,7 +16822,7 @@
                     "searchName"
                 ],
                 "title": "StrategyStepNode",
-                "description": "Recursive strategy node.\n\nKind is inferred from structure:\n- combine: primary_input and secondary_input\n- transform: primary_input only\n- search: no inputs\n\n``parameters`` holds decoded JSON-typed values\n(``DecodedParams = dict[str, JsonValue]``). Encoding to WDK wire\nformat happens at integration boundaries via\n``integrations.veupathdb.value_decoding.encode_params``."
+                "description": "Recursive strategy node.\n\nKind is inferred from structure:\n- combine: primary_input and secondary_input\n- transform: primary_input only\n- search: no inputs"
             },
             "StreamPartsSchemaIndex": {
                 "properties": {
@@ -16921,6 +17010,25 @@
                 "type": "object",
                 "title": "StreamPartsSchemaIndex",
                 "description": "Index of stream-part payload schemas. Never called \u2014 exists for OpenAPI generation."
+            },
+            "StringValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "string",
+                        "title": "Type",
+                        "default": "string"
+                    },
+                    "value": {
+                        "type": "string",
+                        "title": "Value"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "value"
+                ],
+                "title": "StringValue"
             },
             "SubsystemStatus": {
                 "properties": {
@@ -17524,6 +17632,26 @@
                 ],
                 "title": "TierPreset",
                 "description": "Per-phase configuration for all five pipeline phases."
+            },
+            "TimestampValue": {
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "const": "timestamp",
+                        "title": "Type",
+                        "default": "timestamp"
+                    },
+                    "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "title": "Value"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "value"
+                ],
+                "title": "TimestampValue"
             },
             "ToolApprovalRequested": {
                 "properties": {
@@ -18331,40 +18459,6 @@
                 "title": "TrialProgressDataResponse",
                 "description": "Progress data for a single optimization trial."
             },
-            "TurnExcerpt": {
-                "properties": {
-                    "role": {
-                        "type": "string",
-                        "enum": [
-                            "user",
-                            "assistant"
-                        ],
-                        "title": "Role"
-                    },
-                    "text": {
-                        "type": "string",
-                        "maxLength": 2000,
-                        "title": "Text",
-                        "default": ""
-                    },
-                    "toolCallCount": {
-                        "type": "integer",
-                        "title": "Toolcallcount",
-                        "default": 0
-                    },
-                    "createdAt": {
-                        "type": "string",
-                        "format": "date-time",
-                        "title": "Createdat"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "role",
-                    "createdAt"
-                ],
-                "title": "TurnExcerpt"
-            },
             "TurnUsage": {
                 "properties": {
                     "totalTokens": {
@@ -18570,17 +18664,6 @@
                             }
                         ],
                         "title": "Issaved"
-                    },
-                    "supervisorModelId": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Supervisormodelid"
                     }
                 },
                 "type": "object",
@@ -18623,7 +18706,61 @@
                         "title": "Stepid"
                     },
                     "parameters": {
-                        "$ref": "#/components/schemas/JSONObject"
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/components/schemas/StringValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/NumberRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/DateRangeValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/TimestampValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/SinglePickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/MultiPickValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/FilterValue-Input"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputDatasetValue"
+                                },
+                                {
+                                    "$ref": "#/components/schemas/InputStepValue"
+                                }
+                            ],
+                            "discriminator": {
+                                "propertyName": "type",
+                                "mapping": {
+                                    "date": "#/components/schemas/DateValue",
+                                    "date-range": "#/components/schemas/DateRangeValue",
+                                    "filter": "#/components/schemas/FilterValue-Input",
+                                    "input-dataset": "#/components/schemas/InputDatasetValue",
+                                    "input-step": "#/components/schemas/InputStepValue",
+                                    "multi-pick-vocabulary": "#/components/schemas/MultiPickValue",
+                                    "number": "#/components/schemas/NumberValue",
+                                    "number-range": "#/components/schemas/NumberRangeValue",
+                                    "single-pick-vocabulary": "#/components/schemas/SinglePickValue",
+                                    "string": "#/components/schemas/StringValue",
+                                    "timestamp": "#/components/schemas/TimestampValue"
+                                }
+                            }
+                        },
+                        "type": "object",
+                        "title": "Parameters"
                     }
                 },
                 "type": "object",
@@ -18692,125 +18829,6 @@
                     "writes"
                 ],
                 "title": "UpdatesEvent"
-            },
-            "UserPreferencesPatch": {
-                "properties": {
-                    "supervisorModelId": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Supervisormodelid"
-                    },
-                    "pipelineConfig": {
-                        "anyOf": [
-                            {
-                                "$ref": "#/components/schemas/PipelineConfigPayload"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    }
-                },
-                "type": "object",
-                "title": "UserPreferencesPatch",
-                "description": "Partial update \u2014 only present fields are applied."
-            },
-            "UserPreferencesResponse": {
-                "properties": {
-                    "supervisorModelId": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Supervisormodelid"
-                    },
-                    "pipelineConfig": {
-                        "anyOf": [
-                            {
-                                "$ref": "#/components/schemas/PipelineConfigPayload"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
-                    }
-                },
-                "type": "object",
-                "title": "UserPreferencesResponse"
-            },
-            "ValidateContext": {
-                "properties": {
-                    "kind": {
-                        "type": "string",
-                        "const": "validate",
-                        "title": "Kind",
-                        "default": "validate"
-                    },
-                    "strategyName": {
-                        "type": "string",
-                        "title": "Strategyname"
-                    },
-                    "steps": {
-                        "items": {
-                            "$ref": "#/components/schemas/StepSummary"
-                        },
-                        "type": "array",
-                        "title": "Steps"
-                    },
-                    "focusedStepId": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Focusedstepid"
-                    },
-                    "userSuccessCriteria": {
-                        "type": "string",
-                        "title": "Usersuccesscriteria",
-                        "default": ""
-                    },
-                    "priorControlTestRuns": {
-                        "items": {
-                            "$ref": "#/components/schemas/ControlTestRun"
-                        },
-                        "type": "array",
-                        "title": "Priorcontroltestruns"
-                    },
-                    "relevantMemories": {
-                        "items": {
-                            "$ref": "#/components/schemas/MemoryValue"
-                        },
-                        "type": "array",
-                        "title": "Relevantmemories"
-                    },
-                    "recentTurns": {
-                        "items": {
-                            "$ref": "#/components/schemas/TurnExcerpt"
-                        },
-                        "type": "array",
-                        "maxItems": 5,
-                        "title": "Recentturns"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "strategyName"
-                ],
-                "title": "ValidateContext"
             },
             "ValidationError": {
                 "properties": {

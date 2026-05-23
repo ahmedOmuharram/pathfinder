@@ -1,8 +1,12 @@
 """Optuna sampler creation and parameter suggestion for optimization."""
 
 import optuna
-from pydantic import JsonValue
 
+from pathfinder.domain.parameters.values import (
+    NumberValue,
+    ParamValue,
+    SinglePickValue,
+)
 from pathfinder.services.parameter_optimization.config import (
     OptimizationConfig,
     ParameterSpec,
@@ -45,27 +49,33 @@ def _create_sampler(
 def _suggest_trial_params(
     trial: optuna.trial.Trial,
     parameter_space: list[ParameterSpec],
-) -> dict[str, JsonValue]:
+) -> dict[str, ParamValue]:
     """Suggest parameter values for one Optuna trial."""
-    params: dict[str, JsonValue] = {}
+    params: dict[str, ParamValue] = {}
     for spec in parameter_space:
         if spec.param_type == "numeric":
-            params[spec.name] = trial.suggest_float(
-                spec.name,
-                spec.min or 0.0,
-                spec.max or 1.0,
-                log=spec.log_scale,
+            params[spec.name] = NumberValue(
+                value=trial.suggest_float(
+                    spec.name,
+                    spec.min or 0.0,
+                    spec.max or 1.0,
+                    log=spec.log_scale,
+                ),
             )
         elif spec.param_type == "integer":
-            params[spec.name] = trial.suggest_int(
-                spec.name,
-                int(spec.min or 0),
-                int(spec.max or 100),
-                step=int(spec.step) if spec.step else 1,
+            params[spec.name] = NumberValue(
+                value=float(trial.suggest_int(
+                    spec.name,
+                    int(spec.min or 0),
+                    int(spec.max or 100),
+                    step=int(spec.step) if spec.step else 1,
+                )),
             )
         elif spec.param_type == "categorical":
-            params[spec.name] = trial.suggest_categorical(
-                spec.name,
-                spec.choices or [""],
+            params[spec.name] = SinglePickValue(
+                value=str(trial.suggest_categorical(
+                    spec.name,
+                    spec.choices or [""],
+                )),
             )
     return params

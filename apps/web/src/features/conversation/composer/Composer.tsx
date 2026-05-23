@@ -10,8 +10,6 @@ import { Send, Square } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { OptimizeLauncherForm } from "@/features/conversation/launchers/OptimizeLauncherForm";
-import { useEnterSpecialist } from "@/features/conversation/specialists/useEnterSpecialist";
 import { ParamStepper } from "@/features/conversation/slash/ParamStepper";
 import { SlashPopover } from "@/features/conversation/slash/SlashPopover";
 import { commands, findCommand } from "@/features/conversation/slash/registry";
@@ -82,58 +80,23 @@ export function Composer({ conversationId }: { conversationId: string }) {
     strategyQueryOptions(conversationId),
   );
   const stepCount = conversationDetail?.steps.length ?? 0;
-  const activeSpecialistKind = conversationDetail?.specialistMode?.kind ?? null;
 
-  const enterSpecialistMutation = useEnterSpecialist(conversationId);
   const [pendingCommand, setPendingCommand] = useState<Command | null>(null);
-  const [optimizerOpen, setOptimizerOpen] = useState(false);
 
   const parsed = parseSlashInput(text);
   const showPopover =
     pendingCommand === null
-    && !optimizerOpen
     && parsed !== null
     && parsed.rest === "";
 
   async function runCommand(command: Command, values: Record<string, string>) {
-    const ctx = { conversationId, siteId, stepCount, activeSpecialistKind };
-    const rest = (parsed?.rest ?? "").trim();
+    const ctx = { conversationId, siteId, stepCount };
 
     try {
-      await beginStrategy(conversationId, {
-        siteId,
-        ...(command.kind === "specialist-enter" && rest !== "" && { seedText: rest }),
-      });
+      await beginStrategy(conversationId, { siteId });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to start conversation";
       toast.error(msg);
-      return;
-    }
-
-    if (command.kind === "specialist-enter") {
-      aui.composer().setText("");
-      setPendingCommand(null);
-      enterSpecialistMutation.mutate(
-        {
-          kind: command.name === "validate" ? "validate" : "research",
-          ...(rest !== "" && { arg: rest }),
-        },
-        {
-          onSuccess: () => {
-            if (rest !== "") {
-              aui.composer().setText(rest);
-              aui.composer().send();
-            }
-          },
-        },
-      );
-      return;
-    }
-
-    if (command.kind === "launcher") {
-      aui.composer().setText("");
-      setPendingCommand(null);
-      setOptimizerOpen(true);
       return;
     }
 
@@ -202,7 +165,7 @@ export function Composer({ conversationId }: { conversationId: string }) {
     exactMatch !== null
       && exactMatch !== undefined
       && parsed !== null
-      && (parsed.rest === "" || exactMatch.kind === "specialist-enter");
+      && parsed.rest === "";
 
   return (
     <ComposerPrimitive.Root
@@ -213,24 +176,14 @@ export function Composer({ conversationId }: { conversationId: string }) {
         open={showPopover}
         query={parsed?.token ?? ""}
         commands={commands}
-        ctx={{
-          conversationId,
-          siteId,
-          stepCount,
-          activeSpecialistKind,
-        }}
+        ctx={{ conversationId, siteId, stepCount }}
         onSelect={selectCommand}
         onDismiss={dismissPopover}
       />
       <ParamStepper
         open={pendingCommand !== null}
         command={pendingCommand}
-        ctx={{
-          conversationId,
-          siteId,
-          stepCount,
-          activeSpecialistKind,
-        }}
+        ctx={{ conversationId, siteId, stepCount }}
         onComplete={(values) => {
           if (pendingCommand !== null) void runCommand(pendingCommand, values);
         }}
@@ -238,11 +191,6 @@ export function Composer({ conversationId }: { conversationId: string }) {
           setPendingCommand(null);
           aui.composer().setText("");
         }}
-      />
-      <OptimizeLauncherForm
-        open={optimizerOpen}
-        conversationId={conversationId}
-        onClose={() => setOptimizerOpen(false)}
       />
       <QuotaExhaustedBanner />
       <div className="focus-within:shadow-[var(--shadow-composer-focus)] flex flex-col gap-2 rounded-lg border bg-background shadow-[var(--shadow-composer)] transition-shadow aria-disabled:opacity-60"

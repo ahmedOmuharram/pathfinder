@@ -1,11 +1,10 @@
-"""ToolResilience capability -- Layers 0-2.
+"""ToolResilience capability -- Layers 0-1.
 
 Routes tool execution failures to the right recovery strategy:
 
   Layer 0 (prepare_tools): circuit breaker — removes tools past retry threshold
   Layer 1 (on_tool_execute_error): TRANSIENT → ModelRetry, SEMANTIC → directive,
     PERMANENT → unavailable directive, UNKNOWN → generic directive + log
-  Layer 2 (on_node_run_error): UnexpectedModelBehavior → End with graceful message
 """
 
 from __future__ import annotations
@@ -17,11 +16,9 @@ from typing import Any
 from langgraph.errors import GraphInterrupt
 from pydantic import ValidationError as PydanticValidationError
 from pydantic_ai.capabilities.abstract import AbstractCapability
-from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolCallPart
-from pydantic_ai.result import FinalResult
 from pydantic_ai.tools import RunContext, ToolDefinition
-from pydantic_graph.nodes import End
 
 from pathfinder.ai.capabilities.error_classification import (
     ErrorCategory,
@@ -29,7 +26,6 @@ from pathfinder.ai.capabilities.error_classification import (
     classify_error,
 )
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.graph.state import PhaseDisposition, PhaseOutcome
 from pathfinder.platform.errors import WDKError
 from pathfinder.platform.logging import get_logger
 
@@ -77,11 +73,56 @@ def _shape_error_hint(
 ) -> str | None:
     if not isinstance(args, dict):
         return None
+    param_hint = _param_value_shape_hint(args, error)
+    if param_hint is not None:
+        return param_hint
     if len(args) == 1:
         return _wrapped_args_hint(tool_name, args, error)
     if tool_name == "build_strategy":
         return _build_strategy_misplaced_hint(args, error)
     return None
+
+
+_PARAM_VALUE_FIELDS = frozenset({
+    "context_values", "parameters", "target_parameters",
+    "fixed_parameters", "controls_extra_parameters",
+})
+
+_PARAM_VALUE_SHAPE_ERROR_TYPES = frozenset({
+    "union_tag_not_found",
+    "union_tag_invalid",
+    "model_attributes_type",
+    "dict_type",
+})
+
+
+def _param_value_shape_hint(
+    args: dict[str, object], error: PydanticValidationError,
+) -> str | None:
+    bad: list[tuple[str, object]] = []
+    for entry in error.errors():
+        if entry.get("type") not in _PARAM_VALUE_SHAPE_ERROR_TYPES:
+            continue
+        loc = entry.get("loc") or ()
+        if not loc or loc[0] not in _PARAM_VALUE_FIELDS:
+            continue
+        param_name = loc[1] if len(loc) > 1 and isinstance(loc[1], str) else "<unknown>"
+        bad.append((param_name, entry.get("input")))
+    if not bad:
+        return None
+    listing = ", ".join(f"{name!r}={input_!r}" for name, input_ in bad)
+    return (
+        f"Parameter value(s) {listing} were passed as raw scalars/lists. "
+        "Every parameter value MUST be wrapped as a typed object with a `type` "
+        "discriminator. Common shapes:\n"
+        '  {"type": "string", "value": "..."}\n'
+        '  {"type": "single-pick-vocabulary", "value": "<from allowed_values>"}\n'
+        '  {"type": "multi-pick-vocabulary", "values": ["<from allowed_values>", ...]}\n'
+        '  {"type": "number", "value": <number>}\n'
+        "The exact wrapper per param is in the `valueFormat` field of "
+        "`get_search_overview` / `get_parameter_options`. Copy that format "
+        "verbatim, substitute your chosen value, and re-call."
+    )
 
 
 def _build_strategy_misplaced_hint(
@@ -226,7 +267,6 @@ class ToolResilience(AbstractCapability[AgentDeps]):
       - SEMANTIC   → structured directive string returned as tool result
       - PERMANENT  → service-unavailable directive
       - UNKNOWN    → generic directive + full stack trace in logs
-    Layer 2: on_node_run_error — UnexpectedModelBehavior → End with graceful message
     """
 
     _CIRCUIT_BREAK_THRESHOLD: int = 3
@@ -300,38 +340,6 @@ class ToolResilience(AbstractCapability[AgentDeps]):
             next_actions=_NEXT_ACTIONS_UNKNOWN,
             do_not="Do not retry this exact call — an unexpected internal error occurred",
         )
-
-    async def on_node_run_error(
-        self,
-        ctx: RunContext[AgentDeps],
-        *,
-        node: Any,
-        error: Exception,
-    ) -> Any:
-        """Layer 2: intercept node-level failures.
-
-        UnexpectedModelBehavior (e.g. infinite loops, malformed responses) terminates
-        the run gracefully with a user-facing message rather than crashing.
-        All other exceptions are re-raised so Layer 3 (on_run_error) can handle them.
-        """
-        if isinstance(error, UnexpectedModelBehavior):
-            logger.warning(
-                "UnexpectedModelBehavior in node run",
-                node=repr(node),
-                error=str(error),
-            )
-            outcome = PhaseOutcome(
-                disposition=PhaseDisposition.AWAITING_USER,
-                prose=(
-                    "I encountered repeated errors while trying to complete "
-                    "this step. The VEuPathDB service may be experiencing "
-                    "issues. Please try again in a moment, or rephrase your "
-                    "request."
-                ),
-                reason="UnexpectedModelBehavior; ended turn gracefully",
-            )
-            return End(FinalResult(output=outcome))
-        raise error
 
     async def prepare_tools(
         self,

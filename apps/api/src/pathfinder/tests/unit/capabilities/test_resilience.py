@@ -16,11 +16,9 @@ import httpx
 import pytest
 from pydantic import BaseModel, ConfigDict
 from pydantic import ValidationError as PydanticValidationError
-from pydantic_ai.exceptions import ModelRetry, UnexpectedModelBehavior
+from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolCallPart
-from pydantic_ai.result import FinalResult
 from pydantic_ai.tools import ToolDefinition
-from pydantic_graph.nodes import End
 
 from pathfinder.ai.capabilities.error_classification import (
     ErrorCategory,
@@ -28,7 +26,6 @@ from pathfinder.ai.capabilities.error_classification import (
     classify_error,
 )
 from pathfinder.ai.capabilities.resilience import ToolResilience
-from pathfinder.ai.graph.state import PhaseDisposition, PhaseOutcome
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
@@ -537,47 +534,6 @@ class TestOnToolExecuteError:
         )
         assert isinstance(result, str)
         assert "SERVICE_UNAVAILABLE" in result
-
-
-# ---------------------------------------------------------------------------
-# TestOnNodeRunError — Layer 2
-# ---------------------------------------------------------------------------
-
-
-class TestOnNodeRunError:
-    """ToolResilience.on_node_run_error: UnexpectedModelBehavior → End, others re-raise."""
-
-    @pytest.mark.asyncio
-    async def test_unexpected_model_behavior_returns_end(self) -> None:
-        capability = ToolResilience()
-        ctx = _make_ctx()
-        error = UnexpectedModelBehavior("model repeated itself")
-        result = await capability.on_node_run_error(
-            ctx,
-            node=MagicMock(),
-            error=error,
-        )
-        assert isinstance(result, End)
-        # The End must wrap a FinalResult whose .output is a PhaseOutcome.
-        # pydantic-ai's beta GraphRun pulls .output off End.data and accesses
-        # .output / .tool_name on it; passing a bare string crashes the run
-        # with "'str' object has no attribute 'output'" inside iter __aexit__.
-        assert isinstance(result.data, FinalResult)
-        assert isinstance(result.data.output, PhaseOutcome)
-        assert result.data.output.disposition == PhaseDisposition.AWAITING_USER
-        assert result.data.output.prose
-
-    @pytest.mark.asyncio
-    async def test_other_errors_re_raise(self) -> None:
-        capability = ToolResilience()
-        ctx = _make_ctx()
-        error = RuntimeError("unexpected failure")
-        with pytest.raises(RuntimeError, match="unexpected failure"):
-            await capability.on_node_run_error(
-                ctx,
-                node=MagicMock(),
-                error=error,
-            )
 
 
 # ---------------------------------------------------------------------------

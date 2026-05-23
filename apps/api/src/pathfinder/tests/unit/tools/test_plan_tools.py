@@ -29,6 +29,10 @@ from pathfinder.ai.tools.standalone.plan import (
     update_plan,
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.values import (
+    MultiPickValue,
+    NumberValue,
+)
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
     PlanStatus,
@@ -80,7 +84,9 @@ def _leaf_step(
         display_name=f"Step: {search_name}",
         record_type="transcript",
         step_type=StepType.LEAF,
-        parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+        parameters={
+            "organism": MultiPickValue(values=["Plasmodium falciparum 3D7"]),
+        },
     )
 
 
@@ -269,7 +275,7 @@ async def test_create_plan_rejects_invalid_param_value_with_structured_retry(
         display_name="Step",
         record_type="transcript",
         step_type=StepType.LEAF,
-        parameters={"organism": '["Bogus"]'},
+        parameters={"organism": MultiPickValue(values=["Bogus"])},
     )
 
     with pytest.raises(ModelRetry) as excinfo:
@@ -405,7 +411,7 @@ async def test_update_plan_applies_step_patches() -> None:
     # auto-unwraps this into a real list (WDK rejects the stringified form).
     patch = StepPatch(
         step_id="step_a",
-        parameters={"organism": '["Plasmodium vivax"]'},
+        parameters={"organism": MultiPickValue(values=["Plasmodium vivax"])},
     )
 
     result = await update_plan(ctx, step_updates=[patch])
@@ -418,7 +424,7 @@ async def test_update_plan_applies_step_patches() -> None:
     patched_step = payload.steps[0]
     assert patched_step.id == "step_a"
     organism = next(p for p in patched_step.parameters if p.name == "organism")
-    assert organism.value == ["Plasmodium vivax"]
+    assert organism.value == MultiPickValue(values=["Plasmodium vivax"])
     assert organism.status == ParamStatus.SET
 
 
@@ -524,7 +530,9 @@ def test_convert_step_uses_real_param_type_from_specs() -> None:
         display_name="Genes by Taxon",
         record_type="transcript",
         step_type=StepType.LEAF,
-        parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+        parameters={
+            "organism": MultiPickValue(values=["Plasmodium falciparum 3D7"]),
+        },
     )
     specs = {
         "organism": ParamSpecNormalized(
@@ -555,8 +563,8 @@ def test_convert_step_populates_constraints_and_options_from_spec() -> None:
         record_type="transcript",
         step_type=StepType.LEAF,
         parameters={
-            "organism": '["pfal"]',
-            "num_genes": "100",
+            "organism": MultiPickValue(values=["pfal"]),
+            "num_genes": NumberValue(value=100),
         },
     )
     specs = {
@@ -603,7 +611,7 @@ def test_apply_step_patches_uses_specs_for_new_params() -> None:
         display_name="Genes by Taxon",
         record_type="transcript",
         step_type=StepType.LEAF,
-        parameters={"organism": "pfal"},
+        parameters={"organism": MultiPickValue(values=["pfal"])},
     )
     organism_spec = ParamSpecNormalized(
         name="organism",
@@ -632,7 +640,10 @@ def test_apply_step_patches_uses_specs_for_new_params() -> None:
         },
     }
 
-    patches = [StepPatch(step_id="step_a", parameters={"num_genes": "100"})]
+    patches = [StepPatch(
+        step_id="step_a",
+        parameters={"num_genes": NumberValue(value=100)},
+    )]
     _apply_step_patches(plan, patches, specs_by_search=specs)
 
     param = next(

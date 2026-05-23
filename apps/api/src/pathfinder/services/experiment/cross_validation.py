@@ -12,10 +12,10 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError, ValidationError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_tests import (
     IntersectionConfig,
     run_positive_negative_controls,
@@ -259,7 +259,7 @@ async def run_cross_validation(
     ctx: ControlsContext,
     tree: StrategyStepNode | None,
     search_name: str | None,
-    parameters: JSONObject | None,
+    parameters: dict[str, ParamValue] | None,
     options: CrossValidationOptions | None = None,
 ) -> CrossValidationResult:
     """Run k-fold cross-validation on control gene lists.

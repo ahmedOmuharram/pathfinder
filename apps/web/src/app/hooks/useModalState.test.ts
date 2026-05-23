@@ -32,16 +32,6 @@ describe("useModalState", () => {
     });
   });
 
-  describe("engine modal", () => {
-    it("opens and closes", () => {
-      const { result } = renderHook(() => useModalState());
-      act(() => result.current.openEngine());
-      expect(result.current.showEngine).toBe(true);
-      act(() => result.current.closeEngine());
-      expect(result.current.showEngine).toBe(false);
-    });
-  });
-
   describe("modal independence", () => {
     it("opening settings does not affect graph editor", () => {
       const { result } = renderHook(() => useModalState());

@@ -27,7 +27,7 @@ _COMPACTOR_INSTRUCTIONS = """\
 You are compacting a researcher's working notebook. Merge redundant notes, \
 drop notes that have been superseded by later notes, and keep distinct \
 findings intact. Preserve titles that are referenced elsewhere (tool \
-outputs, PhaseOutcomes) when possible. Return a new list of notes that \
+outputs, sub-agent deltas) when possible. Return a new list of notes that \
 replaces the input set. Output at most 20 notes.
 
 Rules:

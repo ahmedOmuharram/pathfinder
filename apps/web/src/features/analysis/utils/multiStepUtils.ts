@@ -3,12 +3,7 @@ import type { StrategyStepNode, Step } from "@pathfinder/shared";
 export function flattenStrategyStepNode(node: StrategyStepNode, recordType: string): Step[] {
   const steps: Step[] = [];
   const id = node.id ?? `step_${Math.random().toString(16).slice(2, 10)}`;
-  const params: Record<string, string> = {};
-  if (node.parameters) {
-    for (const [k, v] of Object.entries(node.parameters)) {
-      params[k] = String(v ?? "");
-    }
-  }
+  const params = node.parameters ?? {};
 
   let primaryInputStepId: string | undefined;
   let secondaryInputStepId: string | undefined;

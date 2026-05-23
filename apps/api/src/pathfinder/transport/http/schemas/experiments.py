@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import Field, JsonValue
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.types import (
@@ -52,7 +53,7 @@ class CreateExperimentRequest(CamelModel):
     record_type: str
     mode: ExperimentMode = Field(default="single")
     search_name: str = Field(default="")
-    parameters: JSONObject = Field(default_factory=dict)
+    parameters: dict[str, ParamValue] = Field(default_factory=dict)
     step_tree: JsonValue = Field(default=None)
     source_strategy_id: str | None = Field(default=None)
     optimization_target_step: str | None = Field(default=None)
@@ -127,7 +128,7 @@ class RefineRequest(CamelModel):
 
     action: Literal["combine", "transform"]
     search_name: str = Field(default="")
-    parameters: JSONObject = Field(default_factory=dict)
+    parameters: dict[str, ParamValue] = Field(default_factory=dict)
     operator: str = Field(default="INTERSECT")
     transform_name: str = Field(default="")
 

@@ -12,6 +12,7 @@ from pathfinder.integrations.veupathdb.wdk_parameters import (
     WDKParameter,
 )
 from pathfinder.platform.pydantic_base import CamelModel
+from pathfinder.services.catalog.param_formatting import _value_format
 from pathfinder.services.catalog.vocab_rendering import allowed_values
 
 _PHYLETIC_STRUCTURAL_PARAMS = frozenset({"phyletic_indent_map", "phyletic_term_map"})
@@ -25,6 +26,7 @@ class ParamOverviewEntry(CamelModel):
     type: str
     description: str
     has_vocabulary: bool
+    value_format: str
     default: JsonValue | None = None
     min: float | None = None
     max: float | None = None
@@ -111,6 +113,7 @@ def _format_param_overview(
         type=param.type,
         description=param.help or "",
         has_vocabulary=_has_vocabulary(param),
+        value_format=_value_format(param.type),
         default=param.initial_display_value,
         min=param.min,
         max=param.max,
@@ -166,10 +169,8 @@ def format_search_overview(
 
     for param in params:
         base: WDKBaseParameter = param
-        # Exclude hidden params
         if not base.is_visible:
             continue
-        # Exclude phyletic structural params
         if base.name in _PHYLETIC_STRUCTURAL_PARAMS:
             continue
 

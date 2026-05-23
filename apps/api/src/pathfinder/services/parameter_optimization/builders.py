@@ -2,8 +2,7 @@
 
 from dataclasses import dataclass
 
-from pydantic import JsonValue
-
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.services.experiment.types import ControlTestResult
 from pathfinder.services.parameter_optimization.config import (
     OptimizationConfig,
@@ -44,7 +43,7 @@ def _extract_trial_metrics(wdk_result: ControlTestResult) -> TrialMetrics:
 def _build_failed_trial(
     *,
     trial_number: int,
-    params: dict[str, JsonValue],
+    params: dict[str, ParamValue],
     n_positives: int,
     n_negatives: int,
 ) -> TrialResult:
@@ -63,7 +62,7 @@ def _build_failed_trial(
 def _build_successful_trial(
     *,
     trial_number: int,
-    params: dict[str, JsonValue],
+    params: dict[str, ParamValue],
     wdk_result: ControlTestResult,
     cfg: OptimizationConfig,
     n_positives: int,

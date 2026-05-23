@@ -11,6 +11,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from pathfinder.ai.graph.runtime import AgentDeps
+from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.operations import (
     DeleteResolution,
@@ -211,7 +212,7 @@ async def seed_user(db_session: AsyncSession) -> User:
 
 
 def _leaf(id_: str) -> StrategyStepNode:
-    return StrategyStepNode(id=id_, search_name="GenesByTaxon", parameters={"organism": ["Pf3D7"]})
+    return StrategyStepNode(id=id_, search_name="GenesByTaxon", parameters={"organism": MultiPickValue(values=["Pf3D7"])})
 
 
 def _combine(

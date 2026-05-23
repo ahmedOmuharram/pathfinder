@@ -11,11 +11,6 @@ import {
   Trash,
 } from "lucide-react";
 
-import {
-  optimizeCommand,
-  researchCommand,
-  validateCommand,
-} from "@/features/conversation/composer/SlashMenu";
 import { exportCommand, importCommand } from "./commandsIO";
 import { fetchJson } from "./registryUtils";
 import type { Command } from "./types";
@@ -108,9 +103,6 @@ export const commands: Command[] = [
       + "and what I should try next.",
     autoSubmit: false,
   },
-  optimizeCommand,
-  validateCommand,
-  researchCommand,
   {
     kind: "llm-prefill",
     name: "summarize",

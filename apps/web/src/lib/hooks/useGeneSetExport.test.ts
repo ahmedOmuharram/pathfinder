@@ -39,7 +39,7 @@ const baseStrategy: Strategy = {
       searchName: "GeneByTextSearch",
       recordType: "gene",
       wdkStepId: 42,
-      parameters: { text: "kinase" },
+      parameters: { text: { type: "string", value: "kinase" } },
       isBuilt: false,
       isFiltered: false,
     },
@@ -76,7 +76,7 @@ describe("useGeneSetExport", () => {
       wdkStepId: 42,
       searchName: "GeneByTextSearch",
       recordType: "gene",
-      parameters: { text: "kinase" },
+      parameters: { text: { type: "string", value: "kinase" } },
     });
     expect(mockInvalidate).toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith("/plasmodb/workbench/gs1");

@@ -12,6 +12,7 @@ from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._plan_models import PlannedStepInput
 from pathfinder.ai.tools.standalone.plan import create_plan
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.strategy.plan import (
     PlannedStep,
     PlanStatus,
@@ -93,7 +94,9 @@ def _leaf() -> PlannedStepInput:
         search_name="GenesByTaxon",
         display_name="New",
         step_type=StepType.LEAF,
-        parameters={"organism": '["Plasmodium falciparum 3D7"]'},
+        parameters={
+            "organism": MultiPickValue(values=["Plasmodium falciparum 3D7"]),
+        },
     )
 
 

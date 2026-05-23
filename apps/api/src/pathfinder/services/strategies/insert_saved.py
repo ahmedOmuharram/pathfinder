@@ -130,7 +130,7 @@ async def insert_saved_into_conversation(  # noqa: PLR0913
             ),
         ) from exc
 
-    saved_ast = build_snapshot_from_wdk(saved)
+    saved_ast, _wire_by_step_id = build_snapshot_from_wdk(saved)
     cloned_secondary = deep_clone_with_fresh_ids(saved_ast.root)
     new_full_root, combine_step_id = _build_new_root(
         graph=graph,

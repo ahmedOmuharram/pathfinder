@@ -4,7 +4,7 @@ Small utility functions that don't belong to any single phase but are
 called from several.
 """
 
-from pathfinder.platform.types import JSONObject
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.services.control_tests import (
     IntersectionConfig,
     run_positive_negative_controls,
@@ -21,7 +21,7 @@ from pathfinder.services.experiment.types import (
 
 async def run_single_step_controls(
     config: ExperimentConfig,
-    parameters: JSONObject,
+    parameters: dict[str, ParamValue],
 ) -> ControlTestResult:
     """Run single-step control tests with the given parameters."""
     return await run_positive_negative_controls(

@@ -21,7 +21,7 @@ _RULE_TAIL = (
     "call note(...).\n"
     "      Before ending your turn, review notes (list_notes/search_notes) "
     "and pin_note(...) load-bearing findings.\n"
-    "      In your PhaseOutcome, reference supporting notes via note_refs "
+    "      In your typed delta, reference supporting notes via note_refs "
     "when possible."
 )
 

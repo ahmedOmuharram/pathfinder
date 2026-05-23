@@ -65,9 +65,10 @@ import type {
   ParamSpecResponse,
   ParameterSensitivityResponse,
   ParameterSweepPointResponse,
-  PhaseChange,
   PlanArtifact,
   PlannedStep,
+  PlanSlotForm,
+  PlanSlotOption,
   PlanUpdate,
   ProblemFrame,
   RankMetricsResponse,
@@ -81,13 +82,6 @@ import type {
   StepCountsResponse,
   StepEvaluationResponse,
   StepResponse,
-  StepSummary,
-  ControlTestRun,
-  BiologicalFocus,
-  TurnExcerpt,
-  ValidateContext,
-  ResearchContext,
-  SpecialistMode,
   StrategyLink,
   StrategyMeta,
   ConversationResponse,
@@ -199,20 +193,6 @@ export type GeneSet = GeneSetResponse;
 export type GeneConfidenceScore = GeneConfidenceScoreResponse;
 export type ControlSet = ControlSetResponse;
 
-export type SpecialistKind = "validate" | "research";
-
-export type SpecialistContext = ValidateContext | ResearchContext;
-export type SpecialistTurnExcerpt = TurnExcerpt;
-export type SpecialistMemoryHit = MemoryValue;
-export type {
-  StepSummary,
-  ControlTestRun,
-  BiologicalFocus,
-  ValidateContext,
-  ResearchContext,
-  SpecialistMode,
-};
-
 export type Strategy = Omit<ConversationResponse, "steps" | "isSaved"> & {
   steps: StepResponse[];
   isSaved: boolean;
@@ -285,7 +265,7 @@ export interface BaseStrategyNode {
 
 export interface StrategyStepNode extends BaseStrategyNode {
   searchName: string;
-  parameters?: Record<string, unknown>;
+  parameters?: NonNullable<StepResponse["parameters"]>;
   primaryInput?: StrategyStepNode;
   secondaryInput?: StrategyStepNode;
   operator?: CombineOperator;
@@ -421,10 +401,11 @@ export type {
   StrategyLink,
   PlanArtifact,
   PlannedStep,
+  PlanSlotForm,
+  PlanSlotOption,
   PlanUpdate,
   DecisionPresented,
   OptimizationSnapshot,
-  PhaseChange,
   BackgroundTaskStarted,
   TaskCompleted,
   TurnUsage,
@@ -438,57 +419,93 @@ export type TaskProgressChunk = TaskProgressStreamPart;
 // Used by the frontend content-part dispatcher (ts-pattern exhaustive match).
 // Adding a backend kind here WITHOUT adding a renderer triggers a compile error.
 
-export interface DataPhaseStartPayload {
-  phase: string;
-  traceId: string;
-  model: string;
-}
-
 export interface DataConversationTitlePayload {
   title: string;
 }
 
-export interface DataTurnRejectedPayload {
-  message: string;
-  reason: string;
-}
-
-export interface DataTurnQaPayload {
-  answer: string;
-  reason: string;
-}
-
-export interface DataSupervisorDecisionPayload {
-  to: string;
-  reason: string;
-}
-
-export interface DataSpecialistSuggestionPayload {
-  kind: SpecialistKind;
-}
-
-export interface DataSpecialistEnteredPayload {
-  kind: SpecialistKind;
+export interface DataSubAgentCallPayload {
+  toolCallId: string;
+  subAgent: string;
+  phase: string;
+  state: "started" | "completed" | "failed";
   modelId: string;
-  contextSummary: string;
+  summary: string;
+  succeeded: boolean | null;
 }
 
-export type DataSpecialistExitedPayload = Record<string, never>;
+export interface DataSubAgentStepPayload {
+  parentToolCallId: string;
+  kind: "tool" | "reasoning" | "text";
+  state: "started" | "completed" | "failed";
+  toolCallId?: string | null;
+  toolName?: string | null;
+  args?: Record<string, unknown> | null;
+  resultSummary?: string | null;
+  text?: string | null;
+}
 
-export interface DataOptimizeLaunchPayload {
-  /** WDK numeric step id (the user-facing step number in the strategy). */
-  stepId: number;
-  /** Local AST step id (string) — what the per-step PATCH endpoint
-   *  expects. Optional for back-compat with payloads written before the
-   *  Apply Best Config button shipped. */
-  localStepId?: string | null | undefined;
-  paramKeys: string[];
-  criterion: string;
-  budget: number;
-  modelId?: string | null | undefined;
-  /** UUID of the durable background task created by the launcher.
-   *  Optional for forward-compat with launches persisted before D-6. */
-  taskId?: string | null | undefined;
+export interface LedgerIntentPayload {
+  classification: string;
+  inferredGoal: string;
+  isDifferential: boolean;
+  differentialSides: string[];
+}
+
+export interface LedgerFramePayload {
+  needed: boolean;
+  blocked: boolean;
+  matchesCurrentIntent: boolean;
+  blockingQuestionsUnanswered: { question: string; context?: string }[];
+  frame: Record<string, unknown> | null;
+}
+
+export interface LedgerDiscoveryPayload {
+  selectedCount: number;
+  rejectedCount: number;
+  intentSatisfied: boolean;
+  intentGap: string | null;
+  needsMoreDiscovery: boolean;
+}
+
+export interface LedgerPlanPayload {
+  approved: boolean;
+  openUserInputSlots: { stepId: string; paramName: string; question: string }[];
+  openDiscoverySlots: { stepId: string; paramName: string }[];
+  blockedKind: "none" | "needs_discovery" | "needs_user" | "needs_approval";
+  readyToExecute: boolean;
+  plan: Record<string, unknown> | null;
+}
+
+export interface LedgerBuildPayload {
+  pushedCount: number;
+  failedCount: number;
+  skippedCount: number;
+  zeroResultSteps: string[];
+  needsRecovery: boolean;
+  recoveryKind:
+    | "none"
+    | "transient_retry"
+    | "param_replan"
+    | "search_replan"
+    | "user_clarify"
+    | "empty_result_review";
+  succeeded: boolean;
+}
+
+export interface LedgerVerificationPayload {
+  complete: boolean;
+  successful: boolean;
+}
+
+export interface DataLedgerUpdatePayload {
+  userIntent: LedgerIntentPayload | null;
+  frame: LedgerFramePayload;
+  discovery: LedgerDiscoveryPayload;
+  plan: LedgerPlanPayload;
+  build: LedgerBuildPayload;
+  verification: LedgerVerificationPayload;
+  subAgentCallsThisTurn: number;
+  subAgentCallsTotal: number;
 }
 
 export interface DataToolApprovalRequestPayload {
@@ -524,8 +541,9 @@ export interface DataVerificationSummaryPayload {
 }
 
 export type DataPartKind =
-  | "data-phase-start"
-  | "data-phase-change"
+  | "data-sub-agent-call"
+  | "data-sub-agent-step"
+  | "data-ledger-update"
   | "data-background-task-started"
   | "data-task-progress"
   | "data-task-completed"
@@ -543,20 +561,13 @@ export type DataPartKind =
   | "data-gene-set"
   | "data-verification-summary"
   | "data-conversation-title"
-  | "data-turn-rejected"
-  | "data-turn-qa"
-  | "data-supervisor-decision"
-  | "data-supervisor-context"
-  | "data-specialist-suggestion"
-  | "data-specialist-entered"
-  | "data-specialist-exited"
-  | "data-optimize-launch"
   | "data-scratchpad-updated"
   | "data-turn-usage";
 
 export interface DataPartPayloadMap {
-  "data-phase-start": DataPhaseStartPayload;
-  "data-phase-change": PhaseChange;
+  "data-sub-agent-call": DataSubAgentCallPayload;
+  "data-sub-agent-step": DataSubAgentStepPayload;
+  "data-ledger-update": DataLedgerUpdatePayload;
   "data-background-task-started": BackgroundTaskStarted;
   "data-task-progress": TaskProgressStreamPart;
   "data-task-completed": TaskCompleted;
@@ -574,14 +585,6 @@ export interface DataPartPayloadMap {
   "data-gene-set": GeneSetStreamPart;
   "data-verification-summary": DataVerificationSummaryPayload;
   "data-conversation-title": DataConversationTitlePayload;
-  "data-turn-rejected": DataTurnRejectedPayload;
-  "data-turn-qa": DataTurnQaPayload;
-  "data-supervisor-decision": DataSupervisorDecisionPayload;
-  "data-supervisor-context": Record<string, unknown>;
-  "data-specialist-suggestion": DataSpecialistSuggestionPayload;
-  "data-specialist-entered": DataSpecialistEnteredPayload;
-  "data-specialist-exited": DataSpecialistExitedPayload;
-  "data-optimize-launch": DataOptimizeLaunchPayload;
   "data-scratchpad-updated": Record<string, never>;
   "data-turn-usage": TurnUsage;
 }

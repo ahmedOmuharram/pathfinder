@@ -1,3 +1,10 @@
+from collections.abc import Iterable
+
+from pathfinder.domain.parameters.values import (
+    MultiPickValue,
+    ParamValue,
+    StringValue,
+)
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
@@ -12,10 +19,22 @@ from pathfinder.services.strategies.step_push_planner import (
 )
 
 
-def _leaf(step_id: str, search: str = "GenesByTaxon", **params: str) -> StrategyStepNode:
+def _multi(items: Iterable[str]) -> MultiPickValue:
+    return MultiPickValue(values=list(items))
+
+
+def _string(v: str) -> StringValue:
+    return StringValue(value=v)
+
+
+def _leaf(
+    step_id: str,
+    search: str = "GenesByTaxon",
+    **params: ParamValue,
+) -> StrategyStepNode:
     return StrategyStepNode(
         search_name=search,
-        parameters=dict(params) if params else {"organism": ["Pf3D7"]},
+        parameters=dict(params) if params else {"organism": _multi(["Pf3D7"])},
         id=step_id,
     )
 
@@ -37,7 +56,9 @@ def _combine(
     )
 
 
-def _transform(step_id: str, primary: StrategyStepNode, **params: str) -> StrategyStepNode:
+def _transform(
+    step_id: str, primary: StrategyStepNode, **params: ParamValue,
+) -> StrategyStepNode:
     return StrategyStepNode(
         search_name="GenesByOrtholog",
         primary_input=primary,
@@ -51,9 +72,9 @@ def _ast(root: StrategyStepNode) -> StrategyAst:
 
 
 def _four_step_strategy_with_two_combines() -> StrategyAst:
-    a = _leaf("step_a", organism=["Pf3D7"])
-    b = _leaf("step_b", organism=["PvP01"])
-    c = _leaf("step_c", organism=["Pk"])
+    a = _leaf("step_a", organism=_multi(["Pf3D7"]))
+    b = _leaf("step_b", organism=_multi(["PvP01"]))
+    c = _leaf("step_c", organism=_multi(["Pk"]))
     inner = _combine("step_inner", a, b, op=CombineOp.UNION)
     outer = _combine("step_outer", inner, c, op=CombineOp.INTERSECT)
     return _ast(outer)
@@ -63,7 +84,7 @@ def test_no_old_ast_creates_all_steps():
     a = _leaf("step_a")
     b = _leaf("step_b")
     inner = _combine("step_inner", a, b, op=CombineOp.UNION)
-    t = _transform("step_t", inner, ortho_pattern="%Pf:Y%")
+    t = _transform("step_t", inner, ortho_pattern=_string("%Pf:Y%"))
     new_ast = _ast(t)
 
     plan = plan_step_pushes(old_ast=None, new_ast=new_ast, existing_wdk_ids={})
@@ -89,9 +110,9 @@ def test_unchanged_strategy_skips_everything():
 
 def test_single_leaf_param_change_patches_only_that_leaf():
     old = _four_step_strategy_with_two_combines()
-    a2 = _leaf("step_a", organism=["Pf3D7", "Pf7G8"])
-    b = _leaf("step_b", organism=["PvP01"])
-    c = _leaf("step_c", organism=["Pk"])
+    a2 = _leaf("step_a", organism=_multi(["Pf3D7", "Pf7G8"]))
+    b = _leaf("step_b", organism=_multi(["PvP01"]))
+    c = _leaf("step_c", organism=_multi(["Pk"]))
     inner = _combine("step_inner", a2, b, op=CombineOp.UNION)
     outer = _combine("step_outer", inner, c, op=CombineOp.INTERSECT)
     new = _ast(outer)
@@ -118,9 +139,9 @@ def test_single_leaf_param_change_patches_only_that_leaf():
 
 def test_combine_operator_change_recreates_only_that_combine():
     old = _four_step_strategy_with_two_combines()
-    a = _leaf("step_a", organism=["Pf3D7"])
-    b = _leaf("step_b", organism=["PvP01"])
-    c = _leaf("step_c", organism=["Pk"])
+    a = _leaf("step_a", organism=_multi(["Pf3D7"]))
+    b = _leaf("step_b", organism=_multi(["PvP01"]))
+    c = _leaf("step_c", organism=_multi(["Pk"]))
     inner = _combine("step_inner", a, b, op=CombineOp.UNION)
     outer = _combine("step_outer", inner, c, op=CombineOp.UNION)
     new = _ast(outer)
@@ -139,9 +160,9 @@ def test_combine_operator_change_recreates_only_that_combine():
 
 def test_combine_operator_change_propagates_recreate_upward():
     old = _four_step_strategy_with_two_combines()
-    a = _leaf("step_a", organism=["Pf3D7"])
-    b = _leaf("step_b", organism=["PvP01"])
-    c = _leaf("step_c", organism=["Pk"])
+    a = _leaf("step_a", organism=_multi(["Pf3D7"]))
+    b = _leaf("step_b", organism=_multi(["PvP01"]))
+    c = _leaf("step_c", organism=_multi(["Pk"]))
     inner = _combine("step_inner", a, b, op=CombineOp.INTERSECT)
     outer = _combine("step_outer", inner, c, op=CombineOp.INTERSECT)
     new = _ast(outer)
@@ -159,8 +180,8 @@ def test_combine_operator_change_propagates_recreate_upward():
 
 
 def test_combine_input_swap_is_recreate():
-    a = _leaf("step_a", organism=["Pf3D7"])
-    b = _leaf("step_b", organism=["PvP01"])
+    a = _leaf("step_a", organism=_multi(["Pf3D7"]))
+    b = _leaf("step_b", organism=_multi(["PvP01"]))
     old = _ast(_combine("step_c", a, b, op=CombineOp.UNION))
     new = _ast(_combine("step_c", b, a, op=CombineOp.UNION))
     wdk_ids = {"step_a": 1, "step_b": 2, "step_c": 3}
@@ -176,10 +197,10 @@ def test_combine_input_swap_is_recreate():
 
 def test_step_kind_transition_recreates():
     leaf = _leaf("step_a")
-    old_root = _transform("step_t", leaf, foo="1")
+    old_root = _transform("step_t", leaf, foo=_string("1"))
     new_root = StrategyStepNode(
         search_name="GenesByOrtholog",
-        parameters={"foo": "1"},
+        parameters={"foo": _string("1")},
         id="step_t",
     )
     wdk_ids = {"step_a": 1, "step_t": 2}
@@ -195,7 +216,7 @@ def test_added_step_creates_only_that_step():
     a = _leaf("step_a")
     b = _leaf("step_b")
     old = _ast(_combine("step_c", a, b, op=CombineOp.UNION))
-    d = _leaf("step_d", organism=["Pk"])
+    d = _leaf("step_d", organism=_multi(["Pk"]))
     inner = _combine("step_c", a, b, op=CombineOp.UNION)
     new = _ast(_combine("step_outer", inner, d, op=CombineOp.INTERSECT))
     wdk_ids = {"step_a": 1, "step_b": 2, "step_c": 3}
@@ -215,13 +236,13 @@ def test_added_step_creates_only_that_step():
 def test_display_name_only_change_patches_leaf():
     old = _ast(StrategyStepNode(
         search_name="GenesByTaxon",
-        parameters={"organism": ["Pf3D7"]},
+        parameters={"organism": _multi(["Pf3D7"])},
         display_name="Falciparum",
         id="step_a",
     ))
     new = _ast(StrategyStepNode(
         search_name="GenesByTaxon",
-        parameters={"organism": ["Pf3D7"]},
+        parameters={"organism": _multi(["Pf3D7"])},
         display_name="P. falciparum genes",
         id="step_a",
     ))
@@ -235,8 +256,8 @@ def test_display_name_only_change_patches_leaf():
 
 
 def test_search_name_change_patches_leaf():
-    old = _ast(_leaf("step_a", "GenesByTaxon", organism=["Pf3D7"]))
-    new = _ast(_leaf("step_a", "GenesByOrtholog", organism=["Pf3D7"]))
+    old = _ast(_leaf("step_a", "GenesByTaxon", organism=_multi(["Pf3D7"])))
+    new = _ast(_leaf("step_a", "GenesByOrtholog", organism=_multi(["Pf3D7"])))
     wdk_ids = {"step_a": 1}
 
     plan = plan_step_pushes(old_ast=old, new_ast=new, existing_wdk_ids=wdk_ids)
@@ -292,10 +313,10 @@ def test_topology_changed_returns_true_when_input_swapped():
 
 
 def test_topology_changed_returns_false_when_only_params_changed():
-    a = _leaf("step_a", organism=["Pf3D7"])
-    b = _leaf("step_b", organism=["PvP01"])
+    a = _leaf("step_a", organism=_multi(["Pf3D7"]))
+    b = _leaf("step_b", organism=_multi(["PvP01"]))
     old = _ast(_combine("step_c", a, b, op=CombineOp.UNION))
-    a2 = _leaf("step_a", organism=["Pf3D7", "Pf7G8"])
+    a2 = _leaf("step_a", organism=_multi(["Pf3D7", "Pf7G8"]))
     new = _ast(_combine("step_c", a2, b, op=CombineOp.INTERSECT))
 
     assert topology_changed(old, new) is False

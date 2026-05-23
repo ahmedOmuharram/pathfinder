@@ -1,22 +1,29 @@
 import type { ColocationParams, Step } from "@pathfinder/shared";
+import type { ParamSpec } from "@/features/strategy/parameters/spec";
+import {
+  paramValueToRaw,
+  rawToParamValue,
+  type ParamValueMap,
+} from "@/features/strategy/parameters/paramValue";
 
 export interface BuildPatchArgs {
   step: Step;
   formValues: Record<string, unknown>;
   hiddenDefaults: Record<string, unknown>;
   allowedParamKeys: ReadonlySet<string>;
+  paramSpecs: ParamSpec[];
   operator: string;
   displayName: string;
   colocationParams: ColocationParams | null;
 }
 
-function normalizeParamValue(val: unknown): string | string[] {
+function normalizeRaw(val: unknown): string | string[] {
   if (Array.isArray(val)) return val.map(String);
   if (val == null) return "";
   return String(val);
 }
 
-function paramValueEquals(a: string | string[], b: string | string[]): boolean {
+function rawEquals(a: string | string[], b: string | string[]): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
     return a.every((v, i) => v === b[i]);
@@ -27,22 +34,26 @@ function paramValueEquals(a: string | string[], b: string | string[]): boolean {
 
 export function buildStepPatch(args: BuildPatchArgs): Partial<Step> {
   const baseParams = args.step.parameters ?? {};
-  const parameters: Record<string, string | string[]> = {};
+  const specsByName = new Map(args.paramSpecs.map((s) => [s.name, s]));
+  const parameters: ParamValueMap = {};
+
+  const collect = (key: string, raw: string | string[]): void => {
+    const spec = specsByName.get(key);
+    if (spec === undefined) return;
+    const baseTyped = baseParams[key];
+    const baseRaw =
+      baseTyped === undefined ? null : paramValueToRaw(baseTyped);
+    if (baseRaw !== null && rawEquals(raw, baseRaw)) return;
+    parameters[key] = rawToParamValue(spec, raw);
+  };
+
   for (const [key, val] of Object.entries(args.formValues)) {
     if (!args.allowedParamKeys.has(key)) continue;
-    const next = normalizeParamValue(val);
-    const baseRaw = baseParams[key];
-    const base = baseRaw === undefined ? null : normalizeParamValue(baseRaw);
-    if (base !== null && paramValueEquals(next, base)) continue;
-    parameters[key] = next;
+    collect(key, normalizeRaw(val));
   }
   for (const [key, val] of Object.entries(args.hiddenDefaults)) {
     if (val == null) continue;
-    const next = normalizeParamValue(val);
-    const baseRaw = baseParams[key];
-    const base = baseRaw === undefined ? null : normalizeParamValue(baseRaw);
-    if (base !== null && paramValueEquals(next, base)) continue;
-    parameters[key] = next;
+    collect(key, normalizeRaw(val));
   }
 
   const patch: Partial<Step> = {};

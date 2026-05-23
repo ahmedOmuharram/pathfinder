@@ -15,8 +15,10 @@ application.  Within a single batch, analyses run in parallel via
 import asyncio
 import json
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
+from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     WDKSearchConfig,
@@ -62,7 +64,7 @@ class EnrichmentService:
         step_id: int | None = None,
         search_name: str | None = None,
         record_type: str | None = None,
-        parameters: JSONObject | None = None,
+        parameters: dict[str, ParamValue] | None = None,
     ) -> EnrichmentResult:
         """Run a single enrichment analysis.
 
@@ -81,13 +83,7 @@ class EnrichmentService:
         step = await api.create_step(
             NewStepSpec(
                 search_name=search_name,
-                search_config=WDKSearchConfig(
-                    parameters={
-                        k: str(v)
-                        for k, v in (parameters or {}).items()
-                        if v is not None
-                    },
-                ),
+                search_config=WDKSearchConfig(parameters=encode_params(parameters)),
                 custom_name="Enrichment target",
             ),
             record_type=record_type or "transcript",
@@ -115,7 +111,7 @@ class EnrichmentService:
         step_id: int | None = None,
         search_name: str | None = None,
         record_type: str | None = None,
-        parameters: JSONObject | None = None,
+        parameters: dict[str, ParamValue] | None = None,
     ) -> tuple[list[EnrichmentResult], list[str]]:
         """Run multiple enrichment analyses concurrently on a shared step.
 
@@ -146,13 +142,7 @@ class EnrichmentService:
         step = await api.create_step(
             NewStepSpec(
                 search_name=search_name,
-                search_config=WDKSearchConfig(
-                    parameters={
-                        k: str(v)
-                        for k, v in (parameters or {}).items()
-                        if v is not None
-                    },
-                ),
+                search_config=WDKSearchConfig(parameters=encode_params(parameters)),
                 custom_name="Enrichment target",
             ),
             record_type=record_type or "transcript",

@@ -2,6 +2,7 @@
 
 from pydantic import Field
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.types import EnrichmentAnalysisType
@@ -20,7 +21,7 @@ class CreateGeneSetRequest(CamelModel):
     wdk_step_id: int | None = Field(None)
     search_name: str | None = Field(None)
     record_type: str | None = Field(None)
-    parameters: dict[str, str] | None = None
+    parameters: dict[str, ParamValue] | None = None
 
 
 class GeneSetResponse(CamelModel):
@@ -36,7 +37,7 @@ class GeneSetResponse(CamelModel):
     wdk_step_id: int | None = Field(None)
     search_name: str | None = Field(None)
     record_type: str | None = Field(None)
-    parameters: dict[str, str] | None = None
+    parameters: dict[str, ParamValue] | None = None
     parent_set_ids: list[str] = Field(default_factory=list)
     operation: SetOperation | None = None
     created_at: str

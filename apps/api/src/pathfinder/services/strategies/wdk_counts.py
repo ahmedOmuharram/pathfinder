@@ -13,13 +13,13 @@ import json
 
 from cachetools import LRUCache
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
     walk_step_tree,
 )
 from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.integrations.veupathdb.client import (
     VEuPathDBClient,
 )
@@ -55,7 +55,7 @@ async def _count_via_anonymous_report(
     client: VEuPathDBClient,
     record_type: str,
     search_name: str,
-    parameters: DecodedParams,
+    parameters: dict[str, ParamValue],
 ) -> int | None:
     """Get result count for a single search using the anonymous report endpoint.
 

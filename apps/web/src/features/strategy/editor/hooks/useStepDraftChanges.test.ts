@@ -3,13 +3,16 @@ import { describe, expect, it } from "vitest";
 import type { Step } from "@pathfinder/shared";
 import { useStepDraftChanges } from "./useStepDraftChanges";
 
+const single = (value: string) => ({ type: "single-pick-vocabulary" as const, value });
+const multi = (values: string[]) => ({ type: "multi-pick-vocabulary" as const, values });
+
 function makeStep(overrides: Partial<Step> = {}): Step {
   return {
     id: "step-1",
     displayName: "Step 1",
     searchName: "GenesByTaxon",
     recordType: "transcript",
-    parameters: { organism: "Pf3D7" },
+    parameters: { organism: single("Pf3D7") },
     isBuilt: false,
     isFiltered: false,
     operator: "",
@@ -23,7 +26,7 @@ const ALL_PARAMS = new Set(["organism", "min_weight", "go_terms"]);
 describe("useStepDraftChanges", () => {
   it("returns zero changes when form values match step parameters", () => {
     const result = useStepDraftChanges({
-      step: makeStep({ parameters: { organism: "Pf3D7" } }),
+      step: makeStep({ parameters: { organism: single("Pf3D7") } }),
       formValues: { organism: "Pf3D7" },
       operator: "",
       displayName: "Step 1",
@@ -37,7 +40,7 @@ describe("useStepDraftChanges", () => {
 
   it("detects a single param change", () => {
     const result = useStepDraftChanges({
-      step: makeStep({ parameters: { organism: "Pf3D7" } }),
+      step: makeStep({ parameters: { organism: single("Pf3D7") } }),
       formValues: { organism: "PvP01" },
       operator: "",
       displayName: "Step 1",
@@ -51,7 +54,7 @@ describe("useStepDraftChanges", () => {
 
   it("detects an added param", () => {
     const result = useStepDraftChanges({
-      step: makeStep({ parameters: { organism: "Pf3D7" } }),
+      step: makeStep({ parameters: { organism: single("Pf3D7") } }),
       formValues: { organism: "Pf3D7", min_weight: "1000" },
       operator: "",
       displayName: "Step 1",
@@ -64,7 +67,7 @@ describe("useStepDraftChanges", () => {
 
   it("detects array (multi-pick) param changes", () => {
     const result = useStepDraftChanges({
-      step: makeStep({ parameters: { go_terms: ["GO:0006915"] } }),
+      step: makeStep({ parameters: { go_terms: multi(["GO:0006915"]) } }),
       formValues: { go_terms: ["GO:0006915", "GO:0007049"] },
       operator: "",
       displayName: "Step 1",
@@ -77,7 +80,7 @@ describe("useStepDraftChanges", () => {
 
   it("treats identical arrays as no change", () => {
     const result = useStepDraftChanges({
-      step: makeStep({ parameters: { go_terms: ["GO:0006915", "GO:0007049"] } }),
+      step: makeStep({ parameters: { go_terms: multi(["GO:0006915", "GO:0007049"]) } }),
       formValues: { go_terms: ["GO:0006915", "GO:0007049"] },
       operator: "",
       displayName: "Step 1",
@@ -116,7 +119,7 @@ describe("useStepDraftChanges", () => {
   it("counts multiple simultaneous changes", () => {
     const result = useStepDraftChanges({
       step: makeStep({
-        parameters: { organism: "Pf3D7" },
+        parameters: { organism: single("Pf3D7") },
         operator: "",
         displayName: "Step 1",
       }),
@@ -135,7 +138,7 @@ describe("useStepDraftChanges", () => {
 
   it("ignores form keys outside allowedParamKeys", () => {
     const result = useStepDraftChanges({
-      step: makeStep({ parameters: { organism: "Pf3D7" } }),
+      step: makeStep({ parameters: { organism: single("Pf3D7") } }),
       formValues: { organism: "Pf3D7", foo_extra: "value" },
       operator: "",
       displayName: "Step 1",

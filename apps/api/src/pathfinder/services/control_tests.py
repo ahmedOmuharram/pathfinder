@@ -8,10 +8,12 @@ from dataclasses import dataclass, field
 
 from pydantic import JsonValue
 
+from pathfinder.domain.parameters.values import ParamValue, StringValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ops import DEFAULT_COMBINE_OPERATOR
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
+from pathfinder.integrations.veupathdb.value_decoding import encode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
     NewStepSpec,
     PatchStepSpec,
@@ -67,11 +69,11 @@ class IntersectionConfig:
     site_id: str
     record_type: str
     target_search_name: str
-    target_parameters: JSONObject
+    target_parameters: dict[str, ParamValue]
     controls_search_name: str
     controls_param_name: str
     controls_value_format: ControlValueFormat = "newline"
-    controls_extra_parameters: JSONObject | None = None
+    controls_extra_parameters: dict[str, ParamValue] | None = None
     boolean_operator: str = field(
         default_factory=lambda: DEFAULT_COMBINE_OPERATOR.value
     )
@@ -82,7 +84,7 @@ class IntersectionConfig:
         cls,
         config: ExperimentConfig,
         *,
-        target_parameters: JSONObject | None = None,
+        target_parameters: dict[str, ParamValue] | None = None,
     ) -> "IntersectionConfig":
         """Build an IntersectionConfig from an ExperimentConfig.
 
@@ -110,8 +112,8 @@ class IntersectionConfig:
         ctx: ControlsContext,
         *,
         target_search_name: str,
-        target_parameters: JSONObject,
-        controls_extra_parameters: JSONObject | None = None,
+        target_parameters: dict[str, ParamValue],
+        controls_extra_parameters: dict[str, ParamValue] | None = None,
         id_field: str | None = None,
     ) -> "IntersectionConfig":
         """Build an IntersectionConfig from a ControlsContext.
@@ -202,11 +204,7 @@ async def _run_intersection_control(
         NewStepSpec(
             search_name=config.target_search_name,
             search_config=WDKSearchConfig(
-                parameters={
-                    k: str(v)
-                    for k, v in (config.target_parameters or {}).items()
-                    if v is not None
-                },
+                parameters=encode_params(config.target_parameters),
             ),
             custom_name="Target",
         ),
@@ -220,27 +218,23 @@ async def _run_intersection_control(
         api, controls_rt, config.controls_search_name, config.controls_param_name
     )
 
-    controls_params = dict(config.controls_extra_parameters or {})
+    controls_params: dict[str, ParamValue] = dict(config.controls_extra_parameters or {})
     if param_type == "input-dataset":
         config_ds = WDKDatasetConfigIdList(
             source_type="idList",
             source_content=WDKDatasetIdListContent(ids=controls_ids),
         )
         dataset_id = await api.create_dataset(config_ds)
-        controls_params[config.controls_param_name] = str(dataset_id)
+        controls_params[config.controls_param_name] = StringValue(value=str(dataset_id))
     else:
-        controls_params[config.controls_param_name] = _encode_id_list(
-            controls_ids, config.controls_value_format
+        controls_params[config.controls_param_name] = StringValue(
+            value=_encode_id_list(controls_ids, config.controls_value_format),
         )
 
     controls_step = await api.create_step(
         NewStepSpec(
             search_name=config.controls_search_name,
-            search_config=WDKSearchConfig(
-                parameters={
-                    k: str(v) for k, v in controls_params.items() if v is not None
-                },
-            ),
+            search_config=WDKSearchConfig(parameters=encode_params(controls_params)),
             custom_name="Controls",
         ),
         record_type=controls_rt,

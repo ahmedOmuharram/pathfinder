@@ -44,7 +44,7 @@ export type GraphOperation =
       resolution: DeleteEdgeResolution;
     }
   | { kind: "replaceSubtree"; stepId: string; subtree: Step[] }
-  | { kind: "updateStepParams"; stepId: string; parameters: Record<string, unknown> }
+  | { kind: "updateStepParams"; stepId: string; parameters: NonNullable<Step["parameters"]> }
   | {
       kind: "updateCombineOperator";
       stepId: string;

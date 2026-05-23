@@ -120,7 +120,7 @@ async def save_subtree_as_strategy(
             site_id=site_id,
             record_type=record_type,
             search_name=node.search_name,
-            parameters=node.parameters or {},
+            parameters=dict(node.parameters),
         )
         if push_error or wdk_id is None:
             raise ValidationError(

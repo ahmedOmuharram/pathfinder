@@ -1,13 +1,11 @@
-"""Tests for the ``get_parameter_options`` did-you-mean retry path.
+"""Tests for the ``get_parameter_options`` did-you-mean return path.
 
 The unit under test: when the model passes a parameter_id that doesn't
-exist on the search, the tool must raise ``ModelRetry`` with (a) the
-closest matching valid names and (b) the full set of valid names. That
-message is the model's prompt for the next request — if it doesn't
-contain enough info to self-correct, we end up in a retry loop and the
-fix didn't help.
-
-These tests stub out the WDK client so they're hermetic and fast.
+exist on the search, the tool must return a ``ParameterNotOnSearch``
+result (NOT raise ``ModelRetry``) carrying (a) the closest matching
+valid names and (b) the full set of valid names. Returning instead of
+raising preserves retry budget — the model self-corrects on its next
+call from the typed payload.
 """
 from __future__ import annotations
 
@@ -15,10 +13,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.tools.standalone import catalog_discovery
+from pathfinder.services.catalog.param_formatting import ParameterNotOnSearch
 
 
 def _ctx() -> Any:
@@ -86,12 +84,13 @@ async def test_known_parameter_returns_normally(
 
 
 @pytest.mark.asyncio
-async def test_unknown_parameter_raises_modelretry_with_close_match(
+async def test_unknown_parameter_returns_not_on_search_with_close_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The exact bug we're fixing: model guesses ``minOverlap`` (English-y),
-    real WDK name is ``min_overlap_size``. Retry message MUST surface the
-    close match so the model self-corrects without another error round-trip."""
+    """Model guesses ``minOverlap`` (English-y), real WDK name is
+    ``min_overlap_size``. The tool returns ``ParameterNotOnSearch``
+    carrying the close match, full valid list, and search context — the
+    model self-corrects on the next call without consuming retry budget."""
     _patch_resolve_and_client(
         monkeypatch,
         record_type="transcript",
@@ -102,23 +101,20 @@ async def test_unknown_parameter_raises_modelretry_with_close_match(
             "expansion_factor",
         ],
     )
-    with pytest.raises(ModelRetry) as excinfo:
-        await catalog_discovery.get_parameter_options(
-            _ctx(),
-            search_name="GenesByESTOverlap",
-            parameter_id="minOverlap",
-        )
-    msg = str(excinfo.value)
-    # Bad value echoed back so the model knows what it tried.
-    assert "minOverlap" in msg
-    # Search context preserved so the model knows where it is.
-    assert "GenesByESTOverlap" in msg
-    # Did-you-mean must surface the closest WDK-name suggestion.
-    assert "min_overlap_size" in msg
-    # Full valid set is exposed so the model has the complete vocab —
-    # the model can pick the right one without another guessing round.
-    assert "min_pct_idents" in msg
-    assert "datasets" in msg
+    result = await catalog_discovery.get_parameter_options(
+        _ctx(),
+        search_name="GenesByESTOverlap",
+        parameter_id="minOverlap",
+    )
+    assert isinstance(result, ParameterNotOnSearch)
+    assert result.requested_parameter_id == "minOverlap"
+    assert result.search_name == "GenesByESTOverlap"
+    assert "min_overlap_size" in result.suggestions
+    assert set(result.valid_parameter_ids) == {
+        "min_pct_idents", "min_overlap_size", "datasets", "expansion_factor",
+    }
+    assert "minOverlap" in result.message
+    assert "GenesByESTOverlap" in result.message
 
 
 @pytest.mark.asyncio
@@ -126,20 +122,21 @@ async def test_no_close_match_still_lists_all_valid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When the model's guess is so far off that get_close_matches finds
-    nothing, the full valid list still appears. The model isn't left
+    nothing, the full valid list still comes back. The model isn't left
     blind — it gets at least the universe of options."""
     _patch_resolve_and_client(
         monkeypatch,
         record_type="transcript",
         param_names=["taxon", "go_term"],
     )
-    with pytest.raises(ModelRetry) as excinfo:
-        await catalog_discovery.get_parameter_options(
-            _ctx(),
-            search_name="GenesByGoTerm",
-            parameter_id="completely_unrelated_xyz",
-        )
-    msg = str(excinfo.value)
-    assert "completely_unrelated_xyz" in msg
-    assert "taxon" in msg
-    assert "go_term" in msg
+    result = await catalog_discovery.get_parameter_options(
+        _ctx(),
+        search_name="GenesByGoTerm",
+        parameter_id="completely_unrelated_xyz",
+    )
+    assert isinstance(result, ParameterNotOnSearch)
+    assert result.requested_parameter_id == "completely_unrelated_xyz"
+    assert set(result.valid_parameter_ids) == {"taxon", "go_term"}
+    assert "completely_unrelated_xyz" in result.message
+    assert "taxon" in result.message
+    assert "go_term" in result.message

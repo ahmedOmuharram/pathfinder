@@ -29,7 +29,12 @@ from shared_py.stream_parts.graph import (
     GraphNode,
     GraphSnapshot,
 )
-from shared_py.stream_parts.plan import DecisionPresented, PlanArtifact, PlannedStep
+from shared_py.stream_parts.plan import (
+    DecisionPresented,
+    PlanArtifact,
+    PlannedStep,
+    PlanSlotForm,
+)
 from shared_py.stream_parts.problem_frame import ProblemFrame as ProblemFramePart
 from shared_py.stream_parts.strategy import (
     StrategyLink,
@@ -253,12 +258,19 @@ def plan_artifact_chunk(
     plan_id: str,
     steps: list[PlannedStep],
     rationale: str,
+    slots: list[PlanSlotForm] | None = None,
 ) -> DataChunk:
-    """Build the ``data-plan-artifact`` DataChunk for a proposed plan."""
+    """Build the ``data-plan-artifact`` DataChunk for a proposed plan.
+
+    ``slots`` lists NEEDS_USER_INPUT (and informationally NEEDS_DISCOVERY)
+    parameters so the submit_plan card can render inline form fields the
+    user must answer before approving.
+    """
     payload = PlanArtifact(
         plan_id=plan_id,
         steps=steps,
         rationale=rationale,
+        slots=slots or [],
     )
     return DataChunk(
         id=plan_id,

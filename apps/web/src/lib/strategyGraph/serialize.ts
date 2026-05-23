@@ -2,7 +2,8 @@ import type { CombineOperator, StrategyStepNode, StrategyAst } from "@pathfinder
 import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { walkSubtreeIds } from "@/features/strategy/operations";
-import type { StepParameters } from "./types";
+
+type ParamMap = NonNullable<Step["parameters"]>;
 
 export type SerializedStrategyPlan = {
   plan: StrategyAst;
@@ -12,12 +13,21 @@ export type SerializedStrategyPlan = {
   orphanIds: string[];
 };
 
-function sanitizeParametersForPlan(params: StepParameters): StepParameters {
-  // UI-only sentinel must never be persisted/sent.
-  const next: StepParameters = {};
+function sanitizeParametersForPlan(params: ParamMap): ParamMap {
+  const next: ParamMap = {};
   for (const [key, value] of Object.entries(params)) {
-    if (value === "@@fake@@") continue;
-    if (Array.isArray(value) && value.includes("@@fake@@")) continue;
+    if (
+      value.type === "multi-pick-vocabulary" &&
+      value.values.includes("@@fake@@")
+    ) {
+      continue;
+    }
+    if (
+      value.type === "single-pick-vocabulary" &&
+      value.value === "@@fake@@"
+    ) {
+      continue;
+    }
     next[key] = value;
   }
   return next;

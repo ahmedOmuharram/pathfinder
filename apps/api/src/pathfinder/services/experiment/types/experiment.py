@@ -2,6 +2,7 @@
 
 from pydantic import Field
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.integrations.veupathdb.wdk_models import WDKSortDirection
 from pathfinder.platform.pydantic_base import CamelModel, RoundedFloat2
@@ -48,7 +49,7 @@ class ExperimentConfig(CamelModel):
     site_id: str
     record_type: str
     search_name: str
-    parameters: JSONObject
+    parameters: dict[str, ParamValue]
     positive_controls: list[str]
     negative_controls: list[str]
     controls_search_name: str

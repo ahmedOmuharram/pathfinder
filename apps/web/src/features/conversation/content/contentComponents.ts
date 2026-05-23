@@ -1,9 +1,6 @@
 import type { ComponentType } from "react";
 import type { DataPartKind, DataPartPayloadMap } from "@pathfinder/shared";
 
-import { OptimizeLaunchPart } from "@/features/conversation/launchers/OptimizeLaunchPart";
-import { SpecialistEnteredPart } from "@/features/conversation/specialists/SpecialistEnteredPart";
-import { SpecialistExitedPart } from "@/features/conversation/specialists/SpecialistExitedPart";
 import { DataBackgroundTaskStarted } from "./parts/DataBackgroundTaskStarted";
 import { DataConversationTitle } from "./parts/DataConversationTitle";
 import { DataDecisionPresented } from "./parts/DataDecisionPresented";
@@ -11,22 +8,17 @@ import { DataGeneSet } from "./parts/DataGeneSet";
 import { DataGraphCleared } from "./parts/DataGraphCleared";
 import { DataGraphSnapshot } from "./parts/DataGraphSnapshot";
 import { DataMemoryRetrieved } from "./parts/DataMemoryRetrieved";
-import { DataPhaseChange } from "./parts/DataPhaseChange";
-import { DataPhaseStart } from "./parts/DataPhaseStart";
 import { DataPlanArtifact } from "./parts/DataPlanArtifact";
 import { DataProblemFrame } from "./parts/DataProblemFrame";
 import { DataStrategyLink } from "./parts/DataStrategyLink";
 import { DataStrategyMeta } from "./parts/DataStrategyMeta";
-import { DataSpecialistSuggestion } from "./parts/DataSpecialistSuggestion";
-import { DataSupervisorDecision } from "./parts/DataSupervisorDecision";
 import { DataEnrichmentResults } from "./parts/DataEnrichmentResults";
 import { DataTaskCompleted } from "./parts/DataTaskCompleted";
 import { DataTaskProgress } from "./parts/DataTaskProgress";
 import { DataToolApprovalRequest } from "./parts/DataToolApprovalRequest";
 import { DataToolApprovalResult } from "./parts/DataToolApprovalResult";
-import { DataTurnQa } from "./parts/DataTurnQa";
-import { DataTurnRejected } from "./parts/DataTurnRejected";
 import { DataVerificationSummary } from "./parts/DataVerificationSummary";
+import { SubAgentCallCard } from "./parts/SubAgentCallCard";
 
 // Map every DataPartKind to its renderer component. Adding a new kind to
 // DataPartKind without adding it here causes a TypeScript compile error
@@ -34,8 +26,9 @@ import { DataVerificationSummary } from "./parts/DataVerificationSummary";
 export const dataPartComponents: {
   [K in DataPartKind]: ComponentType<{ data: DataPartPayloadMap[K] }>;
 } = {
-  "data-phase-start": DataPhaseStart,
-  "data-phase-change": DataPhaseChange,
+  "data-sub-agent-call": SubAgentCallCard,
+  "data-sub-agent-step": () => null,
+  "data-ledger-update": () => null,
   "data-background-task-started": DataBackgroundTaskStarted,
   "data-task-progress": DataTaskProgress,
   "data-task-completed": DataTaskCompleted,
@@ -53,14 +46,6 @@ export const dataPartComponents: {
   "data-gene-set": DataGeneSet,
   "data-verification-summary": DataVerificationSummary,
   "data-conversation-title": DataConversationTitle,
-  "data-turn-rejected": DataTurnRejected,
-  "data-turn-qa": DataTurnQa,
-  "data-supervisor-decision": DataSupervisorDecision,
-  "data-supervisor-context": () => null,
-  "data-specialist-suggestion": DataSpecialistSuggestion,
-  "data-specialist-entered": SpecialistEnteredPart,
-  "data-specialist-exited": SpecialistExitedPart,
-  "data-optimize-launch": OptimizeLaunchPart,
   "data-scratchpad-updated": () => null,
   "data-turn-usage": () => null,
 };

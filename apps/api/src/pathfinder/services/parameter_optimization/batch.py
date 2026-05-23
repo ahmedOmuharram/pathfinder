@@ -4,10 +4,9 @@ import time
 from dataclasses import dataclass
 
 import optuna
-from pydantic import JsonValue
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_tests import IntersectionConfig
 from pathfinder.services.experiment.types import ControlTestResult
 from pathfinder.services.parameter_optimization.builders import (
@@ -64,7 +63,7 @@ class TrialContext:
 
     def build_intersection_config(
         self,
-        target_parameters: JSONObject,
+        target_parameters: dict[str, ParamValue],
     ) -> IntersectionConfig:
         """Build an :class:`IntersectionConfig` for a trial evaluation."""
         return IntersectionConfig(
@@ -147,7 +146,7 @@ class TrialEvalInput:
     """Inputs for a single trial evaluation (groups the per-trial data)."""
 
     ot: optuna.trial.Trial
-    params: dict[str, JsonValue]
+    params: dict[str, ParamValue]
     wdk_result: ControlTestResult | None
     wdk_error: str
     trial_num: int
@@ -277,7 +276,7 @@ class BatchInput:
     """Inputs for processing a batch of trials."""
 
     optuna_trials: list[optuna.trial.Trial]
-    batch_params: list[dict[str, JsonValue]]
+    batch_params: list[dict[str, ParamValue]]
     wdk_results: list[tuple[ControlTestResult | None, str] | BaseException]
     trial_idx: int
     n_positives: int

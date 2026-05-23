@@ -1,14 +1,17 @@
-"""Canonicalize parameter values (decoded form) using WDK parameter specs.
+"""Canonicalize parameter values using WDK parameter specs.
 
-Produces decoded JSON shapes: multi-pick values become ``list[str]``,
-scalars become strings, range values become ``{min, max}``, filter
-values become dict/list. The domain layer holds these shapes everywhere;
-WDK wire encoding (JSON-stringified compounds) happens once at the
-integration boundary in ``integrations.veupathdb.value_decoding.encode_params``.
+The canonicalizer takes a typed ``dict[str, ParamValue]`` (the discriminated
+union over the 11 WDK parameter types), validates each value against the
+matching spec (vocab matching, leaf enforcement, range bounds, length
+limits), and returns a fresh ``dict[str, ParamValue]`` with normalized
+contents. Vocab-matched terms replace fuzzy user input, multi-pick parents
+expand to their leaf set, and number/date scalars round-trip through
+``float()``/``str()`` so the AST holds exactly what WDK will accept.
 
-Delegates validation and decoding to the shared dispatch chain in
-``_value_helpers.process_value()``, then applies canonicalizer-specific
-post-processing (FAKE_ALL_SENTINEL rejection, leaf enforcement).
+Validation lives in :mod:`pathfinder.domain.parameters._value_helpers`
+``process_value()``; this module owns the post-processing steps that depend
+on the canonical *spec* (FAKE_ALL_SENTINEL rejection, leaf enforcement) and
+the round-trip back into typed ``ParamValue``.
 """
 
 from dataclasses import dataclass
@@ -21,6 +24,12 @@ from pathfinder.domain.parameters._value_helpers import (
     process_value,
 )
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.values import (
+    ParamValue,
+    as_param_kind,
+    from_decoded,
+    to_decoded,
+)
 from pathfinder.domain.parameters.vocab_utils import (
     collect_leaf_terms,
     find_vocab_node,
@@ -35,12 +44,14 @@ FAKE_ALL_SENTINEL = "@@fake@@"
 
 @dataclass(frozen=True)
 class ParameterCanonicalizer:
-    """Canonicalize parameter values using canonical parameter specs."""
+    """Canonicalize ``ParamValue`` parameters using canonical parameter specs."""
 
     specs: dict[str, ParamSpecNormalized]
 
-    def canonicalize(self, parameters: JSONObject) -> JSONObject:
-        canonical: JSONObject = {}
+    def canonicalize(
+        self, parameters: dict[str, ParamValue],
+    ) -> dict[str, ParamValue]:
+        canonical: dict[str, ParamValue] = {}
         for name, value in (parameters or {}).items():
             spec = self.specs.get(name)
             if not spec:
@@ -48,11 +59,12 @@ class ParameterCanonicalizer:
                 raise ValidationError(
                     title="Unknown parameter",
                     detail=f"Parameter '{name}' does not exist for this search. Available parameters: {', '.join(available)}",
-                    errors=[{"param": name, "value": value}],
+                    errors=[{"param": name, "value": to_decoded(value)}],
                 )
             if spec.param_type == "input-step":
                 continue
-            canonical[name] = self._canonicalize_value(spec, value)
+            decoded_value = self._canonicalize_value(spec, to_decoded(value))
+            canonical[name] = from_decoded(as_param_kind(spec.param_type), decoded_value)
         return canonical
 
     def _canonicalize_value(

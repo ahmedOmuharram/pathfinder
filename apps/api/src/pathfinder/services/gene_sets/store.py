@@ -9,8 +9,10 @@ from functools import cache
 from typing import cast
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from sqlalchemy import select
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.persistence.models import GeneSetRow
 
 # ---------------------------------------------------------------------------
@@ -20,8 +22,15 @@ from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.store import WriteThruStore
 from pathfinder.services.gene_sets.types import GeneSet, GeneSetSource
 
+_PARAMS_ADAPTER: TypeAdapter[dict[str, ParamValue]] = TypeAdapter(dict[str, ParamValue])
+
 
 def _row_from_gene_set(gs: GeneSet) -> dict[str, object]:
+    serialized_params = (
+        _PARAMS_ADAPTER.dump_python(gs.parameters, by_alias=True, mode="json")
+        if gs.parameters is not None
+        else None
+    )
     return {
         "id": gs.id,
         "user_id": gs.user_id,
@@ -33,7 +42,7 @@ def _row_from_gene_set(gs: GeneSet) -> dict[str, object]:
         "wdk_step_id": gs.wdk_step_id,
         "search_name": gs.search_name,
         "record_type": gs.record_type,
-        "parameters": gs.parameters,
+        "parameters": serialized_params,
         "parent_set_ids": gs.parent_set_ids,
         "operation": gs.operation,
         "step_count": gs.step_count,
@@ -42,11 +51,10 @@ def _row_from_gene_set(gs: GeneSet) -> dict[str, object]:
 
 
 def _gene_set_from_row(row: GeneSetRow) -> GeneSet:
-    # DB JSON columns return JsonValue; narrow to the concrete types GeneSet expects.
     gene_ids = [str(x) for x in row.gene_ids] if row.gene_ids else []
     parent_set_ids = [str(x) for x in row.parent_set_ids] if row.parent_set_ids else []
     parameters = (
-        {str(k): str(v) for k, v in row.parameters.items()} if row.parameters else None
+        _PARAMS_ADAPTER.validate_python(row.parameters) if row.parameters else None
     )
     valid_sources: set[str] = {"strategy", "paste", "upload", "derived", "saved"}
     source: GeneSetSource = (

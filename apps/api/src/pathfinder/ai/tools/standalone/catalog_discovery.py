@@ -18,7 +18,11 @@ from difflib import get_close_matches
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 
-from pathfinder.ai.agents.state import SearchOverview, SearchSelectionStatus
+from pathfinder.ai.agents.state import (
+    ParamVocabSnapshot,
+    SearchOverview,
+    SearchSelectionStatus,
+)
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.tools.standalone._catalog_models import (
     DependencyDag,
@@ -26,13 +30,15 @@ from pathfinder.ai.tools.standalone._catalog_models import (
     _filter_vocab,
     _resolve_record_type,
 )
-from pathfinder.domain.strategy.types import DecodedParamsField
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.services.catalog.overview_formatting import (
     SearchOverviewResult,
     format_search_overview,
 )
 from pathfinder.services.catalog.param_formatting import (
+    GetParameterOptionsResult,
     ParameterInfo,
+    ParameterNotOnSearch,
     format_typed_param,
 )
 from pathfinder.services.wdk import (
@@ -126,13 +132,20 @@ async def get_parameter_options(
     search_name: str,
     parameter_id: str,
     record_type: str | None = None,
-    context_values: DecodedParamsField | None = None,
+    context_values: dict[str, ParamValue] | None = None,
     query: str | None = None,
-) -> ParameterInfo:
+) -> GetParameterOptionsResult:
     """Get detailed parameter info including vocabulary/allowed values.
 
     For dependent parameters, pass context_values with the parent parameter's
     chosen value to get the refreshed vocabulary.
+
+    Returns a discriminated union:
+      - ``ParameterInfo`` (``kind="parameter_info"``) on success.
+      - ``ParameterNotOnSearch`` (``kind="parameter_not_on_search"``) when
+        ``parameter_id`` does not exist on ``search_name``. The payload
+        carries did-you-mean suggestions plus the full valid list — call
+        again with one of them.
 
     Args:
         ctx: Agent run context.
@@ -141,17 +154,18 @@ async def get_parameter_options(
             MUST be one of the names returned by ``get_search_overview`` for
             this search — copy verbatim, do not paraphrase.
         record_type: Record type. Auto-resolved from search name if omitted (recommended).
-        context_values: Current parameter values (paramName -> value) for dependent vocab refresh.
+        context_values: Current values of the parent parameters this param
+            depends on, for dependent vocab refresh. Each value MUST be
+            wrapped in its typed shape — see the ``valueFormat`` field
+            from ``get_search_overview`` for the exact template per param.
+            Example: ``{"profileset_generic": {"type": "single-pick-vocabulary", "value": "<term>"}}``.
         query: Optional substring filter for large vocabularies. Case-insensitive.
             Use when vocabulary is large and you need specific entries
             (e.g. query='cruzi' for T. cruzi).
     """
     deps = ctx.deps
     rt = await _resolve_record_type(deps.site_id, search_name, _fix_gene(record_type))
-    has_context = bool(
-        context_values
-        and any(v is not None and v != "" for v in context_values.values())
-    )
+    has_context = bool(context_values)
 
     client = get_wdk_client(deps.site_id)
 
@@ -167,7 +181,6 @@ async def get_parameter_options(
         )
         all_params = details.search_data.parameters or []
 
-    # Build dependency maps for annotation
     depends_on: dict[str, list[str]] = {}
     controls: dict[str, list[str]] = {}
     for p in all_params:
@@ -180,16 +193,39 @@ async def get_parameter_options(
     for p in all_params:
         if p.name == parameter_id:
             filtered = _filter_vocab(p, query) if query else p
-            return format_typed_param(filtered, depends_on=depends_on, controls=controls)
+            info = format_typed_param(filtered, depends_on=depends_on, controls=controls)
+            _snapshot_param_vocab(deps, search_name, info)
+            return info
 
-    raise ModelRetry(
-        _did_you_mean(
-            parameter_id,
-            [p.name for p in all_params],
-            kind="parameter_id",
-            search_name=search_name,
+    valid = [p.name for p in all_params]
+    suggestions = get_close_matches(parameter_id, valid, n=5, cutoff=0.3)
+    return ParameterNotOnSearch(
+        search_name=search_name,
+        requested_parameter_id=parameter_id,
+        message=_did_you_mean(
+            parameter_id, valid, kind="parameter_id", search_name=search_name,
         ),
+        suggestions=suggestions,
+        valid_parameter_ids=sorted(valid),
     )
+
+
+def _snapshot_param_vocab(
+    deps: AgentDeps, search_name: str, info: ParameterInfo,
+) -> None:
+    overview = deps.agent_state.get_overview(search_name)
+    if overview is None:
+        return
+    snapshot = ParamVocabSnapshot(
+        param_type=info.type,
+        required=info.required,
+        default_value=info.default_value,
+        allowed_values=info.allowed_values,
+        allowed_values_tree=info.allowed_values_tree,
+    )
+    updated_vocab = {**overview.param_vocab, info.name: snapshot}
+    updated = overview.model_copy(update={"param_vocab": updated_vocab})
+    deps.agent_state.register_search(search_name, updated)
 
 
 async def update_search_decision(

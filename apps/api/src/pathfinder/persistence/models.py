@@ -91,18 +91,6 @@ class User(Base):
     monthly_cost_limit_usd: Mapped[float | None] = mapped_column(
         Float, nullable=True
     )
-    supervisor_model_id: Mapped[str | None] = mapped_column(
-        String(128), nullable=True
-    )
-    pipeline_config: Mapped[JSONObject | None] = mapped_column(
-        JSONB, nullable=True,
-    )
-    specialist_model_defaults: Mapped[dict[str, str]] = mapped_column(
-        JSONB,
-        nullable=False,
-        default=dict,
-        server_default=text("'{}'::jsonb"),
-    )
 
     conversations: Mapped[list[Conversation]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -228,7 +216,6 @@ class Conversation(Base):
     record_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     wdk_strategy_id: Mapped[int | None] = mapped_column(nullable=True)
     is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
-    pipeline: Mapped[JSONObject | None] = mapped_column(JSON, nullable=True)
     step_count: Mapped[int] = mapped_column(Integer, default=0)
     strategy_ast: Mapped[JSONObject] = mapped_column(JSON, default=dict)
     estimated_size: Mapped[int | None] = mapped_column(nullable=True)
@@ -243,12 +230,6 @@ class Conversation(Base):
     )
     dismissed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
-    )
-    supervisor_model_id: Mapped[str | None] = mapped_column(
-        String(128), nullable=True
-    )
-    specialist_mode: Mapped[JSONObject | None] = mapped_column(
-        JSONB, nullable=True,
     )
     parent_conversation_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),

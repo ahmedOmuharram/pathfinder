@@ -122,7 +122,7 @@ async def optimize_search_parameters_impl(
         site_id=context.site_id,
         record_type=target_m.record_type,
         search_name=target_m.search_name,
-        fixed_parameters=cast("dict[str, JsonValue]", fixed_parameters),
+        fixed_parameters=fixed_parameters,
     )
     sweep_controls = SweepControls(
         controls_search_name=controls_m.controls_search_name,
@@ -130,9 +130,7 @@ async def optimize_search_parameters_impl(
         controls_value_format=cast(
             "ControlValueFormat", controls_m.controls_value_format
         ),
-        controls_extra_parameters=cast(
-            "dict[str, JsonValue]", controls_extra_parameters
-        ),
+        controls_extra_parameters=controls_extra_parameters,
         positive_controls=controls_m.positive_controls or None,
         negative_controls=controls_m.negative_controls or None,
         id_field=controls_m.id_field,
@@ -144,9 +142,7 @@ async def optimize_search_parameters_impl(
         estimated_size_penalty=max(0.0, settings_m.estimated_size_penalty),
     )
 
-    variants = enumerate_variants(
-        specs, cast("dict[str, JsonValue]", fixed_parameters)
-    )
+    variants = enumerate_variants(specs, fixed_parameters)
 
     start_data: dict[str, JsonValue] = {
         "search_name": target_m.search_name,

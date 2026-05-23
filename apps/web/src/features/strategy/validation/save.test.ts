@@ -34,7 +34,7 @@ function makeSearchStep(overrides?: Partial<Step>): Step {
     displayName: "Gene search",
     searchName: "GenesByKeyword",
     recordType: "gene",
-    parameters: { keyword: "kinase" },
+    parameters: { keyword: { type: "string", value: "kinase" } },
     isBuilt: false,
     isFiltered: false,
     ...overrides,
@@ -153,7 +153,7 @@ describe("validateStepsForSave", () => {
       const step = makeSearchStep({
         recordType: "gene",
         searchName: "GenesByKeyword",
-        parameters: { keyword: "kinase" },
+        parameters: { keyword: { type: "string", value: "kinase" } },
       });
 
       await validateStepsForSave({
@@ -166,7 +166,7 @@ describe("validateStepsForSave", () => {
         "PlasmoDB",
         "gene",
         "GenesByKeyword",
-        { keyword: "kinase" },
+        { keyword: { type: "string", value: "kinase" } },
       );
     });
   });
@@ -259,7 +259,7 @@ describe("validateStepsForSave", () => {
         "PlasmoDB",
         "gene",
         "GenesByKeyword",
-        { keyword: "kinase" },
+        { keyword: { type: "string", value: "kinase" } },
       );
     });
 

@@ -10,18 +10,15 @@ Public API:
 """
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
+from pathfinder.domain.parameters.values import ParamKind, as_param_kind
 from pathfinder.domain.strategy.ast import (
     StrategyStepNode,
     walk_step_tree,
 )
 from pathfinder.domain.strategy.ops import parse_op
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
-from pathfinder.integrations.veupathdb.value_decoding import (
-    decode_params,
-    encode_params,
-)
+from pathfinder.integrations.veupathdb.value_decoding import decode_params
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKSearch,
     WDKStep,
@@ -75,8 +72,16 @@ def _build_node(
     tree_node: WDKStepTree,
     steps: dict[str, WDKStep],
     record_type: str,
+    wire_by_step_id: dict[str, dict[str, str]],
 ) -> StrategyStepNode:
-    """Recursively build a ``StrategyStepNode`` tree from typed WDK models."""
+    """Recursively build a ``StrategyStepNode`` tree from typed WDK models.
+
+    Parameter values are left empty here: WDK wire form lacks the param-spec
+    context needed to type each value. The sidecar ``wire_by_step_id`` dict
+    captures each leaf/transform's wire parameters so the async follow-up
+    ``canonicalize_synced_parameters`` can fetch the search spec and decode
+    them into typed ``ParamValue`` instances.
+    """
     step_id = tree_node.step_id
     step = steps.get(str(step_id))
     if step is None:
@@ -88,17 +93,17 @@ def _build_node(
 
     search_name = step.search_name
     wire_parameters = step.search_config.parameters
-    parameters: DecodedParams = decode_params(wire_parameters)
     display_name = step.custom_name or step.display_name or None
+    local_id = str(step_id)
 
     if tree_node.primary_input and tree_node.secondary_input:
-        left = _build_node(tree_node.primary_input, steps, record_type)
-        right = _build_node(tree_node.secondary_input, steps, record_type)
+        left = _build_node(tree_node.primary_input, steps, record_type, wire_by_step_id)
+        right = _build_node(tree_node.secondary_input, steps, record_type, wire_by_step_id)
         raw_operator = _extract_operator(wire_parameters)
         if raw_operator is None:
             msg = (
                 f"Combine step {step_id} has no boolean operator in "
-                f"searchConfig.parameters (keys: {list(parameters.keys())})"
+                f"searchConfig.parameters (keys: {list(wire_parameters.keys())})"
             )
             raise DataParsingError(msg)
         expanded_strategy_id, expanded_name = _resolve_expanded_reference(
@@ -112,22 +117,21 @@ def _build_node(
             display_name=display_name,
             expanded_strategy_id=expanded_strategy_id,
             expanded_name=expanded_name,
-            id=str(step_id),
+            id=local_id,
         )
+    wire_by_step_id[local_id] = dict(wire_parameters)
     if tree_node.primary_input:
-        input_node = _build_node(tree_node.primary_input, steps, record_type)
+        input_node = _build_node(tree_node.primary_input, steps, record_type, wire_by_step_id)
         return StrategyStepNode(
             search_name=search_name,
             primary_input=input_node,
-            parameters=parameters,
             display_name=display_name,
-            id=str(step_id),
+            id=local_id,
         )
     return StrategyStepNode(
         search_name=search_name,
-        parameters=parameters,
         display_name=display_name,
-        id=str(step_id),
+        id=local_id,
     )
 
 
@@ -154,11 +158,14 @@ def _extract_wdk_metadata(
 
 def build_snapshot_from_wdk(
     wdk_strategy: WDKStrategyDetails,
-) -> StrategyAst:
-    """Convert a typed WDK strategy into a StrategyAst with enrichment metadata.
+) -> tuple[StrategyAst, dict[str, dict[str, str]]]:
+    """Convert a typed WDK strategy into a StrategyAst plus a wire-params sidecar.
 
     Step counts and WDK step ID mappings are stored directly on the payload's
-    ``step_counts`` and ``wdk_step_ids`` fields.
+    ``step_counts`` and ``wdk_step_ids`` fields. Wire-form parameters for each
+    leaf/transform step are returned separately so a follow-up async pass can
+    fetch the matching WDK search spec and decode each value into a typed
+    ``ParamValue``.
     """
     record_type = wdk_strategy.record_class_name or ""
     if not record_type.strip():
@@ -166,10 +173,13 @@ def build_snapshot_from_wdk(
         raise DataParsingError(msg)
     record_type = record_type.strip()
 
-    root = _build_node(wdk_strategy.step_tree, wdk_strategy.steps, record_type)
+    wire_by_step_id: dict[str, dict[str, str]] = {}
+    root = _build_node(
+        wdk_strategy.step_tree, wdk_strategy.steps, record_type, wire_by_step_id,
+    )
 
     step_counts, wdk_step_ids = _extract_wdk_metadata(root, wdk_strategy.steps)
-    return StrategyAst(
+    payload = StrategyAst(
         record_type=record_type,
         root=root,
         name=wdk_strategy.name or None,
@@ -177,6 +187,7 @@ def build_snapshot_from_wdk(
         step_counts=step_counts or None,
         wdk_step_ids=wdk_step_ids or None,
     )
+    return payload, wire_by_step_id
 
 
 # -- Parameter normalization ----------------------------------------------------
@@ -225,14 +236,15 @@ async def _load_search_spec(
 async def canonicalize_synced_parameters(
     payload: StrategyAst,
     api: StrategyAPI,
+    wire_by_step_id: dict[str, dict[str, str]],
 ) -> None:
     """Canonicalize parameters from WDK response using param specs.
 
-    Validates against WDK specs, matches vocab terms, enforces leaf
-    selections — and **leaves values in decoded form** (lists, dicts,
-    native scalars). The integration layer re-encodes to wire form
-    immediately before each WDK HTTP call. This keeps ``step.parameters``
-    homogeneous (always ``DecodedParams``) at every persistence boundary.
+    For each leaf/transform whose wire parameters were captured during
+    ``build_snapshot_from_wdk``, fetch the WDK search spec, decode each
+    wire value into a typed ``ParamValue`` via the spec's param kind,
+    canonicalize (vocab match, leaf enforcement, range/scalar normalize),
+    and write the result back onto ``step.parameters``.
 
     Mutates plan step nodes in place.
     """
@@ -243,24 +255,28 @@ async def canonicalize_synced_parameters(
             continue
         search_name = step.search_name
         record_type = payload.record_type
+        wire_params = wire_by_step_id.get(step.id)
 
-        if not search_name or not record_type:
+        if not search_name or not record_type or not wire_params:
             continue
 
         cache_key = (record_type, search_name)
         if cache_key not in spec_cache:
-            encoded_context = encode_params(step.parameters)
             spec_cache[cache_key] = await _load_search_spec(
-                api, record_type, search_name, encoded_context
+                api, record_type, search_name, wire_params,
             )
 
         cached_search = spec_cache.get(cache_key)
         specs = adapt_param_specs_from_search(cached_search) if cached_search else {}
         if not specs:
             continue
+        kinds: dict[str, ParamKind] = {
+            name: as_param_kind(spec.param_type) for name, spec in specs.items()
+        }
+        decoded = decode_params(wire_params, kinds)
         try:
             canonicalizer = ParameterCanonicalizer(specs)
-            canonical = canonicalizer.canonicalize(step.parameters)
+            canonical = canonicalizer.canonicalize(decoded)
         except AppError as exc:
             logger.warning(
                 "Failed to canonicalize synced parameters",

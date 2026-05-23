@@ -58,12 +58,10 @@ from pathfinder.transport.http.routers import (
     gene_sets,
     health,
     internal,
-    launchers,
     me,
     memories,
     models,
     sites,
-    specialists,
     streaming_schema,
     tasks,
     tiers,
@@ -196,8 +194,6 @@ def _register_routers(app: FastAPI) -> None:
         memories.router,
         me.router,
         tasks.router,
-        specialists.router,
-        launchers.router,
     ):
         app.include_router(router)
 

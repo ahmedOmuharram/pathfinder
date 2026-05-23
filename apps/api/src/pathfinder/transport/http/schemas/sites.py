@@ -2,6 +2,7 @@
 
 from pydantic import ConfigDict, Field, JsonValue, RootModel
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONArray, JSONObject
 
@@ -38,7 +39,7 @@ class DependentParamsRequest(CamelModel):
     """Dependent parameter values request."""
 
     parameter_name: str
-    context_values: JSONObject = Field(default_factory=dict)
+    context_values: dict[str, ParamValue] = Field(default_factory=dict)
 
 
 class SearchDetailsResponse(CamelModel):
@@ -59,13 +60,13 @@ class DependentParamsResponse(RootModel[JSONArray]):
 class SearchValidationRequest(CamelModel):
     """Search parameter validation request."""
 
-    context_values: JSONObject = Field(default_factory=dict)
+    context_values: dict[str, ParamValue] = Field(default_factory=dict)
 
 
 class ParamSpecsRequest(CamelModel):
     """Parameter specs request (optionally contextual)."""
 
-    context_values: JSONObject = Field(default_factory=dict)
+    context_values: dict[str, ParamValue] = Field(default_factory=dict)
 
 
 class ParamSpecResponse(CamelModel):

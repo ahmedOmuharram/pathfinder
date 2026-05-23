@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 import optuna
 
+from pathfinder.domain.parameters.values import NumberValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.tree import walk_plan_tree
@@ -178,7 +179,7 @@ def _apply_knobs_recursive(
         for key, val in threshold_vals.items():
             step_id, param_name = key.split(":", 1)
             if nid == step_id:
-                n.parameters[param_name] = val
+                n.parameters[param_name] = NumberValue(value=val)
 
     walk_plan_tree(node, _apply)
 

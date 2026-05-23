@@ -11,14 +11,20 @@ import { DataPartRenderer } from "./DataPartRenderer";
 // integration-tested via ChatThread.test.tsx.
 
 describe("DataPartRenderer dispatch", () => {
-  it("dispatches data-phase-start to the correct component", () => {
+  it("dispatches data-sub-agent-call to the correct component", () => {
     render(
       <DataPartRenderer
-        kind="data-phase-start"
-        data={{ phase: "scoping", traceId: "t1", model: "opus" }}
+        kind="data-sub-agent-call"
+        data={{
+          subAgent: "scope_problem",
+          phase: "scoping",
+          state: "started",
+          summary: "Framing the problem",
+          succeeded: null,
+        }}
       />,
     );
-    expect(screen.getByTestId("data-phase-start")).toBeInTheDocument();
+    expect(screen.getByTestId("data-sub-agent-call")).toBeInTheDocument();
   });
 
   it("dispatches data-task-completed to the correct component", () => {

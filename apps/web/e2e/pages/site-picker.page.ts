@@ -2,14 +2,19 @@ import { type Locator, type Page, expect } from "@playwright/test";
 
 export class SitePickerComponent {
   readonly select: Locator;
+  readonly switcherTrigger: Locator;
 
   constructor(private page: Page) {
-    // The site-select testid only appears on the SitePicker with showSelect=true.
     this.select = page.getByTestId("site-select");
+    this.switcherTrigger = page.getByRole("button", { name: /switch database/i });
   }
 
   async selectSite(siteId: string) {
-    // Native <select> element — use selectOption with the value attribute.
+    if (await this.switcherTrigger.isVisible().catch(() => false)) {
+      await this.switcherTrigger.click();
+      await this.page.getByTestId(`site-menu-item-${siteId}`).click();
+      return;
+    }
     await this.select.selectOption(siteId);
   }
 

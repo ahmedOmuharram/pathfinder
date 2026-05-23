@@ -8,14 +8,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal, Self
 
-from pydantic import ConfigDict, Field, JsonValue, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.platform.pydantic_base import (
     CamelModel,
     RoundedFloat,
     RoundedFloat2,
 )
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.helpers import ProgressCallback
 from pathfinder.services.experiment.types import (
     ControlValueFormat,
@@ -82,7 +82,7 @@ class TrialResult(CamelModel):
     model_config = ConfigDict(frozen=True)
 
     trial_number: int
-    parameters: dict[str, JsonValue]
+    parameters: dict[str, ParamValue]
     score: RoundedFloat
     recall: RoundedFloat | None
     false_positive_rate: RoundedFloat | None
@@ -102,11 +102,11 @@ class OptimizationInput:
     parameter_space: list[ParameterSpec]
     controls_search_name: str
     controls_param_name: str
-    fixed_parameters: dict[str, JsonValue] = field(default_factory=dict)
+    fixed_parameters: dict[str, ParamValue] = field(default_factory=dict)
     positive_controls: list[str] | None = None
     negative_controls: list[str] | None = None
     controls_value_format: ControlValueFormat = "newline"
-    controls_extra_parameters: JSONObject | None = None
+    controls_extra_parameters: dict[str, ParamValue] | None = None
     id_field: str | None = None
 
 class OptimizationResult(CamelModel):

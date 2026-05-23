@@ -22,7 +22,7 @@ function patchToOps(stepId: string, patch: Partial<Step>): GraphOperation[] {
     ops.push({
       kind: "updateStepParams",
       stepId,
-      parameters: patch.parameters as Record<string, unknown>,
+      parameters: patch.parameters,
     });
   }
   if (patch.operator !== undefined) {

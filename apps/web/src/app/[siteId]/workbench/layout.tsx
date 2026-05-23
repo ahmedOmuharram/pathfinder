@@ -10,7 +10,6 @@ import { TopBar } from "@/app/components/TopBar";
 import { LoginModal } from "@/app/components/LoginModal";
 import { LoadingScreen } from "@/app/components/LoadingScreen";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
-import { EngineModal } from "@/features/engine/components/EngineModal";
 import { useAuthRefresh } from "@/lib/query/hooks/useAuthRefresh";
 import { useSystemConfig } from "@/app/hooks/useSystemConfig";
 import { SetupRequiredScreen } from "@/app/components/SetupRequiredScreen";
@@ -67,7 +66,6 @@ function WorkbenchLayoutInner({
   };
 
   const [showSettings, setShowSettings] = useState(false);
-  const [showEngine, setShowEngine] = useState(false);
   const {
     geneSearchOpen,
     toggleGeneSearch,
@@ -98,7 +96,6 @@ function WorkbenchLayoutInner({
           siteId={selectedSite}
           onSiteChange={handleSiteChange}
           onOpenSettings={() => setShowSettings(true)}
-          onOpenEngine={() => setShowEngine(true)}
           onToggleSidebar={toggleLeftSidebar}
           sidebarExpanded={leftSidebarOpen}
         />
@@ -129,8 +126,6 @@ function WorkbenchLayoutInner({
         onClose={() => setShowSettings(false)}
         siteId={selectedSite}
       />
-
-      <EngineModal open={showEngine} onClose={() => setShowEngine(false)} />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
@@ -13,8 +12,9 @@ from pydantic_ai.ui.vercel_ai.request_types import (
 )
 
 from pathfinder.ai.agents.state import SearchOverview
+from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.memory.schemas import MemoryEntryDraft, MemoryValue
-from pathfinder.ai.specialists.types import SpecialistMode
+from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -24,6 +24,14 @@ PhaseName = Literal[
     "planning",
     "execution",
     "verification",
+]
+PendingApprovalPhase = Literal[
+    "scoping",
+    "discovery",
+    "planning",
+    "execution",
+    "verification",
+    "lead",
 ]
 
 PHASE_NAMES: tuple[PhaseName, ...] = (
@@ -41,19 +49,23 @@ class PhaseDisposition(StrEnum):
     DONE = "done"
 
 
-class PhaseOutcome(CamelModel):
+class FailureCause(StrEnum):
+    """Typed cause of a phase's exit, surfaced to the LLM supervisor."""
+
+    VOCAB_REJECTED = "vocab_rejected"
+    AMBIGUOUS_INTENT = "ambiguous_intent"
+    SEARCH_INVALID = "search_invalid"
+    PARTIAL_BUILD = "partial_build"
+    UNRESOLVED_SLOTS = "unresolved_slots"
+    TRANSIENT_ERROR = "transient_error"
+
+
+class VerificationDigest(CamelModel):
     disposition: PhaseDisposition = Field(
         description=(
-            "Control-flow signal for the supervisor. "
-            "'awaiting_user' = the turn ends; the user must reply before any "
-            "more phases run — use whenever the phase asked questions, made "
-            "assumptions worth confirming, or surfaced ambiguity. Default "
-            "for a first-turn scope. "
-            "'handoff' = phase is done, supervisor routes to the next phase "
-            "this turn — use only when everything was unambiguous and no "
-            "user input is needed. "
-            "'done' = investigation is complete; end the turn after this "
-            "phase."
+            "Control-flow signal: 'done' = investigation is complete; "
+            "'awaiting_user' = the turn ends; 'handoff' = transition to "
+            "the next sub-agent."
         ),
     )
     prose: str = Field(
@@ -67,49 +79,18 @@ class PhaseOutcome(CamelModel):
         description="Short routing explanation shown on the orchestrator card.",
     )
     handoff_to: PhaseName | None = None
-    note_refs: list[str] = Field(
-        default_factory=list,
-        max_length=10,
-        description=(
-            "Scratchpad note ids supporting this outcome. Optional; when "
-            "populated, cites the notes that led to this conclusion."
-        ),
-    )
-
-
-class VerificationDigest(PhaseOutcome):
+    failure_cause: FailureCause | None = Field(default=None)
+    note_refs: list[str] = Field(default_factory=list, max_length=10)
     success: bool = Field(
         description=(
             "True if the strategy answered the user's question — sample "
-            "records and result sizes look right, control tests passed. "
-            "False if verification surfaced a real problem the next phase "
-            "(or the user) needs to address."
+            "records and result sizes look right, control tests passed."
         ),
     )
-    key_findings: list[str] = Field(
-        default_factory=list,
-        max_length=10,
-        description=(
-            "Bullet-style facts the user should walk away with — counts, "
-            "enrichments, surprising hits. One sentence each."
-        ),
-    )
-    caveats: list[str] = Field(
-        default_factory=list,
-        max_length=10,
-        description=(
-            "Open issues, suspicious patterns, or limitations the user "
-            "should know about even when ``success`` is True."
-        ),
-    )
+    key_findings: list[str] = Field(default_factory=list, max_length=10)
+    caveats: list[str] = Field(default_factory=list, max_length=10)
     remember: list[MemoryEntryDraft] = Field(
-        default_factory=list,
-        max_length=5,
-        description=(
-            "Knowledge memories to autowrite — durable facts the user (or "
-            "future agent runs) should recall next time. Use sparingly: "
-            "only stable, reusable knowledge, not turn-specific results."
-        ),
+        default_factory=list, max_length=5,
     )
 
 
@@ -128,6 +109,36 @@ class ResearchNote(CamelModel):
     citation_id: str | None = None
 
 
+class StrategySketchNode(CamelModel):
+    """A loose sketch of one node in the strategy result graph.
+
+    NOT a formal step — no parameter values, no real ids, no validated
+    search names. Scoping populates this as a "what the answer will
+    look like" outline so the Lead can show the user the rough shape
+    of the investigation before discovery starts. Discovery uses these
+    labels as hints when picking searches; planning uses them as a
+    structural template.
+
+    Use ``id``s like ``"s1"``, ``"s2"`` and reference them in
+    ``inputs`` for combine nodes.
+    """
+
+    id: str = Field(max_length=8)
+    kind: Literal["leaf", "combine", "transform"]
+    label: str = Field(max_length=80)
+    description: str = Field(max_length=240)
+    inputs: list[str] = Field(default_factory=list)
+    operator: Literal[
+        "UNION",
+        "INTERSECT",
+        "MINUS",
+        "RMINUS",
+        "COLOCATE",
+        "LONLY",
+        "RONLY",
+    ] | None = None
+
+
 class ProblemFrame(CamelModel):
     user_goal: str
     interpreted_goal: str
@@ -139,6 +150,9 @@ class ProblemFrame(CamelModel):
     likely_data_sources: list[str] = Field(default_factory=list)
     success_criteria: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
+    strategy_sketch: list[StrategySketchNode] = Field(
+        default_factory=list, max_length=12,
+    )
     blocking_questions: list[ClarificationQuestion] = Field(default_factory=list)
     optional_questions: list[ClarificationQuestion] = Field(default_factory=list)
     research_notes: list[ResearchNote] = Field(default_factory=list)
@@ -146,40 +160,21 @@ class ProblemFrame(CamelModel):
     confidence: float = 0.0
 
 
-SupervisorEventKind = Literal[
-    "phase_enter",
-    "phase_exit",
-    "ejection",
-    "approval",
-    "deny",
-    "plan_event",
-    "build_outcome",
-    "supervisor_note",
-    "route",
-    "summary",
-]
-
-
-class SupervisorEvent(CamelModel):
-    kind: SupervisorEventKind
-    summary: str = Field(min_length=1, max_length=400)
-    detail: str | None = Field(default=None, max_length=4000)
-    phase: PhaseName | None = None
-    refs: list[str] = Field(default_factory=list, max_length=10)
-    at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-
-
 class PendingApproval(CamelModel):
-    phase: PhaseName
+    phase: PendingApprovalPhase
     tool_call_id: str
     tool_name: str
     tool_args: dict[str, JsonValue] = Field(default_factory=dict)
     plan_id: str | None = None
-    # Real prior agent-run messages (serialized via
-    # ``ModelMessagesTypeAdapter``) — required on resume so the provider
-    # sees the original tool call it issued. A synthesized stub satisfies
-    # pydantic-ai's local check but OpenAI rejects unknown tool_call_ids.
     prior_messages_json: str = ""
+
+
+class PlanSlotAnswer(CamelModel):
+    """One user-supplied answer to a plan's NEEDS_USER_INPUT slot."""
+
+    step_id: str
+    param_name: str
+    value: JsonValue
 
 
 class PipelineState(BaseModel):
@@ -198,28 +193,22 @@ class PipelineState(BaseModel):
     turn_message_id: UUID = Field(default_factory=uuid4)
     turn_start_event_id: int = 0
 
-    current_phase: PhaseName | None = None
-    last_routing_reason: str | None = None
-    supervisor_call_count: int = 0
-    phase_call_counts: dict[PhaseName, int] = Field(default_factory=dict)
-    last_assistant_prose: str = ""
-    last_phase_outcome: PhaseOutcome | None = None
-    last_verification_message_id: UUID | None = None
-
     turn_total_tokens: int = 0
     turn_total_cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
 
+    user_intent: UserIntent | None = None
+    lead_next_state: Literal["await_user", "complete"] | None = None
     problem_frame: ProblemFrame | None = None
     discovered_searches: dict[str, SearchOverview] = Field(default_factory=dict)
     active_plan: StrategyPlan | None = None
     verification_digest: VerificationDigest | None = None
+    last_build_outcome: BuildOutcome | None = None
     pending_approval: PendingApproval | None = None
     approval_responses: dict[str, ToolApprovalResponded] = Field(
         default_factory=dict,
     )
+    plan_slot_answers: dict[str, list[PlanSlotAnswer]] = Field(
+        default_factory=dict,
+    )
     created_gene_set_ids: list[str] = Field(default_factory=list)
     retrieved_memories: list[MemoryValue] = Field(default_factory=list)
-
-    specialist_mode: SpecialistMode | None = None
-
-    supervisor_log: list[SupervisorEvent] = Field(default_factory=list)

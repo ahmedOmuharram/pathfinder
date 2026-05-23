@@ -135,15 +135,12 @@ def test_multiple_drafts_get_distinct_keys() -> None:
         assert key == f"knowledge:{state.conversation_id.hex}:{idx}"
 
 
-def test_verification_digest_remains_a_phase_outcome() -> None:
-    """VerificationDigest must satisfy the PhaseOutcome contract so the
-    supervisor / orchestrator routing logic doesn't need a special case
-    for verification."""
+def test_verification_digest_carries_typed_routing_signal() -> None:
+    """VerificationDigest carries the disposition + prose + reason routing
+    fields; autowrite + the Lead's flow control depend on them."""
     digest = _digest(remember=[])
-    # All PhaseOutcome fields are present and typed.
     assert digest.disposition == PhaseDisposition.DONE
     assert isinstance(digest.prose, str)
     assert isinstance(digest.reason, str)
-    # And the digest-only fields are accessible via the same instance.
     assert digest.success is True
     assert "142 hits" in digest.key_findings

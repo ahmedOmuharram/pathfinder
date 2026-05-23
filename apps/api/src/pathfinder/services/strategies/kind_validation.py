@@ -10,6 +10,7 @@ from typing import cast
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.specs import find_input_step_param
+from pathfinder.domain.parameters.values import ParamValue, to_decoded_map
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp, parse_op
 from pathfinder.domain.strategy.organism import extract_output_organisms
@@ -17,7 +18,6 @@ from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.integrations.veupathdb.factory import get_wdk_client
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_validation import ValidationCallbacks
 from pathfinder.services.strategies.input_resolution import StepInputs
@@ -31,10 +31,10 @@ async def _validate_leaf_or_transform(
     graph: StrategyGraph,
     site_id: str,
     search_name: str,
-    parameters: JSONObject,
+    parameters: dict[str, ParamValue],
     is_transform: bool,
     callbacks: ValidationCallbacks,
-) -> tuple[JSONObject, ToolErrorPayload | None]:
+) -> tuple[dict[str, ParamValue], ToolErrorPayload | None]:
     """Validate a leaf or transform step.
 
     Returns (canonical_parameters, error_or_none). ``canonical_parameters``
@@ -70,13 +70,14 @@ async def _validate_leaf_or_transform(
 
 def _validate_fold_change_samples(
     search_name: str,
-    parameters: JSONObject,
+    parameters: dict[str, ParamValue],
 ) -> ToolErrorPayload | None:
     """Guard against identical ref/comp samples in fold-change searches."""
-    ref = parameters.get("samples_fc_ref_generic") or parameters.get(
+    decoded = to_decoded_map(parameters)
+    ref = decoded.get("samples_fc_ref_generic") or decoded.get(
         "samples_percentile_generic"
     )
-    comp = parameters.get("samples_fc_comp_generic")
+    comp = decoded.get("samples_fc_comp_generic")
     if ref and comp and str(ref) == str(comp):
         return tool_error(
             ErrorCode.VALIDATION_ERROR,
@@ -201,7 +202,7 @@ async def _validate_step_by_kind(
     inputs: StepInputs,
     parsed_op: CombineOp | None,
     callbacks: ValidationCallbacks,
-) -> tuple[JSONObject, ToolErrorPayload | None]:
+) -> tuple[dict[str, ParamValue], ToolErrorPayload | None]:
     """Validate a step based on its kind. Returns (canonical_params, error)."""
     is_binary = inputs.primary is not None and inputs.secondary is not None
     if not is_binary:
@@ -228,7 +229,7 @@ async def resolve_search_name_and_validate(
     inputs: StepInputs,
     callbacks: ValidationCallbacks,
     combine_placeholder: str,
-) -> tuple[str, CombineOp | None, JSONObject, ToolErrorPayload | None]:
+) -> tuple[str, CombineOp | None, dict[str, ParamValue], ToolErrorPayload | None]:
     """Resolve search_name, parse operator, and run step validation.
 
     :returns: (search_name, parsed_op, canonical_parameters, error_or_none).

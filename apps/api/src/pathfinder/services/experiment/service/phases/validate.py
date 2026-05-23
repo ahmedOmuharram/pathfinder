@@ -5,10 +5,10 @@ These phases run late in the experiment lifecycle to assess result
 reliability and add biological context.
 """
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.enrichment.parser import upsert_enrichment_result
 from pathfinder.services.enrichment.service import EnrichmentService
 from pathfinder.services.experiment.cross_validation import (
@@ -104,7 +104,7 @@ async def phase_cross_validate(
 
 async def _build_enrichment_context(
     config: ExperimentConfig,
-) -> tuple[str, JSONObject, str]:
+) -> tuple[str, dict[str, ParamValue], str]:
     """Resolve search_name, parameters, and record_type for enrichment.
 
     Gene-ID experiments may lack a WDK step and search_name. In that case

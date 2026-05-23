@@ -77,10 +77,10 @@ async def fetch_and_convert(
     """
     wdk_strategy = await api.get_strategy(wdk_id)
 
-    payload = build_snapshot_from_wdk(wdk_strategy)
+    payload, wire_by_step_id = build_snapshot_from_wdk(wdk_strategy)
 
     try:
-        await canonicalize_synced_parameters(payload, api)
+        await canonicalize_synced_parameters(payload, api, wire_by_step_id)
     except AppError as exc:
         logger.warning(
             "Parameter normalization failed, storing raw values",

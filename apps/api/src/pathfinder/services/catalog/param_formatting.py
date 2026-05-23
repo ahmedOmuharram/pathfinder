@@ -6,6 +6,9 @@ annotation and vocabulary rendering.
 """
 
 from dataclasses import dataclass
+from typing import Annotated, Literal
+
+from pydantic import Field
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
@@ -19,6 +22,27 @@ from pathfinder.services.catalog.vocab_rendering import (
 )
 
 _PHYLETIC_STRUCTURAL_PARAMS = frozenset({"phyletic_indent_map", "phyletic_term_map"})
+
+
+_VALUE_FORMAT_TEMPLATES: dict[str, str] = {
+    "string": '{"type": "string", "value": "<your value>"}',
+    "number": '{"type": "number", "value": <number>}',
+    "number-range": '{"type": "number-range", "min": <number>, "max": <number>}',
+    "date": '{"type": "date", "value": "<YYYY-MM-DD>"}',
+    "date-range": '{"type": "date-range", "min": "<YYYY-MM-DD>", "max": "<YYYY-MM-DD>"}',
+    "timestamp": '{"type": "timestamp", "value": "<ISO-8601>"}',
+    "single-pick-vocabulary": '{"type": "single-pick-vocabulary", "value": "<one of allowed_values>"}',
+    "multi-pick-vocabulary": '{"type": "multi-pick-vocabulary", "values": ["<from allowed_values>", "..."]}',
+    "filter": '{"type": "filter", "filters": [{"field": "<field>", "value": <value>}]}',
+    "input-dataset": '{"type": "input-dataset", "datasetId": "<id>"}',
+    "input-step": '{"type": "input-step", "stepId": "<id>"}',
+}
+
+
+def _value_format(param_type: str) -> str:
+    return _VALUE_FORMAT_TEMPLATES.get(
+        param_type, '{"type": "string", "value": "<your value>"}',
+    )
 
 _PROFILE_PATTERN_HELP = (
     "Phylogenetic profile pattern. Format: %CODE:STATE[:QUANTIFIER]% (percent-delimited).\n"
@@ -48,12 +72,14 @@ _PROFILE_PATTERN_HELP = (
 class ParameterInfo(CamelModel):
     """Formatted WDK parameter info for AI tool consumption."""
 
+    kind: Literal["parameter_info"] = "parameter_info"
     name: str
     display_name: str
     type: str
     required: bool
     is_visible: bool
     help: str
+    value_format: str
     default_value: str | None = None
     allowed_values: list[VocabEntry] | None = None
     allowed_values_tree: str | None = None
@@ -61,6 +87,28 @@ class ParameterInfo(CamelModel):
     controls_vocab_of: list[str] | None = None
     vocab_depends_on: list[str] | None = None
     note: str | None = None
+
+
+class ParameterNotOnSearch(CamelModel):
+    """Returned by ``get_parameter_options`` when ``parameter_id`` is not a
+    valid parameter on ``search_name``. Carries the same did-you-mean
+    info that ``ModelRetry`` used to raise — but as a normal tool return,
+    so the call doesn't consume retry budget. The model self-corrects on
+    its next call from this payload.
+    """
+
+    kind: Literal["parameter_not_on_search"] = "parameter_not_on_search"
+    search_name: str
+    requested_parameter_id: str
+    message: str
+    suggestions: list[str]
+    valid_parameter_ids: list[str]
+
+
+GetParameterOptionsResult = Annotated[
+    ParameterInfo | ParameterNotOnSearch,
+    Field(discriminator="kind"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +228,7 @@ def format_typed_param(
         required=not param.allow_empty_value,
         is_visible=param.is_visible,
         help=help_text,
+        value_format=_value_format(param.type),
         default_value=param.initial_display_value,
         allowed_values=vocab.allowed_values,
         allowed_values_tree=vocab.allowed_values_tree,
@@ -227,6 +276,7 @@ def _format_normalized_one(
         required=is_required,
         is_visible=spec.is_visible,
         help=spec.help or "",
+        value_format=_value_format(spec.param_type),
         default_value=spec.initial_display_value,
         allowed_values=vocab.allowed_values,
         allowed_values_tree=vocab.allowed_values_tree,

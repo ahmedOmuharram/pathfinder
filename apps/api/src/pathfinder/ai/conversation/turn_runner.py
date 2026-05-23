@@ -116,7 +116,6 @@ async def run_turn(
         user_id=user_id,
         memory_store=memory_store,
     )
-    conversation_for_input = conversation
 
     turn_message_id = writer.turn_id
     start_event_id = await writer.write(
@@ -135,7 +134,6 @@ async def run_turn(
         body, user_id,
         turn_message_id=writer.turn_id,
         turn_start_event_id=start_event_id - 1,
-        conversation=conversation_for_input,
     )
     result = await _drive_graph(
         body=body,

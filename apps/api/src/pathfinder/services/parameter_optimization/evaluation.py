@@ -3,8 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 
-from pydantic import JsonValue
-
+from pathfinder.domain.parameters.values import ParamValue, to_decoded_map
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.control_tests import (
@@ -26,11 +25,12 @@ _CACHE_PRECISION = 5
 # WDK evaluation (cached, semaphore-guarded)
 # ---------------------------------------------------------------------------
 
-def _cache_key(params: dict[str, JsonValue]) -> tuple[tuple[str, str], ...]:
+def _cache_key(params: dict[str, ParamValue]) -> tuple[tuple[str, str], ...]:
     """Build a hashable key from optimised params (rounded floats)."""
     items: list[tuple[str, str]] = []
-    for k in sorted(params):
-        v = params[k]
+    decoded = to_decoded_map(params)
+    for k in sorted(decoded):
+        v = decoded[k]
         if isinstance(v, float):
             items.append((k, str(round(v, _CACHE_PRECISION))))
         else:
@@ -55,7 +55,7 @@ class EvalRequest:
 
 async def _evaluate_trial(
     request: EvalRequest,
-    optimised_params: dict[str, JsonValue],
+    optimised_params: dict[str, ParamValue],
     sem: asyncio.Semaphore,
     cache: _EvalCache,
     key_locks: _KeyLocks,
@@ -109,7 +109,7 @@ async def _evaluate_trial(
 def _unpack_gather_result(
     raw_result: tuple[ControlTestResult | None, str] | BaseException,
     trial_num: int,
-    params: dict[str, JsonValue],
+    params: dict[str, ParamValue],
 ) -> tuple[ControlTestResult | None, str]:
     """Unpack a result from asyncio.gather (may be an exception)."""
     if isinstance(raw_result, BaseException):

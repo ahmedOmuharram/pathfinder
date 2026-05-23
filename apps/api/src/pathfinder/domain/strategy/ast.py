@@ -3,9 +3,10 @@
 from uuid import uuid4
 
 from pydantic import Field, JsonValue, ValidationError, model_validator
+from pydantic_core import PydanticCustomError
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
-from pathfinder.domain.strategy.types import DecodedParamsField
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 
@@ -30,8 +31,9 @@ class StepFilter(CamelModel):
     @classmethod
     def _coerce(cls, data: JsonValue) -> dict[str, JsonValue]:
         if not isinstance(data, dict):
+            code = "step_filter_type"
             msg = "StepFilter requires a dict"
-            raise TypeError(msg)
+            raise PydanticCustomError(code, msg)
         name = data.get("name")
         if not isinstance(name, str) or not name:
             msg = "StepFilter requires a non-empty 'name'"
@@ -65,8 +67,9 @@ class StepAnalysis(CamelModel):
     @classmethod
     def _coerce(cls, data: JsonValue) -> dict[str, JsonValue]:
         if not isinstance(data, dict):
+            code = "step_analysis_type"
             msg = "StepAnalysis requires a dict"
-            raise TypeError(msg)
+            raise PydanticCustomError(code, msg)
         result: dict[str, JsonValue] = dict(data)
         # Accept both camelCase alias and snake_case field name
         at = result.get("analysisType") or result.get("analysis_type")
@@ -109,10 +112,10 @@ class StepReport(CamelModel):
     @classmethod
     def _coerce(cls, data: JsonValue) -> dict[str, JsonValue]:
         if not isinstance(data, dict):
+            code = "step_report_type"
             msg = "StepReport requires a dict"
-            raise TypeError(msg)
+            raise PydanticCustomError(code, msg)
         result: dict[str, JsonValue] = dict(data)
-        # Coerce non-dict config to empty dict
         if not isinstance(result.get("config"), dict):
             result["config"] = {}
         return result
@@ -138,10 +141,6 @@ class StrategyStepNode(CamelModel):
     - transform: primary_input only
     - search: no inputs
 
-    ``parameters`` holds decoded JSON-typed values
-    (``DecodedParams = dict[str, JsonValue]``). Encoding to WDK wire
-    format happens at integration boundaries via
-    ``integrations.veupathdb.value_decoding.encode_params``.
     """
 
     @model_validator(mode="before")
@@ -159,7 +158,7 @@ class StrategyStepNode(CamelModel):
         return data
 
     search_name: str
-    parameters: DecodedParamsField = Field(default_factory=dict)
+    parameters: dict[str, ParamValue] = Field(default_factory=dict)
 
     primary_input: StrategyStepNode | None = None
     secondary_input: StrategyStepNode | None = None

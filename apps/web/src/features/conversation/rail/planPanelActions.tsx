@@ -24,11 +24,20 @@ export interface PendingApprovalInfo {
   sourceMessage: UIMessage;
 }
 
+export type SlotAnswerEntry = {
+  stepId: string;
+  paramName: string;
+  value: unknown;
+};
+
 export type ChatHelpersForApproval = {
   addToolApprovalResponse: (
     args: { id: string; approved: boolean; reason?: string },
   ) => void;
   sendMessage: (message: { text: string }) => void;
+  setMessages: (
+    messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[]),
+  ) => void;
 };
 
 function fireProductAction(
@@ -53,10 +62,46 @@ function fireProductAction(
 export function handleApprove(
   chat: ChatHelpersForApproval,
   pending: PendingApprovalInfo,
+  slotAnswers: SlotAnswerEntry[] = [],
 ): void {
+  if (slotAnswers.length > 0) {
+    attachSlotAnswersToSourceMessage(chat, pending, slotAnswers);
+  }
   chat.addToolApprovalResponse({ id: pending.approvalId, approved: true });
   usePlanStore.getState().resolvePendingApproval();
-  fireProductAction("plan_approve", pending);
+  fireProductAction("plan_approve", pending, { slotCount: slotAnswers.length });
+}
+
+
+export const PLAN_SLOT_ANSWERS_PART_TYPE = "data-plan-slot-answers";
+
+
+function attachSlotAnswersToSourceMessage(
+  chat: ChatHelpersForApproval,
+  pending: PendingApprovalInfo,
+  slotAnswers: SlotAnswerEntry[],
+): void {
+  const slotPart: UIMessage["parts"][number] = {
+    type: PLAN_SLOT_ANSWERS_PART_TYPE,
+    data: {
+      toolCallId: pending.approvalId,
+      answers: slotAnswers.map((a) => ({
+        stepId: a.stepId,
+        paramName: a.paramName,
+        value: a.value,
+      })),
+    },
+  } as unknown as UIMessage["parts"][number];
+
+  chat.setMessages((messages) =>
+    messages.map((msg) => {
+      if (msg.id !== pending.sourceMessage.id) return msg;
+      const filtered = msg.parts.filter(
+        (p) => p.type !== PLAN_SLOT_ANSWERS_PART_TYPE,
+      );
+      return { ...msg, parts: [...filtered, slotPart] };
+    }),
+  );
 }
 
 export function handleDeny(
@@ -88,12 +133,14 @@ export function handleAskQuestion(
 
 export function ApprovalBar({
   pending,
+  approveDisabled = false,
   onApprove,
   onDeny,
   onSuggestChanges,
   onAskQuestion,
 }: {
   pending: PendingApprovalInfo;
+  approveDisabled?: boolean;
   onApprove: () => void;
   onDeny: () => void;
   onSuggestChanges: (text: string) => void;
@@ -112,6 +159,7 @@ export function ApprovalBar({
           size="sm"
           variant="default"
           onClick={onApprove}
+          disabled={approveDisabled}
           className="flex-1"
           data-testid="plan-approve"
           data-approval-id={pending.approvalId}

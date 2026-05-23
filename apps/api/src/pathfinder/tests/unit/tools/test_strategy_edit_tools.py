@@ -20,6 +20,7 @@ from pathfinder.ai.tools.standalone.strategy import (
     update_leaf_params,
     update_step_metadata,
 )
+from pathfinder.domain.parameters.values import MultiPickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.operations import DeleteResolution
 from pathfinder.domain.strategy.ops import CombineOp
@@ -304,17 +305,23 @@ async def test_delete_step_promote_primary(stub_api: _StubAPI) -> None:
 
 @pytest.mark.asyncio
 async def test_update_leaf_params_happy(stub_api: _StubAPI) -> None:
-    a = _leaf("a", params={"organism": ["Pf3D7"]})
+    a = _leaf(
+        "a",
+        params={"organism": MultiPickValue(values=["Pf3D7"])},
+    )
     deps = _seed(a, wdk_step_ids={"a": 100})
 
     res = await update_leaf_params(
-        _ctx(deps), "a", {"organism": ["Pf3D7", "Pf7G8"]},
+        _ctx(deps), "a",
+        {"organism": MultiPickValue(values=["Pf3D7", "Pf7G8"])},
     )
 
     assert hasattr(res, "return_value")
     graph = deps.strategy_session.graph
     assert graph is not None
-    assert graph.steps["a"].parameters == {"organism": ["Pf3D7", "Pf7G8"]}
+    assert graph.steps["a"].parameters == {
+        "organism": MultiPickValue(values=["Pf3D7", "Pf7G8"]),
+    }
     patch_calls = [c for c in stub_api.calls if c.name == "update_step_search_config"]
     assert len(patch_calls) >= 1, f"calls: {[c.name for c in stub_api.calls]}"
     assert patch_calls[0].kwargs["step_id"] == 100
@@ -338,7 +345,10 @@ async def test_update_leaf_params_validation_failure_raises_model_retry(
 ) -> None:
     del stub_api
 
-    a = _leaf("a", params={"organism": ["Pf3D7"]})
+    a = _leaf(
+        "a",
+        params={"organism": MultiPickValue(values=["Pf3D7"])},
+    )
     deps = _seed(a, wdk_step_ids={"a": 100})
 
     async def _raising_validate(*_args: Any, **_kwargs: Any) -> dict[str, object]:

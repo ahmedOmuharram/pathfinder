@@ -2,10 +2,10 @@
 
 import asyncio
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.control_tests import (
     IntersectionConfig,
     run_positive_negative_controls,
@@ -81,7 +81,7 @@ async def evaluate_steps(
                 if branch is not None and has_transforms:
                     raw = await run_controls_against_tree(ctx, branch)
                 else:
-                    parameters: JSONObject = dict(leaf.parameters or {})
+                    parameters: dict[str, ParamValue] = dict(leaf.parameters)
                     raw = await run_positive_negative_controls(
                         IntersectionConfig.from_controls_context(
                             ctx,

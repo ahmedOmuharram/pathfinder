@@ -4,12 +4,108 @@
     "type": "start"
   },
   {
+    "type": "start-step"
+  },
+  {
     "data": {
-      "phase": "completed",
-      "reason": "supervisor failed \u2014 ending turn",
-      "status": "failed"
+      "title": "hi"
     },
-    "type": "data-phase-change"
+    "type": "data-conversation-title"
+  },
+  {
+    "toolCallId": "<REDACTED>",
+    "toolName": "final_result",
+    "type": "tool-input-start"
+  },
+  {
+    "inputTextDelta": "{\"prose\":\"[mock] Investigation paused \u2014 supply more context or rephrase.\",\"nextState\":\"await_user\"}",
+    "toolCallId": "<REDACTED>",
+    "type": "tool-input-delta"
+  },
+  {
+    "input": {
+      "nextState": "await_user",
+      "prose": "[mock] Investigation paused \u2014 supply more context or rephrase."
+    },
+    "toolCallId": "<REDACTED>",
+    "toolName": "final_result",
+    "type": "tool-input-available"
+  },
+  {
+    "data": {
+      "costUsd": "0",
+      "totalTokens": 64
+    },
+    "type": "data-turn-usage"
+  },
+  {
+    "output": "Final result processed.",
+    "toolCallId": "<REDACTED>",
+    "type": "tool-output-available"
+  },
+  {
+    "type": "finish-step"
+  },
+  {
+    "id": "<REDACTED>",
+    "type": "text-start"
+  },
+  {
+    "delta": "[mock] Investigation paused \u2014 supply more context or rephrase.",
+    "id": "<REDACTED>",
+    "type": "text-delta"
+  },
+  {
+    "id": "<REDACTED>",
+    "type": "text-end"
+  },
+  {
+    "data": {
+      "costUsd": "0",
+      "totalTokens": 64
+    },
+    "type": "data-turn-usage"
+  },
+  {
+    "data": {
+      "build": {
+        "failedCount": 0,
+        "needsRecovery": false,
+        "pushedCount": 0,
+        "recoveryKind": "none",
+        "skippedCount": 0,
+        "succeeded": false,
+        "zeroResultSteps": []
+      },
+      "discovery": {
+        "fitReports": [],
+        "intentSatisfied": false,
+        "needsMoreDiscovery": true,
+        "rejectedCount": 0,
+        "selectedCount": 0,
+        "selections": {}
+      },
+      "frame": {
+        "blocked": false,
+        "blockingQuestionsUnanswered": [],
+        "matchesCurrentIntent": false,
+        "needed": true
+      },
+      "plan": {
+        "approved": false,
+        "blockedKind": "none",
+        "openDiscoverySlots": [],
+        "openUserInputSlots": [],
+        "readyToExecute": false
+      },
+      "subAgentCallsThisTurn": [],
+      "subAgentCallsTotal": 0,
+      "verification": {
+        "complete": false,
+        "successful": false
+      }
+    },
+    "type": "data-ledger-update"
   },
   {
     "finishReason": "stop",

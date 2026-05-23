@@ -34,7 +34,11 @@ describe("core/strategyGraph/serialize", () => {
         displayName: "A",
         searchName: "q1",
         recordType: "gene",
-        parameters: { ok: 1, fake: "@@fake@@", arr: ["x", "@@fake@@"] },
+        parameters: {
+          ok: { type: "number", value: 1 },
+          fake: { type: "single-pick-vocabulary", value: "@@fake@@" },
+          arr: { type: "multi-pick-vocabulary", values: ["x", "@@fake@@"] },
+        },
       }),
       b: step({
         id: "b",
@@ -42,7 +46,7 @@ describe("core/strategyGraph/serialize", () => {
         searchName: "q2",
         recordType: "gene",
         primaryInputStepId: "a",
-        parameters: { ok: true },
+        parameters: { ok: { type: "string", value: "true" } },
       }),
     };
 
@@ -63,7 +67,9 @@ describe("core/strategyGraph/serialize", () => {
     expect(res?.plan.root.id).toBe("b");
     expect(res?.plan.root.primaryInput?.id).toBe("a");
     // Any params containing the UI-only @@fake@@ sentinel are removed.
-    expect(res?.plan.root.primaryInput?.parameters).toEqual({ ok: 1 });
+    expect(res?.plan.root.primaryInput?.parameters).toEqual({
+      ok: { type: "number", value: 1 },
+    });
     expect(res?.plan.root.primaryInput?.parameters?.["fake"]).toBeUndefined();
     expect(res?.plan.root.primaryInput?.parameters?.["arr"]).toBeUndefined();
     expect(res?.plan.name).toBe("My Strategy");

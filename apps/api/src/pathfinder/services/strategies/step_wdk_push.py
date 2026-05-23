@@ -9,10 +9,10 @@ from typing import assert_never
 
 from pydantic import BaseModel, ConfigDict
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode, walk_step_tree
 from pathfinder.domain.strategy.ops import CombineOp, get_wdk_operator
 from pathfinder.domain.strategy.session import StrategyGraph
-from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.strategy_api import StrategyAPI
@@ -60,7 +60,7 @@ async def push_step_to_wdk(
     site_id: str,
     record_type: str,
     search_name: str,
-    parameters: DecodedParams,
+    parameters: dict[str, ParamValue],
 ) -> tuple[int | None, StepValidation | None, str | None]:
     """Push a newly created step to WDK and store its ID on sync_state.
 

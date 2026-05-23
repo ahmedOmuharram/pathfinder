@@ -1,6 +1,7 @@
 "use client";
 
 import type { ColocationParams, Step } from "@pathfinder/shared";
+import { paramValueToRaw } from "@/features/strategy/parameters/paramValue";
 
 export interface StepDraftSnapshot {
   parameters: Record<string, string | string[]>;
@@ -19,13 +20,7 @@ function normalizeStepBaseline(step: Step): StepDraftSnapshot {
   const baseParams: Record<string, string | string[]> = {};
   const stepParams = step.parameters ?? {};
   for (const [key, val] of Object.entries(stepParams)) {
-    if (Array.isArray(val)) {
-      baseParams[key] = val.map(String);
-    } else if (val == null) {
-      baseParams[key] = "";
-    } else {
-      baseParams[key] = String(val);
-    }
+    baseParams[key] = paramValueToRaw(val);
   }
   return {
     parameters: baseParams,

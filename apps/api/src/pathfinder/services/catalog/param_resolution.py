@@ -2,6 +2,7 @@
 
 from pathfinder.domain.parameters.canonicalize import ParameterCanonicalizer
 from pathfinder.domain.parameters.specs import find_input_step_param
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.client import (
     VEuPathDBClient,
@@ -20,7 +21,6 @@ from pathfinder.platform.errors import ValidationError as CoreValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_discovery import fetch_search_details
 from pathfinder.services.catalog.param_formatting import (
@@ -103,21 +103,21 @@ async def get_search_parameters_tool(ctx: SearchContext) -> SearchParametersResu
 
 async def expand_search_details_with_params(
     ctx: SearchContext,
-    context_values: JSONObject | None,
+    context_values: dict[str, ParamValue] | None,
 ) -> WDKSearchResponse:
-    """Return WDK search details after applying (WDK-wire) context values.
+    """Return WDK search details after applying typed context values.
 
     NOTE: despite the historical name, this is *not* a pure validation API; it returns
     WDK search details payload. Keep it separate from the public validation endpoint.
     """
     client = get_wdk_client(ctx.site_id)
-    raw_context = context_values or {}
-    normalized_context: JSONObject = {}
+    raw_context: dict[str, ParamValue] = context_values or {}
     response, allowed = await _load_discovery_details_and_allowed(ctx)
     filtered_context = _filter_context_values(raw_context, allowed)
 
     specs = adapt_param_specs_from_search(response.search_data) if response else {}
 
+    normalized_context: dict[str, ParamValue]
     if specs:
         canonicalizer = ParameterCanonicalizer(specs)
         try:
@@ -133,22 +133,27 @@ async def expand_search_details_with_params(
             specs = adapt_param_specs_from_search(fallback_response.search_data)
             canonicalizer = ParameterCanonicalizer(specs)
             normalized_context = canonicalizer.canonicalize(filtered_context)
-        input_step_param = find_input_step_param(specs)
-        if input_step_param:
-            normalized_context[input_step_param] = ""
     else:
         normalized_context = filtered_context
+
+    wire_context = encode_wdk_params(normalized_context)
+    if specs:
+        input_step_param = find_input_step_param(specs)
+        if input_step_param:
+            wire_context[input_step_param] = ""
     resolved_record_type = await find_record_type_for_search(ctx)
     return await _get_search_details_with_portal_fallback(
         site_id=ctx.site_id,
         client=client,
         record_type=resolved_record_type,
         search_name=ctx.search_name,
-        context_values=encode_wdk_params(normalized_context),
+        context_values=wire_context,
     )
 
 
-def _filter_context_values(raw_context: JSONObject, allowed: set[str]) -> JSONObject:
+def _filter_context_values(
+    raw_context: dict[str, ParamValue], allowed: set[str],
+) -> dict[str, ParamValue]:
     """Filter context values to keys WDK recognizes for the search (best-effort).
 
     :param raw_context: Raw context from request.
@@ -211,7 +216,7 @@ async def get_refreshed_dependent_params(
     ctx: SearchContext,
     *,
     parameter_name: str,
-    context_values: JSONObject,
+    context_values: dict[str, ParamValue],
 ) -> list[WDKParameter]:
     """Get refreshed dependent parameter vocabulary, falling back to the portal.
 

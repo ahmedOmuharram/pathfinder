@@ -4,11 +4,11 @@ Resolves the effective record type (from graph, hint, or search lookup)
 and validates parameters against the WDK search metadata.
 """
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import ErrorCode, ValidationError
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_validation import (
     ResolveRecordTypeFn,
     ValidationCallbacks,
@@ -42,9 +42,9 @@ async def resolve_search_and_validate_params(
     site_id: str,
     resolved_record_type: str,
     search_name: str,
-    parameters: JSONObject,
+    parameters: dict[str, ParamValue],
     callbacks: ValidationCallbacks,
-) -> tuple[str, JSONObject, ToolErrorPayload | None]:
+) -> tuple[str, dict[str, ParamValue], ToolErrorPayload | None]:
     """Resolve record type for a search and validate its parameters.
 
     Shared by leaf and transform validation paths.

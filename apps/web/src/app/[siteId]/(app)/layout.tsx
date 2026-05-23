@@ -19,7 +19,6 @@ import { useAutoCollapseSidebar } from "@/app/hooks/useAutoCollapseSidebar";
 import { useModalState } from "@/app/hooks/useModalState";
 import { useSidebarResize } from "@/app/hooks/useSidebarResize";
 import { useSystemConfig } from "@/app/hooks/useSystemConfig";
-import { EngineModal } from "@/features/engine/components/EngineModal";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { ConversationSidebar } from "@/features/sidebar/components/ConversationSidebar";
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
@@ -129,7 +128,6 @@ function AppShellInner({
             siteId={selectedSite}
             onSiteChange={handleSiteChange}
             onOpenSettings={modals.openSettings}
-            onOpenEngine={modals.openEngine}
             onToggleSidebar={toggleLeft}
             sidebarExpanded={!leftCollapsed}
           />
@@ -174,8 +172,6 @@ function AppShellInner({
         onClose={modals.closeSettings}
         siteId={selectedSite}
       />
-
-      <EngineModal open={modals.showEngine} onClose={modals.closeEngine} />
     </div>
   );
 }

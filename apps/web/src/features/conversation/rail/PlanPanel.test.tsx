@@ -16,6 +16,29 @@ function makePlan(planId: string): PlanArtifact {
   return { planId, rationale: `rationale ${planId}`, steps: [] };
 }
 
+function makePlanWithSlot(planId: string): PlanArtifact {
+  return {
+    planId,
+    rationale: `rationale ${planId}`,
+    steps: [],
+    slots: [
+      {
+        stepId: "step_1",
+        paramName: "hard_floor",
+        paramType: "number-enum",
+        status: "needs_user_input",
+        required: true,
+        question: "Pick a read-floor tier",
+        context: "",
+        options: [
+          { label: "1693 reads", value: "1693.23" },
+          { label: "6772 reads", value: "6772.93" },
+        ],
+      },
+    ],
+  };
+}
+
 function planArtifactPart(plan: PlanArtifact) {
   return { type: "data-plan-artifact" as const, data: plan };
 }
@@ -35,10 +58,15 @@ function makeAssistantMessage(parts: unknown[], id = "asst-1"): UIMessage {
 }
 
 function makeChat(messages: UIMessage[]): ChatHelpers {
+  let mutableMessages = messages;
   return {
-    messages,
+    get messages() { return mutableMessages; },
     addToolApprovalResponse: vi.fn(),
     sendMessage: vi.fn(),
+    setMessages: vi.fn((updater: UIMessage[] | ((m: UIMessage[]) => UIMessage[])) => {
+      mutableMessages =
+        typeof updater === "function" ? updater(mutableMessages) : updater;
+    }),
   } as unknown as ChatHelpers;
 }
 
@@ -121,6 +149,65 @@ describe("PlanPanel — render-state matrix", () => {
     expect(screen.getByText(/v1 of 2/i)).toBeInTheDocument();
   });
 });
+
+describe("PlanPanel — slot-filling form (Stage A)", () => {
+  it("renders form fields for needs_user_input slots", () => {
+    renderPanel([
+      makeAssistantMessage([
+        planArtifactPart(makePlanWithSlot("p1")),
+        approvalPart({ planId: "p1" }),
+      ]),
+    ]);
+    expect(screen.getByTestId("plan-slot-forms")).toBeInTheDocument();
+    expect(screen.getByTestId("slot-field-step_1-hard_floor")).toBeInTheDocument();
+    expect(screen.getByText("Pick a read-floor tier")).toBeInTheDocument();
+  });
+
+  it("disables Approve until user picks a value for needs_user_input slots", () => {
+    renderPanel([
+      makeAssistantMessage([
+        planArtifactPart(makePlanWithSlot("p1")),
+        approvalPart({ planId: "p1" }),
+      ]),
+    ]);
+    const approve = screen.getByTestId("plan-approve");
+    expect(approve).toBeDisabled();
+  });
+
+  it("Approve sends slot answers via setMessages + addToolApprovalResponse", () => {
+    const { chat } = renderPanel([
+      makeAssistantMessage([
+        planArtifactPart(makePlanWithSlot("p1")),
+        approvalPart({ approvalId: "a1", planId: "p1" }),
+      ], "asst-1"),
+    ]);
+    fireEvent.click(screen.getByText("Select an option…"));
+    fireEvent.click(screen.getByTestId("slot-option-1693 reads"));
+    const approve = screen.getByTestId("plan-approve");
+    expect(approve).not.toBeDisabled();
+    fireEvent.click(approve);
+    expect(chat.setMessages).toHaveBeenCalled();
+    expect(chat.addToolApprovalResponse).toHaveBeenCalledWith({
+      id: "a1",
+      approved: true,
+    });
+    const updatedAsst = chat.messages.find((m) => m.id === "asst-1");
+    expect(updatedAsst).toBeDefined();
+    const slotAnswerPart = updatedAsst?.parts.find(
+      (p) => (p as { type?: string }).type === "data-plan-slot-answers",
+    );
+    expect(slotAnswerPart).toBeDefined();
+    const data = (slotAnswerPart as { data?: unknown }).data as {
+      toolCallId: string;
+      answers: Array<{ stepId: string; paramName: string; value: unknown }>;
+    };
+    expect(data.toolCallId).toBe("a1");
+    expect(data.answers).toEqual([
+      { stepId: "step_1", paramName: "hard_floor", value: "1693.23" },
+    ]);
+  });
+});
+
 
 describe("PlanPanel — product-action wiring + SDK v6", () => {
   it("Approve: addToolApprovalResponse({approved:true}) + plan_approve telemetry", () => {

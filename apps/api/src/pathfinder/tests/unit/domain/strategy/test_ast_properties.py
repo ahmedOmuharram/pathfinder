@@ -16,6 +16,11 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
+from pathfinder.domain.parameters.values import (
+    MultiPickValue,
+    NumberValue,
+    StringValue,
+)
 from pathfinder.domain.strategy.ast import (
     COMBINE_SEARCH_NAME,
     StrategyStepNode,
@@ -33,11 +38,12 @@ _search_names = st.text(
 ).filter(lambda s: s != COMBINE_SEARCH_NAME)
 
 _param_values = st.one_of(
-    st.text(max_size=10),
-    st.integers(min_value=-1000, max_value=1000),
-    st.booleans(),
-    st.none(),
-    st.lists(st.text(max_size=8), max_size=3),
+    st.builds(StringValue, value=st.text(min_size=1, max_size=10)),
+    st.builds(NumberValue, value=st.floats(min_value=-1000, max_value=1000)),
+    st.builds(
+        MultiPickValue,
+        values=st.lists(st.text(min_size=1, max_size=8), min_size=1, max_size=3),
+    ),
 )
 
 _param_dicts = st.dictionaries(

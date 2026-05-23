@@ -20,7 +20,13 @@ import {
   handleDeny,
   handleSuggestChanges,
   type PendingApprovalInfo,
+  type SlotAnswerEntry,
 } from "./planPanelActions";
+import {
+  PlanSlotForms,
+  buildSlotAnswers,
+  slotsAreFilled,
+} from "./PlanSlotForm";
 import { RailEmptyState, RailPanelShell } from "./RailPanelShell";
 
 function collectPlans(messages: UIMessage[]): PlanArtifact[] {
@@ -76,6 +82,7 @@ export function PlanPanel() {
     // On new plan arrival, jump focus to latest (render-time pattern, no useEffect).
     setFocusedIndexState(latestIndex);
   }
+  const [slotValues, setSlotValues] = useState<Record<string, unknown>>({});
   const setFocusedIndex = (index: number) => {
     if (plans.length === 0) {
       setFocusedIndexState(0);
@@ -85,6 +92,9 @@ export function PlanPanel() {
   };
   const focused = plans[focusedIndex] ?? null;
   const isLatest = focusedIndex === plans.length - 1;
+  const slots = focused?.slots ?? [];
+  const fillableSlots = slots.filter((s) => s.status !== "needs_discovery");
+  const allFilled = slotsAreFilled(slots, slotValues);
 
   return (
     <RailPanelShell title="Plan">
@@ -103,10 +113,27 @@ export function PlanPanel() {
               onChange={setFocusedIndex}
             />
           )}
+          {pending != null && isLatest && slots.length > 0 && (
+            <PlanSlotForms
+              slots={slots}
+              values={slotValues}
+              onChange={(key, value) =>
+                setSlotValues((prev) => ({ ...prev, [key]: value }))
+              }
+            />
+          )}
           {pending != null && isLatest && (
             <ApprovalBar
               pending={pending}
-              onApprove={() => handleApprove(chat, pending)}
+              approveDisabled={fillableSlots.length > 0 && !allFilled}
+              onApprove={() => {
+                const answers: SlotAnswerEntry[] =
+                  fillableSlots.length > 0
+                    ? buildSlotAnswers(slots, slotValues)
+                    : [];
+                handleApprove(chat, pending, answers);
+                setSlotValues({});
+              }}
               onDeny={() => handleDeny(chat, pending)}
               onSuggestChanges={(text) => handleSuggestChanges(chat, pending, text)}
               onAskQuestion={(text) => handleAskQuestion(chat, pending, text)}

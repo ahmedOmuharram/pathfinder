@@ -1,7 +1,7 @@
 """Planning-phase toolset for creating and managing execution plans."""
 
 from pydantic_ai.messages import ModelResponse, ToolCallPart
-from pydantic_ai.tools import RunContext, Tool, ToolDefinition
+from pydantic_ai.tools import RunContext, ToolDefinition
 from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.toolsets.prepared import PreparedToolset
@@ -16,7 +16,6 @@ from pathfinder.ai.tools.standalone.plan import (
     create_plan,
     get_plan,
     present_decision,
-    submit_plan,
     update_plan,
 )
 from pathfinder.ai.tools.standalone.strategy_graph import get_strategy
@@ -61,11 +60,11 @@ async def _prepare(
 
 def build_toolset() -> AbstractToolset[AgentDeps]:
     base = FunctionToolset[AgentDeps](
+        max_retries=3,
         tools=[
             create_plan,
             get_plan,
             update_plan,
-            Tool(submit_plan, requires_approval=True),
             present_decision,
             resolve_gene_ids_to_records,
             get_strategy,

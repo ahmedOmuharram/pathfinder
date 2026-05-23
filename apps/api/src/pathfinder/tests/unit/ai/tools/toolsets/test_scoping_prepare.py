@@ -127,9 +127,8 @@ async def test_reentry_with_prior_frame_still_exposes_full_toolset() -> None:
     """Regression: turn 2+ enters scoping with ``state.problem_frame`` set.
 
     The old guard zero'd the toolset in that case, so the agent had no
-    way to re-frame — it could only stamp a ``PhaseOutcome`` from the
-    synthesized ``final_result`` output tool. The fix keys on
-    ``problem_frame_set_this_run`` instead, which resets per phase run.
+    way to re-frame. The fix keys on ``problem_frame_set_this_run`` instead,
+    which resets per sub-agent run.
     """
     prior_frame = ProblemFrame(
         user_goal="u",

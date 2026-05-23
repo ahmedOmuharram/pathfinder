@@ -100,19 +100,20 @@ def _execution_enum_overrides(
 
 def build_toolset() -> AbstractToolset[AgentDeps]:
     base = FunctionToolset[AgentDeps](
+        max_retries=3,
         tools=[
             build_strategy,
             update_leaf_params,
             update_combine_operator,
             update_step_metadata,
-            Tool(delete_step, requires_approval=True),
+            Tool(delete_step, requires_approval=True, max_retries=3),
             replace_subtree,
             insert_saved_strategy,
             add_step_filter,
             add_step_analysis,
             add_step_report,
             rename_strategy,
-            Tool(clear_strategy, requires_approval=True),
+            Tool(clear_strategy, requires_approval=True, max_retries=3),
             get_strategy,
             request_search_inspection,
             think,

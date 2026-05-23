@@ -1,5 +1,6 @@
 """Service-layer strategy DTOs shared across services, AI, and transport."""
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import (
     StepAnalysis,
     StepFilter,
@@ -8,7 +9,6 @@ from pathfinder.domain.strategy.ast import (
 )
 from pathfinder.domain.strategy.ops import ColocationParams
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
-from pathfinder.domain.strategy.types import DecodedParams
 from pathfinder.domain.strategy.validation import StepValidation
 from pathfinder.platform.pydantic_base import CamelModel
 
@@ -21,7 +21,7 @@ class StepResponse(CamelModel):
     display_name: str | None = None
     search_name: str | None = None
     record_type: str | None = None
-    parameters: DecodedParams | None = None
+    parameters: dict[str, ParamValue] | None = None
     operator: str | None = None
     colocation_params: ColocationParams | None = None
     primary_input_step_id: str | None = None

@@ -110,6 +110,7 @@ export function EditorContent({
       formValues,
       hiddenDefaults: state.hiddenDefaults,
       allowedParamKeys,
+      paramSpecs: state.paramSpecs,
       operator: state.operatorValue,
       displayName: state.name ?? "",
       colocationParams: state.colocationParams ?? null,

@@ -18,7 +18,11 @@ from pathfinder.ai.agents.compactor import (
 )
 from pathfinder.ai.graph import nodes
 from pathfinder.ai.graph.runtime import Context, DBSessionFactory
-from pathfinder.ai.graph.state import PipelineState
+from pathfinder.ai.graph.state import (
+    PhaseDisposition,
+    PipelineState,
+    VerificationDigest,
+)
 from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
 from pathfinder.ai.scratchpad.models import NoteCreate
 from pathfinder.ai.scratchpad.repository import ScratchpadRepository
@@ -189,7 +193,12 @@ async def test_finalize_triggers_compactor(
         user_id=seed_user.id,
         site_id="plasmodb",
         mode="strategy",
-        current_phase="verification",
+        verification_digest=VerificationDigest(
+            disposition=PhaseDisposition.DONE,
+            prose="ok",
+            reason="verified",
+            success=True,
+        ),
     )
     context = Context(
         site_id="plasmodb",

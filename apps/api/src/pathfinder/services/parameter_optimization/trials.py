@@ -39,9 +39,7 @@ async def run_trial_loop(ctx: TrialContext) -> OptimizationResult:
     sem = asyncio.Semaphore(_PARALLEL_CONCURRENCY)
     eval_cache: _EvalCache = {}
     eval_key_locks: _KeyLocks = {}
-    clean_fixed = {
-        k: v for k, v in ctx.inp.fixed_parameters.items() if v not in ("", None)
-    }
+    clean_fixed = dict(ctx.inp.fixed_parameters)
 
     try:
         trial_idx = 0

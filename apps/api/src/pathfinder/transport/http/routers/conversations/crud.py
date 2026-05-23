@@ -10,7 +10,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Response
 
-from pathfinder.ai.models.catalog import get_model_entry
 from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.repositories import ConversationUpdate
@@ -157,16 +156,6 @@ async def update_strategy(
     fields_set: set[str] = getattr(request, "model_fields_set", set())
     wdk_strategy_id_set = "wdk_strategy_id" in fields_set
     is_saved_set = "is_saved" in fields_set
-    supervisor_model_id_set = "supervisor_model_id" in fields_set
-    if (
-        supervisor_model_id_set
-        and request.supervisor_model_id is not None
-        and get_model_entry(request.supervisor_model_id) is None
-    ):
-        raise ValidationError(
-            title="Unknown supervisor model",
-            detail=f"Unknown supervisor_model_id: {request.supervisor_model_id}",
-        )
 
     await conv_repo.update_conversation(
         strategyId,
@@ -179,8 +168,6 @@ async def update_strategy(
             is_saved=request.is_saved,
             is_saved_set=is_saved_set,
             step_count=len(walk_step_tree(payload.root)) if payload else None,
-            supervisor_model_id=request.supervisor_model_id,
-            supervisor_model_id_set=supervisor_model_id_set,
         ),
     )
 

@@ -1,5 +1,6 @@
 from pydantic import TypeAdapter
 
+from pathfinder.domain.parameters.values import StringValue
 from pathfinder.domain.strategy.operations import (
     AddCombineOp,
     AddLeafOp,
@@ -108,11 +109,11 @@ class TestDiscriminatorParsing:
             {
                 "kind": "updateStepParams",
                 "stepId": "a",
-                "parameters": {"foo": "bar"},
+                "parameters": {"foo": {"type": "string", "value": "bar"}},
             }
         )
         assert isinstance(op, UpdateStepParamsOp)
-        assert op.parameters == {"foo": "bar"}
+        assert op.parameters == {"foo": StringValue(value="bar")}
 
     def test_update_combine_operator(self) -> None:
         op = _ADAPTER.validate_python(

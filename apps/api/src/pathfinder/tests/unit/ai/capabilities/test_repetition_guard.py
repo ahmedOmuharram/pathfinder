@@ -1,3 +1,13 @@
+"""Repetition-guard tests after Stage E.
+
+The auto-eject path (SPAM_PRONE_TOOLS, eject_to_discovery) was deleted
+in Stage E because execution is now declarative — read-only spam during
+execution can't happen by construction. The remaining behavior: block
+the 3rd CONSECUTIVE IDENTICAL read-only call (same name, same args, no
+intervening state change) on agents that still go through the LLM
+(discovery + planning).
+"""
+
 from __future__ import annotations
 
 from pathfinder.ai.capabilities.repetition_guard import (
@@ -23,29 +33,26 @@ def test_third_consecutive_identical_call_blocks() -> None:
         assert guard.check("get_strategy", {}) is None
     warning = guard.check("get_strategy", {})
     assert warning is not None
-    assert "ejected" in warning.lower()
+    assert "loop" in warning.lower()
     assert guard.total_blocked == 1
-    assert guard.eject_to_discovery is True
 
 
-def test_spam_count_ignores_args_for_spam_prone_tools() -> None:
+def test_changing_args_resets_counter() -> None:
     guard = ToolRepetitionGuard()
     assert guard.check("get_strategy", {}) is None
     assert guard.check("get_strategy", {"step": 1}) is None
-    warning = guard.check("get_strategy", {"step": 2})
-    assert warning is not None
-    assert "ejected" in warning.lower()
+    assert guard.check("get_strategy", {"step": 2}) is None
 
 
-def test_interleaved_spam_pattern_still_ejects() -> None:
+def test_interleaved_calls_do_not_block() -> None:
+    """Without the spam-eject path, alternating calls do not trip the
+    guard — only consecutive identical calls do."""
     guard = ToolRepetitionGuard()
     assert guard.check("get_strategy", {}) is None
     assert guard.check("search_memory", {"q": "a"}) is None
     assert guard.check("get_strategy", {}) is None
     assert guard.check("search_memory", {"q": "b"}) is None
-    warning = guard.check("get_strategy", {})
-    assert warning is not None
-    assert "ejected" in warning.lower()
+    assert guard.check("get_strategy", {}) is None
 
 
 def test_graph_modifying_tool_resets_counter() -> None:
@@ -57,7 +64,7 @@ def test_graph_modifying_tool_resets_counter() -> None:
     assert guard.check("get_strategy", {}) is None
 
 
-def test_changing_args_on_non_spam_readonly_resets_counter() -> None:
+def test_changing_args_on_readonly_resets_counter() -> None:
     guard = ToolRepetitionGuard()
     for _ in range(REPETITION_THRESHOLD - 1):
         assert guard.check("get_plan", {}) is None
@@ -66,11 +73,12 @@ def test_changing_args_on_non_spam_readonly_resets_counter() -> None:
     assert guard.check("get_plan", {"id": 1}) is not None
 
 
-def test_unclassified_tool_does_not_clear_spam_counts() -> None:
+def test_unclassified_tool_resets_counter() -> None:
+    """Unknown tools (neither read-only nor graph-modifying) reset the
+    counter — they're considered state-changing by default."""
     guard = ToolRepetitionGuard()
     guard.check("get_strategy", {})
     guard.check("get_strategy", {})
     assert guard.check("set_problem_frame", {"frame": "x"}) is None
-    warning = guard.check("get_strategy", {})
-    assert warning is not None
-    assert "ejected" in warning.lower()
+    assert guard.check("get_strategy", {}) is None
+    assert guard.check("get_strategy", {}) is None

@@ -292,11 +292,11 @@ describe("applyOperation: updateStepParams", () => {
     const result = applyOperation(s, {
       kind: "updateStepParams",
       stepId: "a",
-      parameters: { foo: "bar" },
+      parameters: { foo: { type: "string", value: "bar" } },
     });
     expect(result.kind).toBe("applied");
     if (result.kind !== "applied") return;
-    expect(result.next.steps[0]?.parameters).toEqual({ foo: "bar" });
+    expect(result.next.steps[0]?.parameters).toEqual({ foo: { type: "string", value: "bar" } });
   });
 
   test("rejects unknown step id", () => {

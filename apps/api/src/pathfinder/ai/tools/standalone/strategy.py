@@ -37,8 +37,10 @@ from pathfinder.ai.tools.standalone._validation_helpers import (
     validation_error_payload,
     validation_model_retry,
 )
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import StrategyStepNode
+from pathfinder.domain.strategy.build_outcome import BuildOutcome
 from pathfinder.domain.strategy.operations import (
     DeleteResolution,
     DeleteStepOp,
@@ -49,7 +51,6 @@ from pathfinder.domain.strategy.operations import (
 )
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph
-from pathfinder.domain.strategy.types import DecodedParamsField
 from pathfinder.platform.errors import ErrorCode, ValidationError
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
@@ -65,10 +66,7 @@ from pathfinder.services.strategies.commit import apply_and_commit
 from pathfinder.services.strategies.insert_saved import (
     insert_saved_into_conversation,
 )
-from pathfinder.services.strategies.spec_build import (
-    BuildOutcome,
-    build_strategy_from_spec,
-)
+from pathfinder.services.strategies.spec_build import build_strategy_from_spec
 
 logger = get_logger(__name__)
 
@@ -176,11 +174,17 @@ async def build_strategy(
 async def update_leaf_params(
     ctx: RunContext[AgentDeps],
     step_id: str,
-    parameters: DecodedParamsField,
+    parameters: dict[str, ParamValue],
     *,
     graph_id: str | None = None,
 ) -> ToolReturn[StepOkResponse] | ToolErrorPayload:
-    """Update a leaf step's parameters atomically."""
+    """Update a leaf step's parameters atomically.
+
+    Each value in ``parameters`` MUST be wrapped in its typed shape — see
+    the ``valueFormat`` field from ``get_search_overview`` for the exact
+    template per param. Example:
+    ``{"organism": {"type": "multi-pick-vocabulary", "values": ["Pf3D7"]}}``.
+    """
     deps = ctx.deps
     session = deps.strategy_session
     resolved = get_graph_and_step(session, graph_id, step_id)

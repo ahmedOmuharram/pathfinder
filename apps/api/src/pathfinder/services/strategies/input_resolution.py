@@ -8,12 +8,12 @@ can appear in multiple tree positions (matching WDK's native behaviour).
 
 from dataclasses import dataclass
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.platform.errors import ErrorCode
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
@@ -25,7 +25,7 @@ class StepInputs:
     primary: StrategyStepNode | None
     secondary: StrategyStepNode | None
     operator: str | None
-    params: JSONObject | None = None
+    params: dict[str, ParamValue] | None = None
 
 
 def _validate_primary_input(

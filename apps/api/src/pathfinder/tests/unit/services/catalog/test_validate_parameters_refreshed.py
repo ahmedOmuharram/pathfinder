@@ -3,6 +3,7 @@ from typing import Any, cast
 import pytest
 from pydantic import JsonValue
 
+from pathfinder.domain.parameters.values import SinglePickValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.wdk_models import (
     StepValidation,
@@ -128,7 +129,10 @@ async def test_invalid_dependent_value_error_carries_refreshed_vocab(
     with pytest.raises(ValidationError) as excinfo:
         await pv.validate_parameters(
             ctx,
-            parameters={"organism": "Pf3D7", "taxon": "TaxonB"},
+            parameters={
+                "organism": SinglePickValue(value="Pf3D7"),
+                "taxon": SinglePickValue(value="TaxonB"),
+            },
             callbacks=_callbacks(),
         )
 
@@ -151,7 +155,7 @@ async def test_missing_required_error_serializes_refreshed_spec(
     with pytest.raises(ValidationError) as excinfo:
         await pv.validate_parameters(
             ctx,
-            parameters={"organism": "Pf3D7"},
+            parameters={"organism": SinglePickValue(value="Pf3D7")},
             callbacks=_callbacks(),
         )
 

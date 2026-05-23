@@ -1,9 +1,8 @@
 """Verification toolset registration assertions.
 
-The verification phase no longer exposes ``optimize_search_parameters``
-directly — the canonical entry point is the ``POST /launchers/optimize``
-endpoint, see ``transport/http/routers/launchers.py``. This test pins
-the contract so the tool can't sneak back in via auto-import or copy-paste.
+The verification sub-agent no longer exposes ``optimize_search_parameters``
+directly. This test pins the contract so the tool can't sneak back in via
+auto-import or copy-paste.
 """
 
 from __future__ import annotations
@@ -26,8 +25,7 @@ def test_optimize_search_parameters_not_in_verification_toolset() -> None:
     tool_names = {t.name for t in toolset.tools.values()}
     assert "optimize_search_parameters" not in tool_names, (
         "optimize_search_parameters must NOT be registered on the "
-        "verification toolset — the canonical entry is the "
-        "POST /launchers/optimize endpoint."
+        "verification toolset."
     )
 
 

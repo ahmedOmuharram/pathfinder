@@ -8,7 +8,7 @@ describe("flattenStrategyStepNode", () => {
       id: "s1",
       searchName: "GenesByTaxon",
       displayName: "Genes by Taxon",
-      parameters: { organism: "pf3d7" },
+      parameters: { organism: { type: "single-pick-vocabulary", value: "pf3d7" } },
     };
 
     const steps = flattenStrategyStepNode(node, "gene");
@@ -19,7 +19,7 @@ describe("flattenStrategyStepNode", () => {
       displayName: "Genes by Taxon",
       searchName: "GenesByTaxon",
       recordType: "gene",
-      parameters: { organism: "pf3d7" },
+      parameters: { organism: { type: "single-pick-vocabulary", value: "pf3d7" } },
       operator: null,
       primaryInputStepId: null,
       secondaryInputStepId: null,
@@ -59,7 +59,7 @@ describe("flattenStrategyStepNode", () => {
         id: "search1",
         searchName: "GenesByTaxon",
         displayName: "By Taxon",
-        parameters: { organism: "pf3d7" },
+        parameters: { organism: { type: "single-pick-vocabulary", value: "pf3d7" } },
       },
     };
 
@@ -146,25 +146,23 @@ describe("flattenStrategyStepNode", () => {
     expect(steps[4]!.secondaryInputStepId).toBe("leaf3");
   });
 
-  it("converts parameter values to strings", () => {
+  it("passes typed parameter values through unchanged", () => {
     const node: StrategyStepNode = {
       id: "s1",
       searchName: "GenesByFoldChange",
       parameters: {
-        fold_change: 2.5,
-        direction: "up",
-        p_value: null,
-        count: 42,
+        fold_change: { type: "number", value: 2.5 },
+        direction: { type: "single-pick-vocabulary", value: "up" },
+        count: { type: "number", value: 42 },
       },
     };
 
     const steps = flattenStrategyStepNode(node, "gene");
 
     expect(steps[0]!.parameters).toEqual({
-      fold_change: "2.5",
-      direction: "up",
-      p_value: "",
-      count: "42",
+      fold_change: { type: "number", value: 2.5 },
+      direction: { type: "single-pick-vocabulary", value: "up" },
+      count: { type: "number", value: 42 },
     });
   });
 

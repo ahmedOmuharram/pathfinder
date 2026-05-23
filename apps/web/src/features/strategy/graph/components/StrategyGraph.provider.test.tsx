@@ -87,7 +87,7 @@ const STRATEGY: Strategy = {
       displayName: "Genes by taxon",
       searchName: "GenesByTaxon",
       recordType: "gene",
-      parameters: { organism: "Plasmodium falciparum 3D7" },
+      parameters: { organism: { type: "single-pick-vocabulary", value: "Plasmodium falciparum 3D7" } },
       isBuilt: false,
       isFiltered: false,
     },

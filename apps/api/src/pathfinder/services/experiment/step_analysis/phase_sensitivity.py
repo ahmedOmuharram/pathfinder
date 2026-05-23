@@ -5,6 +5,7 @@ import math
 from typing import TypedDict
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.values import NumberValue, ParamValue, to_decoded_map
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.tree import (
     collect_plan_leaves,
@@ -132,7 +133,7 @@ async def _discover_numeric_params(
     if specs is None:
         return []
 
-    node_params: JSONObject = dict(leaf.parameters or {})
+    node_params: JSONObject = to_decoded_map(dict(leaf.parameters))
 
     result: list[_NumericParamSpec] = []
     for spec in specs.values():
@@ -350,13 +351,13 @@ async def _eval_sweep_value(
     ctx: ControlsContext,
 ) -> ParameterSweepPoint | None:
     """Evaluate a single parameter value by running controls against a patched tree."""
-    patched_params: JSONObject | None = None
+    patched_params: dict[str, ParamValue] | None = None
 
     def _patch_node(node: StrategyStepNode) -> None:
         nonlocal patched_params
         if node.id == lid:
             patched_params = dict(node.parameters)
-            patched_params[pname] = str(val)
+            patched_params[pname] = NumberValue(value=val)
 
     walk_plan_tree(tree, _patch_node)
 

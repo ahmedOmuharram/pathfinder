@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pathfinder.domain.parameters.vocab_utils import collect_leaf_terms
 from pathfinder.platform.types import JSONArray, JSONObject
 
 
@@ -120,6 +121,8 @@ def _vocab_keys(vocab: JSONObject | JSONArray) -> set[str]:
             else:
                 out.add(str(item))
         return out
+    if isinstance(vocab, dict) and ("data" in vocab or "children" in vocab):
+        return {t for t in collect_leaf_terms(vocab) if t}
     return {str(k) for k in vocab}
 
 

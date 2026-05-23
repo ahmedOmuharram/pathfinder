@@ -17,35 +17,24 @@ def compiled_graph() -> CompiledStateGraph[
     return build_graph(checkpointer=InMemorySaver())
 
 
-def test_graph_has_supervisor_and_phase_nodes(
+def test_graph_has_lead_and_finalize_nodes(
     compiled_graph: CompiledStateGraph[
         PipelineState, Context, PipelineState, PipelineState,
     ],
 ) -> None:
     nodes = set(compiled_graph.get_graph().nodes.keys())
-    expected = {
-        START,
-        END,
-        "supervisor",
-        "scoping",
-        "discovery",
-        "planning",
-        "execution",
-        "verification",
-        "validate",
-        "research",
-    }
+    expected = {START, END, "lead", "finalize_turn"}
     assert expected.issubset(nodes), nodes
 
 
-def test_graph_entry_edges_include_supervisor_and_specialists(
+def test_graph_entry_edge_goes_to_lead(
     compiled_graph: CompiledStateGraph[
         PipelineState, Context, PipelineState, PipelineState,
     ],
 ) -> None:
     edges = compiled_graph.get_graph().edges
     targets_from_start = {e.target for e in edges if e.source == START}
-    assert {"supervisor", "validate", "research"}.issubset(targets_from_start)
+    assert targets_from_start == {"lead"}
 
 
 def test_compiled_graph_records_state_schema_with_checkpointer(

@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from pathfinder.domain.parameters.values import SinglePickValue
 from pathfinder.platform.errors import sanitize_error_for_client
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.pydantic_base import CamelModel
@@ -185,7 +186,7 @@ async def stream_batch_experiment(
         try:
             for target in batch_config.target_organisms:
                 params = dict(base.parameters)
-                params[org_param] = target.organism
+                params[org_param] = SinglePickValue(value=target.organism)
                 org_config = ExperimentConfig(
                     site_id=base.site_id,
                     record_type=base.record_type,

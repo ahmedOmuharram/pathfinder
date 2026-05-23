@@ -1,5 +1,6 @@
 """Tests for plan_ast helpers — derive_strategy_steps_json."""
 
+from pathfinder.domain.parameters.values import SinglePickValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ast_helpers import derive_strategy_steps_json
 from pathfinder.domain.strategy.ops import CombineOp
@@ -10,7 +11,7 @@ def _leaf(search_name: str = "GenesByTaxon", display_name: str | None = "Taxon")
     return StrategyStepNode(
         search_name=search_name,
         display_name=display_name,
-        parameters={"organism": "Plasmodium falciparum 3D7"},
+        parameters={"organism": SinglePickValue(value="Plasmodium falciparum 3D7")},
         id="step_leaf01",
     )
 

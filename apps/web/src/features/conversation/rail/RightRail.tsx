@@ -3,8 +3,8 @@
 import {
   Brain,
   ClipboardList,
-  Cloud,
   Notebook,
+  ScrollText,
   Timer,
   Workflow,
 } from "lucide-react";
@@ -26,8 +26,8 @@ import {
   type RightRailPanel,
 } from "@/state/useRightRailStore";
 
+import { LedgerPanel } from "./LedgerPanel";
 import { MemoriesPanel } from "./MemoriesPanel";
-import { OrchestratorPanel } from "./OrchestratorPanel";
 import { PlanPanel } from "./PlanPanel";
 import { ScratchpadPanel } from "./ScratchpadPanel";
 import { StrategyPanel } from "./StrategyPanel";
@@ -56,7 +56,7 @@ const RAIL_ICONS: RailIconSpec[] = [
   { id: "tasks", icon: Timer, label: "Tasks" },
   { id: "memories", icon: Brain, label: "Memories" },
   { id: "scratchpad", icon: Notebook, label: "Scratchpad" },
-  { id: "orchestrator", icon: Cloud, label: "Orchestrator" },
+  { id: "ledger", icon: ScrollText, label: "Ledger" },
 ];
 
 export function RightRail({ conversationId, strategy, siteId }: RightRailProps) {
@@ -88,7 +88,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
     tasks: false,
     memories: false,
     scratchpad: false,
-    orchestrator: false,
+    ledger: false,
   };
 
   const markersFor = (panel: RightRailPanel) => {
@@ -100,7 +100,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
       case "tasks":
       case "memories":
       case "scratchpad":
-      case "orchestrator":
+      case "ledger":
         return {};
     }
   };
@@ -138,7 +138,7 @@ export function RightRail({ conversationId, strategy, siteId }: RightRailProps) 
                   {openPanel === "scratchpad" && (
                     <ScratchpadPanel conversationId={conversationId} />
                   )}
-                  {openPanel === "orchestrator" && <OrchestratorPanel />}
+                  {openPanel === "ledger" && <LedgerPanel />}
                 </motion.div>
               </AnimatePresence>
             </div>

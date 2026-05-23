@@ -1,9 +1,3 @@
-/**
- * WDK step parameters are inherently dynamic -- each search has a different
- * set of parameters.  `Step.parameters` in `@pathfinder/shared` is typed as
- * `Record<string, unknown>` for this reason.  We re-export the alias here so
- * consumers in the graph/editor layers can reference it consistently.
- */
 export type StepParameters = Record<string, unknown>;
 
 export interface GraphSnapshotStepInput {

@@ -7,6 +7,7 @@ client, discovery service) are injected via callbacks or explicit parameters.
 
 from dataclasses import dataclass
 
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME, StrategyStepNode
 from pathfinder.domain.strategy.ops import ColocationParams, CombineOp, parse_op
 from pathfinder.domain.strategy.session import StrategyGraph
@@ -44,7 +45,7 @@ class InlineSpec:
     """
 
     search_name: str
-    parameters: JSONObject | None = None
+    parameters: dict[str, ParamValue] | None = None
     display_name: str | None = None
     primary_input_step_id: str | None = None
 
@@ -58,7 +59,7 @@ class StepSpec:
     """
 
     search_name: str | None = None
-    parameters: JSONObject | None = None
+    parameters: dict[str, ParamValue] | None = None
     record_type: str | None = None
     primary_input_step_id: str | None = None
     secondary_input_step_id: str | None = None
@@ -93,7 +94,7 @@ def _error_result(error: ToolErrorPayload) -> StepCreationResult:
 
 def coerce_wdk_boolean_question_params(
     *,
-    parameters: JSONObject,
+    parameters: dict[str, ParamValue],
 ) -> tuple[str | None, str | None, str | None]:
     """Extract left/right/operator from WDK boolean-question parameter conventions.
 
@@ -108,7 +109,7 @@ def coerce_wdk_boolean_question_params(
         ``bq_left_op_``, ``bq_right_op_``, ``bq_operator``).
     :returns: Tuple of (left_step_id, right_step_id, operator) or (None, None, None).
     """
-    if not isinstance(parameters, dict) or not parameters:
+    if not parameters:
         return None, None, None
 
     left_id: str | None = None
@@ -119,12 +120,12 @@ def coerce_wdk_boolean_question_params(
         key = str(k)
         if left_id is None and key.startswith("bq_left_op"):
             if v is not None:
-                left_id = str(v)
+                left_id = v.to_wire()
             parameters.pop(k, None)
             continue
         if right_id is None and key.startswith("bq_right_op"):
             if v is not None:
-                right_id = str(v)
+                right_id = v.to_wire()
             parameters.pop(k, None)
             continue
 
@@ -133,7 +134,7 @@ def coerce_wdk_boolean_question_params(
     if "bq_operator" in parameters:
         raw = parameters.pop("bq_operator", None)
         if raw is not None:
-            op = str(raw)
+            op = raw.to_wire()
 
     if left_id and right_id and op:
         return left_id, right_id, op
@@ -142,7 +143,7 @@ def coerce_wdk_boolean_question_params(
 
 def _resolve_inputs_from_spec(
     spec: StepSpec,
-    parameters: JSONObject,
+    parameters: dict[str, ParamValue],
 ) -> tuple[str | None, str | None, str | None]:
     """Return (primary_input_step_id, secondary_input_step_id, operator).
 
@@ -228,7 +229,7 @@ async def create_step(
 
     :returns: StepCreationResult with either step/step_id or error.
     """
-    parameters: JSONObject = spec.parameters or {}
+    parameters: dict[str, ParamValue] = dict(spec.parameters or {})
     primary_input_step_id, secondary_input_step_id, operator = (
         _resolve_inputs_from_spec(spec, parameters)
     )

@@ -5,8 +5,7 @@ parameter space (single-step) or adjusting thresholds and boolean
 operators across a strategy tree (multi-step).
 """
 
-from pydantic import JsonValue
-
+from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
@@ -75,10 +74,10 @@ async def phase_optimize_parameters(
         for s in optimizable_specs
     ]
 
-    fixed_params: dict[str, JsonValue] = {
+    fixed_params: dict[str, ParamValue] = {
         k: v
         for k, v in config.parameters.items()
-        if k not in optimizable_names and v not in ("", None)
+        if k not in optimizable_names
     }
 
     async def _opt_progress(event: JSONObject) -> None:
