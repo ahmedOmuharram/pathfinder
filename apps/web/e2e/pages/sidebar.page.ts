@@ -82,9 +82,7 @@ export class SidebarPage {
 
   /** Assert at least one conversation item is rendered. */
   async expectAtLeastOneConversation(timeout = 15_000) {
-    await expect
-      .poll(() => this.items.count(), { timeout })
-      .toBeGreaterThan(0);
+    await expect.poll(() => this.items.count(), { timeout }).toBeGreaterThan(0);
   }
 
   async expectConversationVisible(conversationId: string) {

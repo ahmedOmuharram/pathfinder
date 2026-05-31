@@ -159,18 +159,14 @@ function OntologyFieldEditor({ term, current, onChange }: FacetEditorProps) {
 
 function FieldInput({ term, current, onChange }: FacetEditorProps) {
   if (term.type === "number" || term.type === "longitude") {
-    return (
-      <NumericRangeFacet term={term} current={current} onChange={onChange} />
-    );
+    return <NumericRangeFacet term={term} current={current} onChange={onChange} />;
   }
   if (term.type === "date") {
     return <DateRangeFacet term={term} current={current} onChange={onChange} />;
   }
   if (term.type === "string") {
     if (term.values && term.values.length > 0) {
-      return (
-        <MultiPickFacet term={term} current={current} onChange={onChange} />
-      );
+      return <MultiPickFacet term={term} current={current} onChange={onChange} />;
     }
     return <StringFacet term={term} current={current} onChange={onChange} />;
   }

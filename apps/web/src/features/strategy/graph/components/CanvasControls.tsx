@@ -3,10 +3,7 @@
 import { LayoutGrid, Maximize2, Minus, Plus } from "lucide-react";
 import { useReactFlow } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
-import {
-  ButtonGroup,
-  ButtonGroupSeparator,
-} from "@/components/ui/button-group";
+import { ButtonGroup, ButtonGroupSeparator } from "@/components/ui/button-group";
 import {
   Tooltip,
   TooltipContent,

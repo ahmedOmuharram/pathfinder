@@ -296,7 +296,9 @@ describe("applyOperation: updateStepParams", () => {
     });
     expect(result.kind).toBe("applied");
     if (result.kind !== "applied") return;
-    expect(result.next.steps[0]?.parameters).toEqual({ foo: { type: "string", value: "bar" } });
+    expect(result.next.steps[0]?.parameters).toEqual({
+      foo: { type: "string", value: "bar" },
+    });
   });
 
   test("rejects unknown step id", () => {
@@ -344,11 +346,7 @@ describe("applyOperation: updateStepMeta", () => {
 describe("applyOperation: replaceSubtree", () => {
   test("swaps a subtree under its parent", () => {
     const s = strategy([step("a"), step("b"), step("c", "a", "b", "combine")]);
-    const newSubtree = [
-      step("x"),
-      step("y"),
-      step("z", "x", "y", "combine"),
-    ];
+    const newSubtree = [step("x"), step("y"), step("z", "x", "y", "combine")];
     const result = applyOperation(s, {
       kind: "replaceSubtree",
       stepId: "a",

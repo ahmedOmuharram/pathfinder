@@ -153,7 +153,10 @@ export function GeneSearchResults({
   const [hoverPos, setHoverPos] = useState({ top: 0, right: 0 });
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleMouseEnter = (gene: GeneSearchResult, e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseEnter = (
+    gene: GeneSearchResult,
+    e: React.MouseEvent<HTMLDivElement>,
+  ) => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     const rect = e.currentTarget.getBoundingClientRect();
     const sidebarRect = sidebarRef.current?.getBoundingClientRect();

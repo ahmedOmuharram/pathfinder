@@ -31,11 +31,7 @@ export function useWorkbenchChatAutoTrigger({
       stableSend(AUTO_TRIGGER_PROMPT);
       return { triggered: true };
     },
-    enabled:
-      experimentId != null &&
-      historyLoaded &&
-      messageCount === 0 &&
-      !streaming,
+    enabled: experimentId != null && historyLoaded && messageCount === 0 && !streaming,
     staleTime: Infinity,
     gcTime: 0,
     retry: false,

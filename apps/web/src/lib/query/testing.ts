@@ -46,8 +46,25 @@ export function createSuspenseWrapper(): {
       { client: queryClient },
       createElement(
         ErrorBoundary,
-        { fallbackRender: ({ error }: { error: unknown }) => createElement("div", { "data-testid": "error-boundary" }, error instanceof Error ? error.message : String(error)) },
-        createElement(Suspense, { fallback: createElement("div", { "data-testid": "suspense-fallback" }, "Loading...") }, children),
+        {
+          fallbackRender: ({ error }: { error: unknown }) =>
+            createElement(
+              "div",
+              { "data-testid": "error-boundary" },
+              error instanceof Error ? error.message : String(error),
+            ),
+        },
+        createElement(
+          Suspense,
+          {
+            fallback: createElement(
+              "div",
+              { "data-testid": "suspense-fallback" },
+              "Loading...",
+            ),
+          },
+          children,
+        ),
       ),
     );
   }

@@ -38,13 +38,10 @@ interface OpenStrategyResponse {
 async function openStrategy(
   context: import("@playwright/test").BrowserContext,
 ): Promise<string> {
-  const resp = await context.request.post(
-    `${BASE_URL}/api/v1/conversations/open`,
-    {
-      data: { siteId: "veupathdb" },
-      headers: { "X-Requested-With": "XMLHttpRequest" },
-    },
-  );
+  const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
+    data: { siteId: "veupathdb" },
+    headers: { "X-Requested-With": "XMLHttpRequest" },
+  });
   if (!resp.ok()) {
     throw new Error(`openStrategy failed: ${resp.status()}`);
   }
@@ -153,34 +150,27 @@ test.describe("Parameter Sweep", () => {
     await expect(composer).toBeVisible({ timeout: 30_000 });
 
     await composer.click();
-    await composer.pressSequentially(
-      "Optimize search parameters with 5 variants",
-      { delay: 15 },
-    );
+    await composer.pressSequentially("Optimize search parameters with 5 variants", {
+      delay: 15,
+    });
     const sendButton = page.getByRole("button", { name: /Send/i });
     await expect(sendButton).toBeEnabled({ timeout: 15_000 });
     await composer.press("Enter");
 
-    await expect(
-      page.getByText("Starting parameter optimization..."),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Starting parameter optimization...")).toBeVisible({
+      timeout: 30_000,
+    });
 
-    const taskIndicator = page.getByTestId(
-      "data-background-task-started",
-    );
+    const taskIndicator = page.getByTestId("data-background-task-started");
 
-    const isTaskStartedVisible = await taskIndicator
-      .isVisible()
-      .catch(() => false);
+    const isTaskStartedVisible = await taskIndicator.isVisible().catch(() => false);
 
     if (isTaskStartedVisible) {
-      await expect(taskIndicator).toContainText(
-        "optimize_search_parameters",
-      );
+      await expect(taskIndicator).toContainText("optimize_search_parameters");
     } else {
-      await expect(
-        page.getByText("Starting parameter optimization..."),
-      ).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText("Starting parameter optimization...")).toBeVisible({
+        timeout: 15_000,
+      });
     }
   });
 
@@ -220,18 +210,15 @@ test.describe("Parameter Sweep", () => {
     await expect(composer).toBeVisible({ timeout: 30_000 });
 
     await composer.click();
-    await composer.pressSequentially(
-      "optimize search parameters with 5 variants",
-      { delay: 15 },
-    );
+    await composer.pressSequentially("optimize search parameters with 5 variants", {
+      delay: 15,
+    });
     const sendButton = page.getByRole("button", { name: /Send/i });
     await expect(sendButton).toBeEnabled({ timeout: 15_000 });
     await composer.press("Enter");
 
     await expect(
-      page.getByText(
-        "[mock] optimize search parameters with 5 variants",
-      ),
+      page.getByText("[mock] optimize search parameters with 5 variants"),
     ).toBeVisible({ timeout: 30_000 });
   });
 });

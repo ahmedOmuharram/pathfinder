@@ -60,9 +60,9 @@ export function SaveSubstrategyDialog({
         <DialogHeader>
           <DialogTitle>Save as reusable strategy</DialogTitle>
           <DialogDescription>
-            Saves this step and everything feeding into it as a new strategy
-            in the saved-strategy library. Other conversations can insert it
-            without re-running the searches.
+            Saves this step and everything feeding into it as a new strategy in the
+            saved-strategy library. Other conversations can insert it without re-running
+            the searches.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">

@@ -12,9 +12,7 @@ export type ResultLabelProps = {
 
 function pluralizedRecord(step: Step, count: number): string {
   const base =
-    step.recordType != null && step.recordType !== ""
-      ? step.recordType
-      : "result";
+    step.recordType != null && step.recordType !== "" ? step.recordType : "result";
   return count === 1 ? base : `${base}s`;
 }
 
@@ -36,10 +34,7 @@ export function ResultLabel({ step, snapshot }: ResultLabelProps) {
 
   if (snapshot.isBusy) {
     return (
-      <Skeleton
-        data-testid="step-count-skeleton"
-        className="h-3 w-16 rounded-sm"
-      />
+      <Skeleton data-testid="step-count-skeleton" className="h-3 w-16 rounded-sm" />
     );
   }
 

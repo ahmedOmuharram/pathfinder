@@ -3,10 +3,7 @@
 import { CombineOperator } from "@pathfinder/shared";
 import type { ColocationParams } from "@pathfinder/shared";
 import { VennPicker } from "./components/VennPicker";
-import {
-  ColocationEditor,
-  resolveParams,
-} from "./components/ColocationEditor";
+import { ColocationEditor, resolveParams } from "./components/ColocationEditor";
 
 interface CombineBodyProps {
   operator: string;

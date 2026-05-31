@@ -109,9 +109,7 @@ describe("CompactStrategyView (vertical layout)", () => {
 
   it("clicking a row fires onStepClick with the step id", () => {
     const onClick = vi.fn();
-    render(
-      <CompactStrategyView strategy={SIMPLE_STRATEGY} onStepClick={onClick} />,
-    );
+    render(<CompactStrategyView strategy={SIMPLE_STRATEGY} onStepClick={onClick} />);
     fireEvent.click(screen.getByTestId("compact-step-row-step_a"));
     expect(onClick).toHaveBeenCalledWith("step_a");
   });

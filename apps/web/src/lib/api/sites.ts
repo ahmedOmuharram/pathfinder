@@ -26,21 +26,21 @@ export async function listSites(): Promise<VEuPathDBSite[]> {
 }
 
 export async function getRecordTypes(siteId: string): Promise<RecordType[]> {
-  return (await requestJson(
+  return await requestJson(
     RecordTypeListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/record-types`,
-  ));
+  );
 }
 
 export async function getSearches(
   siteId: string,
   recordType?: string | null,
 ): Promise<Search[]> {
-  return (await requestJson(
+  return await requestJson(
     SearchListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches`,
     recordType != null && recordType !== "" ? { query: { recordType } } : {},
-  ));
+  );
 }
 
 export async function getParamSpecs(
@@ -49,13 +49,13 @@ export async function getParamSpecs(
   searchName: string,
   contextValues: StepParameters = {},
 ): Promise<ParamSpec[]> {
-  return (await requestJson(
+  return await requestJson(
     ParamSpecListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches/${encodeURIComponent(
       recordType,
     )}/${encodeURIComponent(searchName)}/param-specs`,
     { method: "POST", body: { contextValues } },
-  ));
+  );
 }
 
 export async function refreshDependentParams(
@@ -65,13 +65,13 @@ export async function refreshDependentParams(
   parameterName: string,
   contextValues: StepParameters = {},
 ): Promise<ParamSpec[]> {
-  return (await requestJson(
+  return await requestJson(
     ParamSpecListSchema,
     `/api/v1/sites/${encodeURIComponent(siteId)}/searches/${encodeURIComponent(
       recordType,
     )}/${encodeURIComponent(searchName)}/refreshed-dependent-params`,
     { method: "POST", body: { parameterName, contextValues } },
-  ));
+  );
 }
 
 export async function validateSearchParams(
@@ -115,7 +115,11 @@ export function searchesOptions(siteId: string, recordType?: string | null) {
   });
 }
 
-export function paramSpecsOptions(siteId: string, recordType: string, searchName: string) {
+export function paramSpecsOptions(
+  siteId: string,
+  recordType: string,
+  searchName: string,
+) {
   return queryOptions({
     queryKey: ["sites", siteId, "param-specs", recordType, searchName] as const,
     queryFn: () => getParamSpecs(siteId, recordType, searchName),

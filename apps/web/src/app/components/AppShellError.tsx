@@ -12,12 +12,9 @@ export function AppShellError({ error, resetErrorBoundary }: FallbackProps) {
     resetErrorBoundary();
   }
 
-  const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+  const message =
+    error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
-    <ApiErrorScreen
-      title="Application error"
-      error={message}
-      onRetry={handleRetry}
-    />
+    <ApiErrorScreen title="Application error" error={message} onRetry={handleRetry} />
   );
 }

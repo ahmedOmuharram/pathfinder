@@ -38,9 +38,7 @@ function hit(name: string): MemoryItem {
 describe("MemorySearch", () => {
   it("renders an empty prompt and does not call the api without a query", () => {
     render(<MemorySearch />);
-    expect(
-      screen.getByPlaceholderText(/search memories/i),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/search memories/i)).toBeInTheDocument();
     expect(mockedSearch).not.toHaveBeenCalled();
   });
 

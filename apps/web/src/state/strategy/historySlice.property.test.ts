@@ -37,7 +37,9 @@ type Action =
   | { kind: "clearHistory" };
 
 const actionArb: fc.Arbitrary<Action> = fc.oneof(
-  fc.string({ minLength: 1, maxLength: 16 }).map((name) => ({ kind: "push" as const, name })),
+  fc
+    .string({ minLength: 1, maxLength: 16 })
+    .map((name) => ({ kind: "push" as const, name })),
   fc.constant({ kind: "undo" as const }),
   fc.constant({ kind: "redo" as const }),
   fc.constant({ kind: "clearHistory" as const }),
@@ -78,10 +80,10 @@ describe("historySlice — properties", () => {
   });
 
   it("undo immediately followed by redo round-trips to the same strategy", () => {
-    const namesArb = fc.array(
-      fc.string({ minLength: 1, maxLength: 16 }),
-      { minLength: 1, maxLength: 20 },
-    );
+    const namesArb = fc.array(fc.string({ minLength: 1, maxLength: 16 }), {
+      minLength: 1,
+      maxLength: 20,
+    });
     fc.assert(
       fc.property(namesArb, (names) => {
         useStrategyStore.getState().clear();

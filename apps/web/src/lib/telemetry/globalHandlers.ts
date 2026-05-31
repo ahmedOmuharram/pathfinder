@@ -74,10 +74,7 @@ function isResourceError(event: ErrorEvent): boolean {
 function recordResourceError(event: ErrorEvent): void {
   const target = event.target as Element;
   const tag = target.tagName.toLowerCase();
-  const src =
-    target.getAttribute("src") ??
-    target.getAttribute("href") ??
-    "unknown";
+  const src = target.getAttribute("src") ?? target.getAttribute("href") ?? "unknown";
   logError(new Error(`resource load failed: <${tag}> ${src}`), {
     source: "global.resource",
     route: currentRoute(),
@@ -99,18 +96,15 @@ function installLongTaskObserver(): void {
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         const duration = Math.round(entry.duration);
-        logError(
-          new Error(`long task blocked main thread for ${String(duration)}ms`),
-          {
-            source: "global.longtask",
-            route: currentRoute(),
-            extra: {
-              "longtask.duration_ms": duration,
-              "longtask.name": entry.name,
-              "longtask.start_ms": Math.round(entry.startTime),
-            },
+        logError(new Error(`long task blocked main thread for ${String(duration)}ms`), {
+          source: "global.longtask",
+          route: currentRoute(),
+          extra: {
+            "longtask.duration_ms": duration,
+            "longtask.name": entry.name,
+            "longtask.start_ms": Math.round(entry.startTime),
           },
-        );
+        });
       }
     });
     observer.observe({ type: "longtask", buffered: false });

@@ -38,13 +38,12 @@ export class ChatPage {
     const baseUrl = new URL(this.page.url()).origin;
     const selectedSite = siteId;
 
-    const strategyCreated = await this.page.context().request.post(
-      `${baseUrl}/api/v1/conversations/open`,
-      {
+    const strategyCreated = await this.page
+      .context()
+      .request.post(`${baseUrl}/api/v1/conversations/open`, {
         data: { siteId: selectedSite },
         headers: { "X-Requested-With": "XMLHttpRequest" },
-      },
-    );
+      });
 
     if (!strategyCreated.ok()) {
       const failureBody = await strategyCreated.text().catch(() => "");
@@ -58,17 +57,16 @@ export class ChatPage {
       strategyId?: string;
       id?: string;
     };
-    const strategyId =
-      body.conversationId ?? body.strategyId ?? body.id ?? null;
+    const strategyId = body.conversationId ?? body.strategyId ?? body.id ?? null;
     if (strategyId == null || strategyId === "") {
       throw new Error("openStrategy returned no conversationId");
     }
     this.lastStrategyId = strategyId;
 
     await this.refreshConversationsButton.click();
-    const conversationItem = this.page.locator(
-      `[data-conversation-id="${strategyId}"]`,
-    ).first();
+    const conversationItem = this.page
+      .locator(`[data-conversation-id="${strategyId}"]`)
+      .first();
     await expect(conversationItem).toBeVisible({ timeout: 10_000 });
     await conversationItem.click();
 
@@ -189,7 +187,9 @@ export class ChatPage {
   }
 
   /** Assert at least one user-blocking question (from a scoping AWAITING_USER outcome). */
-  async expectClarifyingQuestions(pattern: RegExp = /clarify|which|what evidence|how strict/i) {
+  async expectClarifyingQuestions(
+    pattern: RegExp = /clarify|which|what evidence|how strict/i,
+  ) {
     await this.expectAssistantMessage(pattern, { timeout: 60_000 });
   }
 
@@ -211,7 +211,6 @@ export class ChatPage {
   ) {
     await this.expectAssistantMessage(pattern, { timeout: 90_000 });
   }
-
 
   /** Compatibility alias for the rail-based step list (replaces compact view). */
   async expectCompactStrategyView() {

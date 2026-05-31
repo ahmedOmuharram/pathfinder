@@ -47,9 +47,11 @@ export function DataDecisionPresented({
         <GitFork className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         <span className="font-medium">{data.decisionType}</span>
       </div>
-      {data.rationale !== null && data.rationale !== undefined && data.rationale !== "" && (
-        <p className="mt-1 text-xs text-muted-foreground">{data.rationale}</p>
-      )}
+      {data.rationale !== null &&
+        data.rationale !== undefined &&
+        data.rationale !== "" && (
+          <p className="mt-1 text-xs text-muted-foreground">{data.rationale}</p>
+        )}
       <div className="mt-2 flex flex-wrap gap-1.5">
         {data.options.map((option, idx) => {
           const opt = option as Record<string, unknown>;

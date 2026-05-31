@@ -197,8 +197,12 @@ describe("runCrossValidation", () => {
 
     const result = await runCrossValidation("exp-1", 5);
 
-    expect((result as unknown as typeof crossValidationFixture)["overfittingLevel"]).toBe("low");
-    expect((result as unknown as typeof crossValidationFixture)["overfittingScore"]).toBe(0.1);
+    expect(
+      (result as unknown as typeof crossValidationFixture)["overfittingLevel"],
+    ).toBe("low");
+    expect(
+      (result as unknown as typeof crossValidationFixture)["overfittingScore"],
+    ).toBe(0.1);
     expect(result.folds).toHaveLength(5);
   });
 
@@ -274,8 +278,12 @@ describe("runEnrichment", () => {
     const result = await runEnrichment("exp-1", ["go_function", "go_process"]);
 
     expect(result).toHaveLength(2);
-    expect((result[0] as unknown as typeof enrichmentFixture)["analysisType"]).toBe("go_function");
-    expect((result[1] as unknown as typeof enrichmentFixture)["analysisType"]).toBe("go_process");
+    expect((result[0] as unknown as typeof enrichmentFixture)["analysisType"]).toBe(
+      "go_function",
+    );
+    expect((result[1] as unknown as typeof enrichmentFixture)["analysisType"]).toBe(
+      "go_process",
+    );
   });
 
   it("propagates errors", async () => {

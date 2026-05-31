@@ -156,8 +156,7 @@ function CombineRow({
   onInsertSavedAt,
 }: CombineRowProps) {
   const operator = step.operator ?? "";
-  const isExpandedSaved =
-    step.expandedStrategyId != null && step.expandedName != null;
+  const isExpandedSaved = step.expandedStrategyId != null && step.expandedName != null;
   return (
     <li className="space-y-0.5">
       {isExpandedSaved ? (

@@ -22,13 +22,10 @@ interface OpenStrategyResponse {
 async function openStrategy(
   context: import("@playwright/test").BrowserContext,
 ): Promise<string> {
-  const resp = await context.request.post(
-    `${BASE_URL}/api/v1/conversations/open`,
-    {
-      data: { siteId: "veupathdb" },
-      headers: { "X-Requested-With": "XMLHttpRequest" },
-    },
-  );
+  const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
+    data: { siteId: "veupathdb" },
+    headers: { "X-Requested-With": "XMLHttpRequest" },
+  });
   if (!resp.ok()) {
     throw new Error(`openStrategy failed: ${resp.status()}`);
   }
@@ -46,9 +43,7 @@ const CP_AFTER_MSG2 = "cp-msg2-102";
 const CP_FORKED = "cp-forked-103";
 const CP_AFTER_BRANCH_MSG1 = "cp-branch-msg1-104";
 
-function baseCheckpoints(
-  threadId: string,
-): Array<Record<string, unknown>> {
+function baseCheckpoints(threadId: string): Array<Record<string, unknown>> {
   return [
     {
       checkpointId: CP_ROOT,
@@ -86,9 +81,7 @@ function baseCheckpoints(
   ];
 }
 
-function checkpointsAfterFork(
-  threadId: string,
-): Array<Record<string, unknown>> {
+function checkpointsAfterFork(threadId: string): Array<Record<string, unknown>> {
   return [
     ...baseCheckpoints(threadId),
     {
@@ -105,9 +98,7 @@ function checkpointsAfterFork(
   ];
 }
 
-function checkpointsAfterBranchMsg(
-  threadId: string,
-): Array<Record<string, unknown>> {
+function checkpointsAfterBranchMsg(threadId: string): Array<Record<string, unknown>> {
   return [
     ...checkpointsAfterFork(threadId),
     {
@@ -169,28 +160,25 @@ test.describe("Branch Switch", () => {
       });
     });
 
-    await page.route(
-      `**/api/v1/conversations/*/checkpoints`,
-      async (route) => {
-        let checkpoints: Array<Record<string, unknown>>;
-        switch (checkpointPhase) {
-          case "base":
-            checkpoints = baseCheckpoints(strategyId);
-            break;
-          case "forked":
-            checkpoints = checkpointsAfterFork(strategyId);
-            break;
-          case "branch-msg":
-            checkpoints = checkpointsAfterBranchMsg(strategyId);
-            break;
-        }
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(checkpoints),
-        });
-      },
-    );
+    await page.route(`**/api/v1/conversations/*/checkpoints`, async (route) => {
+      let checkpoints: Array<Record<string, unknown>>;
+      switch (checkpointPhase) {
+        case "base":
+          checkpoints = baseCheckpoints(strategyId);
+          break;
+        case "forked":
+          checkpoints = checkpointsAfterFork(strategyId);
+          break;
+        case "branch-msg":
+          checkpoints = checkpointsAfterBranchMsg(strategyId);
+          break;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(checkpoints),
+      });
+    });
 
     await page.route("**/api/v1/conversations/*/fork", async (route) => {
       checkpointPhase = "forked";
@@ -213,17 +201,17 @@ test.describe("Branch Switch", () => {
     await composer.pressSequentially("first message", { delay: 15 });
     await expect(sendButton).toBeEnabled({ timeout: 15_000 });
     await composer.press("Enter");
-    await expect(
-      page.getByText("[mock] first message reply"),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("[mock] first message reply")).toBeVisible({
+      timeout: 30_000,
+    });
 
     await composer.click();
     await composer.pressSequentially("second message", { delay: 15 });
     await expect(sendButton).toBeEnabled({ timeout: 15_000 });
     await composer.press("Enter");
-    await expect(
-      page.getByText("[mock] second message reply"),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("[mock] second message reply")).toBeVisible({
+      timeout: 30_000,
+    });
 
     const branchesButton = page.getByRole("button", { name: "Branches" });
     await branchesButton.click();
@@ -253,9 +241,9 @@ test.describe("Branch Switch", () => {
     await composer.pressSequentially("branch message", { delay: 15 });
     await expect(sendButton).toBeEnabled({ timeout: 15_000 });
     await composer.press("Enter");
-    await expect(
-      page.getByText("[mock] branch message reply"),
-    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("[mock] branch message reply")).toBeVisible({
+      timeout: 30_000,
+    });
 
     const treeNodes = branchTree.locator("[data-branch-node]");
     await expect(treeNodes).toHaveCount(5, { timeout: 15_000 });
@@ -266,16 +254,15 @@ test.describe("Branch Switch", () => {
     const originalLeaf = treeNodes.nth(2);
     await originalLeaf.click();
 
-    await expect(page).toHaveURL(
-      new RegExp(`\\?branch=${CP_AFTER_MSG2}`),
-      { timeout: 15_000 },
-    );
+    await expect(page).toHaveURL(new RegExp(`\\?branch=${CP_AFTER_MSG2}`), {
+      timeout: 15_000,
+    });
 
-    await expect(
-      page.getByText("[mock] first message reply"),
-    ).toBeVisible({ timeout: 15_000 });
-    await expect(
-      page.getByText("[mock] second message reply"),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("[mock] first message reply")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText("[mock] second message reply")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });

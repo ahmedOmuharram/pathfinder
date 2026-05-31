@@ -31,9 +31,7 @@ describe("matchCommandName", () => {
     expect(matchCommandName("Export", { name: "export" })).toBe(true);
   });
   it("matches alias", () => {
-    expect(matchCommandName("dl", { name: "export", aliases: ["dl"] })).toBe(
-      true,
-    );
+    expect(matchCommandName("dl", { name: "export", aliases: ["dl"] })).toBe(true);
   });
   it("rejects non-match", () => {
     expect(matchCommandName("foo", { name: "export" })).toBe(false);

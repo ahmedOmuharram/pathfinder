@@ -27,9 +27,7 @@ export function EditComposerBranchOrRevert() {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const setPendingSubmission = useSessionStore(
-    (s) => s.setPendingUserSubmission,
-  );
+  const setPendingSubmission = useSessionStore((s) => s.setPendingUserSubmission);
   const bumpChatResetCounter = useSessionStore((s) => s.bumpChatResetCounter);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -40,11 +38,7 @@ export function EditComposerBranchOrRevert() {
 
   const branchMutation = useMutation({
     mutationFn: async () => {
-      if (
-        conversationId === null
-        || siteId === null
-        || parentId === null
-      ) {
+      if (conversationId === null || siteId === null || parentId === null) {
         throw new Error("Cannot branch from here");
       }
       return forkStrategy(conversationId, { fromMessageId: parentId });
@@ -73,7 +67,6 @@ export function EditComposerBranchOrRevert() {
         streamId: messageId,
         ...(traceId !== null && { traceId }),
       }).catch((err: unknown) => {
-         
         console.warn("submitProductAction(undo_turn) failed", err);
       });
     },

@@ -9,13 +9,7 @@ import type { StepNodeProps } from "./types";
 vi.mock("@xyflow/react", async () => {
   const React = await import("react");
   return {
-    Handle: ({
-      id,
-      type,
-    }: {
-      id?: string;
-      type: string;
-    }) =>
+    Handle: ({ id, type }: { id?: string; type: string }) =>
       React.createElement("span", {
         "data-testid": `flow-handle-${type}-${id ?? "default"}`,
       }),
@@ -46,7 +40,6 @@ function makeStep(overrides: Partial<Step> = {}): Step {
 
 function reset() {
   useStrategyStore.setState({
-
     stepLifecycleById: {},
     undoStack: [],
     redoStack: [],
@@ -78,9 +71,7 @@ describe("CombineNode", () => {
 
   it("re-renders the venn fill when the operator changes", () => {
     const step = makeStep({ operator: CombineOperator.INTERSECT });
-    const { container, rerender } = render(
-      <CombineNode {...defaultProps(step)} />,
-    );
+    const { container, rerender } = render(<CombineNode {...defaultProps(step)} />);
     expect(
       container.querySelector('[data-region="lens"]')?.getAttribute("data-active"),
     ).toBe("true");
@@ -92,7 +83,9 @@ describe("CombineNode", () => {
       container.querySelector('[data-region="left-only"]')?.getAttribute("data-active"),
     ).toBe("true");
     expect(
-      container.querySelector('[data-region="right-only"]')?.getAttribute("data-active"),
+      container
+        .querySelector('[data-region="right-only"]')
+        ?.getAttribute("data-active"),
     ).toBe("true");
   });
 

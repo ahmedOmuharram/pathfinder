@@ -29,20 +29,25 @@ export function useStepSearch({
   const resolvedRecordType = resolveRecordTypeForSearch();
   const normalizedRecordType = normalizeRecordType(resolvedRecordType || recordType);
 
-  const { enabled: _enabled, ...searchOpts } = searchesOptions(siteId, normalizedRecordType);
+  const { enabled: _enabled, ...searchOpts } = searchesOptions(
+    siteId,
+    normalizedRecordType,
+  );
   const { data: rawSearches } = useSuspenseQuery(searchOpts);
 
   const searchOptions: Search[] = [...rawSearches].sort((a, b) =>
     (a.displayName || a.name).localeCompare(b.displayName || b.name),
   );
 
-  const selectedSearch = searchName === ""
-    ? null
-    : (searchOptions.find((option) => option.name === searchName) ?? null);
+  const selectedSearch =
+    searchName === ""
+      ? null
+      : (searchOptions.find((option) => option.name === searchName) ?? null);
 
-  const isSearchNameAvailable = searchName !== ""
-    ? searchOptions.some((option) => option.name === searchName)
-    : true;
+  const isSearchNameAvailable =
+    searchName !== ""
+      ? searchOptions.some((option) => option.name === searchName)
+      : true;
 
   const filteredSearchOptions = (() => {
     const query = editableSearchName.trim().toLowerCase();

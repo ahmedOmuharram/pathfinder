@@ -102,8 +102,7 @@ test.describe("Chat", () => {
     expect(
       full.messages.some(
         (message: { role: string; content: string }) =>
-          message.role === "user" &&
-          message.content.includes("[Plan interaction:"),
+          message.role === "user" && message.content.includes("[Plan interaction:"),
       ),
     ).toBe(false);
   });

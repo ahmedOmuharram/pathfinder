@@ -23,9 +23,7 @@ export function QueryBoundary({
       FallbackComponent={ErrorFallback}
       {...(resetKeys !== undefined ? { resetKeys } : {})}
     >
-      <Suspense fallback={loadingFallback}>
-        {children}
-      </Suspense>
+      <Suspense fallback={loadingFallback}>{children}</Suspense>
     </ErrorBoundary>
   );
 }

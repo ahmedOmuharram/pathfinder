@@ -50,13 +50,18 @@ export function EnsemblePanel() {
     setResults(null);
 
     try {
-      const data = await requestJson(EnsembleScoreListSchema, "/api/v1/gene-sets/ensemble", {
-        method: "POST",
-        body: {
-          geneSetIds: selectedSetIds,
-          positiveControls: positiveControls.length > 0 ? positiveControls : undefined,
+      const data = await requestJson(
+        EnsembleScoreListSchema,
+        "/api/v1/gene-sets/ensemble",
+        {
+          method: "POST",
+          body: {
+            geneSetIds: selectedSetIds,
+            positiveControls:
+              positiveControls.length > 0 ? positiveControls : undefined,
+          },
         },
-      });
+      );
       setResults(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

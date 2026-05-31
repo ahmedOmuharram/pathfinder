@@ -41,22 +41,25 @@ export function ResultsTableBody({
               {headerGroup.headers.map((header) => {
                 const canSort = header.column.getCanSort();
                 return (
-                  <th
-                    key={header.id}
-                    className="whitespace-nowrap px-4 py-2.5"
-                  >
+                  <th key={header.id} className="whitespace-nowrap px-4 py-2.5">
                     {canSort ? (
                       <button
                         type="button"
                         onClick={header.column.getToggleSortingHandler()}
                         className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
                       >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                         <SortIcon header={header} />
                       </button>
                     ) : (
                       <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                       </span>
                     )}
                   </th>

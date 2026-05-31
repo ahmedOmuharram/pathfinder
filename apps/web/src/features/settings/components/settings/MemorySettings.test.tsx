@@ -38,8 +38,13 @@ function item(name: string, kind: MemoryItem["value"]["kind"]): MemoryItem {
 
 function emptyList(): MemoryListResponse {
   return {
-    geneSets: [], strategies: [], preferences: [], knowledge: [],
-    pageSize: 50, offset: 0, hasMore: false,
+    geneSets: [],
+    strategies: [],
+    preferences: [],
+    knowledge: [],
+    pageSize: 50,
+    offset: 0,
+    hasMore: false,
   };
 }
 
@@ -80,7 +85,9 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [],
-      pageSize: 50, offset: 0, hasMore: false,
+      pageSize: 50,
+      offset: 0,
+      hasMore: false,
     });
     mockedDelete.mockResolvedValue(undefined);
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -101,7 +108,9 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [],
-      pageSize: 50, offset: 0, hasMore: false,
+      pageSize: 50,
+      offset: 0,
+      hasMore: false,
     });
     vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<MemorySettings />);
@@ -118,7 +127,9 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [k],
-      pageSize: 50, offset: 0, hasMore: false,
+      pageSize: 50,
+      offset: 0,
+      hasMore: false,
     });
     mockedEdit.mockResolvedValue(k);
     render(<MemorySettings />);
@@ -139,7 +150,9 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [k],
-      pageSize: 50, offset: 0, hasMore: false,
+      pageSize: 50,
+      offset: 0,
+      hasMore: false,
     });
     mockedEdit.mockResolvedValue(k);
     render(<MemorySettings />);
@@ -166,7 +179,9 @@ describe("MemorySettings", () => {
       strategies: [],
       preferences: [],
       knowledge: [],
-      pageSize: 50, offset: 0, hasMore: true,
+      pageSize: 50,
+      offset: 0,
+      hasMore: true,
     });
     render(<MemorySettings />);
     await screen.findByRole("button", { name: /Gene Sets/i });

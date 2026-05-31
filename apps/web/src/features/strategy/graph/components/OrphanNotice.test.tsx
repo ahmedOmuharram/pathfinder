@@ -6,9 +6,7 @@ import { OrphanNotice } from "./OrphanNotice";
 
 describe("OrphanNotice", () => {
   it("renders nothing when count <= 0", () => {
-    const { container } = render(
-      <OrphanNotice count={0} firstOrphanId={null} />,
-    );
+    const { container } = render(<OrphanNotice count={0} firstOrphanId={null} />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -23,11 +21,7 @@ describe("OrphanNotice", () => {
   it("calls onClickFirst when View is clicked", async () => {
     const onClickFirst = vi.fn();
     render(
-      <OrphanNotice
-        count={2}
-        firstOrphanId="step-7"
-        onClickFirst={onClickFirst}
-      />,
+      <OrphanNotice count={2} firstOrphanId="step-7" onClickFirst={onClickFirst} />,
     );
     const view = screen.getByRole("button", { name: /View/i });
     await userEvent.click(view);
@@ -36,13 +30,7 @@ describe("OrphanNotice", () => {
 
   it("calls onRemoveAll when Remove all is clicked", async () => {
     const onRemoveAll = vi.fn();
-    render(
-      <OrphanNotice
-        count={2}
-        firstOrphanId={null}
-        onRemoveAll={onRemoveAll}
-      />,
-    );
+    render(<OrphanNotice count={2} firstOrphanId={null} onRemoveAll={onRemoveAll} />);
     const remove = screen.getByRole("button", { name: /Remove all/i });
     await userEvent.click(remove);
     expect(onRemoveAll).toHaveBeenCalledTimes(1);

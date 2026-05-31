@@ -1,9 +1,26 @@
 import { z } from "zod";
 
-export type PlanStatus = "draft" | "presented" | "approved" | "executing" | "complete" | "failed";
-export type StepStatus = "ready" | "needs_discovery" | "needs_user_input" | "executing" | "complete" | "failed";
+export type PlanStatus =
+  | "draft"
+  | "presented"
+  | "approved"
+  | "executing"
+  | "complete"
+  | "failed";
+export type StepStatus =
+  | "ready"
+  | "needs_discovery"
+  | "needs_user_input"
+  | "executing"
+  | "complete"
+  | "failed";
 export type StepType = "leaf" | "combine" | "transform";
-export type ParamStatus = "set" | "default" | "needs_discovery" | "needs_user_input" | "user_set";
+export type ParamStatus =
+  | "set"
+  | "default"
+  | "needs_discovery"
+  | "needs_user_input"
+  | "user_set";
 
 // ── Zod schemas (SSOT — interfaces are inferred from these) ────────
 
@@ -45,7 +62,14 @@ export const PlannedStepSchema = z.object({
   recordType: z.string().default("transcript"),
   rationale: z.string().default(""),
   stepType: z.enum(["leaf", "combine", "transform"]),
-  status: z.enum(["ready", "needs_discovery", "needs_user_input", "executing", "complete", "failed"]),
+  status: z.enum([
+    "ready",
+    "needs_discovery",
+    "needs_user_input",
+    "executing",
+    "complete",
+    "failed",
+  ]),
   parameters: z.record(z.string(), PlannedParameterSchema).default({}),
   operator: z.string().nullable().default(null),
   expectedCount: z.number().nullable().default(null),
@@ -66,7 +90,9 @@ export const InteractivePlanSchema = z.object({
   title: z.string(),
   description: z.string(),
   rationale: z.string(),
-  status: z.enum(["draft", "presented", "approved", "executing", "complete", "failed"]).default("draft"),
+  status: z
+    .enum(["draft", "presented", "approved", "executing", "complete", "failed"])
+    .default("draft"),
   version: z.number().default(1),
   steps: z.array(PlannedStepSchema).default([]),
   connections: z.array(PlannedConnectionSchema).default([]),
@@ -109,7 +135,12 @@ export interface PlanActionRequest {
 export interface PlanInteractionMetadata {
   type: "plan_interaction";
   planId: string;
-  action: "approve" | "update_parameter" | "answer_question" | "reject" | "suggest_changes";
+  action:
+    | "approve"
+    | "update_parameter"
+    | "answer_question"
+    | "reject"
+    | "suggest_changes";
   data: {
     stepId?: string;
     paramName?: string;

@@ -34,7 +34,15 @@ describe("SelectParam (single-pick, shadcn Select)", () => {
   it("renders a shadcn Select trigger as combobox", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <SelectParam spec={makeSpec()} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <SelectParam
+            spec={makeSpec()}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByRole("combobox")).toBeTruthy();
@@ -43,7 +51,15 @@ describe("SelectParam (single-pick, shadcn Select)", () => {
   it("displays the placeholder when value is empty", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <SelectParam spec={makeSpec()} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <SelectParam
+            spec={makeSpec()}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByText("-- Select --")).toBeTruthy();
@@ -53,7 +69,15 @@ describe("SelectParam (single-pick, shadcn Select)", () => {
     const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <SelectParam spec={makeSpec()} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <SelectParam
+            spec={makeSpec()}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByRole("combobox"));
@@ -68,7 +92,15 @@ describe("SelectParam (single-pick, shadcn Select)", () => {
         defaultValue=""
         validator={(v) => (v === "" ? "Required" : undefined)}
       >
-        {(field) => <SelectParam spec={makeSpec({ allowEmptyValue: false })} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <SelectParam
+            spec={makeSpec({ allowEmptyValue: false })}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestFormWithValidation>,
     );
     fireEvent.blur(screen.getByRole("combobox"));
@@ -85,7 +117,15 @@ describe("SelectParam (multi-pick, shadcn Checkbox stack)", () => {
   it("renders one shadcn Checkbox per option", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue={[]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <SelectParam
+            spec={multiSpec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const checkboxes = screen.getAllByRole("checkbox");
@@ -96,7 +136,15 @@ describe("SelectParam (multi-pick, shadcn Checkbox stack)", () => {
   it("shows 'Select all' toggle when options > 3", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue={[]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <SelectParam
+            spec={multiSpec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByText(/Select all/)).toBeTruthy();
@@ -105,7 +153,15 @@ describe("SelectParam (multi-pick, shadcn Checkbox stack)", () => {
   it("does not show 'Select all' when options <= 3", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue={[]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions.slice(0, 3)} vocabTree={null} field={field} />}
+        {(field) => (
+          <SelectParam
+            spec={multiSpec}
+            name="test_param"
+            options={sampleOptions.slice(0, 3)}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.queryByText(/Select all/)).toBeNull();
@@ -115,7 +171,15 @@ describe("SelectParam (multi-pick, shadcn Checkbox stack)", () => {
     const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_param" defaultValue={["a"]}>
-        {(field) => <SelectParam spec={multiSpec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <SelectParam
+            spec={multiSpec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByLabelText("Beta"));

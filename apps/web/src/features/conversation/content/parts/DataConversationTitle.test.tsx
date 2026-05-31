@@ -8,14 +8,8 @@ import { DataConversationTitle } from "./DataConversationTitle";
 
 describe("DataConversationTitle", () => {
   it("renders the title", () => {
-    render(
-      <DataConversationTitle data={{ title: "Malaria Gene Discovery" }} />,
-    );
-    expect(
-      screen.getByTestId("data-conversation-title"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Title set: Malaria Gene Discovery"),
-    ).toBeInTheDocument();
+    render(<DataConversationTitle data={{ title: "Malaria Gene Discovery" }} />);
+    expect(screen.getByTestId("data-conversation-title")).toBeInTheDocument();
+    expect(screen.getByText("Title set: Malaria Gene Discovery")).toBeInTheDocument();
   });
 });

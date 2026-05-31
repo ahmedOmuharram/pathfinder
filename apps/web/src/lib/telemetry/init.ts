@@ -36,10 +36,7 @@ import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
 import { UserInteractionInstrumentation } from "@opentelemetry/instrumentation-user-interaction";
 import { XMLHttpRequestInstrumentation } from "@opentelemetry/instrumentation-xml-http-request";
 import { resourceFromAttributes } from "@opentelemetry/resources";
-import {
-  BatchSpanProcessor,
-  WebTracerProvider,
-} from "@opentelemetry/sdk-trace-web";
+import { BatchSpanProcessor, WebTracerProvider } from "@opentelemetry/sdk-trace-web";
 import { ZoneContextManager } from "@opentelemetry/context-zone";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
@@ -60,8 +57,7 @@ export function initTelemetry(): void {
 
   initialized = true;
 
-  const deploymentEnv =
-    process.env["NEXT_PUBLIC_DEPLOYMENT_ENV"] ?? "development";
+  const deploymentEnv = process.env["NEXT_PUBLIC_DEPLOYMENT_ENV"] ?? "development";
   const sessionId = getOrCreateSessionId();
 
   const resource = resourceFromAttributes({

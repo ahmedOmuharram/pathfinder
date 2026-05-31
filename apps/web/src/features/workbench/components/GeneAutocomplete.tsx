@@ -36,11 +36,12 @@ export function GeneAutocomplete({
     staleTime: 30_000,
   });
 
-  const results = searchResults == null
-    ? []
-    : excludeIds
-      ? searchResults.results.filter((r) => !excludeIds.has(r.geneId))
-      : searchResults.results;
+  const results =
+    searchResults == null
+      ? []
+      : excludeIds
+        ? searchResults.results.filter((r) => !excludeIds.has(r.geneId))
+        : searchResults.results;
 
   const hasResults = trimmedQuery.length > 0 && results.length > 0;
   const open = hasResults && !dismissed;
@@ -100,7 +101,9 @@ export function GeneAutocomplete({
                   {gene.geneId}
                 </p>
                 <p className="truncate text-[10px] text-muted-foreground">
-                  {gene.product != null && gene.product !== "" ? gene.product : "\u2014"}
+                  {gene.product != null && gene.product !== ""
+                    ? gene.product
+                    : "\u2014"}
                 </p>
                 <p className="truncate text-[10px] italic text-muted-foreground/70">
                   {gene.organism}

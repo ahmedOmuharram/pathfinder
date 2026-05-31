@@ -121,7 +121,9 @@ describe("FilterParam — populated value", () => {
         )}
       </WidgetTestForm>,
     );
-    await user.click(screen.getByRole("button", { name: /remove filter on organism/i }));
+    await user.click(
+      screen.getByRole("button", { name: /remove filter on organism/i }),
+    );
     expect(screen.queryByText("organism")).toBeNull();
   });
 
@@ -130,7 +132,12 @@ describe("FilterParam — populated value", () => {
     const twoFilters = JSON.stringify({
       filters: [
         { field: "organism", type: "string", isRange: false, value: ["P. falciparum"] },
-        { field: "length", type: "number", isRange: true, value: { min: 100, max: 500 } },
+        {
+          field: "length",
+          type: "number",
+          isRange: true,
+          value: { min: 100, max: 500 },
+        },
       ],
     });
     render(

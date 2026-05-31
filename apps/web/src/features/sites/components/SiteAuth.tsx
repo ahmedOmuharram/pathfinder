@@ -40,7 +40,8 @@ export function SiteAuth({
 
   const lightClass =
     "text-white/95 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition-colors duration-150 hover:text-primary hover:drop-shadow-none";
-  const darkClass = "text-muted-foreground transition-colors duration-150 hover:text-foreground";
+  const darkClass =
+    "text-muted-foreground transition-colors duration-150 hover:text-foreground";
   const actionClass = headerTextVariant === "light" ? lightClass : darkClass;
 
   return (

@@ -16,10 +16,7 @@ function trimStack(stack: Patch[][]): Patch[][] {
   return stack;
 }
 
-function inversePatchesBetween(
-  prev: HistorySnapshot,
-  next: HistorySnapshot,
-): Patch[] {
+function inversePatchesBetween(prev: HistorySnapshot, next: HistorySnapshot): Patch[] {
   const [, , inverse] = produceWithPatches(prev, (draft) => {
     draft.strategy = next.strategy;
   });

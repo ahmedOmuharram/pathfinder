@@ -30,10 +30,7 @@ export function useConversationSidebarData({
 
   const conversations: ConversationItem[] = fetching.chats
     .map(chatToConversationItem)
-    .sort(
-      (a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-    );
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const dismissedConversations: ConversationItem[] =
     fetching.dismissedChats.map(chatToConversationItem);

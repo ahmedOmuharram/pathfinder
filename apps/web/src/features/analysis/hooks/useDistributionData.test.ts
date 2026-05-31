@@ -127,10 +127,9 @@ describe("useDistributionData", () => {
     mockGetDistribution.mockResolvedValueOnce(response);
 
     const { Wrapper } = createSuspenseWrapper();
-    const { result } = renderHook(
-      () => useDistributionData(entityRef, "go_term"),
-      { wrapper: Wrapper },
-    );
+    const { result } = renderHook(() => useDistributionData(entityRef, "go_term"), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.distribution).toEqual([
@@ -178,10 +177,9 @@ describe("useDistributionData", () => {
     );
 
     const { Wrapper } = createSuspenseWrapper();
-    const { result } = renderHook(
-      () => useDistributionData(entityRef, "go_term"),
-      { wrapper: Wrapper },
-    );
+    const { result } = renderHook(() => useDistributionData(entityRef, "go_term"), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.noData).toBe(true);
@@ -231,9 +229,7 @@ describe("useDistributionData", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.distribution).toEqual([
-        { value: "GO:0005634", count: 42 },
-      ]);
+      expect(result.current.distribution).toEqual([{ value: "GO:0005634", count: 42 }]);
     });
 
     rerender({ attr: "gene_product" });

@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createActor } from "xstate";
-import {
-  stepMachine,
-  seedStepMachine,
-  type StepMachineContext,
-} from "./stepMachine";
+import { stepMachine, seedStepMachine, type StepMachineContext } from "./stepMachine";
 import type { SearchValidationErrors } from "@pathfinder/shared";
 
-function startInState(state: "idle" | "valid" | "invalid" | "complete" | "failed", context?: Partial<StepMachineContext>) {
+function startInState(
+  state: "idle" | "valid" | "invalid" | "complete" | "failed",
+  context?: Partial<StepMachineContext>,
+) {
   const actor = createActor(stepMachine, {
     snapshot: seedStepMachine(state, context),
   });

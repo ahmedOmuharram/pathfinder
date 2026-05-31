@@ -52,9 +52,9 @@ export function useDeleteWorkflow({
 
   const [deleteTarget, setDeleteTarget] = useState<ConversationItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<
-    string | null
-  >(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<string | null>(
+    null,
+  );
 
   const listKey = listStrategiesQueryOptions({ siteId }).queryKey;
   const dismissedKey = listDismissedStrategiesQueryOptions({ siteId }).queryKey;
@@ -127,9 +127,7 @@ export function useDeleteWorkflow({
     }
   };
 
-  const confirmPermanentDelete = async (
-    options: { cascade?: boolean } = {},
-  ) => {
+  const confirmPermanentDelete = async (options: { cascade?: boolean } = {}) => {
     if (permanentDeleteTarget === null) return;
     const id = permanentDeleteTarget;
     try {
@@ -141,9 +139,7 @@ export function useDeleteWorkflow({
         (old ?? []).filter((c) => c.id !== id),
       );
     } catch (err) {
-      reportError(
-        toUserMessage(err, "Failed to permanently delete conversation."),
-      );
+      reportError(toUserMessage(err, "Failed to permanently delete conversation."));
     } finally {
       void queryClient.invalidateQueries({ queryKey: listKey });
       void queryClient.invalidateQueries({ queryKey: dismissedKey });

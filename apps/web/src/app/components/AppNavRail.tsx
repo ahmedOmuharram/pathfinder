@@ -1,13 +1,7 @@
 "use client";
 
 import { useSuspenseQuery } from "@tanstack/react-query";
-import {
-  Bookmark,
-  Layers,
-  MessageCircle,
-  PanelLeft,
-  Settings,
-} from "lucide-react";
+import { Bookmark, Layers, MessageCircle, PanelLeft, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -15,8 +9,7 @@ import { usePathname } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 
-const ACTIVE_PILL =
-  "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary";
+const ACTIVE_PILL = "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary";
 import {
   DropdownMenu,
   DropdownMenuContent,

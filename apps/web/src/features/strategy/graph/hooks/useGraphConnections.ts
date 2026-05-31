@@ -9,9 +9,7 @@ import {
   inferCombineRecordTypeOrMismatch,
   isValidGraphConnection,
 } from "@/features/strategy/graph/utils/graphConnectionsLogic";
-import {
-  useAddStepMutation,
-} from "@/features/strategy/mutations";
+import { useAddStepMutation } from "@/features/strategy/mutations";
 import { useApplyOperation } from "@/features/strategy/mutations/useApplyOperation";
 
 interface UseGraphConnectionsArgs {
@@ -30,7 +28,10 @@ const generateStepId = () => `step_${Math.random().toString(16).slice(2, 10)}`;
  * `INTERSECT` operator. The user picks a different operator from the editor
  * Sheet (or the edge ContextMenu) afterwards.
  */
-export function useGraphConnections({ steps, conversationId }: UseGraphConnectionsArgs) {
+export function useGraphConnections({
+  steps,
+  conversationId,
+}: UseGraphConnectionsArgs) {
   const addStep = useAddStepMutation(conversationId);
   const apply = useApplyOperation(conversationId);
   const indices = buildGraphIndices(steps);
@@ -86,8 +87,7 @@ export function useGraphConnections({ steps, conversationId }: UseGraphConnectio
 
   const handleDeleteEdge = (edge: Edge) => {
     const slot: "primary" | "secondary" =
-      edge.targetHandle === "left-secondary" ||
-      edge.id.endsWith("-secondary")
+      edge.targetHandle === "left-secondary" || edge.id.endsWith("-secondary")
         ? "secondary"
         : "primary";
     apply.mutate({

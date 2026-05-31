@@ -19,10 +19,7 @@ interface Case {
   op: unknown;
   expected: {
     stepIds: string[];
-    rootInputs: Record<
-      string,
-      { primary?: string | null; secondary?: string | null }
-    >;
+    rootInputs: Record<string, { primary?: string | null; secondary?: string | null }>;
     droppedStepIds: string[];
   };
 }

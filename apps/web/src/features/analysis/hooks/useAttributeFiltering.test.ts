@@ -90,7 +90,9 @@ describe("useAttributeFiltering", () => {
   it("auto-selects first distributable attribute when attributes load", async () => {
     const attrs = makeAttrs("url_field", "organism", "gene_product");
     // Only organism and gene_product pass the filter
-    mockIsDistributable.mockImplementation((a: { name: string }) => a.name !== "url_field");
+    mockIsDistributable.mockImplementation(
+      (a: { name: string }) => a.name !== "url_field",
+    );
     mockGetAttributes.mockResolvedValueOnce({
       attributes: attrs,
       recordType: "gene",

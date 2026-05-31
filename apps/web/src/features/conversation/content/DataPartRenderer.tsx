@@ -4,10 +4,7 @@ import { createElement, type ReactElement } from "react";
 
 import { dataPartComponents } from "./contentComponents";
 
-function renderKind<K extends DataPartKind>(
-  kind: K,
-  data: unknown,
-): ReactElement {
+function renderKind<K extends DataPartKind>(kind: K, data: unknown): ReactElement {
   return createElement(dataPartComponents[kind], {
     data: data as DataPartPayloadMap[K],
   });

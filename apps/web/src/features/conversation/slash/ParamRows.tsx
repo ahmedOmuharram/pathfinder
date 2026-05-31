@@ -16,9 +16,7 @@ export function TextRow({
   const [value, setValue] = useState("");
   return (
     <div className="flex flex-col gap-2 p-3">
-      <label className="text-xs font-medium text-foreground">
-        {param.label}
-      </label>
+      <label className="text-xs font-medium text-foreground">{param.label}</label>
       <input
         type="text"
         autoFocus
@@ -57,9 +55,7 @@ export function TextAreaRow({
   const [value, setValue] = useState("");
   return (
     <div className="flex flex-col gap-2 p-3">
-      <label className="text-xs font-medium text-foreground">
-        {param.label}
-      </label>
+      <label className="text-xs font-medium text-foreground">{param.label}</label>
       <textarea
         autoFocus
         value={value}
@@ -91,9 +87,7 @@ export function FileRow({
 }) {
   return (
     <div className="flex flex-col gap-2 p-3">
-      <label className="text-xs font-medium text-foreground">
-        {param.label}
-      </label>
+      <label className="text-xs font-medium text-foreground">{param.label}</label>
       <input
         type="file"
         accept={param.accept}

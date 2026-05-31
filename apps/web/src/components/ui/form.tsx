@@ -1,38 +1,40 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Label as LabelPrimitive, Slot } from "radix-ui"
-import type { AnyFieldApi, AnyFormApi } from "@tanstack/form-core"
-import type { ReactFormApi } from "@tanstack/react-form"
+import * as React from "react";
+import { Label as LabelPrimitive, Slot } from "radix-ui";
+import type { AnyFieldApi, AnyFormApi } from "@tanstack/form-core";
+import type { ReactFormApi } from "@tanstack/react-form";
 
-import { cn } from "@/lib/utils/cn"
+import { cn } from "@/lib/utils/cn";
 
 type AnyReactFormApi = AnyFormApi &
-  ReactFormApi<any, any, any, any, any, any, any, any, any, any, any, any>
+  ReactFormApi<any, any, any, any, any, any, any, any, any, any, any, any>;
 
 interface FormFieldContextValue {
-  name: string
-  fieldId: string
-  descriptionId: string
-  errorId: string
-  hasError: boolean
+  name: string;
+  fieldId: string;
+  descriptionId: string;
+  errorId: string;
+  hasError: boolean;
 }
 
-const FormFieldContext = React.createContext<FormFieldContextValue | null>(null)
+const FormFieldContext = React.createContext<FormFieldContextValue | null>(null);
 
 function useFormFieldContext() {
-  const ctx = React.useContext(FormFieldContext)
+  const ctx = React.useContext(FormFieldContext);
   if (!ctx) {
     throw new Error(
-      "Form primitives (FormLabel/FormControl/FormDescription/FormError) must be used inside <FormField>"
-    )
+      "Form primitives (FormLabel/FormControl/FormDescription/FormError) must be used inside <FormField>",
+    );
   }
-  return ctx
+  return ctx;
 }
 
-interface FormProps<TFormApi extends AnyReactFormApi>
-  extends Omit<React.ComponentProps<"form">, "onSubmit"> {
-  form: TFormApi
+interface FormProps<TFormApi extends AnyReactFormApi> extends Omit<
+  React.ComponentProps<"form">,
+  "onSubmit"
+> {
+  form: TFormApi;
 }
 
 function Form<TFormApi extends AnyReactFormApi>({
@@ -46,66 +48,61 @@ function Form<TFormApi extends AnyReactFormApi>({
       data-slot="form"
       className={cn("flex flex-col gap-4", className)}
       onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void form.handleSubmit()
+        event.preventDefault();
+        event.stopPropagation();
+        void form.handleSubmit();
       }}
       {...props}
     >
       {children}
     </form>
-  )
+  );
 }
 
-type FormFieldRenderApi = AnyFieldApi
+type FormFieldRenderApi = AnyFieldApi;
 
 interface FormFieldProps {
-  form: AnyReactFormApi
-  name: string
-  validators?: Record<string, unknown>
-  children: (field: FormFieldRenderApi) => React.ReactNode
+  form: AnyReactFormApi;
+  name: string;
+  validators?: Record<string, unknown>;
+  children: (field: FormFieldRenderApi) => React.ReactNode;
 }
 
 function FormField({ form, name, validators, children }: FormFieldProps) {
   const FieldComponent = form.Field as unknown as React.ComponentType<{
-    name: string
-    validators?: Record<string, unknown>
-    children: (field: FormFieldRenderApi) => React.ReactNode
-  }>
+    name: string;
+    validators?: Record<string, unknown>;
+    children: (field: FormFieldRenderApi) => React.ReactNode;
+  }>;
 
   return (
-    <FieldComponent
-      name={name}
-      {...(validators !== undefined && { validators })}
-    >
+    <FieldComponent name={name} {...(validators !== undefined && { validators })}>
       {(field: FormFieldRenderApi) => (
         <FormFieldProvider field={field}>{children(field)}</FormFieldProvider>
       )}
     </FieldComponent>
-  )
+  );
 }
 
 function FormFieldProvider({
   field,
   children,
 }: {
-  field: FormFieldRenderApi
-  children: React.ReactNode
+  field: FormFieldRenderApi;
+  children: React.ReactNode;
 }) {
-  const reactId = React.useId()
+  const reactId = React.useId();
   const value: FormFieldContextValue = {
     name: field.name,
     fieldId: `${reactId}-field`,
     descriptionId: `${reactId}-description`,
     errorId: `${reactId}-error`,
     hasError: field.state.meta.errors.length > 0,
-  }
+  };
 
   return (
-    <FormFieldContext.Provider value={value}>
-      {children}
-    </FormFieldContext.Provider>
-  )
+    <FormFieldContext.Provider value={value}>{children}</FormFieldContext.Provider>
+  );
 }
 
 function FormItem({ className, ...props }: React.ComponentProps<"div">) {
@@ -115,14 +112,14 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("flex flex-col gap-2", className)}
       {...props}
     />
-  )
+  );
 }
 
 function FormLabel({
   className,
   ...props
 }: React.ComponentProps<typeof LabelPrimitive.Root>) {
-  const { fieldId, hasError } = useFormFieldContext()
+  const { fieldId, hasError } = useFormFieldContext();
   return (
     <LabelPrimitive.Root
       data-slot="form-label"
@@ -130,17 +127,15 @@ function FormLabel({
       htmlFor={props.htmlFor ?? fieldId}
       className={cn(
         "flex items-center gap-2 text-sm leading-none font-medium select-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50 data-[error=true]:text-destructive",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
-function FormControl({
-  ...props
-}: React.ComponentProps<typeof Slot.Root>) {
-  const { fieldId, descriptionId, errorId, hasError } = useFormFieldContext()
+function FormControl({ ...props }: React.ComponentProps<typeof Slot.Root>) {
+  const { fieldId, descriptionId, errorId, hasError } = useFormFieldContext();
   return (
     <Slot.Root
       data-slot="form-control"
@@ -149,14 +144,11 @@ function FormControl({
       aria-invalid={hasError}
       {...props}
     />
-  )
+  );
 }
 
-function FormDescription({
-  className,
-  ...props
-}: React.ComponentProps<"p">) {
-  const { descriptionId } = useFormFieldContext()
+function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
+  const { descriptionId } = useFormFieldContext();
   return (
     <p
       data-slot="form-description"
@@ -164,17 +156,13 @@ function FormDescription({
       className={cn("text-sm text-muted-foreground", className)}
       {...props}
     />
-  )
+  );
 }
 
-function FormError({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<"p">) {
-  const { errorId } = useFormFieldContext()
+function FormError({ className, children, ...props }: React.ComponentProps<"p">) {
+  const { errorId } = useFormFieldContext();
   if (children === undefined || children === null || children === false) {
-    return null
+    return null;
   }
   return (
     <p
@@ -185,7 +173,7 @@ function FormError({
     >
       {children}
     </p>
-  )
+  );
 }
 
 export {
@@ -196,4 +184,4 @@ export {
   FormField,
   FormItem,
   FormLabel,
-}
+};

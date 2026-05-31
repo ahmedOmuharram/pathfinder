@@ -38,7 +38,9 @@ test.describe("User Data Purge", () => {
     await expect(page.getByRole("dialog")).not.toBeVisible({ timeout: 10_000 });
 
     // Verify data exists
-    const beforeStrategies = await apiClient.get("/api/v1/conversations?siteId=plasmodb");
+    const beforeStrategies = await apiClient.get(
+      "/api/v1/conversations?siteId=plasmodb",
+    );
     expect((await beforeStrategies.json()).length).toBeGreaterThan(0);
     const beforeGeneSets = await apiClient.get("/api/v1/gene-sets?siteId=plasmodb");
     expect((await beforeGeneSets.json()).length).toBeGreaterThan(0);
@@ -52,7 +54,9 @@ test.describe("User Data Purge", () => {
     expect(result.deleted.geneSets).toBeGreaterThan(0);
 
     // Verify data is gone
-    const afterStrategies = await apiClient.get("/api/v1/conversations?siteId=plasmodb");
+    const afterStrategies = await apiClient.get(
+      "/api/v1/conversations?siteId=plasmodb",
+    );
     expect((await afterStrategies.json()).length).toBe(0);
     const afterGeneSets = await apiClient.get("/api/v1/gene-sets?siteId=plasmodb");
     expect((await afterGeneSets.json()).length).toBe(0);

@@ -18,7 +18,8 @@ export function useGraphSelection({ strategy, isCompact }: UseGraphSelectionArgs
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const setPendingAskNode = useSessionStore((s) => s.setPendingAskNode);
 
-  const buildSelectionPayload = (nodeIds: string[]) => buildNodeSelectionPayload(strategy, nodeIds);
+  const buildSelectionPayload = (nodeIds: string[]) =>
+    buildNodeSelectionPayload(strategy, nodeIds);
 
   const handleAddToChat = (stepId: string) => {
     if (!stepId) return;

@@ -91,10 +91,7 @@ export function ConversationListItem({
               void navigate(`/${item.siteId}/conversation/${item.id}`);
             }}
           >
-            <div
-              className="truncate pr-6 text-sm font-medium"
-              title={item.title}
-            >
+            <div className="truncate pr-6 text-sm font-medium" title={item.title}>
               {item.title}
             </div>
             <div className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -120,11 +117,7 @@ export function ConversationListItem({
                 <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              sideOffset={4}
-              className="min-w-[160px]"
-            >
+            <DropdownMenuContent align="end" sideOffset={4} className="min-w-[160px]">
               <DropdownMenuItem onSelect={() => onStartRename(item)}>
                 Rename
               </DropdownMenuItem>

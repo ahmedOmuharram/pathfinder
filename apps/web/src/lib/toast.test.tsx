@@ -76,8 +76,7 @@ describe("toast wrapper", () => {
 
     toast({
       type: "error",
-      description:
-        "This is a very long error that should wrap across multiple lines.",
+      description: "This is a very long error that should wrap across multiple lines.",
     });
     const toastEl = await screen.findByTestId("toast");
     await waitFor(() => {

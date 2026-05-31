@@ -268,4 +268,3 @@ function SyncStatusPill({ state, onRetry }: SyncStatusPillProps) {
     </span>
   );
 }
-

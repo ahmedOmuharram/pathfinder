@@ -133,7 +133,9 @@ describe("coerceMultiValue", () => {
 // coerceParametersForSpecs
 // ---------------------------------------------------------------------------
 /** Build a ParamSpec with required fields filled in. */
-function spec(overrides: Partial<ParamSpec> & { name: string; type: string }): ParamSpec {
+function spec(
+  overrides: Partial<ParamSpec> & { name: string; type: string },
+): ParamSpec {
   return {
     allowEmptyValue: false,
     countOnlyLeaves: false,

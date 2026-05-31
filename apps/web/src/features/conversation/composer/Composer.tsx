@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  ComposerPrimitive,
-  useAui,
-  useAuiState,
-} from "@assistant-ui/react";
+import { ComposerPrimitive, useAui, useAuiState } from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { Send, Square } from "lucide-react";
 import { useState } from "react";
@@ -20,10 +16,7 @@ import { getAuthHeaders } from "@/lib/api/http";
 import { strategyQueryOptions } from "@/lib/api/strategy";
 import { useSessionStore } from "@/state/useSessionStore";
 
-import {
-  QuotaExhaustedBanner,
-  useQuotaExhausted,
-} from "./QuotaExhaustedBanner";
+import { QuotaExhaustedBanner, useQuotaExhausted } from "./QuotaExhaustedBanner";
 
 const tokensCompact = new Intl.NumberFormat("en-US", {
   notation: "compact",
@@ -76,18 +69,13 @@ export function Composer({ conversationId }: { conversationId: string }) {
       headers: getAuthHeaders(),
     }).catch(() => {});
   };
-  const { data: conversationDetail } = useQuery(
-    strategyQueryOptions(conversationId),
-  );
+  const { data: conversationDetail } = useQuery(strategyQueryOptions(conversationId));
   const stepCount = conversationDetail?.steps.length ?? 0;
 
   const [pendingCommand, setPendingCommand] = useState<Command | null>(null);
 
   const parsed = parseSlashInput(text);
-  const showPopover =
-    pendingCommand === null
-    && parsed !== null
-    && parsed.rest === "";
+  const showPopover = pendingCommand === null && parsed !== null && parsed.rest === "";
 
   async function runCommand(command: Command, values: Record<string, string>) {
     const ctx = { conversationId, siteId, stepCount };
@@ -162,10 +150,10 @@ export function Composer({ conversationId }: { conversationId: string }) {
   const exactMatch =
     parsed !== null && parsed.token !== "" ? findCommand(parsed.token) : null;
   const wantsDirectRun =
-    exactMatch !== null
-      && exactMatch !== undefined
-      && parsed !== null
-      && parsed.rest === "";
+    exactMatch !== null &&
+    exactMatch !== undefined &&
+    parsed !== null &&
+    parsed.rest === "";
 
   return (
     <ComposerPrimitive.Root
@@ -193,7 +181,8 @@ export function Composer({ conversationId }: { conversationId: string }) {
         }}
       />
       <QuotaExhaustedBanner />
-      <div className="focus-within:shadow-[var(--shadow-composer-focus)] flex flex-col gap-2 rounded-lg border bg-background shadow-[var(--shadow-composer)] transition-shadow aria-disabled:opacity-60"
+      <div
+        className="focus-within:shadow-[var(--shadow-composer-focus)] flex flex-col gap-2 rounded-lg border bg-background shadow-[var(--shadow-composer)] transition-shadow aria-disabled:opacity-60"
         aria-disabled={quotaExhausted}
       >
         <ComposerPrimitive.Input

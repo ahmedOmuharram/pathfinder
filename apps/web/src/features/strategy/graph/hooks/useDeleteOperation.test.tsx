@@ -43,7 +43,12 @@ function strategy(steps: Step[], rootStepId: string | null = null): Strategy {
 
 beforeEach(() => {
   pushStrategyMock.mockReset();
-  pushStrategyMock.mockResolvedValue({ id: "s", name: "T", steps: [], siteId: "plasmodb" });
+  pushStrategyMock.mockResolvedValue({
+    id: "s",
+    name: "T",
+    steps: [],
+    siteId: "plasmodb",
+  });
   useStrategyStore.setState({ graphValidationStatus: {} });
 });
 
@@ -65,7 +70,16 @@ describe("useDeleteOperation.requestDelete", () => {
 
   it("ambiguous (leaf of combine): opens dialog with three choices", () => {
     const initial = strategy(
-      [step({ id: "a" }), step({ id: "b" }), step({ id: "c", primaryInputStepId: "a", secondaryInputStepId: "b", kind: "combine" })],
+      [
+        step({ id: "a" }),
+        step({ id: "b" }),
+        step({
+          id: "c",
+          primaryInputStepId: "a",
+          secondaryInputStepId: "b",
+          kind: "combine",
+        }),
+      ],
       "c",
     );
     const harness = makeQueryHarness(initial);
@@ -83,7 +97,16 @@ describe("useDeleteOperation.requestDelete", () => {
 
   it("ambiguous: dialog onConfirm with chosen resolution applies and pushes", async () => {
     const initial = strategy(
-      [step({ id: "a" }), step({ id: "b" }), step({ id: "c", primaryInputStepId: "a", secondaryInputStepId: "b", kind: "combine" })],
+      [
+        step({ id: "a" }),
+        step({ id: "b" }),
+        step({
+          id: "c",
+          primaryInputStepId: "a",
+          secondaryInputStepId: "b",
+          kind: "combine",
+        }),
+      ],
       "c",
     );
     const harness = makeQueryHarness(initial);
@@ -112,7 +135,16 @@ describe("useDeleteOperation.requestDelete", () => {
 
   it("dialog onOpenChange(false) without confirm: no push, no mutation", () => {
     const initial = strategy(
-      [step({ id: "a" }), step({ id: "b" }), step({ id: "c", primaryInputStepId: "a", secondaryInputStepId: "b", kind: "combine" })],
+      [
+        step({ id: "a" }),
+        step({ id: "b" }),
+        step({
+          id: "c",
+          primaryInputStepId: "a",
+          secondaryInputStepId: "b",
+          kind: "combine",
+        }),
+      ],
       "c",
     );
     const harness = makeQueryHarness(initial);
@@ -138,10 +170,7 @@ describe("useDeleteOperation.requestDelete", () => {
 
 describe("useDeleteOperation.requestDeleteMany", () => {
   it("skipConfirm=true: applies defaults to all ids in a single push", () => {
-    const initial = strategy(
-      [step({ id: "a" }), step({ id: "b" })],
-      null,
-    );
+    const initial = strategy([step({ id: "a" }), step({ id: "b" })], null);
     const harness = makeQueryHarness(initial);
     const { result } = renderHook(() => useDeleteOperation("s"), {
       wrapper: harness.wrapper,

@@ -8,9 +8,7 @@ import { MessageAction } from "@/components/ai-elements/message";
 
 import { extractTraceId } from "../runtime/traceId";
 
-export function RegenerateAction(props: {
-  onClick?: (e: React.MouseEvent) => void;
-}) {
+export function RegenerateAction(props: { onClick?: (e: React.MouseEvent) => void }) {
   const message = useMessage((s) => s);
   const handleClick = (e: React.MouseEvent) => {
     const traceId = extractTraceId(message);
@@ -19,7 +17,6 @@ export function RegenerateAction(props: {
       streamId: message.id,
       ...(traceId !== null && { traceId }),
     }).catch((err: unknown) => {
-       
       console.warn("submitProductAction(assistant_regenerate) failed", err);
     });
     props.onClick?.(e);

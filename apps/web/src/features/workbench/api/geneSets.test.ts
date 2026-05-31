@@ -62,10 +62,14 @@ describe("createGeneSet", () => {
 
     const result = await createGeneSet(req);
 
-    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
-      method: "POST",
-      body: req,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets",
+      {
+        method: "POST",
+        body: req,
+      },
+    );
     expect(result).toEqual(geneSetFixture);
   });
 
@@ -86,10 +90,14 @@ describe("createGeneSet", () => {
 
     await createGeneSet(req);
 
-    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
-      method: "POST",
-      body: req,
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets",
+      {
+        method: "POST",
+        body: req,
+      },
+    );
   });
 
   it("propagates API errors", async () => {
@@ -116,7 +124,11 @@ describe("listGeneSets", () => {
 
     const result = await listGeneSets();
 
-    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {});
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets",
+      {},
+    );
     expect(result).toEqual([geneSetFixture]);
   });
 
@@ -125,9 +137,13 @@ describe("listGeneSets", () => {
 
     await listGeneSets("plasmodb");
 
-    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
-      query: { siteId: "plasmodb" },
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets",
+      {
+        query: { siteId: "plasmodb" },
+      },
+    );
   });
 
   it("returns empty array when no gene sets exist", async () => {
@@ -343,20 +359,24 @@ describe("createGeneSetFromStrategy", () => {
 
     await createGeneSetFromStrategy(args);
 
-    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
-      method: "POST",
-      body: {
-        name: "From Strategy",
-        source: "strategy",
-        geneIds: ["G1", "G2"],
-        siteId: "plasmodb",
-        wdkStrategyId: 42,
-        wdkStepId: 7,
-        searchName: "GeneByTextSearch",
-        recordType: "gene",
-        parameters: { text_expression: "kinase" },
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets",
+      {
+        method: "POST",
+        body: {
+          name: "From Strategy",
+          source: "strategy",
+          geneIds: ["G1", "G2"],
+          siteId: "plasmodb",
+          wdkStrategyId: 42,
+          wdkStepId: 7,
+          searchName: "GeneByTextSearch",
+          recordType: "gene",
+          parameters: { text_expression: "kinase" },
+        },
       },
-    });
+    );
   });
 
   it("defaults geneIds to empty array when not provided", async () => {
@@ -370,13 +390,17 @@ describe("createGeneSetFromStrategy", () => {
 
     await createGeneSetFromStrategy(args);
 
-    expect(mockRequestJson).toHaveBeenCalledWith(expect.anything(), "/api/v1/gene-sets", {
-      method: "POST",
-      body: expect.objectContaining({
-        geneIds: [],
-        source: "strategy",
-      }),
-    });
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      "/api/v1/gene-sets",
+      {
+        method: "POST",
+        body: expect.objectContaining({
+          geneIds: [],
+          source: "strategy",
+        }),
+      },
+    );
   });
 
   it("passes optional fields as undefined when not provided", async () => {

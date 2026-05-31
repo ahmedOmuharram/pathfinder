@@ -45,13 +45,10 @@ interface OpenConversationResponse {
 }
 
 async function openConversation(context: BrowserContext): Promise<string> {
-  const resp = await context.request.post(
-    `${BASE_URL}/api/v1/conversations/open`,
-    {
-      data: { siteId: "veupathdb" },
-      headers: { "X-Requested-With": "XMLHttpRequest" },
-    },
-  );
+  const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
+    data: { siteId: "veupathdb" },
+    headers: { "X-Requested-With": "XMLHttpRequest" },
+  });
   if (!resp.ok()) {
     throw new Error(`openConversation failed: ${resp.status()}`);
   }
@@ -76,7 +73,9 @@ interface StubNote {
   updatedAt: string;
 }
 
-function buildNote(overrides: Partial<StubNote> & Pick<StubNote, "conversationId">): StubNote {
+function buildNote(
+  overrides: Partial<StubNote> & Pick<StubNote, "conversationId">,
+): StubNote {
   const now = new Date().toISOString();
   return {
     id: NOTE_ID,
@@ -190,10 +189,7 @@ test.describe("Scratchpad rail", () => {
     expect(notesVersion).toBeGreaterThan(0);
   });
 
-  test("user can pin and delete a scratchpad note", async ({
-    page,
-    context,
-  }) => {
+  test("user can pin and delete a scratchpad note", async ({ page, context }) => {
     const conversationId = await openConversation(context);
     const notesUrl = `**/api/v1/conversations/${conversationId}/scratchpad/notes`;
     const noteUrl = `**/api/v1/conversations/${conversationId}/scratchpad/notes/${NOTE_ID}`;
@@ -245,9 +241,7 @@ test.describe("Scratchpad rail", () => {
     await expect(composer).toBeVisible({ timeout: 30_000 });
 
     // Open the scratchpad rail.
-    await page
-      .getByRole("button", { name: "Open Scratchpad", exact: true })
-      .click();
+    await page.getByRole("button", { name: "Open Scratchpad", exact: true }).click();
 
     const note = page.getByTestId(`scratchpad-note-${NOTE_ID}`);
     await expect(note).toBeVisible({ timeout: 15_000 });

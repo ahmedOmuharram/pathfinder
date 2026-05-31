@@ -28,7 +28,15 @@ describe("NumberRangeParam", () => {
   it("renders two number inputs for min and max", () => {
     render(
       <WidgetTestForm name="r" defaultValue="">
-        {(field) => <NumberRangeParam spec={makeSpec()} name="r" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <NumberRangeParam
+            spec={makeSpec()}
+            name="r"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const inputs = screen.getAllByRole("spinbutton");
@@ -38,7 +46,15 @@ describe("NumberRangeParam", () => {
   it("encodes range as 'min-max' on change", () => {
     render(
       <WidgetTestForm name="r" defaultValue="">
-        {(field) => <NumberRangeParam spec={makeSpec()} name="r" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <NumberRangeParam
+            spec={makeSpec()}
+            name="r"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const minInput = getInputByLabel("r min");
@@ -52,7 +68,15 @@ describe("NumberRangeParam", () => {
   it("decodes existing 'min-max' value", () => {
     render(
       <WidgetTestForm name="r" defaultValue="3-7">
-        {(field) => <NumberRangeParam spec={makeSpec()} name="r" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <NumberRangeParam
+            spec={makeSpec()}
+            name="r"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const minInput = getInputByLabel("r min");

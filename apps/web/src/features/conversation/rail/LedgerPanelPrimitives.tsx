@@ -22,13 +22,7 @@ export function LedgerSection({
   );
 }
 
-export function LedgerRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
+export function LedgerRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 text-xs">
       <span className="text-muted-foreground">{label}</span>
@@ -49,13 +43,7 @@ export function BoolBadge({ value }: { value: boolean }) {
   );
 }
 
-export function CountChip({
-  value,
-  tone = "neutral",
-}: {
-  value: number;
-  tone?: Tone;
-}) {
+export function CountChip({ value, tone = "neutral" }: { value: number; tone?: Tone }) {
   const cls =
     tone === "bad"
       ? "bg-destructive/15 text-destructive"
@@ -73,13 +61,7 @@ export function CountChip({
   );
 }
 
-export function StatusPill({
-  text,
-  tone = "neutral",
-}: {
-  text: string;
-  tone?: Tone;
-}) {
+export function StatusPill({ text, tone = "neutral" }: { text: string; tone?: Tone }) {
   const cls =
     tone === "bad"
       ? "bg-destructive/15 text-destructive"
@@ -89,9 +71,7 @@ export function StatusPill({
           ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
           : "bg-muted text-muted-foreground";
   return (
-    <span
-      className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${cls}`}
-    >
+    <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-medium ${cls}`}>
       {text}
     </span>
   );

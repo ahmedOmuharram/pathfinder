@@ -32,8 +32,7 @@ export function useChatListFetching({
 
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const queryEnabled =
-    authStatus?.signedIn === true && authRefreshed && siteId !== "";
+  const queryEnabled = authStatus?.signedIn === true && authRefreshed && siteId !== "";
 
   const listOpts = listStrategiesQueryOptions({ siteId });
   const dismissedOpts = listDismissedStrategiesQueryOptions({ siteId });

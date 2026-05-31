@@ -7,9 +7,7 @@ export interface TimeGroup {
   items: ConversationItem[];
 }
 
-export function groupConversationsByTime(
-  items: ConversationItem[],
-): TimeGroup[] {
+export function groupConversationsByTime(items: ConversationItem[]): TimeGroup[] {
   const now = new Date();
   const oneWeekAgo = subWeeks(now, 1);
   const oneMonthAgo = subMonths(now, 1);

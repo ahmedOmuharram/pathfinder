@@ -111,10 +111,7 @@ export interface RecoveredDraft {
   dismiss: () => void;
 }
 
-function shallowEqualValues(
-  a: StepDraftValues,
-  b: StepDraftValues,
-): boolean {
+function shallowEqualValues(a: StepDraftValues, b: StepDraftValues): boolean {
   const aKeys = Object.keys(a);
   const bKeys = Object.keys(b);
   if (aKeys.length !== bKeys.length) return false;
@@ -133,17 +130,13 @@ function shallowEqualValues(
   return true;
 }
 
-export function useRecoveredDraft(
-  args: UseRecoveredDraftArgs,
-): RecoveredDraft {
+export function useRecoveredDraft(args: UseRecoveredDraftArgs): RecoveredDraft {
   const key = stepDraftKey(args.strategyId, args.stepId);
   const [dismissed, setDismissed] = useState(false);
 
   const stored = readStorage(key);
   const draft =
-    stored !== null && !shallowEqualValues(stored, args.baselineValues)
-      ? stored
-      : null;
+    stored !== null && !shallowEqualValues(stored, args.baselineValues) ? stored : null;
 
   return {
     draft: dismissed ? null : draft,

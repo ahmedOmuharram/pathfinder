@@ -70,22 +70,14 @@ describe("computeDeleteChoices", () => {
   });
 
   test("transform in middle: bypass-only choice (token: collapse-combine)", () => {
-    const steps = [
-      step("a"),
-      step("t", "a", undefined, "transform"),
-      step("r", "t"),
-    ];
+    const steps = [step("a"), step("t", "a", undefined, "transform"), step("r", "t")];
     const choices = computeDeleteChoices(steps, "t");
     expect(choices.map((c) => c.resolution)).toEqual(["collapse-combine"]);
     expect(choices[0]!.willDelete).toEqual(["t"]);
   });
 
   test("step whose parent is a transform: cascade subtree + transform", () => {
-    const steps = [
-      step("a"),
-      step("t", "a", undefined, "transform"),
-      step("r", "t"),
-    ];
+    const steps = [step("a"), step("t", "a", undefined, "transform"), step("r", "t")];
     const choices = computeDeleteChoices(steps, "a");
     expect(choices.map((c) => c.resolution)).toEqual(["delete-subtree"]);
     expect(choices[0]!.willDelete.sort()).toEqual(["a", "t"]);

@@ -27,7 +27,9 @@ export const DEFAULT_COLOCATION: ColocationFormValues = {
   endOffsetB: 0,
 };
 
-export function resolveParams(params: Partial<ColocationFormValues> | null | undefined): ColocationFormValues {
+export function resolveParams(
+  params: Partial<ColocationFormValues> | null | undefined,
+): ColocationFormValues {
   return { ...DEFAULT_COLOCATION, ...params };
 }
 
@@ -124,7 +126,9 @@ function OffsetRow({
               min={0}
               value={typeof field.state.value === "number" ? field.state.value : 0}
               onChange={(event) =>
-                field.handleChange(Math.max(0, Number(event.target.value || 0)) as never)
+                field.handleChange(
+                  Math.max(0, Number(event.target.value || 0)) as never,
+                )
               }
               onBlur={field.handleBlur}
               className="h-8 w-20 text-xs"
@@ -265,7 +269,12 @@ export function ColocationEditor({
                   { value: "same strand", label: "Same" },
                   { value: "opposite strand", label: "Opposite" },
                 ]}
-                value={field.state.value as "either strand" | "same strand" | "opposite strand"}
+                value={
+                  field.state.value as
+                    | "either strand"
+                    | "same strand"
+                    | "opposite strand"
+                }
                 onChange={(v) => field.handleChange(v as never)}
               />
             )}

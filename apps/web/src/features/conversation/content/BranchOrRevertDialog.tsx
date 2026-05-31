@@ -44,30 +44,28 @@ export function BranchOrRevertDialog({
             <div>
               <div className="font-medium">Branch to a new chat</div>
               <div className="text-xs text-muted-foreground">
-                Keep this conversation intact. Fork into a new chat with history
-                up to this point and send the edit there.
+                Keep this conversation intact. Fork into a new chat with history up to
+                this point and send the edit there.
               </div>
             </div>
           </div>
           <div className="flex items-start gap-3 rounded-md border border-border p-3">
-            <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
+            <RotateCcw
+              className="mt-0.5 h-4 w-4 shrink-0 text-destructive"
+              aria-hidden
+            />
             <div>
               <div className="font-medium">Revert this chat</div>
               <div className="text-xs text-muted-foreground">
-                Delete every message after this point in this chat. Scratchpad
-                notes and pending tasks from those turns are also removed.
-                Strategy graph and workbench state are kept.
+                Delete every message after this point in this chat. Scratchpad notes and
+                pending tasks from those turns are also removed. Strategy graph and
+                workbench state are kept.
               </div>
             </div>
           </div>
         </div>
         <DialogFooter className="gap-2 sm:justify-between">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onCancel}
-            disabled={pending}
-          >
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
             Cancel
           </Button>
           <div className="flex gap-2">

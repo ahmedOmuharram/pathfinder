@@ -2,9 +2,7 @@
 
 import { getAuthHeaders } from "@/lib/api/http";
 
-export function downloadTextFile(
-  filename: string, text: string, mime: string,
-) {
+export function downloadTextFile(filename: string, text: string, mime: string) {
   const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -31,9 +29,7 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
   return (await res.json()) as T;
 }
 
-export function renderChatMarkdown(
-  messages: Array<Record<string, unknown>>,
-): string {
+export function renderChatMarkdown(messages: Array<Record<string, unknown>>): string {
   const lines: string[] = ["# Pathfinder Chat Export", ""];
   for (const msg of messages) {
     const roleRaw = msg["role"];

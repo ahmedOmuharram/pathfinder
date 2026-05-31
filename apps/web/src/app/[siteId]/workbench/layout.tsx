@@ -32,10 +32,7 @@ export default function WorkbenchLayout({
 }) {
   const { siteId } = use(params);
   return (
-    <QueryBoundary
-      loadingFallback={<LoadingScreen />}
-      ErrorFallback={AppShellError}
-    >
+    <QueryBoundary loadingFallback={<LoadingScreen />} ErrorFallback={AppShellError}>
       <WorkbenchLayoutInner siteId={siteId}>{children}</WorkbenchLayoutInner>
     </QueryBoundary>
   );
@@ -66,19 +63,15 @@ function WorkbenchLayoutInner({
   };
 
   const [showSettings, setShowSettings] = useState(false);
-  const {
-    geneSearchOpen,
-    toggleGeneSearch,
-    leftSidebarOpen,
-    toggleLeftSidebar,
-  } = useWorkbenchStore(
-    useShallow((s) => ({
-      geneSearchOpen: s.geneSearchOpen,
-      toggleGeneSearch: s.toggleGeneSearch,
-      leftSidebarOpen: s.leftSidebarOpen,
-      toggleLeftSidebar: s.toggleLeftSidebar,
-    })),
-  );
+  const { geneSearchOpen, toggleGeneSearch, leftSidebarOpen, toggleLeftSidebar } =
+    useWorkbenchStore(
+      useShallow((s) => ({
+        geneSearchOpen: s.geneSearchOpen,
+        toggleGeneSearch: s.toggleGeneSearch,
+        leftSidebarOpen: s.leftSidebarOpen,
+        toggleLeftSidebar: s.toggleLeftSidebar,
+      })),
+    );
 
   if (setupRequired) return <SetupRequiredScreen onRetry={retryConfig} />;
 

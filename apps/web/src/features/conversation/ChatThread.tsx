@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  ThreadPrimitive,
-  useAssistantRuntime,
-  useAuiEvent,
-} from "@assistant-ui/react";
+import { ThreadPrimitive, useAssistantRuntime, useAuiEvent } from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -36,18 +32,14 @@ function ChatUrlSync({ conversationId }: { conversationId: string }) {
   return null;
 }
 
-export function ChatThread({
-  conversationId,
-}: {
-  conversationId: string;
-}) {
+export function ChatThread({ conversationId }: { conversationId: string }) {
   const runtime = useAssistantRuntime();
   const pendingSubmission = useSessionStore((s) => s.pendingUserSubmission);
   const [firedContent, setFiredContent] = useState<string | null>(null);
   if (
-    pendingSubmission !== null
-    && pendingSubmission.conversationId === conversationId
-    && firedContent !== pendingSubmission.content
+    pendingSubmission !== null &&
+    pendingSubmission.conversationId === conversationId &&
+    firedContent !== pendingSubmission.content
   ) {
     const content = pendingSubmission.content;
     setFiredContent(content);
@@ -66,7 +58,6 @@ export function ChatThread({
     </>
   );
 }
-
 
 function SessionAwareBody({ conversationId }: { conversationId: string }) {
   useQuery(strategyQueryOptions(conversationId));
@@ -88,4 +79,3 @@ function SessionAwareBody({ conversationId }: { conversationId: string }) {
     </>
   );
 }
-

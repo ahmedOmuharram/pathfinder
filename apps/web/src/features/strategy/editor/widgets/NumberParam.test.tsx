@@ -25,7 +25,15 @@ describe("NumberParam", () => {
   it("renders an input of type number", () => {
     render(
       <WidgetTestForm name="n" defaultValue="">
-        {(field) => <NumberParam spec={makeSpec()} name="n" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <NumberParam
+            spec={makeSpec()}
+            name="n"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const input = screen.getByRole("spinbutton");
@@ -55,7 +63,15 @@ describe("NumberParam", () => {
   it("updates value on change", () => {
     render(
       <WidgetTestForm name="n" defaultValue="">
-        {(field) => <NumberParam spec={makeSpec()} name="n" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <NumberParam
+            spec={makeSpec()}
+            name="n"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "42" } });
@@ -66,7 +82,15 @@ describe("NumberParam", () => {
   it("renders aria-required when allowEmptyValue is false", () => {
     render(
       <WidgetTestForm name="n" defaultValue="">
-        {(field) => <NumberParam spec={makeSpec({ allowEmptyValue: false })} name="n" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <NumberParam
+            spec={makeSpec({ allowEmptyValue: false })}
+            name="n"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByRole("spinbutton").getAttribute("aria-required")).toBe("true");

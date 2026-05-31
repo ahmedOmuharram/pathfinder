@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardListIcon, FileUpIcon, FolderIcon, ListChecksIcon } from "lucide-react";
+import {
+  ClipboardListIcon,
+  FileUpIcon,
+  FolderIcon,
+  ListChecksIcon,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils/cn";
 import type { ParamWidgetProps } from "./types";
@@ -175,11 +180,7 @@ export function DatasetParam({ spec, name, field }: ParamWidgetProps) {
       )}
 
       {hasError && errorMessage !== null && (
-        <p
-          id={`${name}-error`}
-          role="alert"
-          className="mt-2 text-xs text-destructive"
-        >
+        <p id={`${name}-error`} role="alert" className="mt-2 text-xs text-destructive">
           {errorMessage}
         </p>
       )}

@@ -56,8 +56,7 @@ export function OrphanNotice({
         </span>
       </AlertTitle>
       <AlertDescription>
-        Reconnect them to the strategy or remove them. Only the rooted graph is
-        pushed.
+        Reconnect them to the strategy or remove them. Only the rooted graph is pushed.
       </AlertDescription>
     </Alert>
   );

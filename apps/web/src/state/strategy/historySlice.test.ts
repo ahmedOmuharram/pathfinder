@@ -42,7 +42,12 @@ describe("state/strategy/historySlice (TQ-cache aware: pure patch logic)", () =>
   it("pushSnapshot stores inverse patches required to undo back to prev", () => {
     const { pushSnapshot } = useStrategyStore.getState();
     const prev = makeStrategy([
-      step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }),
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
     ]);
     const next = rename(prev, "s1", "Renamed");
     pushSnapshot({ strategy: prev }, next);
@@ -65,7 +70,12 @@ describe("state/strategy/historySlice (TQ-cache aware: pure patch logic)", () =>
   it("undo applies the inverse to the supplied current and returns the prior strategy", () => {
     const { pushSnapshot, undo } = useStrategyStore.getState();
     const prev = makeStrategy([
-      step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }),
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
     ]);
     const next = rename(prev, "s1", "Renamed");
     pushSnapshot({ strategy: prev }, next);
@@ -79,7 +89,12 @@ describe("state/strategy/historySlice (TQ-cache aware: pure patch logic)", () =>
   it("redo applies the forward patch and returns the new strategy", () => {
     const { pushSnapshot, undo, redo } = useStrategyStore.getState();
     const prev = makeStrategy([
-      step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }),
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
     ]);
     const next = rename(prev, "s1", "Renamed");
     pushSnapshot({ strategy: prev }, next);
@@ -93,7 +108,12 @@ describe("state/strategy/historySlice (TQ-cache aware: pure patch logic)", () =>
   it("new pushSnapshot after undo clears redoStack", () => {
     const { pushSnapshot, undo } = useStrategyStore.getState();
     const a = makeStrategy([
-      step({ id: "s1", displayName: "Search 1", searchName: "geneById", recordType: "gene" }),
+      step({
+        id: "s1",
+        displayName: "Search 1",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
     ]);
     const b = rename(a, "s1", "Renamed");
     pushSnapshot({ strategy: a }, b);
@@ -125,7 +145,12 @@ describe("state/strategy/historySlice (TQ-cache aware: pure patch logic)", () =>
   it("caps undoStack at MAX_HISTORY (50)", () => {
     const { pushSnapshot } = useStrategyStore.getState();
     let current = makeStrategy([
-      step({ id: "s1", displayName: "init", searchName: "geneById", recordType: "gene" }),
+      step({
+        id: "s1",
+        displayName: "init",
+        searchName: "geneById",
+        recordType: "gene",
+      }),
     ]);
     for (let i = 0; i < 60; i += 1) {
       const next = rename(current, "s1", `name-${i}`);

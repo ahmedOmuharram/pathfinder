@@ -266,10 +266,7 @@ export function EditorContent({
         onSaveAsReusable={handleSaveAsReusable}
       />
       {recovered.draft !== null && (
-        <RecoveryBanner
-          onRestore={handleRestoreDraft}
-          onDismiss={recovered.dismiss}
-        />
+        <RecoveryBanner onRestore={handleRestoreDraft} onDismiss={recovered.dismiss} />
       )}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <EditorBody

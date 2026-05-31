@@ -8,7 +8,10 @@ vi.mock("@pathfinder/shared/generated/hooks/useListScratchpadNotes", () => ({
   listScratchpadNotes: vi.fn(),
   listScratchpadNotesQueryOptions: (conversationId: string) => ({
     queryKey: [
-      { url: "/api/v1/conversations/:conversation_id/scratchpad/notes", params: { conversation_id: conversationId } },
+      {
+        url: "/api/v1/conversations/:conversation_id/scratchpad/notes",
+        params: { conversation_id: conversationId },
+      },
     ] as const,
     queryFn: () => mockedList(conversationId),
   }),
@@ -90,8 +93,7 @@ describe("ScratchpadPanel", () => {
     const unpinned = screen.getByText("UNPINNED_ONE");
     // Pinned section appears before unpinned section in the DOM.
     expect(
-      pinned.compareDocumentPosition(unpinned) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
+      pinned.compareDocumentPosition(unpinned) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -99,9 +101,7 @@ describe("ScratchpadPanel", () => {
     mockedList.mockResolvedValue([
       buildNote({ id: "n-xyz", title: "T", pinned: false }),
     ]);
-    mockedPatch.mockResolvedValue(
-      buildNote({ id: "n-xyz", title: "T", pinned: true }),
-    );
+    mockedPatch.mockResolvedValue(buildNote({ id: "n-xyz", title: "T", pinned: true }));
 
     render(wrap(<ScratchpadPanel conversationId="c1" />));
     const pinBtn = await screen.findByRole("button", { name: /^pin$/i });

@@ -95,10 +95,7 @@ test.describe("Strategy overhaul — walkthrough", () => {
     chatPage,
     graphPage,
   }) => {
-    const { conversationId, firstStepId } = await seedStrategy(
-      chatPage,
-      graphPage,
-    );
+    const { conversationId, firstStepId } = await seedStrategy(chatPage, graphPage);
 
     await graphPage.railStepRow(firstStepId).click();
     await graphPage.expectOnStrategyRoute(conversationId);
@@ -113,10 +110,7 @@ test.describe("Strategy overhaul — walkthrough", () => {
     chatPage,
     graphPage,
   }) => {
-    const { conversationId, firstStepId } = await seedStrategy(
-      chatPage,
-      graphPage,
-    );
+    const { conversationId, firstStepId } = await seedStrategy(chatPage, graphPage);
 
     await graphPage.goToStrategy("veupathdb", conversationId);
     await graphPage.clickNode(firstStepId);
@@ -134,11 +128,9 @@ test.describe("Strategy overhaul — walkthrough", () => {
       /idle|saving/,
       { timeout: 10_000 },
     );
-    await expect(graphPage.editorSyncState).toHaveAttribute(
-      "data-sync-state",
-      "idle",
-      { timeout: 15_000 },
-    );
+    await expect(graphPage.editorSyncState).toHaveAttribute("data-sync-state", "idle", {
+      timeout: 15_000,
+    });
   });
 
   test("Esc closes the editor sheet, returns user to /strategy", async ({
@@ -146,10 +138,7 @@ test.describe("Strategy overhaul — walkthrough", () => {
     graphPage,
     page,
   }) => {
-    const { conversationId, firstStepId } = await seedStrategy(
-      chatPage,
-      graphPage,
-    );
+    const { conversationId, firstStepId } = await seedStrategy(chatPage, graphPage);
 
     await graphPage.goToStrategy("veupathdb", conversationId);
     await graphPage.clickNode(firstStepId);
@@ -169,10 +158,7 @@ test.describe("Strategy overhaul — walkthrough", () => {
     graphPage,
     page,
   }) => {
-    const { conversationId, firstStepId } = await seedStrategy(
-      chatPage,
-      graphPage,
-    );
+    const { conversationId, firstStepId } = await seedStrategy(chatPage, graphPage);
 
     await graphPage.goToStrategy("veupathdb", conversationId);
     await graphPage.clickNode(firstStepId);
@@ -226,10 +212,7 @@ test.describe("Strategy overhaul — walkthrough", () => {
     graphPage,
     page,
   }) => {
-    const { conversationId, firstStepId } = await seedStrategy(
-      chatPage,
-      graphPage,
-    );
+    const { conversationId, firstStepId } = await seedStrategy(chatPage, graphPage);
 
     await page.goto(
       `/veupathdb/conversation/${conversationId}/strategy/step/${firstStepId}`,

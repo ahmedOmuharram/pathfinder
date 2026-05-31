@@ -17,9 +17,7 @@ export function DataTaskCompleted({ data }: { data: TaskCompleted }) {
             isSuccess ? "bg-green-500" : "bg-red-500"
           }`}
         />
-        <span className="font-medium">
-          Task {isSuccess ? "completed" : "failed"}
-        </span>
+        <span className="font-medium">Task {isSuccess ? "completed" : "failed"}</span>
       </div>
       {data.error != null && data.error.length > 0 ? (
         <p className="mt-1 text-red-600 dark:text-red-400">{data.error}</p>

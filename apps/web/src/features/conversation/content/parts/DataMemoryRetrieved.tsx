@@ -1,10 +1,6 @@
 import type { DataMemoryRetrievedPayload } from "@pathfinder/shared";
 
-export function DataMemoryRetrieved({
-  data,
-}: {
-  data: DataMemoryRetrievedPayload;
-}) {
+export function DataMemoryRetrieved({ data }: { data: DataMemoryRetrievedPayload }) {
   if (data.memories.length === 0) return null;
   return (
     <div

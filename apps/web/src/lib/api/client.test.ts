@@ -18,9 +18,7 @@ afterAll(() => server.close());
 describe("lib/api/client", () => {
   it("returns parsed JSON for GET", async () => {
     server.use(
-      http.get(`${BASE}/api/v1/hello`, () =>
-        HttpResponse.json({ greeting: "hi" }),
-      ),
+      http.get(`${BASE}/api/v1/hello`, () => HttpResponse.json({ greeting: "hi" })),
     );
     const result = await client<{ greeting: string }>({
       method: "get",
@@ -55,9 +53,9 @@ describe("lib/api/client", () => {
         HttpResponse.json({ detail: "bad request" }, { status: 400 }),
       ),
     );
-    await expect(
-      client({ method: "get", url: "/api/v1/nope" }),
-    ).rejects.toBeInstanceOf(APIError);
+    await expect(client({ method: "get", url: "/api/v1/nope" })).rejects.toBeInstanceOf(
+      APIError,
+    );
     try {
       await client({ method: "get", url: "/api/v1/nope" });
     } catch (err) {

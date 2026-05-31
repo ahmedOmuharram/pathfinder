@@ -33,14 +33,12 @@ function draftFromItem(item: MemoryItem): EditorDraft {
   };
 }
 
-function parseContent(text: string): { ok: true; value: Record<string, unknown> } | { ok: false } {
+function parseContent(
+  text: string,
+): { ok: true; value: Record<string, unknown> } | { ok: false } {
   try {
     const parsed: unknown = JSON.parse(text);
-    if (
-      parsed === null ||
-      typeof parsed !== "object" ||
-      Array.isArray(parsed)
-    ) {
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
       return { ok: false };
     }
     return { ok: true, value: parsed as Record<string, unknown> };
@@ -90,28 +88,20 @@ export function MemoryEditor({ open, item, onSave, onCancel }: MemoryEditorProps
       className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm"
     >
       <div className="w-full max-w-xl rounded-lg border border-border bg-card p-5 shadow-xl">
-        <h3 className="mb-3 text-base font-semibold text-foreground">
-          Edit memory
-        </h3>
+        <h3 className="mb-3 text-base font-semibold text-foreground">Edit memory</h3>
         <div className="space-y-3">
           <label className="block">
             <span className="text-xs font-medium text-muted-foreground">Name</span>
             <Input
               value={draft.name}
-              onChange={(e) =>
-                setDraft({ ...draft, name: e.target.value })
-              }
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
           </label>
           <label className="block">
-            <span className="text-xs font-medium text-muted-foreground">
-              Summary
-            </span>
+            <span className="text-xs font-medium text-muted-foreground">Summary</span>
             <Input
               value={draft.summary}
-              onChange={(e) =>
-                setDraft({ ...draft, summary: e.target.value })
-              }
+              onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
             />
           </label>
           <label className="block">
@@ -120,9 +110,7 @@ export function MemoryEditor({ open, item, onSave, onCancel }: MemoryEditorProps
             </span>
             <Input
               value={draft.tagsText}
-              onChange={(e) =>
-                setDraft({ ...draft, tagsText: e.target.value })
-              }
+              onChange={(e) => setDraft({ ...draft, tagsText: e.target.value })}
             />
           </label>
           <label className="block">
@@ -131,9 +119,7 @@ export function MemoryEditor({ open, item, onSave, onCancel }: MemoryEditorProps
             </span>
             <textarea
               value={draft.contentText}
-              onChange={(e) =>
-                setDraft({ ...draft, contentText: e.target.value })
-              }
+              onChange={(e) => setDraft({ ...draft, contentText: e.target.value })}
               rows={6}
               className="mt-1 block w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-invalid={!parsed.ok}
@@ -148,9 +134,7 @@ export function MemoryEditor({ open, item, onSave, onCancel }: MemoryEditorProps
             <input
               type="checkbox"
               checked={draft.autoRetrieve}
-              onChange={(e) =>
-                setDraft({ ...draft, autoRetrieve: e.target.checked })
-              }
+              onChange={(e) => setDraft({ ...draft, autoRetrieve: e.target.checked })}
               className="h-4 w-4 accent-primary"
             />
             <span className="text-xs font-medium text-muted-foreground">

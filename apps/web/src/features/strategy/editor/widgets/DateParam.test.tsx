@@ -25,7 +25,15 @@ describe("DateParam", () => {
   it("renders an input of type date", () => {
     render(
       <WidgetTestForm name="d" defaultValue="">
-        {(field) => <DateParam spec={makeSpec()} name="d" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <DateParam
+            spec={makeSpec()}
+            name="d"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const input = screen.getByLabelText("date input");
@@ -35,7 +43,15 @@ describe("DateParam", () => {
   it("updates value on change", () => {
     render(
       <WidgetTestForm name="d" defaultValue="">
-        {(field) => <DateParam spec={makeSpec()} name="d" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <DateParam
+            spec={makeSpec()}
+            name="d"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const input = getInputByLabel("date input");

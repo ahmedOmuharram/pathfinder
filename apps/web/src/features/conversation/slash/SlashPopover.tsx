@@ -68,17 +68,13 @@ export function SlashPopover({
     if (!open) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIdx((i) =>
-        filtered.length === 0 ? 0 : (i + 1) % filtered.length,
-      );
+      setActiveIdx((i) => (filtered.length === 0 ? 0 : (i + 1) % filtered.length));
       return;
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
       setActiveIdx((i) =>
-        filtered.length === 0
-          ? 0
-          : (i - 1 + filtered.length) % filtered.length,
+        filtered.length === 0 ? 0 : (i - 1 + filtered.length) % filtered.length,
       );
       return;
     }
@@ -137,12 +133,8 @@ export function SlashPopover({
                         : "text-foreground",
                   )}
                 >
-                  <span className="text-muted-foreground">
-                    {cmd.icon}
-                  </span>
-                  <span className="font-mono text-[12px] font-medium">
-                    /{cmd.name}
-                  </span>
+                  <span className="text-muted-foreground">{cmd.icon}</span>
+                  <span className="font-mono text-[12px] font-medium">/{cmd.name}</span>
                   <span className="truncate text-[12px] text-muted-foreground">
                     {cmd.description}
                   </span>

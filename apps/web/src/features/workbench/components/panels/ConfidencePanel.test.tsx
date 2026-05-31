@@ -251,7 +251,11 @@ describe("ConfidencePanel", () => {
     });
 
     const body = (
-      mockRequestJson.mock.calls[0] as [unknown, string, { body: Record<string, unknown> }]
+      mockRequestJson.mock.calls[0] as [
+        unknown,
+        string,
+        { body: Record<string, unknown> },
+      ]
     )[2].body;
 
     // G1 appears in 2 significant terms (FDR ≤ 0.05), OTHER in 1

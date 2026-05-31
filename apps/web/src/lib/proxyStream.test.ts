@@ -178,13 +178,16 @@ describe("JSON proxy behavior", () => {
   it("forwards upstream set-cookie headers", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response('{"ok":true}', {
-        status: 200,
-        headers: {
-          "content-type": "application/json",
-          "set-cookie": "pathfinder-auth=test; Path=/; HttpOnly",
-        },
-      })),
+      vi.fn(
+        async () =>
+          new Response('{"ok":true}', {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+              "set-cookie": "pathfinder-auth=test; Path=/; HttpOnly",
+            },
+          }),
+      ),
     );
 
     const { proxyJsonRequest } = await import("@/app/api/v1/_proxy");

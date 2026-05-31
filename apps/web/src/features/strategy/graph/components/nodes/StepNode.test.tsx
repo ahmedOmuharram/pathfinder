@@ -36,10 +36,8 @@ function makeStep(overrides: Partial<Step> = {}): Step {
   } as Step;
 }
 
-
 function reset() {
   useStrategyStore.setState({
-
     stepLifecycleById: {},
     undoStack: [],
     redoStack: [],
@@ -105,9 +103,7 @@ describe("StepNode dispatcher", () => {
   it("renders a selection ring on the shell when selected=true", () => {
     const step = makeStep();
     const { container } = render(<StepNode {...makeNodeProps(step, true)} />);
-    expect(
-      container.querySelector('[data-selected="true"]'),
-    ).not.toBeNull();
+    expect(container.querySelector('[data-selected="true"]')).not.toBeNull();
   });
 
   it("renders the hover-revealed action chips (edit, add to chat, more)", () => {
@@ -130,19 +126,13 @@ describe("StepNode dispatcher", () => {
     const { container } = render(
       <StepNode {...makeNodeProps(step, false, { isOrphan: true })} />,
     );
-    expect(
-      container.querySelector('[data-orphan="true"]'),
-    ).not.toBeNull();
+    expect(container.querySelector('[data-orphan="true"]')).not.toBeNull();
   });
 
   it("data-orphan is false by default", () => {
     const step = makeStep();
     const { container } = render(<StepNode {...makeNodeProps(step, false)} />);
-    expect(
-      container.querySelector('[data-orphan="true"]'),
-    ).toBeNull();
-    expect(
-      container.querySelector('[data-orphan="false"]'),
-    ).not.toBeNull();
+    expect(container.querySelector('[data-orphan="true"]')).toBeNull();
+    expect(container.querySelector('[data-orphan="false"]')).not.toBeNull();
   });
 });

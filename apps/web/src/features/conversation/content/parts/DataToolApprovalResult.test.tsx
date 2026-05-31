@@ -8,14 +8,8 @@ import { DataToolApprovalResult } from "./DataToolApprovalResult";
 
 describe("DataToolApprovalResult", () => {
   it("renders approved state", () => {
-    render(
-      <DataToolApprovalResult
-        data={{ toolCallId: "tc1", approved: true }}
-      />,
-    );
-    expect(
-      screen.getByTestId("data-tool-approval-result"),
-    ).toBeInTheDocument();
+    render(<DataToolApprovalResult data={{ toolCallId: "tc1", approved: true }} />);
+    expect(screen.getByTestId("data-tool-approval-result")).toBeInTheDocument();
     expect(screen.getByText("Approved")).toBeInTheDocument();
   });
 

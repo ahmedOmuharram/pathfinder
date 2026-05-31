@@ -115,11 +115,7 @@ export function FilterParam({ spec, name, field }: ParamWidgetProps) {
       )}
 
       {hasError && errorMessage !== null && (
-        <p
-          id={`${name}-error`}
-          role="alert"
-          className="text-xs text-destructive"
-        >
+        <p id={`${name}-error`} role="alert" className="text-xs text-destructive">
           {errorMessage}
         </p>
       )}

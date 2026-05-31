@@ -29,9 +29,7 @@ describe("DataMemoryRetrieved", () => {
   });
 
   it("renders nothing for empty memories", () => {
-    const { container } = render(
-      <DataMemoryRetrieved data={{ memories: [] }} />,
-    );
+    const { container } = render(<DataMemoryRetrieved data={{ memories: [] }} />);
     expect(container.firstChild).toBeNull();
   });
 });

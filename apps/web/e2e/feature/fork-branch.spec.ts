@@ -22,13 +22,10 @@ interface OpenStrategyResponse {
 async function openStrategy(
   context: import("@playwright/test").BrowserContext,
 ): Promise<string> {
-  const resp = await context.request.post(
-    `${BASE_URL}/api/v1/conversations/open`,
-    {
-      data: { siteId: "veupathdb" },
-      headers: { "X-Requested-With": "XMLHttpRequest" },
-    },
-  );
+  const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
+    data: { siteId: "veupathdb" },
+    headers: { "X-Requested-With": "XMLHttpRequest" },
+  });
   if (!resp.ok()) {
     throw new Error(`openStrategy failed: ${resp.status()}`);
   }
@@ -44,9 +41,7 @@ const CHECKPOINT_ROOT = "cp-root-001";
 const CHECKPOINT_AFTER_MSG1 = "cp-after-msg1-002";
 const CHECKPOINT_FORKED = "cp-forked-003";
 
-function makeCheckpoints(
-  threadId: string,
-): Array<Record<string, unknown>> {
+function makeCheckpoints(threadId: string): Array<Record<string, unknown>> {
   return [
     {
       checkpointId: CHECKPOINT_ROOT,
@@ -73,9 +68,7 @@ function makeCheckpoints(
   ];
 }
 
-function makeCheckpointsAfterFork(
-  threadId: string,
-): Array<Record<string, unknown>> {
+function makeCheckpointsAfterFork(threadId: string): Array<Record<string, unknown>> {
   return [
     ...makeCheckpoints(threadId),
     {
@@ -124,9 +117,7 @@ test.describe("Fork Branch", () => {
     await page.route("**/api/v1/chat", async (route) => {
       chatCallCount++;
       const body = buildChatStream(
-        chatCallCount === 1
-          ? "msg-assistant-1"
-          : "msg-assistant-branch-1",
+        chatCallCount === 1 ? "msg-assistant-1" : "msg-assistant-branch-1",
         chatCallCount === 1
           ? "[mock] initial response"
           : "[mock] branched response for liver-stage",
@@ -138,21 +129,18 @@ test.describe("Fork Branch", () => {
       });
     });
 
-    await page.route(
-      `**/api/v1/conversations/*/checkpoints`,
-      async (route) => {
-        checkpointCallCount++;
-        const checkpoints =
-          checkpointCallCount <= 1
-            ? makeCheckpoints(strategyId)
-            : makeCheckpointsAfterFork(strategyId);
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(checkpoints),
-        });
-      },
-    );
+    await page.route(`**/api/v1/conversations/*/checkpoints`, async (route) => {
+      checkpointCallCount++;
+      const checkpoints =
+        checkpointCallCount <= 1
+          ? makeCheckpoints(strategyId)
+          : makeCheckpointsAfterFork(strategyId);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(checkpoints),
+      });
+    });
 
     await page.route("**/api/v1/conversations/*/fork", async (route) => {
       await route.fulfill({

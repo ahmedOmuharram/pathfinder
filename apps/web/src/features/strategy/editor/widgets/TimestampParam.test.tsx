@@ -25,7 +25,15 @@ describe("TimestampParam", () => {
   it("renders a datetime-local input", () => {
     render(
       <WidgetTestForm name="ts" defaultValue="">
-        {(field) => <TimestampParam spec={makeSpec()} name="ts" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <TimestampParam
+            spec={makeSpec()}
+            name="ts"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const input = screen.getByLabelText(/datetime input/i);
@@ -35,7 +43,15 @@ describe("TimestampParam", () => {
   it("updates value on change", () => {
     render(
       <WidgetTestForm name="ts" defaultValue="">
-        {(field) => <TimestampParam spec={makeSpec()} name="ts" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <TimestampParam
+            spec={makeSpec()}
+            name="ts"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const input = getInputByLabel("datetime input");

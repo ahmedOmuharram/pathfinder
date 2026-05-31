@@ -237,10 +237,10 @@ function selectAssistantErrorDetail(m: ThreadMessage): string | null {
   const raw = m.status.error;
   if (typeof raw === "string" && raw.length > 0) return raw;
   if (
-    raw !== null
-    && typeof raw === "object"
-    && "message" in raw
-    && typeof (raw as { message?: unknown }).message === "string"
+    raw !== null &&
+    typeof raw === "object" &&
+    "message" in raw &&
+    typeof (raw as { message?: unknown }).message === "string"
   ) {
     return (raw as { message: string }).message;
   }
@@ -261,9 +261,7 @@ function AssistantErrorCard() {
       <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="font-medium">Response failed</p>
-        <p className="mt-0.5 break-words text-xs text-destructive/80">
-          {detail}
-        </p>
+        <p className="mt-0.5 break-words text-xs text-destructive/80">{detail}</p>
         <ActionBarPrimitive.Reload asChild>
           <button
             type="button"

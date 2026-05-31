@@ -34,11 +34,7 @@ export function SitePicker(props: SitePickerProps) {
   );
 }
 
-function SitePickerContent({
-  value,
-  onChange,
-  headerTextVariant,
-}: SitePickerProps) {
+function SitePickerContent({ value, onChange, headerTextVariant }: SitePickerProps) {
   const { data: sites } = useSuspenseQuery(sitesOptions());
   const setSelectedSite = useSessionStore((state) => state.setSelectedSite);
 
@@ -93,9 +89,7 @@ function SitePickerContent({
           <svg
             className={cn(
               "h-4 w-4",
-              headerTextVariant === "light"
-                ? "text-white/80"
-                : "text-muted-foreground",
+              headerTextVariant === "light" ? "text-white/80" : "text-muted-foreground",
             )}
             fill="none"
             stroke="currentColor"

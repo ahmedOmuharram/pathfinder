@@ -5,10 +5,7 @@
  */
 
 import { useShallow } from "zustand/react/shallow";
-import {
-  resetAllPersistedSettings,
-  useSettingsStore,
-} from "@/state/useSettingsStore";
+import { resetAllPersistedSettings, useSettingsStore } from "@/state/useSettingsStore";
 import { SettingsField } from "./SettingsField";
 
 export function AdvancedSettings() {
@@ -94,9 +91,8 @@ export function AdvancedSettings() {
           Reset all local settings
         </button>
         <p className="text-[11px] text-muted-foreground">
-          Clears engine, sidebar, and app preferences stored in this browser.
-          Your server-side preferences (orchestrator model, quota) are
-          unaffected.
+          Clears engine, sidebar, and app preferences stored in this browser. Your
+          server-side preferences (orchestrator model, quota) are unaffected.
         </p>
       </div>
     </div>

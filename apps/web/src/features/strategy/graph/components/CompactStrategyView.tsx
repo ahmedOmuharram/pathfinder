@@ -49,10 +49,7 @@ export function CompactStrategyView({
   return (
     <div className="flex flex-col gap-3 px-3 py-3">
       {spine.length > 0 && (
-        <ol
-          data-testid="compact-strategy-view"
-          className="flex flex-col gap-1"
-        >
+        <ol data-testid="compact-strategy-view" className="flex flex-col gap-1">
           {spine.map((seg) => (
             <CompactSpineSegmentRow
               key={seg.step.id}

@@ -79,8 +79,7 @@ function makeWrapper(overrides: CtxOverrides = {}) {
     setOrthologModalOpen: overrides.setOrthologModalOpen ?? vi.fn(),
     syncStatus: "idle" as const,
     selectedNodeIds: overrides.selectedNodeIds ?? [],
-    handleAddSelectionToChat:
-      overrides.handleAddSelectionToChat ?? vi.fn(),
+    handleAddSelectionToChat: overrides.handleAddSelectionToChat ?? vi.fn(),
     handleSelectionChange: vi.fn(),
     isValidConnection: () => true,
     handleConnect: vi.fn(),
@@ -107,9 +106,7 @@ function makeWrapper(overrides: CtxOverrides = {}) {
   };
   return function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <StrategyGraphProvider value={value as never}>
-        {children}
-      </StrategyGraphProvider>
+      <StrategyGraphProvider value={value as never}>{children}</StrategyGraphProvider>
     );
   };
 }

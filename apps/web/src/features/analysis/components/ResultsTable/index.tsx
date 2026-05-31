@@ -47,7 +47,9 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
     pageSize: DEFAULT_PAGE_SIZE,
   });
   const [expanded, setExpanded] = useState<ExpandedState>({});
-  const [expandedRecordId, setExpandedRecordId] = useState<ClassifiedRecord["id"] | null>(null);
+  const [expandedRecordId, setExpandedRecordId] = useState<
+    ClassifiedRecord["id"] | null
+  >(null);
 
   const entityKey = `${entityRef.type}|${entityRef.id}`;
 
@@ -62,7 +64,9 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
   const [prevEntityKey, setPrevEntityKey] = useState(entityKey);
   if (entityKey !== prevEntityKey && fetchedAttributes) {
     setPrevEntityKey(entityKey);
-    const displayable = fetchedAttributes.attributes.filter((a) => a.isDisplayable !== false);
+    const displayable = fetchedAttributes.attributes.filter(
+      (a) => a.isDisplayable !== false,
+    );
     setAttributes(displayable);
     setSorting([]);
     setPagination({ pageIndex: 0, pageSize: DEFAULT_PAGE_SIZE });
@@ -71,7 +75,9 @@ export function ResultsTable({ entityRef }: ResultsTableProps) {
     setColumnVisibility(initialVisibility(displayable));
   }
   if (fetchedAttributes && attributes.length === 0 && prevEntityKey === entityKey) {
-    const displayable = fetchedAttributes.attributes.filter((a) => a.isDisplayable !== false);
+    const displayable = fetchedAttributes.attributes.filter(
+      (a) => a.isDisplayable !== false,
+    );
     if (displayable.length > 0) {
       setAttributes(displayable);
       setColumnVisibility(initialVisibility(displayable));

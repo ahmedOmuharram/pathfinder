@@ -16,9 +16,7 @@ export function ValidationBanner({
 }: ValidationBannerProps) {
   if (!snapshot.isInvalid && !snapshot.isFailed) return null;
   const message =
-    snapshot.validationErrors?.general?.[0] ??
-    snapshot.lastError ??
-    "Validation error";
+    snapshot.validationErrors?.general?.[0] ?? snapshot.lastError ?? "Validation error";
 
   return (
     <div className="mt-1 text-center text-xs font-semibold text-destructive">

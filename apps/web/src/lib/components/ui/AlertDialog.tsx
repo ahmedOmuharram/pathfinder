@@ -1,6 +1,11 @@
 "use client";
 
-import type { ComponentPropsWithoutRef, ComponentRef, HTMLAttributes, Ref } from "react";
+import type {
+  ComponentPropsWithoutRef,
+  ComponentRef,
+  HTMLAttributes,
+  Ref,
+} from "react";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 import { cn } from "@/lib/utils/cn";
 
@@ -45,10 +50,7 @@ function AlertDialogContent({
   );
 }
 
-function AlertDialogHeader({
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
+function AlertDialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn("flex flex-col space-y-2 text-center sm:text-left", className)}
@@ -57,10 +59,7 @@ function AlertDialogHeader({
   );
 }
 
-function AlertDialogFooter({
-  className,
-  ...props
-}: HTMLAttributes<HTMLDivElement>) {
+function AlertDialogFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(

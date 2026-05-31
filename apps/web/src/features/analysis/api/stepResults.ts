@@ -74,7 +74,13 @@ export function attributesOptions(entityRef: EntityRef) {
 
 export function distributionOptions(entityRef: EntityRef, attr: string) {
   return queryOptions({
-    queryKey: ["experiments", "distribution", entityRef.type, entityRef.id, attr] as const,
+    queryKey: [
+      "experiments",
+      "distribution",
+      entityRef.type,
+      entityRef.id,
+      attr,
+    ] as const,
     queryFn: () => getDistribution(entityRef, attr),
     staleTime: 60_000,
     enabled: attr !== "",

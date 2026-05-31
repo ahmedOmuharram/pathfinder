@@ -1,6 +1,9 @@
 import type { StrategyStepNode, Step } from "@pathfinder/shared";
 
-export function flattenStrategyStepNode(node: StrategyStepNode, recordType: string): Step[] {
+export function flattenStrategyStepNode(
+  node: StrategyStepNode,
+  recordType: string,
+): Step[] {
   const steps: Step[] = [];
   const id = node.id ?? `step_${Math.random().toString(16).slice(2, 10)}`;
   const params = node.parameters ?? {};

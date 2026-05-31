@@ -26,13 +26,11 @@ export async function listMemories(opts?: {
   return (await res.json()) as MemoryListResponse;
 }
 
-export async function searchMemories(
-  query: string,
-): Promise<MemorySearchResponse> {
-  const res = await fetch(
-    `${BASE}/search?q=${encodeURIComponent(query)}`,
-    { credentials: "include", headers: getAuthHeaders() },
-  );
+export async function searchMemories(query: string): Promise<MemorySearchResponse> {
+  const res = await fetch(`${BASE}/search?q=${encodeURIComponent(query)}`, {
+    credentials: "include",
+    headers: getAuthHeaders(),
+  });
   if (!res.ok) throw new Error(`searchMemories: ${res.status}`);
   return (await res.json()) as MemorySearchResponse;
 }
@@ -55,10 +53,7 @@ export async function editMemory(
   return (await res.json()) as MemoryItem;
 }
 
-export async function deleteMemory(
-  key: string,
-  kind: MemoryKind,
-): Promise<void> {
+export async function deleteMemory(key: string, kind: MemoryKind): Promise<void> {
   const res = await fetch(
     `${BASE}/${encodeURIComponent(key)}?kind=${encodeURIComponent(kind)}`,
     {

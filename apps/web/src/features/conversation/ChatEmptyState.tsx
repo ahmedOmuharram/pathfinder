@@ -65,8 +65,9 @@ export function ChatEmptyState() {
           >
             <Settings2 className="h-4 w-4 shrink-0 text-primary" aria-hidden />
             <div className="flex-1">
-              Running on the default provider + orchestrator. Tweak models,
-              tiers, and the orchestrator in <span className="font-medium text-foreground">Settings → AI Engine</span>.
+              Running on the default provider + orchestrator. Tweak models, tiers, and
+              the orchestrator in{" "}
+              <span className="font-medium text-foreground">Settings → AI Engine</span>.
             </div>
             <button
               type="button"
@@ -122,4 +123,3 @@ export function ChatEmptyState() {
     </AuiIf>
   );
 }
-

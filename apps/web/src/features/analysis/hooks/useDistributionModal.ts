@@ -18,11 +18,17 @@ export function useDistributionModal(
   const [modalValue, setModalValue] = useState<string | null>(null);
 
   const { data, isPending } = useQuery({
-    queryKey: ["experiments", "records", entityRef.type, entityRef.id, {
-      modal: true,
-      filterAttribute: selectedAttr,
-      filterValue: modalValue,
-    }] as const,
+    queryKey: [
+      "experiments",
+      "records",
+      entityRef.type,
+      entityRef.id,
+      {
+        modal: true,
+        filterAttribute: selectedAttr,
+        filterValue: modalValue,
+      },
+    ] as const,
     queryFn: () =>
       getRecords(entityRef, {
         attributes: [selectedAttr, "gene_product"],

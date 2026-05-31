@@ -41,13 +41,7 @@ describe("QuickSwitcher", () => {
       makeStep("a", "Genes by ID", "GenesByLocusTag"),
       makeStep("b", "Combine intersect", "CombineSearches"),
     ]);
-    render(
-      <QuickSwitcher
-        open={true}
-        onOpenChange={vi.fn()}
-        strategy={strategy}
-      />,
-    );
+    render(<QuickSwitcher open={true} onOpenChange={vi.fn()} strategy={strategy} />);
     expect(screen.getByText("Genes by ID")).toBeInTheDocument();
     expect(screen.getByText("Combine intersect")).toBeInTheDocument();
   });
@@ -57,13 +51,7 @@ describe("QuickSwitcher", () => {
       makeStep("a", "Genes by ID", "GenesByLocusTag"),
       makeStep("b", "Combine intersect", "CombineSearches"),
     ]);
-    render(
-      <QuickSwitcher
-        open={true}
-        onOpenChange={vi.fn()}
-        strategy={strategy}
-      />,
-    );
+    render(<QuickSwitcher open={true} onOpenChange={vi.fn()} strategy={strategy} />);
     const input = screen.getByLabelText(/search steps/i);
     fireEvent.change(input, { target: { value: "intersect" } });
     expect(screen.queryByText("Genes by ID")).toBeNull();
@@ -75,13 +63,7 @@ describe("QuickSwitcher", () => {
       makeStep("a", "Genes by ID", "GenesByLocusTag"),
       makeStep("b", "Combine intersect", "CombineSearches"),
     ]);
-    render(
-      <QuickSwitcher
-        open={true}
-        onOpenChange={vi.fn()}
-        strategy={strategy}
-      />,
-    );
+    render(<QuickSwitcher open={true} onOpenChange={vi.fn()} strategy={strategy} />);
     const input = screen.getByLabelText(/search steps/i);
     fireEvent.change(input, { target: { value: "LocusTag" } });
     expect(screen.getByText("Genes by ID")).toBeInTheDocument();
@@ -90,20 +72,12 @@ describe("QuickSwitcher", () => {
 
   it("selecting an item navigates and closes", () => {
     const onOpenChange = vi.fn();
-    const strategy = makeStrategy([
-      makeStep("a", "Genes by ID", "GenesByLocusTag"),
-    ]);
+    const strategy = makeStrategy([makeStep("a", "Genes by ID", "GenesByLocusTag")]);
     render(
-      <QuickSwitcher
-        open={true}
-        onOpenChange={onOpenChange}
-        strategy={strategy}
-      />,
+      <QuickSwitcher open={true} onOpenChange={onOpenChange} strategy={strategy} />,
     );
     fireEvent.click(screen.getByText("Genes by ID"));
-    expect(pushMock).toHaveBeenCalledWith(
-      "/conversation/conv-42/strategy/step/a",
-    );
+    expect(pushMock).toHaveBeenCalledWith("/conversation/conv-42/strategy/step/a");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

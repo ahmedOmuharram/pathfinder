@@ -38,9 +38,7 @@ export class GraphPage {
    * remains free of strict-mode escape hatches.
    */
   async firstRailStepId(timeout = 30_000): Promise<string> {
-    await expect
-      .poll(() => this.railStepRows.count(), { timeout })
-      .toBeGreaterThan(0);
+    await expect.poll(() => this.railStepRows.count(), { timeout }).toBeGreaterThan(0);
     const idList = await this.railStepRows.evaluateAll((rows) =>
       rows.map((r) => r.getAttribute("data-testid") ?? ""),
     );
@@ -49,7 +47,12 @@ export class GraphPage {
   }
 
   /** Bounding box of the topologically-first canvas node. */
-  async firstNodeBoundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
+  async firstNodeBoundingBox(): Promise<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null> {
     return this.nodes.evaluateAll((els) => {
       const first = els[0];
       if (first == null) return null;

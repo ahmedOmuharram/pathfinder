@@ -62,7 +62,9 @@ export function CustomEnrichmentSection({
               enrichMutation.mutate({ name: geneSetName.trim(), ids });
             }
           }}
-          disabled={enrichMutation.isPending || !geneSetName.trim() || !geneIdsText.trim()}
+          disabled={
+            enrichMutation.isPending || !geneSetName.trim() || !geneIdsText.trim()
+          }
           loading={enrichMutation.isPending}
         >
           <Play className="h-3.5 w-3.5" />

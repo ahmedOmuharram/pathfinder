@@ -72,9 +72,7 @@ describe("StrategyPanel (read-only rail)", () => {
   it("Open button navigates to /strategy", () => {
     render(<StrategyPanel strategy={STRATEGY} siteId="plasmodb" />);
     fireEvent.click(screen.getByRole("button", { name: /open/i }));
-    expect(pushMock).toHaveBeenCalledWith(
-      "/plasmodb/conversation/conv-1/strategy",
-    );
+    expect(pushMock).toHaveBeenCalledWith("/plasmodb/conversation/conv-1/strategy");
   });
 
   it("Clicking a step row navigates to /strategy/step/:id", () => {

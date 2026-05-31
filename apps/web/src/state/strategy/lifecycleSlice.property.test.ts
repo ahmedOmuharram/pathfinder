@@ -83,9 +83,7 @@ describe("lifecycleSlice — properties", () => {
           }
           if (cmd.kind === "remove") {
             expect(map[cmd.stepId]).toBeUndefined();
-            expect(
-              useStrategyStore.getState().getStepLifecycle(cmd.stepId),
-            ).toBeNull();
+            expect(useStrategyStore.getState().getStepLifecycle(cmd.stepId)).toBeNull();
           }
         }
       }),

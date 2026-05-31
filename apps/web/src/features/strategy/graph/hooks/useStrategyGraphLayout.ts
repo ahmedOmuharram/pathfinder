@@ -33,10 +33,7 @@ interface UseStrategyGraphLayoutOptions {
 function layoutTopologyKey(strategy: Strategy | null): string {
   if (!strategy) return "empty";
   return strategy.steps
-    .map(
-      (s) =>
-        `${s.id}:${s.primaryInputStepId ?? ""}:${s.secondaryInputStepId ?? ""}`,
-    )
+    .map((s) => `${s.id}:${s.primaryInputStepId ?? ""}:${s.secondaryInputStepId ?? ""}`)
     .join("|");
 }
 
@@ -70,9 +67,7 @@ export function useStrategyGraphLayout(options: UseStrategyGraphLayoutOptions) {
   const replayCachedStrategy = (): void => {
     const next = cache.get(conversationId);
     if (!next) return;
-    const stepsById = Object.fromEntries(
-      next.steps.map((s) => [s.id, s]),
-    );
+    const stepsById = Object.fromEntries(next.steps.map((s) => [s.id, s]));
     const result = serializeStrategyAst(stepsById, next);
     if (!result) return;
     apply.mutate({

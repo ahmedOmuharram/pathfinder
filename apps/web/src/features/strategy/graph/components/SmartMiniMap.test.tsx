@@ -8,8 +8,7 @@ vi.mock("@xyflow/react", async () => {
   return {
     ReactFlowProvider: ({ children }: { children: ReactNode }) =>
       React.createElement("div", null, children),
-    MiniMap: () =>
-      React.createElement("div", { "data-testid": "minimap-stub" }),
+    MiniMap: () => React.createElement("div", { "data-testid": "minimap-stub" }),
     useStore: () => "0|0|1",
   };
 });

@@ -60,7 +60,10 @@ vi.mock("./ResultsTableBody", () => ({
     onExpandRow: (row: ClassifiedRecord, expand: boolean) => void;
   }) => {
     const rows = table.getRowModel().rows;
-    const sortingKey = table.getState().sorting.map((s) => `${s.id}:${s.desc ? "d" : "a"}`).join("|");
+    const sortingKey = table
+      .getState()
+      .sorting.map((s) => `${s.id}:${s.desc ? "d" : "a"}`)
+      .join("|");
     return (
       <div data-testid="body" data-loading={loading} data-sorting={sortingKey}>
         <span data-testid="body-rows">records={rows.length}</span>
@@ -97,7 +100,10 @@ vi.mock("./PaginationControls", () => ({
     totalCount: number;
     table: Table<ClassifiedRecord>;
   }) => (
-    <div data-testid="pagination" data-page-index={table.getState().pagination.pageIndex}>
+    <div
+      data-testid="pagination"
+      data-page-index={table.getState().pagination.pageIndex}
+    >
       <span data-testid="pagination-total">total={totalCount}</span>
       <button data-testid="next-page" onClick={() => table.nextPage()}>
         next
@@ -160,13 +166,16 @@ describe("ResultsTable", () => {
     }));
 
     mockGetRecords.mockImplementation(async (entityRef: EntityRef) =>
-      entityRef.id === "exp-1" ? makeRecordsResponse(3) : makeRecordsResponse(2));
+      entityRef.id === "exp-1" ? makeRecordsResponse(3) : makeRecordsResponse(2),
+    );
 
     const entity1: EntityRef = { type: "experiment", id: "exp-1" };
     const entity2: EntityRef = { type: "experiment", id: "exp-2" };
 
     const { Wrapper } = createTestWrapper();
-    const { rerender } = render(<ResultsTable entityRef={entity1} />, { wrapper: Wrapper });
+    const { rerender } = render(<ResultsTable entityRef={entity1} />, {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(screen.getByTestId("header-cols").textContent).toContain("gene_id");
@@ -175,7 +184,9 @@ describe("ResultsTable", () => {
     rerender(<ResultsTable entityRef={entity2} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("header-cols").textContent).toContain("molecular_weight");
+      expect(screen.getByTestId("header-cols").textContent).toContain(
+        "molecular_weight",
+      );
     });
 
     expect(screen.getByTestId("header-cols").textContent).not.toContain("gene_id");
@@ -266,7 +277,9 @@ describe("ResultsTable", () => {
     fireEvent.click(screen.getByTestId("next-page"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("pagination").getAttribute("data-page-index")).toBe("1");
+      expect(screen.getByTestId("pagination").getAttribute("data-page-index")).toBe(
+        "1",
+      );
     });
 
     await waitFor(() => {
@@ -298,7 +311,9 @@ describe("ResultsTable", () => {
     fireEvent.click(screen.getByTestId("expand-GENE_0"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("expand-GENE_0").getAttribute("data-expanded")).toBe("true");
+      expect(screen.getByTestId("expand-GENE_0").getAttribute("data-expanded")).toBe(
+        "true",
+      );
     });
 
     await waitFor(() => {

@@ -97,7 +97,8 @@ export function GraphActionConfirm<R extends string>({
                     {choice.description}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    Will delete {choice.willDelete.length} · Will orphan {choice.willOrphan.length}
+                    Will delete {choice.willDelete.length} · Will orphan{" "}
+                    {choice.willOrphan.length}
                   </span>
                 </div>
               </label>

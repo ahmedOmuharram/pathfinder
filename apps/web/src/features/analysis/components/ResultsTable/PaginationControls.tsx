@@ -10,7 +10,11 @@ interface PaginationControlsProps {
   loading: boolean;
 }
 
-export function PaginationControls({ table, totalCount, loading }: PaginationControlsProps) {
+export function PaginationControls({
+  table,
+  totalCount,
+  loading,
+}: PaginationControlsProps) {
   const { pageIndex, pageSize } = table.getState().pagination;
   const currentPage = pageIndex + 1;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));

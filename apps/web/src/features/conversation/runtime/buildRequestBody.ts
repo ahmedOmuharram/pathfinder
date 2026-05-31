@@ -23,9 +23,9 @@ export function buildChatRequestBody(
 ): ChatRequestBodyShape {
   if (args.siteId.trim() === "") {
     throw new Error(
-      "buildChatRequestBody: siteId is required but empty. "
-      + "This means useSessionStore.selectedSite was not set before the chat "
-      + "request was constructed.",
+      "buildChatRequestBody: siteId is required but empty. " +
+        "This means useSessionStore.selectedSite was not set before the chat " +
+        "request was constructed.",
     );
   }
   return {

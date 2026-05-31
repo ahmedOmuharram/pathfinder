@@ -34,7 +34,15 @@ describe("CheckboxParam — single-pick (shadcn RadioGroup)", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <CheckboxParam
+            spec={spec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const radios = screen.getAllByRole("radio");
@@ -45,7 +53,15 @@ describe("CheckboxParam — single-pick (shadcn RadioGroup)", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_param" defaultValue="b">
-        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <CheckboxParam
+            spec={spec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const beta = screen.getByLabelText("Beta");
@@ -57,7 +73,15 @@ describe("CheckboxParam — single-pick (shadcn RadioGroup)", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <CheckboxParam
+            spec={spec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByLabelText("Gamma"));
@@ -71,7 +95,15 @@ describe("CheckboxParam — multi-pick (shadcn Checkbox stack)", () => {
   it("renders one Checkbox per option (plus 'Select all' when count > 3)", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue={[]}>
-        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <CheckboxParam
+            spec={spec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getAllByRole("checkbox").length).toBe(5);
@@ -80,7 +112,15 @@ describe("CheckboxParam — multi-pick (shadcn Checkbox stack)", () => {
   it("does not show 'Select all' when options <= 3", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue={[]}>
-        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions.slice(0, 3)} vocabTree={null} field={field} />}
+        {(field) => (
+          <CheckboxParam
+            spec={spec}
+            name="test_param"
+            options={sampleOptions.slice(0, 3)}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.queryByText(/Select all/)).toBeNull();
@@ -90,7 +130,15 @@ describe("CheckboxParam — multi-pick (shadcn Checkbox stack)", () => {
     const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_param" defaultValue={["a"]}>
-        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <CheckboxParam
+            spec={spec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByLabelText("Beta"));
@@ -101,12 +149,22 @@ describe("CheckboxParam — multi-pick (shadcn Checkbox stack)", () => {
     const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_param" defaultValue={[]}>
-        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <CheckboxParam
+            spec={spec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByLabelText("Select all"));
     for (const opt of sampleOptions) {
-      expect(screen.getByLabelText(opt.label).getAttribute("data-state")).toBe("checked");
+      expect(screen.getByLabelText(opt.label).getAttribute("data-state")).toBe(
+        "checked",
+      );
     }
   });
 
@@ -114,12 +172,22 @@ describe("CheckboxParam — multi-pick (shadcn Checkbox stack)", () => {
     const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_param" defaultValue={["a", "b", "c", "d"]}>
-        {(field) => <CheckboxParam spec={spec} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <CheckboxParam
+            spec={spec}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByLabelText("Select all"));
     for (const opt of sampleOptions) {
-      expect(screen.getByLabelText(opt.label).getAttribute("data-state")).toBe("unchecked");
+      expect(screen.getByLabelText(opt.label).getAttribute("data-state")).toBe(
+        "unchecked",
+      );
     }
   });
 });

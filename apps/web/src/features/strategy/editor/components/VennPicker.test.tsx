@@ -183,24 +183,21 @@ describe("VennPicker", () => {
   describe("visual highlighting", () => {
     it("LONLY fills the A circle, regions stay transparent", () => {
       const { container } = render(<VennPicker operator="LONLY" onChange={() => {}} />);
-      const fills = Array.from(
-        container.querySelectorAll("circle[fill*='primary']"),
-      );
+      const fills = Array.from(container.querySelectorAll("circle[fill*='primary']"));
       const aFill = fills.find((c) => c.getAttribute("cx") === "110");
       const bFill = fills.find((c) => c.getAttribute("cx") === "170");
       expect(aFill?.getAttribute("fill-opacity")).toBe("1");
       expect(bFill?.getAttribute("fill-opacity")).toBe("0");
       for (const label of ["A only", "Intersection region", "B only"]) {
-        expect(screen.getByLabelText(label).getAttribute("class") ?? "")
-          .toContain("fill-transparent");
+        expect(screen.getByLabelText(label).getAttribute("class") ?? "").toContain(
+          "fill-transparent",
+        );
       }
     });
 
     it("RONLY fills the B circle, regions stay transparent", () => {
       const { container } = render(<VennPicker operator="RONLY" onChange={() => {}} />);
-      const fills = Array.from(
-        container.querySelectorAll("circle[fill*='primary']"),
-      );
+      const fills = Array.from(container.querySelectorAll("circle[fill*='primary']"));
       const aFill = fills.find((c) => c.getAttribute("cx") === "110");
       const bFill = fills.find((c) => c.getAttribute("cx") === "170");
       expect(aFill?.getAttribute("fill-opacity")).toBe("0");
@@ -209,32 +206,36 @@ describe("VennPicker", () => {
 
     it("UNION fills both circles, regions stay transparent", () => {
       const { container } = render(<VennPicker operator="UNION" onChange={() => {}} />);
-      const fills = Array.from(
-        container.querySelectorAll("circle[fill*='primary']"),
-      );
+      const fills = Array.from(container.querySelectorAll("circle[fill*='primary']"));
       expect(fills.every((c) => c.getAttribute("fill-opacity") === "1")).toBe(true);
       for (const label of ["A only", "Intersection region", "B only"]) {
-        expect(screen.getByLabelText(label).getAttribute("class") ?? "")
-          .toContain("fill-transparent");
+        expect(screen.getByLabelText(label).getAttribute("class") ?? "").toContain(
+          "fill-transparent",
+        );
       }
     });
 
     it("INTERSECT fills the lens region, A and B regions transparent", () => {
       render(<VennPicker operator="INTERSECT" onChange={() => {}} />);
-      expect(screen.getByLabelText("Intersection region").getAttribute("class") ?? "")
-        .toContain("fill-[hsl(var(--primary)/0.55)]");
-      expect(screen.getByLabelText("A only").getAttribute("class") ?? "")
-        .toContain("fill-transparent");
-      expect(screen.getByLabelText("B only").getAttribute("class") ?? "")
-        .toContain("fill-transparent");
+      expect(
+        screen.getByLabelText("Intersection region").getAttribute("class") ?? "",
+      ).toContain("fill-[hsl(var(--primary)/0.55)]");
+      expect(screen.getByLabelText("A only").getAttribute("class") ?? "").toContain(
+        "fill-transparent",
+      );
+      expect(screen.getByLabelText("B only").getAttribute("class") ?? "").toContain(
+        "fill-transparent",
+      );
     });
 
     it("MINUS fills the A crescent only", () => {
       render(<VennPicker operator="MINUS" onChange={() => {}} />);
-      expect(screen.getByLabelText("A only").getAttribute("class") ?? "")
-        .toContain("fill-[hsl(var(--primary)/0.55)]");
-      expect(screen.getByLabelText("Intersection region").getAttribute("class") ?? "")
-        .toContain("fill-transparent");
+      expect(screen.getByLabelText("A only").getAttribute("class") ?? "").toContain(
+        "fill-[hsl(var(--primary)/0.55)]",
+      );
+      expect(
+        screen.getByLabelText("Intersection region").getAttribute("class") ?? "",
+      ).toContain("fill-transparent");
     });
   });
 });

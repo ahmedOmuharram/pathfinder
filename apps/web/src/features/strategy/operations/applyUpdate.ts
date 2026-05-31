@@ -47,10 +47,7 @@ export function applyUpdateCombineOperator(
   };
 }
 
-export function applyUpdateStepMeta(
-  strategy: Strategy,
-  op: UpdateMetaOp,
-): ApplyResult {
+export function applyUpdateStepMeta(strategy: Strategy, op: UpdateMetaOp): ApplyResult {
   if (!strategy.steps.some((s) => s.id === op.stepId))
     return { kind: "rejected", reason: `Step ${op.stepId} not found` };
   return {
@@ -98,10 +95,7 @@ export function applyReplaceStrategy(
   };
 }
 
-function treeToFlatSteps(
-  root: StrategyStepNode,
-  strategy: Strategy,
-): Step[] {
+function treeToFlatSteps(root: StrategyStepNode, strategy: Strategy): Step[] {
   const existingById = new Map(strategy.steps.map((s) => [s.id, s]));
   const out: Step[] = [];
   const visit = (node: StrategyStepNode): void => {
@@ -132,17 +126,12 @@ function treeToFlatSteps(
   return out;
 }
 
-
-export function applyWireInput(
-  strategy: Strategy,
-  op: WireInputOp,
-): ApplyResult {
+export function applyWireInput(strategy: Strategy, op: WireInputOp): ApplyResult {
   if (!strategy.steps.some((s) => s.id === op.targetStepId))
     return { kind: "rejected", reason: `Target ${op.targetStepId} not found` };
   if (!strategy.steps.some((s) => s.id === op.sourceStepId))
     return { kind: "rejected", reason: `Source ${op.sourceStepId} not found` };
-  const slotKey =
-    op.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
+  const slotKey = op.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
   return {
     kind: "applied",
     next: {
@@ -155,10 +144,7 @@ export function applyWireInput(
   };
 }
 
-export function applyReplaceSubtree(
-  strategy: Strategy,
-  op: ReplaceOp,
-): ApplyResult {
+export function applyReplaceSubtree(strategy: Strategy, op: ReplaceOp): ApplyResult {
   const newRoot = op.subtree[op.subtree.length - 1];
   if (newRoot === undefined)
     return {
@@ -171,9 +157,7 @@ export function applyReplaceSubtree(
   next = [...next, ...op.subtree];
   if (parentInfo !== null) {
     const slotKey =
-      parentInfo.slot === "primary"
-        ? "primaryInputStepId"
-        : "secondaryInputStepId";
+      parentInfo.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
     next = patchSteps(next, parentInfo.parent.id, { [slotKey]: newRoot.id });
   }
   return {

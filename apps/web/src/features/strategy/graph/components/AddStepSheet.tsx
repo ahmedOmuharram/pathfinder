@@ -28,8 +28,7 @@ interface AddStepSheetProps {
   conversationId: string;
 }
 
-const generateStepId = (): string =>
-  `step_${Math.random().toString(16).slice(2, 10)}`;
+const generateStepId = (): string => `step_${Math.random().toString(16).slice(2, 10)}`;
 
 export function AddStepSheet({
   open,
@@ -39,10 +38,7 @@ export function AddStepSheet({
   conversationId,
 }: AddStepSheetProps) {
   const addStep = useAddStepMutation(conversationId);
-  const { enabled: _enabled, ...searchOpts } = searchesOptions(
-    siteId,
-    recordType,
-  );
+  const { enabled: _enabled, ...searchOpts } = searchesOptions(siteId, recordType);
   const { data: allSearches = [], isPending } = useQuery({
     ...searchOpts,
     enabled: open && siteId !== "",
@@ -104,9 +100,7 @@ export function AddStepSheet({
             />
           )}
           {selected?.description != null && selected.description !== "" && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {selected.description}
-            </p>
+            <p className="mt-3 text-xs text-muted-foreground">{selected.description}</p>
           )}
         </div>
         <SheetFooter className="border-t border-border">

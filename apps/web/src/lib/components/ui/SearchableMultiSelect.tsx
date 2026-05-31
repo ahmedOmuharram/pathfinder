@@ -36,9 +36,7 @@ export function SearchableMultiSelect({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
-  useOnClickOutside(dropdownRef as React.RefObject<HTMLElement>, () =>
-    setOpen(false),
-  );
+  useOnClickOutside(dropdownRef as React.RefObject<HTMLElement>, () => setOpen(false));
 
   const filteredOptions = options.filter((opt) =>
     opt.label.toLowerCase().includes(search.toLowerCase()),

@@ -29,8 +29,7 @@ export function findParent(
 ): { parent: Step; slot: "primary" | "secondary" } | null {
   for (const s of steps) {
     if (s.primaryInputStepId === stepId) return { parent: s, slot: "primary" };
-    if (s.secondaryInputStepId === stepId)
-      return { parent: s, slot: "secondary" };
+    if (s.secondaryInputStepId === stepId) return { parent: s, slot: "secondary" };
   }
   return null;
 }

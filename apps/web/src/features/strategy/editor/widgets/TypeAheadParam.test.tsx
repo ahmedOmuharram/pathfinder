@@ -33,7 +33,15 @@ describe("TypeAheadParam (single-pick — shadcn Combobox)", () => {
   it("renders a combobox trigger", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <TypeAheadParam spec={makeSpec()} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <TypeAheadParam
+            spec={makeSpec()}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByRole("combobox")).toBeTruthy();
@@ -43,7 +51,15 @@ describe("TypeAheadParam (single-pick — shadcn Combobox)", () => {
     const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <TypeAheadParam spec={makeSpec()} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <TypeAheadParam
+            spec={makeSpec()}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByRole("combobox"));
@@ -55,7 +71,15 @@ describe("TypeAheadParam (single-pick — shadcn Combobox)", () => {
   it("shows the selected label when value is set initially", () => {
     render(
       <WidgetTestForm name="test_param" defaultValue="cherry">
-        {(field) => <TypeAheadParam spec={makeSpec()} name="test_param" options={sampleOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <TypeAheadParam
+            spec={makeSpec()}
+            name="test_param"
+            options={sampleOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByText("Cherry")).toBeTruthy();

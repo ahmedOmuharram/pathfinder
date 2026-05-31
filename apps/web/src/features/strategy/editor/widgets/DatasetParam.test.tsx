@@ -158,9 +158,9 @@ describe("DatasetParam — basket / strategy tabs", () => {
       </WidgetTestForm>,
     );
     await user.click(screen.getByRole("tab", { name: /basket/i }));
-    expect(screen.getByRole("tab", { name: /basket/i }).getAttribute("data-state")).toBe(
-      "active",
-    );
+    expect(
+      screen.getByRole("tab", { name: /basket/i }).getAttribute("data-state"),
+    ).toBe("active");
   });
 
   it("emits a sourceType=basket payload when the basket name field is populated", async () => {

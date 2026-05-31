@@ -48,15 +48,11 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     handleSelectionChange,
   } = useGraphSelection({ strategy, isCompact });
 
-  const {
-    isValidConnection,
-    handleConnect,
-    handleDeleteEdge,
-    startCombine,
-  } = useGraphConnections({
-    steps: graphNodes.editableSteps,
-    conversationId,
-  });
+  const { isValidConnection, handleConnect, handleDeleteEdge, startCombine } =
+    useGraphConnections({
+      steps: graphNodes.editableSteps,
+      conversationId,
+    });
 
   const handlers = useStrategyGraphHandlers({
     strategy,
@@ -88,8 +84,7 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
     planHash: graphNodes.graphHasValidationIssues ? null : graphNodes.planHash,
     stepIds: (strategy?.steps ?? []).map((step) => step.id),
     applyStepCounts,
-    fetchCounts: (siteId, strategyAst) =>
-      computeStepCounts({ siteId, strategyAst }),
+    fetchCounts: (siteId, strategyAst) => computeStepCounts({ siteId, strategyAst }),
   });
 
   const inFlightOps = useIsMutating({ mutationKey: APPLY_OPERATION_MUTATION_KEY });
@@ -135,8 +130,10 @@ export function useStrategyGraph(options: UseStrategyGraphOptions) {
 
     editableSteps: graphNodes.editableSteps,
     combineMismatchGroups: graphNodes.combineMismatchGroups,
-    updateStep: (stepId: string, patch: Parameters<typeof updateStepMutation.mutate>[0]["patch"]) =>
-      updateStepMutation.mutate({ stepId, patch }),
+    updateStep: (
+      stepId: string,
+      patch: Parameters<typeof updateStepMutation.mutate>[0]["patch"],
+    ) => updateStepMutation.mutate({ stepId, patch }),
     requestDelete: handlers.requestDelete,
     requestDeleteMany: handlers.requestDeleteMany,
     deleteDialogProps: handlers.deleteDialogProps,

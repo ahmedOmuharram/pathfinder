@@ -32,23 +32,18 @@ export async function loginVeupathdb(
   if (!email || !password) {
     throw new AppError("Email and password are required.", "INVARIANT_VIOLATION");
   }
-  return await requestJson(
-    authSuccessResponseSchema,
-    `/api/v1/veupathdb/auth/login`,
-    {
-      method: "POST",
-      query: { siteId },
-      body: { email, password },
-    },
-  );
+  return await requestJson(authSuccessResponseSchema, `/api/v1/veupathdb/auth/login`, {
+    method: "POST",
+    query: { siteId },
+    body: { email, password },
+  });
 }
 
 export async function logoutVeupathdb(siteId: string): Promise<{ success: boolean }> {
-  return await requestJson(
-    authSuccessResponseSchema,
-    `/api/v1/veupathdb/auth/logout`,
-    { method: "POST", query: { siteId } },
-  );
+  return await requestJson(authSuccessResponseSchema, `/api/v1/veupathdb/auth/logout`, {
+    method: "POST",
+    query: { siteId },
+  });
 }
 
 /**

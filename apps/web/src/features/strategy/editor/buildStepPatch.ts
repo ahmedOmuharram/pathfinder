@@ -41,8 +41,7 @@ export function buildStepPatch(args: BuildPatchArgs): Partial<Step> {
     const spec = specsByName.get(key);
     if (spec === undefined) return;
     const baseTyped = baseParams[key];
-    const baseRaw =
-      baseTyped === undefined ? null : paramValueToRaw(baseTyped);
+    const baseRaw = baseTyped === undefined ? null : paramValueToRaw(baseTyped);
     if (baseRaw !== null && rawEquals(raw, baseRaw)) return;
     parameters[key] = rawToParamValue(spec, raw);
   };
@@ -68,8 +67,7 @@ export function buildStepPatch(args: BuildPatchArgs): Partial<Step> {
   }
   const baseColocation = args.step.colocationParams ?? null;
   if (
-    JSON.stringify(args.colocationParams ?? null) !==
-    JSON.stringify(baseColocation)
+    JSON.stringify(args.colocationParams ?? null) !== JSON.stringify(baseColocation)
   ) {
     patch.colocationParams = args.colocationParams;
   }

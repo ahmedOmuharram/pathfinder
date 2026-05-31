@@ -60,9 +60,7 @@ export function MemorySearch({
       {trimmed.length > 0 && (
         <div className="rounded-md border border-border">
           {isFetching && (
-            <div className="px-3 py-2 text-xs text-muted-foreground">
-              Searching...
-            </div>
+            <div className="px-3 py-2 text-xs text-muted-foreground">Searching...</div>
           )}
           {error != null && (
             <div className="px-3 py-2 text-xs text-destructive">

@@ -47,7 +47,11 @@ describe("useParamSpecs (advanced)", () => {
 
     const { Wrapper } = createTestWrapper();
     const { result } = renderHook(
-      () => useParamSpecs({ ...baseOptions, contextValues: { organism: ["Plasmodium falciparum 3D7"] } }),
+      () =>
+        useParamSpecs({
+          ...baseOptions,
+          contextValues: { organism: ["Plasmodium falciparum 3D7"] },
+        }),
       { wrapper: Wrapper },
     );
 
@@ -62,10 +66,9 @@ describe("useParamSpecs (advanced)", () => {
     getParamSpecsMock.mockResolvedValueOnce([]);
 
     const { Wrapper } = createTestWrapper();
-    const { result } = renderHook(
-      () => useParamSpecs(baseOptions),
-      { wrapper: Wrapper },
-    );
+    const { result } = renderHook(() => useParamSpecs(baseOptions), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);

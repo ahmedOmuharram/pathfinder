@@ -28,12 +28,12 @@ export function createFeedbackAdapter(): FeedbackAdapter {
             },
           });
           toast.success(
-            type === "positive" ? "Thanks for the feedback" : "Thanks — we'll learn from this",
+            type === "positive"
+              ? "Thanks for the feedback"
+              : "Thanks — we'll learn from this",
           );
         } catch (err) {
-          toast.error(
-            err instanceof Error ? err.message : "Failed to submit feedback",
-          );
+          toast.error(err instanceof Error ? err.message : "Failed to submit feedback");
         }
       })();
     },

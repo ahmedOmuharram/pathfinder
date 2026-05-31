@@ -7,9 +7,9 @@ test.describe("Settings / Memory tab", () => {
 
     // Wait for the chat view to settle so the top-bar Settings button is
     // mounted with its onClick wired up.
-    await expect(
-      page.getByRole("textbox", { name: /ask anything/i }),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("textbox", { name: /ask anything/i })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Click settings, retrying click until the dialog appears (guards against
     // the React strict-mode render-during-render warning that can swallow
@@ -24,18 +24,10 @@ test.describe("Settings / Memory tab", () => {
     // Switch to the Memory tab and verify the four sections + search field.
     await dialog.getByRole("button", { name: "Memory", exact: true }).click();
 
-    await expect(
-      dialog.getByRole("button", { name: /Gene Sets/i }),
-    ).toBeVisible();
-    await expect(
-      dialog.getByRole("button", { name: /Strategies/i }),
-    ).toBeVisible();
-    await expect(
-      dialog.getByRole("button", { name: /Preferences/i }),
-    ).toBeVisible();
-    await expect(
-      dialog.getByRole("button", { name: /Knowledge/i }),
-    ).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Gene Sets/i })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Strategies/i })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Preferences/i })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Knowledge/i })).toBeVisible();
 
     await expect(dialog.getByPlaceholder(/search memories/i)).toBeVisible();
   });

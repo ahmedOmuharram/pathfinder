@@ -13,18 +13,14 @@ function selectLatestModel(m: ThreadMessage): string | null {
   return null;
 }
 
-export const ToolThink: ToolCallMessagePartComponent<
-  { thought?: string },
-  unknown
-> = ({ args }) => {
+export const ToolThink: ToolCallMessagePartComponent<{ thought?: string }, unknown> = ({
+  args,
+}) => {
   const model = useMessage({ optional: true, selector: selectLatestModel });
   const thought = (args.thought ?? "").trim();
   if (thought === "") return null;
   return (
-    <div
-      data-testid="tool-think"
-      className="my-1 text-xs text-muted-foreground"
-    >
+    <div data-testid="tool-think" className="my-1 text-xs text-muted-foreground">
       <span className="font-mono text-[10px] text-muted-foreground/60">
         {model ?? "think"}
       </span>

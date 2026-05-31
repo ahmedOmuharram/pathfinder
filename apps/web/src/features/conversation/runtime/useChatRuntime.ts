@@ -1,7 +1,10 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { type UIMessage, lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
+import {
+  type UIMessage,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+} from "ai";
 import { useAISDKRuntime } from "@assistant-ui/react-ai-sdk";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -106,9 +109,7 @@ export function useChatRuntime({
             .setProblemFrame(problemFrameSchema.parse(dataPart.data));
           break;
         case "data-gene-set":
-          useSessionStore
-            .getState()
-            .recordGeneSet(geneSetSchema.parse(dataPart.data));
+          useSessionStore.getState().recordGeneSet(geneSetSchema.parse(dataPart.data));
           break;
         case "data-graph-snapshot":
           graphSnapshotSchema.parse(dataPart.data);

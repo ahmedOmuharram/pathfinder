@@ -39,13 +39,13 @@ export function useStrategyGraphNodes(options: UseStrategyGraphNodesOptions) {
     const targetId = step?.id ?? null;
     setNodes((current) =>
       current.map((n) =>
-        n.selected === (n.id === targetId)
-          ? n
-          : { ...n, selected: n.id === targetId },
+        n.selected === (n.id === targetId) ? n : { ...n, selected: n.id === targetId },
       ),
     );
   };
-  const nodePositions = new Map(nodes.map((n: Node) => [n.id, { x: n.position.x, y: n.position.y }]));
+  const nodePositions = new Map(
+    nodes.map((n: Node) => [n.id, { x: n.position.x, y: n.position.y }]),
+  );
 
   const applyStepValidationErrors = useStrategyStore(
     (state) => state.applyStepValidationErrors,

@@ -69,7 +69,10 @@ export function EditorHeader({
 
   return (
     <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-      <Badge variant="secondary" className={cn("uppercase tracking-wide", KIND_BG[kind])}>
+      <Badge
+        variant="secondary"
+        className={cn("uppercase tracking-wide", KIND_BG[kind])}
+      >
         {kind}
       </Badge>
       {stepNumber != null && (
@@ -93,7 +96,12 @@ export function EditorHeader({
       />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="More actions">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="More actions"
+          >
             <MoreVertical className="size-4" />
           </Button>
         </DropdownMenuTrigger>

@@ -25,8 +25,8 @@ export function FilterList({ filters, onRemove }: FilterListProps) {
   if (filters.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border bg-muted/20 p-4 text-center text-xs text-muted-foreground">
-        No filters configured. Use Edit JSON to add one, or wait for the inline
-        facet picker (coming with backend ontology metadata).
+        No filters configured. Use Edit JSON to add one, or wait for the inline facet
+        picker (coming with backend ontology metadata).
       </div>
     );
   }

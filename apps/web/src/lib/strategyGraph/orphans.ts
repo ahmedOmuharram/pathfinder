@@ -5,10 +5,7 @@ import type { Step } from "@pathfinder/shared";
  * When `rootStepId` is null/empty, every step counts as an orphan (no anchor
  * to walk from).
  */
-export function findOrphanSteps(
-  steps: Step[],
-  rootStepId: string | null,
-): Step[] {
+export function findOrphanSteps(steps: Step[], rootStepId: string | null): Step[] {
   if (steps.length === 0) return [];
   if (rootStepId == null || rootStepId === "") return steps;
   const byId = new Map(steps.map((s) => [s.id, s]));

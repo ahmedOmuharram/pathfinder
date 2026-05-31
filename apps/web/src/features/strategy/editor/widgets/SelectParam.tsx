@@ -26,7 +26,9 @@ export function SelectParam({ spec, name, options, field }: ParamWidgetProps) {
       <div>
         <Select
           value={value === "" ? PLACEHOLDER_VALUE : value}
-          onValueChange={(next) => field.handleChange(next === PLACEHOLDER_VALUE ? "" : next)}
+          onValueChange={(next) =>
+            field.handleChange(next === PLACEHOLDER_VALUE ? "" : next)
+          }
         >
           <SelectTrigger
             aria-invalid={hasError ? "true" : undefined}
@@ -48,7 +50,11 @@ export function SelectParam({ spec, name, options, field }: ParamWidgetProps) {
           </SelectContent>
         </Select>
         {hasError && errorMessage != null && (
-          <p id={`${name}-error`} role="alert" className="mt-1 text-xs text-destructive">
+          <p
+            id={`${name}-error`}
+            role="alert"
+            className="mt-1 text-xs text-destructive"
+          >
             {errorMessage}
           </p>
         )}
@@ -56,9 +62,7 @@ export function SelectParam({ spec, name, options, field }: ParamWidgetProps) {
     );
   }
 
-  const selected: string[] = Array.isArray(field.state.value)
-    ? field.state.value
-    : [];
+  const selected: string[] = Array.isArray(field.state.value) ? field.state.value : [];
   const allSelected = options.length > 0 && selected.length === options.length;
 
   const toggleAll = () => {
@@ -67,9 +71,7 @@ export function SelectParam({ spec, name, options, field }: ParamWidgetProps) {
 
   const toggle = (val: string) => {
     field.handleChange(
-      selected.includes(val)
-        ? selected.filter((v) => v !== val)
-        : [...selected, val],
+      selected.includes(val) ? selected.filter((v) => v !== val) : [...selected, val],
     );
   };
 

@@ -6,8 +6,7 @@ export interface DuplicateStepVars {
   stepId: string;
 }
 
-const generateStepId = (): string =>
-  `step_${Math.random().toString(16).slice(2, 10)}`;
+const generateStepId = (): string => `step_${Math.random().toString(16).slice(2, 10)}`;
 
 export function useDuplicateStepMutation(conversationId: string) {
   const apply = useApplyOperation(conversationId);

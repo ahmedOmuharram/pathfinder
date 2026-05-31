@@ -152,8 +152,7 @@ async function fetchJsonRaw(path: string, args?: RequestArgs): Promise<unknown> 
   const data = await parseResponseBody(resp);
 
   if (!resp.ok) {
-    const msg =
-      extractErrorMessage(data) ?? `HTTP ${resp.status} ${resp.statusText}`;
+    const msg = extractErrorMessage(data) ?? `HTTP ${resp.status} ${resp.statusText}`;
     throw new APIError(msg, {
       status: resp.status,
       statusText: resp.statusText,
@@ -230,8 +229,7 @@ export async function requestVoid(path: string, args?: RequestArgs): Promise<voi
 
   if (!resp.ok) {
     const data = await parseResponseBody(resp);
-    const msg =
-      extractErrorMessage(data) ?? `HTTP ${resp.status} ${resp.statusText}`;
+    const msg = extractErrorMessage(data) ?? `HTTP ${resp.status} ${resp.statusText}`;
     throw new APIError(msg, {
       status: resp.status,
       statusText: resp.statusText,

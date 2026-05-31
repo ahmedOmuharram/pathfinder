@@ -50,7 +50,10 @@ export function useDistributionData(
 ): DistributionDataState {
   const queryClient = useQueryClient();
 
-  const { enabled: _enabled, ...distOpts } = distributionOptions(entityRef, selectedAttr);
+  const { enabled: _enabled, ...distOpts } = distributionOptions(
+    entityRef,
+    selectedAttr,
+  );
 
   const { data } = useSuspenseQuery({
     ...distOpts,

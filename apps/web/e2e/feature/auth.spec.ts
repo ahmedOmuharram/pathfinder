@@ -69,9 +69,7 @@ test.describe("Auth", () => {
     // UI: Still signed in — composer visible, message still there
     await authPage.expectSignedIn();
     await expect(
-      page
-        .getByTestId("user-message")
-        .filter({ hasText: "test session persistence" }),
+      page.getByTestId("user-message").filter({ hasText: "test session persistence" }),
     ).toBeVisible({ timeout: 15_000 });
 
     // UI: Sidebar still shows conversations

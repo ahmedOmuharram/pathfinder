@@ -16,9 +16,7 @@ function syntheticPositions(stepIds: string[]): StepPositions {
 describe("deserializeStrategyToGraph", () => {
   test("returns empty graph for null/empty strategy", () => {
     expect(deserializeStrategyToGraph(null)).toEqual({ nodes: [], edges: [] });
-    expect(
-      deserializeStrategyToGraph({ steps: [] } as unknown as Strategy),
-    ).toEqual({
+    expect(deserializeStrategyToGraph({ steps: [] } as unknown as Strategy)).toEqual({
       nodes: [],
       edges: [],
     });
@@ -372,9 +370,7 @@ describe("deserializeStrategyToGraph", () => {
       ],
     } as unknown as Strategy;
 
-    const partialPositions: StepPositions = new Map([
-      ["a", { x: 100, y: 100 }],
-    ]);
+    const partialPositions: StepPositions = new Map([["a", { x: 100, y: 100 }]]);
 
     const { nodes } = deserializeStrategyToGraph(
       strategy,

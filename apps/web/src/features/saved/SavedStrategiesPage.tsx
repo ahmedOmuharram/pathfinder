@@ -61,9 +61,7 @@ function SavedStrategiesPageInner({ siteId }: SavedStrategiesPageProps) {
   const filtered =
     filter.trim() === ""
       ? saved
-      : saved.filter((c) =>
-          c.name.toLowerCase().includes(filter.trim().toLowerCase()),
-        );
+      : saved.filter((c) => c.name.toLowerCase().includes(filter.trim().toLowerCase()));
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -81,8 +79,8 @@ function SavedStrategiesPageInner({ siteId }: SavedStrategiesPageProps) {
           />
         </div>
         <p className="mt-1 pl-8 text-xs text-muted-foreground">
-          Reusable WDK strategies you can insert into any conversation as a
-          collapsed input.
+          Reusable WDK strategies you can insert into any conversation as a collapsed
+          input.
         </p>
       </header>
       <div className="min-h-0 flex-1 overflow-auto px-6 py-4">
@@ -99,9 +97,7 @@ function SavedStrategiesPageInner({ siteId }: SavedStrategiesPageProps) {
                 conv={conv}
                 siteId={siteId}
                 consumerCount={
-                  conv.wdkStrategyId != null
-                    ? (counts[conv.wdkStrategyId] ?? 0)
-                    : 0
+                  conv.wdkStrategyId != null ? (counts[conv.wdkStrategyId] ?? 0) : 0
                 }
               />
             ))}
@@ -125,8 +121,7 @@ function EmptyState({ hasAny, siteId }: { hasAny: boolean; siteId: string }) {
       <p>No saved strategies yet.</p>
       <p className="mt-2">
         Open a strategy step and choose{" "}
-        <span className="font-medium">Save as reusable</span> to add one here,
-        or{" "}
+        <span className="font-medium">Save as reusable</span> to add one here, or{" "}
         <Link
           className="text-primary underline-offset-2 hover:underline"
           href={`/${siteId}/conversation`}
@@ -151,8 +146,7 @@ function SavedRow({
   const router = useRouter();
   const queryClient = useQueryClient();
   const del = useMutation({
-    mutationFn: () =>
-      deleteStrategy(conv.id, { deleteFromWdk: true, cascade: true }),
+    mutationFn: () => deleteStrategy(conv.id, { deleteFromWdk: true, cascade: true }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["conversations", "list", siteId],

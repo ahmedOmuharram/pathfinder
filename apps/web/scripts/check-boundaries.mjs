@@ -159,7 +159,10 @@ const CROSS_FEATURE_EXCEPTIONS = new Map([
   // conversation may import from settings, engine, strategy (PlanParameterEditor,
   // WdkQuestionInput, StepParamFields, plus StrategyGraph rendered alongside
   // the chat thread), and workbench (slash commands targeting gene sets)
-  ["conversation", new Set(["settings", "engine", "strategy", "workbench", "saved", "analysis"])],
+  [
+    "conversation",
+    new Set(["settings", "engine", "strategy", "workbench", "saved", "analysis"]),
+  ],
   // sidebar uses StrategyLifecycleBadge from conversation, and the
   // useFlushBeforeNav hook from strategy to await pending pushes before
   // switching conversations.

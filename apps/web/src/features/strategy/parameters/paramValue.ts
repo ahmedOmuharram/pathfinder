@@ -51,10 +51,7 @@ function asStringArray(raw: string | string[]): string[] {
   return raw === "" ? [] : [raw];
 }
 
-export function rawToParamValue(
-  spec: ParamSpec,
-  raw: string | string[],
-): ParamValue {
+export function rawToParamValue(spec: ParamSpec, raw: string | string[]): ParamValue {
   switch (spec.type) {
     case "number":
       return { type: "number", value: Number(asString(raw)) };

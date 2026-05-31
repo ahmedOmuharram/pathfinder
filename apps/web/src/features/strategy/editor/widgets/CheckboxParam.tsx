@@ -28,13 +28,21 @@ export function CheckboxParam({ spec, name, options, field }: ParamWidgetProps) 
         >
           {options.map((opt) => (
             <label key={opt.value} className="flex items-center gap-2 text-sm">
-              <RadioGroupItem value={opt.value} aria-label={opt.label} onBlur={field.handleBlur} />
+              <RadioGroupItem
+                value={opt.value}
+                aria-label={opt.label}
+                onBlur={field.handleBlur}
+              />
               {opt.label}
             </label>
           ))}
         </RadioGroup>
         {hasError && errorMessage != null && (
-          <p id={`${name}-error`} role="alert" className="mt-1 text-xs text-destructive">
+          <p
+            id={`${name}-error`}
+            role="alert"
+            className="mt-1 text-xs text-destructive"
+          >
             {errorMessage}
           </p>
         )}
@@ -43,9 +51,7 @@ export function CheckboxParam({ spec, name, options, field }: ParamWidgetProps) 
   }
 
   const currentValue: string[] = Array.isArray(field.state.value)
-    ? (field.state.value as unknown[]).filter(
-        (v): v is string => typeof v === "string",
-      )
+    ? (field.state.value as unknown[]).filter((v): v is string => typeof v === "string")
     : [];
   const allSelected = options.length > 0 && currentValue.length === options.length;
 

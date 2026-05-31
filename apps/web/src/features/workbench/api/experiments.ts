@@ -6,7 +6,10 @@ import { requestBlob, requestJson, requestVoid } from "@/lib/api/http";
 import type { StepParameters } from "@/lib/strategyGraph/types";
 
 export async function getExperiment(experimentId: string): Promise<Experiment> {
-  const raw = await requestJson(experimentResponseSchema, `/api/v1/experiments/${experimentId}`);
+  const raw = await requestJson(
+    experimentResponseSchema,
+    `/api/v1/experiments/${experimentId}`,
+  );
   return raw as unknown as Experiment;
 }
 
@@ -57,7 +60,10 @@ export async function refineExperiment(
     `/api/v1/experiments/${experimentId}/refine`,
     { method: "POST", body: { action, ...config } },
   );
-  return { success: raw.success, ...(raw.newStepId != null ? { newStepId: raw.newStepId } : {}) };
+  return {
+    success: raw.success,
+    ...(raw.newStepId != null ? { newStepId: raw.newStepId } : {}),
+  };
 }
 
 export async function reEvaluateExperiment(experimentId: string): Promise<Experiment> {

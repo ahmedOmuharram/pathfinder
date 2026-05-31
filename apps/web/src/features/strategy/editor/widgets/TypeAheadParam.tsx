@@ -34,7 +34,11 @@ export function TypeAheadParam({ spec, name, options, field }: ParamWidgetProps)
         <Combobox
           multiple={false}
           options={comboboxOptions}
-          value={typeof field.state.value === "string" && field.state.value !== "" ? field.state.value : null}
+          value={
+            typeof field.state.value === "string" && field.state.value !== ""
+              ? field.state.value
+              : null
+          }
           onChange={(next) => field.handleChange(next ?? "")}
           placeholder="Type to search..."
           emptyMessage="No matches"

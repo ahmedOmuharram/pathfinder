@@ -50,7 +50,8 @@ export function toTreeRoots(items: readonly ConversationItem[]): TreeNode[] {
 
 /** Count all descendants of a node (excluding the node itself). */
 export function countDescendants(
-  rootId: string, items: readonly ConversationItem[],
+  rootId: string,
+  items: readonly ConversationItem[],
 ): number {
   const children = new Map<string, string[]>();
   for (const it of items) {

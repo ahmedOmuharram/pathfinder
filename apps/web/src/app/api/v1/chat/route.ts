@@ -51,8 +51,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     return new Response(errorBody, {
       status: upstream.status,
       headers: {
-        "Content-Type":
-          upstream.headers.get("content-type") ?? "application/json",
+        "Content-Type": upstream.headers.get("content-type") ?? "application/json",
       },
     });
   }

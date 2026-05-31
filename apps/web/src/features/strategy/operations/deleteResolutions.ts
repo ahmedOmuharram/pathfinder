@@ -88,9 +88,7 @@ export function computeDeleteChoices(
         : parent.primaryInputStepId;
     const subtreeIds = walkSubtreeIds(steps, stepId);
     const siblingSubtree =
-      siblingId != null && siblingId !== ""
-        ? walkSubtreeIds(steps, siblingId)
-        : [];
+      siblingId != null && siblingId !== "" ? walkSubtreeIds(steps, siblingId) : [];
     return [
       {
         resolution: "collapse-combine",
@@ -109,9 +107,7 @@ export function computeDeleteChoices(
         isDefault: false,
         willDelete: subtreeIds,
         willOrphan:
-          siblingSubtree.length > 0
-            ? [parent.id, ...siblingSubtree]
-            : [parent.id],
+          siblingSubtree.length > 0 ? [parent.id, ...siblingSubtree] : [parent.id],
       },
       {
         resolution: "delete-subtree",

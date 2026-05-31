@@ -1,10 +1,7 @@
 "use client";
 
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import {
-  Collapsible,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils/cn";
 import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
@@ -100,12 +97,7 @@ export const Reasoning = memo(
     }, [isStreaming, isOpen, setIsOpen, isExplicitlyClosed]);
 
     useEffect(() => {
-      if (
-        hasEverStreamedRef.current
-        && !isStreaming
-        && isOpen
-        && !hasAutoClosed
-      ) {
+      if (hasEverStreamedRef.current && !isStreaming && isOpen && !hasAutoClosed) {
         const timer = setTimeout(() => {
           setIsOpen(false);
           setHasAutoClosed(true);
@@ -146,10 +138,7 @@ export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger> & 
   getThinkingMessage?: (isStreaming: boolean, duration?: number) => ReactNode;
 };
 
-const defaultGetThinkingMessage = (
-  isStreaming: boolean,
-  duration?: number,
-) => {
+const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
   if (isStreaming || duration === 0) {
     return (
       <Shimmer className="font-medium" duration={1}>

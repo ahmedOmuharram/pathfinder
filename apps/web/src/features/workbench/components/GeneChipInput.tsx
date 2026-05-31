@@ -99,7 +99,11 @@ export function GeneChipInput({
       </div>
 
       <div className="flex items-center gap-1.5">
-        <GeneAutocomplete siteId={siteId} onSelect={handleAdd} excludeIds={new Set(value)} />
+        <GeneAutocomplete
+          siteId={siteId}
+          onSelect={handleAdd}
+          excludeIds={new Set(value)}
+        />
         <GeneSetPicker onSelect={handleBulkAdd} />
         <CsvImportButton onImport={handleBulkAdd} />
       </div>

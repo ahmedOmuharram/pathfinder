@@ -5,9 +5,7 @@ const srcDir = fileURLToPath(new URL("./src", import.meta.url));
 const sharedDir = fileURLToPath(
   new URL("../../packages/shared-ts/src", import.meta.url),
 );
-const webNodeModules = fileURLToPath(
-  new URL("./node_modules", import.meta.url),
-);
+const webNodeModules = fileURLToPath(new URL("./node_modules", import.meta.url));
 
 export default defineConfig({
   resolve: {

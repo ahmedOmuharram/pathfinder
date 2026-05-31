@@ -40,16 +40,13 @@ interface InsertSavedDialogProps {
 export function InsertSavedDialog(props: InsertSavedDialogProps) {
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent
-        data-testid="insert-saved-dialog"
-        className="sm:max-w-2xl"
-      >
+      <DialogContent data-testid="insert-saved-dialog" className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Insert saved strategy</DialogTitle>
           <DialogDescription>
-            Pick a saved strategy from your library and choose how it should
-            combine with the target step. The inserted strategy renders as a
-            collapsed container in the strategy view.
+            Pick a saved strategy from your library and choose how it should combine
+            with the target step. The inserted strategy renders as a collapsed container
+            in the strategy view.
           </DialogDescription>
         </DialogHeader>
         <QueryBoundary>
@@ -112,9 +109,7 @@ function InsertSavedDialogBody({
   const filtered =
     filter.trim() === ""
       ? saved
-      : saved.filter((c) =>
-          c.name.toLowerCase().includes(filter.trim().toLowerCase()),
-        );
+      : saved.filter((c) => c.name.toLowerCase().includes(filter.trim().toLowerCase()));
 
   const insert = useMutation({
     mutationFn: () =>
@@ -137,8 +132,7 @@ function InsertSavedDialogBody({
       });
       onOpenChange(false);
     },
-    onError: (e) =>
-      toast.error("Insert failed", { description: toUserMessage(e) }),
+    onError: (e) => toast.error("Insert failed", { description: toUserMessage(e) }),
   });
 
   return (
@@ -176,8 +170,7 @@ function InsertSavedDialogBody({
                   <span className="flex-1">
                     <span className="block text-sm font-medium">{c.name}</span>
                     <span className="block text-xs text-muted-foreground">
-                      {(c.stepCount ?? 0)}{" "}
-                      {(c.stepCount ?? 0) === 1 ? "step" : "steps"}
+                      {c.stepCount ?? 0} {(c.stepCount ?? 0) === 1 ? "step" : "steps"}
                       {c.recordType != null ? ` · ${c.recordType}` : ""}
                     </span>
                   </span>

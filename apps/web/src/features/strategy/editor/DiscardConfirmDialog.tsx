@@ -32,9 +32,7 @@ export function DiscardConfirmDialog({
           <AlertDialogTitle>
             Discard {changeCount} {noun}?
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            This cannot be undone.
-          </AlertDialogDescription>
+          <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep editing</AlertDialogCancel>

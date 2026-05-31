@@ -5,7 +5,10 @@ import "@xyflow/react/dist/style.css";
 import { useState } from "react";
 import type { Strategy } from "@pathfinder/shared";
 import { Editor } from "@/features/strategy/editor/Editor";
-import { CanvasTopbar, type SyncState } from "@/features/strategy/graph/components/CanvasTopbar";
+import {
+  CanvasTopbar,
+  type SyncState,
+} from "@/features/strategy/graph/components/CanvasTopbar";
 import { EmptyState } from "@/features/strategy/graph/components/EmptyState";
 import { EdgeContextMenu } from "@/features/strategy/graph/components/EdgeContextMenu";
 import { GraphActionConfirm } from "@/features/strategy/graph/components/GraphActionConfirm";
@@ -51,9 +54,7 @@ function StrategyGraphInner({
 
   // Render-time focus sync: when the URL provides a step id, open the editor
   // sheet on it. Re-runs only when the requested id changes.
-  const [appliedFocusStepId, setAppliedFocusStepId] = useState<string | null>(
-    null,
-  );
+  const [appliedFocusStepId, setAppliedFocusStepId] = useState<string | null>(null);
   if (focusStepId !== appliedFocusStepId) {
     setAppliedFocusStepId(focusStepId);
     if (focusStepId === null) {
@@ -168,9 +169,7 @@ function StrategyGraphChrome({
         strategy={strategy}
       />
       <ShortcutsOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-      {g.deleteDialogProps !== null && (
-        <GraphActionConfirm {...g.deleteDialogProps} />
-      )}
+      {g.deleteDialogProps !== null && <GraphActionConfirm {...g.deleteDialogProps} />}
     </div>
   );
 }

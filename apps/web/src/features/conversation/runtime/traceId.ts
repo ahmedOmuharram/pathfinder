@@ -11,9 +11,7 @@ type PhaseStartDataPart = {
 function isPhaseStartPart(
   part: ThreadAssistantMessagePart,
 ): part is PhaseStartDataPart {
-  return (
-    part.type === "data" && "name" in part && part.name === "phase-start"
-  );
+  return part.type === "data" && "name" in part && part.name === "phase-start";
 }
 
 export function extractTraceId(message: ThreadMessage): string | null {

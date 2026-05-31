@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { Step} from "@pathfinder/shared";
+import type { Step } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
 import { TransformNode } from "./TransformNode";
 import type { StepNodeProps } from "./types";
@@ -36,10 +36,8 @@ function makeStep(overrides: Partial<Step> = {}): Step {
   } as Step;
 }
 
-
 function reset() {
   useStrategyStore.setState({
-
     stepLifecycleById: {},
     undoStack: [],
     redoStack: [],

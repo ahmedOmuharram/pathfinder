@@ -1,7 +1,4 @@
-import type {
-  TaskListResponse,
-  TaskStatusResponse,
-} from "@pathfinder/shared";
+import type { TaskListResponse, TaskStatusResponse } from "@pathfinder/shared";
 import { taskListResponseSchema } from "@pathfinder/shared/generated/zod/taskListResponseSchema";
 import { taskStatusResponseSchema } from "@pathfinder/shared/generated/zod/taskStatusResponseSchema";
 import { queryOptions } from "@tanstack/react-query";
@@ -11,11 +8,7 @@ import { requestJson } from "./http";
 export type TaskStatus = TaskStatusResponse;
 export type TaskList = TaskListResponse;
 
-const ACTIVE_TASK_STATUSES = new Set([
-  "pending",
-  "running",
-  "resuming",
-]);
+const ACTIVE_TASK_STATUSES = new Set(["pending", "running", "resuming"]);
 
 export async function getTaskStatus(
   conversationId: string,

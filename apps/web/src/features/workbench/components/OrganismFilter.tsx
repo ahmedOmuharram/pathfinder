@@ -26,9 +26,7 @@ export function OrganismFilter({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
-  useOnClickOutside(dropdownRef as React.RefObject<HTMLElement>, () =>
-    setOpen(false),
-  );
+  useOnClickOutside(dropdownRef as React.RefObject<HTMLElement>, () => setOpen(false));
 
   if (organisms.length === 0) {
     return (

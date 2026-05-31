@@ -27,9 +27,7 @@ describe("DataStrategyLink", () => {
 
   it("renders fallback text when no title", () => {
     render(
-      <DataStrategyLink
-        data={{ strategyId: "s2", url: "https://plasmodb.org/s2" }}
-      />,
+      <DataStrategyLink data={{ strategyId: "s2", url: "https://plasmodb.org/s2" }} />,
     );
     expect(screen.getByText("Strategy s2")).toBeInTheDocument();
   });

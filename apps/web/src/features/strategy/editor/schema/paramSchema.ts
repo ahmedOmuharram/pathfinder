@@ -8,7 +8,9 @@ export function buildFieldSchema(spec: ParamSpec): z.ZodType {
   if (isMultiParam(spec)) {
     let field = z.array(z.string());
     if (spec.allowEmptyValue === false) {
-      field = field.min(1, { message: `${spec.displayName ?? name} requires at least one selection` });
+      field = field.min(1, {
+        message: `${spec.displayName ?? name} requires at least one selection`,
+      });
     }
     return field;
   }
@@ -20,15 +22,13 @@ export function buildFieldSchema(spec: ParamSpec): z.ZodType {
     if (spec.allowEmptyValue === false) {
       return base
         .min(1, { message: `${spec.displayName ?? name} is required` })
-        .refine(
-          (val) => numericPattern.test(val),
-          { message: `${spec.displayName ?? name} must be a number` },
-        );
+        .refine((val) => numericPattern.test(val), {
+          message: `${spec.displayName ?? name} must be a number`,
+        });
     }
-    return base.refine(
-      (val) => val === "" || numericPattern.test(val),
-      { message: `${spec.displayName ?? name} must be a number` },
-    );
+    return base.refine((val) => val === "" || numericPattern.test(val), {
+      message: `${spec.displayName ?? name} must be a number`,
+    });
   }
 
   if (spec.allowEmptyValue === false) {

@@ -25,17 +25,13 @@ function VariantLane({ chunk }: { chunk: TaskProgressChunk }) {
       data-testid="variant-lane"
       className="rounded-md border border-border bg-muted/30 px-2 py-1.5"
     >
-      <div className="mb-0.5 font-mono text-xs text-muted-foreground">
-        {label}
-      </div>
+      <div className="mb-0.5 font-mono text-xs text-muted-foreground">{label}</div>
       <div className="text-xs">{chunk.message}</div>
       <div className="mt-0.5 flex items-center gap-1.5">
         <div className="flex-1">
           <ProgressBar percent={chunk.percent} />
         </div>
-        <span className="font-mono text-[10px] text-muted-foreground">
-          {pct}%
-        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">{pct}%</span>
       </div>
     </div>
   );

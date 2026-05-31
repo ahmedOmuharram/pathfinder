@@ -49,9 +49,7 @@ export function SearchNode(props: StepNodeProps) {
           isConnectable={showOutputHandle}
           style={{ top: "50%" }}
           className={`z-10 h-3 w-3 border-2 border-input ${
-            showOutputHandle
-              ? "bg-card"
-              : "pointer-events-none bg-card opacity-0"
+            showOutputHandle ? "bg-card" : "pointer-events-none bg-card opacity-0"
           }`}
         />
       }

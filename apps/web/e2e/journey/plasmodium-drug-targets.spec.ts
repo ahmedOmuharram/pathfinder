@@ -62,10 +62,9 @@ test.describe("P. falciparum candidate drug-targets journey (7 turns)", () => {
     await chatPage.send(
       "What's the impact of switching the InterPro/GO combine to INTERSECT?",
     );
-    await chatPage.expectAssistantMessage(
-      /impact|drops|stricter|operator/i,
-      { timeout: 90_000 },
-    );
+    await chatPage.expectAssistantMessage(/impact|drops|stricter|operator/i, {
+      timeout: 90_000,
+    });
 
     const resp = await apiClient.get(
       `/api/v1/conversations/${conversationId as string}`,

@@ -30,7 +30,13 @@ export function SettingsPage({ open, onClose, siteId }: SettingsPageProps) {
   const [tab, setTab] = useState<Tab>("data");
 
   return (
-    <Modal open={open} onClose={onClose} title="Settings" maxWidth="max-w-3xl" showCloseButton>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Settings"
+      maxWidth="max-w-3xl"
+      showCloseButton
+    >
       {/* Tabs */}
       <div className="flex border-b border-border px-5">
         {TABS.map((t) => (

@@ -84,7 +84,11 @@ export function WorkbenchSidebar({ onCollapse }: WorkbenchSidebarProps) {
     }
   };
 
-  const handleComposeExecute = async (result: { operation: string; geneIds: string[]; name: string }) => {
+  const handleComposeExecute = async (result: {
+    operation: string;
+    geneIds: string[];
+    name: string;
+  }) => {
     const setA = selectedSets[0];
     const setB = selectedSets[1];
     if (selectedSets.length !== 2 || setA == null || setB == null) return;

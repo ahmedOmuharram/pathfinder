@@ -52,9 +52,7 @@ export function ValidationAlert({
       <TriangleAlert className="size-4" aria-hidden />
       <AlertTitle className="flex items-center justify-between gap-3">
         <span>
-          {count > 0
-            ? `${count} steps have mismatched record types.`
-            : "Sync paused."}
+          {count > 0 ? `${count} steps have mismatched record types.` : "Sync paused."}
         </span>
         {firstId !== null && (
           <Button
@@ -68,9 +66,7 @@ export function ValidationAlert({
           </Button>
         )}
       </AlertTitle>
-      <AlertDescription>
-        Sync is paused until resolved.
-      </AlertDescription>
+      <AlertDescription>Sync is paused until resolved.</AlertDescription>
     </Alert>
   );
 }

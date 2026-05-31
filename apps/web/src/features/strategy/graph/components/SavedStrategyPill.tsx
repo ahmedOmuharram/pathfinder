@@ -9,10 +9,7 @@ interface SavedStrategyPillProps {
   indented?: boolean;
 }
 
-export function SavedStrategyPill({
-  name,
-  indented = false,
-}: SavedStrategyPillProps) {
+export function SavedStrategyPill({ name, indented = false }: SavedStrategyPillProps) {
   return (
     <div
       className={cn(
@@ -22,9 +19,7 @@ export function SavedStrategyPill({
       data-testid="saved-strategy-pill"
     >
       <Bookmark className="size-3 shrink-0 text-primary" aria-hidden />
-      <span className="flex-1 truncate font-medium text-foreground">
-        {name}
-      </span>
+      <span className="flex-1 truncate font-medium text-foreground">{name}</span>
       <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
         saved
       </span>

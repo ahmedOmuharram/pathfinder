@@ -22,9 +22,7 @@ interface UseConversationSidebarActionsArgs {
   reportError: (message: string) => void;
 }
 
-interface ConversationSidebarActions
-  extends RenameWorkflow,
-    DeleteWorkflow {
+interface ConversationSidebarActions extends RenameWorkflow, DeleteWorkflow {
   activeId: string | null;
   handleNewConversation: () => Promise<void>;
   handleToggleSaved: (item: ConversationItem) => Promise<void>;
@@ -37,8 +35,7 @@ export function useConversationSidebarActions({
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
-  const activeId =
-    pathname.match(/\/conversation\/([^/?#]+)/)?.[1] ?? null;
+  const activeId = pathname.match(/\/conversation\/([^/?#]+)/)?.[1] ?? null;
 
   const rename = useRenameWorkflow({ siteId, reportError });
   const deleteWorkflow = useDeleteWorkflow({

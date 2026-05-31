@@ -33,7 +33,10 @@ const INDENT_MAP_VOCAB = [
 ];
 
 const PARAM_DEFAULTS = {
-  allowEmptyValue: false, countOnlyLeaves: false, isNumber: false, isVisible: true,
+  allowEmptyValue: false,
+  countOnlyLeaves: false,
+  isNumber: false,
+  isVisible: true,
 } as const;
 
 const PHYLETIC_DEFAULTS: Record<string, string | string[] | unknown> = {
@@ -49,8 +52,18 @@ function makeAllSpecs(): ParamSpec[] {
     { ...PARAM_DEFAULTS, name: "profile_pattern", type: "string" },
     { ...PARAM_DEFAULTS, name: "included_species", type: "string" },
     { ...PARAM_DEFAULTS, name: "excluded_species", type: "string" },
-    { ...PARAM_DEFAULTS, name: "phyletic_indent_map", type: "string", vocabulary: INDENT_MAP_VOCAB },
-    { ...PARAM_DEFAULTS, name: "phyletic_term_map", type: "string", vocabulary: TERM_MAP_VOCAB },
+    {
+      ...PARAM_DEFAULTS,
+      name: "phyletic_indent_map",
+      type: "string",
+      vocabulary: INDENT_MAP_VOCAB,
+    },
+    {
+      ...PARAM_DEFAULTS,
+      name: "phyletic_term_map",
+      type: "string",
+      vocabulary: TERM_MAP_VOCAB,
+    },
   ];
 }
 
@@ -62,7 +75,10 @@ function TestForm({
   children: (form: ParamForm) => React.ReactNode;
 }) {
   const form = useForm({
-    defaultValues: { ...PHYLETIC_DEFAULTS, ...defaultValues } as Record<string, string | string[]>,
+    defaultValues: { ...PHYLETIC_DEFAULTS, ...defaultValues } as Record<
+      string,
+      string | string[]
+    >,
     onSubmit: () => {},
   });
   return <>{children(form)}</>;
@@ -181,13 +197,17 @@ describe("PhyleticProfileParam component", () => {
     const toggleBtn = pfalRow!.querySelector("[data-toggle]") as HTMLElement;
 
     fireEvent.click(toggleBtn);
-    expect(screen.getByTestId("form-profile_pattern").textContent).toContain("pfal>=1T");
+    expect(screen.getByTestId("form-profile_pattern").textContent).toContain(
+      "pfal>=1T",
+    );
 
     fireEvent.click(toggleBtn);
     expect(screen.getByTestId("form-profile_pattern").textContent).toContain("pfal=0T");
 
     fireEvent.click(toggleBtn);
-    expect(screen.getByTestId("form-profile_pattern").textContent).not.toContain("pfal");
+    expect(screen.getByTestId("form-profile_pattern").textContent).not.toContain(
+      "pfal",
+    );
   });
 
   it("shows correct summary footer counts", () => {

@@ -6,10 +6,7 @@ import type { ConversationResponse, Strategy } from "@pathfinder/shared";
 import { applyOperationEndpoint } from "@pathfinder/shared/generated/hooks/useApplyOperationEndpoint";
 import { strategyQueryKey, toStrategy } from "@/lib/api/strategy";
 import { toUserMessage } from "@/lib/api/errors";
-import {
-  applyOperation,
-  type GraphOperation,
-} from "@/features/strategy/operations";
+import { applyOperation, type GraphOperation } from "@/features/strategy/operations";
 import { useStrategyStore } from "@/state/strategy/store";
 
 export interface ApplyOperationVars {
@@ -35,12 +32,7 @@ export const APPLY_OPERATION_SCOPE_ID = "strategy-operation";
 export function useApplyOperation(conversationId: string) {
   const queryClient = useQueryClient();
 
-  return useMutation<
-    ConversationResponse,
-    Error,
-    ApplyOperationVars,
-    ApplyContext
-  >({
+  return useMutation<ConversationResponse, Error, ApplyOperationVars, ApplyContext>({
     mutationKey: [...APPLY_OPERATION_MUTATION_KEY, conversationId],
     scope: { id: APPLY_OPERATION_SCOPE_ID },
     onMutate: ({ op }) => {
@@ -56,10 +48,7 @@ export function useApplyOperation(conversationId: string) {
       if (snapshot !== null) {
         const result = applyOperation(snapshot, op);
         if (result.kind === "applied") {
-          useStrategyStore.getState().pushSnapshot(
-            { strategy: snapshot },
-            result.next,
-          );
+          useStrategyStore.getState().pushSnapshot({ strategy: snapshot }, result.next);
           queryClient.setQueryData<Strategy>(key, result.next);
         }
       }

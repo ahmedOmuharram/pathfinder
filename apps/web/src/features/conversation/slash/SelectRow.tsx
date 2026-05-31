@@ -37,9 +37,7 @@ export function SelectRow({ param, ctx, onSubmit }: SelectRowProps) {
   useEventListener("keydown", (event) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIdx((i) =>
-        options.length === 0 ? 0 : (i + 1) % options.length,
-      );
+      setActiveIdx((i) => (options.length === 0 ? 0 : (i + 1) % options.length));
       return;
     }
     if (event.key === "ArrowUp") {
@@ -60,9 +58,7 @@ export function SelectRow({ param, ctx, onSubmit }: SelectRowProps) {
 
   return (
     <div>
-      <div className="px-3 py-2 text-xs font-medium text-foreground">
-        {param.label}
-      </div>
+      <div className="px-3 py-2 text-xs font-medium text-foreground">{param.label}</div>
       <div className="max-h-60 overflow-y-auto">
         {options.length === 0 ? (
           <div className="px-3 py-2 text-xs text-muted-foreground">

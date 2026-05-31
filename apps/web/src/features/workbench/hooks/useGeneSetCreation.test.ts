@@ -31,7 +31,8 @@ vi.mock("@/lib/query/hooks/useInvalidateGeneSets", () => ({
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-const { resolveGenes } = await import("@pathfinder/shared/generated/hooks/useResolveGenes");
+const { resolveGenes } =
+  await import("@pathfinder/shared/generated/hooks/useResolveGenes");
 const { createGeneSet } = await import("../api/geneSets");
 const mockResolve = vi.mocked(resolveGenes);
 const mockCreate = vi.mocked(createGeneSet);

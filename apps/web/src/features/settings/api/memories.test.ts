@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import {
-  listMemories,
-  searchMemories,
-  editMemory,
-  deleteMemory,
-} from "./memories";
+import { listMemories, searchMemories, editMemory, deleteMemory } from "./memories";
 
 const originalFetch = globalThis.fetch;
 
@@ -53,17 +48,17 @@ describe("memories API client", () => {
   });
 
   it("searches memories", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ hits: [] }), { status: 200 }),
-    );
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ hits: [] }), { status: 200 }));
     const result = await searchMemories("malaria");
     expect(result.hits).toEqual([]);
   });
 
   it("encodes the search query", async () => {
-    const spy = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ hits: [] }), { status: 200 }),
-    );
+    const spy = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ hits: [] }), { status: 200 }));
     globalThis.fetch = spy;
     await searchMemories("mal aria");
     expect(spy).toHaveBeenCalledWith(
@@ -135,9 +130,7 @@ describe("memories API client", () => {
   });
 
   it("throws on non-ok list response", async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(new Response(null, { status: 500 }));
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 500 }));
     await expect(listMemories()).rejects.toThrow(/listMemories/);
   });
 });

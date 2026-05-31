@@ -27,9 +27,7 @@ interface OrthologSheetProps {
 function looksLikeOrthologSearch(s: Search): boolean {
   const hay = `${s.displayName} ${s.description ?? ""} ${s.name}`.toLowerCase();
   return (
-    hay.includes("ortholog") ||
-    hay.includes("orthology") ||
-    hay.includes("orthomcl")
+    hay.includes("ortholog") || hay.includes("orthology") || hay.includes("orthomcl")
   );
 }
 
@@ -73,8 +71,8 @@ export function OrthologSheet({
         <SheetHeader className="border-b border-border">
           <SheetTitle>Insert ortholog transform</SheetTitle>
           <SheetDescription>
-            Pick the site&apos;s ortholog/orthology transform. You can edit
-            parameters after insertion.
+            Pick the site&apos;s ortholog/orthology transform. You can edit parameters
+            after insertion.
           </SheetDescription>
         </SheetHeader>
         <div className="flex-1 overflow-auto p-4">
@@ -103,9 +101,7 @@ export function OrthologSheet({
                 />
               )}
               {selected?.description != null && selected.description !== "" && (
-                <p className="text-xs text-muted-foreground">
-                  {selected.description}
-                </p>
+                <p className="text-xs text-muted-foreground">{selected.description}</p>
               )}
             </div>
             <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-card p-3">
@@ -117,8 +113,8 @@ export function OrthologSheet({
                   Insert between
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  When the selected step has a downstream step, insert the
-                  transform between them and rewire the chain.
+                  When the selected step has a downstream step, insert the transform
+                  between them and rewire the chain.
                 </p>
               </div>
               <Switch

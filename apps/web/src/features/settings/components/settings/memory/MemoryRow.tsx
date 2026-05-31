@@ -33,13 +33,9 @@ export function MemoryRow({
         onClick={() => onEdit(item)}
         className="flex-1 min-w-0 text-left transition hover:bg-muted/40 rounded-md px-1.5 py-0.5"
       >
-        <div className="truncate text-sm font-medium text-foreground">
-          {v.name}
-        </div>
+        <div className="truncate text-sm font-medium text-foreground">{v.name}</div>
         {v.summary !== "" && (
-          <div className="line-clamp-2 text-xs text-muted-foreground">
-            {v.summary}
-          </div>
+          <div className="line-clamp-2 text-xs text-muted-foreground">{v.summary}</div>
         )}
         {tags.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">

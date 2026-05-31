@@ -20,9 +20,7 @@ describe("DataVerificationSummary", () => {
         }}
       />,
     );
-    expect(
-      screen.getByTestId("data-verification-summary"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("data-verification-summary")).toBeInTheDocument();
     expect(screen.getByText("Verification passed")).toBeInTheDocument();
     expect(screen.getByText("Gene count")).toBeInTheDocument();
   });

@@ -3,10 +3,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import {
-  AssistantRuntimeProvider,
-  useLocalRuntime,
-} from "@assistant-ui/react";
+import { AssistantRuntimeProvider, useLocalRuntime } from "@assistant-ui/react";
 import { http } from "msw";
 import type { ReactNode } from "react";
 
@@ -20,9 +17,7 @@ function StubRuntimeProvider({ children }: { children: ReactNode }) {
     },
   });
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      {children}
-    </AssistantRuntimeProvider>
+    <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
   );
 }
 

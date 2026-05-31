@@ -36,10 +36,7 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
       await loginVeupathdb(email, password, selectedSite);
       const status = await getVeupathdbAuthStatus(selectedSite);
       if (status.signedIn) {
-        queryClient.setQueryData(
-          authStatusOptions(selectedSite).queryKey,
-          status,
-        );
+        queryClient.setQueryData(authStatusOptions(selectedSite).queryKey, status);
         onSuccess?.();
       } else {
         setAuthError("Login failed. Please check your credentials.");

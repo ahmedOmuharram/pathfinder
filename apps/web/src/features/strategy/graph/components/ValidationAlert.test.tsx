@@ -28,22 +28,14 @@ describe("ValidationAlert", () => {
   });
 
   it("renders count + View button when mismatchGroups present", () => {
-    render(
-      <ValidationAlert mismatchGroups={GROUPS} isPaused onView={vi.fn()} />,
-    );
+    render(<ValidationAlert mismatchGroups={GROUPS} isPaused onView={vi.fn()} />);
     expect(screen.getByText(/2 steps have mismatched record types/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: /view/i })).toBeTruthy();
   });
 
   it("View button fires onView with first offending id", () => {
     const onView = vi.fn();
-    render(
-      <ValidationAlert
-        mismatchGroups={GROUPS}
-        isPaused
-        onView={onView}
-      />,
-    );
+    render(<ValidationAlert mismatchGroups={GROUPS} isPaused onView={onView} />);
     fireEvent.click(screen.getByRole("button", { name: /view/i }));
     expect(onView).toHaveBeenCalledTimes(1);
     expect(["step_a", "step_b"]).toContain(onView.mock.calls[0]?.[0]);

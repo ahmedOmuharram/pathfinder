@@ -109,11 +109,13 @@ function SubAgentStepRow({ step }: { step: DataSubAgentStepPayload }) {
             <span className="font-mono text-foreground">{toolName}</span>
             <span className="text-muted-foreground">{step.state}</span>
           </div>
-          {step.resultSummary !== undefined && step.resultSummary !== null && step.resultSummary !== "" && (
-            <div className="mt-0.5 line-clamp-2 font-mono text-[10px] text-muted-foreground">
-              {step.resultSummary}
-            </div>
-          )}
+          {step.resultSummary !== undefined &&
+            step.resultSummary !== null &&
+            step.resultSummary !== "" && (
+              <div className="mt-0.5 line-clamp-2 font-mono text-[10px] text-muted-foreground">
+                {step.resultSummary}
+              </div>
+            )}
         </div>
       </div>
     );

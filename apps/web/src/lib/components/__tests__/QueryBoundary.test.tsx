@@ -3,7 +3,11 @@
  */
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import { QueryClientProvider, useSuspenseQuery, queryOptions } from "@tanstack/react-query";
+import {
+  QueryClientProvider,
+  useSuspenseQuery,
+  queryOptions,
+} from "@tanstack/react-query";
 import { createTestQueryClient } from "@/lib/query/testing";
 import { QueryBoundary } from "../QueryBoundary";
 import { DefaultSpinner } from "../DefaultSpinner";
@@ -34,9 +38,7 @@ afterEach(cleanup);
 
 function renderWithClient(ui: React.ReactElement) {
   const queryClient = createTestQueryClient();
-  return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
 describe("DefaultSpinner", () => {
@@ -50,7 +52,10 @@ describe("DefaultQueryError", () => {
   it("renders error message and retry button", () => {
     const resetFn = vi.fn();
     renderWithClient(
-      <DefaultQueryError error={new Error("Something broke")} resetErrorBoundary={resetFn} />,
+      <DefaultQueryError
+        error={new Error("Something broke")}
+        resetErrorBoundary={resetFn}
+      />,
     );
     expect(screen.getByText("Something broke")).toBeTruthy();
     expect(screen.getByRole("button", { name: /retry/i })).toBeTruthy();

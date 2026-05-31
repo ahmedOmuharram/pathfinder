@@ -64,13 +64,7 @@ export function MemoriesPanel() {
   );
 }
 
-function MemorySection({
-  title,
-  items,
-}: {
-  title: string;
-  items: MemoryItem[];
-}) {
+function MemorySection({ title, items }: { title: string; items: MemoryItem[] }) {
   return (
     <div className="px-3 py-2">
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">

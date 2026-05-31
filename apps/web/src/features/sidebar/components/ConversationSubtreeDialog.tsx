@@ -21,9 +21,7 @@ interface FullTreeLine {
   depth: number;
 }
 
-function flattenFull(
-  nodes: readonly SubtreeNode[], depth: number,
-): FullTreeLine[] {
+function flattenFull(nodes: readonly SubtreeNode[], depth: number): FullTreeLine[] {
   const out: FullTreeLine[] = [];
   for (const node of nodes) {
     out.push({ item: node.item, depth });
@@ -51,7 +49,12 @@ export function ConversationSubtreeDialog({
 }: Props) {
   const lines = flattenFull(nodes, 1);
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+    >
       <DialogContent
         className="flex h-[90vh] w-[90vw] max-w-none flex-col p-0 sm:max-w-none"
         data-testid={`conversation-subtree-dialog-${rootId}`}
@@ -74,9 +77,7 @@ export function ConversationSubtreeDialog({
                   onClick={onClose}
                   className={cn(
                     "flex min-w-0 items-start gap-2 rounded px-2 py-2 pr-10 text-sm transition-colors",
-                    isActive
-                      ? "bg-primary/15 text-primary"
-                      : "hover:bg-muted/60",
+                    isActive ? "bg-primary/15 text-primary" : "hover:bg-muted/60",
                   )}
                   style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
                 >
@@ -84,9 +85,7 @@ export function ConversationSubtreeDialog({
                     className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground"
                     aria-hidden
                   />
-                  <span className="min-w-0 flex-1 break-words">
-                    {item.title}
-                  </span>
+                  <span className="min-w-0 flex-1 break-words">{item.title}</span>
                   <span className="ml-2 shrink-0 text-xs text-muted-foreground">
                     {formatSidebarTime(item.updatedAt)}
                   </span>

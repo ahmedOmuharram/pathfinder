@@ -47,7 +47,9 @@ describe("TF: full form lifecycle with realistic WDK specs", () => {
         )}
       </ParamFormWrapper>,
     );
-    expect(screen.getByTestId("fv-organism").textContent).toBe("Plasmodium falciparum 3D7");
+    expect(screen.getByTestId("fv-organism").textContent).toBe(
+      "Plasmodium falciparum 3D7",
+    );
     expect(screen.getByTestId("fv-min_molecular_weight").textContent).toBe("0");
     expect(screen.getByTestId("fv-max_molecular_weight").textContent).toBe("1000000");
   });
@@ -60,7 +62,13 @@ describe("TF: full form lifecycle with realistic WDK specs", () => {
           <>
             <form.Field name="min_molecular_weight">
               {(field) => (
-                <StringParam spec={specs[1]!} name="min_molecular_weight" options={[]} vocabTree={null} field={field} />
+                <StringParam
+                  spec={specs[1]!}
+                  name="min_molecular_weight"
+                  options={[]}
+                  vocabTree={null}
+                  field={field}
+                />
               )}
             </form.Field>
             <FormVal form={form} name="min_molecular_weight" />
@@ -74,23 +82,36 @@ describe("TF: full form lifecycle with realistic WDK specs", () => {
 
   it("state.values produces Record<string, string> matching SearchConfig.parameters", () => {
     let formRef: ParamForm | null = null;
-    render(<ParamFormWrapper specs={molecularWeightSpecs()} onFormReady={(f) => { formRef = f; }} />);
+    render(
+      <ParamFormWrapper
+        specs={molecularWeightSpecs()}
+        onFormReady={(f) => {
+          formRef = f;
+        }}
+      />,
+    );
     const values = formRef!.state.values;
     expect(typeof values["organism"]).toBe("string");
     expect(typeof values["min_molecular_weight"]).toBe("string");
     expect(typeof values["max_molecular_weight"]).toBe("string");
     expect(Object.keys(values).sort()).toEqual([
-      "max_molecular_weight", "min_molecular_weight", "organism",
+      "max_molecular_weight",
+      "min_molecular_weight",
+      "organism",
     ]);
   });
 });
 
 describe("TF: validation error flow", () => {
   it("shows error when required field cleared, clears on valid input", async () => {
-    const specs = [makeSpec({
-      name: "gene_id", displayName: "Gene ID",
-      allowEmptyValue: false, initialDisplayValue: "PF3D7_0100100",
-    })];
+    const specs = [
+      makeSpec({
+        name: "gene_id",
+        displayName: "Gene ID",
+        allowEmptyValue: false,
+        initialDisplayValue: "PF3D7_0100100",
+      }),
+    ];
     render(
       <ParamFormWrapper specs={specs}>
         {(form) => (
@@ -102,7 +123,13 @@ describe("TF: validation error flow", () => {
             }}
           >
             {(field) => (
-              <StringParam spec={specs[0]!} name="gene_id" options={[]} vocabTree={null} field={field} />
+              <StringParam
+                spec={specs[0]!}
+                name="gene_id"
+                options={[]}
+                vocabTree={null}
+                field={field}
+              />
             )}
           </form.Field>
         )}
@@ -129,7 +156,13 @@ describe("TF: multi-pick param interaction", () => {
           <>
             <form.Field name="go_terms">
               {(field) => (
-                <CheckboxParam spec={specs[0]!} name="go_terms" options={goOptions} vocabTree={null} field={field} />
+                <CheckboxParam
+                  spec={specs[0]!}
+                  name="go_terms"
+                  options={goOptions}
+                  vocabTree={null}
+                  field={field}
+                />
               )}
             </form.Field>
             <FormVal form={form} name="go_terms" />
@@ -153,7 +186,13 @@ describe("TF: multi-pick param interaction", () => {
           <>
             <form.Field name="go_terms">
               {(field) => (
-                <CheckboxParam spec={specs[0]!} name="go_terms" options={goOptions} vocabTree={null} field={field} />
+                <CheckboxParam
+                  spec={specs[0]!}
+                  name="go_terms"
+                  options={goOptions}
+                  vocabTree={null}
+                  field={field}
+                />
               )}
             </form.Field>
             <FormVal form={form} name="go_terms" />
@@ -176,7 +215,11 @@ describe("TF: multi-pick param interaction", () => {
 describe("TF: accessibility verification", () => {
   it("aria-required set only on required param inputs", () => {
     const specs = [
-      makeSpec({ name: "gene_id", allowEmptyValue: false, initialDisplayValue: "PF3D7_0100100" }),
+      makeSpec({
+        name: "gene_id",
+        allowEmptyValue: false,
+        initialDisplayValue: "PF3D7_0100100",
+      }),
       makeSpec({ name: "description", allowEmptyValue: true, initialDisplayValue: "" }),
     ];
     render(
@@ -184,26 +227,46 @@ describe("TF: accessibility verification", () => {
         {(form) => (
           <>
             <form.Field name="gene_id">
-              {(field) => <StringParam spec={specs[0]!} name="gene_id" options={[]} vocabTree={null} field={field} />}
+              {(field) => (
+                <StringParam
+                  spec={specs[0]!}
+                  name="gene_id"
+                  options={[]}
+                  vocabTree={null}
+                  field={field}
+                />
+              )}
             </form.Field>
             <form.Field name="description">
-              {(field) => <StringParam spec={specs[1]!} name="description" options={[]} vocabTree={null} field={field} />}
+              {(field) => (
+                <StringParam
+                  spec={specs[1]!}
+                  name="description"
+                  options={[]}
+                  vocabTree={null}
+                  field={field}
+                />
+              )}
             </form.Field>
           </>
         )}
       </ParamFormWrapper>,
     );
-    const required = screen.getAllByRole("textbox").filter(
-      (el) => el.getAttribute("aria-required") === "true",
-    );
+    const required = screen
+      .getAllByRole("textbox")
+      .filter((el) => el.getAttribute("aria-required") === "true");
     expect(required).toHaveLength(1);
   });
 
   it("aria-describedby connects input to error message", async () => {
-    const specs = [makeSpec({
-      name: "gene_id", displayName: "Gene ID",
-      allowEmptyValue: false, initialDisplayValue: "PF3D7_0100100",
-    })];
+    const specs = [
+      makeSpec({
+        name: "gene_id",
+        displayName: "Gene ID",
+        allowEmptyValue: false,
+        initialDisplayValue: "PF3D7_0100100",
+      }),
+    ];
     render(
       <ParamFormWrapper specs={specs}>
         {(form) => (
@@ -214,7 +277,15 @@ describe("TF: accessibility verification", () => {
                 value === "" ? "Gene ID is required" : undefined,
             }}
           >
-            {(field) => <StringParam spec={specs[0]!} name="gene_id" options={[]} vocabTree={null} field={field} />}
+            {(field) => (
+              <StringParam
+                spec={specs[0]!}
+                name="gene_id"
+                options={[]}
+                vocabTree={null}
+                field={field}
+              />
+            )}
           </form.Field>
         )}
       </ParamFormWrapper>,

@@ -107,14 +107,13 @@ function TreeNodeRow({
   );
 }
 
-export function PhyleticProfileParam({
-  specs,
-  form,
-}: PhyleticProfileParamProps) {
+export function PhyleticProfileParam({ specs, form }: PhyleticProfileParamProps) {
   const termMapVocab =
-    (form.getFieldValue("phyletic_term_map") as unknown) ?? findSpecVocab(specs, "phyletic_term_map");
+    (form.getFieldValue("phyletic_term_map") as unknown) ??
+    findSpecVocab(specs, "phyletic_term_map");
   const indentMapVocab =
-    (form.getFieldValue("phyletic_indent_map") as unknown) ?? findSpecVocab(specs, "phyletic_indent_map");
+    (form.getFieldValue("phyletic_indent_map") as unknown) ??
+    findSpecVocab(specs, "phyletic_indent_map");
 
   const tree = buildPhyleticTree(termMapVocab, indentMapVocab);
   const codeToLabel = buildCodeToLabel(tree);

@@ -8,9 +8,7 @@ import { DataTaskCompleted } from "./DataTaskCompleted";
 
 describe("DataTaskCompleted", () => {
   it("renders success state", () => {
-    render(
-      <DataTaskCompleted data={{ taskId: "t1", status: "success" }} />,
-    );
+    render(<DataTaskCompleted data={{ taskId: "t1", status: "success" }} />);
     expect(screen.getByTestId("data-task-completed")).toBeInTheDocument();
     expect(screen.getByText("Task completed")).toBeInTheDocument();
   });

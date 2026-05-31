@@ -61,7 +61,14 @@ describe("buildParamSchema", () => {
   });
 
   it("accepts empty string for optional numeric params", () => {
-    const specs = [makeSpec({ name: "min_weight", type: "number", isNumber: true, allowEmptyValue: true })];
+    const specs = [
+      makeSpec({
+        name: "min_weight",
+        type: "number",
+        isNumber: true,
+        allowEmptyValue: true,
+      }),
+    ];
     const schema = buildParamSchema(specs);
     expect(schema.safeParse({ min_weight: "" }).success).toBe(true);
   });
@@ -104,7 +111,9 @@ describe("buildParamSchema", () => {
   });
 
   it("required multi-pick rejects empty array", () => {
-    const specs = [makeSpec({ name: "orgs", allowMultipleValues: true, allowEmptyValue: false })];
+    const specs = [
+      makeSpec({ name: "orgs", allowMultipleValues: true, allowEmptyValue: false }),
+    ];
     const schema = buildParamSchema(specs);
     expect(schema.safeParse({ orgs: [] }).success).toBe(false);
     expect(schema.safeParse({ orgs: ["val"] }).success).toBe(true);

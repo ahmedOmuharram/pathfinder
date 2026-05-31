@@ -102,7 +102,8 @@ export function NodeShell({
     onRename(step.id, trimmed);
   }
 
-  const safeIndex = enterDelayIndex != null && enterDelayIndex >= 0 ? enterDelayIndex : 0;
+  const safeIndex =
+    enterDelayIndex != null && enterDelayIndex >= 0 ? enterDelayIndex : 0;
   const enterTransition = reduced
     ? { duration: 0 }
     : {
@@ -139,9 +140,7 @@ export function NodeShell({
       <div
         className={surfaceClasses}
         style={surfaceStyle}
-        {...(surfaceClipDataAttr != null
-          ? { "data-clip": surfaceClipDataAttr }
-          : {})}
+        {...(surfaceClipDataAttr != null ? { "data-clip": surfaceClipDataAttr } : {})}
       >
         {hasError && <CornerDot variant="error" />}
         {!hasError && isUnsaved && <CornerDot variant="unsaved" />}

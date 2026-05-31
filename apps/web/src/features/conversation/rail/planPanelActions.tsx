@@ -1,13 +1,7 @@
 "use client";
 
 import type { UIMessage } from "ai";
-import {
-  Check,
-  ChevronRight,
-  HelpCircle,
-  PencilLine,
-  X,
-} from "lucide-react";
+import { Check, ChevronRight, HelpCircle, PencilLine, X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -31,9 +25,11 @@ export type SlotAnswerEntry = {
 };
 
 export type ChatHelpersForApproval = {
-  addToolApprovalResponse: (
-    args: { id: string; approved: boolean; reason?: string },
-  ) => void;
+  addToolApprovalResponse: (args: {
+    id: string;
+    approved: boolean;
+    reason?: string;
+  }) => void;
   sendMessage: (message: { text: string }) => void;
   setMessages: (
     messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[]),
@@ -54,7 +50,6 @@ function fireProductAction(
     ...(metadata !== undefined && { metadata }),
   };
   void submitProductAction(body).catch((err: unknown) => {
-     
     console.warn("submitProductAction failed", action, err);
   });
 }
@@ -72,9 +67,7 @@ export function handleApprove(
   fireProductAction("plan_approve", pending, { slotCount: slotAnswers.length });
 }
 
-
 export const PLAN_SLOT_ANSWERS_PART_TYPE = "data-plan-slot-answers";
-
 
 function attachSlotAnswersToSourceMessage(
   chat: ChatHelpersForApproval,
@@ -96,9 +89,7 @@ function attachSlotAnswersToSourceMessage(
   chat.setMessages((messages) =>
     messages.map((msg) => {
       if (msg.id !== pending.sourceMessage.id) return msg;
-      const filtered = msg.parts.filter(
-        (p) => p.type !== PLAN_SLOT_ANSWERS_PART_TYPE,
-      );
+      const filtered = msg.parts.filter((p) => p.type !== PLAN_SLOT_ANSWERS_PART_TYPE);
       return { ...msg, parts: [...filtered, slotPart] };
     }),
   );

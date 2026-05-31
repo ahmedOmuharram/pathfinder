@@ -52,8 +52,8 @@ export function CompactDisconnectedSection({
         </Button>
       </header>
       <p className="px-1 pb-1 text-[10px] text-muted-foreground">
-        These steps aren&apos;t connected and block save. Remove or wire
-        them up in the full editor.
+        These steps aren&apos;t connected and block save. Remove or wire them up in the
+        full editor.
       </p>
       <ol className="flex flex-col gap-0.5">
         {orphans.map((step) => (

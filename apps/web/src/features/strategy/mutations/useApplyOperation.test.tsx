@@ -7,12 +7,9 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Step, Strategy } from "@pathfinder/shared";
 
 const applyOperationEndpointMock = vi.hoisted(() => vi.fn());
-vi.mock(
-  "@pathfinder/shared/generated/hooks/useApplyOperationEndpoint",
-  () => ({
-    applyOperationEndpoint: applyOperationEndpointMock,
-  }),
-);
+vi.mock("@pathfinder/shared/generated/hooks/useApplyOperationEndpoint", () => ({
+  applyOperationEndpoint: applyOperationEndpointMock,
+}));
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), warning: vi.fn(), success: vi.fn() },
 }));
@@ -73,9 +70,7 @@ describe("useApplyOperation", () => {
     const call = applyOperationEndpointMock.mock.calls[0];
     expect(call?.[0]).toBe("strategy-1");
     expect(call?.[1].op.kind).toBe("updateStepMeta");
-    expect(harness.getStrategy("strategy-1")?.steps[0]?.displayName).toBe(
-      "Renamed",
-    );
+    expect(harness.getStrategy("strategy-1")?.steps[0]?.displayName).toBe("Renamed");
   });
 
   it("rolls back optimistic state on server error and stores lastFailedOperation", async () => {

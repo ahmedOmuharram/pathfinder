@@ -15,9 +15,7 @@ function StubRuntimeProvider({ children }: { children: ReactNode }) {
     },
   });
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      {children}
-    </AssistantRuntimeProvider>
+    <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>
   );
 }
 
@@ -28,9 +26,7 @@ describe("Composer", () => {
         <Composer conversationId="test-conversation" />
       </StubRuntimeProvider>,
     );
-    expect(
-      screen.getByPlaceholderText(/ask about strategies/i),
-    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/ask about strategies/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /send/i })).toBeInTheDocument();
   });
 });

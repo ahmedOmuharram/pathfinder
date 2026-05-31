@@ -1,10 +1,6 @@
 import type { BackgroundTaskStarted } from "@pathfinder/shared";
 
-export function DataBackgroundTaskStarted({
-  data,
-}: {
-  data: BackgroundTaskStarted;
-}) {
+export function DataBackgroundTaskStarted({ data }: { data: BackgroundTaskStarted }) {
   const minutes = Math.ceil(data.estimatedDurationSeconds / 60);
   return (
     <div

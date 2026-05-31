@@ -24,14 +24,7 @@ const item: MemoryItem = {
 
 describe("MemoryEditor", () => {
   it("initializes inputs from item.value", () => {
-    render(
-      <MemoryEditor
-        open
-        item={item}
-        onSave={vi.fn()}
-        onCancel={vi.fn()}
-      />,
-    );
+    render(<MemoryEditor open item={item} onSave={vi.fn()} onCancel={vi.fn()} />);
     expect(screen.getByLabelText(/name/i)).toHaveValue("My note");
     expect(screen.getByLabelText(/summary/i)).toHaveValue("A short summary");
     expect(screen.getByLabelText(/tags/i)).toHaveValue("tagA, tagB");
@@ -39,14 +32,7 @@ describe("MemoryEditor", () => {
   });
 
   it("disables Save when JSON content is invalid", () => {
-    render(
-      <MemoryEditor
-        open
-        item={item}
-        onSave={vi.fn()}
-        onCancel={vi.fn()}
-      />,
-    );
+    render(<MemoryEditor open item={item} onSave={vi.fn()} onCancel={vi.fn()} />);
     const textarea = screen.getByLabelText(/content/i);
     fireEvent.change(textarea, { target: { value: "not json {" } });
     const save = screen.getByRole("button", { name: /save/i });
@@ -55,14 +41,7 @@ describe("MemoryEditor", () => {
 
   it("calls onSave with the edited MemoryEditRequest", () => {
     const onSave = vi.fn();
-    render(
-      <MemoryEditor
-        open
-        item={item}
-        onSave={onSave}
-        onCancel={vi.fn()}
-      />,
-    );
+    render(<MemoryEditor open item={item} onSave={onSave} onCancel={vi.fn()} />);
     fireEvent.change(screen.getByLabelText(/name/i), {
       target: { value: "Updated" },
     });
@@ -85,26 +64,14 @@ describe("MemoryEditor", () => {
 
   it("calls onCancel when cancel is clicked", () => {
     const onCancel = vi.fn();
-    render(
-      <MemoryEditor
-        open
-        item={item}
-        onSave={vi.fn()}
-        onCancel={onCancel}
-      />,
-    );
+    render(<MemoryEditor open item={item} onSave={vi.fn()} onCancel={onCancel} />);
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
     expect(onCancel).toHaveBeenCalled();
   });
 
   it("does not render when open is false", () => {
     const { container } = render(
-      <MemoryEditor
-        open={false}
-        item={item}
-        onSave={vi.fn()}
-        onCancel={vi.fn()}
-      />,
+      <MemoryEditor open={false} item={item} onSave={vi.fn()} onCancel={vi.fn()} />,
     );
     expect(container.textContent).toBe("");
   });

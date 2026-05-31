@@ -8,11 +8,7 @@ describe("InlineRename", () => {
   it("shows the static label by default and switches to an input when clicked", async () => {
     const user = userEvent.setup();
     render(
-      <InlineRename
-        value="Original name"
-        onCommit={() => {}}
-        onCancel={() => {}}
-      />,
+      <InlineRename value="Original name" onCommit={() => {}} onCancel={() => {}} />,
     );
     const trigger = screen.getByText("Original name");
     expect(trigger.tagName).not.toBe("INPUT");
@@ -28,11 +24,7 @@ describe("InlineRename", () => {
     const user = userEvent.setup();
     const onCommit = vi.fn();
     render(
-      <InlineRename
-        value="Original name"
-        onCommit={onCommit}
-        onCancel={() => {}}
-      />,
+      <InlineRename value="Original name" onCommit={onCommit} onCancel={() => {}} />,
     );
     await user.click(screen.getByText("Original name"));
     const input = screen.getByDisplayValue<HTMLInputElement>("Original name");
@@ -46,11 +38,7 @@ describe("InlineRename", () => {
     const onCommit = vi.fn();
     const onCancel = vi.fn();
     render(
-      <InlineRename
-        value="Original name"
-        onCommit={onCommit}
-        onCancel={onCancel}
-      />,
+      <InlineRename value="Original name" onCommit={onCommit} onCancel={onCancel} />,
     );
     await user.click(screen.getByText("Original name"));
     const input = screen.getByDisplayValue<HTMLInputElement>("Original name");
@@ -64,11 +52,7 @@ describe("InlineRename", () => {
     const user = userEvent.setup();
     const onCommit = vi.fn();
     render(
-      <InlineRename
-        value="Original name"
-        onCommit={onCommit}
-        onCancel={() => {}}
-      />,
+      <InlineRename value="Original name" onCommit={onCommit} onCancel={() => {}} />,
     );
     await user.click(screen.getByText("Original name"));
     const input = screen.getByDisplayValue<HTMLInputElement>("Original name");

@@ -69,8 +69,7 @@ export async function client<TData = unknown, _TError = unknown, TVariables = un
   const resp = await fetch(url, init);
   const data = await parseResponseBody(resp);
   if (!resp.ok) {
-    const msg =
-      extractErrorMessage(data) ?? `HTTP ${resp.status} ${resp.statusText}`;
+    const msg = extractErrorMessage(data) ?? `HTTP ${resp.status} ${resp.statusText}`;
     throw new APIError(msg, {
       status: resp.status,
       statusText: resp.statusText,

@@ -4,7 +4,10 @@ import type { Step } from "@pathfinder/shared";
 import { useStepDraftChanges } from "./useStepDraftChanges";
 
 const single = (value: string) => ({ type: "single-pick-vocabulary" as const, value });
-const multi = (values: string[]) => ({ type: "multi-pick-vocabulary" as const, values });
+const multi = (values: string[]) => ({
+  type: "multi-pick-vocabulary" as const,
+  values,
+});
 
 function makeStep(overrides: Partial<Step> = {}): Step {
   return {

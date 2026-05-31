@@ -111,9 +111,7 @@ describe("useDependentParamRefresh", () => {
 
     await waitFor(() => {
       expect(result.current.dependentOptions["gene_list"]).toBeDefined();
-      expect(result.current.dependentOptions["gene_list"]?.[0]?.value).toBe(
-        "NEW1",
-      );
+      expect(result.current.dependentOptions["gene_list"]?.[0]?.value).toBe("NEW1");
     });
   });
 
@@ -165,9 +163,7 @@ describe("useDependentParamRefresh", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.dependentErrors["gene_list"]).toBe(
-        "Network failure",
-      );
+      expect(result.current.dependentErrors["gene_list"]).toBe("Network failure");
     });
     expect(result.current.dependentLoading["gene_list"]).toBe(false);
   });

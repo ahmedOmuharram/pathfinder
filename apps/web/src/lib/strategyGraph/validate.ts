@@ -223,7 +223,8 @@ export function validateStrategySteps(steps: Step[]): StrategyGraphError[] {
     errors.push({
       code: "MULTIPLE_ROOTS",
       severity: "info",
-      message: "Strategy graph has more than one root; only the rooted component is pushed.",
+      message:
+        "Strategy graph has more than one root; only the rooted component is pushed.",
     });
   }
 

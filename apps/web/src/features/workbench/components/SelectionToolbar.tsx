@@ -51,7 +51,8 @@ export function SelectionToolbar({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const toDelete = selectedSets.length > 0 ? selectedSets : activeSet ? [activeSet] : [];
+  const toDelete =
+    selectedSets.length > 0 ? selectedSets : activeSet ? [activeSet] : [];
   const hasExactlyTwo = selectedSets.length === 2;
   const hasTwoOrMore = selectedSets.length >= 2;
 
@@ -92,7 +93,11 @@ export function SelectionToolbar({
             </p>
             <button
               type="button"
-              onClick={selectedSets.length === allSetIds.length ? deselectAll : () => selectAll(allSetIds)}
+              onClick={
+                selectedSets.length === allSetIds.length
+                  ? deselectAll
+                  : () => selectAll(allSetIds)
+              }
               className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
             >
               {selectedSets.length === allSetIds.length ? (

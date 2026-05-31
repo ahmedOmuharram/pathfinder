@@ -41,7 +41,9 @@ export function VennPicker({
   bLabel = "B",
 }: VennPickerProps) {
   const venn = useVennState(operator);
-  const lastClickRef = useRef<{ region: VennRegion; ts: number; index: 0 | 1 } | null>(null);
+  const lastClickRef = useRef<{ region: VennRegion; ts: number; index: 0 | 1 } | null>(
+    null,
+  );
 
   const debouncedOnChange = useDebounceCallback(onChange, ON_CHANGE_DEBOUNCE_MS);
 
@@ -106,9 +108,10 @@ export function VennPicker({
 
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-foreground" data-slot="venn-readout">
-          Operator:{" "}
-          <span className="font-semibold">{venn.operator}</span>{" "}
-          <span className="text-muted-foreground">({PRETTY[venn.operator] ?? venn.operator})</span>
+          Operator: <span className="font-semibold">{venn.operator}</span>{" "}
+          <span className="text-muted-foreground">
+            ({PRETTY[venn.operator] ?? venn.operator})
+          </span>
         </p>
         <Button
           type="button"
@@ -132,10 +135,11 @@ export function VennPicker({
           variant="outline"
           size="sm"
         >
-          <ToggleGroupItem value="COLOCATE" aria-label="Colocate">Colocate…</ToggleGroupItem>
+          <ToggleGroupItem value="COLOCATE" aria-label="Colocate">
+            Colocate…
+          </ToggleGroupItem>
         </ToggleGroup>
       </div>
     </div>
   );
 }
-

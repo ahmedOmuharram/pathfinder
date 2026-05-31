@@ -18,19 +18,17 @@ const DatasetUrlContent = z.object({
 export const DatasetConfigSchema = z.discriminatedUnion("sourceType", [
   z.object({ sourceType: z.literal("idList"), sourceContent: DatasetIdListContent }),
   z.object({ sourceType: z.literal("basket"), sourceContent: DatasetBasketContent }),
-  z.object({ sourceType: z.literal("strategy"), sourceContent: DatasetStrategyContent }),
+  z.object({
+    sourceType: z.literal("strategy"),
+    sourceContent: DatasetStrategyContent,
+  }),
   z.object({ sourceType: z.literal("file"), sourceContent: DatasetFileContent }),
   z.object({ sourceType: z.literal("url"), sourceContent: DatasetUrlContent }),
 ]);
 
 export type DatasetConfig = z.infer<typeof DatasetConfigSchema>;
 
-export type DatasetWidgetTab =
-  | "paste"
-  | "default"
-  | "upload"
-  | "basket"
-  | "strategy";
+export type DatasetWidgetTab = "paste" | "default" | "upload" | "basket" | "strategy";
 
 export function decodeDatasetValue(raw: string): DatasetConfig | null {
   if (!raw) return null;

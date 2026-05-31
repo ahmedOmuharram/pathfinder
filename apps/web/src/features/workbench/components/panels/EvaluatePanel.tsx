@@ -6,7 +6,11 @@ import { useShallow } from "zustand/react/shallow";
 import { useUnmount } from "usehooks-ts";
 import { Loader2, Play, Target } from "lucide-react";
 
-import type { Experiment, ExperimentConfig, EnrichmentAnalysisType } from "@pathfinder/shared";
+import type {
+  Experiment,
+  ExperimentConfig,
+  EnrichmentAnalysisType,
+} from "@pathfinder/shared";
 import {
   ConfusionMatrixSection,
   CrossValidationSection,
@@ -21,10 +25,7 @@ import { Button } from "@/lib/components/ui/Button";
 import { useGeneSetsQuery } from "@/lib/query/hooks/useGeneSetsQuery";
 import { queryKeyPrefixes } from "@/lib/query/keys";
 import { useSessionStore } from "@/state/useSessionStore";
-import {
-  useWorkbenchStore,
-  type PanelId,
-} from "@/state/useWorkbenchStore";
+import { useWorkbenchStore, type PanelId } from "@/state/useWorkbenchStore";
 
 import { CONTROLS_PARAM_NAME, CONTROLS_SEARCH_NAME } from "../../constants";
 import { AnalysisPanelContainer } from "../AnalysisPanelContainer";
@@ -76,10 +77,10 @@ export function EvaluatePanel() {
 
   const hasSearchContext = Boolean(
     activeSet != null &&
-      (activeSet.geneIds.length > 0 ||
-        (activeSet.searchName !== null &&
-          activeSet.searchName !== "" &&
-          activeSet.parameters !== null)),
+    (activeSet.geneIds.length > 0 ||
+      (activeSet.searchName !== null &&
+        activeSet.searchName !== "" &&
+        activeSet.parameters !== null)),
   );
 
   const handleRun = async () => {

@@ -10,10 +10,30 @@ import { SearchPicker } from "./SearchPicker";
 afterEach(cleanup);
 
 const SEARCHES: Search[] = [
-  { name: "GenesByMolecularWeight", displayName: "Genes by molecular weight", recordType: "transcript", description: "" },
-  { name: "GenesByTextSearch", displayName: "Genes by text search", recordType: "transcript", description: "" },
-  { name: "GeneListByGo", displayName: "Genes by GO term", recordType: "transcript", description: "" },
-  { name: "PathwayByName", displayName: "Pathway by name", recordType: "pathway", description: "" },
+  {
+    name: "GenesByMolecularWeight",
+    displayName: "Genes by molecular weight",
+    recordType: "transcript",
+    description: "",
+  },
+  {
+    name: "GenesByTextSearch",
+    displayName: "Genes by text search",
+    recordType: "transcript",
+    description: "",
+  },
+  {
+    name: "GeneListByGo",
+    displayName: "Genes by GO term",
+    recordType: "transcript",
+    description: "",
+  },
+  {
+    name: "PathwayByName",
+    displayName: "Pathway by name",
+    recordType: "pathway",
+    description: "",
+  },
 ];
 
 describe("SearchPicker", () => {
@@ -53,7 +73,11 @@ describe("SearchPicker", () => {
 
   it("renders the selected search label when a value is picked", () => {
     render(
-      <SearchPicker searches={SEARCHES} value="GenesByMolecularWeight" onChange={() => {}} />,
+      <SearchPicker
+        searches={SEARCHES}
+        value="GenesByMolecularWeight"
+        onChange={() => {}}
+      />,
     );
     expect(screen.getByText("Genes by molecular weight")).toBeTruthy();
   });

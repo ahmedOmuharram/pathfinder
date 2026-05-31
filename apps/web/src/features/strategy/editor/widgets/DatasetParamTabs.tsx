@@ -163,9 +163,7 @@ export function StrategyTab({ value, onChange }: StrategyTabProps) {
 
   return (
     <div className="space-y-2">
-      <label className="block text-xs text-muted-foreground">
-        Pick a strategy
-      </label>
+      <label className="block text-xs text-muted-foreground">Pick a strategy</label>
       {isError && (
         <p className="text-xs text-destructive">
           Couldn&apos;t load strategies for this site.

@@ -37,10 +37,7 @@ export default function AppShellLayout({
 }) {
   const { siteId } = use(params);
   return (
-    <QueryBoundary
-      loadingFallback={<LoadingScreen />}
-      ErrorFallback={AppShellError}
-    >
+    <QueryBoundary loadingFallback={<LoadingScreen />} ErrorFallback={AppShellError}>
       <AppShellInner siteId={siteId}>{children}</AppShellInner>
     </QueryBoundary>
   );
@@ -96,11 +93,7 @@ function AppShellInner({
 
   if (!embedded && !veupathdbSignedIn) {
     return (
-      <LoginModal
-        open
-        selectedSite={selectedSite}
-        onSiteChange={handleSiteChange}
-      />
+      <LoginModal open selectedSite={selectedSite} onSiteChange={handleSiteChange} />
     );
   }
 
@@ -114,10 +107,7 @@ function AppShellInner({
         />
       )}
       {embedded ? (
-        <EmbeddedToolbar
-          siteId={selectedSite}
-          onOpenSettings={modals.openSettings}
-        />
+        <EmbeddedToolbar siteId={selectedSite} onOpenSettings={modals.openSettings} />
       ) : (
         <TopBar selectedSite={selectedSite} />
       )}

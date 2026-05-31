@@ -60,7 +60,15 @@ describe("TreeBoxParam -- flat fallback", () => {
     const spec = makeSpec({ multiPick: true });
     render(
       <WidgetTestForm name="test_tree" defaultValue={["leaf-1"]}>
-        {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={spec}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const checkboxes = screen.getAllByRole("checkbox");
@@ -72,7 +80,15 @@ describe("TreeBoxParam -- flat fallback", () => {
     const spec = makeSpec({ multiPick: false });
     render(
       <WidgetTestForm name="test_tree" defaultValue="leaf-2">
-        {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={spec}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const radios = screen.getAllByRole("radio");
@@ -86,7 +102,15 @@ describe("TreeBoxParam -- tree rendering", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
-        {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={spec}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByText("Root")).toBeTruthy();
@@ -98,7 +122,15 @@ describe("TreeBoxParam -- tree rendering", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
-        {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={spec}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByText("Leaf 1")).toBeTruthy();
@@ -109,7 +141,15 @@ describe("TreeBoxParam -- tree rendering", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_tree" defaultValue={["leaf-1", "leaf-3"]}>
-        {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={spec}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByText("2 of 4 selected")).toBeTruthy();
@@ -119,7 +159,15 @@ describe("TreeBoxParam -- tree rendering", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
-        {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={spec}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByText("0 of 4 selected")).toBeTruthy();
@@ -131,7 +179,15 @@ describe("TreeBoxParam -- expand/collapse", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
-        {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={spec}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByText("Leaf 1")).toBeTruthy();
@@ -149,7 +205,15 @@ describe("TreeBoxParam -- single-pick (radios)", () => {
     const spec = makeSpec({ multiPick: false });
     render(
       <WidgetTestForm name="test_tree" defaultValue="leaf-2">
-        {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={spec}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const radios = screen.getAllByRole("radio");
@@ -160,7 +224,15 @@ describe("TreeBoxParam -- single-pick (radios)", () => {
     const spec = makeSpec({ multiPick: false });
     render(
       <WidgetTestForm name="test_tree" defaultValue="leaf-2">
-        {(field) => <TreeBoxParam spec={spec} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={spec}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByLabelText("Leaf 2").getAttribute("data-state")).toBe("checked");

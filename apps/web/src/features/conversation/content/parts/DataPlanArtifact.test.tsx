@@ -15,7 +15,11 @@ describe("DataPlanArtifact", () => {
           rationale: "Two-step approach for erythrocytic stage genes",
           steps: [
             { order: 0, searchName: "GenesByTextSearch", rationale: "keyword filter" },
-            { order: 1, searchName: "GenesByRNASeqEvidence", rationale: "expression data" },
+            {
+              order: 1,
+              searchName: "GenesByRNASeqEvidence",
+              rationale: "expression data",
+            },
           ],
         }}
       />,

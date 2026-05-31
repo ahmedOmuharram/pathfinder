@@ -14,10 +14,8 @@ interface EmbeddedToolbarProps {
 
 export function EmbeddedToolbar({ siteId, onOpenSettings }: EmbeddedToolbarProps) {
   const pathname = usePathname();
-  const chatActive =
-    pathname.startsWith(`/${siteId}/conversation`);
-  const workbenchActive =
-    pathname.startsWith(`/${siteId}/workbench`);
+  const chatActive = pathname.startsWith(`/${siteId}/conversation`);
+  const workbenchActive = pathname.startsWith(`/${siteId}/workbench`);
 
   return (
     <div className="flex items-center justify-end gap-1 border-b border-border bg-background px-3 py-1">

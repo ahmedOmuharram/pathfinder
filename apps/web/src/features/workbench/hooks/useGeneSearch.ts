@@ -71,13 +71,7 @@ export function useGeneSearch(onSelectionsCleared: () => void): GeneSearchState 
     isFetchingNextPage,
     error: queryError,
   } = useInfiniteQuery({
-    queryKey: [
-      "genes",
-      "search",
-      selectedSite,
-      debouncedQuery,
-      selectedOrganism,
-    ],
+    queryKey: ["genes", "search", selectedSite, debouncedQuery, selectedOrganism],
     queryFn: ({ pageParam }) =>
       searchGenes(selectedSite, {
         q: debouncedQuery,
@@ -87,10 +81,7 @@ export function useGeneSearch(onSelectionsCleared: () => void): GeneSearchState 
       }),
     initialPageParam: 0,
     getNextPageParam: (_lastPage, allPages) => {
-      const loaded = allPages.reduce(
-        (sum, page) => sum + page.results.length,
-        0,
-      );
+      const loaded = allPages.reduce((sum, page) => sum + page.results.length, 0);
       const total = allPages[0]?.totalCount ?? 0;
       return loaded < total ? loaded : undefined;
     },

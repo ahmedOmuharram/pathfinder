@@ -43,9 +43,7 @@ function extractDefaults(
     const source: unknown = overrideHas
       ? override[spec.name]
       : spec.initialDisplayValue;
-    const result = isMultiParam(spec)
-      ? coerceToMulti(source)
-      : coerceToSingle(source);
+    const result = isMultiParam(spec) ? coerceToMulti(source) : coerceToSingle(source);
     defaults[spec.name] = result;
   }
   return defaults;

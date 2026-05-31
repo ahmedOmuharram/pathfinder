@@ -60,7 +60,9 @@ function makeAssistantMessage(parts: unknown[], id = "asst-1"): UIMessage {
 function makeChat(messages: UIMessage[]): ChatHelpers {
   let mutableMessages = messages;
   return {
-    get messages() { return mutableMessages; },
+    get messages() {
+      return mutableMessages;
+    },
     addToolApprovalResponse: vi.fn(),
     sendMessage: vi.fn(),
     setMessages: vi.fn((updater: UIMessage[] | ((m: UIMessage[]) => UIMessage[])) => {
@@ -176,10 +178,13 @@ describe("PlanPanel — slot-filling form (Stage A)", () => {
 
   it("Approve sends slot answers via setMessages + addToolApprovalResponse", () => {
     const { chat } = renderPanel([
-      makeAssistantMessage([
-        planArtifactPart(makePlanWithSlot("p1")),
-        approvalPart({ approvalId: "a1", planId: "p1" }),
-      ], "asst-1"),
+      makeAssistantMessage(
+        [
+          planArtifactPart(makePlanWithSlot("p1")),
+          approvalPart({ approvalId: "a1", planId: "p1" }),
+        ],
+        "asst-1",
+      ),
     ]);
     fireEvent.click(screen.getByText("Select an option…"));
     fireEvent.click(screen.getByTestId("slot-option-1693 reads"));
@@ -208,14 +213,16 @@ describe("PlanPanel — slot-filling form (Stage A)", () => {
   });
 });
 
-
 describe("PlanPanel — product-action wiring + SDK v6", () => {
   it("Approve: addToolApprovalResponse({approved:true}) + plan_approve telemetry", () => {
     const { chat } = renderPanel([
-      makeAssistantMessage([
-        planArtifactPart(makePlan("p1")),
-        approvalPart({ approvalId: "a1", planId: "p1" }),
-      ], "asst-1"),
+      makeAssistantMessage(
+        [
+          planArtifactPart(makePlan("p1")),
+          approvalPart({ approvalId: "a1", planId: "p1" }),
+        ],
+        "asst-1",
+      ),
     ]);
     fireEvent.click(screen.getByTestId("plan-approve"));
     expect(chat.addToolApprovalResponse).toHaveBeenCalledWith({

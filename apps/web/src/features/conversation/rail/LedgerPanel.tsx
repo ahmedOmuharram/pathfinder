@@ -44,8 +44,8 @@ export function LedgerPanel() {
       <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold">Investigation Ledger</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Live state of the Lead&apos;s investigation — what&apos;s framed,
-          discovered, planned, built, verified.
+          Live state of the Lead&apos;s investigation — what&apos;s framed, discovered,
+          planned, built, verified.
         </p>
       </div>
       <div className="flex-1 overflow-auto">

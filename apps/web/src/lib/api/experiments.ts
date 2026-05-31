@@ -16,11 +16,11 @@ const ExperimentSummaryListSchema = z.array(experimentSummaryResponseSchema);
 export async function listExperiments(
   siteId?: string | null,
 ): Promise<ExperimentSummary[]> {
-  return (await requestJson(
+  return await requestJson(
     ExperimentSummaryListSchema,
     "/api/v1/experiments",
     siteId != null && siteId !== "" ? { query: { siteId } } : {},
-  ));
+  );
 }
 
 export function experimentsListOptions(siteId: string) {

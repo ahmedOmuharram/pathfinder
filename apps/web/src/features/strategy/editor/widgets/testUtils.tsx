@@ -56,7 +56,9 @@ export function WidgetTestFormWithValidation({
   return (
     <form.Field
       name={name}
-      validators={{ onBlur: ({ value }: { value: string | string[] }) => validator(value) }}
+      validators={{
+        onBlur: ({ value }: { value: string | string[] }) => validator(value),
+      }}
     >
       {(field) => children(field as unknown as ParamWidgetProps["field"])}
     </form.Field>

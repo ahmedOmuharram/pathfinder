@@ -36,9 +36,7 @@ interface ChunkLike {
   message?: { id: string; role: "user"; parts: unknown[] };
 }
 
-export async function reduceSnapshotChunks(
-  chunks: ChunkLike[],
-): Promise<UIMessage[]> {
+export async function reduceSnapshotChunks(chunks: ChunkLike[]): Promise<UIMessage[]> {
   const messages: UIMessage[] = [];
   let pending: ChunkLike[] = [];
   let pendingMessageId: string | undefined;
@@ -56,10 +54,10 @@ export async function reduceSnapshotChunks(
       continue;
     }
     if (
-      chunk.type === "start"
-      && chunk.messageId != null
-      && pendingMessageId != null
-      && chunk.messageId !== pendingMessageId
+      chunk.type === "start" &&
+      chunk.messageId != null &&
+      pendingMessageId != null &&
+      chunk.messageId !== pendingMessageId
     ) {
       await flush();
     }
@@ -72,9 +70,7 @@ export async function reduceSnapshotChunks(
   return messages;
 }
 
-async function reduceAssistantSlice(
-  slice: ChunkLike[],
-): Promise<UIMessage> {
+async function reduceAssistantSlice(slice: ChunkLike[]): Promise<UIMessage> {
   const stream = new ReadableStream<UIMessageChunk>({
     start(controller) {
       for (const chunk of slice) {

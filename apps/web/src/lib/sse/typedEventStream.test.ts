@@ -84,7 +84,7 @@ describe("streamTypedEvents", () => {
 
   it("handles frames split across chunk boundaries", async () => {
     stubFetchWithStream(
-      streamFromChunks(["event: foo\ndata: {\"a", '":"hello"}\n\n', "data: [DONE]\n\n"]),
+      streamFromChunks(['event: foo\ndata: {"a', '":"hello"}\n\n', "data: [DONE]\n\n"]),
     );
 
     const events: unknown[] = [];

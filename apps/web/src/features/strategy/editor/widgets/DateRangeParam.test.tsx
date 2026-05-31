@@ -28,7 +28,15 @@ describe("DateRangeParam", () => {
   it("renders two date inputs", () => {
     render(
       <WidgetTestForm name="dr" defaultValue="">
-        {(field) => <DateRangeParam spec={makeSpec()} name="dr" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <DateRangeParam
+            spec={makeSpec()}
+            name="dr"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByLabelText(/dr min/i)).toBeTruthy();
@@ -38,7 +46,15 @@ describe("DateRangeParam", () => {
   it("decodes existing 'min:max' value", () => {
     render(
       <WidgetTestForm name="dr" defaultValue="2024-01-01:2024-12-31">
-        {(field) => <DateRangeParam spec={makeSpec()} name="dr" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <DateRangeParam
+            spec={makeSpec()}
+            name="dr"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const min = getInputByLabel("dr min");
@@ -50,7 +66,15 @@ describe("DateRangeParam", () => {
   it("encodes range as 'min:max' on change", () => {
     render(
       <WidgetTestForm name="dr" defaultValue="">
-        {(field) => <DateRangeParam spec={makeSpec()} name="dr" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <DateRangeParam
+            spec={makeSpec()}
+            name="dr"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const min = getInputByLabel("dr min");

@@ -40,7 +40,9 @@ describe("state/useMemoriesStore", () => {
       strategies: [],
       preferences: [makeItem({ kind: "preference" })],
       knowledge: [item],
-      pageSize: 50, offset: 0, hasMore: false,
+      pageSize: 50,
+      offset: 0,
+      hasMore: false,
     });
     const s = useMemoriesStore.getState();
     expect(s.geneSets.length).toBe(1);
@@ -69,7 +71,9 @@ describe("state/useMemoriesStore", () => {
       strategies: [],
       preferences: [],
       knowledge: [],
-      pageSize: 50, offset: 0, hasMore: false,
+      pageSize: 50,
+      offset: 0,
+      hasMore: false,
     });
     useMemoriesStore.getState().setLoading(true);
     useMemoriesStore.getState().setError("x");

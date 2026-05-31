@@ -18,7 +18,12 @@ function parseModelString(raw: string): ParsedModel {
   const slug = (head ?? "").toLowerCase();
   // Pydantic-AI identifies Google models with the ``google`` provider key;
   // ``gemini`` is the model family label. Treat both as Google for display.
-  if (slug === "openai" || slug === "anthropic" || slug === "ollama" || slug === "mock") {
+  if (
+    slug === "openai" ||
+    slug === "anthropic" ||
+    slug === "ollama" ||
+    slug === "mock"
+  ) {
     return { provider: slug, model: tail };
   }
   if (slug === "google" || slug === "gemini") {

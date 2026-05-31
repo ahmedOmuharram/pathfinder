@@ -16,7 +16,9 @@ interface DeleteManyOptions {
 export function useDeleteOperation(conversationId: string): {
   requestDelete: (stepId: string) => void;
   requestDeleteMany: (stepIds: string[], options?: DeleteManyOptions) => void;
-  dialogProps: ReturnType<typeof useGraphActionConfirm<DeleteResolution>>["dialogProps"];
+  dialogProps: ReturnType<
+    typeof useGraphActionConfirm<DeleteResolution>
+  >["dialogProps"];
 } {
   const cache = useStrategyCacheUtils();
   const apply = useApplyOperation(conversationId);
@@ -49,10 +51,7 @@ export function useDeleteOperation(conversationId: string): {
     });
   };
 
-  const requestDeleteMany = (
-    stepIds: string[],
-    options?: DeleteManyOptions,
-  ): void => {
+  const requestDeleteMany = (stepIds: string[], options?: DeleteManyOptions): void => {
     if (stepIds.length === 0) return;
     if (stepIds.length === 1) {
       requestDelete(stepIds[0]!);
@@ -65,8 +64,7 @@ export function useDeleteOperation(conversationId: string): {
       for (const id of stepIds) {
         const choices = computeDeleteChoices(current.steps, id);
         const def =
-          choices.find((c) => c.isDefault)?.resolution ??
-          choices[0]?.resolution;
+          choices.find((c) => c.isDefault)?.resolution ?? choices[0]?.resolution;
         if (def !== undefined) applyDeleteOp(id, def);
       }
     };
@@ -81,8 +79,7 @@ export function useDeleteOperation(conversationId: string): {
       .filter((id) => stepIds.includes(id));
     confirm.confirmAction({
       title: `Delete ${stepIds.length} steps?`,
-      subtitle:
-        "Each step uses its safe default (collapse combine where applicable).",
+      subtitle: "Each step uses its safe default (collapse combine where applicable).",
       choices: [
         {
           resolution: "delete-subtree",

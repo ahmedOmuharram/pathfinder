@@ -64,12 +64,10 @@ function SlotField({
   if (slot.status === "needs_discovery") {
     return (
       <div className="rounded-md border border-border bg-card/60 p-2">
-        <div className="font-mono text-[11px] text-foreground">
-          {slot.paramName}
-        </div>
+        <div className="font-mono text-[11px] text-foreground">{slot.paramName}</div>
         <div className="mt-1 text-[11px] text-muted-foreground">
-          Discovery has not enumerated this parameter&apos;s vocabulary. The agent
-          must route back to discovery; you cannot fill it from this form.
+          Discovery has not enumerated this parameter&apos;s vocabulary. The agent must
+          route back to discovery; you cannot fill it from this form.
         </div>
       </div>
     );
@@ -140,9 +138,7 @@ function SlotOptionPicker({
         className="w-full justify-between font-mono text-[11px]"
         onClick={() => setPickerOpen((p) => !p)}
       >
-        <span>
-          {selected ? selected.label : "Select an option…"}
-        </span>
+        <span>{selected ? selected.label : "Select an option…"}</span>
         <span className="text-muted-foreground">▾</span>
       </Button>
       {pickerOpen && (

@@ -43,7 +43,12 @@ function offendersInFile(file) {
     let exempt = false;
     for (let j = i - 1; j >= 0; j -= 1) {
       const above = lines[j].trim();
-      if (above === "" || above.startsWith("//") || above.startsWith("*") || above.startsWith("/*")) {
+      if (
+        above === "" ||
+        above.startsWith("//") ||
+        above.startsWith("*") ||
+        above.startsWith("/*")
+      ) {
         if (above.includes(TODO_MARKER)) {
           exempt = true;
           break;
@@ -54,7 +59,11 @@ function offendersInFile(file) {
       break;
     }
     if (exempt) continue;
-    offenders.push({ file: path.relative(ROOT, file), lineNumber: i + 1, text: line.trim() });
+    offenders.push({
+      file: path.relative(ROOT, file),
+      lineNumber: i + 1,
+      text: line.trim(),
+    });
   }
   return offenders;
 }

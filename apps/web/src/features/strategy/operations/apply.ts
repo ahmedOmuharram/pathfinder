@@ -18,10 +18,7 @@ import {
 } from "./applyUpdate";
 import type { ApplyResult, GraphOperation } from "./types";
 
-export function applyOperation(
-  strategy: Strategy,
-  op: GraphOperation,
-): ApplyResult {
+export function applyOperation(strategy: Strategy, op: GraphOperation): ApplyResult {
   switch (op.kind) {
     case "addLeaf":
       return applyAddLeaf(strategy, op);

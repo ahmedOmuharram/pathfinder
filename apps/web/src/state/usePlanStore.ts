@@ -110,10 +110,10 @@ export const usePlanStore = createStore<PlanState>("PlanStore", (set) => ({
   setPlanTraceContext: (context) =>
     set((state) => ({
       activePlanTraceId:
-        "traceId" in context ? context.traceId ?? null : state.activePlanTraceId,
+        "traceId" in context ? (context.traceId ?? null) : state.activePlanTraceId,
       activePlanMessageGroupId:
         "messageGroupId" in context
-          ? context.messageGroupId ?? null
+          ? (context.messageGroupId ?? null)
           : state.activePlanMessageGroupId,
     })),
   updatePlan: (updates) =>

@@ -2,11 +2,7 @@
 
 import type { UIMessage } from "ai";
 import type { PlanArtifact, PlannedStep } from "@pathfinder/shared";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ClipboardList,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -22,11 +18,7 @@ import {
   type PendingApprovalInfo,
   type SlotAnswerEntry,
 } from "./planPanelActions";
-import {
-  PlanSlotForms,
-  buildSlotAnswers,
-  slotsAreFilled,
-} from "./PlanSlotForm";
+import { PlanSlotForms, buildSlotAnswers, slotsAreFilled } from "./PlanSlotForm";
 import { RailEmptyState, RailPanelShell } from "./RailPanelShell";
 
 function collectPlans(messages: UIMessage[]): PlanArtifact[] {
@@ -48,15 +40,13 @@ function findPendingApproval(messages: UIMessage[]): PendingApprovalInfo | null 
     if (message?.role !== "assistant") continue;
     for (const part of message.parts) {
       if (
-        part.type === "tool-submit_plan"
-        && "state" in part
-        && part.state === "approval-requested"
-        && "approval" in part
+        part.type === "tool-submit_plan" &&
+        "state" in part &&
+        part.state === "approval-requested" &&
+        "approval" in part
       ) {
         const input =
-          "input" in part
-            ? (part.input as { planId?: string } | undefined)
-            : undefined;
+          "input" in part ? (part.input as { planId?: string } | undefined) : undefined;
         return {
           approvalId: part.approval.id,
           planId: input?.planId ?? null,
@@ -128,9 +118,7 @@ export function PlanPanel() {
               approveDisabled={fillableSlots.length > 0 && !allFilled}
               onApprove={() => {
                 const answers: SlotAnswerEntry[] =
-                  fillableSlots.length > 0
-                    ? buildSlotAnswers(slots, slotValues)
-                    : [];
+                  fillableSlots.length > 0 ? buildSlotAnswers(slots, slotValues) : [];
                 handleApprove(chat, pending, answers);
                 setSlotValues({});
               }}
@@ -151,7 +139,9 @@ export function PlanPanel() {
               <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Rationale
               </h3>
-              <p className="text-xs leading-relaxed text-foreground">{focused.rationale}</p>
+              <p className="text-xs leading-relaxed text-foreground">
+                {focused.rationale}
+              </p>
             </section>
           )}
           <section>
@@ -160,7 +150,11 @@ export function PlanPanel() {
             </h3>
             <ol className="space-y-3">
               {focused.steps.map((step, idx) => (
-                <PlanStepCard key={`${step.searchName}-${idx}`} step={step} index={idx} />
+                <PlanStepCard
+                  key={`${step.searchName}-${idx}`}
+                  step={step}
+                  index={idx}
+                />
               ))}
             </ol>
           </section>
@@ -241,7 +235,9 @@ function PlanStepCard({ step, index }: { step: PlannedStep; index: number }) {
         <span className="text-xs font-semibold text-muted-foreground tabular-nums">
           {index + 1}.
         </span>
-        <span className="break-all font-mono text-xs text-foreground">{step.searchName}</span>
+        <span className="break-all font-mono text-xs text-foreground">
+          {step.searchName}
+        </span>
       </div>
       {step.rationale != null && step.rationale !== "" && (
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">

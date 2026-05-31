@@ -1,11 +1,7 @@
 import type { EnrichmentResult, EnrichmentResultsChunk } from "@pathfinder/shared";
 import { EnrichmentSection } from "@/features/analysis";
 
-export function DataEnrichmentResults({
-  data,
-}: {
-  data: EnrichmentResultsChunk;
-}) {
+export function DataEnrichmentResults({ data }: { data: EnrichmentResultsChunk }) {
   const results = data.results as unknown as EnrichmentResult[];
   return (
     <div

@@ -4,16 +4,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningTrigger,
-} from "./reasoning";
+import { Reasoning, ReasoningContent, ReasoningTrigger } from "./reasoning";
 
 function setup({
   isStreaming,
   defaultOpen,
-}: { isStreaming: boolean; defaultOpen?: boolean }) {
+}: {
+  isStreaming: boolean;
+  defaultOpen?: boolean;
+}) {
   return render(
     <Reasoning
       isStreaming={isStreaming}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { Step} from "@pathfinder/shared";
+import type { Step } from "@pathfinder/shared";
 import { useStrategyStore } from "@/state/strategy/store";
 import { SearchNode } from "./SearchNode";
 import type { StepNodeProps } from "./types";
@@ -35,10 +35,8 @@ function makeStep(overrides: Partial<Step> = {}): Step {
   } as Step;
 }
 
-
 function reset() {
   useStrategyStore.setState({
-
     stepLifecycleById: {},
     undoStack: [],
     redoStack: [],
@@ -68,27 +66,17 @@ describe("SearchNode", () => {
   it("shows a shimmer skeleton while count is loading", () => {
     const step = makeStep({ estimatedSize: null });
     useStrategyStore.getState().initStepLifecycle("s1");
-    useStrategyStore
-      .getState()
-      .dispatchStepEvent("s1", { type: "VALIDATE" });
+    useStrategyStore.getState().dispatchStepEvent("s1", { type: "VALIDATE" });
     const { container } = render(<SearchNode {...defaultProps(step)} />);
-    expect(
-      container.querySelector('[data-slot="skeleton"]'),
-    ).not.toBeNull();
+    expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
   });
 
   it("shows validation error treatment with left border + corner dot", () => {
     const step = makeStep({ estimatedSize: null });
-    useStrategyStore
-      .getState()
-      .applyStepValidationErrors({ s1: "Missing organism" });
+    useStrategyStore.getState().applyStepValidationErrors({ s1: "Missing organism" });
     const { container } = render(<SearchNode {...defaultProps(step)} />);
-    expect(
-      container.querySelector('[data-validation="error"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-corner-dot="error"]'),
-    ).not.toBeNull();
+    expect(container.querySelector('[data-validation="error"]')).not.toBeNull();
+    expect(container.querySelector('[data-corner-dot="error"]')).not.toBeNull();
   });
 
   it("renders an output handle on the right when allowed", () => {

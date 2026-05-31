@@ -1,8 +1,5 @@
 import { test, expect } from "../fixtures/test";
-import {
-  MOCK_DELEGATION_PROMPT,
-  MOCK_PLAN_PROMPT,
-} from "../fixtures/mock-prompts";
+import { MOCK_DELEGATION_PROMPT, MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 test.describe("AI Workbench Integration", () => {
   test.describe.configure({ mode: "serial" });

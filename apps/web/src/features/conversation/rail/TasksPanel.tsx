@@ -44,9 +44,8 @@ export function TasksPanel({ conversationId }: TasksPanelProps) {
 function TaskRow({ task }: { task: TaskListItem }) {
   const isActive = ACTIVE.has(task.status);
   const isFailed = task.status === "failed";
-  const percent = task.latestPercent != null
-    ? Math.round(task.latestPercent * 100)
-    : null;
+  const percent =
+    task.latestPercent != null ? Math.round(task.latestPercent * 100) : null;
   return (
     <li className="px-3 py-3">
       <div className="flex items-center justify-between gap-2">

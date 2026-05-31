@@ -10,12 +10,13 @@ export function useSaveValidation(args: {
 }) {
   const { steps, buildStepSignature, debounceMs = 500, validate } = args;
 
-  const validationInputKey = steps.length === 0
-    ? ""
-    : steps
-        .map((step) => `${step.id}:${buildStepSignature(step)}`)
-        .sort()
-        .join("|");
+  const validationInputKey =
+    steps.length === 0
+      ? ""
+      : steps
+          .map((step) => `${step.id}:${buildStepSignature(step)}`)
+          .sort()
+          .join("|");
 
   const debouncedValidate = useDebouncedCallback(() => {
     void validate();

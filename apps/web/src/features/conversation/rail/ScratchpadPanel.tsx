@@ -1,19 +1,13 @@
 "use client";
 
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pin, PinOff, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Note } from "@pathfinder/shared/generated/types/Note";
-import {
-  listScratchpadNotesQueryOptions,
-} from "@pathfinder/shared/generated/hooks/useListScratchpadNotes";
+import { listScratchpadNotesQueryOptions } from "@pathfinder/shared/generated/hooks/useListScratchpadNotes";
 import { patchScratchpadNote } from "@pathfinder/shared/generated/hooks/usePatchScratchpadNote";
 import { deleteScratchpadNote } from "@pathfinder/shared/generated/hooks/useDeleteScratchpadNote";
 
@@ -42,8 +36,7 @@ export function ScratchpadPanel({ conversationId }: ScratchpadPanelProps) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (noteId: string) =>
-      deleteScratchpadNote(noteId, conversationId),
+    mutationFn: (noteId: string) => deleteScratchpadNote(noteId, conversationId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: listScratchpadNotesQueryOptions(conversationId).queryKey,
@@ -105,13 +98,7 @@ export function ScratchpadPanel({ conversationId }: ScratchpadPanelProps) {
   );
 }
 
-function Section({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1 px-2 py-1">
       <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">

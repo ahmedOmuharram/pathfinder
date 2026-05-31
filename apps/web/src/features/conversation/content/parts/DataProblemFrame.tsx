@@ -8,17 +8,12 @@ export function DataProblemFrame({ data }: { data: ProblemFramePart }) {
     >
       <p className="font-medium text-sm">{data.interpretedGoal}</p>
       {data.organismScope != null && data.organismScope.length > 0 ? (
-        <p className="mt-1 text-muted-foreground">
-          Organism: {data.organismScope}
-        </p>
+        <p className="mt-1 text-muted-foreground">Organism: {data.organismScope}</p>
       ) : null}
       {data.biologicalEntities && data.biologicalEntities.length > 0 ? (
         <div className="mt-1 flex flex-wrap gap-1">
           {data.biologicalEntities.map((entity) => (
-            <span
-              key={entity}
-              className="rounded bg-muted px-1.5 py-0.5 text-[10px]"
-            >
+            <span key={entity} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">
               {entity}
             </span>
           ))}
@@ -34,9 +29,7 @@ export function DataProblemFrame({ data }: { data: ProblemFramePart }) {
               <li key={q.question}>
                 {q.question}
                 {q.context != null && q.context.length > 0 ? (
-                  <span className="ml-1 text-muted-foreground">
-                    — {q.context}
-                  </span>
+                  <span className="ml-1 text-muted-foreground">— {q.context}</span>
                 ) : null}
               </li>
             ))}

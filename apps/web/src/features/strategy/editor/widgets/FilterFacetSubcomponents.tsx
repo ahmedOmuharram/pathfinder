@@ -12,11 +12,7 @@ export interface FacetEditorProps {
   onChange: (next: FilterEntry | null) => void;
 }
 
-export function NumericRangeFacet({
-  term,
-  current,
-  onChange,
-}: FacetEditorProps) {
+export function NumericRangeFacet({ term, current, onChange }: FacetEditorProps) {
   const minBound = inferNumericBound(term.values, "min") ?? 0;
   const maxBound = inferNumericBound(term.values, "max") ?? 100;
   const value = readRangeValue(current);

@@ -84,9 +84,7 @@ function makeSnapshot(overrides: Partial<StepSnapshot> = {}): StepSnapshot {
   };
 }
 
-function renderShell(
-  overrides: Partial<ComponentProps<typeof NodeShell>> = {},
-) {
+function renderShell(overrides: Partial<ComponentProps<typeof NodeShell>> = {}) {
   const step = overrides.step ?? makeStep();
   return render(
     <NodeShell
@@ -169,7 +167,12 @@ describe("NodeShell motion stagger", () => {
 
   it("preserves data-testid + data-kind + width/height on the wrapping element", () => {
     const step = makeStep({ id: "abc" });
-    const { container } = renderShell({ step, kind: "combine", width: 168, height: 112 });
+    const { container } = renderShell({
+      step,
+      kind: "combine",
+      width: 168,
+      height: 112,
+    });
 
     const wrapper = container.querySelector('[data-testid="rf-node-abc"]');
     expect(wrapper).not.toBeNull();

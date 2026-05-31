@@ -43,7 +43,9 @@ interface OpenStrategyResponse {
   id?: string;
 }
 
-async function openStrategy(context: import("@playwright/test").BrowserContext): Promise<string> {
+async function openStrategy(
+  context: import("@playwright/test").BrowserContext,
+): Promise<string> {
   const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
     data: { siteId: "veupathdb" },
     headers: { "X-Requested-With": "XMLHttpRequest" },

@@ -22,27 +22,20 @@ function makeStep(overrides: Partial<Step> = {}): Step {
 
 describe("ZeroResultHoverCard", () => {
   it("renders the trigger when count is 0", () => {
-    render(
-      <ZeroResultHoverCard step={makeStep({ estimatedSize: 0 })} count={0} />,
-    );
+    render(<ZeroResultHoverCard step={makeStep({ estimatedSize: 0 })} count={0} />);
     expect(screen.getByTestId("zero-result-trigger")).toBeTruthy();
   });
 
   it("returns null (no trigger) when count > 0", () => {
     const { container } = render(
-      <ZeroResultHoverCard
-        step={makeStep({ estimatedSize: 5 })}
-        count={5}
-      />,
+      <ZeroResultHoverCard step={makeStep({ estimatedSize: 5 })} count={5} />,
     );
     expect(container.querySelector('[data-testid="zero-result-trigger"]')).toBeNull();
   });
 
   it("renders suggestion list on hover when count is 0", async () => {
     const user = userEvent.setup();
-    render(
-      <ZeroResultHoverCard step={makeStep({ estimatedSize: 0 })} count={0} />,
-    );
+    render(<ZeroResultHoverCard step={makeStep({ estimatedSize: 0 })} count={0} />);
     const trigger = screen.getByTestId("zero-result-trigger");
     await user.hover(trigger);
     await act(async () => {

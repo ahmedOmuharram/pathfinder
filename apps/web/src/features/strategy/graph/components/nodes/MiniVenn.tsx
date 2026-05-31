@@ -46,8 +46,7 @@ const LEFT_CENTER = { cx: 28, cy: 28 };
 const RIGHT_CENTER = { cx: 56, cy: 28 };
 const RADIUS = 20;
 // Intersection points: x = 42 (midline), y = 28 ± √(400 − 196) ≈ 28 ± 14.283.
-const LENS_PATH =
-  "M42 13.71715 A20 20 0 0 1 42 42.28285 A20 20 0 0 1 42 13.71715 Z";
+const LENS_PATH = "M42 13.71715 A20 20 0 0 1 42 42.28285 A20 20 0 0 1 42 13.71715 Z";
 const LEFT_FULL = `M${LEFT_CENTER.cx},${LEFT_CENTER.cy} m-${RADIUS},0 a${RADIUS},${RADIUS} 0 1,0 ${RADIUS * 2},0 a${RADIUS},${RADIUS} 0 1,0 -${RADIUS * 2},0 Z`;
 const RIGHT_FULL = `M${RIGHT_CENTER.cx},${RIGHT_CENTER.cy} m-${RADIUS},0 a${RADIUS},${RADIUS} 0 1,0 ${RADIUS * 2},0 a${RADIUS},${RADIUS} 0 1,0 -${RADIUS * 2},0 Z`;
 
@@ -68,20 +67,8 @@ export function MiniVenn({
         data-mode="colocate"
         className={className}
       >
-        <circle
-          cx={24}
-          cy={28}
-          r={18}
-          fill={HIGHLIGHT_FILL}
-          fillOpacity={0.25}
-        />
-        <circle
-          cx={60}
-          cy={28}
-          r={18}
-          fill={HIGHLIGHT_FILL}
-          fillOpacity={0.25}
-        />
+        <circle cx={24} cy={28} r={18} fill={HIGHLIGHT_FILL} fillOpacity={0.25} />
+        <circle cx={60} cy={28} r={18} fill={HIGHLIGHT_FILL} fillOpacity={0.25} />
         <circle
           cx={24}
           cy={28}

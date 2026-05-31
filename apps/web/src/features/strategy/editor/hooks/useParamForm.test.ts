@@ -105,9 +105,7 @@ describe("useParamForm", () => {
       },
     ] as ParamSpec[];
     const { result } = renderHook(() => useParamForm(specs));
-    expect(result.current.form.state.values["organisms"]).toEqual([
-      "P. falciparum",
-    ]);
+    expect(result.current.form.state.values["organisms"]).toEqual(["P. falciparum"]);
   });
 
   it("handles empty multi-pick defaults", () => {

@@ -5,9 +5,9 @@ import type { Strategy } from "@pathfinder/shared";
 describe("layoutStrategyGraph", () => {
   test("returns an empty map for null/empty strategy", async () => {
     expect((await layoutStrategyGraph(null)).size).toBe(0);
-    expect(
-      (await layoutStrategyGraph({ steps: [] } as unknown as Strategy)).size,
-    ).toBe(0);
+    expect((await layoutStrategyGraph({ steps: [] } as unknown as Strategy)).size).toBe(
+      0,
+    );
   });
 
   test("lays out a single leaf step with a numeric position", async () => {

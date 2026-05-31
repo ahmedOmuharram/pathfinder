@@ -94,9 +94,7 @@ describe("groupConversationsByTime", () => {
   });
 
   it("omits empty groups", () => {
-    const twoWeeksAgo = new Date(
-      Date.now() - 14 * 24 * 60 * 60 * 1000,
-    ).toISOString();
+    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
     const groups = groupConversationsByTime([
       makeItem({ id: "a", updatedAt: twoWeeksAgo }),
     ]);

@@ -94,9 +94,9 @@ describe("DataTaskProgress", () => {
         }}
       />,
     );
-    const bar = screen.getByTestId("data-task-progress").querySelector(
-      "[data-testid='progress-bar-fill']",
-    );
+    const bar = screen
+      .getByTestId("data-task-progress")
+      .querySelector("[data-testid='progress-bar-fill']");
     expect(bar).toHaveStyle({ width: "42%" });
   });
 

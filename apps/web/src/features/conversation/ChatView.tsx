@@ -33,11 +33,7 @@ export function ChatView({
     enabled: allowMissing || detailQuery.data != null,
   });
 
-  if (
-    !allowMissing &&
-    detailQuery.isFetched &&
-    detailQuery.data === null
-  ) {
+  if (!allowMissing && detailQuery.isFetched && detailQuery.data === null) {
     redirect(`/${siteSegment}/conversation`);
   }
 

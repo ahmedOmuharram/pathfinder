@@ -68,9 +68,7 @@ describe("Form", () => {
     render(<Harness onSubmit={() => undefined} />);
 
     expect(screen.getByText("Search name")).toBeInTheDocument();
-    expect(
-      screen.getByText("Pick from the available searches"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Pick from the available searches")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 

@@ -51,7 +51,9 @@ export function useResultsTableRecords({
       getRecords(entityRef, {
         offset,
         limit: pageSize,
-        ...(sortColumn != null && sortDir != null ? { sort: sortColumn, dir: sortDir } : {}),
+        ...(sortColumn != null && sortDir != null
+          ? { sort: sortColumn, dir: sortDir }
+          : {}),
         attributes,
       }),
     enabled: attributes.length > 0,
@@ -69,7 +71,8 @@ export function useResultsTableRecords({
     records: data?.records ?? [],
     meta: data?.meta ?? null,
     loading: isLoading,
-    error: error != null ? (error instanceof Error ? error.message : String(error)) : null,
+    error:
+      error != null ? (error instanceof Error ? error.message : String(error)) : null,
     refetch: invalidateAndRefetch,
   };
 }

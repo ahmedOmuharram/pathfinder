@@ -56,7 +56,8 @@ export function QuotaPill() {
         ? "bg-amber-400/25 text-amber-50 ring-1 ring-amber-200/60"
         : "bg-white/15 text-white ring-1 ring-white/30";
 
-  const barColor = pct >= 1 ? "bg-red-300" : pct >= 0.8 ? "bg-amber-200" : "bg-white/80";
+  const barColor =
+    pct >= 1 ? "bg-red-300" : pct >= 0.8 ? "bg-amber-200" : "bg-white/80";
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -81,7 +82,8 @@ export function QuotaPill() {
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          {compact.format(data.totalTokens)} tokens · resets {formatResetsAt(data.resetsAt)}
+          {compact.format(data.totalTokens)} tokens · resets{" "}
+          {formatResetsAt(data.resetsAt)}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

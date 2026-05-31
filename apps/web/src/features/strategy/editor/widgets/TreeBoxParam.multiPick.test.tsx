@@ -64,7 +64,15 @@ describe("TreeBoxParam — multi-pick (shadcn checkboxes)", () => {
   it("renders checkboxes for all nodes", () => {
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getAllByRole("checkbox").length).toBe(7);
@@ -73,7 +81,15 @@ describe("TreeBoxParam — multi-pick (shadcn checkboxes)", () => {
   it("checks a leaf when its value is in the form value", () => {
     render(
       <WidgetTestForm name="test_tree" defaultValue={["leaf-1"]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(stateOf("Leaf 1")).toBe("checked");
@@ -83,7 +99,15 @@ describe("TreeBoxParam — multi-pick (shadcn checkboxes)", () => {
     const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByLabelText("Leaf 1"));
@@ -94,7 +118,15 @@ describe("TreeBoxParam — multi-pick (shadcn checkboxes)", () => {
     const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_tree" defaultValue={["leaf-1", "leaf-2"]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByLabelText("Leaf 1"));
@@ -106,7 +138,15 @@ describe("TreeBoxParam — multi-pick (shadcn checkboxes)", () => {
     const user = userEvent.setup();
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     await user.click(screen.getByLabelText("Branch A"));
@@ -117,7 +157,15 @@ describe("TreeBoxParam — multi-pick (shadcn checkboxes)", () => {
   it("branch checkbox is indeterminate when some children selected", () => {
     render(
       <WidgetTestForm name="test_tree" defaultValue={["leaf-1"]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(stateOf("Branch A")).toBe("indeterminate");
@@ -126,7 +174,15 @@ describe("TreeBoxParam — multi-pick (shadcn checkboxes)", () => {
   it("branch checkbox is checked when all children selected", () => {
     render(
       <WidgetTestForm name="test_tree" defaultValue={["leaf-1", "leaf-2"]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(stateOf("Branch A")).toBe("checked");
@@ -137,7 +193,15 @@ describe("TreeBoxParam — search filter", () => {
   it("renders search input", () => {
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByPlaceholderText("Search...")).toBeTruthy();
@@ -146,10 +210,20 @@ describe("TreeBoxParam — search filter", () => {
   it("filters nodes by search term", () => {
     render(
       <WidgetTestForm name="test_tree" defaultValue={[]}>
-        {(field) => <TreeBoxParam spec={makeSpec()} name="test_tree" options={flatOptions} vocabTree={sampleTree} field={field} />}
+        {(field) => (
+          <TreeBoxParam
+            spec={makeSpec()}
+            name="test_tree"
+            options={flatOptions}
+            vocabTree={sampleTree}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
-    fireEvent.change(screen.getByPlaceholderText("Search..."), { target: { value: "Leaf 1" } });
+    fireEvent.change(screen.getByPlaceholderText("Search..."), {
+      target: { value: "Leaf 1" },
+    });
     expect(screen.getByText("Leaf 1")).toBeTruthy();
     expect(screen.queryByText("Leaf 3")).toBeNull();
   });

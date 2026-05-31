@@ -17,11 +17,7 @@ interface QuickSwitcherProps {
   strategy: Strategy | null;
 }
 
-export function QuickSwitcher({
-  open,
-  onOpenChange,
-  strategy,
-}: QuickSwitcherProps) {
+export function QuickSwitcher({ open, onOpenChange, strategy }: QuickSwitcherProps) {
   const router = useRouter();
   const steps = strategy?.steps ?? [];
   const conversationId = strategy?.id ?? "";

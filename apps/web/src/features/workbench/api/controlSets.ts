@@ -8,9 +8,9 @@ import { requestBlob, requestJson, requestVoid } from "@/lib/api/http";
 const ControlSetListSchema = z.array(controlSetResponseSchema);
 
 export async function listControlSets(siteId: string): Promise<ControlSet[]> {
-  return (await requestJson(ControlSetListSchema, "/api/v1/control-sets", {
+  return await requestJson(ControlSetListSchema, "/api/v1/control-sets", {
     query: { siteId },
-  }));
+  });
 }
 
 export function controlSetsOptions(siteId: string) {
@@ -23,7 +23,7 @@ export function controlSetsOptions(siteId: string) {
 }
 
 export async function getControlSet(id: string): Promise<ControlSet> {
-  return (await requestJson(controlSetResponseSchema, `/api/v1/control-sets/${id}`));
+  return await requestJson(controlSetResponseSchema, `/api/v1/control-sets/${id}`);
 }
 
 export async function createControlSet(body: {
@@ -37,10 +37,10 @@ export async function createControlSet(body: {
   provenanceNotes?: string;
   isPublic?: boolean;
 }): Promise<ControlSet> {
-  return (await requestJson(controlSetResponseSchema, "/api/v1/control-sets", {
+  return await requestJson(controlSetResponseSchema, "/api/v1/control-sets", {
     method: "POST",
     body,
-  }));
+  });
 }
 
 export async function deleteControlSet(id: string): Promise<void> {

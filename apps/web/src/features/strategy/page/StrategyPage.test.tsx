@@ -50,9 +50,7 @@ describe("StrategyPage", () => {
       redirect: vi.fn(),
     }));
     vi.doMock("@tanstack/react-query", async () => {
-      const actual = await vi.importActual<ReactQueryExports>(
-        "@tanstack/react-query",
-      );
+      const actual = await vi.importActual<ReactQueryExports>("@tanstack/react-query");
       return {
         ...actual,
         useQuery: () => ({
@@ -62,15 +60,12 @@ describe("StrategyPage", () => {
         }),
       };
     });
-    vi.doMock(
-      "@/features/strategy/graph/components/StrategyGraph",
-      () => ({
-        StrategyGraph: (props: StrategyGraphSpyProps) => {
-          graphSpy(props);
-          return <div data-testid="strategy-graph" />;
-        },
-      }),
-    );
+    vi.doMock("@/features/strategy/graph/components/StrategyGraph", () => ({
+      StrategyGraph: (props: StrategyGraphSpyProps) => {
+        graphSpy(props);
+        return <div data-testid="strategy-graph" />;
+      },
+    }));
 
     const { StrategyPage } = await import("./StrategyPage");
     const { useStrategyStore } = await import("@/state/strategy/store");
@@ -79,11 +74,7 @@ describe("StrategyPage", () => {
     useStrategyStore.getState().clear();
 
     render(
-      <StrategyPage
-        siteId="plasmodb"
-        conversationId="conv-1"
-        focusStepId={null}
-      />,
+      <StrategyPage siteId="plasmodb" conversationId="conv-1" focusStepId={null} />,
     );
 
     expect(screen.getByTestId("strategy-graph")).toBeTruthy();
@@ -102,9 +93,7 @@ describe("StrategyPage", () => {
       redirect: vi.fn(),
     }));
     vi.doMock("@tanstack/react-query", async () => {
-      const actual = await vi.importActual<ReactQueryExports>(
-        "@tanstack/react-query",
-      );
+      const actual = await vi.importActual<ReactQueryExports>("@tanstack/react-query");
       return {
         ...actual,
         useQuery: () => ({
@@ -114,15 +103,12 @@ describe("StrategyPage", () => {
         }),
       };
     });
-    vi.doMock(
-      "@/features/strategy/graph/components/StrategyGraph",
-      () => ({
-        StrategyGraph: (props: StrategyGraphSpyProps) => {
-          graphSpy(props);
-          return <div data-testid="strategy-graph" />;
-        },
-      }),
-    );
+    vi.doMock("@/features/strategy/graph/components/StrategyGraph", () => ({
+      StrategyGraph: (props: StrategyGraphSpyProps) => {
+        graphSpy(props);
+        return <div data-testid="strategy-graph" />;
+      },
+    }));
 
     const { StrategyPage } = await import("./StrategyPage");
     const { useStrategyStore } = await import("@/state/strategy/store");
@@ -131,11 +117,7 @@ describe("StrategyPage", () => {
     useStrategyStore.getState().clear();
 
     render(
-      <StrategyPage
-        siteId="plasmodb"
-        conversationId="conv-1"
-        focusStepId="step_1"
-      />,
+      <StrategyPage siteId="plasmodb" conversationId="conv-1" focusStepId="step_1" />,
     );
 
     const lastCall = graphSpy.mock.calls.at(-1);
@@ -150,9 +132,7 @@ describe("StrategyPage", () => {
       redirect: redirectSpy,
     }));
     vi.doMock("@tanstack/react-query", async () => {
-      const actual = await vi.importActual<ReactQueryExports>(
-        "@tanstack/react-query",
-      );
+      const actual = await vi.importActual<ReactQueryExports>("@tanstack/react-query");
       return {
         ...actual,
         useQuery: () => ({
@@ -162,12 +142,9 @@ describe("StrategyPage", () => {
         }),
       };
     });
-    vi.doMock(
-      "@/features/strategy/graph/components/StrategyGraph",
-      () => ({
-        StrategyGraph: () => <div />,
-      }),
-    );
+    vi.doMock("@/features/strategy/graph/components/StrategyGraph", () => ({
+      StrategyGraph: () => <div />,
+    }));
 
     const { StrategyPage } = await import("./StrategyPage");
     const { useStrategyStore } = await import("@/state/strategy/store");
@@ -176,11 +153,7 @@ describe("StrategyPage", () => {
     useStrategyStore.getState().clear();
 
     render(
-      <StrategyPage
-        siteId="plasmodb"
-        conversationId="missing"
-        focusStepId={null}
-      />,
+      <StrategyPage siteId="plasmodb" conversationId="missing" focusStepId={null} />,
     );
 
     expect(redirectSpy).toHaveBeenCalledWith("/plasmodb/conversation");
@@ -191,9 +164,7 @@ describe("StrategyPage", () => {
       redirect: vi.fn(),
     }));
     vi.doMock("@tanstack/react-query", async () => {
-      const actual = await vi.importActual<ReactQueryExports>(
-        "@tanstack/react-query",
-      );
+      const actual = await vi.importActual<ReactQueryExports>("@tanstack/react-query");
       return {
         ...actual,
         useQuery: () => ({
@@ -203,12 +174,9 @@ describe("StrategyPage", () => {
         }),
       };
     });
-    vi.doMock(
-      "@/features/strategy/graph/components/StrategyGraph",
-      () => ({
-        StrategyGraph: () => <div data-testid="strategy-graph" />,
-      }),
-    );
+    vi.doMock("@/features/strategy/graph/components/StrategyGraph", () => ({
+      StrategyGraph: () => <div data-testid="strategy-graph" />,
+    }));
 
     const { StrategyPage } = await import("./StrategyPage");
     const { useStrategyStore } = await import("@/state/strategy/store");
@@ -217,11 +185,7 @@ describe("StrategyPage", () => {
     useStrategyStore.getState().clear();
 
     const { container } = render(
-      <StrategyPage
-        siteId="plasmodb"
-        conversationId="conv-1"
-        focusStepId={null}
-      />,
+      <StrategyPage siteId="plasmodb" conversationId="conv-1" focusStepId={null} />,
     );
 
     expect(screen.queryByTestId("strategy-graph")).toBeNull();

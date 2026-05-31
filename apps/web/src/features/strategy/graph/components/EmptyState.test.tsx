@@ -33,8 +33,7 @@ describe("EmptyState", () => {
     const { Wrapper } = createTestWrapper();
     render(
       <Wrapper>
-        <EmptyState siteId="plasmodb" recordType="gene"
-        conversationId="strategy-1" />
+        <EmptyState siteId="plasmodb" recordType="gene" conversationId="strategy-1" />
       </Wrapper>,
     );
     expect(screen.getByTestId("strategy-empty-state")).toBeTruthy();
@@ -46,8 +45,7 @@ describe("EmptyState", () => {
     const { Wrapper } = createTestWrapper();
     render(
       <Wrapper>
-        <EmptyState siteId="plasmodb" recordType="gene"
-        conversationId="strategy-1" />
+        <EmptyState siteId="plasmodb" recordType="gene" conversationId="strategy-1" />
       </Wrapper>,
     );
     fireEvent.click(screen.getByRole("button", { name: /add step/i }));

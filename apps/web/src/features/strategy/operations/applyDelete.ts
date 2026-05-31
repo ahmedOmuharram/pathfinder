@@ -6,10 +6,7 @@ import type { ApplyResult, GraphOperation } from "./types";
 
 type DeleteStepOp = Extract<GraphOperation, { kind: "deleteStep" }>;
 
-export function applyDeleteStep(
-  strategy: Strategy,
-  op: DeleteStepOp,
-): ApplyResult {
+export function applyDeleteStep(strategy: Strategy, op: DeleteStepOp): ApplyResult {
   const target = strategy.steps.find((s) => s.id === op.stepId);
   if (!target) return { kind: "rejected", reason: `Step ${op.stepId} not found` };
 
@@ -47,9 +44,7 @@ function deleteSubtree(strategy: Strategy, stepId: string): ApplyResult {
     }
   } else if (parentInfo !== null) {
     const slotKey =
-      parentInfo.slot === "primary"
-        ? "primaryInputStepId"
-        : "secondaryInputStepId";
+      parentInfo.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
     next = patchSteps(next, parentInfo.parent.id, { [slotKey]: null });
   }
   return {
@@ -84,9 +79,7 @@ function collapseCombine(
   const { parent, slot } = parentInfo;
   if (inferStepKind(parent) === "transform") {
     const subtree = new Set(walkSubtreeIds(strategy.steps, stepId));
-    let next = strategy.steps.filter(
-      (s) => !subtree.has(s.id) && s.id !== parent.id,
-    );
+    let next = strategy.steps.filter((s) => !subtree.has(s.id) && s.id !== parent.id);
     const gp = findParent(strategy.steps, parent.id);
     if (gp !== null) {
       const slotKey =
@@ -100,20 +93,13 @@ function collapseCombine(
     };
   }
   const siblingId =
-    slot === "primary"
-      ? parent.secondaryInputStepId
-      : parent.primaryInputStepId;
-  const drop = new Set<string>([
-    ...walkSubtreeIds(strategy.steps, stepId),
-    parent.id,
-  ]);
+    slot === "primary" ? parent.secondaryInputStepId : parent.primaryInputStepId;
+  const drop = new Set<string>([...walkSubtreeIds(strategy.steps, stepId), parent.id]);
   const grandparent = findParent(strategy.steps, parent.id);
   let next = strategy.steps.filter((s) => !drop.has(s.id));
   if (grandparent !== null) {
     const slotKey =
-      grandparent.slot === "primary"
-        ? "primaryInputStepId"
-        : "secondaryInputStepId";
+      grandparent.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
     next = patchSteps(next, grandparent.parent.id, {
       [slotKey]: siblingId ?? null,
     });
@@ -131,17 +117,13 @@ function orphanSibling(strategy: Strategy, stepId: string): ApplyResult {
     return { kind: "rejected", reason: "orphan-sibling needs a combine parent" };
   const subtree = new Set(walkSubtreeIds(strategy.steps, stepId));
   const slotKey =
-    parentInfo.slot === "primary"
-      ? "primaryInputStepId"
-      : "secondaryInputStepId";
+    parentInfo.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
   let next = strategy.steps.filter((s) => !subtree.has(s.id));
   next = patchSteps(next, parentInfo.parent.id, { [slotKey]: null });
   const grandparent = findParent(strategy.steps, parentInfo.parent.id);
   if (grandparent !== null) {
     const gpSlotKey =
-      grandparent.slot === "primary"
-        ? "primaryInputStepId"
-        : "secondaryInputStepId";
+      grandparent.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
     next = patchSteps(next, grandparent.parent.id, { [gpSlotKey]: null });
   }
   return {
@@ -166,9 +148,7 @@ function promotePrimary(
   let next = strategy.steps.filter((s) => !drop.has(s.id));
   if (parentInfo !== null) {
     const slotKey =
-      parentInfo.slot === "primary"
-        ? "primaryInputStepId"
-        : "secondaryInputStepId";
+      parentInfo.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
     next = patchSteps(next, parentInfo.parent.id, {
       [slotKey]: target.primaryInputStepId ?? null,
     });

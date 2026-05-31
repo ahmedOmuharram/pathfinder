@@ -34,10 +34,7 @@ export interface LogErrorContext {
   readonly extra?: Readonly<Record<string, string | number | boolean>>;
 }
 
-export function logError(
-  error: unknown,
-  context: LogErrorContext,
-): void {
+export function logError(error: unknown, context: LogErrorContext): void {
   if (typeof window === "undefined") return;
   const err = toError(error);
   const tracer = trace.getTracer(TRACER_NAME);

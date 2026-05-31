@@ -11,10 +11,6 @@ export default function StrategyRoute({
 }) {
   const { siteId, conversationId } = use(params);
   return (
-    <StrategyPage
-      siteId={siteId}
-      conversationId={conversationId}
-      focusStepId={null}
-    />
+    <StrategyPage siteId={siteId} conversationId={conversationId} focusStepId={null} />
   );
 }

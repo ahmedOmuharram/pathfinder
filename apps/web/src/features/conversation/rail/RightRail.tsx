@@ -21,10 +21,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { useChatHelpersOptional } from "../runtime/chatHelpersContext";
-import {
-  useRightRailStore,
-  type RightRailPanel,
-} from "@/state/useRightRailStore";
+import { useRightRailStore, type RightRailPanel } from "@/state/useRightRailStore";
 
 import { LedgerPanel } from "./LedgerPanel";
 import { MemoriesPanel } from "./MemoriesPanel";
@@ -35,8 +32,7 @@ import { TasksPanel } from "./TasksPanel";
 
 const PANEL_WIDTH = 360;
 const PANEL_TRANSITION = { type: "spring", stiffness: 380, damping: 36 } as const;
-const ACTIVE_PILL =
-  "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary";
+const ACTIVE_PILL = "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary";
 
 interface RightRailProps {
   conversationId: string;

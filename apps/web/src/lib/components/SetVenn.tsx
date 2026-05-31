@@ -82,7 +82,10 @@ export function SetVenn({
 
   const exclusiveRegions = onRegionClick ? computeExclusiveRegions(sets) : null;
 
-  const handleArcClick = (event: { value: { sets: string[]; size: number }; nativeEvent: MouseEvent }) => {
+  const handleArcClick = (event: {
+    value: { sets: string[]; size: number };
+    nativeEvent: MouseEvent;
+  }) => {
     if (!onRegionClick || !exclusiveRegions) return;
     const regionKey = event.value.sets.join(",");
     const geneIds = exclusiveRegions.get(regionKey) ?? [];

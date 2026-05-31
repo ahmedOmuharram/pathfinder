@@ -6,7 +6,12 @@ import type { ParamSpec } from "@pathfinder/shared";
 import { buildParamSchema, buildFieldSchemaMap } from "../schema/paramSchema";
 import { useParamForm, type ParamForm } from "../hooks/useParamForm";
 import { SelectParam } from "../widgets/SelectParam";
-import { makeSpec, molecularWeightSpecs, textSearchSpecs, organismOptions } from "./fixtures";
+import {
+  makeSpec,
+  molecularWeightSpecs,
+  textSearchSpecs,
+  organismOptions,
+} from "./fixtures";
 import { WidgetTestForm } from "../widgets/testUtils";
 
 afterEach(cleanup);
@@ -49,7 +54,14 @@ describe("TF: empty param specs", () => {
 
   it("useParamForm with empty specs produces empty defaults", () => {
     let formRef: ParamForm | null = null;
-    render(<ParamFormWrapper specs={[]} onFormReady={(f) => { formRef = f; }} />);
+    render(
+      <ParamFormWrapper
+        specs={[]}
+        onFormReady={(f) => {
+          formRef = f;
+        }}
+      />,
+    );
     expect(formRef!.state.values).toEqual({});
   });
 });
@@ -57,38 +69,55 @@ describe("TF: empty param specs", () => {
 describe("TF: all defaults unchanged", () => {
   it("isDirty is false when nothing is changed", () => {
     let formRef: ParamForm | null = null;
-    render(<ParamFormWrapper specs={molecularWeightSpecs()} onFormReady={(f) => { formRef = f; }} />);
+    render(
+      <ParamFormWrapper
+        specs={molecularWeightSpecs()}
+        onFormReady={(f) => {
+          formRef = f;
+        }}
+      />,
+    );
     expect(formRef!.state.isDirty).toBe(false);
   });
 });
 
 describe("TF: numeric validation edge cases", () => {
   it("rejects non-numeric string for numeric param", () => {
-    const schema = buildParamSchema([makeSpec({ name: "w", isNumber: true, allowEmptyValue: false })]);
+    const schema = buildParamSchema([
+      makeSpec({ name: "w", isNumber: true, allowEmptyValue: false }),
+    ]);
     expect(schema.safeParse({ w: "abc" }).success).toBe(false);
     expect(schema.safeParse({ w: "" }).success).toBe(false);
     expect(schema.safeParse({ w: "42" }).success).toBe(true);
   });
 
   it("accepts empty string for optional numeric param", () => {
-    const schema = buildParamSchema([makeSpec({ name: "w", isNumber: true, allowEmptyValue: true })]);
+    const schema = buildParamSchema([
+      makeSpec({ name: "w", isNumber: true, allowEmptyValue: true }),
+    ]);
     expect(schema.safeParse({ w: "" }).success).toBe(true);
   });
 
   it("rejects empty string for required numeric param", () => {
-    const schema = buildParamSchema([makeSpec({ name: "w", isNumber: true, allowEmptyValue: false })]);
+    const schema = buildParamSchema([
+      makeSpec({ name: "w", isNumber: true, allowEmptyValue: false }),
+    ]);
     expect(schema.safeParse({ w: "" }).success).toBe(false);
   });
 
   it("accepts decimal and negative numbers as strings", () => {
-    const schema = buildParamSchema([makeSpec({ name: "w", isNumber: true, allowEmptyValue: false })]);
+    const schema = buildParamSchema([
+      makeSpec({ name: "w", isNumber: true, allowEmptyValue: false }),
+    ]);
     expect(schema.safeParse({ w: "3.14" }).success).toBe(true);
     expect(schema.safeParse({ w: "-100" }).success).toBe(true);
     expect(schema.safeParse({ w: "0" }).success).toBe(true);
   });
 
   it("rejects mixed alpha-numeric for numeric param", () => {
-    const schema = buildParamSchema([makeSpec({ name: "w", isNumber: true, allowEmptyValue: true })]);
+    const schema = buildParamSchema([
+      makeSpec({ name: "w", isNumber: true, allowEmptyValue: true }),
+    ]);
     expect(schema.safeParse({ w: "12abc" }).success).toBe(false);
     expect(schema.safeParse({ w: "e10" }).success).toBe(false);
   });
@@ -106,7 +135,9 @@ describe("TF: form reset on spec change (search switch)", () => {
     if (onFormReady) onFormReady(form);
     return (
       <>
-        {specs.map((spec) => <FormVal key={spec.name} form={form} name={spec.name} />)}
+        {specs.map((spec) => (
+          <FormVal key={spec.name} form={form} name={spec.name} />
+        ))}
       </>
     );
   }
@@ -114,12 +145,22 @@ describe("TF: form reset on spec change (search switch)", () => {
   it("resets form values when specs change (simulating search switch)", () => {
     let formRef: ParamForm | null = null;
     const { rerender } = render(
-      <SpecSwappableForm specs={molecularWeightSpecs()} onFormReady={(f) => { formRef = f; }} />,
+      <SpecSwappableForm
+        specs={molecularWeightSpecs()}
+        onFormReady={(f) => {
+          formRef = f;
+        }}
+      />,
     );
     expect(formRef!.state.values["organism"]).toBe("Plasmodium falciparum 3D7");
 
     rerender(
-      <SpecSwappableForm specs={textSearchSpecs()} onFormReady={(f) => { formRef = f; }} />,
+      <SpecSwappableForm
+        specs={textSearchSpecs()}
+        onFormReady={(f) => {
+          formRef = f;
+        }}
+      />,
     );
     const values = formRef!.state.values;
     expect(values["text_expression"]).toBe("");
@@ -130,11 +171,26 @@ describe("TF: form reset on spec change (search switch)", () => {
 describe("TF: hidden and empty-name params are excluded", () => {
   it("hidden params are not included in form defaults", () => {
     const specs = [
-      makeSpec({ name: "visible_param", isVisible: true, initialDisplayValue: "hello" }),
-      makeSpec({ name: "hidden_param", isVisible: false, initialDisplayValue: "secret" }),
+      makeSpec({
+        name: "visible_param",
+        isVisible: true,
+        initialDisplayValue: "hello",
+      }),
+      makeSpec({
+        name: "hidden_param",
+        isVisible: false,
+        initialDisplayValue: "secret",
+      }),
     ];
     let formRef: ParamForm | null = null;
-    render(<ParamFormWrapper specs={specs} onFormReady={(f) => { formRef = f; }} />);
+    render(
+      <ParamFormWrapper
+        specs={specs}
+        onFormReady={(f) => {
+          formRef = f;
+        }}
+      />,
+    );
     expect(formRef!.state.values["visible_param"]).toBe("hello");
     expect(formRef!.state.values["hidden_param"]).toBeUndefined();
   });
@@ -161,13 +217,26 @@ describe("TF: multi-pick required rejects empty array", () => {
 
 describe("TF: select param with required validation", () => {
   it("renders without blank option when allowEmptyValue is false", () => {
-    const specs = [makeSpec({
-      name: "organism", displayName: "Organism", displayType: "select",
-      allowEmptyValue: false, initialDisplayValue: "Plasmodium falciparum 3D7",
-    })];
+    const specs = [
+      makeSpec({
+        name: "organism",
+        displayName: "Organism",
+        displayType: "select",
+        allowEmptyValue: false,
+        initialDisplayValue: "Plasmodium falciparum 3D7",
+      }),
+    ];
     render(
       <WidgetTestForm name="organism" defaultValue="Plasmodium falciparum 3D7">
-        {(field) => <SelectParam spec={specs[0]!} name="organism" options={organismOptions} vocabTree={null} field={field} />}
+        {(field) => (
+          <SelectParam
+            spec={specs[0]!}
+            name="organism"
+            options={organismOptions}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByRole("combobox")).toBeTruthy();
@@ -179,20 +248,41 @@ describe("TF: schema for mixed param types", () => {
   it("validates string, number, and multi-pick params together", () => {
     const schema = buildParamSchema([
       makeSpec({ name: "organism", type: "string", allowEmptyValue: false }),
-      makeSpec({ name: "min_weight", type: "number", isNumber: true, allowEmptyValue: true }),
+      makeSpec({
+        name: "min_weight",
+        type: "number",
+        isNumber: true,
+        allowEmptyValue: true,
+      }),
       makeSpec({ name: "go_terms", allowMultipleValues: true, allowEmptyValue: false }),
     ]);
-    expect(schema.safeParse({
-      organism: "P. falciparum", min_weight: "50000", go_terms: ["GO:0006915"],
-    }).success).toBe(true);
-    expect(schema.safeParse({
-      organism: "", min_weight: "50000", go_terms: ["GO:0006915"],
-    }).success).toBe(false);
-    expect(schema.safeParse({
-      organism: "P. falciparum", min_weight: "abc", go_terms: ["GO:0006915"],
-    }).success).toBe(false);
-    expect(schema.safeParse({
-      organism: "P. falciparum", min_weight: "", go_terms: [],
-    }).success).toBe(false);
+    expect(
+      schema.safeParse({
+        organism: "P. falciparum",
+        min_weight: "50000",
+        go_terms: ["GO:0006915"],
+      }).success,
+    ).toBe(true);
+    expect(
+      schema.safeParse({
+        organism: "",
+        min_weight: "50000",
+        go_terms: ["GO:0006915"],
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        organism: "P. falciparum",
+        min_weight: "abc",
+        go_terms: ["GO:0006915"],
+      }).success,
+    ).toBe(false);
+    expect(
+      schema.safeParse({
+        organism: "P. falciparum",
+        min_weight: "",
+        go_terms: [],
+      }).success,
+    ).toBe(false);
   });
 });

@@ -66,7 +66,4 @@ export interface MetaSlice {
 // Combined store type
 // ---------------------------------------------------------------------------
 
-export type StrategyState = DraftSlice &
-  HistorySlice &
-  MetaSlice &
-  LifecycleSlice;
+export type StrategyState = DraftSlice & HistorySlice & MetaSlice & LifecycleSlice;

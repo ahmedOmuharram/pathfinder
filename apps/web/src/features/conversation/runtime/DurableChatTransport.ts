@@ -11,8 +11,9 @@ import { EventSourceParserStream } from "eventsource-parser/stream";
 
 import { readCursor, writeCursor } from "./eventCursor";
 
-interface DurableChatTransportOptions<UI_MESSAGE extends UIMessage>
-  extends HttpChatTransportInitOptions<UI_MESSAGE> {
+interface DurableChatTransportOptions<
+  UI_MESSAGE extends UIMessage,
+> extends HttpChatTransportInitOptions<UI_MESSAGE> {
   conversationId: string;
   eventsUrlFor: (conversationId: string) => string;
 }
@@ -31,7 +32,9 @@ export class DurableChatTransport<
           api: string;
           headers?: HeadersInit;
           credentials?: RequestCredentials;
-        } = { api: `${eventsUrlFor(conversationId)}?after=${readCursor(conversationId)}` };
+        } = {
+          api: `${eventsUrlFor(conversationId)}?after=${readCursor(conversationId)}`,
+        };
         if (headers !== undefined) result.headers = headers;
         if (credentials !== undefined) result.credentials = credentials;
         return result;
@@ -60,16 +63,11 @@ export class DurableChatTransport<
       .pipeThrough(new EventSourceParserStream());
 
     const dataOnly = sseEvents.pipeThrough(
-      new TransformStream<
-        { id?: string; event?: string; data: string },
-        string
-      >({
+      new TransformStream<{ id?: string; event?: string; data: string }, string>({
         transform(event, controller) {
           // Cursor only advances at turn boundaries; mid-turn chunks are
           // unresumable without their StartChunk.
-          if (event.data === "[DONE]"
-            && event.id !== undefined
-            && event.id !== "") {
+          if (event.data === "[DONE]" && event.id !== undefined && event.id !== "") {
             const parsed = Number.parseInt(event.id, 10);
             if (Number.isFinite(parsed)) writeCursor(conversationId, parsed);
           }

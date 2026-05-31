@@ -16,7 +16,8 @@ export function DistributionExplorer({ entityRef }: DistributionExplorerProps) {
 }
 
 function DistributionExplorerContent({ entityRef }: DistributionExplorerProps) {
-  const { attributes, selectedAttr, setSelectedAttr } = useAttributeFiltering(entityRef);
+  const { attributes, selectedAttr, setSelectedAttr } =
+    useAttributeFiltering(entityRef);
 
   if (attributes.length === 0) {
     return (

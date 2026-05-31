@@ -82,10 +82,7 @@ export async function layoutStrategyGraph(
         targets: [targetPort],
       });
     }
-    if (
-      step.secondaryInputStepId != null &&
-      stepIds.has(step.secondaryInputStepId)
-    ) {
+    if (step.secondaryInputStepId != null && stepIds.has(step.secondaryInputStepId)) {
       edges.push({
         id: `${step.secondaryInputStepId}->${step.id}:secondary`,
         sources: [`${step.secondaryInputStepId}:out`],

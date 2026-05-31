@@ -48,7 +48,7 @@ describe("AddStepSheet", () => {
           onOpenChange={vi.fn()}
           siteId="plasmodb"
           recordType="gene"
-        conversationId="strategy-1"
+          conversationId="strategy-1"
         />
       </Wrapper>,
     );
@@ -69,7 +69,7 @@ describe("AddStepSheet", () => {
           onOpenChange={vi.fn()}
           siteId="plasmodb"
           recordType="gene"
-        conversationId="strategy-1"
+          conversationId="strategy-1"
         />
       </Wrapper>,
     );

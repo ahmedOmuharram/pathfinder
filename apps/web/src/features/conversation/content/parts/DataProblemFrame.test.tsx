@@ -13,7 +13,8 @@ describe("DataProblemFrame", () => {
         data={{
           siteId: "plasmodb",
           userGoal: "Find malaria genes",
-          interpretedGoal: "Identify P. falciparum genes upregulated during erythrocytic stage",
+          interpretedGoal:
+            "Identify P. falciparum genes upregulated during erythrocytic stage",
           biologicalEntities: ["PfEMP1", "var genes"],
         }}
       />,
@@ -54,11 +55,7 @@ describe("DataProblemFrame", () => {
     );
     expect(screen.getByText(/blocking — please answer/i)).toBeInTheDocument();
     expect(screen.getByText(/which strain/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/assumptions — correct me if needed/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/ring-stage only assumed/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/assumptions — correct me if needed/i)).toBeInTheDocument();
+    expect(screen.getByText(/ring-stage only assumed/i)).toBeInTheDocument();
   });
 });

@@ -197,8 +197,8 @@ export function ConversationSidebar({ siteId }: ConversationSidebarProps) {
             <DialogDescription className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
               <span>
-                This permanently removes the conversation and all its messages.
-                This cannot be undone.
+                This permanently removes the conversation and all its messages. This
+                cannot be undone.
               </span>
             </DialogDescription>
           </DialogHeader>

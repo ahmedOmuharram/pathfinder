@@ -27,7 +27,15 @@ describe("StringParam (form-aware)", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <StringParam spec={spec} name="test_param" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <StringParam
+            spec={spec}
+            name="test_param"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByRole("textbox")).toBeTruthy();
@@ -37,7 +45,15 @@ describe("StringParam (form-aware)", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_param" defaultValue="hello">
-        {(field) => <StringParam spec={spec} name="test_param" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <StringParam
+            spec={spec}
+            name="test_param"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const input: HTMLInputElement = screen.getByRole("textbox");
@@ -48,7 +64,15 @@ describe("StringParam (form-aware)", () => {
     const spec = makeSpec({ isNumber: true });
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <StringParam spec={spec} name="test_param" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <StringParam
+            spec={spec}
+            name="test_param"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const input = screen.getByRole("spinbutton");
@@ -59,7 +83,15 @@ describe("StringParam (form-aware)", () => {
     const spec = makeSpec();
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <StringParam spec={spec} name="test_param" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <StringParam
+            spec={spec}
+            name="test_param"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "abc" } });
@@ -75,7 +107,15 @@ describe("StringParam (form-aware)", () => {
         defaultValue=""
         validator={(v) => (v === "" ? "Required" : undefined)}
       >
-        {(field) => <StringParam spec={spec} name="test_param" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <StringParam
+            spec={spec}
+            name="test_param"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestFormWithValidation>,
     );
     const input = screen.getByRole("textbox");
@@ -94,7 +134,15 @@ describe("StringParam (form-aware)", () => {
         defaultValue=""
         validator={(v) => (v === "" ? "Required" : undefined)}
       >
-        {(field) => <StringParam spec={spec} name="test_param" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <StringParam
+            spec={spec}
+            name="test_param"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestFormWithValidation>,
     );
     fireEvent.blur(screen.getByRole("textbox"));
@@ -107,7 +155,15 @@ describe("StringParam (form-aware)", () => {
     const spec = makeSpec({ allowEmptyValue: false });
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <StringParam spec={spec} name="test_param" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <StringParam
+            spec={spec}
+            name="test_param"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByRole("textbox").getAttribute("aria-required")).toBe("true");
@@ -117,7 +173,15 @@ describe("StringParam (form-aware)", () => {
     const spec = makeSpec({ allowEmptyValue: true });
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <StringParam spec={spec} name="test_param" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <StringParam
+            spec={spec}
+            name="test_param"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     expect(screen.getByRole("textbox").getAttribute("aria-required")).toBeNull();
@@ -133,11 +197,13 @@ describe("StringParam (form-aware)", () => {
           name="test_param"
           options={[]}
           vocabTree={null}
-          field={{
-            state: { value: undefined, meta: { errors: [] } },
-            handleChange: () => {},
-            handleBlur: () => {},
-          } as unknown as ParamWidgetProps["field"]}
+          field={
+            {
+              state: { value: undefined, meta: { errors: [] } },
+              handleChange: () => {},
+              handleBlur: () => {},
+            } as unknown as ParamWidgetProps["field"]
+          }
         />,
       );
 
@@ -147,11 +213,13 @@ describe("StringParam (form-aware)", () => {
           name="test_param"
           options={[]}
           vocabTree={null}
-          field={{
-            state: { value: "typed", meta: { errors: [] } },
-            handleChange: () => {},
-            handleBlur: () => {},
-          } as unknown as ParamWidgetProps["field"]}
+          field={
+            {
+              state: { value: "typed", meta: { errors: [] } },
+              handleChange: () => {},
+              handleBlur: () => {},
+            } as unknown as ParamWidgetProps["field"]
+          }
         />,
       );
 
@@ -171,7 +239,15 @@ describe("StringParam (form-aware)", () => {
     const spec = makeSpec({ isNumber: true, min: 0, max: 100, increment: 5 });
     render(
       <WidgetTestForm name="test_param" defaultValue="">
-        {(field) => <StringParam spec={spec} name="test_param" options={[]} vocabTree={null} field={field} />}
+        {(field) => (
+          <StringParam
+            spec={spec}
+            name="test_param"
+            options={[]}
+            vocabTree={null}
+            field={field}
+          />
+        )}
       </WidgetTestForm>,
     );
     const input = screen.getByRole("spinbutton");

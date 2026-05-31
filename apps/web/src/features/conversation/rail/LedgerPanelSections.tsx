@@ -18,11 +18,7 @@ import {
   type Tone,
 } from "./LedgerPanelPrimitives";
 
-export function IntentSection({
-  intent,
-}: {
-  intent: LedgerIntentPayload | null;
-}) {
+export function IntentSection({ intent }: { intent: LedgerIntentPayload | null }) {
   if (intent === null) {
     return (
       <LedgerSection title="Intent">
@@ -84,11 +80,7 @@ export function FrameSection({ frame }: { frame: LedgerFramePayload }) {
   );
 }
 
-export function DiscoverySection({
-  discovery,
-}: {
-  discovery: LedgerDiscoveryPayload;
-}) {
+export function DiscoverySection({ discovery }: { discovery: LedgerDiscoveryPayload }) {
   return (
     <LedgerSection title="Discovery">
       <LedgerRow
@@ -130,14 +122,8 @@ export function PlanSection({ plan }: { plan: LedgerPlanPayload }) {
         : "bad";
   return (
     <LedgerSection title="Plan">
-      <LedgerRow
-        label="present"
-        value={<BoolBadge value={plan.plan !== null} />}
-      />
-      <LedgerRow
-        label="approved"
-        value={<BoolBadge value={plan.approved} />}
-      />
+      <LedgerRow label="present" value={<BoolBadge value={plan.plan !== null} />} />
+      <LedgerRow label="approved" value={<BoolBadge value={plan.approved} />} />
       <LedgerRow
         label="open user-input slots"
         value={
@@ -221,10 +207,7 @@ export function BuildSection({ build }: { build: LedgerBuildPayload }) {
         label="recovery kind"
         value={<StatusPill text={build.recoveryKind} tone={recoveryTone} />}
       />
-      <LedgerRow
-        label="succeeded"
-        value={<BoolBadge value={build.succeeded} />}
-      />
+      <LedgerRow label="succeeded" value={<BoolBadge value={build.succeeded} />} />
     </LedgerSection>
   );
 }
@@ -236,10 +219,7 @@ export function VerificationSection({
 }) {
   return (
     <LedgerSection title="Verification">
-      <LedgerRow
-        label="complete"
-        value={<BoolBadge value={verification.complete} />}
-      />
+      <LedgerRow label="complete" value={<BoolBadge value={verification.complete} />} />
       <LedgerRow
         label="successful"
         value={<BoolBadge value={verification.successful} />}

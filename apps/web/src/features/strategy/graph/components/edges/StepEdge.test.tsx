@@ -6,8 +6,7 @@ import type { EdgeProps } from "@xyflow/react";
 
 function setReducedMotion(matches: boolean): void {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-    matches:
-      query === "(prefers-reduced-motion: reduce)" ? matches : false,
+    matches: query === "(prefers-reduced-motion: reduce)" ? matches : false,
     media: query,
     onchange: null,
     addEventListener: () => undefined,

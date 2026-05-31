@@ -14,5 +14,10 @@ export function useSystemConfig(): {
 } {
   const { data, refetch } = useSuspenseQuery(systemConfigQueryOptions());
   const setupRequired = data.llmConfigured === false;
-  return { setupRequired, retry: () => { void refetch(); } };
+  return {
+    setupRequired,
+    retry: () => {
+      void refetch();
+    },
+  };
 }

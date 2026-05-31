@@ -26,7 +26,13 @@ const statusClasses: Record<ChipStatus, string> = {
   invalid: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30",
 };
 
-function GeneHoverCard({ gene, pos }: { gene: ResolvedGene; pos: { top: number; left: number } }) {
+function GeneHoverCard({
+  gene,
+  pos,
+}: {
+  gene: ResolvedGene;
+  pos: { top: number; left: number };
+}) {
   return createPortal(
     <div
       className="fixed z-50 w-64 rounded-md border border-border bg-popover p-2.5 shadow-lg text-xs"

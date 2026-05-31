@@ -37,9 +37,7 @@ export function BranchMessageAction() {
     },
     onError: (err) => {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "Failed to branch this conversation",
+        err instanceof Error ? err.message : "Failed to branch this conversation",
       );
     },
   });

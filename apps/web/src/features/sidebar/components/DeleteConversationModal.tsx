@@ -42,7 +42,12 @@ export function DeleteConversationModal({
   const hasChildren = descendantCount > 0;
 
   return (
-    <Dialog open={target !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog
+      open={target !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Delete conversation</DialogTitle>
@@ -69,8 +74,8 @@ export function DeleteConversationModal({
                 {descendantCount === 1 ? "branch" : "branches"}
               </div>
               <p className="text-xs text-muted-foreground">
-                Unchecked: sub-branches move up one level and keep their fork
-                point. Checked: the whole subtree is removed.
+                Unchecked: sub-branches move up one level and keep their fork point.
+                Checked: the whole subtree is removed.
               </p>
             </div>
           </label>

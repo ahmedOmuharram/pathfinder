@@ -47,7 +47,9 @@ function isTestOrSpec(filePath) {
   return /\.(test|spec)\.(ts|tsx|mts|cts)$/.test(filePath);
 }
 
-const files = walk(STRATEGY_DIR).filter(isTsLike).filter((f) => !isTestOrSpec(f));
+const files = walk(STRATEGY_DIR)
+  .filter(isTsLike)
+  .filter((f) => !isTestOrSpec(f));
 
 const violations = [];
 

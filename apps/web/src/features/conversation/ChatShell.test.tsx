@@ -56,9 +56,9 @@ describe("ChatShell.isStrategyRoute", () => {
   });
 
   it("returns true for the strategy step deep-link route", () => {
-    expect(
-      isStrategyRoute("/plasmodb/conversation/conv-1/strategy/step/step_1"),
-    ).toBe(true);
+    expect(isStrategyRoute("/plasmodb/conversation/conv-1/strategy/step/step_1")).toBe(
+      true,
+    );
   });
 });
 
@@ -75,9 +75,7 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
       useParams: () => ({ conversationId: "/conversation/gen-xyz".split("/").pop() }),
     }));
     vi.doMock("@tanstack/react-query", async () => {
-      const actual = await vi.importActual<ReactQueryExports>(
-        "@tanstack/react-query",
-      );
+      const actual = await vi.importActual<ReactQueryExports>("@tanstack/react-query");
       return {
         ...actual,
         useQuery: (opts: { queryKey: readonly unknown[] }) => {
@@ -113,12 +111,12 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     vi.doMock("next/navigation", () => ({
       redirect: vi.fn(),
       usePathname: () => "/conversation/with-steps",
-      useParams: () => ({ conversationId: "/conversation/with-steps".split("/").pop() }),
+      useParams: () => ({
+        conversationId: "/conversation/with-steps".split("/").pop(),
+      }),
     }));
     vi.doMock("@tanstack/react-query", async () => {
-      const actual = await vi.importActual<ReactQueryExports>(
-        "@tanstack/react-query",
-      );
+      const actual = await vi.importActual<ReactQueryExports>("@tanstack/react-query");
       return {
         ...actual,
         useQuery: (opts: { queryKey: readonly unknown[] }) => {
@@ -182,9 +180,7 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
       useParams: () => ({ conversationId: "/conversation/no-steps".split("/").pop() }),
     }));
     vi.doMock("@tanstack/react-query", async () => {
-      const actual = await vi.importActual<ReactQueryExports>(
-        "@tanstack/react-query",
-      );
+      const actual = await vi.importActual<ReactQueryExports>("@tanstack/react-query");
       return {
         ...actual,
         useQuery: (opts: { queryKey: readonly unknown[] }) => {
@@ -217,7 +213,10 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
       parseAsString: {},
     }));
     vi.doMock("./rail/StrategyPanel", () => ({
-      StrategyPanel: (props: { strategy: { steps: unknown[] } | null; siteId: string }) => {
+      StrategyPanel: (props: {
+        strategy: { steps: unknown[] } | null;
+        siteId: string;
+      }) => {
         strategyPanelSpy(props);
         return <div data-testid="strategy-panel" />;
       },
@@ -234,7 +233,10 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
     expect(strategyPanelSpy).toHaveBeenCalled();
     const lastCall = strategyPanelSpy.mock.calls.at(-1);
     if (lastCall === undefined) throw new Error("no call");
-    const props = lastCall[0] as { strategy: { steps: unknown[] } | null; siteId: string };
+    const props = lastCall[0] as {
+      strategy: { steps: unknown[] } | null;
+      siteId: string;
+    };
     expect(props.strategy?.steps).toEqual([]);
   });
 
@@ -246,9 +248,7 @@ describe("ChatShell integration: no redirect during first-send URL rewrite", () 
       useParams: () => ({ conversationId: "/conversation/stranger".split("/").pop() }),
     }));
     vi.doMock("@tanstack/react-query", async () => {
-      const actual = await vi.importActual<ReactQueryExports>(
-        "@tanstack/react-query",
-      );
+      const actual = await vi.importActual<ReactQueryExports>("@tanstack/react-query");
       return {
         ...actual,
         useQuery: (opts: { queryKey: readonly unknown[] }) => {

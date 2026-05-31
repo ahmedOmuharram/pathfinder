@@ -3,11 +3,7 @@
 import type { Edge } from "@xyflow/react";
 import { Trash2 } from "lucide-react";
 import { CombineOperator, type Step } from "@pathfinder/shared";
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { VennIcon } from "@/features/strategy/graph/components/OpBadge";
 import { inferStepKind } from "@/lib/strategyGraph";
@@ -69,8 +65,7 @@ export function EdgeContextMenu({
   onClose,
 }: EdgeContextMenuProps) {
   const targetStep = steps.find((s) => s.id === edge.target);
-  const isCombineEdge =
-    targetStep != null && inferStepKind(targetStep) === "combine";
+  const isCombineEdge = targetStep != null && inferStepKind(targetStep) === "combine";
 
   return (
     <Popover

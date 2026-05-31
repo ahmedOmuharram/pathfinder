@@ -66,9 +66,7 @@ export const exportCommand: Command = {
       const strategies = await fetchJson<
         Array<{ id: string; wdkStrategyId: number | null }>
       >(`/api/v1/conversations?siteId=${encodeURIComponent(ctx.siteId)}`);
-      const target = strategies.find(
-        (s) => s.wdkStrategyId === chat.wdkStrategyId,
-      );
+      const target = strategies.find((s) => s.wdkStrategyId === chat.wdkStrategyId);
       if (target === undefined) {
         return {
           kind: "toast",
@@ -92,9 +90,7 @@ export const exportCommand: Command = {
     }
     if (what === "chat") {
       const messages = await loadSnapshotMessages(ctx.conversationId);
-      const messagesJson = messages as unknown as Array<
-        Record<string, unknown>
-      >;
+      const messagesJson = messages as unknown as Array<Record<string, unknown>>;
       if (format === "md") {
         const md = renderChatMarkdown(messagesJson);
         downloadTextFile(`chat-${ctx.conversationId}.md`, md, "text/markdown");
@@ -163,8 +159,7 @@ export const importCommand: Command = {
       kind: "textarea",
       name: "rawText",
       label: "Gene IDs",
-      placeholder:
-        "Paste gene IDs — newline, comma, tab, or space separated",
+      placeholder: "Paste gene IDs — newline, comma, tab, or space separated",
       rows: 6,
     },
   ],

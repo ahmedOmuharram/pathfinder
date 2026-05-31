@@ -40,12 +40,10 @@ export function useDependentParamRefresh(
   const [dependentOptions, setDependentOptions] = useState<
     Record<string, VocabOption[]>
   >({});
-  const [dependentLoading, setDependentLoading] = useState<
-    Record<string, boolean>
-  >({});
-  const [dependentErrors, setDependentErrors] = useState<
-    Record<string, string | null>
-  >({});
+  const [dependentLoading, setDependentLoading] = useState<Record<string, boolean>>({});
+  const [dependentErrors, setDependentErrors] = useState<Record<string, string | null>>(
+    {},
+  );
   const refreshCounterRef = useRef(0);
 
   const handleFieldChange = (

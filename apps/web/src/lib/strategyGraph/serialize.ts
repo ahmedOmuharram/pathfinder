@@ -1,4 +1,8 @@
-import type { CombineOperator, StrategyStepNode, StrategyAst } from "@pathfinder/shared";
+import type {
+  CombineOperator,
+  StrategyStepNode,
+  StrategyAst,
+} from "@pathfinder/shared";
 import { DEFAULT_STREAM_NAME } from "@pathfinder/shared";
 import type { Step, Strategy } from "@pathfinder/shared";
 import { walkSubtreeIds } from "@/features/strategy/operations";
@@ -16,16 +20,10 @@ export type SerializedStrategyPlan = {
 function sanitizeParametersForPlan(params: ParamMap): ParamMap {
   const next: ParamMap = {};
   for (const [key, value] of Object.entries(params)) {
-    if (
-      value.type === "multi-pick-vocabulary" &&
-      value.values.includes("@@fake@@")
-    ) {
+    if (value.type === "multi-pick-vocabulary" && value.values.includes("@@fake@@")) {
       continue;
     }
-    if (
-      value.type === "single-pick-vocabulary" &&
-      value.value === "@@fake@@"
-    ) {
+    if (value.type === "single-pick-vocabulary" && value.value === "@@fake@@") {
       continue;
     }
     next[key] = value;

@@ -1,10 +1,7 @@
 import { useShallow } from "zustand/react/shallow";
 import type { SearchValidationErrors, Step } from "@pathfinder/shared";
 import { useStrategyStore } from "./store";
-import type {
-  StepLifecycleStateName,
-  StepMachineSnapshot,
-} from "./stepMachine";
+import type { StepLifecycleStateName, StepMachineSnapshot } from "./stepMachine";
 
 export interface StepSnapshot {
   step: Step | null;
@@ -77,8 +74,7 @@ export function useStepSnapshot(step: Step | null): StepSnapshot {
         estimatedSize: resolveEstimatedSize(lifecycle, step),
         validationErrors: resolveValidationErrors(lifecycle, step),
         lastError: lifecycle?.context.lastError ?? null,
-        isBusy:
-          lifecycleState === "validating" || lifecycleState === "running",
+        isBusy: lifecycleState === "validating" || lifecycleState === "running",
         isInvalid: lifecycleState === "invalid",
         isFailed: lifecycleState === "failed",
       };

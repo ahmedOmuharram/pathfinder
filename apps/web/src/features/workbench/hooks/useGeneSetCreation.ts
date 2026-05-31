@@ -56,7 +56,11 @@ export function useGeneSetCreation({ onCreated }: UseGeneSetCreationOptions) {
   });
 
   const createMutation = useMutation({
-    mutationFn: (args: { name: string; geneIds: string[]; source: "paste" | "upload" }) =>
+    mutationFn: (args: {
+      name: string;
+      geneIds: string[];
+      source: "paste" | "upload";
+    }) =>
       createGeneSet({
         name: args.name,
         source: args.source,

@@ -23,10 +23,7 @@ if (typeof Element !== "undefined" && !Element.prototype.hasPointerCapture) {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.setPointerCapture = () => {};
 }
-if (
-  typeof window !== "undefined" &&
-  typeof window.matchMedia !== "function"
-) {
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
   window.matchMedia = ((query: string) => ({
     matches: false,
     media: query,

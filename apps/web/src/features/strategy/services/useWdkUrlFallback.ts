@@ -13,7 +13,8 @@ export function useWdkUrlFallback(args: {
 
   const { data: sites } = useQuery(sitesOptions());
 
-  if (wdkStrategyId == null || siteId == null || siteId === "" || sites == null) return null;
+  if (wdkStrategyId == null || siteId == null || siteId === "" || sites == null)
+    return null;
   const site = sites.find((s) => s.id === siteId);
   if (site?.baseUrl == null || site.baseUrl === "") return null;
   return `${normalizeBaseUrl(site.baseUrl)}/app/workspace/strategies/${wdkStrategyId}`;

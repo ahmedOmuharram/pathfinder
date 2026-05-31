@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
 import type { MemoryEditRequest, MemoryItem } from "@pathfinder/shared";
@@ -33,8 +29,7 @@ export function MemorySettings() {
     staleTime: 10_000,
   });
 
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ["memories"] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["memories"] });
 
   const editMutation = useMutation({
     mutationFn: async (args: {
@@ -46,10 +41,8 @@ export function MemorySettings() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (args: {
-      key: string;
-      kind: MemoryItem["value"]["kind"];
-    }) => deleteMemory(args.key, args.kind),
+    mutationFn: async (args: { key: string; kind: MemoryItem["value"]["kind"] }) =>
+      deleteMemory(args.key, args.kind),
     onSuccess: () => invalidate(),
   });
 
@@ -141,9 +134,7 @@ export function MemorySettings() {
                 {offset > 0 && (
                   <button
                     type="button"
-                    onClick={() =>
-                      setOffset(Math.max(0, offset - PAGE_SIZE))
-                    }
+                    onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
                     disabled={isFetching}
                     className="rounded border border-border px-2 py-1 hover:bg-muted disabled:opacity-50"
                   >

@@ -107,8 +107,7 @@ test.describe("Strategy page smoke (post-overhaul)", () => {
     graphPage,
   }) => {
     const baseURL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
-    const { conversationId, rootStepId } =
-      await seedStrategyViaApi(context, baseURL);
+    const { conversationId, rootStepId } = await seedStrategyViaApi(context, baseURL);
 
     await page.goto(`/${SITE_ID}/conversation/${conversationId}`);
     await openStrategyRailPanel(page);
@@ -137,10 +136,7 @@ test.describe("Strategy page smoke (post-overhaul)", () => {
     await graphPage.expectOnChatRoute(conversationId);
   });
 
-  test("canvas controls are mounted on /strategy", async ({
-    context,
-    graphPage,
-  }) => {
+  test("canvas controls are mounted on /strategy", async ({ context, graphPage }) => {
     const baseURL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
     const { conversationId } = await seedStrategyViaApi(context, baseURL);
 

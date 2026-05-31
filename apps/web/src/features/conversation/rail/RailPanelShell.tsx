@@ -44,11 +44,7 @@ interface RailEmptyStateProps {
   description: string;
 }
 
-export function RailEmptyState({
-  icon,
-  heading,
-  description,
-}: RailEmptyStateProps) {
+export function RailEmptyState({ icon, heading, description }: RailEmptyStateProps) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
       <div className="text-muted-foreground/60">{icon}</div>

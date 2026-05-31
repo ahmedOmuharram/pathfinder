@@ -71,9 +71,7 @@ export const commands: Command[] = [
     icon: <HelpCircle className="size-3.5" aria-hidden />,
     params: [],
     run: () => {
-      const lines = commands.map(
-        (c) => `- /${c.name} — ${c.description}`,
-      );
+      const lines = commands.map((c) => `- /${c.name} — ${c.description}`);
       return {
         kind: "toast",
         type: "info",
@@ -98,9 +96,9 @@ export const commands: Command[] = [
     icon: <LineChart className="size-3.5" aria-hidden />,
     params: [],
     prompt: () =>
-      "Analyze my current strategy. Summarize topology and step flow, any "
-      + "weak spots or redundant steps, concrete improvement suggestions, "
-      + "and what I should try next.",
+      "Analyze my current strategy. Summarize topology and step flow, any " +
+      "weak spots or redundant steps, concrete improvement suggestions, " +
+      "and what I should try next.",
     autoSubmit: false,
   },
   {
@@ -110,8 +108,8 @@ export const commands: Command[] = [
     icon: <BookOpen className="size-3.5" aria-hidden />,
     params: [],
     prompt: () =>
-      "Summarize this conversation so far: the research question, the "
-      + "strategy I've built, key decisions made, and anything still open.",
+      "Summarize this conversation so far: the research question, the " +
+      "strategy I've built, key decisions made, and anything still open.",
     autoSubmit: false,
   },
   {
@@ -121,9 +119,9 @@ export const commands: Command[] = [
     icon: <Ban className="size-3.5" aria-hidden />,
     params: [],
     prompt: () =>
-      "Diagnose my current strategy. Walk through each step, call "
-      + "get_estimated_size on each, and identify where results collapse. "
-      + "Suggest the likely cause and concrete fixes.",
+      "Diagnose my current strategy. Walk through each step, call " +
+      "get_estimated_size on each, and identify where results collapse. " +
+      "Suggest the likely cause and concrete fixes.",
     autoSubmit: false,
   },
   {

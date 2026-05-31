@@ -46,9 +46,7 @@ describe("state/useTaskStore", () => {
   });
 
   it("setProgress for unknown task is a no-op", () => {
-    useTaskStore
-      .getState()
-      .setProgress("nope", { percent: 0.1, message: "ignored" });
+    useTaskStore.getState().setProgress("nope", { percent: 0.1, message: "ignored" });
     expect(useTaskStore.getState().tasks).toEqual({});
   });
 
@@ -59,9 +57,7 @@ describe("state/useTaskStore", () => {
       startedAt: new Date().toISOString(),
       estimatedDurationSeconds: 60,
     });
-    useTaskStore
-      .getState()
-      .setProgress("t1", { percent: 1, message: "done" });
+    useTaskStore.getState().setProgress("t1", { percent: 1, message: "done" });
     useTaskStore.getState().completeTask("t1", "success");
     const record = useTaskStore.getState().tasks["t1"];
     if (!record) throw new Error("expected record");

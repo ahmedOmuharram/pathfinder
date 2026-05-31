@@ -17,11 +17,8 @@ export function applyAddLeaf(strategy: Strategy, op: AddLeafOp): ApplyResult {
       description: `Added ${op.step.displayName ?? op.step.id}`,
     };
   }
-  const targetExists = strategy.steps.some(
-    (s) => s.id === attach.targetStepId,
-  );
-  if (!targetExists)
-    return { kind: "rejected", reason: "Target step not found" };
+  const targetExists = strategy.steps.some((s) => s.id === attach.targetStepId);
+  if (!targetExists) return { kind: "rejected", reason: "Target step not found" };
   const slotKey =
     attach.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
   return {
@@ -36,10 +33,7 @@ export function applyAddLeaf(strategy: Strategy, op: AddLeafOp): ApplyResult {
   };
 }
 
-export function applyAddCombine(
-  strategy: Strategy,
-  op: AddCombineOp,
-): ApplyResult {
+export function applyAddCombine(strategy: Strategy, op: AddCombineOp): ApplyResult {
   if (op.leftId === op.rightId)
     return { kind: "rejected", reason: "Combine inputs must differ" };
   if (
@@ -60,10 +54,7 @@ export function applyAddCombine(
   };
 }
 
-export function applyAddTransform(
-  strategy: Strategy,
-  op: AddTransformOp,
-): ApplyResult {
+export function applyAddTransform(strategy: Strategy, op: AddTransformOp): ApplyResult {
   if (op.mode === "new-root") {
     return {
       kind: "applied",
@@ -76,9 +67,7 @@ export function applyAddTransform(
   let nextSteps = [...strategy.steps, transform];
   if (consumer !== null) {
     const slotKey =
-      consumer.slot === "primary"
-        ? "primaryInputStepId"
-        : "secondaryInputStepId";
+      consumer.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
     nextSteps = patchSteps(nextSteps, consumer.parent.id, {
       [slotKey]: transform.id,
     });
@@ -95,8 +84,7 @@ export function applyDuplicateStep(
   op: DuplicateStepOp,
 ): ApplyResult {
   const source = strategy.steps.find((s) => s.id === op.sourceStepId);
-  if (!source)
-    return { kind: "rejected", reason: `Step ${op.sourceStepId} not found` };
+  if (!source) return { kind: "rejected", reason: `Step ${op.sourceStepId} not found` };
 
   const duplicate: Step = {
     ...source,
@@ -123,9 +111,7 @@ export function applyDuplicateStep(
   let nextSteps: Step[] = strategy.steps.map((s) => s);
   if (parentInfo !== null) {
     const slotKey =
-      parentInfo.slot === "primary"
-        ? "primaryInputStepId"
-        : "secondaryInputStepId";
+      parentInfo.slot === "primary" ? "primaryInputStepId" : "secondaryInputStepId";
     nextSteps = patchSteps(nextSteps, parentInfo.parent.id, {
       [slotKey]: op.combineStepId,
     });

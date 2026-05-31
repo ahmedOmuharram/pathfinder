@@ -9,12 +9,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { FileRow, TextAreaRow, TextRow } from "./ParamRows";
 import { SelectRow } from "./SelectRow";
-import type {
-  Command,
-  CommandContext,
-  ParamDef,
-  ParamValues,
-} from "./types";
+import type { Command, CommandContext, ParamDef, ParamValues } from "./types";
 
 export interface ParamStepperProps {
   open: boolean;

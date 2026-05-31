@@ -41,9 +41,23 @@ function buildDefaultExpanded(nodes: VocabNode[], depth = 0): Set<string> {
   return result;
 }
 
-export function TreeBoxParam({ spec, name, options, vocabTree, field }: ParamWidgetProps) {
+export function TreeBoxParam({
+  spec,
+  name,
+  options,
+  vocabTree,
+  field,
+}: ParamWidgetProps) {
   if (!vocabTree) {
-    return <CheckboxParam spec={spec} name={name} options={options} vocabTree={null} field={field} />;
+    return (
+      <CheckboxParam
+        spec={spec}
+        name={name}
+        options={options}
+        vocabTree={null}
+        field={field}
+      />
+    );
   }
 
   return <TreeBoxInner spec={spec} name={name} vocabTree={vocabTree} field={field} />;
@@ -88,11 +102,11 @@ function TreeBoxInner({
   const errorMessage = hasError ? String(errors[0]) : null;
 
   const currentValue: string[] = multi
-    ? (Array.isArray(field.state.value)
-        ? (field.state.value as unknown[]).filter(
-            (v): v is string => typeof v === "string",
-          )
-        : [])
+    ? Array.isArray(field.state.value)
+      ? (field.state.value as unknown[]).filter(
+          (v): v is string => typeof v === "string",
+        )
+      : []
     : [];
   const selectedSet = new Set(currentValue);
 
@@ -118,7 +132,8 @@ function TreeBoxInner({
     }
   };
 
-  const singleValue = !multi && typeof field.state.value === "string" ? field.state.value : "";
+  const singleValue =
+    !multi && typeof field.state.value === "string" ? field.state.value : "";
 
   function renderNode(node: VocabNode, depth: number) {
     if (lowerSearch && !nodeMatchesSearch(node, lowerSearch)) {
@@ -169,7 +184,9 @@ function TreeBoxInner({
             {multi ? (
               <Checkbox
                 checked={allChecked ? true : someChecked ? "indeterminate" : false}
-                onCheckedChange={() => (isBranch ? toggleBranch(node) : toggleLeaf(node.value))}
+                onCheckedChange={() =>
+                  isBranch ? toggleBranch(node) : toggleLeaf(node.value)
+                }
                 onBlur={field.handleBlur}
                 aria-label={node.label}
               />

@@ -23,9 +23,7 @@ export function EmptyState({ siteId, recordType, conversationId }: EmptyStatePro
         <Workflow className="h-12 w-12" aria-hidden />
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">
-          Your strategy is empty
-        </p>
+        <p className="text-sm font-medium text-foreground">Your strategy is empty</p>
         <p className="text-xs text-muted-foreground">
           The agent builds steps as you chat — or add one yourself.
         </p>

@@ -92,101 +92,104 @@ const initialState = {
 // Store
 // ---------------------------------------------------------------------------
 
-export const useWorkbenchStore = createStore<WorkbenchState>("WorkbenchStore", (set) => ({
-  ...initialState,
+export const useWorkbenchStore = createStore<WorkbenchState>(
+  "WorkbenchStore",
+  (set) => ({
+    ...initialState,
 
-  // -- Gene set selection actions ----------------------------------------------
+    // -- Gene set selection actions ----------------------------------------------
 
-  setActiveSet: (id) =>
-    set((s) => ({
-      activeSetId: id,
-      // Clear stale experiment when switching gene sets
-      ...(id !== s.lastExperimentSetId
-        ? { lastExperiment: null, lastExperimentSetId: null }
-        : {}),
-    })),
+    setActiveSet: (id) =>
+      set((s) => ({
+        activeSetId: id,
+        // Clear stale experiment when switching gene sets
+        ...(id !== s.lastExperimentSetId
+          ? { lastExperiment: null, lastExperimentSetId: null }
+          : {}),
+      })),
 
-  toggleSetSelection: (id) =>
-    set((s) => ({
-      selectedSetIds: s.selectedSetIds.includes(id)
-        ? s.selectedSetIds.filter((sid) => sid !== id)
-        : [...s.selectedSetIds, id],
-    })),
+    toggleSetSelection: (id) =>
+      set((s) => ({
+        selectedSetIds: s.selectedSetIds.includes(id)
+          ? s.selectedSetIds.filter((sid) => sid !== id)
+          : [...s.selectedSetIds, id],
+      })),
 
-  clearSelection: () => set({ selectedSetIds: [] }),
+    clearSelection: () => set({ selectedSetIds: [] }),
 
-  selectAll: (ids) => set({ selectedSetIds: ids }),
+    selectAll: (ids) => set({ selectedSetIds: ids }),
 
-  deselectAll: () => set({ selectedSetIds: [] }),
+    deselectAll: () => set({ selectedSetIds: [] }),
 
-  // -- Panel actions --------------------------------------------------------
+    // -- Panel actions --------------------------------------------------------
 
-  togglePanel: (panelId) =>
-    set((s) => {
-      const next = new Set(s.expandedPanels);
-      if (next.has(panelId)) {
-        next.delete(panelId);
-      } else {
+    togglePanel: (panelId) =>
+      set((s) => {
+        const next = new Set(s.expandedPanels);
+        if (next.has(panelId)) {
+          next.delete(panelId);
+        } else {
+          next.add(panelId);
+        }
+        return { expandedPanels: next };
+      }),
+
+    expandPanel: (panelId) =>
+      set((s) => {
+        if (s.expandedPanels.has(panelId)) return s;
+        const next = new Set(s.expandedPanels);
         next.add(panelId);
-      }
-      return { expandedPanels: next };
-    }),
+        return { expandedPanels: next };
+      }),
 
-  expandPanel: (panelId) =>
-    set((s) => {
-      if (s.expandedPanels.has(panelId)) return s;
-      const next = new Set(s.expandedPanels);
-      next.add(panelId);
-      return { expandedPanels: next };
-    }),
+    collapsePanel: (panelId) =>
+      set((s) => {
+        if (!s.expandedPanels.has(panelId)) return s;
+        const next = new Set(s.expandedPanels);
+        next.delete(panelId);
+        return { expandedPanels: next };
+      }),
 
-  collapsePanel: (panelId) =>
-    set((s) => {
-      if (!s.expandedPanels.has(panelId)) return s;
-      const next = new Set(s.expandedPanels);
-      next.delete(panelId);
-      return { expandedPanels: next };
-    }),
+    // -- Gene search sidebar ---------------------------------------------------
 
-  // -- Gene search sidebar ---------------------------------------------------
+    toggleGeneSearch: () => set((s) => ({ geneSearchOpen: !s.geneSearchOpen })),
+    toggleLeftSidebar: () => set((s) => ({ leftSidebarOpen: !s.leftSidebarOpen })),
 
-  toggleGeneSearch: () => set((s) => ({ geneSearchOpen: !s.geneSearchOpen })),
-  toggleLeftSidebar: () => set((s) => ({ leftSidebarOpen: !s.leftSidebarOpen })),
+    // -- Evaluate controls ----------------------------------------------------
 
-  // -- Evaluate controls ----------------------------------------------------
+    setPositiveControls: (ids) => set({ positiveControls: ids }),
+    setNegativeControls: (ids) => set({ negativeControls: ids }),
 
-  setPositiveControls: (ids) => set({ positiveControls: ids }),
-  setNegativeControls: (ids) => set({ negativeControls: ids }),
+    appendPositiveControls: (ids) =>
+      set((s) => ({
+        positiveControls: [...s.positiveControls, ...ids],
+      })),
 
-  appendPositiveControls: (ids) =>
-    set((s) => ({
-      positiveControls: [...s.positiveControls, ...ids],
-    })),
+    appendNegativeControls: (ids) =>
+      set((s) => ({
+        negativeControls: [...s.negativeControls, ...ids],
+      })),
 
-  appendNegativeControls: (ids) =>
-    set((s) => ({
-      negativeControls: [...s.negativeControls, ...ids],
-    })),
+    // -- Experiment actions ----------------------------------------------------
 
-  // -- Experiment actions ----------------------------------------------------
+    setLastExperiment: (experiment, setId) =>
+      set({ lastExperiment: experiment, lastExperimentSetId: setId }),
 
-  setLastExperiment: (experiment, setId) =>
-    set({ lastExperiment: experiment, lastExperimentSetId: setId }),
+    clearLastExperiment: () => set({ lastExperiment: null, lastExperimentSetId: null }),
 
-  clearLastExperiment: () => set({ lastExperiment: null, lastExperimentSetId: null }),
+    // -- Global ---------------------------------------------------------------
 
-  // -- Global ---------------------------------------------------------------
-
-  reset: () =>
-    set({
-      activeSetId: null,
-      selectedSetIds: [],
-      expandedPanels: new Set<PanelId>(),
-      lastExperiment: null,
-      lastExperimentSetId: null,
-      geneSearchOpen: false,
-      leftSidebarOpen: true,
-      positiveControls: [],
-      negativeControls: [],
-    }),
-}));
+    reset: () =>
+      set({
+        activeSetId: null,
+        selectedSetIds: [],
+        expandedPanels: new Set<PanelId>(),
+        lastExperiment: null,
+        lastExperimentSetId: null,
+        geneSearchOpen: false,
+        leftSidebarOpen: true,
+        positiveControls: [],
+        negativeControls: [],
+      }),
+  }),
+);

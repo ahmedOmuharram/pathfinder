@@ -112,8 +112,7 @@ export const useSessionStore = createPersistedStore<SessionState>(
       set((s) => (s.pendingAskNode === payload ? s : { pendingAskNode: payload })),
     setComposerPrefill: (payload) =>
       set((s) => (s.composerPrefill === payload ? s : { composerPrefill: payload })),
-    setPendingUserSubmission: (payload) =>
-      set({ pendingUserSubmission: payload }),
+    setPendingUserSubmission: (payload) => set({ pendingUserSubmission: payload }),
     bumpChatResetCounter: () =>
       set((s) => ({ chatResetCounter: s.chatResetCounter + 1 })),
 

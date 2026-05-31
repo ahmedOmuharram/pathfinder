@@ -50,17 +50,14 @@ export function useStepParameters({
     enabled: kind !== "combine",
   });
 
-  const vocabOptions = paramSpecs.reduce<Record<string, VocabOption[]>>(
-    (acc, spec) => {
-      if (spec.name === "") return acc;
-      const vocabulary = extractSpecVocabulary(spec);
-      if (vocabulary != null) {
-        acc[spec.name] = extractVocabOptions(vocabulary);
-      }
-      return acc;
-    },
-    {},
-  );
+  const vocabOptions = paramSpecs.reduce<Record<string, VocabOption[]>>((acc, spec) => {
+    if (spec.name === "") return acc;
+    const vocabulary = extractSpecVocabulary(spec);
+    if (vocabulary != null) {
+      acc[spec.name] = extractVocabOptions(vocabulary);
+    }
+    return acc;
+  }, {});
 
   const hiddenDefaults: StepParameters = {};
   for (const spec of paramSpecs) {
