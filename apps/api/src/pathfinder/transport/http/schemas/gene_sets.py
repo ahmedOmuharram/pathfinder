@@ -114,4 +114,3 @@ class GeneConfidenceScoreResponse(CamelModel):
     classification_score: float
     ensemble_score: float
     enrichment_score: float
-

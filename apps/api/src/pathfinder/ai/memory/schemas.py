@@ -39,8 +39,7 @@ class MemoryEntryDraft(CamelModel):
         min_length=1,
         max_length=200,
         description=(
-            "Short, recall-friendly title (e.g. "
-            "\"P. falciparum kinome size\")."
+            'Short, recall-friendly title (e.g. "P. falciparum kinome size").'
         ),
     )
     summary: str = Field(

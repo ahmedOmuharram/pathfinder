@@ -27,7 +27,7 @@ import pytest
 from fastapi import FastAPI
 from procrastinate.testing import InMemoryConnector
 
-import pathfinder.persistence.session as session_module
+import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.jobs.tasks import ensure_registered
@@ -86,10 +86,7 @@ async def _wait_until_enqueued(connector: InMemoryConnector) -> None:
     Wrap the caller with ``asyncio.timeout(...)`` to bound the wait.
     """
     while True:
-        if any(
-            j["task_name"] == "chat_turn:run"
-            for j in connector.jobs.values()
-        ):
+        if any(j["task_name"] == "chat_turn:run" for j in connector.jobs.values()):
             return
         await asyncio.sleep(0.02)
 
@@ -118,7 +115,10 @@ async def _seed_conversation(user_id: UUID) -> UUID:
     async with session_module.async_session_factory() as session:
         session.add(
             Conversation(
-                id=conv_id, user_id=user_id, site_id="plasmodb", name="t",
+                id=conv_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="t",
             ),
         )
         await session.commit()
@@ -173,7 +173,8 @@ async def test_post_chat_does_not_replay_prior_turn_events(
     conv_id = await _seed_conversation(authed_user_id)
     # Simulate a prior completed turn: 3 non-done chunks + 1 done chunk.
     prior_writer = ChatEventWriter(
-        conversation_id=conv_id, turn_id=uuid4(),
+        conversation_id=conv_id,
+        turn_id=uuid4(),
     )
     await prior_writer.write({"type": "start", "messageId": "prior"})
     await prior_writer.write({"type": "text-start", "id": "a"})
@@ -311,7 +312,9 @@ async def test_events_endpoint_streams_when_last_event_is_not_done(
 
     assert res.status_code == 200
     assert "[DONE]" in res.text
-    assert res.text.count("data:") >= 4  # start + text-start + text-delta + text-end + [DONE]
+    assert (
+        res.text.count("data:") >= 4
+    )  # start + text-start + text-delta + text-end + [DONE]
 
 
 async def test_two_concurrent_subscribers_consistent_204_when_complete(

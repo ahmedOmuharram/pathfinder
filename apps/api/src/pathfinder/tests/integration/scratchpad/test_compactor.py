@@ -17,17 +17,18 @@ from pathfinder.ai.agents.compactor import (
     build_compactor_agent,
 )
 from pathfinder.ai.graph import nodes
-from pathfinder.ai.graph.runtime import Context, DBSessionFactory
+from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import (
     PhaseDisposition,
     PipelineState,
     VerificationDigest,
 )
 from pathfinder.ai.scratchpad.compactor import maybe_compact_scratchpad
-from pathfinder.ai.scratchpad.models import NoteCreate
-from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
+from pathfinder.platform.db import DBSessionFactory
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 
@@ -86,7 +87,8 @@ class TestTriggerGate:
         would loop forever burning LLM cost.
         """
         monkeypatch.setattr(
-            "pathfinder.ai.scratchpad.compactor.COMPACT_COUNT_THRESHOLD", 1,
+            "pathfinder.ai.scratchpad.compactor.COMPACT_COUNT_THRESHOLD",
+            1,
         )
 
         repo = ScratchpadRepository(db_session)
@@ -94,7 +96,10 @@ class TestTriggerGate:
             await repo.create(
                 conversation_id=conv_id,
                 data=NoteCreate(
-                    title=f"pin{i}", summary="s", body="b", pinned=True,
+                    title=f"pin{i}",
+                    summary="s",
+                    body="b",
+                    pinned=True,
                 ),
             )
         await db_session.commit()
@@ -116,7 +121,8 @@ class TestTriggerGate:
     ) -> None:
         # Force small threshold for speed.
         monkeypatch.setattr(
-            "pathfinder.ai.scratchpad.compactor.COMPACT_COUNT_THRESHOLD", 2,
+            "pathfinder.ai.scratchpad.compactor.COMPACT_COUNT_THRESHOLD",
+            2,
         )
 
         repo = ScratchpadRepository(db_session)
@@ -133,7 +139,8 @@ class TestTriggerGate:
         )
 
         def _fake_build_agent(
-            *, model_id: str | None = None,
+            *,
+            model_id: str | None = None,
         ) -> Agent[CompactorDeps, CompactionResult]:
             agent = build_compactor_agent(model_id=model_id)
             agent.model = TestModel(custom_output_args=fixed_output)

@@ -15,7 +15,7 @@ from pathfinder.ai.memory.tombstones import (
     compute_content_hash,
 )
 from pathfinder.persistence.models import Conversation, Message
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 
 PREFERENCE_MIN_SUCCESSES = 3
 
@@ -74,20 +74,24 @@ def _collect_candidates(
     verification-authored knowledge entries)."""
     candidates: list[tuple[MemoryValue, str]] = []
     if state.active_plan is not None:
-        candidates.append((
-            _build_strategy_value(state),
-            f"strategy:{state.conversation_id.hex}",
-        ))
+        candidates.append(
+            (
+                _build_strategy_value(state),
+                f"strategy:{state.conversation_id.hex}",
+            )
+        )
     candidates.extend(
         (_build_gene_set_value(state, gs_id), f"gene_set:{gs_id}")
         for gs_id in state.created_gene_set_ids
     )
     if state.verification_digest is not None:
         for idx, entry in enumerate(state.verification_digest.remember):
-            candidates.append((
-                _build_knowledge_value(state, entry),
-                f"knowledge:{state.conversation_id.hex}:{idx}",
-            ))
+            candidates.append(
+                (
+                    _build_knowledge_value(state, entry),
+                    f"knowledge:{state.conversation_id.hex}:{idx}",
+                )
+            )
     return candidates
 
 
@@ -130,7 +134,8 @@ def _build_gene_set_value(state: PipelineState, gs_id: str) -> MemoryValue:
 
 
 def _build_knowledge_value(
-    state: PipelineState, entry: MemoryEntryDraft,
+    state: PipelineState,
+    entry: MemoryEntryDraft,
 ) -> MemoryValue:
     """Lift a verification-authored draft to a full ``MemoryValue``.
 
@@ -182,7 +187,9 @@ async def _has_min_successful_verifications(
 
 
 async def _check_verifications_threshold(
-    session: AsyncSession, user_id: UUID, threshold: int,
+    session: AsyncSession,
+    user_id: UUID,
+    threshold: int,
 ) -> bool:
     inner = (
         select(Message.id)
@@ -195,9 +202,9 @@ async def _check_verifications_threshold(
         )
         .limit(threshold)
     ).subquery()
-    row_count_stmt = select(exists().select_from(
-        select(inner.c.id).offset(threshold - 1).subquery()
-    ))
+    row_count_stmt = select(
+        exists().select_from(select(inner.c.id).offset(threshold - 1).subquery())
+    )
     result = await session.execute(row_count_stmt)
     return bool(result.scalar())
 

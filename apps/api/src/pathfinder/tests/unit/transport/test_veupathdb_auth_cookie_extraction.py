@@ -8,12 +8,20 @@ from pathfinder.transport.http.routers.veupathdb_auth import (
 
 
 def _mk_jwt(is_guest: bool, sub: str = "123") -> str:
-    header = base64.urlsafe_b64encode(
-        json.dumps({"alg": "ES512"}).encode(),
-    ).rstrip(b"=").decode()
-    payload = base64.urlsafe_b64encode(
-        json.dumps({"sub": sub, "is_guest": is_guest}).encode(),
-    ).rstrip(b"=").decode()
+    header = (
+        base64.urlsafe_b64encode(
+            json.dumps({"alg": "ES512"}).encode(),
+        )
+        .rstrip(b"=")
+        .decode()
+    )
+    payload = (
+        base64.urlsafe_b64encode(
+            json.dumps({"sub": sub, "is_guest": is_guest}).encode(),
+        )
+        .rstrip(b"=")
+        .decode()
+    )
     return f"{header}.{payload}.sig"
 
 

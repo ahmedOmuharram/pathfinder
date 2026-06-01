@@ -1,13 +1,19 @@
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
-from pathfinder.platform.types import JSONArray
+from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm
 from pathfinder.services.catalog.param_formatting import (
     format_normalized_param_info,
 )
 
 
 def test_format_normalized_param_info_emits_vocab_and_dependency_links() -> None:
-    organism_vocab: JSONArray = [["Pf3D7", "P. falciparum 3D7"], ["PvP01", "P. vivax P01"]]
-    taxon_vocab: JSONArray = [["PfTaxonA", "Pf Taxon A"], ["PfTaxonB", "Pf Taxon B"]]
+    organism_vocab = [
+        WDKVocabTerm(("Pf3D7", "P. falciparum 3D7", None)),
+        WDKVocabTerm(("PvP01", "P. vivax P01", None)),
+    ]
+    taxon_vocab = [
+        WDKVocabTerm(("PfTaxonA", "Pf Taxon A", None)),
+        WDKVocabTerm(("PfTaxonB", "Pf Taxon B", None)),
+    ]
     specs: dict[str, ParamSpecNormalized] = {
         "organism": ParamSpecNormalized(
             name="organism",
@@ -39,7 +45,7 @@ def test_format_normalized_param_info_emits_vocab_and_dependency_links() -> None
 
 
 def test_format_normalized_param_info_truncates_large_vocab() -> None:
-    huge_vocab: JSONArray = [[f"v{i}", f"v{i}"] for i in range(200)]
+    huge_vocab = [WDKVocabTerm((f"v{i}", f"v{i}", None)) for i in range(200)]
     specs = {
         "p": ParamSpecNormalized(
             name="p",

@@ -32,7 +32,8 @@ async def lifespan_memory_store(
         "distance_type": "cosine",
     }
     async with AsyncPostgresStore.from_conn_string(
-        psycopg_url, index=index_config,
+        psycopg_url,
+        index=index_config,
     ) as store:
         await store.setup()
         yield store

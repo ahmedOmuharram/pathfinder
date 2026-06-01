@@ -28,10 +28,7 @@ def _should_export_span(span: ReadableSpan) -> bool:
     """
     if is_default_export_span(span):
         return True
-    return any(
-        key.startswith("langfuse.")
-        for key in (span.attributes or {})
-    )
+    return any(key.startswith("langfuse.") for key in (span.attributes or {}))
 
 
 def get_langfuse() -> Langfuse | None:

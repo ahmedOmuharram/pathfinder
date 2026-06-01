@@ -135,7 +135,9 @@ async def stream_experiment(
     async def _run() -> tuple[Experiment | None, str | None]:
         try:
             result = await run_experiment(
-                config, user_id=user_id, progress_callback=callback,
+                config,
+                user_id=user_id,
+                progress_callback=callback,
             )
         except Exception as exc:
             logger.exception("Experiment failed", error=str(exc))
@@ -147,7 +149,8 @@ async def stream_experiment(
         while True:
             get_task = asyncio.create_task(queue.get())
             done, _pending = await asyncio.wait(
-                {get_task, task}, return_when=asyncio.FIRST_COMPLETED,
+                {get_task, task},
+                return_when=asyncio.FIRST_COMPLETED,
             )
             if get_task in done:
                 yield get_task.result()
@@ -225,7 +228,9 @@ async def stream_batch_experiment(
                 )
                 try:
                     exp = await run_experiment(
-                        org_config, user_id=user_id, progress_callback=callback,
+                        org_config,
+                        user_id=user_id,
+                        progress_callback=callback,
                     )
                 except Exception as exc:
                     logger.exception(
@@ -247,7 +252,8 @@ async def stream_batch_experiment(
         while True:
             get_task = asyncio.create_task(queue.get())
             done, _pending = await asyncio.wait(
-                {get_task, task}, return_when=asyncio.FIRST_COMPLETED,
+                {get_task, task},
+                return_when=asyncio.FIRST_COMPLETED,
             )
             if get_task in done:
                 yield get_task.result()
@@ -297,7 +303,9 @@ async def stream_benchmark(
             exp = await run_experiment(cfg, user_id=user_id, progress_callback=callback)
         except Exception as exc:
             logger.exception(
-                "Benchmark experiment failed", label=label, error=str(exc),
+                "Benchmark experiment failed",
+                label=label,
+                error=str(exc),
             )
             return None
         exp.benchmark_id = benchmark_id
@@ -323,7 +331,8 @@ async def stream_benchmark(
         while True:
             get_task = asyncio.create_task(queue.get())
             done, _pending = await asyncio.wait(
-                {get_task, task}, return_when=asyncio.FIRST_COMPLETED,
+                {get_task, task},
+                return_when=asyncio.FIRST_COMPLETED,
             )
             if get_task in done:
                 yield get_task.result()

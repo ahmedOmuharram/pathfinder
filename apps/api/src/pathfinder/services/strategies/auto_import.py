@@ -12,7 +12,7 @@ from pathfinder.persistence.repositories import (
     ConversationRepository,
     ConversationUpdate,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.errors import AppError, InternalError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.gene_sets import GeneSet, GeneSetService

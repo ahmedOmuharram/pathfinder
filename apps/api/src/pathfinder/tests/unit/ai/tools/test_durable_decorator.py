@@ -22,28 +22,25 @@ class _FakeInterruptError(Exception):
 class _FakeRepo:
     created: ClassVar[list[dict[str, Any]]] = []
 
-    def __init__(self, *, session_factory: object) -> None:
-        del session_factory
 
-    async def create(
-        self,
-        *,
-        conversation_id: UUID,
-        user_id: UUID,
-        tool_name: str,
-        args: dict[str, Any],
-        estimated_duration_seconds: int,
-    ) -> UUID:
-        _FakeRepo.created.append(
-            {
-                "conversation_id": conversation_id,
-                "user_id": user_id,
-                "tool_name": tool_name,
-                "args": args,
-                "estimated_duration_seconds": estimated_duration_seconds,
-            }
-        )
-        return UUID("00000000-0000-0000-0000-000000000001")
+async def _fake_create_background_task(
+    *,
+    conversation_id: UUID,
+    user_id: UUID,
+    tool_name: str,
+    args: dict[str, Any],
+    estimated_duration_seconds: int,
+) -> UUID:
+    _FakeRepo.created.append(
+        {
+            "conversation_id": conversation_id,
+            "user_id": user_id,
+            "tool_name": tool_name,
+            "args": args,
+            "estimated_duration_seconds": estimated_duration_seconds,
+        }
+    )
+    return UUID("00000000-0000-0000-0000-000000000001")
 
 
 class _FakeTask:
@@ -99,7 +96,9 @@ async def test_durable_tool_submits_job_and_interrupts(
     _FakeRepo.created.clear()
     _FakeTask.deferred.clear()
     monkeypatch.setattr(durable_mod, "interrupt", _raise_interrupt)
-    monkeypatch.setattr(durable_mod, "BackgroundTaskRepository", _FakeRepo)
+    monkeypatch.setattr(
+        durable_mod, "create_background_task", _fake_create_background_task
+    )
     monkeypatch.setattr(durable_mod, "procrastinate_app", _FakeApp())
 
     @durable_tool(tool_name="stub_tool", estimated_duration_seconds=60)
@@ -153,7 +152,9 @@ async def test_durable_tool_serializes_pydantic_kwargs_to_json(
     _FakeRepo.created.clear()
     _FakeTask.deferred.clear()
     monkeypatch.setattr(durable_mod, "interrupt", _raise_interrupt)
-    monkeypatch.setattr(durable_mod, "BackgroundTaskRepository", _FakeRepo)
+    monkeypatch.setattr(
+        durable_mod, "create_background_task", _fake_create_background_task
+    )
     monkeypatch.setattr(durable_mod, "procrastinate_app", _FakeApp())
 
     @durable_tool(tool_name="stub", estimated_duration_seconds=10)
@@ -174,7 +175,8 @@ async def test_durable_tool_serializes_pydantic_kwargs_to_json(
     serialized = json.dumps(deferred_args)
     round_tripped = json.loads(serialized)
     assert round_tripped["kwargs"]["target"] == {
-        "name": "x", "thresholds": [0.1, 0.05],
+        "name": "x",
+        "thresholds": [0.1, 0.05],
     }
 
     # created row must have the same JSON-safe shape
@@ -189,7 +191,9 @@ async def test_durable_tool_raises_when_conversation_id_missing(
     _FakeRepo.created.clear()
     _FakeTask.deferred.clear()
     monkeypatch.setattr(durable_mod, "interrupt", _raise_interrupt)
-    monkeypatch.setattr(durable_mod, "BackgroundTaskRepository", _FakeRepo)
+    monkeypatch.setattr(
+        durable_mod, "create_background_task", _fake_create_background_task
+    )
     monkeypatch.setattr(durable_mod, "procrastinate_app", _FakeApp())
 
     @durable_tool(tool_name="stub_tool", estimated_duration_seconds=60)
@@ -213,7 +217,9 @@ async def test_durable_tool_raises_when_user_id_missing(
     _FakeRepo.created.clear()
     _FakeTask.deferred.clear()
     monkeypatch.setattr(durable_mod, "interrupt", _raise_interrupt)
-    monkeypatch.setattr(durable_mod, "BackgroundTaskRepository", _FakeRepo)
+    monkeypatch.setattr(
+        durable_mod, "create_background_task", _fake_create_background_task
+    )
     monkeypatch.setattr(durable_mod, "procrastinate_app", _FakeApp())
 
     @durable_tool(tool_name="stub_tool", estimated_duration_seconds=60)

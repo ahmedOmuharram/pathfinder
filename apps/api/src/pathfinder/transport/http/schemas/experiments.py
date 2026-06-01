@@ -43,6 +43,7 @@ class OptimizationSpecRequest(CamelModel):
     step: float | None = None
     choices: list[str] | None = None
 
+
 class CreateExperimentRequest(CamelModel):
     """Request to create and run an experiment.
 
@@ -83,6 +84,7 @@ class CreateExperimentRequest(CamelModel):
     sort_direction: WDKSortDirection = Field(default="ASC")
     parent_experiment_id: str | None = Field(default=None)
     target_gene_ids: list[str] | None = Field(default=None)
+
 
 class BatchOrganismTargetRequest(CamelModel):
     """Per-organism override for a cross-organism batch experiment."""
@@ -175,4 +177,3 @@ class EnrichmentCompareRequest(CamelModel):
 
     experiment_ids: list[str] = Field(min_length=2)
     analysis_type: str | None = Field(default=None)
-

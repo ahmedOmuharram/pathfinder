@@ -151,7 +151,9 @@ class _StubAPI:
         user_id: str | None = None,
     ) -> None:
         del user_id
-        self.calls.append(_Call("update_step_properties", {"step_id": step_id, "spec": spec}))
+        self.calls.append(
+            _Call("update_step_properties", {"step_id": step_id, "spec": spec})
+        )
 
     async def find_step(self, step_id: int, user_id: str | None = None) -> WDKStep:
         del user_id
@@ -198,7 +200,9 @@ def stub_api(monkeypatch: pytest.MonkeyPatch) -> _StubAPI:
         return None
 
     monkeypatch.setattr(
-        commit_module, "persist_strategy_ast_to_conversation", _noop_persist,
+        commit_module,
+        "persist_strategy_ast_to_conversation",
+        _noop_persist,
     )
 
     async def _noop_validate(*_args: Any, **kwargs: Any) -> dict[str, object]:
@@ -210,12 +214,17 @@ def stub_api(monkeypatch: pytest.MonkeyPatch) -> _StubAPI:
 
 def _leaf(id_: str, params: dict[str, Any] | None = None) -> StrategyStepNode:
     return StrategyStepNode(
-        id=id_, search_name="GenesByTaxon", parameters=params or {},
+        id=id_,
+        search_name="GenesByTaxon",
+        parameters=params or {},
     )
 
 
 def _combine(
-    id_: str, p: StrategyStepNode, s: StrategyStepNode, op: CombineOp = CombineOp.INTERSECT,
+    id_: str,
+    p: StrategyStepNode,
+    s: StrategyStepNode,
+    op: CombineOp = CombineOp.INTERSECT,
 ) -> StrategyStepNode:
     return StrategyStepNode(
         id=id_,
@@ -241,7 +250,8 @@ def _seed(root: StrategyStepNode, wdk_step_ids: dict[str, int]) -> AgentDeps:
     graph.recompute_roots()
     session.graph = graph
     session.sync_state = WDKSyncState(
-        wdk_step_ids=dict(wdk_step_ids), wdk_strategy_id=42,
+        wdk_step_ids=dict(wdk_step_ids),
+        wdk_strategy_id=42,
     )
     return AgentDeps(
         site_id="plasmodb",
@@ -270,7 +280,9 @@ async def test_delete_step_collapse_combine(stub_api: _StubAPI) -> None:
     payload = res.return_value
     assert payload["ok"] is True
     assert sorted(payload["deleted"]) == ["A", "C"]
-    deleted_wdk = {c.kwargs["step_id"] for c in stub_api.calls if c.name == "delete_step"}
+    deleted_wdk = {
+        c.kwargs["step_id"] for c in stub_api.calls if c.name == "delete_step"
+    }
     assert deleted_wdk == {100, 300}
 
 
@@ -291,12 +303,16 @@ async def test_delete_step_promote_primary(stub_api: _StubAPI) -> None:
     deps = _seed(c, wdk_step_ids={"a": 100, "b": 200, "c": 300})
 
     res = await delete_step(
-        _ctx(deps), "c", resolution=DeleteResolution.PROMOTE_PRIMARY,
+        _ctx(deps),
+        "c",
+        resolution=DeleteResolution.PROMOTE_PRIMARY,
     )
 
     payload = res.return_value
     assert sorted(payload["deleted"]) == ["b", "c"]
-    deleted_wdk = {c.kwargs["step_id"] for c in stub_api.calls if c.name == "delete_step"}
+    deleted_wdk = {
+        c.kwargs["step_id"] for c in stub_api.calls if c.name == "delete_step"
+    }
     assert deleted_wdk == {200, 300}
 
 
@@ -312,7 +328,8 @@ async def test_update_leaf_params_happy(stub_api: _StubAPI) -> None:
     deps = _seed(a, wdk_step_ids={"a": 100})
 
     res = await update_leaf_params(
-        _ctx(deps), "a",
+        _ctx(deps),
+        "a",
         {"organism": MultiPickValue(values=["Pf3D7", "Pf7G8"])},
     )
 
@@ -341,7 +358,8 @@ async def test_update_leaf_params_rejects_combine(stub_api: _StubAPI) -> None:
 
 @pytest.mark.asyncio
 async def test_update_leaf_params_validation_failure_raises_model_retry(
-    stub_api: _StubAPI, monkeypatch: pytest.MonkeyPatch,
+    stub_api: _StubAPI,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     del stub_api
 
@@ -368,7 +386,9 @@ async def test_update_leaf_params_validation_failure_raises_model_retry(
 
     with pytest.raises(ModelRetry) as excinfo:
         await update_leaf_params(
-            _ctx(deps), "a", {"organism": ["NotARealOrganism"]},
+            _ctx(deps),
+            "a",
+            {"organism": ["NotARealOrganism"]},
         )
 
     msg = str(excinfo.value)
@@ -417,7 +437,10 @@ async def test_update_combine_operator_colocate_requires_params(
 
     with pytest.raises(ModelRetry):
         await update_combine_operator(
-            _ctx(deps), "c", CombineOp.COLOCATE, colocation_params=None,
+            _ctx(deps),
+            "c",
+            CombineOp.COLOCATE,
+            colocation_params=None,
         )
 
 
@@ -455,7 +478,9 @@ async def test_replace_subtree_drops_old_creates_new(stub_api: _StubAPI) -> None
     payload = res.return_value
     assert payload["replacedStepId"] == "a"
     assert "a" in payload["droppedStepIds"]
-    deleted_wdk = {c.kwargs["step_id"] for c in stub_api.calls if c.name == "delete_step"}
+    deleted_wdk = {
+        c.kwargs["step_id"] for c in stub_api.calls if c.name == "delete_step"
+    }
     assert 100 in deleted_wdk
     create_calls = [c for c in stub_api.calls if c.name == "create_step"]
     assert any(c.kwargs.get("search_name") == "GenesByTaxon" for c in create_calls)

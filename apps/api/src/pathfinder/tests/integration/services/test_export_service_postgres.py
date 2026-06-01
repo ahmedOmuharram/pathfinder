@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from pathfinder.persistence.models import User
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.services.export.service import ExportService
 
 

@@ -33,6 +33,7 @@ class LoadedPrompt:
     source: PromptSource
     version: int | None = None
 
+
 _LOCAL_FILES: dict[str, str] = {
     "system": "system.md",
     "safety": "safety.md",

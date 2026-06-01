@@ -11,7 +11,7 @@ from pathfinder.ai.memory.tombstones import (
     compute_content_hash,
 )
 from pathfinder.persistence.models import User
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 
 
 def _value(content: dict[str, object]) -> MemoryValue:

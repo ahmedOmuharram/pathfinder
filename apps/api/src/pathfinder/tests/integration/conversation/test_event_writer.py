@@ -5,14 +5,15 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-import pathfinder.persistence.session as session_module
+import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.persistence.models import Conversation, ConversationEvent, User
 
 
 @pytest.mark.asyncio
 async def test_writer_persists_and_notifies(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -23,7 +24,10 @@ async def test_writer_persists_and_notifies(
         session.add(User(id=user_id))
         session.add(
             Conversation(
-                id=conv_id, user_id=user_id, site_id="plasmodb", name="t",
+                id=conv_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="t",
             ),
         )
         await session.commit()

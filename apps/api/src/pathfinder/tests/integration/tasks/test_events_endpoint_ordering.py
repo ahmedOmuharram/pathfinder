@@ -8,19 +8,23 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 
-from pathfinder.ai.tools.durable import TaskProgressEmitter
+from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.persistence.models import BackgroundTask, Conversation
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 
 
 async def _seed_chat_and_task(
     *, user_id: UUID, conversation_id: UUID, task_id: UUID
 ) -> None:
     async with async_session_factory() as session:
-        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(
+            Conversation(
+                id=conversation_id, user_id=user_id, site_id="plasmodb", name=""
+            )
+        )
         await session.flush()
         session.add(
             BackgroundTask(
@@ -45,10 +49,7 @@ def _parse_progress(body: str) -> list[dict[str, Any]]:
         if not payload:
             continue
         chunk = json.loads(payload)
-        if (
-            chunk.get("type") == "custom"
-            and chunk.get("kind") == "data-task-progress"
-        ):
+        if chunk.get("type") == "custom" and chunk.get("kind") == "data-task-progress":
             out.append(chunk)
     return out
 
@@ -75,7 +76,9 @@ async def test_rapid_fire_progress_arrive_in_order_no_duplicates_no_missing(
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
+        task_id=task_id,
+        conversation_id=conversation_id,
+        session_factory=async_session_factory,
     )
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
 
@@ -98,13 +101,9 @@ async def test_rapid_fire_progress_arrive_in_order_no_duplicates_no_missing(
     assert resp.status_code == 200
     progress_chunks = _parse_progress(resp.text)
     messages = [c["data"]["message"] for c in progress_chunks]
-    assert messages == expected, (
-        f"expected {expected} in order, got {messages}"
-    )
+    assert messages == expected, f"expected {expected} in order, got {messages}"
     # No duplicates: set length equals list length.
-    assert len(set(messages)) == len(messages), (
-        f"duplicates detected: {messages}"
-    )
+    assert len(set(messages)) == len(messages), f"duplicates detected: {messages}"
 
 
 @pytest.mark.asyncio
@@ -122,7 +121,9 @@ async def test_replay_preserves_order_for_presized_batch(
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
+        task_id=task_id,
+        conversation_id=conversation_id,
+        session_factory=async_session_factory,
     )
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
 
@@ -139,12 +140,8 @@ async def test_replay_preserves_order_for_presized_batch(
 
     progress_chunks = _parse_progress(resp.text)
     messages = [c["data"]["message"] for c in progress_chunks]
-    assert messages == expected, (
-        f"replay order mismatch: got {messages}"
-    )
-    assert len(set(messages)) == len(messages), (
-        f"replay duplicates: {messages}"
-    )
+    assert messages == expected, f"replay order mismatch: got {messages}"
+    assert len(set(messages)) == len(messages), f"replay duplicates: {messages}"
 
 
 @pytest.mark.asyncio
@@ -162,7 +159,9 @@ async def test_mixed_replay_then_live_no_duplicate_rows(
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
+        task_id=task_id,
+        conversation_id=conversation_id,
+        session_factory=async_session_factory,
     )
     repo = BackgroundTaskRepository(session_factory=async_session_factory)
 
@@ -175,9 +174,7 @@ async def test_mixed_replay_then_live_no_duplicate_rows(
     async def producer() -> None:
         await asyncio.sleep(0.3)
         for i, msg in enumerate(live_msgs):
-            await emitter.update(
-                percent=0.5 + (i + 1) / 10.0, message=msg, data=None
-            )
+            await emitter.update(percent=0.5 + (i + 1) / 10.0, message=msg, data=None)
         await repo.mark_result_ready(task_id=task_id, result={"ok": True})
         await repo.mark_complete(task_id=task_id)
 
@@ -191,9 +188,5 @@ async def test_mixed_replay_then_live_no_duplicate_rows(
     progress_chunks = _parse_progress(resp.text)
     messages = [c["data"]["message"] for c in progress_chunks]
     # Order: all pre_msgs (in order), then all live_msgs (in order).
-    assert messages == pre_msgs + live_msgs, (
-        f"mixed order mismatch: got {messages}"
-    )
-    assert len(set(messages)) == len(messages), (
-        f"mixed duplicates: {messages}"
-    )
+    assert messages == pre_msgs + live_msgs, f"mixed order mismatch: got {messages}"
+    assert len(set(messages)) == len(messages), f"mixed duplicates: {messages}"

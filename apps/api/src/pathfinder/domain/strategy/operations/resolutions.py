@@ -6,9 +6,7 @@ from pathfinder.domain.strategy.operations.types import (
 from pathfinder.domain.strategy.session import StrategyGraph
 
 
-def compute_delete_choices(
-    graph: StrategyGraph, step_id: str
-) -> list[OperationChoice]:
+def compute_delete_choices(graph: StrategyGraph, step_id: str) -> list[OperationChoice]:
     target = graph.steps.get(step_id)
     if target is None:
         return []
@@ -40,8 +38,7 @@ def _transform_choices(step_id: str) -> list[OperationChoice]:
             resolution=DeleteResolution.COLLAPSE_COMBINE,
             title="Delete this transform",
             description=(
-                "The step it consumed becomes the input of the next step "
-                "downstream."
+                "The step it consumed becomes the input of the next step downstream."
             ),
             is_default=True,
             will_delete=[step_id],

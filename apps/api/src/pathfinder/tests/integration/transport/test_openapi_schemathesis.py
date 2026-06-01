@@ -61,7 +61,7 @@ from schemathesis.openapi import from_asgi
 from schemathesis.schemas import BaseSchema
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-import pathfinder.persistence.session as session_module
+import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 from pathfinder.jobs.app import procrastinate_app
 from pathfinder.main import create_app

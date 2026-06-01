@@ -65,9 +65,7 @@ def _verification_enum_overrides(
             overrides[(tool, "wdk_step_id")] = list(wdk_ids)
     selected = sorted(ctx.deps.agent_state.selected_search_names())
     if selected:
-        overrides[("run_control_tests_on_search", "target_search_name")] = (
-            selected
-        )
+        overrides[("run_control_tests_on_search", "target_search_name")] = selected
     return overrides
 
 
@@ -116,5 +114,6 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
         ],
     )
     return DynamicEnumToolset(
-        wrapped=base, build_overrides=_verification_enum_overrides,
+        wrapped=base,
+        build_overrides=_verification_enum_overrides,
     )

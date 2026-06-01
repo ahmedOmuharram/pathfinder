@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import (
@@ -17,7 +19,7 @@ from pathfinder.integrations.veupathdb.wdk_models import (
     WDKRecordInstance,
 )
 from pathfinder.persistence.repositories.conversation import ConversationRepository
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.materialization import (
     _materialize_step_tree,
@@ -156,7 +158,8 @@ async def build_gold_strategy(
 async def fetch_strategy_gene_ids(
     *,
     api: Any,
-    conversation: Any,) -> list[str]:
+    conversation: Any,
+) -> list[str]:
     """Fetch all gene IDs from a chat's linked WDK strategy.
 
     :param api: StrategyAPI instance for the site.
@@ -165,6 +168,22 @@ async def fetch_strategy_gene_ids(
     """
     strategy = await api.get_strategy(conversation.wdk_strategy_id)
     return await fetch_all_gene_ids(api, strategy.root_step_id)
+
+
+async def get_strategy_gene_ids(
+    session: AsyncSession,
+    strategy_id: str,
+    site_id: str,
+) -> dict[str, Any]:
+    """Fetch gene IDs for a PathFinder strategy's linked WDK root step."""
+    conversation = await ConversationRepository(session).get_by_id(UUID(strategy_id))
+    if not conversation or not conversation.wdk_strategy_id:
+        return {"geneIds": [], "error": "No WDK strategy linked"}
+    api = get_strategy_api(site_id)
+    gene_ids = await fetch_strategy_gene_ids(api=api, conversation=conversation)
+    if not gene_ids:
+        return {"geneIds": [], "error": "No gene IDs found"}
+    return {"geneIds": gene_ids, "estimatedSize": len(gene_ids)}
 
 
 async def fetch_all_gene_ids(

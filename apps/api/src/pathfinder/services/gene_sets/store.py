@@ -18,7 +18,7 @@ from pathfinder.persistence.models import GeneSetRow
 # ---------------------------------------------------------------------------
 # Row conversion helpers
 # ---------------------------------------------------------------------------
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.store import WriteThruStore
 from pathfinder.services.gene_sets.types import GeneSet, GeneSetSource
 

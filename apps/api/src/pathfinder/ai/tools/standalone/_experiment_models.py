@@ -84,7 +84,9 @@ async def _run_step_control_tests(
         intersection = result_ids & neg_set
         result.negative_intersection = len(intersection)
         result.negative_controls_count = len(neg_set)
-        result.negative_false_positive_rate = len(intersection) / len(neg_set) if neg_set else 0.0
+        result.negative_false_positive_rate = (
+            len(intersection) / len(neg_set) if neg_set else 0.0
+        )
         result.negative_intersection_ids = sorted(intersection)[:20]
 
     return result

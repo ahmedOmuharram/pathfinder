@@ -68,7 +68,11 @@ async def search_genes(
     offset: int = 0,
 ) -> GeneSearchResponse:
     result = await lookup_genes_by_text(
-        site_id, q, organism=organism or None, limit=limit, offset=offset,
+        site_id,
+        q,
+        organism=organism or None,
+        limit=limit,
+        offset=offset,
     )
     return GeneSearchResponse(
         results=[

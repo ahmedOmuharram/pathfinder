@@ -13,8 +13,6 @@ from .conversations import (
     BeginConversationResponse,
     ConversationDuplicateResponse,
     ConversationPatchBody,
-    ConversationResponse,
-    ConversationSummaryResponse,
     CreateConversationRequest,
     OpenConversationRequest,
     OpenConversationResponse,
@@ -34,7 +32,6 @@ from .optimization import (
 from .product_actions import ProductActionRequest
 from .sites import (
     DependentParamsRequest,
-    ParamSpecResponse,
     ParamSpecsRequest,
     RecordTypeResponse,
     SearchDetailsResponse,
@@ -58,8 +55,6 @@ __all__ = [
     "BeginConversationResponse",
     "ConversationDuplicateResponse",
     "ConversationPatchBody",
-    "ConversationResponse",
-    "ConversationSummaryResponse",
     "CreateConversationRequest",
     "DependentParamsRequest",
     "HealthResponse",
@@ -68,7 +63,6 @@ __all__ = [
     "OptimizationParameterSpecData",
     "OptimizationProgressEventData",
     "OptimizationTrialData",
-    "ParamSpecResponse",
     "ParamSpecsRequest",
     "ProductActionRequest",
     "PushConversationRequest",

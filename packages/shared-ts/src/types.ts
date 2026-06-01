@@ -100,6 +100,10 @@ import type {
   TurnUsage,
   UpdatesEvent,
   UpdateConversationRequest,
+  WDKVocabTerm,
+  WDKTreeBoxVocabNode,
+  WDKFilterOntologyTerm,
+  WDKDatasetParser,
 } from "./generated/types/index";
 
 /**
@@ -136,6 +140,12 @@ export type {
   UpdateConversationRequest,
 };
 export type ParamSpec = ParamSpecResponse;
+export type {
+  WDKVocabTerm,
+  WDKTreeBoxVocabNode,
+  WDKFilterOntologyTerm,
+  WDKDatasetParser,
+};
 
 export interface SearchValidationErrors {
   general?: string[];

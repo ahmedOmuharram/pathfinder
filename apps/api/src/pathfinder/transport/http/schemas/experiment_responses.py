@@ -28,6 +28,7 @@ _MODEL_CONFIG = ConfigDict(from_attributes=True)
 # metrics.py
 # ---------------------------------------------------------------------------
 
+
 class ConfusionMatrixResponse(CamelModel):
     """2x2 confusion matrix counts."""
 
@@ -37,6 +38,7 @@ class ConfusionMatrixResponse(CamelModel):
     false_negatives: int
 
     model_config = _MODEL_CONFIG
+
 
 class ExperimentMetricsResponse(CamelModel):
     """Full classification metrics derived from a confusion matrix."""
@@ -58,6 +60,7 @@ class ExperimentMetricsResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class GeneInfoResponse(CamelModel):
     """Minimal gene metadata."""
 
@@ -68,6 +71,7 @@ class GeneInfoResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class FoldMetricsResponse(CamelModel):
     """Metrics for a single cross-validation fold."""
 
@@ -77,6 +81,7 @@ class FoldMetricsResponse(CamelModel):
     negative_control_ids: list[str] = Field(default_factory=list)
 
     model_config = _MODEL_CONFIG
+
 
 class CrossValidationResultResponse(CamelModel):
     """Aggregated cross-validation result."""
@@ -90,9 +95,11 @@ class CrossValidationResultResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 # ---------------------------------------------------------------------------
 # enrichment.py
 # ---------------------------------------------------------------------------
+
 
 class EnrichmentTermResponse(CamelModel):
     """Single enriched term from WDK analysis."""
@@ -110,6 +117,7 @@ class EnrichmentTermResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class EnrichmentResultResponse(CamelModel):
     """Results for a single enrichment analysis type."""
 
@@ -121,9 +129,11 @@ class EnrichmentResultResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 # ---------------------------------------------------------------------------
 # rank.py
 # ---------------------------------------------------------------------------
+
 
 class RankMetricsResponse(CamelModel):
     """Rank-based evaluation metrics computed over an ordered result list."""
@@ -137,6 +147,7 @@ class RankMetricsResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class ConfidenceIntervalResponse(CamelModel):
     """Bootstrap confidence interval for a single metric."""
 
@@ -147,6 +158,7 @@ class ConfidenceIntervalResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class NegativeSetVariantResponse(CamelModel):
     """Rank metrics evaluated with an alternative negative control set."""
 
@@ -156,6 +168,7 @@ class NegativeSetVariantResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class BootstrapResultResponse(CamelModel):
     """Robustness assessment via bootstrap resampling."""
 
@@ -163,13 +176,17 @@ class BootstrapResultResponse(CamelModel):
     metric_cis: dict[str, ConfidenceIntervalResponse] = Field(default_factory=dict)
     rank_metric_cis: dict[str, ConfidenceIntervalResponse] = Field(default_factory=dict)
     top_k_stability: float = Field(default=0.0)
-    negative_set_sensitivity: list[NegativeSetVariantResponse] = Field(default_factory=list)
+    negative_set_sensitivity: list[NegativeSetVariantResponse] = Field(
+        default_factory=list
+    )
 
     model_config = _MODEL_CONFIG
+
 
 # ---------------------------------------------------------------------------
 # step_analysis.py
 # ---------------------------------------------------------------------------
+
 
 class StepEvaluationResponse(CamelModel):
     """Per-leaf-step evaluation against controls."""
@@ -192,6 +209,7 @@ class StepEvaluationResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class OperatorVariantResponse(CamelModel):
     """Metrics for one boolean operator at a combine node."""
 
@@ -205,6 +223,7 @@ class OperatorVariantResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class OperatorComparisonResponse(CamelModel):
     """Comparison of operators at a single combine node."""
 
@@ -216,6 +235,7 @@ class OperatorComparisonResponse(CamelModel):
     precision_at_k_delta: dict[int, float] = Field(default_factory=dict)
 
     model_config = _MODEL_CONFIG
+
 
 class StepContributionResponse(CamelModel):
     """Ablation analysis for one leaf step."""
@@ -234,6 +254,7 @@ class StepContributionResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class ParameterSweepPointResponse(CamelModel):
     """One data point in a parameter sensitivity sweep."""
 
@@ -247,6 +268,7 @@ class ParameterSweepPointResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class ParameterSensitivityResponse(CamelModel):
     """Sensitivity sweep for one numeric parameter on one leaf step."""
 
@@ -259,19 +281,24 @@ class ParameterSensitivityResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class StepAnalysisResultResponse(CamelModel):
     """Container for all deterministic step analysis results."""
 
     step_evaluations: list[StepEvaluationResponse] = Field(default_factory=list)
     operator_comparisons: list[OperatorComparisonResponse] = Field(default_factory=list)
     step_contributions: list[StepContributionResponse] = Field(default_factory=list)
-    parameter_sensitivities: list[ParameterSensitivityResponse] = Field(default_factory=list)
+    parameter_sensitivities: list[ParameterSensitivityResponse] = Field(
+        default_factory=list
+    )
 
     model_config = _MODEL_CONFIG
+
 
 # ---------------------------------------------------------------------------
 # optimization.py
 # ---------------------------------------------------------------------------
+
 
 class OptimizationSpecResponse(CamelModel):
     """Describes a single parameter to optimise."""
@@ -285,6 +312,7 @@ class OptimizationSpecResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class ThresholdKnobResponse(CamelModel):
     """A numeric parameter on a leaf step that can be tuned."""
 
@@ -296,6 +324,7 @@ class ThresholdKnobResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class OperatorKnobResponse(CamelModel):
     """A combine-node operator that can be switched during optimization."""
 
@@ -303,6 +332,7 @@ class OperatorKnobResponse(CamelModel):
     options: list[str] = Field(default_factory=lambda: ["INTERSECT", "UNION", "MINUS"])
 
     model_config = _MODEL_CONFIG
+
 
 class TreeOptimizationTrialResponse(CamelModel):
     """One trial during tree-knob optimization."""
@@ -315,6 +345,7 @@ class TreeOptimizationTrialResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class TreeOptimizationResultResponse(CamelModel):
     """Result of multi-step tree-knob optimization."""
 
@@ -325,9 +356,11 @@ class TreeOptimizationResultResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 # ---------------------------------------------------------------------------
 # experiment.py — ExperimentConfig and Experiment
 # ---------------------------------------------------------------------------
+
 
 class ExperimentConfigResponse(CamelModel):
     """Full configuration for an experiment run."""
@@ -369,6 +402,7 @@ class ExperimentConfigResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class ExperimentResponse(CamelModel):
     """Full experiment with config and results."""
 
@@ -402,6 +436,7 @@ class ExperimentResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class ExperimentSummaryResponse(CamelModel):
     """Lightweight experiment summary for list views."""
 
@@ -425,9 +460,11 @@ class ExperimentSummaryResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 # ---------------------------------------------------------------------------
 # Progress data models
 # ---------------------------------------------------------------------------
+
 
 class TrialProgressDataResponse(CamelModel):
     """Progress data for a single optimization trial."""
@@ -443,6 +480,7 @@ class TrialProgressDataResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class StepAnalysisProgressDataResponse(CamelModel):
     """Progress data for step analysis."""
 
@@ -455,15 +493,19 @@ class StepAnalysisProgressDataResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 class ExperimentProgressDataResponse(CamelModel):
     """Progress data for experiment execution."""
 
     phase: str
     message: str | None = None
     trial_progress: TrialProgressDataResponse | None = Field(default=None)
-    step_analysis_progress: StepAnalysisProgressDataResponse | None = Field(default=None)
+    step_analysis_progress: StepAnalysisProgressDataResponse | None = Field(
+        default=None
+    )
 
     model_config = _MODEL_CONFIG
+
 
 class OptimizationResultResponse(CamelModel):
     """Complete optimization result."""
@@ -479,9 +521,11 @@ class OptimizationResultResponse(CamelModel):
 
     model_config = _MODEL_CONFIG
 
+
 # ---------------------------------------------------------------------------
 # Control set summary
 # ---------------------------------------------------------------------------
+
 
 class ControlSetSummaryResponse(CamelModel):
     """Control set summary for listing."""

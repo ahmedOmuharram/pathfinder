@@ -5,7 +5,7 @@ import math
 from collections.abc import Sequence
 
 from pathfinder.ai.memory.schemas import MemoryValue
-from pathfinder.services.catalog.semantic_index import get_embedding_model
+from pathfinder.integrations.embeddings.semantic_index import get_embedding_model
 
 MEMORY_EMBEDDING_MODEL: str = "nomic-ai/nomic-embed-text-v1.5"
 EMBEDDING_DIMENSIONS: int = 512

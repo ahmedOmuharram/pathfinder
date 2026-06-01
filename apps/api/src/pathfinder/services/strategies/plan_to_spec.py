@@ -67,7 +67,11 @@ def _index_inputs_by_step(
     """Return ``{to_step: {input_type: PlannedConnection}}``."""
     out: dict[str, dict[str, PlannedConnection]] = {}
     for conn in connections:
-        slot = conn.input_type if conn.input_type in ("primary", "secondary") else "primary"
+        slot = (
+            conn.input_type
+            if conn.input_type in ("primary", "secondary")
+            else "primary"
+        )
         out.setdefault(conn.to_step, {})[slot] = conn
     return out
 
@@ -153,8 +157,13 @@ def _search_name(step: PlannedStep) -> str:
 
 def _step_parameters_dict(step: PlannedStep) -> dict[str, ParamValue]:
     return {
-        p.name: p.value for p in step.parameters
-        if p.value is not None and p.status in (
-            ParamStatus.SET, ParamStatus.USER_SET, ParamStatus.DEFAULT,
+        p.name: p.value
+        for p in step.parameters
+        if p.value is not None
+        and p.status
+        in (
+            ParamStatus.SET,
+            ParamStatus.USER_SET,
+            ParamStatus.DEFAULT,
         )
     }

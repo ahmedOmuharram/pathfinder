@@ -20,7 +20,9 @@ class VariantSpec(CamelModel):
     id: str = Field(min_length=1)
     params: dict[str, ParamValue] = Field(default_factory=dict)
 
+
 VariantStatus = Literal["success", "failed"]
+
 
 class VariantResult(CamelModel):
     """Outcome of a single variant evaluation in a parallel sweep.
@@ -42,6 +44,7 @@ class VariantResult(CamelModel):
     positive_hits: int | None = None
     negative_hits: int | None = None
     error: str | None = None
+
 
 class SweepResult(CamelModel):
     """Top-level output of a parallel parameter sweep.

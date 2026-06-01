@@ -16,24 +16,26 @@ Downstream endpoints (``/chat``, ``/specialists/{kind}/enter``,
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.conversation.title_generator import generate_conversation_title
 from pathfinder.persistence.models import Conversation
 from pathfinder.persistence.repositories.conversation import (
     ConversationRepository,
     ConversationUpdate,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
 DEFAULT_NEW_CONVERSATION_NAME = ""
+
+TitleGenerator = Callable[[str], Awaitable[str]]
 
 _TITLE_TASKS: set[asyncio.Task[None]] = set()
 
@@ -51,7 +53,6 @@ async def begin_conversation(
     user_id: UUID,
     site_id: str,
     experiment_id: str | None = None,
-    seed_text: str | None = None,
 ) -> BeginResult:
     stmt = (
         insert(Conversation)
@@ -76,21 +77,36 @@ async def begin_conversation(
         msg = f"Conversation {conversation_id} not found after upsert"
         raise RuntimeError(msg)
 
-    if is_new and seed_text and seed_text.strip():
-        task = asyncio.create_task(
-            _persist_generated_title(conversation_id, seed_text),
-        )
-        _TITLE_TASKS.add(task)
-        task.add_done_callback(_TITLE_TASKS.discard)
-
     return BeginResult(conversation=conversation, is_new=is_new)
 
 
+def start_title_generation(
+    *,
+    conversation_id: UUID,
+    seed_text: str,
+    title_generator: TitleGenerator,
+) -> None:
+    """Fire-and-forget background title generation for a new conversation.
+
+    Callers inject the (AI) ``title_generator`` so the service layer stays
+    free of any AI-layer import.
+    """
+    if not seed_text.strip():
+        return
+    task = asyncio.create_task(
+        _persist_generated_title(conversation_id, seed_text, title_generator),
+    )
+    _TITLE_TASKS.add(task)
+    task.add_done_callback(_TITLE_TASKS.discard)
+
+
 async def _persist_generated_title(
-    conversation_id: UUID, seed_text: str,
+    conversation_id: UUID,
+    seed_text: str,
+    title_generator: TitleGenerator,
 ) -> None:
     try:
-        title = await generate_conversation_title(seed_text)
+        title = await title_generator(seed_text)
     except Exception:
         logger.exception(
             "begin: title generation failed",
@@ -105,6 +121,7 @@ async def _persist_generated_title(
         if existing is None or existing.name:
             return
         await repo.update_conversation(
-            conversation_id, ConversationUpdate(name=title),
+            conversation_id,
+            ConversationUpdate(name=title),
         )
         await session.commit()

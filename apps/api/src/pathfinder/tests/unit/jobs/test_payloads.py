@@ -130,7 +130,9 @@ class TestChatTurnPayloadFromContext:
         reset = veupathdb_auth_token_ctx.set("cookie-from-request")
         try:
             payload = ChatTurnPayload.from_context(
-                body=body, user_id=user_id, turn_id=turn_id,
+                body=body,
+                user_id=user_id,
+                turn_id=turn_id,
             )
         finally:
             veupathdb_auth_token_ctx.reset(reset)
@@ -141,7 +143,9 @@ class TestChatTurnPayloadFromContext:
     def test_captures_none_when_ctxvar_unset(self) -> None:
         assert veupathdb_auth_token_ctx.get() is None
         payload = ChatTurnPayload.from_context(
-            body=_body(), user_id=uuid4(), turn_id=uuid4(),
+            body=_body(),
+            user_id=uuid4(),
+            turn_id=uuid4(),
         )
         assert payload.veupathdb_auth_token is None
 
@@ -162,6 +166,8 @@ class TestDurableTaskPayloadFromContext:
     def test_captures_none_when_ctxvar_unset(self) -> None:
         assert veupathdb_auth_token_ctx.get() is None
         payload = DurableTaskPayload.from_context(
-            task_id=uuid4(), thread_id=uuid4(), args={},
+            task_id=uuid4(),
+            thread_id=uuid4(),
+            args={},
         )
         assert payload.veupathdb_auth_token is None

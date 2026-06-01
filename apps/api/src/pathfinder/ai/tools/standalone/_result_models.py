@@ -71,9 +71,7 @@ def _validate_sample_inputs(
         )
         raise ModelRetry(msg)
     if limit < 1 or limit > _MAX_SAMPLE_LIMIT:
-        msg = (
-            f"VALIDATION_ERROR: limit must be between 1 and 100 (got {limit})."
-        )
+        msg = f"VALIDATION_ERROR: limit must be between 1 and 100 (got {limit})."
         raise ModelRetry(msg)
 
 
@@ -111,7 +109,9 @@ async def _fetch_step_preview(
         return tool_error(ErrorCode.WDK_ERROR, str(e))
 
 
-def _extract_sample_response(answer: WDKAnswer, wdk_step_id: int = 0) -> SampleRecordsResult:
+def _extract_sample_response(
+    answer: WDKAnswer, wdk_step_id: int = 0
+) -> SampleRecordsResult:
     """Extract sample records from a WDK answer response."""
     records: list[JSONObject] = []
     total_count = answer.meta.total_count or 0

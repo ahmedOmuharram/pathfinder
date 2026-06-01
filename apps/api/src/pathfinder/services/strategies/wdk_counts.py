@@ -215,7 +215,11 @@ async def _create_wdk_step(
             if primary_wdk_id is None or secondary_wdk_id is None:
                 return None
             return await _create_combine_wdk_step(
-                api, step, record_type, primary_wdk_id, secondary_wdk_id,
+                api,
+                step,
+                record_type,
+                primary_wdk_id,
+                secondary_wdk_id,
             )
     except AppError as exc:
         logger.warning(

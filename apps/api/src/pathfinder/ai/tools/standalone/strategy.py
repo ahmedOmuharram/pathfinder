@@ -153,7 +153,7 @@ async def build_strategy(
         )
 
     outcome = await build_strategy_from_spec(
-        deps=deps,
+        deps=deps.to_strategy_context(),
         root=root,
         name=name,
         description=description,
@@ -210,11 +210,13 @@ async def update_leaf_params(
         )
     except ValidationError as exc:
         raise validation_model_retry(
-            exc, recordType=record_type, searchName=step.search_name,
+            exc,
+            recordType=record_type,
+            searchName=step.search_name,
         ) from exc
 
     await apply_and_commit(
-        deps=deps,
+        deps=deps.to_strategy_context(),
         op=UpdateStepParamsOp(step_id=step_id, parameters=dict(canonical)),
     )
     return ToolReturn(
@@ -254,7 +256,7 @@ async def update_combine_operator(
         raise ModelRetry(msg)
 
     await apply_and_commit(
-        deps=deps,
+        deps=deps.to_strategy_context(),
         op=UpdateCombineOperatorOp(
             step_id=step_id,
             operator=operator,
@@ -283,7 +285,7 @@ async def update_step_metadata(
     graph, step = resolved
 
     await apply_and_commit(
-        deps=deps,
+        deps=deps.to_strategy_context(),
         op=UpdateStepMetaOp(step_id=step_id, display_name=display_name),
     )
     return ToolReturn(
@@ -318,7 +320,7 @@ async def delete_step(
         raise ModelRetry(msg)
 
     result = await apply_and_commit(
-        deps=deps,
+        deps=deps.to_strategy_context(),
         op=DeleteStepOp(step_id=step_id, resolution=resolution),
     )
     response: JSONObject = {
@@ -353,7 +355,7 @@ async def replace_subtree(
         raise ModelRetry(msg)
 
     result = await apply_and_commit(
-        deps=deps,
+        deps=deps.to_strategy_context(),
         op=ReplaceSubtreeOp(step_id=step_id, subtree=new_subtree),
     )
     payload: JSONObject = {

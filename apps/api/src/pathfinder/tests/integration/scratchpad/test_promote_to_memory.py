@@ -10,11 +10,12 @@ from pydantic_ai.tools import RunContext
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.graph.runtime import AgentDeps, DBSessionFactory
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.scratchpad import tools as sc_tools
 from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.persistence.models import Conversation, User
+from pathfinder.platform.db import DBSessionFactory
 
 pytestmark = pytest.mark.asyncio
 
@@ -22,7 +23,10 @@ pytestmark = pytest.mark.asyncio
 @pytest.fixture
 async def conv_id(db_session: AsyncSession, seed_user: User) -> UUID:
     conv = Conversation(
-        user_id=seed_user.id, site_id="plasmodb", name="", experiment_id=None,
+        user_id=seed_user.id,
+        site_id="plasmodb",
+        name="",
+        experiment_id=None,
     )
     db_session.add(conv)
     await db_session.flush()
@@ -90,7 +94,9 @@ async def test_promote_creates_memory_and_keeps_note(
     # Memory is actually in the store under the knowledge namespace
     wrapped = MemoryStore(store=memory_store)
     stored = await wrapped.get(
-        user_id=seed_user.id, kind="knowledge", key=key,
+        user_id=seed_user.id,
+        kind="knowledge",
+        key=key,
     )
     assert stored is not None
     assert stored.value.name == "Gametocyte stage-specific markers"

@@ -12,7 +12,7 @@ from pathfinder.persistence.models import (
     TaskProgress,
     User,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 
 
 @pytest.mark.asyncio
@@ -25,7 +25,11 @@ async def test_background_tasks_roundtrip(
     task_id = uuid4()
     async with async_session_factory() as session:
         session.add(User(id=user_id))
-        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(
+            Conversation(
+                id=conversation_id, user_id=user_id, site_id="plasmodb", name=""
+            )
+        )
         await session.flush()
         session.add(
             BackgroundTask(
@@ -76,7 +80,9 @@ async def test_background_tasks_roundtrip(
 
         event = (
             await session.execute(
-                select(ConversationEvent).where(ConversationEvent.conversation_id == conversation_id)
+                select(ConversationEvent).where(
+                    ConversationEvent.conversation_id == conversation_id
+                )
             )
         ).scalar_one()
         assert event.chunk == {"type": "test"}

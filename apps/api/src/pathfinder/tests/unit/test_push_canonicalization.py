@@ -36,6 +36,7 @@ from pathfinder.services.strategies.plan_normalize import (
 
 # -- Fixtures ----------------------------------------------------------------
 
+
 def _make_tree_vocab() -> dict[str, object]:
     """A 2-level tree vocabulary: Plasmodium -> {Pf3D7, PvP01}."""
     return {
@@ -52,6 +53,7 @@ def _make_tree_vocab() -> dict[str, object]:
         ],
     }
 
+
 def _make_search_response(
     search_name: str,
     params: list[WDKParameter],
@@ -67,6 +69,7 @@ def _make_search_response(
         validation=StepValidation(),
     )
 
+
 async def _noop_loader(
     _record_type: str,
     _name: str,
@@ -76,7 +79,9 @@ async def _noop_loader(
     msg = "Should not be called"
     raise AssertionError(msg)
 
+
 # -- Tests -------------------------------------------------------------------
+
 
 async def test_canonicalize_expands_parent_to_leaves():
     """Parent organism selection must be expanded to leaf descendants.
@@ -118,7 +123,10 @@ async def test_canonicalize_expands_parent_to_leaves():
     )
 
     # Parent "Plasmodium" must be expanded to leaf nodes.
-    assert result.root.parameters["organism"] == MultiPickValue(values=["Pf3D7", "PvP01"])
+    assert result.root.parameters["organism"] == MultiPickValue(
+        values=["Pf3D7", "PvP01"]
+    )
+
 
 async def test_canonicalize_validates_unknown_param():
     """Unknown parameters must raise ValidationError, not pass through."""
@@ -152,6 +160,7 @@ async def test_canonicalize_validates_unknown_param():
             site_id="plasmodb",
             load_search_details=load_details,
         )
+
 
 async def test_canonicalize_leaves_combine_nodes_untouched():
     """Combine nodes should not be canonicalized (they have no WDK params)."""
@@ -212,9 +221,14 @@ async def test_canonicalize_leaves_combine_nodes_untouched():
 
     # Children still canonicalized
     assert result.root.primary_input is not None
-    assert result.root.primary_input.parameters["organism"] == MultiPickValue(values=["Pf3D7"])
+    assert result.root.primary_input.parameters["organism"] == MultiPickValue(
+        values=["Pf3D7"]
+    )
     assert result.root.secondary_input is not None
-    assert result.root.secondary_input.parameters["text_expression"] == StringValue(value="kinase")
+    assert result.root.secondary_input.parameters["text_expression"] == StringValue(
+        value="kinase"
+    )
+
 
 async def test_canonicalize_numeric_range_validation():
     """Out-of-range numeric values must be caught."""

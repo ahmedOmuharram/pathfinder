@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 
-from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.domain.strategy.operations import GraphOperation
 from pathfinder.domain.strategy.operations.apply import apply_operation
 from pathfinder.domain.strategy.session import StrategyGraph
@@ -12,6 +11,7 @@ from pathfinder.platform.errors import (
     ValidationError,
 )
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.persist import (
     persist_strategy_ast_to_conversation,
 )
@@ -39,7 +39,7 @@ class CommitResult:
     sync_result: SyncResult | None = None
 
 
-def _require_graph(deps: AgentDeps) -> StrategyGraph:
+def _require_graph(deps: StrategyMutationContext) -> StrategyGraph:
     graph = deps.strategy_session.get_graph(None)
     if graph is None:
         raise ValidationError(
@@ -51,7 +51,7 @@ def _require_graph(deps: AgentDeps) -> StrategyGraph:
 
 async def apply_and_commit(
     *,
-    deps: AgentDeps,
+    deps: StrategyMutationContext,
     op: GraphOperation,
 ) -> CommitResult:
     graph = _require_graph(deps)
@@ -77,7 +77,9 @@ async def apply_and_commit(
     )
 
     await persist_strategy_ast_to_conversation(
-        deps=deps, graph=graph, sync_result=sync_result.sync_result,
+        deps=deps,
+        graph=graph,
+        sync_result=sync_result.sync_result,
     )
 
     if sync_result.failed_step_ids:
@@ -102,7 +104,7 @@ class _WDKCommitOutcome:
 
 async def _commit_to_wdk(
     *,
-    deps: AgentDeps,
+    deps: StrategyMutationContext,
     graph: StrategyGraph,
     old_ast: StrategyAst | None,
     new_ast: StrategyAst | None,
@@ -112,7 +114,9 @@ async def _commit_to_wdk(
     api = get_strategy_api(deps.site_id)
 
     await reconcile_sync_state_with_wdk(
-        sync_state, deps.site_id, sync_state.wdk_strategy_id,
+        sync_state,
+        deps.site_id,
+        sync_state.wdk_strategy_id,
     )
 
     succeeded: list[str] = []

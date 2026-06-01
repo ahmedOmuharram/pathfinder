@@ -43,7 +43,9 @@ def _leaf(id_: str) -> StrategyStepNode:
     return StrategyStepNode(id=id_, search_name="geneById")
 
 
-def _combine(id_: str, primary: StrategyStepNode, secondary: StrategyStepNode) -> StrategyStepNode:
+def _combine(
+    id_: str, primary: StrategyStepNode, secondary: StrategyStepNode
+) -> StrategyStepNode:
     return StrategyStepNode(
         id=id_,
         search_name="__combine__",

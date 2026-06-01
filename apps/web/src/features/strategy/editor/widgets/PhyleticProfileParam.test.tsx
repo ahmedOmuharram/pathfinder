@@ -9,12 +9,14 @@ import {
   claimsPhyleticParams,
 } from "./phyleticProfileLogic";
 import { PhyleticProfileParam } from "./PhyleticProfileParam";
+import type { WDKVocabTerm } from "@pathfinder/shared";
+
 import type { ParamSpec } from "@/features/strategy/parameters/spec";
 import type { ParamForm } from "../hooks/useParamForm";
 
 afterEach(cleanup);
 
-const TERM_MAP_VOCAB = [
+const TERM_MAP_VOCAB: WDKVocabTerm[] = [
   ["ALL", "Root", null],
   ["EUKARYA", "Eukaryota", null],
   ["pfal", "P. falciparum", null],
@@ -23,13 +25,13 @@ const TERM_MAP_VOCAB = [
   ["ecol", "E. coli", null],
 ];
 
-const INDENT_MAP_VOCAB = [
-  ["ALL", 0, null],
-  ["EUKARYA", 1, null],
-  ["pfal", 2, null],
-  ["hsap", 2, null],
-  ["BACTERIA", 1, null],
-  ["ecol", 2, null],
+const INDENT_MAP_VOCAB: WDKVocabTerm[] = [
+  ["ALL", "0", null],
+  ["EUKARYA", "1", null],
+  ["pfal", "2", null],
+  ["hsap", "2", null],
+  ["BACTERIA", "1", null],
+  ["ecol", "2", null],
 ];
 
 const PARAM_DEFAULTS = {

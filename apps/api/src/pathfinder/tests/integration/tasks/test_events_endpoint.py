@@ -9,7 +9,7 @@ import httpx
 import pytest
 from sqlalchemy import select, text
 
-from pathfinder.ai.tools.durable import TaskProgressEmitter
+from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.persistence.models import (
     BackgroundTask,
     Conversation,
@@ -19,14 +19,18 @@ from pathfinder.persistence.models import (
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 
 
 async def _seed_chat_and_task(
     *, user_id: UUID, conversation_id: UUID, task_id: UUID, tool_name: str = "t"
 ) -> None:
     async with async_session_factory() as session:
-        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(
+            Conversation(
+                id=conversation_id, user_id=user_id, site_id="plasmodb", name=""
+            )
+        )
         await session.flush()
         session.add(
             BackgroundTask(
@@ -76,7 +80,11 @@ async def test_sse_returns_404_for_other_users_task(
     async with async_session_factory() as session:
         session.add(User(id=other_user))
         await session.flush()
-        session.add(Conversation(id=conversation_id, user_id=other_user, site_id="plasmodb", name=""))
+        session.add(
+            Conversation(
+                id=conversation_id, user_id=other_user, site_id="plasmodb", name=""
+            )
+        )
         await session.flush()
         session.add(
             BackgroundTask(
@@ -111,7 +119,9 @@ async def test_sse_replays_past_progress_and_completes(
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
+        task_id=task_id,
+        conversation_id=conversation_id,
+        session_factory=async_session_factory,
     )
     await emitter.update(percent=0.1, message="starting", data=None)
     await emitter.update(percent=0.25, message="loading data", data={"step": "a"})
@@ -130,10 +140,16 @@ async def test_sse_replays_past_progress_and_completes(
     assert "x-vercel-ai-ui-message-stream" not in resp.headers
 
     chunks = _parse_data_chunks(resp.text)
-    progress = [c for c in chunks if c.get("type") == "custom"
-        and c.get("kind") == "data-task-progress"]
-    completion = [c for c in chunks if c.get("type") == "custom"
-        and c.get("kind") == "data-task-completed"]
+    progress = [
+        c
+        for c in chunks
+        if c.get("type") == "custom" and c.get("kind") == "data-task-progress"
+    ]
+    completion = [
+        c
+        for c in chunks
+        if c.get("type") == "custom" and c.get("kind") == "data-task-completed"
+    ]
 
     assert len(progress) == 2, progress
     assert progress[0]["data"]["message"] == "starting"
@@ -161,7 +177,9 @@ async def test_sse_receives_past_and_live_progress(
     )
 
     emitter = TaskProgressEmitter(
-        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
+        task_id=task_id,
+        conversation_id=conversation_id,
+        session_factory=async_session_factory,
     )
     # One row is persisted BEFORE the client connects — must replay.
     await emitter.update(percent=0.1, message="starting", data=None)
@@ -188,13 +206,15 @@ async def test_sse_receives_past_and_live_progress(
     messages = [
         c["data"]["message"]
         for c in chunks
-        if c.get("type") == "custom"
-        and c.get("kind") == "data-task-progress"
+        if c.get("type") == "custom" and c.get("kind") == "data-task-progress"
     ]
     assert "starting" in messages, f"past progress missing: {messages}"
     assert "halfway" in messages, f"live progress missing: {messages}"
-    completion = [c for c in chunks if c.get("type") == "custom"
-        and c.get("kind") == "data-task-completed"]
+    completion = [
+        c
+        for c in chunks
+        if c.get("type") == "custom" and c.get("kind") == "data-task-completed"
+    ]
     assert completion, completion
     assert completion[-1]["data"]["status"] == "success"
 
@@ -220,8 +240,11 @@ async def test_sse_emits_task_completed_when_task_failed(
     )
     assert resp.status_code == 200
     chunks = _parse_data_chunks(resp.text)
-    completion = [c for c in chunks if c.get("type") == "custom"
-        and c.get("kind") == "data-task-completed"]
+    completion = [
+        c
+        for c in chunks
+        if c.get("type") == "custom" and c.get("kind") == "data-task-completed"
+    ]
     assert completion, chunks
     assert completion[-1]["data"]["status"] == "failed"
     assert completion[-1]["data"]["error"] == "boom"
@@ -261,9 +284,7 @@ async def test_task_status_returns_current_state(
 async def test_task_status_returns_404_when_missing(
     authed_client: httpx.AsyncClient,
 ) -> None:
-    resp = await authed_client.get(
-        f"/api/v1/conversations/{uuid4()}/tasks/{uuid4()}"
-    )
+    resp = await authed_client.get(f"/api/v1/conversations/{uuid4()}/tasks/{uuid4()}")
     assert resp.status_code == 404
 
 
@@ -278,7 +299,9 @@ async def test_task_progress_history_returns_rows_in_order(
         user_id=authed_user_id, conversation_id=conversation_id, task_id=task_id
     )
     emitter = TaskProgressEmitter(
-        task_id=task_id, conversation_id=conversation_id, session_factory=async_session_factory
+        task_id=task_id,
+        conversation_id=conversation_id,
+        session_factory=async_session_factory,
     )
     await emitter.update(percent=0.1, message="a", data=None)
     await emitter.update(percent=0.5, message="b", data={"k": "v"})
@@ -369,8 +392,7 @@ async def test_live_stream_emits_progress_and_terminal_when_batched(
     progress_messages = [
         c["data"]["message"]
         for c in _parse_data_chunks(resp.text)
-        if c.get("type") == "custom"
-        and c.get("kind") == "data-task-progress"
+        if c.get("type") == "custom" and c.get("kind") == "data-task-progress"
     ]
     assert "final" in progress_messages, progress_messages
     completion = [

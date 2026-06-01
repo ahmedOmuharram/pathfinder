@@ -86,7 +86,9 @@ def _transform_factory(child: StrategyStepNode, sn: str, pd: dict) -> StrategySt
 
 
 def _combine_factory(
-    left: StrategyStepNode, right: StrategyStepNode, op: CombineOp,
+    left: StrategyStepNode,
+    right: StrategyStepNode,
+    op: CombineOp,
 ) -> StrategyStepNode | None:
     if left.id == right.id:
         return None
@@ -99,7 +101,9 @@ def _combine_factory(
 
 
 def _colocate_factory(
-    left: StrategyStepNode, right: StrategyStepNode, col: ColocationParams,
+    left: StrategyStepNode,
+    right: StrategyStepNode,
+    col: ColocationParams,
 ) -> StrategyStepNode | None:
     if left.id == right.id:
         return None
@@ -112,7 +116,9 @@ def _colocate_factory(
     )
 
 
-def _extend(children: st.SearchStrategy[StrategyStepNode]) -> st.SearchStrategy[StrategyStepNode]:
+def _extend(
+    children: st.SearchStrategy[StrategyStepNode],
+) -> st.SearchStrategy[StrategyStepNode]:
     return st.one_of(
         st.builds(_transform_factory, children, _search_names, _param_dicts),
         st.builds(_combine_factory, children, children, _boolean_ops).filter(
@@ -153,9 +159,7 @@ def _count_nodes(n: StrategyStepNode) -> int:
 def test_walk_step_tree_is_post_order_and_unique(root: StrategyStepNode) -> None:
     steps = walk_step_tree(root)
     ids = [s.id for s in steps]
-    assert len(ids) == len(set(ids)), (
-        f"walk_step_tree returned duplicate ids: {ids}"
-    )
+    assert len(ids) == len(set(ids)), f"walk_step_tree returned duplicate ids: {ids}"
     assert steps[-1] is root, "root must be visited last in post-order traversal"
     assert len(steps) == _count_nodes(root)
     seen: set[str] = set()
@@ -238,7 +242,9 @@ def test_combine_without_operator_is_rejected() -> None:
 def test_combine_with_same_step_id_is_rejected() -> None:
     a = StrategyStepNode(search_name="a", id="step_dup")
     b = StrategyStepNode(search_name="b", id="step_dup")
-    with pytest.raises(ValidationError, match="cannot use the same step on both inputs"):
+    with pytest.raises(
+        ValidationError, match="cannot use the same step on both inputs"
+    ):
         StrategyStepNode(
             search_name=COMBINE_SEARCH_NAME,
             primary_input=a,
@@ -273,7 +279,9 @@ def test_colocation_params_without_colocate_is_rejected() -> None:
 
 
 def test_expanded_strategy_id_outside_combine_is_rejected() -> None:
-    with pytest.raises(ValidationError, match="expandedStrategyId is only valid on combine"):
+    with pytest.raises(
+        ValidationError, match="expandedStrategyId is only valid on combine"
+    ):
         StrategyStepNode(
             search_name="a",
             expanded_strategy_id=42,

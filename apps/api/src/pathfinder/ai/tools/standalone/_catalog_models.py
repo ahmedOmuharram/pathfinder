@@ -105,8 +105,7 @@ def _filter_vocab(param: WDKParameter, query: str) -> WDKParameter:
 
     if isinstance(vocab, dict):
         filtered_dict = {
-            k: v for k, v in vocab.items()
-            if q in str(k).lower() or q in str(v).lower()
+            k: v for k, v in vocab.items() if q in str(k).lower() or q in str(v).lower()
         }
         return param.model_copy(update={"vocabulary": filtered_dict})
 
@@ -121,5 +120,7 @@ async def _resolve_record_type(
     """Resolve the record type for a search, falling back to 'transcript'."""
     if record_type:
         return record_type
-    ctx = SearchContext(site_id=site_id, search_name=search_name, record_type="transcript")
+    ctx = SearchContext(
+        site_id=site_id, search_name=search_name, record_type="transcript"
+    )
     return await find_record_type_for_search(ctx)

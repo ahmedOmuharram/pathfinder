@@ -19,13 +19,17 @@ def cost_for_run(
     if provider_url:
         try:
             return calc_price(
-                usage, model_name, provider_api_url=provider_url,
+                usage,
+                model_name,
+                provider_api_url=provider_url,
             ).total_price
         except LookupError:
             pass
     try:
         return calc_price(
-            usage, model_name, provider_id=provider_name,
+            usage,
+            model_name,
+            provider_id=provider_name,
         ).total_price
     except LookupError:
         return Decimal(0)

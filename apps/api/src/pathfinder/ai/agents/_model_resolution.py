@@ -10,7 +10,8 @@ from pathfinder.platform.types import ModelProvider
 
 
 def resolve_orchestrator_model_entry(
-    model_id: str | None, provider: ModelProvider | None,
+    model_id: str | None,
+    provider: ModelProvider | None,
 ) -> ModelEntry:
     """Pick the orchestrator/compactor's model entry.
 
@@ -21,7 +22,5 @@ def resolve_orchestrator_model_entry(
         entry = get_model_entry(model_id)
         if entry is not None:
             return entry
-    resolved_provider: ModelProvider = (
-        provider or get_settings().default_provider
-    )
+    resolved_provider: ModelProvider = provider or get_settings().default_provider
     return get_smallest_model(resolved_provider)

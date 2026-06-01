@@ -10,16 +10,16 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select
 
-from pathfinder.ai.tools.durable import TaskProgressEmitter
 from pathfinder.jobs.impls import optimize_params_impl
 from pathfinder.jobs.impls.optimize_params_impl import VariantSpec
+from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.persistence.models import (
     BackgroundTask,
     Conversation,
     TaskProgress,
     User,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,11 @@ async def _seed_user_chat_task(
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
-        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(
+            Conversation(
+                id=conversation_id, user_id=user_id, site_id="plasmodb", name=""
+            )
+        )
         await session.flush()
         session.add(
             BackgroundTask(
@@ -64,15 +68,18 @@ async def _seed_user_chat_task(
 async def _read_progress_rows(task_id: UUID) -> list[_ProgressRow]:
     async with async_session_factory() as session:
         rows = (
-            await session.execute(
-                select(TaskProgress)
-                .where(TaskProgress.task_id == task_id)
-                .order_by(TaskProgress.id)
+            (
+                await session.execute(
+                    select(TaskProgress)
+                    .where(TaskProgress.task_id == task_id)
+                    .order_by(TaskProgress.id)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     return [
-        _ProgressRow(percent=r.percent, message=r.message, data=r.data)
-        for r in rows
+        _ProgressRow(percent=r.percent, message=r.message, data=r.data) for r in rows
     ]
 
 
@@ -91,9 +98,7 @@ async def progress_sink(
     return _ProgressSink(rows=[])
 
 
-async def _fake_attach_export(
-    result_json: dict[str, Any], search_name: str
-) -> None:
+async def _fake_attach_export(result_json: dict[str, Any], search_name: str) -> None:
     """Stand-in for _attach_export — the real one needs a request user_id ctx.
 
     The export side-effect (write to S3/disk) is genuinely external; mocking

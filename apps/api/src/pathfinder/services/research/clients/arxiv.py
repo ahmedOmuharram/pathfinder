@@ -52,7 +52,7 @@ class ArxivClient(StandardClient):
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             entry = ArxivRawEntry.model_validate(raw)
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             return None
         e = entry.xml
 

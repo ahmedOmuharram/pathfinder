@@ -10,10 +10,10 @@ from pathfinder.ai.agents.compactor import (
     build_compactor_agent,
 )
 from pathfinder.ai.cost import cost_for_run
-from pathfinder.ai.graph.runtime import DBSessionFactory
-from pathfinder.ai.scratchpad._ids import approx_body_tokens
-from pathfinder.ai.scratchpad.models import CompactionRun, Note, NoteCreate
-from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.domain.scratchpad.ids import approx_body_tokens
+from pathfinder.domain.scratchpad.models import CompactionRun, Note, NoteCreate
+from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
+from pathfinder.platform.db import DBSessionFactory
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -36,13 +36,14 @@ def _format_notes_for_compactor(notes: list[Note]) -> str:
 
 
 def _enforce_budget(
-    new_notes: list[NoteCreate], *, threshold_tokens: int,
+    new_notes: list[NoteCreate],
+    *,
+    threshold_tokens: int,
 ) -> list[NoteCreate]:
     """Drop oldest (first) entries until total approx-tokens <= threshold."""
     trimmed = list(new_notes)
     while (
-        trimmed
-        and sum(approx_body_tokens(n.body) for n in trimmed) > threshold_tokens
+        trimmed and sum(approx_body_tokens(n.body) for n in trimmed) > threshold_tokens
     ):
         trimmed.pop(0)
     return trimmed
@@ -76,14 +77,15 @@ async def maybe_compact_scratchpad(
     if not over_count and not over_tokens:
         return None
     reason: Literal["count", "tokens", "both"] = (
-        "both" if over_count and over_tokens
-        else ("count" if over_count else "tokens")
+        "both" if over_count and over_tokens else ("count" if over_count else "tokens")
     )
 
     async with db_session_factory() as session:
         repo = ScratchpadRepository(session)
         non_pinned = await repo.list_notes(
-            conversation_id=conversation_id, pinned=False, limit=1000,
+            conversation_id=conversation_id,
+            pinned=False,
+            limit=1000,
         )
 
     agent = build_compactor_agent(model_id=None)
@@ -104,7 +106,8 @@ async def maybe_compact_scratchpad(
 
     output: CompactionResult = result.output
     trimmed = _enforce_budget(
-        output.notes, threshold_tokens=COMPACT_TOKENS_THRESHOLD,
+        output.notes,
+        threshold_tokens=COMPACT_TOKENS_THRESHOLD,
     )
 
     usage = result.usage()
@@ -119,7 +122,8 @@ async def maybe_compact_scratchpad(
     async with db_session_factory() as session:
         repo = ScratchpadRepository(session)
         await repo.replace_non_pinned(
-            conversation_id=conversation_id, new_notes=trimmed,
+            conversation_id=conversation_id,
+            new_notes=trimmed,
         )
         new_count, new_tokens = await repo.totals(
             conversation_id=conversation_id,

@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from pathfinder.ai.scratchpad.models import (
+from pathfinder.domain.scratchpad.models import (
     CompactionRun,
     Note,
     NoteCreate,

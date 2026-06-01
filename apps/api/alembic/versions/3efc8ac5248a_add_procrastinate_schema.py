@@ -5,6 +5,7 @@ Revises: 29b8e0c301b3
 Create Date: 2026-04-14 13:52:38.389080
 
 """
+
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -44,8 +45,10 @@ def _apply_via_psycopg() -> None:
     else:
         psycopg_url = url
     conninfo = psycopg_url.render_as_string(hide_password=False)
-    with psycopg.connect(conninfo, autocommit=True) as connection, \
-            connection.cursor() as cursor:
+    with (
+        psycopg.connect(conninfo, autocommit=True) as connection,
+        connection.cursor() as cursor,
+    ):
         cursor.execute(_SCHEMA_SQL)
 
 

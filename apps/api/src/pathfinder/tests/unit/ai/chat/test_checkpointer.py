@@ -22,9 +22,7 @@ from pathfinder.ai.conversation.checkpointer import to_psycopg_url
         ),
     ],
 )
-def test_to_psycopg_url_strips_async_drivers(
-    input_url: str, expected: str
-) -> None:
+def test_to_psycopg_url_strips_async_drivers(input_url: str, expected: str) -> None:
     assert to_psycopg_url(input_url) == expected
 
 

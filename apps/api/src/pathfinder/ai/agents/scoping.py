@@ -235,5 +235,3 @@ for _fn in (
     pinned_scratchpad,
 ):
     scoping_agent.instructions(_fn)
-
-

@@ -12,7 +12,7 @@ from functools import cache
 from sqlalchemy import select
 
 from pathfinder.persistence.models import ExperimentRow
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.store import WriteThruStore
 from pathfinder.services.experiment._deserialize import experiment_from_json
 from pathfinder.services.experiment.types import (

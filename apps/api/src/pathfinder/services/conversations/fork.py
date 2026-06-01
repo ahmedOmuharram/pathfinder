@@ -8,26 +8,28 @@ from uuid import UUID, uuid4
 from sqlalchemy import asc, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.scratchpad.repository import ScratchpadRepository
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
 from pathfinder.integrations.veupathdb.wdk_models import WDKStepTree
 from pathfinder.persistence.models import Conversation, Message
+from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
-_SCRATCHPAD_TOOL_PART_TYPES = frozenset({
-    "tool-note",
-    "tool-update_note",
-    "tool-delete_note",
-    "tool-pin_note",
-    "tool-unpin_note",
-    "tool-read_note",
-    "tool-promote_to_memory",
-    "tool-list_notes",
-    "tool-search_notes",
-})
+_SCRATCHPAD_TOOL_PART_TYPES = frozenset(
+    {
+        "tool-note",
+        "tool-update_note",
+        "tool-delete_note",
+        "tool-pin_note",
+        "tool-unpin_note",
+        "tool-read_note",
+        "tool-promote_to_memory",
+        "tool-list_notes",
+        "tool-search_notes",
+    }
+)
 
 
 class ForkError(ValueError):
@@ -58,12 +60,14 @@ async def _copy_conversation_events(
     inserts: list[dict[str, Any]] = []
     for row in rows.mappings():
         chunk = _rewrite_scratchpad_ids_in_chunk(dict(row["chunk"]), id_map)
-        inserts.append({
-            "conversation_id": str(new_conversation_id),
-            "turn_id": str(row["turn_id"]) if row["turn_id"] is not None else None,
-            "task_id": str(row["task_id"]) if row["task_id"] is not None else None,
-            "chunk": chunk,
-        })
+        inserts.append(
+            {
+                "conversation_id": str(new_conversation_id),
+                "turn_id": str(row["turn_id"]) if row["turn_id"] is not None else None,
+                "task_id": str(row["task_id"]) if row["task_id"] is not None else None,
+                "chunk": chunk,
+            }
+        )
     if not inserts:
         return
     await session.execute(
@@ -80,31 +84,28 @@ async def _copy_conversation_events(
             )
             """,
         ),
-        [
-            {**ins, "chunk": json.dumps(ins["chunk"])}
-            for ins in inserts
-        ],
+        [{**ins, "chunk": json.dumps(ins["chunk"])} for ins in inserts],
     )
 
 
 def _rewrite_scratchpad_ids_in_chunk(
-    chunk: dict[str, Any], id_map: dict[str, str],
+    chunk: dict[str, Any],
+    id_map: dict[str, str],
 ) -> dict[str, Any]:
     if not id_map:
         return chunk
     chunk_type = chunk.get("type")
-    if (
-        isinstance(chunk_type, str)
-        and chunk_type in _SCRATCHPAD_TOOL_PART_TYPES
-    ):
+    if isinstance(chunk_type, str) and chunk_type in _SCRATCHPAD_TOOL_PART_TYPES:
         rewritten = dict(chunk)
         if "input" in rewritten:
             rewritten["input"] = _rewrite_note_ids_in_payload(
-                rewritten["input"], id_map,
+                rewritten["input"],
+                id_map,
             )
         if "output" in rewritten:
             rewritten["output"] = _rewrite_note_ids_in_payload(
-                rewritten["output"], id_map,
+                rewritten["output"],
+                id_map,
             )
         return rewritten
     if chunk_type == "user-message":
@@ -210,7 +211,8 @@ async def _copy_checkpoint_state(
 
 
 def _rewrite_note_ids_in_payload(
-    payload: Any, id_map: dict[str, str],
+    payload: Any,
+    id_map: dict[str, str],
 ) -> Any:
     """Recursively swap scratchpad note ids inside a JSON-like payload.
 
@@ -223,11 +225,7 @@ def _rewrite_note_ids_in_payload(
     if isinstance(payload, dict):
         rewritten: dict[str, Any] = {}
         for key, value in payload.items():
-            if (
-                key in note_id_keys
-                and isinstance(value, str)
-                and value in id_map
-            ):
+            if key in note_id_keys and isinstance(value, str) and value in id_map:
                 rewritten[key] = id_map[value]
             else:
                 rewritten[key] = _rewrite_note_ids_in_payload(value, id_map)
@@ -296,8 +294,7 @@ async def _duplicate_wdk_strategy(
         copied = await api.get_strategy(identifier.id)
     except AppError as exc:
         logger.warning(
-            "fork: WDK strategy duplication failed; fork starts without "
-            "a WDK strategy",
+            "fork: WDK strategy duplication failed; fork starts without a WDK strategy",
             source_wdk_strategy_id=source_wdk_strategy_id,
             error=str(exc),
         )

@@ -18,7 +18,13 @@ from pathfinder.platform.types import ModelProvider, TierName
 _API_DIR = Path(__file__).resolve().parents[3]  # apps/api/
 _REPO_ROOT = _API_DIR.parents[1]  # repo root
 _MIN_API_SECRET_LENGTH = 32
-_PLACEHOLDER_SECRET_MARKERS = ("dev-only", "change-me", "xxxx", "placeholder", "example")
+_PLACEHOLDER_SECRET_MARKERS = (
+    "dev-only",
+    "change-me",
+    "xxxx",
+    "placeholder",
+    "example",
+)
 _ALLOWED_CHAT_PROVIDERS = {"default", "mock"}
 
 

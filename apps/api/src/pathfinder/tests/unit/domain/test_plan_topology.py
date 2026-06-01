@@ -48,11 +48,15 @@ def _conn(frm: str, to: str) -> PlannedConnection:
 
 
 def _plan(
-    steps: list[PlannedStep], connections: list[PlannedConnection],
+    steps: list[PlannedStep],
+    connections: list[PlannedConnection],
 ) -> StrategyPlan:
     return StrategyPlan(
-        title="T", description="d", rationale="r",
-        steps=steps, connections=connections,
+        title="T",
+        description="d",
+        rationale="r",
+        steps=steps,
+        connections=connections,
     )
 
 

@@ -66,11 +66,17 @@ class _CountingAPI:
         self.calls.append(_Call("delete_step", {"step_id": step_id}))
 
     async def create_step(
-        self, spec: NewStepSpec, record_type: str, user_id: str | None = None,
+        self,
+        spec: NewStepSpec,
+        record_type: str,
+        user_id: str | None = None,
     ) -> WDKIdentifier:
         del user_id
         self.calls.append(
-            _Call("create_step", {"search_name": spec.search_name, "record_type": record_type}),
+            _Call(
+                "create_step",
+                {"search_name": spec.search_name, "record_type": record_type},
+            ),
         )
         return WDKIdentifier(id=self._alloc())
 
@@ -147,7 +153,9 @@ class _CountingAPI:
         user_id: str | None = None,
     ) -> None:
         del user_id
-        self.calls.append(_Call("update_step_properties", {"step_id": step_id, "spec": spec}))
+        self.calls.append(
+            _Call("update_step_properties", {"step_id": step_id, "spec": spec})
+        )
 
     async def find_step(self, step_id: int, user_id: str | None = None) -> WDKStep:
         del user_id
@@ -212,11 +220,18 @@ async def seed_user(db_session: AsyncSession) -> User:
 
 
 def _leaf(id_: str) -> StrategyStepNode:
-    return StrategyStepNode(id=id_, search_name="GenesByTaxon", parameters={"organism": MultiPickValue(values=["Pf3D7"])})
+    return StrategyStepNode(
+        id=id_,
+        search_name="GenesByTaxon",
+        parameters={"organism": MultiPickValue(values=["Pf3D7"])},
+    )
 
 
 def _combine(
-    id_: str, p: StrategyStepNode, s: StrategyStepNode, op: CombineOp = CombineOp.INTERSECT,
+    id_: str,
+    p: StrategyStepNode,
+    s: StrategyStepNode,
+    op: CombineOp = CombineOp.INTERSECT,
 ) -> StrategyStepNode:
     return StrategyStepNode(
         id=id_,
@@ -235,7 +250,9 @@ async def _seed_conversation(
     wdk_step_ids: dict[str, int],
 ) -> UUID:
     ast = StrategyAst(
-        record_type="transcript", root=root, wdk_step_ids=wdk_step_ids,
+        record_type="transcript",
+        root=root,
+        wdk_step_ids=wdk_step_ids,
     )
     conv = Conversation(
         id=uuid4(),
@@ -259,7 +276,9 @@ def _build_deps(
     db_session_factory: Any,
 ) -> AgentDeps:
     session = StrategySession(site_id="plasmodb")
-    graph = StrategyGraph(graph_id=str(conv_id), name="Test strategy", site_id="plasmodb")
+    graph = StrategyGraph(
+        graph_id=str(conv_id), name="Test strategy", site_id="plasmodb"
+    )
     graph.record_type = "transcript"
     stack = [root]
     while stack:
@@ -272,7 +291,8 @@ def _build_deps(
     graph.recompute_roots()
     session.graph = graph
     session.sync_state = WDKSyncState(
-        wdk_step_ids=dict(wdk_step_ids), wdk_strategy_id=555,
+        wdk_step_ids=dict(wdk_step_ids),
+        wdk_strategy_id=555,
     )
     return AgentDeps(
         site_id="plasmodb",
@@ -293,21 +313,30 @@ async def test_delete_collapse_combine_drops_wdk_steps_and_persists_ast(
     c = _combine("step_c", a, b)
     wdk_ids = {"step_a": 100, "step_b": 200, "step_c": 300}
     conv_id = await _seed_conversation(
-        db_session, seed_user, root=c, wdk_step_ids=wdk_ids,
+        db_session,
+        seed_user,
+        root=c,
+        wdk_step_ids=wdk_ids,
     )
     deps = _build_deps(
-        conv_id=conv_id, root=c, wdk_step_ids=wdk_ids, db_session_factory=session_maker,
+        conv_id=conv_id,
+        root=c,
+        wdk_step_ids=wdk_ids,
+        db_session_factory=session_maker,
     )
 
     result = await apply_and_commit(
         deps=deps,
         op=DeleteStepOp(
-            step_id="step_a", resolution=DeleteResolution.COLLAPSE_COMBINE,
+            step_id="step_a",
+            resolution=DeleteResolution.COLLAPSE_COMBINE,
         ),
     )
 
     assert sorted(result.dropped_step_ids) == ["step_a", "step_c"]
-    deleted_wdk = {c.kwargs["step_id"] for c in stub_api.calls if c.name == "delete_step"}
+    deleted_wdk = {
+        c.kwargs["step_id"] for c in stub_api.calls if c.name == "delete_step"
+    }
     assert deleted_wdk == {100, 300}
 
     async with session_maker() as fresh:
@@ -328,7 +357,10 @@ async def test_update_step_meta_persists_without_wdk_delete(
 ) -> None:
     a = _leaf("step_a")
     conv_id = await _seed_conversation(
-        db_session, seed_user, root=a, wdk_step_ids={"step_a": 100},
+        db_session,
+        seed_user,
+        root=a,
+        wdk_step_ids={"step_a": 100},
     )
     deps = _build_deps(
         conv_id=conv_id,

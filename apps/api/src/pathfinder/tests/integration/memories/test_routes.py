@@ -75,9 +75,7 @@ async def test_search_returns_relevant(
                 created_at=datetime.now(UTC),
             ),
         )
-    resp = await authed_client.get(
-        "/api/v1/memories/search?q=antimalarial%20drugs"
-    )
+    resp = await authed_client.get("/api/v1/memories/search?q=antimalarial%20drugs")
     assert resp.status_code == 200
     hits = resp.json()["hits"]
     assert hits

@@ -49,15 +49,14 @@ async def finalize_turn_node(
         )
         try:
             await auto_write_memories(
-                store=mem_store, tombstones=tombstones, state=state,
+                store=mem_store,
+                tombstones=tombstones,
+                state=state,
             )
         except (RuntimeError, ValueError, OSError, SQLAlchemyError) as exc:
             logger.warning("auto-write memories failed: %s", exc)
 
-    if (
-        runtime.context is not None
-        and state.verification_digest is not None
-    ):
+    if runtime.context is not None and state.verification_digest is not None:
         try:
             compaction_run = await maybe_compact_scratchpad(
                 conversation_id=state.conversation_id,
@@ -75,7 +74,9 @@ async def finalize_turn_node(
             writer(
                 {
                     "chunk": scratchpad_updated_event().model_dump(
-                        by_alias=True, mode="json", exclude_none=True,
+                        by_alias=True,
+                        mode="json",
+                        exclude_none=True,
                     ),
                 },
             )

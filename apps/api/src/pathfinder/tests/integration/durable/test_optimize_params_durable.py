@@ -16,12 +16,10 @@ from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 
 
-async def _fake_attach_export(
-    result_json: dict[str, Any], search_name: str
-) -> None:
+async def _fake_attach_export(result_json: dict[str, Any], search_name: str) -> None:
     del search_name
     result_json["downloads"] = {"jsonUrl": "https://ex/sweep.json"}
 
@@ -35,10 +33,14 @@ async def _fake_run_single_trial(
     """Stand-in trial — emits two progress rows so the runner round-trip
     persists progress under the variant scope."""
     await progress.update(
-        percent=0.5, message=f"halfway {variant.id}", data={"phase": "mid"},
+        percent=0.5,
+        message=f"halfway {variant.id}",
+        data={"phase": "mid"},
     )
     await progress.update(
-        percent=1.0, message=f"done {variant.id}", data={"phase": "end"},
+        percent=1.0,
+        message=f"done {variant.id}",
+        data={"phase": "end"},
     )
     return {
         "variantId": variant.id,
@@ -53,7 +55,9 @@ async def _seed_user_chat(user_id: UUID, conversation_id: UUID) -> None:
         session.add(User(id=user_id))
         await session.flush()
         session.add(
-            Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name="")
+            Conversation(
+                id=conversation_id, user_id=user_id, site_id="plasmodb", name=""
+            )
         )
         await session.commit()
 
@@ -99,8 +103,7 @@ def test_optimize_search_parameters_registered_in_registry() -> None:
     register_all_tools()
     assert "optimize_search_parameters" in TOOL_REGISTRY
     assert (
-        TOOL_REGISTRY["optimize_search_parameters"]
-        is optimize_search_parameters_impl
+        TOOL_REGISTRY["optimize_search_parameters"] is optimize_search_parameters_impl
     )
 
 
@@ -114,9 +117,7 @@ async def test_run_durable_task_wiring_optimize(
     """End-to-end: runner submits -> impl fans out -> result row matches sweep shape."""
     del db_cleaner, patch_app_db_engine
 
-    monkeypatch.setattr(
-        optimize_params_impl, "_attach_export", _fake_attach_export
-    )
+    monkeypatch.setattr(optimize_params_impl, "_attach_export", _fake_attach_export)
     monkeypatch.setattr(
         optimize_params_impl, "run_single_trial", _fake_run_single_trial
     )

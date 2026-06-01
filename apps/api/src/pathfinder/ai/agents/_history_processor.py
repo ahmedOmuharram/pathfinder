@@ -132,7 +132,8 @@ def _inject_placeholder_returns(
         next_msg = result[next_idx] if next_idx < len(result) else None
         if isinstance(next_msg, ModelRequest):
             result[next_idx] = dataclasses.replace(
-                next_msg, parts=list(placeholders) + list(next_msg.parts),
+                next_msg,
+                parts=list(placeholders) + list(next_msg.parts),
             )
         else:
             result.insert(next_idx, ModelRequest(parts=list(placeholders)))
@@ -176,9 +177,7 @@ def _ordered_tool_call_ids(messages: Sequence[ModelMessage]) -> list[str]:
         if not isinstance(msg, ModelResponse):
             continue
         out.extend(
-            part.tool_call_id
-            for part in msg.parts
-            if isinstance(part, ToolCallPart)
+            part.tool_call_id for part in msg.parts if isinstance(part, ToolCallPart)
         )
     return out
 
@@ -192,12 +191,13 @@ def elide_consumed_tool_results(
     call_ids = _ordered_tool_call_ids(messages)
     if len(call_ids) <= KEEP_RECENT_TOOL_PAIRS:
         return list(messages)
-    elide_ids = set(call_ids[: -KEEP_RECENT_TOOL_PAIRS])
+    elide_ids = set(call_ids[:-KEEP_RECENT_TOOL_PAIRS])
     return [_elide_returns_in_message(msg, elide_ids) for msg in messages]
 
 
 def _elide_returns_in_message(
-    msg: ModelMessage, elide_ids: set[str],
+    msg: ModelMessage,
+    elide_ids: set[str],
 ) -> ModelMessage:
     if not isinstance(msg, ModelRequest):
         return msg

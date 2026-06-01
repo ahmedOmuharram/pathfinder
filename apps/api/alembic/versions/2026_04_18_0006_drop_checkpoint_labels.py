@@ -7,6 +7,7 @@ goes too.
 Revision ID: 2026_04_18_0006
 Revises: 2026_04_18_0005
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

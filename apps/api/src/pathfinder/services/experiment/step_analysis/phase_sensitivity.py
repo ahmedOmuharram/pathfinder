@@ -324,7 +324,9 @@ async def _collect_sweep_specs(
 ) -> list[tuple[StrategyStepNode, _NumericParamSpec, list[_NumericParamSpec]]]:
     """Collect deduplicated (leaf, spec, all_params) tuples for sweeping."""
     seen: set[str] = set()
-    result: list[tuple[StrategyStepNode, _NumericParamSpec, list[_NumericParamSpec]]] = []
+    result: list[
+        tuple[StrategyStepNode, _NumericParamSpec, list[_NumericParamSpec]]
+    ] = []
     for leaf in leaves:
         search_name = leaf.search_name
         params = await _discover_numeric_params(site_id, record_type, leaf)

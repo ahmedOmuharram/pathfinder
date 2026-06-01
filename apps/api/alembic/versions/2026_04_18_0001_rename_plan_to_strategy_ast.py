@@ -6,6 +6,7 @@ planning-agent's PlanArtifact. Renaming to kill the ambiguity.
 Revision ID: 2026_04_18_0001
 Revises: 2026_04_17_0001
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

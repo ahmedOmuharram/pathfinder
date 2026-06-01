@@ -8,7 +8,6 @@ not affect PathFinder's own data).  Used by thesis/eval/scripts/ only.
 """
 
 from typing import Any
-from uuid import UUID
 
 from fastapi import APIRouter
 from pydantic import Field
@@ -18,10 +17,9 @@ from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.uuid_utils import format_uuid
 from pathfinder.services.eval import (
     build_gold_strategy,
-    fetch_strategy_gene_ids,
+    get_strategy_gene_ids,
 )
-from pathfinder.services.wdk import get_strategy_api
-from pathfinder.transport.http.deps import ConversationRepo, CurrentUser
+from pathfinder.transport.http.deps import CurrentUser, DBSession
 
 router = APIRouter(prefix="/api/v1/eval", tags=["eval"])
 logger = get_logger(__name__)
@@ -78,19 +76,11 @@ class FetchGeneIdsRequest(CamelModel):
 
 
 @router.post("/strategy-gene-ids")
-async def get_strategy_gene_ids(
+async def strategy_gene_ids_endpoint(
     request: FetchGeneIdsRequest,
-    conv_repo: ConversationRepo,
+    session: DBSession,
     user_id: CurrentUser,
 ) -> dict[str, Any]:
     """Fetch all gene IDs from a PathFinder strategy's WDK root step."""
-    conversation = await conv_repo.get_by_id(UUID(request.strategy_id))
-    if not conversation or not conversation.wdk_strategy_id:
-        return {"geneIds": [], "error": "No WDK strategy linked"}
-
-    api = get_strategy_api(request.site_id)
-    gene_ids = await fetch_strategy_gene_ids(api=api, conversation=conversation)
-
-    if not gene_ids:
-        return {"geneIds": [], "error": "No gene IDs found"}
-    return {"geneIds": gene_ids, "estimatedSize": len(gene_ids)}
+    del user_id
+    return await get_strategy_gene_ids(session, request.strategy_id, request.site_id)

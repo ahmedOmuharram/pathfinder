@@ -13,4 +13,3 @@ class StrategyAstNormalizeRequest(CamelModel):
 class StrategyAstNormalizeResponse(CamelModel):
     strategy_ast: StrategyAst
     warnings: JSONArray | None = None
-

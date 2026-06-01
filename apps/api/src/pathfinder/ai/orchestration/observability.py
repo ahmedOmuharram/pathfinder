@@ -54,6 +54,7 @@ from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
 
+
 class _OtelState:
     """Module-level mutable state for OTEL providers (avoids ``global``)."""
 

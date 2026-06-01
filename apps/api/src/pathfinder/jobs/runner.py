@@ -30,15 +30,15 @@ from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.graph.builder import build_graph
 from pathfinder.ai.memory.lifespan import lifespan_memory_store
 from pathfinder.ai.memory.store import MemoryStore
-from pathfinder.ai.tools.durable import TaskProgressEmitter
 from pathfinder.jobs.auth_context import attach_user_id, attach_wdk_auth
+from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runtime import build_worker_runtime_context
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -107,7 +107,9 @@ async def run_durable_task(
         error = str(exc) or exc.__class__.__name__
         await repo.mark_failed(task_id=task_uuid, error=error)
         await _safe_resume_graph_with_error(
-            thread_id, task_uuid, error,
+            thread_id,
+            task_uuid,
+            error,
             veupathdb_auth_token=veupathdb_auth_token,
         )
         return
@@ -116,7 +118,10 @@ async def run_durable_task(
     await repo.mark_result_ready(task_id=task_uuid, result=result)
     await repo.mark_resuming(task_id=task_uuid)
     resume_error = await _safe_resume_graph_with_result(
-        thread_id, task_uuid, result, veupathdb_auth_token=veupathdb_auth_token,
+        thread_id,
+        task_uuid,
+        result,
+        veupathdb_auth_token=veupathdb_auth_token,
     )
     if resume_error is None:
         await repo.mark_complete(task_id=task_uuid)
@@ -139,13 +144,16 @@ async def _safe_resume_graph_with_result(
     """
     try:
         await _resume_graph_with_result(
-            thread_id, task_id, result,
+            thread_id,
+            task_id,
+            result,
             veupathdb_auth_token=veupathdb_auth_token,
         )
     except Exception as exc:
         logger.exception(
             "graph resume with result failed",
-            thread_id=thread_id, task_id=str(task_id),
+            thread_id=thread_id,
+            task_id=str(task_id),
         )
         return f"resume failed: {exc.__class__.__name__}: {exc}"
     return None
@@ -160,13 +168,16 @@ async def _safe_resume_graph_with_error(
 ) -> None:
     try:
         await _resume_graph_with_error(
-            thread_id, task_id, error,
+            thread_id,
+            task_id,
+            error,
             veupathdb_auth_token=veupathdb_auth_token,
         )
     except Exception:
         logger.exception(
             "graph resume with error failed",
-            thread_id=thread_id, task_id=str(task_id),
+            thread_id=thread_id,
+            task_id=str(task_id),
         )
 
 
@@ -256,7 +267,8 @@ async def _resume_graph(
         conversation_uuid = UUID(thread_id)
         turn_id = _resume_turn_message_id(snapshot)
         writer = ChatEventWriter(
-            conversation_id=conversation_uuid, turn_id=turn_id,
+            conversation_id=conversation_uuid,
+            turn_id=turn_id,
         )
         await _emit_chunk(writer, StartChunk(message_id=str(turn_id)))
         encountered_error = False
@@ -277,7 +289,8 @@ async def _resume_graph(
                 encountered_error = True
                 logger.exception(
                     "resume graph stream raised",
-                    thread_id=thread_id, task_id=str(task_id),
+                    thread_id=thread_id,
+                    task_id=str(task_id),
                 )
                 raise
             finally:
@@ -314,7 +327,8 @@ async def _emit_chunk(
 
 
 async def _emit_resume_custom(
-    writer: ChatEventWriter, payload: Any,
+    writer: ChatEventWriter,
+    payload: Any,
 ) -> None:
     if not isinstance(payload, dict):
         return
@@ -323,5 +337,3 @@ async def _emit_resume_custom(
     except ValidationError:
         return
     await writer.write(envelope.chunk)
-
-

@@ -6,11 +6,11 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select
 
-from pathfinder.ai.tools.durable import TaskProgressEmitter
 from pathfinder.jobs.impls import geneset_enrichment_impl, register_all_tools
 from pathfinder.jobs.impls.geneset_enrichment_impl import (
     run_gene_set_enrichment_impl,
 )
+from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.jobs.registry import TOOL_REGISTRY
 from pathfinder.jobs.runner import run_durable_task
 from pathfinder.persistence.models import (
@@ -23,7 +23,7 @@ from pathfinder.persistence.models import (
 from pathfinder.persistence.repositories.background_tasks import (
     BackgroundTaskRepository,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.services.gene_sets.types import GeneSet
 
 
@@ -32,14 +32,14 @@ async def _seed_user_chat(user_id: UUID, conversation_id: UUID) -> None:
         session.add(User(id=user_id))
         await session.flush()
         session.add(
-            Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name="")
+            Conversation(
+                id=conversation_id, user_id=user_id, site_id="plasmodb", name=""
+            )
         )
         await session.commit()
 
 
-async def _seed_gene_set(
-    gene_set_id: str, user_id: UUID, gene_ids: list[str]
-) -> None:
+async def _seed_gene_set(gene_set_id: str, user_id: UUID, gene_ids: list[str]) -> None:
     async with async_session_factory() as session:
         session.add(
             GeneSetRow(

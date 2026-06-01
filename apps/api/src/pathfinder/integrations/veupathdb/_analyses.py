@@ -18,10 +18,13 @@ from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
-_ANALYSIS_TYPE_ADAPTER: TypeAdapter[WDKStepAnalysisType] = TypeAdapter(WDKStepAnalysisType)
+_ANALYSIS_TYPE_ADAPTER: TypeAdapter[WDKStepAnalysisType] = TypeAdapter(
+    WDKStepAnalysisType
+)
 _ANALYSIS_CONFIG_ADAPTER: TypeAdapter[WDKStepAnalysisConfig] = TypeAdapter(
     WDKStepAnalysisConfig
 )
+
 
 class AnalysisEndpoints:
     """Mixin providing analysis, step-filter, and report WDK endpoints.

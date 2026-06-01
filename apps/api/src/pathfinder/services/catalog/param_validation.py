@@ -49,6 +49,7 @@ from .param_resolution import (
 
 logger = get_logger(__name__)
 
+
 class _ValidationErrorEntry(BaseModel):
     """Single error entry from WDK validation responses."""
 
@@ -58,11 +59,13 @@ class _ValidationErrorEntry(BaseModel):
     message: str | None = None
     detail: str | None = None
 
+
 class ValidationErrors(CamelModel):
     """Structured validation errors by category."""
 
     general: list[str] = Field(default_factory=list)
     by_key: dict[str, list[str]] = Field(default_factory=dict)
+
 
 class ValidationResult(CamelModel):
     """Single validation result with normalized values."""
@@ -71,10 +74,12 @@ class ValidationResult(CamelModel):
     normalized_context_values: JSONObject = Field(default_factory=dict)
     errors: ValidationErrors = Field(default_factory=ValidationErrors)
 
+
 class ValidationResponse(CamelModel):
     """Top-level validation response wrapper."""
 
     validation: ValidationResult
+
 
 class ResolveRecordTypeFn(Protocol):
     """Protocol for resolve_record_type_for_search callbacks."""
@@ -88,6 +93,7 @@ class ResolveRecordTypeFn(Protocol):
         allow_fallback: bool = ...,
     ) -> str | None: ...
 
+
 @dataclass(frozen=True)
 class ValidationCallbacks:
     """Caller-provided callbacks for parameter validation.
@@ -99,7 +105,9 @@ class ValidationCallbacks:
 
     resolve_record_type_for_search: ResolveRecordTypeFn
     find_record_type_hint: Callable[[str, str | None], Awaitable[str | None]]
-    validation_error_payload: Callable[[ValidationError], ToolErrorPayload] | None = None
+    validation_error_payload: Callable[[ValidationError], ToolErrorPayload] | None = (
+        None
+    )
 
 
 def _fill_required_defaults(
@@ -113,12 +121,8 @@ def _fill_required_defaults(
         default = spec.initial_display_value
         if default is None or default == "":
             continue
-        is_required = (
-            not spec.allow_empty_value
-            or (
-                spec.min_selected_count is not None
-                and spec.min_selected_count >= 1
-            )
+        is_required = not spec.allow_empty_value or (
+            spec.min_selected_count is not None and spec.min_selected_count >= 1
         )
         if not is_required:
             continue
@@ -209,6 +213,7 @@ async def validate_search_params(
         )
     )
 
+
 async def _resolve_search_details(
     ctx: SearchContext,
     *,
@@ -265,12 +270,14 @@ async def _resolve_search_details(
             ],
         ) from exc
 
+
 async def _collect_available_search_names(
     discovery: DiscoveryService, site_id: str, resolved_record_type: str
 ) -> list[str]:
     """Collect available search names for a record type (for error context)."""
     searches = await discovery.get_searches(site_id, resolved_record_type)
     return [s.url_segment for s in searches]
+
 
 async def _find_search_record_type_hint(
     discovery: DiscoveryService, ctx: SearchContext
@@ -293,6 +300,7 @@ async def _find_search_record_type_hint(
             error=str(hint_exc),
         )
     return None
+
 
 async def validate_parameters(
     ctx: SearchContext,
@@ -364,7 +372,8 @@ async def validate_parameters(
         )
     decoded_canonical = to_decoded_map(canonical)
     invalid_dependents = find_dependent_value_violations(
-        param_spec_map, decoded_canonical,
+        param_spec_map,
+        decoded_canonical,
     )
     if invalid_dependents:
         full_param_spec = format_normalized_param_info(param_spec_map)
@@ -373,9 +382,7 @@ async def validate_parameters(
             for p in full_param_spec
         ]
         spec_by_name = {p.name: p for p in full_param_spec}
-        details = ", ".join(
-            f"{name}={bad}" for name, bad in invalid_dependents
-        )
+        details = ", ".join(f"{name}={bad}" for name, bad in invalid_dependents)
         invalid_dependents_payload: list[JSONObject] = []
         for name, bad in invalid_dependents:
             entry: JSONObject = {"name": name, "values": cast("JsonValue", bad)}
@@ -383,7 +390,10 @@ async def validate_parameters(
             if spec is not None and spec.allowed_values is not None:
                 entry["validOptions"] = cast(
                     "JsonValue",
-                    [v.model_dump(by_alias=True, mode="json") for v in spec.allowed_values],
+                    [
+                        v.model_dump(by_alias=True, mode="json")
+                        for v in spec.allowed_values
+                    ],
                 )
             invalid_dependents_payload.append(entry)
         raise ValidationError(
@@ -399,7 +409,8 @@ async def validate_parameters(
                         "recordType": resolved_record_type,
                         "searchName": ctx.search_name,
                         "invalidDependents": cast(
-                            "JsonValue", invalid_dependents_payload,
+                            "JsonValue",
+                            invalid_dependents_payload,
                         ),
                         "parameters": serialized_spec,
                     },

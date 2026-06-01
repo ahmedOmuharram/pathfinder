@@ -16,7 +16,9 @@ _TOKEN = "secret-cookie-value-12345"
 
 
 def _emit(
-    caplog: pytest.LogCaptureFixture, logger_name: str, message: str,
+    caplog: pytest.LogCaptureFixture,
+    logger_name: str,
+    message: str,
 ) -> logging.LogRecord:
     caplog.clear()
     logger = logging.getLogger(logger_name)
@@ -34,7 +36,8 @@ def _emit(
 
 class TestRedactSensitiveKwargsFilter:
     def test_redacts_single_quoted_token_value(
-        self, caplog: pytest.LogCaptureFixture,
+        self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         record = _emit(
             caplog,
@@ -47,7 +50,8 @@ class TestRedactSensitiveKwargsFilter:
         assert "veupathdb_auth_token=" in msg
 
     def test_redacts_double_quoted_token_value(
-        self, caplog: pytest.LogCaptureFixture,
+        self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         record = _emit(
             caplog,
@@ -58,7 +62,8 @@ class TestRedactSensitiveKwargsFilter:
         assert REDACTION_MARKER in record.getMessage()
 
     def test_passes_through_unrelated_messages(
-        self, caplog: pytest.LogCaptureFixture,
+        self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         record = _emit(
             caplog,
@@ -68,7 +73,8 @@ class TestRedactSensitiveKwargsFilter:
         assert record.getMessage() == "Worker loop iteration complete"
 
     def test_redacts_nested_in_longer_call_string(
-        self, caplog: pytest.LogCaptureFixture,
+        self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         record = _emit(
             caplog,
@@ -82,15 +88,13 @@ class TestRedactSensitiveKwargsFilter:
         assert _TOKEN not in record.getMessage()
 
     def test_redacts_multiple_occurrences(
-        self, caplog: pytest.LogCaptureFixture,
+        self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         record = _emit(
             caplog,
             "procrastinate.worker",
-            (
-                f"veupathdb_auth_token='{_TOKEN}' "
-                f"veupathdb_auth_token='{_TOKEN}'"
-            ),
+            (f"veupathdb_auth_token='{_TOKEN}' veupathdb_auth_token='{_TOKEN}'"),
         )
         msg = record.getMessage()
         assert _TOKEN not in msg

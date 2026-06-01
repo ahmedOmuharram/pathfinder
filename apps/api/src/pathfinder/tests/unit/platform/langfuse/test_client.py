@@ -11,7 +11,9 @@ def test_get_langfuse_returns_none_when_not_configured() -> None:
     client_module._client = None
     client_module._initialized = False
 
-    mock_settings = MagicMock(langfuse_secret_key="", langfuse_public_key="", langfuse_host="")
+    mock_settings = MagicMock(
+        langfuse_secret_key="", langfuse_public_key="", langfuse_host=""
+    )
     with patch.object(client_module, "get_settings", return_value=mock_settings):
         result = get_langfuse()
 

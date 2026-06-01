@@ -30,6 +30,7 @@ CancelCheck = Callable[[], bool]
 
 OptimizationMethod = Literal["bayesian", "grid", "random"]
 
+
 class ParameterSpec(CamelModel):
     """Describes a single parameter to optimise. Field names match WDK wire."""
 
@@ -45,17 +46,14 @@ class ParameterSpec(CamelModel):
 
     @model_validator(mode="after")
     def _validate_constraints(self) -> Self:
-        if (
-            self.min is not None
-            and self.max is not None
-            and self.min >= self.max
-        ):
+        if self.min is not None and self.max is not None and self.min >= self.max:
             msg = f"'min' ({self.min}) must be strictly less than 'max' ({self.max})"
             raise ValueError(msg)
         if self.step is not None and self.step <= 0:
             msg = f"'step' must be positive, got {self.step}"
             raise ValueError(msg)
         return self
+
 
 @dataclass(slots=True)
 class OptimizationConfig:
@@ -71,6 +69,7 @@ class OptimizationConfig:
     *total_genes* is the denominator (defaults to 20 000 if unknown).
     A small value (e.g. 0.1) acts as a tiebreaker; higher values make
     the optimiser strongly prefer tighter results."""
+
 
 class TrialResult(CamelModel):
     """A single optimization trial result.
@@ -92,6 +91,7 @@ class TrialResult(CamelModel):
     total_positives: int | None = None
     total_negatives: int | None = None
 
+
 @dataclass
 class OptimizationInput:
     """What to optimize: target search, controls, and parameter space."""
@@ -108,6 +108,7 @@ class OptimizationInput:
     controls_value_format: ControlValueFormat = "newline"
     controls_extra_parameters: dict[str, ParamValue] | None = None
     id_field: str | None = None
+
 
 class OptimizationResult(CamelModel):
     """Full optimization result.

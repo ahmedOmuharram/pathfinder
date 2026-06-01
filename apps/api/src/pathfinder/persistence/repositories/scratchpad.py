@@ -7,8 +7,8 @@ from uuid import UUID
 from sqlalchemy import CursorResult, and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.scratchpad._ids import approx_body_tokens, mint_note_id
-from pathfinder.ai.scratchpad.models import (
+from pathfinder.domain.scratchpad.ids import approx_body_tokens, mint_note_id
+from pathfinder.domain.scratchpad.models import (
     CompactionRun,
     Note,
     NoteCreate,
@@ -31,7 +31,10 @@ class ScratchpadRepository:
         self.session = session
 
     async def create(
-        self, *, conversation_id: UUID, data: NoteCreate,
+        self,
+        *,
+        conversation_id: UUID,
+        data: NoteCreate,
     ) -> Note:
         note_id = mint_note_id()
         row = ScratchpadNote(
@@ -50,7 +53,10 @@ class ScratchpadRepository:
         return _row_to_note(row)
 
     async def get(
-        self, *, conversation_id: UUID, note_id: str,
+        self,
+        *,
+        conversation_id: UUID,
+        note_id: str,
     ) -> Note | None:
         stmt = select(ScratchpadNote).where(
             and_(
@@ -62,7 +68,11 @@ class ScratchpadRepository:
         return _row_to_note(row) if row is not None else None
 
     async def update(
-        self, *, conversation_id: UUID, note_id: str, patch: NoteUpdate,
+        self,
+        *,
+        conversation_id: UUID,
+        note_id: str,
+        patch: NoteUpdate,
     ) -> Note:
         stmt = select(ScratchpadNote).where(
             and_(
@@ -88,7 +98,10 @@ class ScratchpadRepository:
         return _row_to_note(row)
 
     async def delete(
-        self, *, conversation_id: UUID, note_id: str,
+        self,
+        *,
+        conversation_id: UUID,
+        note_id: str,
     ) -> bool:
         stmt = delete(ScratchpadNote).where(
             and_(
@@ -100,7 +113,11 @@ class ScratchpadRepository:
         return (result.rowcount or 0) > 0
 
     async def set_pinned(
-        self, *, conversation_id: UUID, note_id: str, pinned: bool,
+        self,
+        *,
+        conversation_id: UUID,
+        note_id: str,
+        pinned: bool,
     ) -> Note:
         stmt = select(ScratchpadNote).where(
             and_(
@@ -142,7 +159,11 @@ class ScratchpadRepository:
         return [_row_to_note(r) for r in rows]
 
     async def search_notes(
-        self, *, conversation_id: UUID, query: str, limit: int = 10,
+        self,
+        *,
+        conversation_id: UUID,
+        query: str,
+        limit: int = 10,
     ) -> list[Note]:
         q = query.strip()
         if not q:
@@ -163,7 +184,10 @@ class ScratchpadRepository:
         return [_row_to_note(r) for r in rows]
 
     async def list_for_index_with_totals(
-        self, *, conversation_id: UUID, recent_limit: int = 10,
+        self,
+        *,
+        conversation_id: UUID,
+        recent_limit: int = 10,
     ) -> tuple[list[Note], int, int]:
         """Combined index fetch: ``(notes_for_index, total_count, total_tokens)``.
 
@@ -172,7 +196,8 @@ class ScratchpadRepository:
         dynamic instruction into a single session visit.
         """
         notes = await self.list_for_index(
-            conversation_id=conversation_id, recent_limit=recent_limit,
+            conversation_id=conversation_id,
+            recent_limit=recent_limit,
         )
         total_count, total_tokens = await self.totals(
             conversation_id=conversation_id,
@@ -180,7 +205,10 @@ class ScratchpadRepository:
         return notes, total_count, total_tokens
 
     async def list_for_index(
-        self, *, conversation_id: UUID, recent_limit: int = 10,
+        self,
+        *,
+        conversation_id: UUID,
+        recent_limit: int = 10,
     ) -> list[Note]:
         """Pinned notes (oldest→newest) plus last-N non-pinned (newest→oldest).
 
@@ -234,7 +262,9 @@ class ScratchpadRepository:
         return count, tokens
 
     async def compactable_totals(
-        self, *, conversation_id: UUID,
+        self,
+        *,
+        conversation_id: UUID,
     ) -> tuple[int, int]:
         """Non-pinned notes only — the subset the compactor can act on."""
         stmt = select(
@@ -252,7 +282,10 @@ class ScratchpadRepository:
         return count, tokens
 
     async def replace_non_pinned(
-        self, *, conversation_id: UUID, new_notes: list[NoteCreate],
+        self,
+        *,
+        conversation_id: UUID,
+        new_notes: list[NoteCreate],
     ) -> list[Note]:
         """Atomic: delete non-pinned rows, insert the replacements."""
         async with self.session.begin_nested():
@@ -267,7 +300,8 @@ class ScratchpadRepository:
             inserted: list[Note] = []
             for data in new_notes:
                 created = await self.create(
-                    conversation_id=conversation_id, data=data,
+                    conversation_id=conversation_id,
+                    data=data,
                 )
                 inserted.append(created)
         return inserted

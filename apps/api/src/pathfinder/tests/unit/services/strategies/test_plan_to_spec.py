@@ -70,9 +70,12 @@ def _combine(step_id: str, *, operator: str = "INTERSECT") -> PlannedStep:
 
 def _plan(steps: list[PlannedStep], conns: list[PlannedConnection]) -> StrategyPlan:
     return StrategyPlan(
-        title="t", description="", rationale="",
+        title="t",
+        description="",
+        rationale="",
         status=PlanStatus.APPROVED,
-        steps=steps, connections=conns,
+        steps=steps,
+        connections=conns,
     )
 
 
@@ -97,12 +100,16 @@ def test_combine_intersect_two_leaves() -> None:
         ],
         conns=[
             PlannedConnection(
-                from_step="step_a", to_step="step_c",
-                input_type="primary", operator="INTERSECT",
+                from_step="step_a",
+                to_step="step_c",
+                input_type="primary",
+                operator="INTERSECT",
             ),
             PlannedConnection(
-                from_step="step_b", to_step="step_c",
-                input_type="secondary", operator="INTERSECT",
+                from_step="step_b",
+                to_step="step_c",
+                input_type="secondary",
+                operator="INTERSECT",
             ),
         ],
     )
@@ -150,14 +157,20 @@ def test_default_and_user_set_values_pass_through() -> None:
         status=StepStatus.READY,
         parameters=[
             PlannedParameter(
-                name="q", display_name="q", param_type="string",
+                name="q",
+                display_name="q",
+                param_type="string",
                 value=StringValue(value="kinase"),
-                status=ParamStatus.USER_SET, required=True,
+                status=ParamStatus.USER_SET,
+                required=True,
             ),
             PlannedParameter(
-                name="threshold", display_name="threshold", param_type="number",
+                name="threshold",
+                display_name="threshold",
+                param_type="number",
                 value=NumberValue(value=0.5),
-                status=ParamStatus.DEFAULT, required=False,
+                status=ParamStatus.DEFAULT,
+                required=False,
             ),
         ],
     )

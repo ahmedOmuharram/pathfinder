@@ -4,6 +4,7 @@ Revision ID: 2026_04_17_0001
 Revises: 2026_04_15_0001
 Create Date: 2026-04-17
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -62,7 +63,10 @@ def upgrade() -> None:
         ),
         sa.Column("pipeline", JSONB, nullable=True),
         sa.Column(
-            "step_count", sa.Integer, nullable=False, server_default="0",
+            "step_count",
+            sa.Integer,
+            nullable=False,
+            server_default="0",
         ),
         sa.Column("plan", JSONB, nullable=False, server_default="{}"),
         sa.Column("estimated_size", sa.Integer, nullable=True),
@@ -99,7 +103,9 @@ def upgrade() -> None:
         ),
     )
     op.create_index(
-        "ix_conversations_user_site", "conversations", ["user_id", "site_id"],
+        "ix_conversations_user_site",
+        "conversations",
+        ["user_id", "site_id"],
     )
     op.create_index(
         "ix_conversations_wdk_strategy_id",
@@ -165,10 +171,14 @@ def upgrade() -> None:
             server_default="0",
         ),
         sa.Column(
-            "started_at", sa.DateTime(timezone=True), nullable=True,
+            "started_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
         ),
         sa.Column(
-            "completed_at", sa.DateTime(timezone=True), nullable=True,
+            "completed_at",
+            sa.DateTime(timezone=True),
+            nullable=True,
         ),
         sa.Column(
             "created_at",
@@ -186,7 +196,10 @@ def upgrade() -> None:
     op.create_table(
         "task_progress",
         sa.Column(
-            "id", sa.BigInteger, primary_key=True, autoincrement=True,
+            "id",
+            sa.BigInteger,
+            primary_key=True,
+            autoincrement=True,
         ),
         sa.Column(
             "task_id",
@@ -205,13 +218,18 @@ def upgrade() -> None:
         ),
     )
     op.create_index(
-        "task_progress_task_idx", "task_progress", ["task_id", "emitted_at"],
+        "task_progress_task_idx",
+        "task_progress",
+        ["task_id", "emitted_at"],
     )
 
     op.create_table(
         "conversation_events",
         sa.Column(
-            "id", sa.Integer, primary_key=True, autoincrement=True,
+            "id",
+            sa.Integer,
+            primary_key=True,
+            autoincrement=True,
         ),
         sa.Column(
             "conversation_id",
@@ -271,13 +289,18 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("thread_id", "checkpoint_id", "user_id"),
     )
     op.create_index(
-        "checkpoint_labels_thread_idx", "checkpoint_labels", ["thread_id"],
+        "checkpoint_labels_thread_idx",
+        "checkpoint_labels",
+        ["thread_id"],
     )
 
     op.create_table(
         "memory_tombstones",
         sa.Column(
-            "id", sa.Integer, primary_key=True, autoincrement=True,
+            "id",
+            sa.Integer,
+            primary_key=True,
+            autoincrement=True,
         ),
         sa.Column(
             "user_id",

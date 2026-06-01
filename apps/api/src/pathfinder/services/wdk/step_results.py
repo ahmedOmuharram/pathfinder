@@ -26,7 +26,7 @@ from pathfinder.services.wdk.helpers import (
     merge_analysis_params,
     order_primary_key,
 )
-from pathfinder.transport.http.schemas.step_results import (
+from pathfinder.services.wdk.step_results_models import (
     AttributesResponse,
     RecordAttribute,
     RecordDetailResponse,

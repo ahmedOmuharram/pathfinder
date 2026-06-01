@@ -38,7 +38,10 @@ async def search_memory(
     all_hits: list[StoredMemory] = []
     for k in kinds:
         hits = await mem_store.semantic_search(
-            user_id=user_id, kind=k, query=query, top_k=per_kind,
+            user_id=user_id,
+            kind=k,
+            query=query,
+            top_k=per_kind,
         )
         all_hits.extend(hits)
     reranked = rerank_by_hybrid_score(all_hits)

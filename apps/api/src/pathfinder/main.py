@@ -21,30 +21,30 @@ from pathfinder.ai.orchestration.observability import (
     setup_observability,
     shutdown_observability,
 )
+from pathfinder.integrations.embeddings.semantic_index import warm_up_model
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
 )
 from pathfinder.integrations.veupathdb.factory import close_all_clients
-from pathfinder.persistence.session import (
-    close_db,
-    get_engine,
-    init_db,
-)
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.context import (
     request_base_url_ctx,
     request_id_ctx,
     veupathdb_auth_token_ctx,
 )
-from pathfinder.platform.errors import (
-    AppError,
+from pathfinder.platform.db import (
+    close_db,
+    get_engine,
+    init_db,
+)
+from pathfinder.platform.error_handlers import (
     app_error_handler,
     http_exception_handler,
 )
+from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger, setup_logging
 from pathfinder.platform.readiness import get_readiness, reset_readiness
 from pathfinder.platform.security import csrf_middleware, limiter
-from pathfinder.services.catalog.semantic_index import warm_up_model
 from pathfinder.transport.http.routers import (
     _stream_parts_schemas,
     chat,
@@ -99,7 +99,7 @@ async def _warm_up_subsystems() -> None:
     try:
         logger.info("[warm-up] Preloading discovery catalogs (all sites)")
         await get_discovery_service().preload_all()
-    except (AppError, OSError, RuntimeError):
+    except AppError, OSError, RuntimeError:
         logger.exception("[warm-up] Discovery preload raised")
 
 
@@ -136,6 +136,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     from pathfinder.platform.notify_dispatcher import (  # noqa: PLC0415
         lifespan_notify_dispatcher,
     )
+
     async with (
         lifespan_checkpointer(settings.database_url) as checkpointer,
         lifespan_memory_store(settings.database_url) as memory_store,
@@ -151,6 +152,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         from pathfinder.services.export.sweeper import (  # noqa: PLC0415
             run_sweeper_loop,
         )
+
         export_sweeper_task = spawn(run_sweeper_loop(), name="export-sweeper")
 
         yield

@@ -8,7 +8,7 @@ from langgraph.store.postgres.aio import AsyncPostgresStore
 from pathfinder.ai.memory.schemas import MemoryKind
 from pathfinder.ai.memory.store import MemoryStore, StoredMemory
 from pathfinder.ai.memory.tombstones import TombstoneRepository
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.transport.http.deps import CurrentUser
 from pathfinder.transport.http.schemas.memories import (
     MemoryEditRequest,
@@ -43,7 +43,8 @@ async def list_memories(
     request: Request,
     user_id: CurrentUser,
     limit: Annotated[
-        int, Query(ge=1, le=_MAX_PAGE_LIMIT, description="Per-namespace page size"),
+        int,
+        Query(ge=1, le=_MAX_PAGE_LIMIT, description="Per-namespace page size"),
     ] = _DEFAULT_PAGE_LIMIT,
     offset: Annotated[int, Query(ge=0, description="Per-namespace offset")] = 0,
 ) -> MemoryListResponse:
@@ -52,7 +53,10 @@ async def list_memories(
     any_full_page = False
     for kind in _KINDS:
         stored = await store.list_all(
-            user_id=user_id, kind=kind, limit=limit, offset=offset,
+            user_id=user_id,
+            kind=kind,
+            limit=limit,
+            offset=offset,
         )
         buckets[kind] = [_to_item(s) for s in stored]
         # If any namespace returned a full page, more rows may exist at
@@ -80,7 +84,10 @@ async def search_memories(
     hits: list[MemoryItem] = []
     for kind in _KINDS:
         stored = await store.semantic_search(
-            user_id=user_id, kind=kind, query=q, top_k=5,
+            user_id=user_id,
+            kind=kind,
+            query=q,
+            top_k=5,
         )
         hits.extend(_to_item(s) for s in stored)
     return MemorySearchResponse(hits=hits[:10])
@@ -99,9 +106,7 @@ async def edit_memory(
     if current is None:
         raise HTTPException(status_code=404, detail="memory not found")
     updates = {
-        k: v
-        for k, v in body.model_dump(exclude_unset=True).items()
-        if v is not None
+        k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None
     }
     updated = current.value.model_copy(update=updates)
     await store.put(user_id=user_id, value=updated, key=key)

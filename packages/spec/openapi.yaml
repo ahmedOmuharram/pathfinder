@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Pathfinder API
   description: VEuPathDB Strategy Builder Chatbot API
-  version: 1.0.0
+  version: 0.2.0a1
 paths:
   /health:
     get:
@@ -288,20 +288,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/sites/{siteId}/organisms:
+  /api/v1/sites/{site_id}/organisms:
     get:
       tags:
       - sites
       summary: Get Organisms
-      description: Return all available organism names for a site via site-search.
-      operationId: get_organisms_api_v1_sites__siteId__organisms_get
+      operationId: get_organisms_api_v1_sites__site_id__organisms_get
       parameters:
-      - name: siteId
+      - name: site_id
         in: path
         required: true
         schema:
           type: string
-          title: Siteid
+          title: Site Id
       responses:
         '200':
           description: Successful Response
@@ -315,20 +314,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/sites/{siteId}/genes/search:
+  /api/v1/sites/{site_id}/genes/search:
     get:
       tags:
       - sites
       summary: Search Genes
-      description: Search genes by text using multi-strategy gene lookup.
-      operationId: search_genes_api_v1_sites__siteId__genes_search_get
+      operationId: search_genes_api_v1_sites__site_id__genes_search_get
       parameters:
-      - name: siteId
+      - name: site_id
         in: path
         required: true
         schema:
           type: string
-          title: Siteid
+          title: Site Id
       - name: q
         in: query
         required: false
@@ -371,20 +369,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/sites/{siteId}/genes/resolve:
+  /api/v1/sites/{site_id}/genes/resolve:
     post:
       tags:
       - sites
       summary: Resolve Genes
-      description: Resolve gene IDs to full records via WDK standard reporter.
-      operationId: resolve_genes_api_v1_sites__siteId__genes_resolve_post
+      operationId: resolve_genes_api_v1_sites__site_id__genes_resolve_post
       parameters:
-      - name: siteId
+      - name: site_id
         in: path
         required: true
         schema:
           type: string
-          title: Siteid
+          title: Site Id
       requestBody:
         required: true
         content:
@@ -412,9 +409,15 @@ paths:
       description: 'Return available models grouped by provider.
 
 
-        Models whose provider has no API key are returned with ``enabled: false``
+        Prices overlay live ``genai_prices`` snapshot data when available; the
 
-        so the frontend can render them as disabled in the picker.'
+        catalog''s hardcoded values act as a fallback for models the upstream
+
+        library doesn''t yet track. Models whose provider has no API key are
+
+        returned with ``enabled: false`` so the frontend can render them as
+
+        disabled in the picker.'
       operationId: list_models_api_v1_models_get
       responses:
         '200':
@@ -636,7 +639,14 @@ paths:
 
         Pass ``deleteFromWdk=true`` to hard-delete from both PathFinder and WDK.
 
-        Non-WDK strategies are always hard-deleted.'
+        Non-WDK strategies are always hard-deleted.
+
+
+        With ``cascade=true`` on hard-delete, the whole fork subtree goes; with
+
+        ``cascade=false`` (default), direct children climb up to this node''s
+
+        parent so the tree stays connected.'
       operationId: delete_strategy_api_v1_conversations__strategyId__delete
       security:
       - APIKeyCookie: []
@@ -655,6 +665,13 @@ paths:
           type: boolean
           default: false
           title: Deletefromwdk
+      - name: cascade
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Cascade
       responses:
         '204':
           description: Successful Response
@@ -664,13 +681,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/conversations/{strategyId}/push:
+  /api/v1/conversations/{strategyId}/fork:
     post:
       tags:
       - conversations
-      summary: Push Strategy
-      description: 'Push a strategy to WDK: normalize plan, persist locally, sync to WDK.'
-      operationId: push_strategy_api_v1_conversations__strategyId__push_post
+      summary: Fork Strategy
+      description: Branch a conversation at a chosen assistant message into a new chat.
+      operationId: fork_strategy_api_v1_conversations__strategyId__fork_post
       security:
       - APIKeyCookie: []
       parameters:
@@ -686,7 +703,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PushConversationRequest'
+              $ref: '#/components/schemas/ForkConversationRequest'
       responses:
         '200':
           description: Successful Response
@@ -763,6 +780,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{conversation_id}/begin:
+    post:
+      tags:
+      - conversations
+      summary: Begin Strategy
+      description: 'Idempotent first-action setup for a conversation.
+
+
+        Inserts the row if missing (``ON CONFLICT (id) DO NOTHING``), schedules
+
+        title generation when ``seedText`` is provided on a fresh row, and
+
+        returns the conversation. Every first-action client (chat send, slash
+
+        command, launcher) calls this before its own request so downstream
+
+        endpoints can assume the row exists.'
+      operationId: begin_strategy_api_v1_conversations__conversation_id__begin_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BeginConversationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BeginConversationResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/conversations/step-counts:
     post:
       tags:
@@ -791,6 +855,72 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - APIKeyCookie: []
+  /api/v1/conversations/{conversation_id}/events:
+    get:
+      tags:
+      - conversations
+      summary: 'SSE: tail live turn chunks plus any post-resume continuation from a suspended durable task. 204 only when
+        nothing is in flight.'
+      operationId: conversation_events_api_v1_conversations__conversation_id__events_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: after
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: After
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{conversation_id}/events/snapshot:
+    get:
+      tags:
+      - conversations
+      summary: Conversation Events Snapshot
+      operationId: conversation_events_snapshot_api_v1_conversations__conversation_id__events_snapshot_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventsSnapshotResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/conversations/strategy-ast/normalize:
     post:
       tags:
@@ -818,6 +948,48 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StrategyAstNormalizeResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{strategyId}/operations:
+    post:
+      tags:
+      - conversations
+      summary: Apply Operation Endpoint
+      description: Apply a single graph operation through the unified commit pipeline.
+      operationId: apply_operation_endpoint_api_v1_conversations__strategyId__operations_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: strategyId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Strategyid
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyOperationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationResponse'
         '422':
           description: Validation Error
           content:
@@ -938,12 +1110,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/conversations/{conversation_id}/messages:
+  /api/v1/conversations/{conversation_id}/scratchpad/notes:
     get:
       tags:
-      - conversations
-      summary: Ordered UIMessage[] history (oldest first).
-      operationId: list_conversation_messages_api_v1_conversations__conversation_id__messages_get
+      - scratchpad
+      summary: List scratchpad notes for the conversation.
+      operationId: list_scratchpad_notes_api_v1_conversations__conversation_id__scratchpad_notes_get
       security:
       - APIKeyCookie: []
       parameters:
@@ -952,6 +1124,7 @@ paths:
         required: true
         schema:
           type: string
+          format: uuid
           title: Conversation Id
       responses:
         '200':
@@ -961,9 +1134,360 @@ paths:
               schema:
                 type: array
                 items:
-                  type: object
-                  additionalProperties: true
-                title: Response List Conversation Messages Api V1 Conversations  Conversation Id  Messages Get
+                  $ref: '#/components/schemas/Note'
+                title: Response List Scratchpad Notes Api V1 Conversations  Conversation Id  Scratchpad Notes Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{conversation_id}/scratchpad/notes/{note_id}:
+    get:
+      tags:
+      - scratchpad
+      summary: Get a single scratchpad note.
+      operationId: get_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: note_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Note Id
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - scratchpad
+      summary: Pin or unpin a scratchpad note.
+      operationId: patch_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__patch
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: note_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Note Id
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScratchpadPatchRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - scratchpad
+      summary: Delete a scratchpad note.
+      operationId: delete_scratchpad_note_api_v1_conversations__conversation_id__scratchpad_notes__note_id__delete
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: note_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Note Id
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{conversation_id}/scratchpad/compactions:
+    get:
+      tags:
+      - scratchpad
+      summary: Audit log for scratchpad compaction runs.
+      operationId: list_compactions_api_v1_conversations__conversation_id__scratchpad_compactions_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompactionRun'
+                title: Response List Compactions Api V1 Conversations  Conversation Id  Scratchpad Compactions Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{conversation_id}/revert-to-message:
+    post:
+      tags:
+      - conversations
+      summary: Delete all state at or after the target user message.
+      operationId: revert_to_message_api_v1_conversations__conversation_id__revert_to_message_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevertRequest'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{conversation_id}/save-substrategy:
+    post:
+      tags:
+      - conversations
+      summary: Save Substrategy
+      description: 'Save a subtree of the active strategy as a new WDK saved strategy.
+
+
+        The cloned subtree is pushed to WDK as fresh steps under a new strategy
+
+        with ``isSaved=true``. The source conversation is not modified — the
+
+        caller is expected to insert the saved strategy back via a combine step
+
+        on a follow-up turn (which will set ``imported_saved_strategy_ids`` on
+
+        the source conversation as the deletion guard).'
+      operationId: save_substrategy_api_v1_conversations__conversation_id__save_substrategy_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveSubstrategyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaveSubstrategyResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/saved-strategy-consumers:
+    get:
+      tags:
+      - conversations
+      summary: Get Saved Strategy Consumer Counts
+      description: 'Count how many conversations consume each saved strategy.
+
+
+        Returned map only includes ids with consumers; absent ids have 0.'
+      operationId: get_saved_strategy_consumer_counts_api_v1_conversations_saved_strategy_consumers_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedStrategyConsumerCounts'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{conversation_id}/insert-saved:
+    post:
+      tags:
+      - conversations
+      summary: Insert Saved
+      description: Insert a saved WDK strategy as a combine input next to a target step.
+      operationId: insert_saved_api_v1_conversations__conversation_id__insert_saved_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: siteId
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Siteid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsertSavedRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsertSavedResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{conversation_id}/turns/{turn_id}/cancel:
+    post:
+      tags:
+      - conversations
+      summary: Cancel Turn
+      operationId: cancel_turn_api_v1_conversations__conversation_id__turns__turn_id__cancel_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: turn_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Turn Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/conversations/{conversation_id}/cancel:
+    post:
+      tags:
+      - conversations
+      summary: Cancel Conversation
+      operationId: cancel_conversation_api_v1_conversations__conversation_id__cancel_post
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '204':
+          description: Successful Response
         '422':
           description: Validation Error
           content:
@@ -1493,7 +2017,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/AttributesResponse'
         '422':
           description: Validation Error
           content:
@@ -1505,10 +2029,7 @@ paths:
       tags:
       - experiments
       summary: Get Experiment Records
-      description: 'Get paginated result records for an experiment.
-
-
-        Requires a persisted WDK strategy (``wdkStepId`` must be set).'
+      description: Get paginated result records for an experiment.
       operationId: get_experiment_records_api_v1_experiments__experiment_id__results_records_get
       security:
       - APIKeyCookie: []
@@ -1584,7 +2105,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/RecordsResponse'
         '422':
           description: Validation Error
           content:
@@ -1619,7 +2140,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/RecordDetailResponse'
         '422':
           description: Validation Error
           content:
@@ -1654,7 +2175,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/DistributionResponse'
         '422':
           description: Validation Error
           content:
@@ -1689,7 +2210,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/RefineResponse'
         '422':
           description: Validation Error
           content:
@@ -2293,7 +2814,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/AttributesResponse'
         '422':
           description: Validation Error
           content:
@@ -2381,7 +2902,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/RecordsResponse'
         '422':
           description: Validation Error
           content:
@@ -2416,7 +2937,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/DistributionResponse'
         '422':
           description: Validation Error
           content:
@@ -2451,7 +2972,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JSONObject'
+                $ref: '#/components/schemas/RecordDetailResponse'
         '422':
           description: Validation Error
           content:
@@ -2892,6 +3413,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/me/quota:
+    get:
+      tags:
+      - me
+      summary: Get My Quota
+      operationId: get_my_quota_api_v1_me_quota_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaResponse'
+      security:
+      - APIKeyCookie: []
+  /api/v1/conversations/{conversation_id}/tasks:
+    get:
+      tags:
+      - tasks
+      summary: List Tasks
+      description: 'Return durable tasks for a conversation, newest first.
+
+
+        Used by the right-rail Tasks panel to surface in-flight enrichment /
+
+        optimization / control-test runs alongside the latest progress
+
+        snapshot from ``task_progress``.'
+      operationId: list_tasks_api_v1_conversations__conversation_id__tasks_get
+      security:
+      - APIKeyCookie: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Comma-separated status filter (pending, running, resuming, complete, failed)
+          title: Status
+        description: Comma-separated status filter (pending, running, resuming, complete, failed)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/conversations/{conversation_id}/tasks/{task_id}:
     get:
       tags:
@@ -3005,217 +3588,158 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/conversations/{conversation_id}/checkpoints:
-    get:
-      tags:
-      - checkpoints
-      summary: List Checkpoints
-      description: 'Return the full checkpoint tree for a chat thread.
-
-
-        Joins the per-user labels sidecar via the authenticated user — labels
-
-        on other users'' rows are intentionally invisible.'
-      operationId: list_checkpoints_api_v1_conversations__conversation_id__checkpoints_get
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/CheckpointNode'
-                title: Response List Checkpoints Api V1 Conversations  Conversation Id  Checkpoints Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/conversations/{conversation_id}/checkpoints/{checkpoint_id}:
-    get:
-      tags:
-      - checkpoints
-      summary: Get Checkpoint
-      description: Materialize a single checkpoint via ``graph.aget_state``.
-      operationId: get_checkpoint_api_v1_conversations__conversation_id__checkpoints__checkpoint_id__get
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      - name: checkpoint_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Checkpoint Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CheckpointSnapshot'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/conversations/{conversation_id}/fork:
-    post:
-      tags:
-      - checkpoints
-      summary: Fork Checkpoint
-      description: Create a branched checkpoint via ``graph.aupdate_state``.
-      operationId: fork_checkpoint_api_v1_conversations__conversation_id__fork_post
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ForkRequest'
-      responses:
-        '201':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ForkResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/conversations/{conversation_id}/labels:
-    get:
-      tags:
-      - labels
-      summary: List Labels
-      operationId: list_labels_api_v1_conversations__conversation_id__labels_get
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/LabelRow'
-                title: Response List Labels Api V1 Conversations  Conversation Id  Labels Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/conversations/{conversation_id}/labels/{checkpoint_id}:
-    put:
-      tags:
-      - labels
-      summary: Set Label
-      operationId: set_label_api_v1_conversations__conversation_id__labels__checkpoint_id__put
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      - name: checkpoint_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Checkpoint Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LabelRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LabelRow'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-    delete:
-      tags:
-      - labels
-      summary: Delete Label
-      operationId: delete_label_api_v1_conversations__conversation_id__labels__checkpoint_id__delete
-      security:
-      - APIKeyCookie: []
-      parameters:
-      - name: conversation_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-          title: Conversation Id
-      - name: checkpoint_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Checkpoint Id
-      responses:
-        '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    AddCombineOp:
+      properties:
+        kind:
+          type: string
+          const: addCombine
+          title: Kind
+          default: addCombine
+        step:
+          $ref: '#/components/schemas/StrategyStepNode-Input'
+        leftId:
+          type: string
+          title: Leftid
+        rightId:
+          type: string
+          title: Rightid
+      type: object
+      required:
+      - step
+      - leftId
+      - rightId
+      title: AddCombineOp
+    AddLeafOp:
+      properties:
+        kind:
+          type: string
+          const: addLeaf
+          title: Kind
+          default: addLeaf
+        step:
+          $ref: '#/components/schemas/StrategyStepNode-Input'
+        attach:
+          oneOf:
+          - $ref: '#/components/schemas/AttachNewRoot'
+          - $ref: '#/components/schemas/AttachIntoSlot'
+          title: Attach
+          discriminator:
+            propertyName: mode
+            mapping:
+              into-slot: '#/components/schemas/AttachIntoSlot'
+              new-root: '#/components/schemas/AttachNewRoot'
+      type: object
+      required:
+      - step
+      - attach
+      title: AddLeafOp
+    AddTransformOp:
+      properties:
+        kind:
+          type: string
+          const: addTransform
+          title: Kind
+          default: addTransform
+        step:
+          $ref: '#/components/schemas/StrategyStepNode-Input'
+        inputId:
+          type: string
+          title: Inputid
+        mode:
+          type: string
+          enum:
+          - before-consumer
+          - new-root
+          title: Mode
+      type: object
+      required:
+      - step
+      - inputId
+      - mode
+      title: AddTransformOp
+    ApplyOperationRequest:
+      properties:
+        op:
+          oneOf:
+          - $ref: '#/components/schemas/AddLeafOp'
+          - $ref: '#/components/schemas/AddCombineOp'
+          - $ref: '#/components/schemas/AddTransformOp'
+          - $ref: '#/components/schemas/DuplicateStepOp'
+          - $ref: '#/components/schemas/DeleteStepOp'
+          - $ref: '#/components/schemas/ReplaceSubtreeOp'
+          - $ref: '#/components/schemas/UpdateStepParamsOp'
+          - $ref: '#/components/schemas/UpdateCombineOperatorOp'
+          - $ref: '#/components/schemas/UpdateStepMetaOp'
+          - $ref: '#/components/schemas/UpdateStrategyMetaOp'
+          - $ref: '#/components/schemas/WireInputOp'
+          - $ref: '#/components/schemas/ReplaceStrategyOp'
+          title: Op
+          discriminator:
+            propertyName: kind
+            mapping:
+              addCombine: '#/components/schemas/AddCombineOp'
+              addLeaf: '#/components/schemas/AddLeafOp'
+              addTransform: '#/components/schemas/AddTransformOp'
+              deleteStep: '#/components/schemas/DeleteStepOp'
+              duplicateStep: '#/components/schemas/DuplicateStepOp'
+              replaceStrategy: '#/components/schemas/ReplaceStrategyOp'
+              replaceSubtree: '#/components/schemas/ReplaceSubtreeOp'
+              updateCombineOperator: '#/components/schemas/UpdateCombineOperatorOp'
+              updateStepMeta: '#/components/schemas/UpdateStepMetaOp'
+              updateStepParams: '#/components/schemas/UpdateStepParamsOp'
+              updateStrategyMeta: '#/components/schemas/UpdateStrategyMetaOp'
+              wireInput: '#/components/schemas/WireInputOp'
+      type: object
+      required:
+      - op
+      title: ApplyOperationRequest
+    AttachIntoSlot:
+      properties:
+        mode:
+          type: string
+          const: into-slot
+          title: Mode
+          default: into-slot
+        targetStepId:
+          type: string
+          title: Targetstepid
+        slot:
+          type: string
+          enum:
+          - primary
+          - secondary
+          title: Slot
+      type: object
+      required:
+      - targetStepId
+      - slot
+      title: AttachIntoSlot
+    AttachNewRoot:
+      properties:
+        mode:
+          type: string
+          const: new-root
+          title: Mode
+          default: new-root
+      type: object
+      title: AttachNewRoot
+    AttributesResponse:
+      properties:
+        attributes:
+          items:
+            $ref: '#/components/schemas/RecordAttribute'
+          type: array
+          title: Attributes
+        recordType:
+          type: string
+          title: Recordtype
+      type: object
+      required:
+      - attributes
+      - recordType
+      title: AttributesResponse
     AuthStatusResponse:
       properties:
         signedIn:
@@ -3287,6 +3811,46 @@ components:
       - organism
       title: BatchOrganismTargetRequest
       description: Per-organism override for a cross-organism batch experiment.
+    BeginConversationRequest:
+      properties:
+        siteId:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Siteid
+        experimentId:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Experimentid
+        seedText:
+          anyOf:
+          - type: string
+            maxLength: 4000
+          - type: 'null'
+          title: Seedtext
+      type: object
+      required:
+      - siteId
+      title: BeginConversationRequest
+    BeginConversationResponse:
+      properties:
+        conversationId:
+          type: string
+          format: uuid
+          title: Conversationid
+        isNew:
+          type: boolean
+          title: Isnew
+        name:
+          type: string
+          title: Name
+      type: object
+      required:
+      - conversationId
+      - isNew
+      - name
+      title: BeginConversationResponse
     BenchmarkControlSet:
       properties:
         label:
@@ -3426,18 +3990,13 @@ components:
           default: ''
         messages:
           items:
-            $ref: '#/components/schemas/_UIMessage'
+            $ref: '#/components/schemas/UIMessage'
           type: array
           title: Messages
         conversationId:
           type: string
           format: uuid
           title: Conversationid
-        parentCheckpointId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Parentcheckpointid
         siteId:
           type: string
           title: Siteid
@@ -3451,10 +4010,37 @@ components:
           - type: string
           - type: 'null'
           title: Experimentid
-        userMessageId:
-          type: string
-          format: uuid
-          title: Usermessageid
+        phaseModels:
+          additionalProperties:
+            type: string
+          propertyNames:
+            enum:
+            - lead
+            - scoping
+            - discovery
+            - planning
+            - execution
+            - verification
+          type: object
+          title: Phasemodels
+        phaseReasoning:
+          additionalProperties:
+            type: string
+            enum:
+            - none
+            - low
+            - medium
+            - high
+          propertyNames:
+            enum:
+            - lead
+            - scoping
+            - discovery
+            - planning
+            - execution
+            - verification
+          type: object
+          title: Phasereasoning
       type: object
       required:
       - conversationId
@@ -3466,13 +4052,15 @@ components:
 
         (``trigger``, ``id``, ``messages``) with PathFinder-scoped fields
 
-        (``conversationId``, ``parentCheckpointId``, ``siteId``, ``mode``,
+        (``conversationId``, ``siteId``, ``mode``, ``experimentId``) layered on
 
-        ``experimentId``) layered on via ``body`` on the client transport.
+        via ``body`` on the client transport. The authenticated user UUID still
 
-        The authenticated user UUID still comes from the ``pathfinder-auth``
+        comes from the ``pathfinder-auth`` cookie. ``messages`` uses pydantic-ai''s
 
-        cookie.'
+        ``UIMessage`` so deferred-tool approval-responded parts deserialize into
+
+        the discriminated union and ``iter_tool_approval_responses`` works.'
     CheckpointEvent:
       properties:
         type:
@@ -3506,102 +4094,6 @@ components:
       - step
       - createdAt
       title: CheckpointEvent
-    CheckpointNode:
-      properties:
-        checkpointId:
-          type: string
-          title: Checkpointid
-        parentCheckpointId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Parentcheckpointid
-        threadId:
-          type: string
-          title: Threadid
-        source:
-          type: string
-          title: Source
-        step:
-          type: integer
-          title: Step
-        node:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Node
-        createdAt:
-          type: string
-          title: Createdat
-        label:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Label
-        pinned:
-          type: boolean
-          title: Pinned
-          default: false
-      type: object
-      required:
-      - checkpointId
-      - parentCheckpointId
-      - threadId
-      - source
-      - step
-      - node
-      - createdAt
-      title: CheckpointNode
-      description: 'Tree node returned by ``CheckpointService.list_tree``.
-
-
-        Built from a single row of the LangGraph ``checkpoints`` table joined
-
-        with the per-user ``checkpoint_labels`` sidecar. ``node`` is derived
-
-        from the parent checkpoint''s ``branch:to:<node>`` write — that is
-
-        LangGraph''s own routing channel and so identifies the node that
-
-        produced this checkpoint. ``source`` is one of ``input``/``loop``/
-
-        ``update``/``fork`` (LangGraph''s own classification).'
-    CheckpointSnapshot:
-      properties:
-        checkpointId:
-          type: string
-          title: Checkpointid
-        threadId:
-          type: string
-          title: Threadid
-        values:
-          additionalProperties: true
-          type: object
-          title: Values
-        next:
-          items:
-            type: string
-          type: array
-          title: Next
-        metadata:
-          additionalProperties: true
-          type: object
-          title: Metadata
-        createdAt:
-          type: string
-          title: Createdat
-        parentCheckpointId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Parentcheckpointid
-      type: object
-      required:
-      - checkpointId
-      - threadId
-      - createdAt
-      title: CheckpointSnapshot
-      description: Full materialized checkpoint state from ``graph.aget_state``.
     ClarificationQuestion:
       properties:
         question:
@@ -3632,6 +4124,54 @@ components:
       required:
       - question
       title: ClarificationQuestion
+    ClassifiedRecord:
+      properties:
+        displayName:
+          type: string
+          title: Displayname
+        id:
+          items:
+            $ref: '#/components/schemas/WDKRecordIdPart'
+          type: array
+          title: Id
+        recordClassName:
+          type: string
+          title: Recordclassname
+        attributes:
+          additionalProperties:
+            $ref: '#/components/schemas/JsonValue'
+          type: object
+          title: Attributes
+        tables:
+          additionalProperties:
+            $ref: '#/components/schemas/JsonValue'
+          type: object
+          title: Tables
+        tableErrors:
+          items:
+            type: string
+          type: array
+          title: Tableerrors
+        classification:
+          anyOf:
+          - type: string
+            enum:
+            - TP
+            - FP
+            - FN
+            - TN
+          - type: 'null'
+          title: Classification
+      type: object
+      required:
+      - displayName
+      - id
+      - recordClassName
+      - attributes
+      - tables
+      - tableErrors
+      title: ClassifiedRecord
+      description: WDK record plus optional TP/FP/FN/TN tag from experiment classification.
     ColocationParams:
       properties:
         operation:
@@ -3776,6 +4316,59 @@ components:
       - UNION
       title: CombineOp
       description: Set operations for combining two step results.
+    CompactionRun:
+      properties:
+        id:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Id
+        conversationId:
+          type: string
+          format: uuid
+          title: Conversationid
+        triggeredAt:
+          type: string
+          format: date-time
+          title: Triggeredat
+        beforeCount:
+          type: integer
+          title: Beforecount
+        afterCount:
+          type: integer
+          title: Aftercount
+        beforeTokens:
+          type: integer
+          title: Beforetokens
+        afterTokens:
+          type: integer
+          title: Aftertokens
+        modelId:
+          type: string
+          title: Modelid
+        costUsd:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Costusd
+        triggerReason:
+          type: string
+          enum:
+          - count
+          - tokens
+          - both
+          title: Triggerreason
+      type: object
+      required:
+      - conversationId
+      - triggeredAt
+      - beforeCount
+      - afterCount
+      - beforeTokens
+      - afterTokens
+      - modelId
+      - costUsd
+      - triggerReason
+      title: CompactionRun
     CompletedToolCall:
       properties:
         id:
@@ -3996,10 +4589,6 @@ components:
           type: boolean
           title: Issaved
           default: false
-        pipeline:
-          anyOf:
-          - $ref: '#/components/schemas/JSONObject'
-          - type: 'null'
         createdAt:
           type: string
           format: date-time
@@ -4039,6 +4628,26 @@ components:
             format: date-time
           - type: 'null'
           title: Dismissedat
+        totalTokens:
+          type: integer
+          title: Totaltokens
+          default: 0
+        totalCostUsd:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Totalcostusd
+        parentConversationId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Parentconversationid
+        parentMessageId:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Parentmessageid
       type: object
       required:
       - id
@@ -4170,9 +4779,37 @@ components:
           title: Searchname
           default: ''
         parameters:
-          $ref: '#/components/schemas/JSONObject'
+          additionalProperties:
+            oneOf:
+            - $ref: '#/components/schemas/StringValue'
+            - $ref: '#/components/schemas/NumberValue'
+            - $ref: '#/components/schemas/NumberRangeValue'
+            - $ref: '#/components/schemas/DateValue'
+            - $ref: '#/components/schemas/DateRangeValue'
+            - $ref: '#/components/schemas/TimestampValue'
+            - $ref: '#/components/schemas/SinglePickValue'
+            - $ref: '#/components/schemas/MultiPickValue'
+            - $ref: '#/components/schemas/FilterValue-Input'
+            - $ref: '#/components/schemas/InputDatasetValue'
+            - $ref: '#/components/schemas/InputStepValue'
+            discriminator:
+              propertyName: type
+              mapping:
+                date: '#/components/schemas/DateValue'
+                date-range: '#/components/schemas/DateRangeValue'
+                filter: '#/components/schemas/FilterValue-Input'
+                input-dataset: '#/components/schemas/InputDatasetValue'
+                input-step: '#/components/schemas/InputStepValue'
+                multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                number: '#/components/schemas/NumberValue'
+                number-range: '#/components/schemas/NumberRangeValue'
+                single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                string: '#/components/schemas/StringValue'
+                timestamp: '#/components/schemas/TimestampValue'
+          type: object
+          title: Parameters
         stepTree:
-          $ref: '#/components/schemas/JSONValue'
+          $ref: '#/components/schemas/JsonValue'
         sourceStrategyId:
           anyOf:
           - type: string
@@ -4400,7 +5037,32 @@ components:
         parameters:
           anyOf:
           - additionalProperties:
-              type: string
+              oneOf:
+              - $ref: '#/components/schemas/StringValue'
+              - $ref: '#/components/schemas/NumberValue'
+              - $ref: '#/components/schemas/NumberRangeValue'
+              - $ref: '#/components/schemas/DateValue'
+              - $ref: '#/components/schemas/DateRangeValue'
+              - $ref: '#/components/schemas/TimestampValue'
+              - $ref: '#/components/schemas/SinglePickValue'
+              - $ref: '#/components/schemas/MultiPickValue'
+              - $ref: '#/components/schemas/FilterValue-Input'
+              - $ref: '#/components/schemas/InputDatasetValue'
+              - $ref: '#/components/schemas/InputStepValue'
+              discriminator:
+                propertyName: type
+                mapping:
+                  date: '#/components/schemas/DateValue'
+                  date-range: '#/components/schemas/DateRangeValue'
+                  filter: '#/components/schemas/FilterValue-Input'
+                  input-dataset: '#/components/schemas/InputDatasetValue'
+                  input-step: '#/components/schemas/InputStepValue'
+                  multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                  number: '#/components/schemas/NumberValue'
+                  number-range: '#/components/schemas/NumberRangeValue'
+                  single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                  string: '#/components/schemas/StringValue'
+                  timestamp: '#/components/schemas/TimestampValue'
             type: object
           - type: 'null'
           title: Parameters
@@ -4525,6 +5187,60 @@ components:
       - kind
       - data
       title: CustomEvent
+    DataUIPart:
+      properties:
+        type:
+          type: string
+          pattern: ^data-
+          title: Type
+        id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Id
+        data:
+          title: Data
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - data
+      title: DataUIPart
+      description: Data part with dynamic type based on data name.
+    DateRangeValue:
+      properties:
+        type:
+          type: string
+          const: date-range
+          title: Type
+          default: date-range
+        min:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Min
+        max:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Max
+      type: object
+      title: DateRangeValue
+    DateValue:
+      properties:
+        type:
+          type: string
+          const: date
+          title: Type
+          default: date
+        value:
+          type: string
+          minLength: 1
+          title: Value
+      type: object
+      required:
+      - value
+      title: DateValue
     DecisionPresented:
       properties:
         decisionType:
@@ -4548,18 +5264,85 @@ components:
       - options
       title: DecisionPresented
       description: A branching decision for the user to resolve.
+    DeleteResolution:
+      type: string
+      enum:
+      - collapse-combine
+      - delete-subtree
+      - promote-primary
+      - delete-strategy
+      title: DeleteResolution
+    DeleteStepOp:
+      properties:
+        kind:
+          type: string
+          const: deleteStep
+          title: Kind
+          default: deleteStep
+        stepId:
+          type: string
+          title: Stepid
+        resolution:
+          $ref: '#/components/schemas/DeleteResolution'
+      type: object
+      required:
+      - stepId
+      - resolution
+      title: DeleteStepOp
     DependentParamsRequest:
       properties:
         parameterName:
           type: string
           title: Parametername
         contextValues:
-          $ref: '#/components/schemas/JSONObject'
+          additionalProperties:
+            oneOf:
+            - $ref: '#/components/schemas/StringValue'
+            - $ref: '#/components/schemas/NumberValue'
+            - $ref: '#/components/schemas/NumberRangeValue'
+            - $ref: '#/components/schemas/DateValue'
+            - $ref: '#/components/schemas/DateRangeValue'
+            - $ref: '#/components/schemas/TimestampValue'
+            - $ref: '#/components/schemas/SinglePickValue'
+            - $ref: '#/components/schemas/MultiPickValue'
+            - $ref: '#/components/schemas/FilterValue-Input'
+            - $ref: '#/components/schemas/InputDatasetValue'
+            - $ref: '#/components/schemas/InputStepValue'
+            discriminator:
+              propertyName: type
+              mapping:
+                date: '#/components/schemas/DateValue'
+                date-range: '#/components/schemas/DateRangeValue'
+                filter: '#/components/schemas/FilterValue-Input'
+                input-dataset: '#/components/schemas/InputDatasetValue'
+                input-step: '#/components/schemas/InputStepValue'
+                multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                number: '#/components/schemas/NumberValue'
+                number-range: '#/components/schemas/NumberRangeValue'
+                single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                string: '#/components/schemas/StringValue'
+                timestamp: '#/components/schemas/TimestampValue'
+          type: object
+          title: Contextvalues
       type: object
       required:
       - parameterName
       title: DependentParamsRequest
       description: Dependent parameter values request.
+    DistributionResponse:
+      properties:
+        histogram:
+          items:
+            $ref: '#/components/schemas/WDKHistogramBin'
+          type: array
+          title: Histogram
+        statistics:
+          $ref: '#/components/schemas/WDKHistogramStatistics'
+      type: object
+      required:
+      - histogram
+      - statistics
+      title: DistributionResponse
     DoneEvent:
       properties:
         type:
@@ -4579,6 +5362,341 @@ components:
       required:
       - reason
       title: DoneEvent
+    DuplicateStepOp:
+      properties:
+        kind:
+          type: string
+          const: duplicateStep
+          title: Kind
+          default: duplicateStep
+        sourceStepId:
+          type: string
+          title: Sourcestepid
+        duplicateStepId:
+          type: string
+          title: Duplicatestepid
+        combineStepId:
+          type: string
+          title: Combinestepid
+        combineDisplayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Combinedisplayname
+      type: object
+      required:
+      - sourceStepId
+      - duplicateStepId
+      - combineStepId
+      title: DuplicateStepOp
+    DynamicToolApprovalRequestedPart:
+      properties:
+        type:
+          type: string
+          const: dynamic-tool
+          title: Type
+          default: dynamic-tool
+        toolName:
+          type: string
+          title: Toolname
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: approval-requested
+          title: State
+          default: approval-requested
+        input:
+          title: Input
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - toolName
+      - toolCallId
+      - input
+      title: DynamicToolApprovalRequestedPart
+      description: Dynamic tool part in approval-requested state (awaiting user decision).
+    DynamicToolApprovalRespondedPart:
+      properties:
+        type:
+          type: string
+          const: dynamic-tool
+          title: Type
+          default: dynamic-tool
+        toolName:
+          type: string
+          title: Toolname
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: approval-responded
+          title: State
+          default: approval-responded
+        input:
+          title: Input
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - toolName
+      - toolCallId
+      - input
+      title: DynamicToolApprovalRespondedPart
+      description: Dynamic tool part in approval-responded state (user approved/denied, execution pending).
+    DynamicToolInputAvailablePart:
+      properties:
+        type:
+          type: string
+          const: dynamic-tool
+          title: Type
+          default: dynamic-tool
+        toolName:
+          type: string
+          title: Toolname
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: input-available
+          title: State
+          default: input-available
+        input:
+          title: Input
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - toolName
+      - toolCallId
+      - input
+      title: DynamicToolInputAvailablePart
+      description: Dynamic tool part in input-available state.
+    DynamicToolInputStreamingPart:
+      properties:
+        type:
+          type: string
+          const: dynamic-tool
+          title: Type
+          default: dynamic-tool
+        toolName:
+          type: string
+          title: Toolname
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: input-streaming
+          title: State
+          default: input-streaming
+        input:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Input
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - toolName
+      - toolCallId
+      title: DynamicToolInputStreamingPart
+      description: Dynamic tool part in input-streaming state.
+    DynamicToolOutputAvailablePart:
+      properties:
+        type:
+          type: string
+          const: dynamic-tool
+          title: Type
+          default: dynamic-tool
+        toolName:
+          type: string
+          title: Toolname
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: output-available
+          title: State
+          default: output-available
+        input:
+          title: Input
+        output:
+          title: Output
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        preliminary:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Preliminary
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - toolName
+      - toolCallId
+      - input
+      - output
+      title: DynamicToolOutputAvailablePart
+      description: Dynamic tool part in output-available state.
+    DynamicToolOutputDeniedPart:
+      properties:
+        type:
+          type: string
+          const: dynamic-tool
+          title: Type
+          default: dynamic-tool
+        toolName:
+          type: string
+          title: Toolname
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: output-denied
+          title: State
+          default: output-denied
+        input:
+          title: Input
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - toolName
+      - toolCallId
+      - input
+      title: DynamicToolOutputDeniedPart
+      description: Dynamic tool part in output-denied state (tool was denied, terminal state).
+    DynamicToolOutputErrorPart:
+      properties:
+        type:
+          type: string
+          const: dynamic-tool
+          title: Type
+          default: dynamic-tool
+        toolName:
+          type: string
+          title: Toolname
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: output-error
+          title: State
+          default: output-error
+        input:
+          title: Input
+        errorText:
+          type: string
+          title: Errortext
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - toolName
+      - toolCallId
+      - input
+      - errorText
+      title: DynamicToolOutputErrorPart
+      description: Dynamic tool part in output-error state.
     EnrichmentCompareRequest:
       properties:
         experimentIds:
@@ -4660,6 +5778,43 @@ components:
       - terms
       title: EnrichmentResultResponse
       description: Results for a single enrichment analysis type.
+    EnrichmentResultsChunk:
+      properties:
+        taskId:
+          type: string
+          title: Taskid
+        geneSetId:
+          type: string
+          title: Genesetid
+        geneSetName:
+          type: string
+          title: Genesetname
+        geneCount:
+          type: integer
+          title: Genecount
+        results:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Results
+        downloads:
+          anyOf:
+          - additionalProperties:
+              anyOf:
+              - type: string
+              - type: integer
+            type: object
+          - type: 'null'
+          title: Downloads
+      type: object
+      required:
+      - taskId
+      - geneSetId
+      - geneSetName
+      - geneCount
+      - results
+      title: EnrichmentResultsChunk
     EnrichmentRow:
       properties:
         termKey:
@@ -4673,7 +5828,7 @@ components:
           title: Analysistype
         scores:
           additionalProperties:
-            $ref: '#/components/schemas/JSONValue'
+            $ref: '#/components/schemas/JsonValue'
           type: object
           title: Scores
         maxScore:
@@ -4805,6 +5960,22 @@ components:
       required:
       - message
       title: ErrorEvent
+    EventsSnapshotResponse:
+      properties:
+        chunks:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Chunks
+        cursor:
+          type: integer
+          title: Cursor
+      type: object
+      required:
+      - chunks
+      - cursor
+      title: EventsSnapshotResponse
     ExperimentConfigResponse:
       properties:
         siteId:
@@ -4910,7 +6081,7 @@ components:
           title: Mode
           default: single
         stepTree:
-          $ref: '#/components/schemas/JSONValue'
+          $ref: '#/components/schemas/JsonValue'
         sourceStrategyId:
           anyOf:
           - type: string
@@ -5219,135 +6390,135 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ExperimentResponse'
           - type: 'null'
-        experiment_summary:
+        experimentSummary:
           anyOf:
           - $ref: '#/components/schemas/ExperimentSummaryResponse'
           - type: 'null'
-        experiment_config:
+        experimentConfig:
           anyOf:
           - $ref: '#/components/schemas/ExperimentConfigResponse'
           - type: 'null'
-        confusion_matrix:
+        confusionMatrix:
           anyOf:
           - $ref: '#/components/schemas/ConfusionMatrixResponse'
           - type: 'null'
-        experiment_metrics:
+        experimentMetrics:
           anyOf:
           - $ref: '#/components/schemas/ExperimentMetricsResponse'
           - type: 'null'
-        gene_info:
+        geneInfo:
           anyOf:
           - $ref: '#/components/schemas/GeneInfoResponse'
           - type: 'null'
-        fold_metrics:
+        foldMetrics:
           anyOf:
           - $ref: '#/components/schemas/FoldMetricsResponse'
           - type: 'null'
-        cross_validation_result:
+        crossValidationResult:
           anyOf:
           - $ref: '#/components/schemas/CrossValidationResultResponse'
           - type: 'null'
-        enrichment_term:
+        enrichmentTerm:
           anyOf:
           - $ref: '#/components/schemas/EnrichmentTermResponse'
           - type: 'null'
-        enrichment_result:
+        enrichmentResult:
           anyOf:
           - $ref: '#/components/schemas/EnrichmentResultResponse'
           - type: 'null'
-        rank_metrics:
+        rankMetrics:
           anyOf:
           - $ref: '#/components/schemas/RankMetricsResponse'
           - type: 'null'
-        confidence_interval:
+        confidenceInterval:
           anyOf:
           - $ref: '#/components/schemas/ConfidenceIntervalResponse'
           - type: 'null'
-        negative_set_variant:
+        negativeSetVariant:
           anyOf:
           - $ref: '#/components/schemas/NegativeSetVariantResponse'
           - type: 'null'
-        bootstrap_result:
+        bootstrapResult:
           anyOf:
           - $ref: '#/components/schemas/BootstrapResultResponse'
           - type: 'null'
-        step_evaluation:
+        stepEvaluation:
           anyOf:
           - $ref: '#/components/schemas/StepEvaluationResponse'
           - type: 'null'
-        operator_variant:
+        operatorVariant:
           anyOf:
           - $ref: '#/components/schemas/OperatorVariantResponse'
           - type: 'null'
-        operator_comparison:
+        operatorComparison:
           anyOf:
           - $ref: '#/components/schemas/OperatorComparisonResponse'
           - type: 'null'
-        step_contribution:
+        stepContribution:
           anyOf:
           - $ref: '#/components/schemas/StepContributionResponse'
           - type: 'null'
-        parameter_sweep_point:
+        parameterSweepPoint:
           anyOf:
           - $ref: '#/components/schemas/ParameterSweepPointResponse'
           - type: 'null'
-        parameter_sensitivity:
+        parameterSensitivity:
           anyOf:
           - $ref: '#/components/schemas/ParameterSensitivityResponse'
           - type: 'null'
-        step_analysis_result:
+        stepAnalysisResult:
           anyOf:
           - $ref: '#/components/schemas/StepAnalysisResultResponse'
           - type: 'null'
-        optimization_spec:
+        optimizationSpec:
           anyOf:
           - $ref: '#/components/schemas/OptimizationSpecResponse'
           - type: 'null'
-        threshold_knob:
+        thresholdKnob:
           anyOf:
           - $ref: '#/components/schemas/ThresholdKnobResponse'
           - type: 'null'
-        operator_knob:
+        operatorKnob:
           anyOf:
           - $ref: '#/components/schemas/OperatorKnobResponse'
           - type: 'null'
-        tree_optimization_trial:
+        treeOptimizationTrial:
           anyOf:
           - $ref: '#/components/schemas/TreeOptimizationTrialResponse'
           - type: 'null'
-        tree_optimization_result:
+        treeOptimizationResult:
           anyOf:
           - $ref: '#/components/schemas/TreeOptimizationResultResponse'
           - type: 'null'
-        trial_progress_data:
+        trialProgressData:
           anyOf:
           - $ref: '#/components/schemas/TrialProgressDataResponse'
           - type: 'null'
-        step_analysis_progress_data:
+        stepAnalysisProgressData:
           anyOf:
           - $ref: '#/components/schemas/StepAnalysisProgressDataResponse'
           - type: 'null'
-        experiment_progress_data:
+        experimentProgressData:
           anyOf:
           - $ref: '#/components/schemas/ExperimentProgressDataResponse'
           - type: 'null'
-        optimization_result:
+        optimizationResult:
           anyOf:
           - $ref: '#/components/schemas/OptimizationResultResponse'
           - type: 'null'
-        control_set_summary:
+        controlSetSummary:
           anyOf:
           - $ref: '#/components/schemas/ControlSetSummaryResponse'
           - type: 'null'
-        optimization_progress:
+        optimizationProgress:
           anyOf:
           - $ref: '#/components/schemas/OptimizationProgressEventData'
           - type: 'null'
-        optimization_trial:
+        optimizationTrial:
           anyOf:
           - $ref: '#/components/schemas/OptimizationTrialData'
           - type: 'null'
-        optimization_parameter_spec:
+        optimizationParameterSpec:
           anyOf:
           - $ref: '#/components/schemas/OptimizationParameterSpecData'
           - type: 'null'
@@ -5481,6 +6652,80 @@ components:
       - siteId
       title: FetchGeneIdsRequest
       description: Fetch gene IDs from an existing PathFinder strategy.
+    FileUIPart:
+      properties:
+        type:
+          type: string
+          const: file
+          title: Type
+          default: file
+        mediaType:
+          type: string
+          title: Mediatype
+        filename:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filename
+        url:
+          type: string
+          title: Url
+        providerMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Providermetadata
+      additionalProperties: false
+      type: object
+      required:
+      - mediaType
+      - url
+      title: FileUIPart
+      description: A file part of a message.
+    FilterTermClause:
+      properties:
+        field:
+          type: string
+          title: Field
+        value:
+          $ref: '#/components/schemas/JsonValue'
+      additionalProperties: true
+      type: object
+      required:
+      - field
+      - value
+      title: FilterTermClause
+    FilterValue-Input:
+      properties:
+        type:
+          type: string
+          const: filter
+          title: Type
+          default: filter
+        filters:
+          items:
+            $ref: '#/components/schemas/FilterTermClause'
+          type: array
+          title: Filters
+      type: object
+      title: FilterValue
+    FilterValue-Output:
+      properties:
+        type:
+          type: string
+          const: filter
+          title: Type
+          default: filter
+        filters:
+          items:
+            $ref: '#/components/schemas/FilterTermClause'
+          type: array
+          title: Filters
+      type: object
+      title: FilterValue
     FoldMetricsResponse:
       properties:
         foldIndex:
@@ -5504,45 +6749,16 @@ components:
       - metrics
       title: FoldMetricsResponse
       description: Metrics for a single cross-validation fold.
-    ForkRequest:
+    ForkConversationRequest:
       properties:
-        fromCheckpointId:
+        fromMessageId:
           type: string
-          title: Fromcheckpointid
-        stateOverride:
-          additionalProperties: true
-          type: object
-          title: Stateoverride
-        asNode:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Asnode
+          format: uuid
+          title: Frommessageid
       type: object
       required:
-      - fromCheckpointId
-      title: ForkRequest
-      description: 'Body for ``POST /chats/{conversation_id}/fork``.
-
-
-        ``state_override`` defaults to an empty dict — the absence of overrides
-
-        still produces a fresh checkpoint that becomes a child of
-
-        ``from_checkpoint_id``. ``as_node`` is forwarded to
-
-        ``graph.aupdate_state(..., as_node=...)`` and decides which node
-
-        "owns" the synthetic write.'
-    ForkResponse:
-      properties:
-        newCheckpointId:
-          type: string
-          title: Newcheckpointid
-      type: object
-      required:
-      - newCheckpointId
-      title: ForkResponse
+      - fromMessageId
+      title: ForkConversationRequest
     GeneConfidenceRequest:
       properties:
         tpIds:
@@ -5678,7 +6894,6 @@ components:
       required:
       - geneIds
       title: GeneResolveRequest
-      description: Request body for gene ID resolution.
     GeneResolveResponse:
       properties:
         resolved:
@@ -5696,7 +6911,6 @@ components:
       - resolved
       - unresolved
       title: GeneResolveResponse
-      description: Gene ID resolution response.
     GeneSearchResponse:
       properties:
         results:
@@ -5712,13 +6926,11 @@ components:
             type: string
           type: array
           title: Suggestedorganisms
-          default: []
       type: object
       required:
       - results
       - totalCount
       title: GeneSearchResponse
-      description: Paginated gene search response.
     GeneSearchResultResponse:
       properties:
         geneId:
@@ -5753,12 +6965,10 @@ components:
             type: string
           type: array
           title: Matchedfields
-          default: []
       type: object
       required:
       - geneId
       title: GeneSearchResultResponse
-      description: A single gene result from site-search.
     GeneSet:
       properties:
         geneSetId:
@@ -5888,7 +7098,32 @@ components:
         parameters:
           anyOf:
           - additionalProperties:
-              type: string
+              oneOf:
+              - $ref: '#/components/schemas/StringValue'
+              - $ref: '#/components/schemas/NumberValue'
+              - $ref: '#/components/schemas/NumberRangeValue'
+              - $ref: '#/components/schemas/DateValue'
+              - $ref: '#/components/schemas/DateRangeValue'
+              - $ref: '#/components/schemas/TimestampValue'
+              - $ref: '#/components/schemas/SinglePickValue'
+              - $ref: '#/components/schemas/MultiPickValue'
+              - $ref: '#/components/schemas/FilterValue-Output'
+              - $ref: '#/components/schemas/InputDatasetValue'
+              - $ref: '#/components/schemas/InputStepValue'
+              discriminator:
+                propertyName: type
+                mapping:
+                  date: '#/components/schemas/DateValue'
+                  date-range: '#/components/schemas/DateRangeValue'
+                  filter: '#/components/schemas/FilterValue-Output'
+                  input-dataset: '#/components/schemas/InputDatasetValue'
+                  input-step: '#/components/schemas/InputStepValue'
+                  multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                  number: '#/components/schemas/NumberValue'
+                  number-range: '#/components/schemas/NumberRangeValue'
+                  single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                  string: '#/components/schemas/StringValue'
+                  timestamp: '#/components/schemas/TimestampValue'
             type: object
           - type: 'null'
           title: Parameters
@@ -6055,6 +7290,83 @@ components:
       - timestamp
       title: HealthResponse
       description: Health check response.
+    InputDatasetValue:
+      properties:
+        type:
+          type: string
+          const: input-dataset
+          title: Type
+          default: input-dataset
+        datasetId:
+          type: string
+          minLength: 1
+          title: Datasetid
+      type: object
+      required:
+      - datasetId
+      title: InputDatasetValue
+    InputStepValue:
+      properties:
+        type:
+          type: string
+          const: input-step
+          title: Type
+          default: input-step
+        stepId:
+          type: string
+          minLength: 1
+          title: Stepid
+      type: object
+      required:
+      - stepId
+      title: InputStepValue
+    InsertSavedRequest:
+      properties:
+        targetStepId:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Targetstepid
+        savedWdkStrategyId:
+          type: integer
+          title: Savedwdkstrategyid
+        operator:
+          type: string
+          enum:
+          - INTERSECT
+          - UNION
+          - MINUS
+          - RMINUS
+          - LONLY
+          - RONLY
+          title: Operator
+          default: INTERSECT
+      type: object
+      required:
+      - targetStepId
+      - savedWdkStrategyId
+      title: InsertSavedRequest
+    InsertSavedResponse:
+      properties:
+        wdkStrategyId:
+          type: integer
+          title: Wdkstrategyid
+        insertedSavedWdkStrategyId:
+          type: integer
+          title: Insertedsavedwdkstrategyid
+        insertedSavedName:
+          type: string
+          title: Insertedsavedname
+        combineStepId:
+          type: string
+          title: Combinestepid
+      type: object
+      required:
+      - wdkStrategyId
+      - insertedSavedWdkStrategyId
+      - insertedSavedName
+      - combineStepId
+      title: InsertSavedResponse
     InterruptPayload:
       properties:
         id:
@@ -6089,46 +7401,13 @@ components:
       title: InterruptsEvent
     JSONArray:
       items:
-        $ref: '#/components/schemas/JSONValue'
+        $ref: '#/components/schemas/JsonValue'
       type: array
     JSONObject:
       additionalProperties:
-        $ref: '#/components/schemas/JSONValue'
+        $ref: '#/components/schemas/JsonValue'
       type: object
-    JSONValue: {}
     JsonValue: {}
-    LabelRequest:
-      properties:
-        label:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Label
-        pinned:
-          type: boolean
-          title: Pinned
-          default: false
-      type: object
-      title: LabelRequest
-    LabelRow:
-      properties:
-        checkpointId:
-          type: string
-          title: Checkpointid
-        label:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Label
-        pinned:
-          type: boolean
-          title: Pinned
-      type: object
-      required:
-      - checkpointId
-      - label
-      - pinned
-      title: LabelRow
     LoginPayload:
       properties:
         email:
@@ -6391,18 +7670,6 @@ components:
         name:
           type: string
           title: Name
-        provider:
-          type: string
-          enum:
-          - openai
-          - anthropic
-          - google
-          - ollama
-          - mock
-          title: Provider
-        model:
-          type: string
-          title: Model
         description:
           type: string
           title: Description
@@ -6435,6 +7702,18 @@ components:
           type: boolean
           title: Isprovidersmallest
           default: false
+        provider:
+          type: string
+          enum:
+          - openai
+          - anthropic
+          - google
+          - ollama
+          - mock
+          title: Provider
+        modelName:
+          type: string
+          title: Modelname
         enabled:
           type: boolean
           title: Enabled
@@ -6444,7 +7723,7 @@ components:
       - id
       - name
       - provider
-      - model
+      - modelName
       title: ModelCatalogEntryResponse
       description: API response model — adds ``enabled`` status per provider configuration.
     ModelListResponse:
@@ -6469,14 +7748,46 @@ components:
           - quality
           - balanced
           - fast
+          - custom
           title: Defaulttier
+        phaseDefaults:
+          additionalProperties:
+            type: string
+          propertyNames:
+            enum:
+            - lead
+            - scoping
+            - discovery
+            - planning
+            - execution
+            - verification
+          type: object
+          title: Phasedefaults
       type: object
       required:
       - models
       - defaultProvider
       - defaultTier
+      - phaseDefaults
       title: ModelListResponse
       description: Response for the /models endpoint.
+    MultiPickValue:
+      properties:
+        type:
+          type: string
+          const: multi-pick-vocabulary
+          title: Type
+          default: multi-pick-vocabulary
+        values:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Values
+      type: object
+      required:
+      - values
+      title: MultiPickValue
     NegativeSetVariantResponse:
       properties:
         label:
@@ -6494,6 +7805,96 @@ components:
       - rankMetrics
       title: NegativeSetVariantResponse
       description: Rank metrics evaluated with an alternative negative control set.
+    Note:
+      properties:
+        id:
+          type: string
+          title: Id
+        conversationId:
+          type: string
+          format: uuid
+          title: Conversationid
+        title:
+          type: string
+          maxLength: 120
+          minLength: 1
+          title: Title
+        summary:
+          type: string
+          maxLength: 280
+          minLength: 1
+          title: Summary
+        body:
+          type: string
+          maxLength: 20000
+          minLength: 1
+          title: Body
+        tags:
+          items:
+            type: string
+          type: array
+          maxItems: 16
+          title: Tags
+        pinned:
+          type: boolean
+          title: Pinned
+          default: false
+        bodyTokens:
+          type: integer
+          minimum: 0.0
+          title: Bodytokens
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+        updatedAt:
+          type: string
+          format: date-time
+          title: Updatedat
+      type: object
+      required:
+      - id
+      - conversationId
+      - title
+      - summary
+      - body
+      - bodyTokens
+      - createdAt
+      - updatedAt
+      title: Note
+    NumberRangeValue:
+      properties:
+        type:
+          type: string
+          const: number-range
+          title: Type
+          default: number-range
+        min:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Min
+        max:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max
+      type: object
+      title: NumberRangeValue
+    NumberValue:
+      properties:
+        type:
+          type: string
+          const: number
+          title: Type
+          default: number
+        value:
+          type: number
+          title: Value
+      type: object
+      required:
+      - value
+      title: NumberValue
     OpenConversationRequest:
       properties:
         conversationId:
@@ -6628,16 +8029,16 @@ components:
         type:
           type: string
           title: Type
-        minValue:
+        min:
           anyOf:
           - type: number
           - type: 'null'
-          title: Minvalue
-        maxValue:
+          title: Min
+        max:
           anyOf:
           - type: number
           - type: 'null'
-          title: Maxvalue
+          title: Max
         logScale:
           anyOf:
           - type: boolean
@@ -6908,7 +8309,7 @@ components:
           title: Trialnumber
         parameters:
           additionalProperties:
-            $ref: '#/components/schemas/JSONValue'
+            $ref: '#/components/schemas/JsonValue'
           type: object
           title: Parameters
         score:
@@ -6966,7 +8367,6 @@ components:
       required:
       - organisms
       title: OrganismsResponse
-      description: Available organisms for a site.
     OverlapRequest:
       properties:
         experimentIds:
@@ -7129,12 +8529,17 @@ components:
           default: false
         initialDisplayValue:
           anyOf:
-          - $ref: '#/components/schemas/JSONValue'
+          - type: string
           - type: 'null'
+          title: Initialdisplayvalue
         vocabulary:
           anyOf:
-          - $ref: '#/components/schemas/JSONValue'
+          - items:
+              $ref: '#/components/schemas/WDKVocabTerm'
+            type: array
+          - $ref: '#/components/schemas/WDKTreeBoxVocabNode'
           - type: 'null'
+          title: Vocabulary
         min:
           anyOf:
           - type: number
@@ -7178,16 +8583,73 @@ components:
           - type: string
           - type: 'null'
           title: Help
+        ontology:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/WDKFilterOntologyTerm'
+            type: array
+          - type: 'null'
+          title: Ontology
+        filterDataTypeDisplayName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filterdatatypedisplayname
+        parsers:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/WDKDatasetParser'
+            type: array
+          - type: 'null'
+          title: Parsers
+        defaultIdList:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Defaultidlist
+        recordClassName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recordclassname
       type: object
       required:
       - name
       - type
       title: ParamSpecResponse
-      description: Normalized parameter spec (UI-friendly).
+      description: Normalized parameter spec (UI-friendly) with typed vocab/ontology/parsers.
     ParamSpecsRequest:
       properties:
         contextValues:
-          $ref: '#/components/schemas/JSONObject'
+          additionalProperties:
+            oneOf:
+            - $ref: '#/components/schemas/StringValue'
+            - $ref: '#/components/schemas/NumberValue'
+            - $ref: '#/components/schemas/NumberRangeValue'
+            - $ref: '#/components/schemas/DateValue'
+            - $ref: '#/components/schemas/DateRangeValue'
+            - $ref: '#/components/schemas/TimestampValue'
+            - $ref: '#/components/schemas/SinglePickValue'
+            - $ref: '#/components/schemas/MultiPickValue'
+            - $ref: '#/components/schemas/FilterValue-Input'
+            - $ref: '#/components/schemas/InputDatasetValue'
+            - $ref: '#/components/schemas/InputStepValue'
+            discriminator:
+              propertyName: type
+              mapping:
+                date: '#/components/schemas/DateValue'
+                date-range: '#/components/schemas/DateRangeValue'
+                filter: '#/components/schemas/FilterValue-Input'
+                input-dataset: '#/components/schemas/InputDatasetValue'
+                input-step: '#/components/schemas/InputStepValue'
+                multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                number: '#/components/schemas/NumberValue'
+                number-range: '#/components/schemas/NumberRangeValue'
+                single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                string: '#/components/schemas/StringValue'
+                timestamp: '#/components/schemas/TimestampValue'
+          type: object
+          title: Contextvalues
       type: object
       title: ParamSpecsRequest
       description: Parameter specs request (optionally contextual).
@@ -7362,6 +8824,11 @@ components:
         rationale:
           type: string
           title: Rationale
+        slots:
+          items:
+            $ref: '#/components/schemas/PlanSlotForm'
+          type: array
+          title: Slots
       type: object
       required:
       - planId
@@ -7369,6 +8836,81 @@ components:
       - rationale
       title: PlanArtifact
       description: A proposed plan (not yet applied).
+    PlanSlotForm:
+      properties:
+        stepId:
+          type: string
+          title: Stepid
+        paramName:
+          type: string
+          title: Paramname
+        paramType:
+          type: string
+          title: Paramtype
+        status:
+          type: string
+          enum:
+          - set
+          - default
+          - needs_discovery
+          - needs_user_input
+          - user_set
+          title: Status
+        required:
+          type: boolean
+          title: Required
+          default: false
+        question:
+          type: string
+          title: Question
+        context:
+          type: string
+          title: Context
+          default: ''
+        options:
+          items:
+            $ref: '#/components/schemas/PlanSlotOption'
+          type: array
+          title: Options
+      type: object
+      required:
+      - stepId
+      - paramName
+      - paramType
+      - status
+      - question
+      title: PlanSlotForm
+      description: 'A NEEDS_USER_INPUT slot the submit_plan card must render as a form field.
+
+
+        Carries everything the React component needs: the param''s WDK type
+
+        (so it picks the right widget), the question text, optional select
+
+        options, and the step+param keys used when posting the answer back
+
+        via ``data-plan-slot-answers``.'
+    PlanSlotOption:
+      properties:
+        label:
+          type: string
+          title: Label
+        value:
+          $ref: '#/components/schemas/JsonValue'
+        description:
+          type: string
+          title: Description
+          default: ''
+        recommended:
+          type: boolean
+          title: Recommended
+          default: false
+      type: object
+      required:
+      - label
+      - value
+      title: PlanSlotOption
+      description: One option presented inside a NEEDS_USER_INPUT slot's question.
     PlanUpdate:
       properties:
         planId:
@@ -7583,30 +9125,34 @@ components:
       - ollama
       title: ProviderStatus
       description: Per-provider API-key availability.
-    PushConversationRequest:
+    QuotaResponse:
       properties:
-        name:
+        usedUsd:
           type: string
-          maxLength: 255
-          minLength: 1
-          title: Name
-        siteId:
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Usedusd
+        limitUsd:
           type: string
-          title: Siteid
-        strategyAst:
-          $ref: '#/components/schemas/StrategyAst-Input'
-        description:
-          anyOf:
-          - type: string
-            maxLength: 2000
-          - type: 'null'
-          title: Description
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Limitusd
+        totalTokens:
+          type: integer
+          title: Totaltokens
+        percent:
+          type: number
+          title: Percent
+        resetsAt:
+          type: string
+          format: date-time
+          title: Resetsat
       type: object
       required:
-      - name
-      - siteId
-      - strategyAst
-      title: PushConversationRequest
+      - usedUsd
+      - limitUsd
+      - totalTokens
+      - percent
+      - resetsAt
+      title: QuotaResponse
     RankMetricsResponse:
       properties:
         precisionAtK:
@@ -7665,11 +9211,11 @@ components:
           title: Timestamp
         readiness:
           $ref: '#/components/schemas/ReadinessState'
-        not_ready:
+        notReady:
           items:
             type: string
           type: array
-          title: Not Ready
+          title: Notready
       type: object
       required:
       - status
@@ -7696,6 +9242,75 @@ components:
       type: object
       title: ReadinessState
       description: Aggregate readiness for the whole API process.
+    ReasoningUIPart:
+      properties:
+        type:
+          type: string
+          const: reasoning
+          title: Type
+          default: reasoning
+        text:
+          type: string
+          title: Text
+        state:
+          anyOf:
+          - type: string
+            enum:
+            - streaming
+            - done
+          - type: 'null'
+          title: State
+        providerMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Providermetadata
+      additionalProperties: false
+      type: object
+      required:
+      - text
+      title: ReasoningUIPart
+      description: A reasoning part of a message.
+    RecordAttribute:
+      properties:
+        name:
+          type: string
+          title: Name
+        displayName:
+          type: string
+          title: Displayname
+        help:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Help
+        type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Type
+        isDisplayable:
+          type: boolean
+          title: Isdisplayable
+        isSortable:
+          type: boolean
+          title: Issortable
+        isSuggested:
+          type: boolean
+          title: Issuggested
+      type: object
+      required:
+      - name
+      - displayName
+      - help
+      - type
+      - isDisplayable
+      - isSortable
+      - isSuggested
+      title: RecordAttribute
     RecordDetailRequest:
       properties:
         primaryKey:
@@ -7709,6 +9324,49 @@ components:
       - primaryKey
       title: RecordDetailRequest
       description: Request to fetch a single record by primary key.
+    RecordDetailResponse:
+      properties:
+        displayName:
+          type: string
+          title: Displayname
+        id:
+          items:
+            $ref: '#/components/schemas/WDKRecordIdPart'
+          type: array
+          title: Id
+        recordClassName:
+          type: string
+          title: Recordclassname
+        attributes:
+          additionalProperties:
+            $ref: '#/components/schemas/JsonValue'
+          type: object
+          title: Attributes
+        attributeNames:
+          additionalProperties:
+            type: string
+          type: object
+          title: Attributenames
+        tables:
+          additionalProperties:
+            $ref: '#/components/schemas/JsonValue'
+          type: object
+          title: Tables
+        tableErrors:
+          items:
+            type: string
+          type: array
+          title: Tableerrors
+      type: object
+      required:
+      - displayName
+      - id
+      - recordClassName
+      - attributes
+      - attributeNames
+      - tables
+      - tableErrors
+      title: RecordDetailResponse
     RecordTypeResponse:
       properties:
         name:
@@ -7728,6 +9386,65 @@ components:
       - displayName
       title: RecordTypeResponse
       description: Record type information.
+    RecordsMeta:
+      properties:
+        totalCount:
+          type: integer
+          title: Totalcount
+        displayTotalCount:
+          type: integer
+          title: Displaytotalcount
+        responseCount:
+          type: integer
+          title: Responsecount
+        pagination:
+          $ref: '#/components/schemas/RecordsPagination'
+        attributes:
+          items:
+            type: string
+          type: array
+          title: Attributes
+        tables:
+          items:
+            type: string
+          type: array
+          title: Tables
+      type: object
+      required:
+      - totalCount
+      - displayTotalCount
+      - responseCount
+      - pagination
+      - attributes
+      - tables
+      title: RecordsMeta
+    RecordsPagination:
+      properties:
+        offset:
+          type: integer
+          title: Offset
+        numRecords:
+          type: integer
+          title: Numrecords
+      type: object
+      required:
+      - offset
+      - numRecords
+      title: RecordsPagination
+    RecordsResponse:
+      properties:
+        records:
+          items:
+            $ref: '#/components/schemas/ClassifiedRecord'
+          type: array
+          title: Records
+        meta:
+          $ref: '#/components/schemas/RecordsMeta'
+      type: object
+      required:
+      - records
+      - meta
+      title: RecordsResponse
     RefineRequest:
       properties:
         action:
@@ -7741,7 +9458,35 @@ components:
           title: Searchname
           default: ''
         parameters:
-          $ref: '#/components/schemas/JSONObject'
+          additionalProperties:
+            oneOf:
+            - $ref: '#/components/schemas/StringValue'
+            - $ref: '#/components/schemas/NumberValue'
+            - $ref: '#/components/schemas/NumberRangeValue'
+            - $ref: '#/components/schemas/DateValue'
+            - $ref: '#/components/schemas/DateRangeValue'
+            - $ref: '#/components/schemas/TimestampValue'
+            - $ref: '#/components/schemas/SinglePickValue'
+            - $ref: '#/components/schemas/MultiPickValue'
+            - $ref: '#/components/schemas/FilterValue-Input'
+            - $ref: '#/components/schemas/InputDatasetValue'
+            - $ref: '#/components/schemas/InputStepValue'
+            discriminator:
+              propertyName: type
+              mapping:
+                date: '#/components/schemas/DateValue'
+                date-range: '#/components/schemas/DateRangeValue'
+                filter: '#/components/schemas/FilterValue-Input'
+                input-dataset: '#/components/schemas/InputDatasetValue'
+                input-step: '#/components/schemas/InputStepValue'
+                multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                number: '#/components/schemas/NumberValue'
+                number-range: '#/components/schemas/NumberRangeValue'
+                single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                string: '#/components/schemas/StringValue'
+                timestamp: '#/components/schemas/TimestampValue'
+          type: object
+          title: Parameters
         operator:
           type: string
           title: Operator
@@ -7755,6 +9500,62 @@ components:
       - action
       title: RefineRequest
       description: Request to refine an experiment's strategy.
+    RefineResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+        newStepId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Newstepid
+      type: object
+      required:
+      - success
+      title: RefineResponse
+      description: Response from refine_experiment.
+    ReplaceStrategyOp:
+      properties:
+        kind:
+          type: string
+          const: replaceStrategy
+          title: Kind
+          default: replaceStrategy
+        root:
+          $ref: '#/components/schemas/StrategyStepNode-Input'
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+      type: object
+      required:
+      - root
+      title: ReplaceStrategyOp
+      description: Whole-strategy replacement; used by undo/redo replay.
+    ReplaceSubtreeOp:
+      properties:
+        kind:
+          type: string
+          const: replaceSubtree
+          title: Kind
+          default: replaceSubtree
+        stepId:
+          type: string
+          title: Stepid
+        subtree:
+          $ref: '#/components/schemas/StrategyStepNode-Input'
+      type: object
+      required:
+      - stepId
+      - subtree
+      title: ReplaceSubtreeOp
     ResearchNote:
       properties:
         source:
@@ -7811,7 +9612,6 @@ components:
       required:
       - geneId
       title: ResolvedGeneResponse
-      description: A resolved gene record.
     ReverseSearchRequest:
       properties:
         positiveGeneIds:
@@ -7875,6 +9675,16 @@ components:
       - overlapCount
       title: ReverseSearchResultItem
       description: A single ranked gene set in reverse search results.
+    RevertRequest:
+      properties:
+        messageId:
+          type: string
+          format: uuid
+          title: Messageid
+      type: object
+      required:
+      - messageId
+      title: RevertRequest
     RunCrossValidationRequest:
       properties:
         kFolds:
@@ -7904,6 +9714,85 @@ components:
       - enrichmentTypes
       title: RunEnrichmentRequest
       description: Request to run enrichment on an existing experiment.
+    SaveSubstrategyRequest:
+      properties:
+        stepId:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Stepid
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+        description:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Description
+      type: object
+      required:
+      - stepId
+      - name
+      title: SaveSubstrategyRequest
+      description: POST body for saving a subtree of the active strategy.
+    SaveSubstrategyResponse:
+      properties:
+        wdkStrategyId:
+          type: integer
+          title: Wdkstrategyid
+        name:
+          type: string
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        recordType:
+          type: string
+          title: Recordtype
+        rootStepId:
+          type: integer
+          title: Rootstepid
+      type: object
+      required:
+      - wdkStrategyId
+      - name
+      - recordType
+      - rootStepId
+      title: SaveSubstrategyResponse
+    SavedStrategyConsumerCounts:
+      properties:
+        counts:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Counts
+      type: object
+      required:
+      - counts
+      title: SavedStrategyConsumerCounts
+      description: Map of WDK strategy id -> number of conversations that import it.
+    ScratchpadPatchRequest:
+      properties:
+        pinned:
+          type: boolean
+          title: Pinned
+          description: New pin state.
+      additionalProperties: false
+      type: object
+      required:
+      - pinned
+      title: ScratchpadPatchRequest
+      description: 'User-driven PATCH — only the ``pinned`` flag is settable from the UI.
+
+
+        ``extra="forbid"`` rejects ``title``/``body``/``summary`` edits with 422
+
+        so scratchpad content stays agent-authored.'
     SearchResponse:
       properties:
         name:
@@ -7930,7 +9819,35 @@ components:
     SearchValidationRequest:
       properties:
         contextValues:
-          $ref: '#/components/schemas/JSONObject'
+          additionalProperties:
+            oneOf:
+            - $ref: '#/components/schemas/StringValue'
+            - $ref: '#/components/schemas/NumberValue'
+            - $ref: '#/components/schemas/NumberRangeValue'
+            - $ref: '#/components/schemas/DateValue'
+            - $ref: '#/components/schemas/DateRangeValue'
+            - $ref: '#/components/schemas/TimestampValue'
+            - $ref: '#/components/schemas/SinglePickValue'
+            - $ref: '#/components/schemas/MultiPickValue'
+            - $ref: '#/components/schemas/FilterValue-Input'
+            - $ref: '#/components/schemas/InputDatasetValue'
+            - $ref: '#/components/schemas/InputStepValue'
+            discriminator:
+              propertyName: type
+              mapping:
+                date: '#/components/schemas/DateValue'
+                date-range: '#/components/schemas/DateRangeValue'
+                filter: '#/components/schemas/FilterValue-Input'
+                input-dataset: '#/components/schemas/InputDatasetValue'
+                input-step: '#/components/schemas/InputStepValue'
+                multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                number: '#/components/schemas/NumberValue'
+                number-range: '#/components/schemas/NumberRangeValue'
+                single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                string: '#/components/schemas/StringValue'
+                timestamp: '#/components/schemas/TimestampValue'
+          type: object
+          title: Contextvalues
       type: object
       title: SearchValidationRequest
       description: Search parameter validation request.
@@ -7962,6 +9879,21 @@ components:
       - name
       title: SetOperationRequest
       description: Perform set operations between two gene sets.
+    SinglePickValue:
+      properties:
+        type:
+          type: string
+          const: single-pick-vocabulary
+          title: Type
+          default: single-pick-vocabulary
+        value:
+          type: string
+          minLength: 1
+          title: Value
+      type: object
+      required:
+      - value
+      title: SinglePickValue
     SiteResponse:
       properties:
         id:
@@ -7992,6 +9924,76 @@ components:
       - isPortal
       title: SiteResponse
       description: VEuPathDB site information.
+    SourceDocumentUIPart:
+      properties:
+        type:
+          type: string
+          const: source-document
+          title: Type
+          default: source-document
+        sourceId:
+          type: string
+          title: Sourceid
+        mediaType:
+          type: string
+          title: Mediatype
+        title:
+          type: string
+          title: Title
+        filename:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filename
+        providerMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Providermetadata
+      additionalProperties: false
+      type: object
+      required:
+      - sourceId
+      - mediaType
+      - title
+      title: SourceDocumentUIPart
+      description: A document source part of a message.
+    SourceUrlUIPart:
+      properties:
+        type:
+          type: string
+          const: source-url
+          title: Type
+          default: source-url
+        sourceId:
+          type: string
+          title: Sourceid
+        url:
+          type: string
+          title: Url
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        providerMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Providermetadata
+      additionalProperties: false
+      type: object
+      required:
+      - sourceId
+      - url
+      title: SourceUrlUIPart
+      description: A source part of a message.
     StepAnalysis-Input:
       properties:
         analysisType:
@@ -8246,7 +10248,7 @@ components:
           type: string
           title: Name
         value:
-          $ref: '#/components/schemas/JSONValue'
+          $ref: '#/components/schemas/JsonValue'
         disabled:
           type: boolean
           title: Disabled
@@ -8314,8 +10316,36 @@ components:
           title: Recordtype
         parameters:
           anyOf:
-          - $ref: '#/components/schemas/JSONObject'
+          - additionalProperties:
+              oneOf:
+              - $ref: '#/components/schemas/StringValue'
+              - $ref: '#/components/schemas/NumberValue'
+              - $ref: '#/components/schemas/NumberRangeValue'
+              - $ref: '#/components/schemas/DateValue'
+              - $ref: '#/components/schemas/DateRangeValue'
+              - $ref: '#/components/schemas/TimestampValue'
+              - $ref: '#/components/schemas/SinglePickValue'
+              - $ref: '#/components/schemas/MultiPickValue'
+              - $ref: '#/components/schemas/FilterValue-Output'
+              - $ref: '#/components/schemas/InputDatasetValue'
+              - $ref: '#/components/schemas/InputStepValue'
+              discriminator:
+                propertyName: type
+                mapping:
+                  date: '#/components/schemas/DateValue'
+                  date-range: '#/components/schemas/DateRangeValue'
+                  filter: '#/components/schemas/FilterValue-Output'
+                  input-dataset: '#/components/schemas/InputDatasetValue'
+                  input-step: '#/components/schemas/InputStepValue'
+                  multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                  number: '#/components/schemas/NumberValue'
+                  number-range: '#/components/schemas/NumberRangeValue'
+                  single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                  string: '#/components/schemas/StringValue'
+                  timestamp: '#/components/schemas/TimestampValue'
+            type: object
           - type: 'null'
+          title: Parameters
         operator:
           anyOf:
           - type: string
@@ -8383,11 +10413,32 @@ components:
             type: array
           - type: 'null'
           title: Reports
+        expandedStrategyId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Expandedstrategyid
+        expandedName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expandedname
       type: object
       required:
       - id
       title: StepResponse
       description: Strategy step — WDK-aligned fields.
+    StepStartUIPart:
+      properties:
+        type:
+          type: string
+          const: step-start
+          title: Type
+          default: step-start
+      additionalProperties: false
+      type: object
+      title: StepStartUIPart
+      description: A step boundary part of a message.
     StepValidation:
       properties:
         level:
@@ -8627,7 +10678,32 @@ components:
           title: Searchname
         parameters:
           additionalProperties:
-            type: string
+            oneOf:
+            - $ref: '#/components/schemas/StringValue'
+            - $ref: '#/components/schemas/NumberValue'
+            - $ref: '#/components/schemas/NumberRangeValue'
+            - $ref: '#/components/schemas/DateValue'
+            - $ref: '#/components/schemas/DateRangeValue'
+            - $ref: '#/components/schemas/TimestampValue'
+            - $ref: '#/components/schemas/SinglePickValue'
+            - $ref: '#/components/schemas/MultiPickValue'
+            - $ref: '#/components/schemas/FilterValue-Input'
+            - $ref: '#/components/schemas/InputDatasetValue'
+            - $ref: '#/components/schemas/InputStepValue'
+            discriminator:
+              propertyName: type
+              mapping:
+                date: '#/components/schemas/DateValue'
+                date-range: '#/components/schemas/DateRangeValue'
+                filter: '#/components/schemas/FilterValue-Input'
+                input-dataset: '#/components/schemas/InputDatasetValue'
+                input-step: '#/components/schemas/InputStepValue'
+                multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                number: '#/components/schemas/NumberValue'
+                number-range: '#/components/schemas/NumberRangeValue'
+                single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                string: '#/components/schemas/StringValue'
+                timestamp: '#/components/schemas/TimestampValue'
           type: object
           title: Parameters
         primaryInput:
@@ -8671,6 +10747,16 @@ components:
           - type: integer
           - type: 'null'
           title: Wdkweight
+        expandedStrategyId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Expandedstrategyid
+        expandedName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expandedname
         id:
           type: string
           title: Id
@@ -8687,16 +10773,7 @@ components:
 
         - transform: primary_input only
 
-        - search: no inputs
-
-
-        ``parameters`` accepts ``JSONObject`` (LLM''s natural output).
-
-        ``SerializedParams`` coerces each value to ``str`` via Pydantic
-
-        validation, producing WDK-compatible ``dict[str, str]``
-
-        (``Record<string, ParameterValue>``).'
+        - search: no inputs'
     StrategyStepNode-Output:
       properties:
         searchName:
@@ -8704,7 +10781,32 @@ components:
           title: Searchname
         parameters:
           additionalProperties:
-            type: string
+            oneOf:
+            - $ref: '#/components/schemas/StringValue'
+            - $ref: '#/components/schemas/NumberValue'
+            - $ref: '#/components/schemas/NumberRangeValue'
+            - $ref: '#/components/schemas/DateValue'
+            - $ref: '#/components/schemas/DateRangeValue'
+            - $ref: '#/components/schemas/TimestampValue'
+            - $ref: '#/components/schemas/SinglePickValue'
+            - $ref: '#/components/schemas/MultiPickValue'
+            - $ref: '#/components/schemas/FilterValue-Output'
+            - $ref: '#/components/schemas/InputDatasetValue'
+            - $ref: '#/components/schemas/InputStepValue'
+            discriminator:
+              propertyName: type
+              mapping:
+                date: '#/components/schemas/DateValue'
+                date-range: '#/components/schemas/DateRangeValue'
+                filter: '#/components/schemas/FilterValue-Output'
+                input-dataset: '#/components/schemas/InputDatasetValue'
+                input-step: '#/components/schemas/InputStepValue'
+                multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                number: '#/components/schemas/NumberValue'
+                number-range: '#/components/schemas/NumberRangeValue'
+                single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                string: '#/components/schemas/StringValue'
+                timestamp: '#/components/schemas/TimestampValue'
           type: object
           title: Parameters
         primaryInput:
@@ -8748,6 +10850,16 @@ components:
           - type: integer
           - type: 'null'
           title: Wdkweight
+        expandedStrategyId:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Expandedstrategyid
+        expandedName:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expandedname
         id:
           type: string
           title: Id
@@ -8764,85 +10876,98 @@ components:
 
         - transform: primary_input only
 
-        - search: no inputs
-
-
-        ``parameters`` accepts ``JSONObject`` (LLM''s natural output).
-
-        ``SerializedParams`` coerces each value to ``str`` via Pydantic
-
-        validation, producing WDK-compatible ``dict[str, str]``
-
-        (``Record<string, ParameterValue>``).'
+        - search: no inputs'
     StreamPartsSchemaIndex:
       properties:
-        graph_snapshot:
+        graphSnapshot:
           anyOf:
           - $ref: '#/components/schemas/GraphSnapshot'
           - type: 'null'
-        graph_plan:
+        graphPlan:
           anyOf:
           - $ref: '#/components/schemas/GraphPlan'
           - type: 'null'
-        graph_cleared:
+        graphCleared:
           anyOf:
           - $ref: '#/components/schemas/GraphCleared'
           - type: 'null'
-        strategy_patch:
+        strategyPatch:
           anyOf:
           - $ref: '#/components/schemas/StrategyPatch'
           - type: 'null'
-        strategy_meta:
+        strategyMeta:
           anyOf:
           - $ref: '#/components/schemas/StrategyMeta'
           - type: 'null'
-        strategy_link:
+        strategyLink:
           anyOf:
           - $ref: '#/components/schemas/StrategyLink'
           - type: 'null'
-        plan_artifact:
+        planArtifact:
           anyOf:
           - $ref: '#/components/schemas/PlanArtifact'
           - type: 'null'
-        plan_update:
+        planUpdate:
           anyOf:
           - $ref: '#/components/schemas/PlanUpdate'
           - type: 'null'
-        decision_presented:
+        decisionPresented:
           anyOf:
           - $ref: '#/components/schemas/DecisionPresented'
           - type: 'null'
-        problem_frame:
+        problemFrame:
           anyOf:
           - $ref: '#/components/schemas/ProblemFrame'
           - type: 'null'
-        gene_set:
+        geneSet:
           anyOf:
           - $ref: '#/components/schemas/GeneSet'
           - type: 'null'
-        optimization_snapshot:
+        optimizationSnapshot:
           anyOf:
           - $ref: '#/components/schemas/OptimizationSnapshot'
           - type: 'null'
-        phase_change:
+        phaseChange:
           anyOf:
           - $ref: '#/components/schemas/PhaseChange'
           - type: 'null'
-        background_task_started:
+        turnUsage:
+          anyOf:
+          - $ref: '#/components/schemas/TurnUsage'
+          - type: 'null'
+        backgroundTaskStarted:
           anyOf:
           - $ref: '#/components/schemas/BackgroundTaskStarted'
           - type: 'null'
-        task_progress:
+        taskProgress:
           anyOf:
           - $ref: '#/components/schemas/TaskProgress'
           - type: 'null'
-        task_completed:
+        taskCompleted:
           anyOf:
           - $ref: '#/components/schemas/TaskCompleted'
+          - type: 'null'
+        enrichmentResults:
+          anyOf:
+          - $ref: '#/components/schemas/EnrichmentResultsChunk'
           - type: 'null'
       type: object
       title: StreamPartsSchemaIndex
       description: Index of stream-part payload schemas. Never called — exists for OpenAPI generation.
+    StringValue:
+      properties:
+        type:
+          type: string
+          const: string
+          title: Type
+          default: string
+        value:
+          type: string
+          title: Value
+      type: object
+      required:
+      - value
+      title: StringValue
     SubsystemStatus:
       properties:
         ready:
@@ -8895,6 +11020,71 @@ components:
       - taskId
       - status
       title: TaskCompleted
+    TaskListItem:
+      properties:
+        taskId:
+          type: string
+          format: uuid
+          title: Taskid
+        toolName:
+          type: string
+          title: Toolname
+        status:
+          type: string
+          title: Status
+        estimatedDurationSeconds:
+          type: integer
+          title: Estimateddurationseconds
+        createdAt:
+          type: string
+          format: date-time
+          title: Createdat
+        startedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Startedat
+        completedAt:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Completedat
+        latestPercent:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Latestpercent
+        latestMessage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latestmessage
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      type: object
+      required:
+      - taskId
+      - toolName
+      - status
+      - estimatedDurationSeconds
+      - createdAt
+      title: TaskListItem
+    TaskListResponse:
+      properties:
+        tasks:
+          items:
+            $ref: '#/components/schemas/TaskListItem'
+          type: array
+          title: Tasks
+      type: object
+      required:
+      - tasks
+      title: TaskListResponse
     TaskProgress:
       properties:
         taskId:
@@ -8992,6 +11182,38 @@ components:
       - status
       - estimatedDurationSeconds
       title: TaskStatusResponse
+    TextUIPart:
+      properties:
+        type:
+          type: string
+          const: text
+          title: Type
+          default: text
+        text:
+          type: string
+          title: Text
+        state:
+          anyOf:
+          - type: string
+            enum:
+            - streaming
+            - done
+          - type: 'null'
+          title: State
+        providerMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Providermetadata
+      additionalProperties: false
+      type: object
+      required:
+      - text
+      title: TextUIPart
+      description: A text part of a message.
     ThresholdKnobRequest:
       properties:
         stepId:
@@ -9058,16 +11280,16 @@ components:
           - categorical
           title: Sweeptype
           default: numeric
-        minValue:
+        min:
           anyOf:
           - type: number
           - type: 'null'
-          title: Minvalue
-        maxValue:
+          title: Min
+        max:
           anyOf:
           - type: number
           - type: 'null'
-          title: Maxvalue
+          title: Max
         steps:
           type: integer
           maximum: 50.0
@@ -9097,6 +11319,7 @@ components:
               - quality
               - balanced
               - fast
+              - custom
             type: object
           propertyNames:
             enum:
@@ -9133,6 +11356,142 @@ components:
       - verification
       title: TierPreset
       description: Per-phase configuration for all five pipeline phases.
+    TimestampValue:
+      properties:
+        type:
+          type: string
+          const: timestamp
+          title: Type
+          default: timestamp
+        value:
+          type: string
+          minLength: 1
+          title: Value
+      type: object
+      required:
+      - value
+      title: TimestampValue
+    ToolApprovalRequested:
+      properties:
+        id:
+          type: string
+          title: Id
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      title: ToolApprovalRequested
+      description: Tool approval in requested state (awaiting user response).
+    ToolApprovalRequestedPart:
+      properties:
+        type:
+          type: string
+          pattern: ^tool-
+          title: Type
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: approval-requested
+          title: State
+          default: approval-requested
+        input:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - toolCallId
+      title: ToolApprovalRequestedPart
+      description: Tool part in approval-requested state (awaiting user decision).
+    ToolApprovalResponded:
+      properties:
+        id:
+          type: string
+          title: Id
+        approved:
+          type: boolean
+          title: Approved
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - approved
+      title: ToolApprovalResponded
+      description: Tool approval in responded state (user has approved or denied).
+    ToolApprovalRespondedPart:
+      properties:
+        type:
+          type: string
+          pattern: ^tool-
+          title: Type
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: approval-responded
+          title: State
+          default: approval-responded
+        input:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - toolCallId
+      title: ToolApprovalRespondedPart
+      description: Tool part in approval-responded state (user approved/denied, execution pending).
     ToolCallDelta:
       properties:
         toolCallId:
@@ -9152,6 +11511,250 @@ components:
       required:
       - toolCallId
       title: ToolCallDelta
+    ToolInputAvailablePart:
+      properties:
+        type:
+          type: string
+          pattern: ^tool-
+          title: Type
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: input-available
+          title: State
+          default: input-available
+        input:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - toolCallId
+      title: ToolInputAvailablePart
+      description: Tool part in input-available state.
+    ToolInputStreamingPart:
+      properties:
+        type:
+          type: string
+          pattern: ^tool-
+          title: Type
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: input-streaming
+          title: State
+          default: input-streaming
+        input:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - toolCallId
+      title: ToolInputStreamingPart
+      description: Tool part in input-streaming state.
+    ToolOutputAvailablePart:
+      properties:
+        type:
+          type: string
+          pattern: ^tool-
+          title: Type
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: output-available
+          title: State
+          default: output-available
+        input:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Input
+        output:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Output
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        preliminary:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Preliminary
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - toolCallId
+      title: ToolOutputAvailablePart
+      description: Tool part in output-available state.
+    ToolOutputDeniedPart:
+      properties:
+        type:
+          type: string
+          pattern: ^tool-
+          title: Type
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: output-denied
+          title: State
+          default: output-denied
+        input:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Input
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - toolCallId
+      title: ToolOutputDeniedPart
+      description: Tool part in output-denied state (tool was denied, terminal state).
+    ToolOutputErrorPart:
+      properties:
+        type:
+          type: string
+          pattern: ^tool-
+          title: Type
+        toolCallId:
+          type: string
+          title: Toolcallid
+        state:
+          type: string
+          const: output-error
+          title: State
+          default: output-error
+        input:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Input
+        rawInput:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Rawinput
+        errorText:
+          type: string
+          title: Errortext
+        providerExecuted:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Providerexecuted
+        callProviderMetadata:
+          anyOf:
+          - additionalProperties:
+              additionalProperties: true
+              type: object
+            type: object
+          - type: 'null'
+          title: Callprovidermetadata
+        approval:
+          anyOf:
+          - $ref: '#/components/schemas/ToolApprovalRequested'
+          - $ref: '#/components/schemas/ToolApprovalResponded'
+          - type: 'null'
+          title: Approval
+      additionalProperties: false
+      type: object
+      required:
+      - type
+      - toolCallId
+      - errorText
+      title: ToolOutputErrorPart
+      description: Tool part in output-error state.
     TreeOptimizationResultResponse:
       properties:
         bestTrial:
@@ -9237,7 +11840,7 @@ components:
         parameters:
           anyOf:
           - additionalProperties:
-              $ref: '#/components/schemas/JSONValue'
+              $ref: '#/components/schemas/JsonValue'
             type: object
           - type: 'null'
           title: Parameters
@@ -9248,6 +11851,102 @@ components:
       - status
       title: TrialProgressDataResponse
       description: Progress data for a single optimization trial.
+    TurnUsage:
+      properties:
+        totalTokens:
+          type: integer
+          minimum: 0.0
+          title: Totaltokens
+        costUsd:
+          type: string
+          title: Costusd
+      type: object
+      required:
+      - totalTokens
+      - costUsd
+      title: TurnUsage
+      description: 'Cumulative token + cost totals for the current turn.
+
+
+        Emitted via ``data-turn-usage`` after each phase completes so the
+
+        composer footer tracks spend in real time. Persisted independently
+
+        via ``MessagesRepository.upsert_message`` so a mid-turn failure still
+
+        leaves the totals in the conversation-detail response.'
+    UIMessage:
+      properties:
+        id:
+          type: string
+          title: Id
+        role:
+          type: string
+          enum:
+          - system
+          - user
+          - assistant
+          title: Role
+        metadata:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Metadata
+        parts:
+          items:
+            anyOf:
+            - $ref: '#/components/schemas/TextUIPart'
+            - $ref: '#/components/schemas/ReasoningUIPart'
+            - $ref: '#/components/schemas/ToolInputStreamingPart'
+            - $ref: '#/components/schemas/ToolInputAvailablePart'
+            - $ref: '#/components/schemas/ToolOutputAvailablePart'
+            - $ref: '#/components/schemas/ToolOutputErrorPart'
+            - $ref: '#/components/schemas/ToolApprovalRequestedPart'
+            - $ref: '#/components/schemas/ToolApprovalRespondedPart'
+            - $ref: '#/components/schemas/ToolOutputDeniedPart'
+            - $ref: '#/components/schemas/DynamicToolInputStreamingPart'
+            - $ref: '#/components/schemas/DynamicToolInputAvailablePart'
+            - $ref: '#/components/schemas/DynamicToolOutputAvailablePart'
+            - $ref: '#/components/schemas/DynamicToolOutputErrorPart'
+            - $ref: '#/components/schemas/DynamicToolApprovalRequestedPart'
+            - $ref: '#/components/schemas/DynamicToolApprovalRespondedPart'
+            - $ref: '#/components/schemas/DynamicToolOutputDeniedPart'
+            - $ref: '#/components/schemas/SourceUrlUIPart'
+            - $ref: '#/components/schemas/SourceDocumentUIPart'
+            - $ref: '#/components/schemas/FileUIPart'
+            - $ref: '#/components/schemas/DataUIPart'
+            - $ref: '#/components/schemas/StepStartUIPart'
+          type: array
+          title: Parts
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - role
+      - parts
+      title: UIMessage
+      description: A message as displayed in the UI by Vercel AI Elements.
+    UpdateCombineOperatorOp:
+      properties:
+        kind:
+          type: string
+          const: updateCombineOperator
+          title: Kind
+          default: updateCombineOperator
+        stepId:
+          type: string
+          title: Stepid
+        operator:
+          $ref: '#/components/schemas/CombineOp'
+        colocationParams:
+          anyOf:
+          - $ref: '#/components/schemas/ColocationParams'
+          - type: 'null'
+      type: object
+      required:
+      - stepId
+      - operator
+      title: UpdateCombineOperatorOp
     UpdateConversationRequest:
       properties:
         name:
@@ -9273,6 +11972,88 @@ components:
           title: Issaved
       type: object
       title: UpdateConversationRequest
+    UpdateStepMetaOp:
+      properties:
+        kind:
+          type: string
+          const: updateStepMeta
+          title: Kind
+          default: updateStepMeta
+        stepId:
+          type: string
+          title: Stepid
+        displayName:
+          type: string
+          title: Displayname
+      type: object
+      required:
+      - stepId
+      - displayName
+      title: UpdateStepMetaOp
+    UpdateStepParamsOp:
+      properties:
+        kind:
+          type: string
+          const: updateStepParams
+          title: Kind
+          default: updateStepParams
+        stepId:
+          type: string
+          title: Stepid
+        parameters:
+          additionalProperties:
+            oneOf:
+            - $ref: '#/components/schemas/StringValue'
+            - $ref: '#/components/schemas/NumberValue'
+            - $ref: '#/components/schemas/NumberRangeValue'
+            - $ref: '#/components/schemas/DateValue'
+            - $ref: '#/components/schemas/DateRangeValue'
+            - $ref: '#/components/schemas/TimestampValue'
+            - $ref: '#/components/schemas/SinglePickValue'
+            - $ref: '#/components/schemas/MultiPickValue'
+            - $ref: '#/components/schemas/FilterValue-Input'
+            - $ref: '#/components/schemas/InputDatasetValue'
+            - $ref: '#/components/schemas/InputStepValue'
+            discriminator:
+              propertyName: type
+              mapping:
+                date: '#/components/schemas/DateValue'
+                date-range: '#/components/schemas/DateRangeValue'
+                filter: '#/components/schemas/FilterValue-Input'
+                input-dataset: '#/components/schemas/InputDatasetValue'
+                input-step: '#/components/schemas/InputStepValue'
+                multi-pick-vocabulary: '#/components/schemas/MultiPickValue'
+                number: '#/components/schemas/NumberValue'
+                number-range: '#/components/schemas/NumberRangeValue'
+                single-pick-vocabulary: '#/components/schemas/SinglePickValue'
+                string: '#/components/schemas/StringValue'
+                timestamp: '#/components/schemas/TimestampValue'
+          type: object
+          title: Parameters
+      type: object
+      required:
+      - stepId
+      - parameters
+      title: UpdateStepParamsOp
+    UpdateStrategyMetaOp:
+      properties:
+        kind:
+          type: string
+          const: updateStrategyMeta
+          title: Kind
+          default: updateStrategyMeta
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+      type: object
+      title: UpdateStrategyMetaOp
     UpdatesEvent:
       properties:
         type:
@@ -9359,29 +12140,201 @@ components:
       - isValid
       title: ValidationResult
       description: Single validation result with normalized values.
-    _UIMessage:
+    WDKDatasetParser:
       properties:
-        id:
+        name:
           type: string
-          title: Id
-        role:
+          title: Name
+        displayName:
           type: string
-          enum:
-          - system
-          - user
-          - assistant
-          title: Role
-        parts:
-          items:
-            additionalProperties: true
-            type: object
-          type: array
-          title: Parts
+          title: Displayname
+          default: ''
+        description:
+          type: string
+          title: Description
+          default: ''
       type: object
       required:
-      - id
-      - role
-      title: _UIMessage
+      - name
+      title: WDKDatasetParser
+      description: An input parser offered by a dataset parameter.
+    WDKFilterOntologyTerm:
+      properties:
+        term:
+          type: string
+          title: Term
+        parent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent
+        display:
+          type: string
+          title: Display
+          default: ''
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        type:
+          anyOf:
+          - type: string
+            enum:
+            - date
+            - string
+            - number
+            - multiFilter
+          - type: 'null'
+          title: Type
+        precision:
+          type: integer
+          title: Precision
+          default: 1
+        isRange:
+          type: boolean
+          title: Isrange
+          default: false
+      type: object
+      required:
+      - term
+      title: WDKFilterOntologyTerm
+      description: A node in a filter parameter's ontology tree.
+    WDKHistogramBin:
+      properties:
+        value:
+          type: integer
+          title: Value
+          default: 0
+        binStart:
+          type: string
+          title: Binstart
+          default: ''
+        binEnd:
+          type: string
+          title: Binend
+          default: ''
+        binLabel:
+          type: string
+          title: Binlabel
+          default: ''
+      type: object
+      title: WDKHistogramBin
+      description: Single bin in a column distribution histogram.
+    WDKHistogramStatistics:
+      properties:
+        subsetSize:
+          type: integer
+          title: Subsetsize
+          default: 0
+        subsetMin:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Subsetmin
+        subsetMax:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Subsetmax
+        subsetMean:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Subsetmean
+        numVarValues:
+          type: integer
+          title: Numvarvalues
+          default: 0
+        numDistinctValues:
+          type: integer
+          title: Numdistinctvalues
+          default: 0
+        numDistinctEntityRecords:
+          type: integer
+          title: Numdistinctentityrecords
+          default: 0
+        numMissingCases:
+          type: integer
+          title: Nummissingcases
+          default: 0
+      type: object
+      title: WDKHistogramStatistics
+      description: Statistics summary for a column distribution.
+    WDKRecordIdPart:
+      properties:
+        name:
+          type: string
+          title: Name
+        value:
+          type: string
+          title: Value
+      type: object
+      required:
+      - name
+      - value
+      title: WDKRecordIdPart
+      description: One (name, value) segment of a WDK record's composite primary key.
+    WDKTreeBoxVocabNode:
+      properties:
+        data:
+          $ref: '#/components/schemas/WDKVocabNodeData'
+        children:
+          items:
+            $ref: '#/components/schemas/WDKTreeBoxVocabNode'
+          type: array
+          title: Children
+      type: object
+      title: WDKTreeBoxVocabNode
+      description: A node in a treeBox enum vocabulary tree.
+    WDKVocabNodeData:
+      properties:
+        term:
+          type: string
+          title: Term
+          default: ''
+        display:
+          type: string
+          title: Display
+          default: ''
+      type: object
+      title: WDKVocabNodeData
+      description: The ``data`` payload of a treeBox vocabulary node.
+    WDKVocabTerm:
+      prefixItems:
+      - type: string
+      - type: string
+      - type: 'null'
+      type: array
+      maxItems: 3
+      minItems: 3
+      title: WDKVocabTerm
+      description: 'A standard-enum vocabulary entry: ``[term, display, null]``.'
+    WireInputOp:
+      properties:
+        kind:
+          type: string
+          const: wireInput
+          title: Kind
+          default: wireInput
+        targetStepId:
+          type: string
+          title: Targetstepid
+        slot:
+          type: string
+          enum:
+          - primary
+          - secondary
+          title: Slot
+        sourceStepId:
+          type: string
+          title: Sourcestepid
+      type: object
+      required:
+      - targetStepId
+      - slot
+      - sourceStepId
+      title: WireInputOp
   securitySchemes:
     APIKeyCookie:
       type: apiKey

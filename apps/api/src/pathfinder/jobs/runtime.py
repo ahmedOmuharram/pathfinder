@@ -9,7 +9,7 @@ from pathfinder.domain.strategy.strategy_ast import (
     StrategyAst,
 )
 from pathfinder.persistence.models import Conversation
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 from pathfinder.services.strategies.session_factory import build_strategy_session
@@ -32,7 +32,7 @@ async def build_worker_runtime_context(
     if raw_ast and "root" in raw_ast:
         try:
             plan_payload = StrategyAst.model_validate(raw_ast)
-        except (ValueError, KeyError, TypeError):
+        except ValueError, KeyError, TypeError:
             plan_payload = None
 
     strategy_session = build_strategy_session(

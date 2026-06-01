@@ -5,7 +5,9 @@ from collections.abc import Callable
 from pathfinder.domain.strategy.ast import StrategyStepNode
 
 
-def walk_plan_tree(root: StrategyStepNode, visitor: Callable[[StrategyStepNode], None]) -> None:
+def walk_plan_tree(
+    root: StrategyStepNode, visitor: Callable[[StrategyStepNode], None]
+) -> None:
     """Pre-order walk of a StrategyStepNode AST."""
     visitor(root)
     if root.primary_input is not None:

@@ -192,7 +192,9 @@ def _add_step_to_graph(
             return None, None, None
 
         _new_step_id, combine_id = graph.insert_step_with_combine(
-            step, combine_with_step_id, combine_op,
+            step,
+            combine_with_step_id,
+            combine_op,
         )
         combine_step = graph.steps[combine_id]
         logger.info(
@@ -208,7 +210,12 @@ def _add_step_to_graph(
     # The _skip_auto_combine flag only disables the combine-with-existing
     # logic above — the step still needs root tracking for auto-build.
     graph.add_step(step)
-    logger.info("Created step", step_id=step.id, search=search_name, skip_auto_combine=spec._skip_auto_combine)
+    logger.info(
+        "Created step",
+        step_id=step.id,
+        search=search_name,
+        skip_auto_combine=spec._skip_auto_combine,
+    )
     return step.id, None, None
 
 
@@ -252,20 +259,23 @@ async def create_step(
         callbacks.resolve_record_type_for_search,
     )
 
-    search_name, parsed_op, canonical_params, step_error = (
-        await resolve_search_name_and_validate(
-            graph=graph,
-            site_id=site_id,
-            spec_search_name=spec.search_name,
-            inputs=StepInputs(
-                primary=primary_input,
-                secondary=secondary_input,
-                operator=operator,
-                params=parameters,
-            ),
-            callbacks=callbacks,
-            combine_placeholder=COMBINE_PLACEHOLDER_SEARCH_NAME,
-        )
+    (
+        search_name,
+        parsed_op,
+        canonical_params,
+        step_error,
+    ) = await resolve_search_name_and_validate(
+        graph=graph,
+        site_id=site_id,
+        spec_search_name=spec.search_name,
+        inputs=StepInputs(
+            primary=primary_input,
+            secondary=secondary_input,
+            operator=operator,
+            params=parameters,
+        ),
+        callbacks=callbacks,
+        combine_placeholder=COMBINE_PLACEHOLDER_SEARCH_NAME,
     )
     if step_error is not None:
         return _error_result(step_error)
@@ -308,10 +318,12 @@ async def create_step(
         combine_with_step_id=combine_with_step_id,
     )
     if step_id is None:
-        return _error_result(tool_error(
-            "STEP_NOT_FOUND",
-            f"combine_with_step_id '{combine_with_step_id}' not found in graph.",
-        ))
+        return _error_result(
+            tool_error(
+                "STEP_NOT_FOUND",
+                f"combine_with_step_id '{combine_with_step_id}' not found in graph.",
+            )
+        )
 
     # Push leaf step to WDK immediately (best-effort).
     wdk_step_id, wdk_validation, push_error = await push_step_to_wdk(
@@ -421,7 +433,13 @@ async def create_colocation_step(
         display_name=spec.display_name,
         colocation_params=colocation,
     )
-    result = await create_step(graph=graph, sync_state=sync_state, site_id=site_id, spec=step_spec, callbacks=callbacks)
+    result = await create_step(
+        graph=graph,
+        sync_state=sync_state,
+        site_id=site_id,
+        spec=step_spec,
+        callbacks=callbacks,
+    )
     # Restore record type — GenesBySpanLogic lives under transcript,
     # not whatever the secondary input's record type is.
     graph.record_type = saved_record_type or "transcript"

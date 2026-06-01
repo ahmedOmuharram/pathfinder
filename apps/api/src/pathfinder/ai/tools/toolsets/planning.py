@@ -37,7 +37,9 @@ def _loop_hidden_reads(ctx: RunContext[AgentDeps]) -> frozenset[str]:
             if part.tool_name in _READ_TOOLS:
                 counts[part.tool_name] = counts.get(part.tool_name, 0) + 1
                 continue
-            return frozenset({n for n, c in counts.items() if c >= _MAX_CONSECUTIVE_READ})
+            return frozenset(
+                {n for n, c in counts.items() if c >= _MAX_CONSECUTIVE_READ}
+            )
     return frozenset({n for n, c in counts.items() if c >= _MAX_CONSECUTIVE_READ})
 
 
@@ -50,7 +52,8 @@ def _plan_state_gated(
 
 
 async def _prepare(
-    ctx: RunContext[AgentDeps], tool_defs: list[ToolDefinition],
+    ctx: RunContext[AgentDeps],
+    tool_defs: list[ToolDefinition],
 ) -> list[ToolDefinition]:
     excluded = _loop_hidden_reads(ctx) | _plan_state_gated(ctx)
     if not excluded:

@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import UUID
 
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from pydantic import BaseModel, ConfigDict, Field, SkipValidation
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.state import AgentToolState
@@ -20,11 +18,12 @@ from pathfinder.ai.graph.state import (
 )
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.session import StrategySession
+from pathfinder.platform.db import DBSessionFactory
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
+from pathfinder.services.strategies.context import StrategyMutationContext
 
 ReasoningEffort = Literal["none", "low", "medium", "high"]
-DBSessionFactory = Callable[[], AsyncSession]
 
 
 @dataclass(frozen=True)
@@ -71,6 +70,15 @@ class AgentDeps(BaseModel):
     writer: SkipValidation[Any] = None
     plan_slot_answers: list[PlanSlotAnswer] = Field(default_factory=list)
 
+    def to_strategy_context(self) -> StrategyMutationContext:
+        """Narrow this container down to what strategy-mutation services need."""
+        return StrategyMutationContext(
+            site_id=self.site_id,
+            strategy_session=self.strategy_session,
+            conversation_id=self.conversation_id,
+            db_session_factory=self.db_session_factory,
+        )
+
 
 def build_node_deps(
     state: PipelineState,
@@ -88,9 +96,7 @@ def build_node_deps(
         else None
     )
     slot_answers = (
-        state.plan_slot_answers.get(pending_id, [])
-        if pending_id is not None
-        else []
+        state.plan_slot_answers.get(pending_id, []) if pending_id is not None else []
     )
     return AgentDeps(
         site_id=context.site_id,

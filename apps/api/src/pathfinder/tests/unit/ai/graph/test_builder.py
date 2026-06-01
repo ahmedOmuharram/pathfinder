@@ -12,14 +12,20 @@ from pathfinder.ai.graph.state import PipelineState
 
 @pytest.fixture
 def compiled_graph() -> CompiledStateGraph[
-    PipelineState, Context, PipelineState, PipelineState,
+    PipelineState,
+    Context,
+    PipelineState,
+    PipelineState,
 ]:
     return build_graph(checkpointer=InMemorySaver())
 
 
 def test_graph_has_lead_and_finalize_nodes(
     compiled_graph: CompiledStateGraph[
-        PipelineState, Context, PipelineState, PipelineState,
+        PipelineState,
+        Context,
+        PipelineState,
+        PipelineState,
     ],
 ) -> None:
     nodes = set(compiled_graph.get_graph().nodes.keys())
@@ -29,7 +35,10 @@ def test_graph_has_lead_and_finalize_nodes(
 
 def test_graph_entry_edge_goes_to_lead(
     compiled_graph: CompiledStateGraph[
-        PipelineState, Context, PipelineState, PipelineState,
+        PipelineState,
+        Context,
+        PipelineState,
+        PipelineState,
     ],
 ) -> None:
     edges = compiled_graph.get_graph().edges
@@ -39,7 +48,10 @@ def test_graph_entry_edge_goes_to_lead(
 
 def test_compiled_graph_records_state_schema_with_checkpointer(
     compiled_graph: CompiledStateGraph[
-        PipelineState, Context, PipelineState, PipelineState,
+        PipelineState,
+        Context,
+        PipelineState,
+        PipelineState,
     ],
 ) -> None:
     assert compiled_graph.checkpointer is not None

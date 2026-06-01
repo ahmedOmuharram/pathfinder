@@ -22,7 +22,8 @@ from pathfinder.domain.strategy.plan import (
 
 
 def apply_plan_slot_answers(
-    plan: StrategyPlan, answers: list[PlanSlotAnswer],
+    plan: StrategyPlan,
+    answers: list[PlanSlotAnswer],
 ) -> None:
     """Promote NEEDS_USER_INPUT params to USER_SET using the form answers.
 
@@ -37,7 +38,8 @@ def apply_plan_slot_answers(
         if step is None:
             continue
         param = next(
-            (p for p in step.parameters if p.name == ans.param_name), None,
+            (p for p in step.parameters if p.name == ans.param_name),
+            None,
         )
         if param is None:
             continue
@@ -49,10 +51,7 @@ def apply_plan_slot_answers(
             continue
         key = (q.related_step, q.related_param)
         if key in answered_keys:
-            value = next(
-                a.value for a in answers
-                if (a.step_id, a.param_name) == key
-            )
+            value = next(a.value for a in answers if (a.step_id, a.param_name) == key)
             q.answer = value
 
 

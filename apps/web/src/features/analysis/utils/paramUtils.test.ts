@@ -257,8 +257,8 @@ describe("resolveDisplayValue", () => {
       name: "a",
       type: "string",
       vocabulary: [
-        ["v1", "Display One"],
-        ["v2", "Display Two"],
+        ["v1", "Display One", null],
+        ["v2", "Display Two", null],
       ],
     });
     expect(resolveDisplayValue("v1", spec)).toBe("Display One");
@@ -268,7 +268,7 @@ describe("resolveDisplayValue", () => {
     const spec = makeSpec({
       name: "a",
       type: "string",
-      vocabulary: [["v1", "Display One"]],
+      vocabulary: [["v1", "Display One", null]],
     });
     expect(resolveDisplayValue("unknown", spec)).toBe("unknown");
   });
@@ -356,7 +356,7 @@ describe("buildAutoOptimizeSpecs", () => {
       makeSpec({
         name: "organism",
         type: "single-pick-vocabulary",
-        vocabulary: ["org1", "org2", "org3"],
+        vocabulary: [["org1", "org1", null], ["org2", "org2", null], ["org3", "org3", null]],
       }),
     ];
     const result = buildAutoOptimizeSpecs(specs);
@@ -414,7 +414,7 @@ describe("buildAutoOptimizeSpecs", () => {
       makeSpec({
         name: "org",
         type: "single-pick-vocabulary",
-        vocabulary: ["a", "b"],
+        vocabulary: [["a", "a", null], ["b", "b", null]],
       }),
     ];
     const result = buildAutoOptimizeSpecs(specs);
@@ -437,8 +437,8 @@ describe("buildDisplayMap", () => {
         name: "organism",
         type: "string",
         vocabulary: [
-          ["pf3d7", "P. falciparum 3D7"],
-          ["pvsal", "P. vivax Sal-I"],
+          ["pf3d7", "P. falciparum 3D7", null],
+          ["pvsal", "P. vivax Sal-I", null],
         ],
       }),
     ];
@@ -459,7 +459,7 @@ describe("buildDisplayMap", () => {
       makeSpec({
         name: "org",
         type: "string",
-        vocabulary: ["alpha", "beta"],
+        vocabulary: [["alpha", "alpha", null], ["beta", "beta", null]],
       }),
     ];
     const result = buildDisplayMap(parameters, paramSpecs);
@@ -474,8 +474,8 @@ describe("buildDisplayMap", () => {
         name: "orgs",
         type: "multi-pick-vocabulary",
         vocabulary: [
-          ["v1", "Label One"],
-          ["v2", "Label Two"],
+          ["v1", "Label One", null],
+          ["v2", "Label Two", null],
         ],
       }),
     ];
@@ -501,7 +501,7 @@ describe("buildDisplayMap", () => {
       makeSpec({
         name: "orgs",
         type: "multi-pick-vocabulary",
-        vocabulary: [["v1", "Label One"]],
+        vocabulary: [["v1", "Label One", null]],
       }),
     ];
     const result = buildDisplayMap(parameters, paramSpecs);

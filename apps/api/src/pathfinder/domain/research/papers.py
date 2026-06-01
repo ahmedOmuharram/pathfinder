@@ -253,9 +253,7 @@ class EuropePmcRawResult(BaseModel):
     ``authorString`` is split in a model_validator.
     """
 
-    model_config = ConfigDict(
-        extra="ignore", coerce_numbers_to_str=False
-    )
+    model_config = ConfigDict(extra="ignore", coerce_numbers_to_str=False)
 
     title: str = ""
     pub_year: int | None = Field(None)

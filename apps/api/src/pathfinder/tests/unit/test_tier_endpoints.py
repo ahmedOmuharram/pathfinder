@@ -18,7 +18,11 @@ from pathfinder.transport.http.routers.tiers import TierListResponse, list_tiers
 EXPECTED_PROVIDERS: frozenset[str] = frozenset({"anthropic", "openai", "google"})
 EXPECTED_TIERS: frozenset[str] = frozenset({"quality", "balanced", "fast"})
 EXPECTED_PHASES: tuple[str, ...] = (
-    "scoping", "discovery", "planning", "execution", "verification",
+    "scoping",
+    "discovery",
+    "planning",
+    "execution",
+    "verification",
 )
 VALID_REASONING_EFFORTS: frozenset[str] = frozenset({"low", "medium", "high"})
 
@@ -90,8 +94,7 @@ async def test_every_preset_model_id_resolves_in_catalog() -> None:
                 cfg = getattr(preset, phase)
                 entry = get_model_entry(cfg.model_id)
                 assert entry is not None, (
-                    f"{provider}/{tier_name}/{phase}: "
-                    f"{cfg.model_id} not in catalog"
+                    f"{provider}/{tier_name}/{phase}: {cfg.model_id} not in catalog"
                 )
                 assert entry.id == cfg.model_id
                 assert entry.provider == provider, (

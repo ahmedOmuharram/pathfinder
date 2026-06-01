@@ -8,6 +8,7 @@ for the sidebar tree. ``parent_message_id`` is the turn the user branched at;
 Revision ID: 2026_04_18_0005
 Revises: 2026_04_18_0004
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

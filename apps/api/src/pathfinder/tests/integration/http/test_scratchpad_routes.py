@@ -8,9 +8,9 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from pathfinder.ai.scratchpad.models import NoteCreate
-from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.security import create_user_token
 
 pytestmark = pytest.mark.asyncio
@@ -89,7 +89,10 @@ async def api_client_other_user(
 @pytest.fixture
 async def conv_id(db_session: AsyncSession, seed_user: User) -> UUID:
     conv = Conversation(
-        user_id=seed_user.id, site_id="plasmodb", name="", experiment_id=None,
+        user_id=seed_user.id,
+        site_id="plasmodb",
+        name="",
+        experiment_id=None,
     )
     db_session.add(conv)
     await db_session.flush()
@@ -99,7 +102,9 @@ async def conv_id(db_session: AsyncSession, seed_user: User) -> UUID:
 
 class TestListAndGet:
     async def test_list_empty(
-        self, api_client: httpx.AsyncClient, conv_id: UUID,
+        self,
+        api_client: httpx.AsyncClient,
+        conv_id: UUID,
     ) -> None:
         res = await api_client.get(
             f"/api/v1/conversations/{conv_id}/scratchpad/notes",
@@ -228,7 +233,9 @@ class TestAuthz:
 
 class TestAuditLog:
     async def test_compactions_endpoint_empty(
-        self, api_client: httpx.AsyncClient, conv_id: UUID,
+        self,
+        api_client: httpx.AsyncClient,
+        conv_id: UUID,
     ) -> None:
         res = await api_client.get(
             f"/api/v1/conversations/{conv_id}/scratchpad/compactions",

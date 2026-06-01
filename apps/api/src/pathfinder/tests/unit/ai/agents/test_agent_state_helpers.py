@@ -3,6 +3,7 @@
 ``parameter_id`` / ``search_name`` constraint that the model sees in
 its tool schemas, so wrong values here would break the entire
 hallucination-prevention story."""
+
 from __future__ import annotations
 
 from pathfinder.ai.agents.state import AgentToolState, SearchOverview
@@ -43,10 +44,12 @@ def test_selected_search_names_only_returns_selected_status() -> None:
     ``rejected``)."""
     s = AgentToolState()
     s.register_search(
-        "GenesByGoTerm", _ov("GenesByGoTerm", selection_status="selected"),
+        "GenesByGoTerm",
+        _ov("GenesByGoTerm", selection_status="selected"),
     )
     s.register_search(
-        "GenesByText", _ov("GenesByText", selection_status="candidate"),
+        "GenesByText",
+        _ov("GenesByText", selection_status="candidate"),
     )
     s.register_search(
         "GenesByMicroarray",
@@ -62,7 +65,8 @@ def test_all_param_keys_unions_across_searches() -> None:
     the param belongs to its specific search."""
     s = AgentToolState()
     s.register_search(
-        "GenesByText", _ov("GenesByText", parameter_names=["query", "max_pvalue"]),
+        "GenesByText",
+        _ov("GenesByText", parameter_names=["query", "max_pvalue"]),
     )
     s.register_search(
         "GenesByGoTerm",
@@ -77,7 +81,8 @@ def test_param_keys_for_returns_only_that_search() -> None:
     that signal to fall back to an unconstrained schema)."""
     s = AgentToolState()
     s.register_search(
-        "GenesByText", _ov("GenesByText", parameter_names=["query", "max_pvalue"]),
+        "GenesByText",
+        _ov("GenesByText", parameter_names=["query", "max_pvalue"]),
     )
     s.register_search(
         "GenesByGoTerm",

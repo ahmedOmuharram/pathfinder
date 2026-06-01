@@ -56,7 +56,7 @@ async def load_dataset_metadata(
             site_id=site_id,
             datasets=len(summaries),
         )
-    except (AppError, OSError, ValueError, TypeError):
+    except AppError, OSError, ValueError, TypeError:
         logger.warning(
             "Failed to load dataset metadata (non-fatal)",
             site_id=site_id,
@@ -93,7 +93,8 @@ class _OntologyNodeProps(CamelModel):
 
     label: list[str] = Field(default_factory=list)
     eu_path_db_alternative_term: list[str] = Field(
-        default_factory=list, alias="EuPathDB alternative term",
+        default_factory=list,
+        alias="EuPathDB alternative term",
     )
 
     @property
@@ -164,7 +165,9 @@ async def load_ontology_categories(
                         break
 
             for child in node.children:
-                walk(child, [*ancestors, label], [*ancestor_display_names, display_name])
+                walk(
+                    child, [*ancestors, label], [*ancestor_display_names, display_name]
+                )
 
         walk(tree, [], [])
         logger.info(
@@ -174,7 +177,7 @@ async def load_ontology_categories(
             categories=len(available_categories),
             labeled_searches=len(search_category_labels),
         )
-    except (AppError, OSError, ValueError, TypeError):
+    except AppError, OSError, ValueError, TypeError:
         logger.warning(
             "Failed to load ontology categories (non-fatal)",
             site_id=site_id,

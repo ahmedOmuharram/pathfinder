@@ -17,9 +17,7 @@ async def test_procrastinate_app_opens_and_closes(
 
 
 @pytest.mark.asyncio
-async def test_defer_echo_task(
-    db_cleaner: None, patch_app_db_engine: None
-) -> None:
+async def test_defer_echo_task(db_cleaner: None, patch_app_db_engine: None) -> None:
     del db_cleaner, patch_app_db_engine
     async with procrastinate_app.open_async():
         job_id = await echo_task.defer_async(message="hello")

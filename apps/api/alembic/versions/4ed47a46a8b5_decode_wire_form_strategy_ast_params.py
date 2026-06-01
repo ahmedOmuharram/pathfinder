@@ -10,6 +10,7 @@ sync wrote JSON-encoded strings (e.g. ``"[\\"Plasmodium\\"]"``) into
 ``parameters``; the canonicalizer now expects native shapes (lists, dicts,
 scalars). Idempotent — already-decoded values pass through unchanged.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,7 +38,7 @@ def _decode_wire_value(value: object) -> object:
         return value
     try:
         return json.loads(value)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return value
 
 
@@ -59,8 +60,11 @@ def _decode_node(node: object) -> tuple[object, bool]:
             new_node[key] = new_params
             if param_changed:
                 changed = True
-        elif key in ("primaryInput", "secondaryInput", "primary_input",
-                     "secondary_input") and value is not None:
+        elif (
+            key
+            in ("primaryInput", "secondaryInput", "primary_input", "secondary_input")
+            and value is not None
+        ):
             new_child, child_changed = _decode_node(value)
             new_node[key] = new_child
             if child_changed:
@@ -74,8 +78,10 @@ def upgrade() -> None:
     """Backfill decoded form into every conversations.strategy_ast row."""
     bind = op.get_bind()
     rows = bind.execute(
-        sa.text("SELECT id, strategy_ast FROM conversations "
-                "WHERE strategy_ast IS NOT NULL AND strategy_ast != '{}'::jsonb"),
+        sa.text(
+            "SELECT id, strategy_ast FROM conversations "
+            "WHERE strategy_ast IS NOT NULL AND strategy_ast != '{}'::jsonb"
+        ),
     ).fetchall()
 
     update_stmt = sa.text(

@@ -51,9 +51,7 @@ def _try_apply_structural(
     return None
 
 
-def _try_apply_add_op(
-    graph: StrategyGraph, op: GraphOperation
-) -> ApplyResult | None:
+def _try_apply_add_op(graph: StrategyGraph, op: GraphOperation) -> ApplyResult | None:
     if isinstance(op, AddLeafOp):
         return _apply_add_leaf(graph, op)
     if isinstance(op, AddCombineOp):
@@ -108,7 +106,9 @@ def _apply_add_combine(graph: StrategyGraph, op: AddCombineOp) -> ApplyResult:
     if left is None or right is None:
         msg = "combine input step missing"
         raise ApplyError(msg)
-    combine = op.step.model_copy(update={"primary_input": left, "secondary_input": right})
+    combine = op.step.model_copy(
+        update={"primary_input": left, "secondary_input": right}
+    )
     if op.step.id in graph.steps:
         msg = f"step id {op.step.id!r} already exists"
         raise ApplyError(msg)
@@ -327,7 +327,9 @@ def _apply_replace_subtree(graph: StrategyGraph, op: ReplaceSubtreeOp) -> ApplyR
     graph.last_step_id = op.subtree.id
     return ApplyResult(
         description=f"Replaced subtree at {op.step_id}",
-        dropped_step_ids=sorted(old_subtree_ids - {n.id for n in walk_step_tree(op.subtree)}),
+        dropped_step_ids=sorted(
+            old_subtree_ids - {n.id for n in walk_step_tree(op.subtree)}
+        ),
     )
 
 
@@ -349,7 +351,9 @@ def _apply_update_combine_operator(
         raise ApplyError(msg)
     target.operator = op.operator
     target.colocation_params = op.colocation_params
-    return ApplyResult(description=f"Set operator of {op.step_id} to {op.operator.value}")
+    return ApplyResult(
+        description=f"Set operator of {op.step_id} to {op.operator.value}"
+    )
 
 
 def _apply_update_step_meta(graph: StrategyGraph, op: UpdateStepMetaOp) -> ApplyResult:
@@ -362,7 +366,8 @@ def _apply_update_step_meta(graph: StrategyGraph, op: UpdateStepMetaOp) -> Apply
 
 
 def _apply_update_strategy_meta(
-    graph: StrategyGraph, op: UpdateStrategyMetaOp,
+    graph: StrategyGraph,
+    op: UpdateStrategyMetaOp,
 ) -> ApplyResult:
     if op.name is not None:
         graph.name = op.name
@@ -372,7 +377,8 @@ def _apply_update_strategy_meta(
 
 
 def _apply_duplicate_step(
-    graph: StrategyGraph, op: DuplicateStepOp,
+    graph: StrategyGraph,
+    op: DuplicateStepOp,
 ) -> ApplyResult:
     source = graph.steps.get(op.source_step_id)
     if source is None:

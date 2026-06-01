@@ -24,7 +24,8 @@ def _tool_was_called(ctx: RunContext[AgentDeps], *names: str) -> bool:
 
 
 async def _prepare(
-    ctx: RunContext[AgentDeps], tool_defs: list[ToolDefinition],
+    ctx: RunContext[AgentDeps],
+    tool_defs: list[ToolDefinition],
 ) -> list[ToolDefinition]:
     # ``problem_frame_set_this_run`` is reset on every ``build_node_deps``
     # call, so this only short-circuits AFTER ``set_problem_frame`` ran in
@@ -36,7 +37,8 @@ async def _prepare(
         return [td for td in tool_defs if td.name == "think"]
     if not _tool_was_called(ctx, "web_search", "literature_search"):
         return [
-            td for td in tool_defs
+            td
+            for td in tool_defs
             if td.name in {"think", "web_search", "literature_search"}
         ]
     return tool_defs

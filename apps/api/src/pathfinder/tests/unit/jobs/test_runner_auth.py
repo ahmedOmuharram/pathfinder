@@ -103,11 +103,15 @@ async def test_run_durable_task_sets_ctxvar_from_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setitem(
-        runner_mod.TOOL_REGISTRY, "stub_tool", _observing_impl,
+        runner_mod.TOOL_REGISTRY,
+        "stub_tool",
+        _observing_impl,
     )
     monkeypatch.setattr(runner_mod, "BackgroundTaskRepository", _FakeRepo)
     monkeypatch.setattr(
-        runner_mod, "lifespan_memory_store", _fake_lifespan_memory_store,
+        runner_mod,
+        "lifespan_memory_store",
+        _fake_lifespan_memory_store,
     )
     monkeypatch.setattr(
         runner_mod,
@@ -142,11 +146,15 @@ async def test_run_durable_task_resets_ctxvar_after(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setitem(
-        runner_mod.TOOL_REGISTRY, "stub_tool", _observing_impl,
+        runner_mod.TOOL_REGISTRY,
+        "stub_tool",
+        _observing_impl,
     )
     monkeypatch.setattr(runner_mod, "BackgroundTaskRepository", _FakeRepo)
     monkeypatch.setattr(
-        runner_mod, "lifespan_memory_store", _fake_lifespan_memory_store,
+        runner_mod,
+        "lifespan_memory_store",
+        _fake_lifespan_memory_store,
     )
     monkeypatch.setattr(
         runner_mod,
@@ -182,11 +190,15 @@ async def test_run_durable_task_none_token_is_ok(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setitem(
-        runner_mod.TOOL_REGISTRY, "stub_tool", _observing_impl,
+        runner_mod.TOOL_REGISTRY,
+        "stub_tool",
+        _observing_impl,
     )
     monkeypatch.setattr(runner_mod, "BackgroundTaskRepository", _FakeRepo)
     monkeypatch.setattr(
-        runner_mod, "lifespan_memory_store", _fake_lifespan_memory_store,
+        runner_mod,
+        "lifespan_memory_store",
+        _fake_lifespan_memory_store,
     )
     monkeypatch.setattr(
         runner_mod,

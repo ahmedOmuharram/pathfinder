@@ -7,7 +7,9 @@ from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 
 
-def _leaf(search_name: str = "GenesByTaxon", display_name: str | None = "Taxon") -> StrategyStepNode:
+def _leaf(
+    search_name: str = "GenesByTaxon", display_name: str | None = "Taxon"
+) -> StrategyStepNode:
     return StrategyStepNode(
         search_name=search_name,
         display_name=display_name,

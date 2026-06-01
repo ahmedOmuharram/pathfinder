@@ -203,7 +203,6 @@ planning_agent: Agent[AgentDeps, PlanDelta | DeferredToolRequests] = Agent(
         ToolResilience(),
         _planning_hooks,
         Thinking(effort="high"),
-
     ],
     history_processors=PHASE_HISTORY_PROCESSORS,
     retries=3,
@@ -252,5 +251,3 @@ def _replan_context(ctx: RunContext[AgentDeps]) -> str | None:
         )
 
     return "\n".join(lines)
-
-

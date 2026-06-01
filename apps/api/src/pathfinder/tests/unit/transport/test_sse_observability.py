@@ -20,18 +20,24 @@ def test_sse_subscription_records_lifecycle_metrics() -> None:
     telemetry.started_monotonic = 10.0
 
     with (
-        patch("pathfinder.transport.http.sse_observability.sse_subscriptions") as mock_started,
+        patch(
+            "pathfinder.transport.http.sse_observability.sse_subscriptions"
+        ) as mock_started,
         patch(
             "pathfinder.transport.http.sse_observability.sse_active_subscriptions"
         ) as mock_active,
-        patch("pathfinder.transport.http.sse_observability.sse_events_sent") as mock_events,
+        patch(
+            "pathfinder.transport.http.sse_observability.sse_events_sent"
+        ) as mock_events,
         patch(
             "pathfinder.transport.http.sse_observability.sse_keepalives_sent"
         ) as mock_keepalives,
         patch(
             "pathfinder.transport.http.sse_observability.sse_subscription_duration_s"
         ) as mock_duration,
-        patch("pathfinder.transport.http.sse_observability.sse_disconnects") as mock_disconnects,
+        patch(
+            "pathfinder.transport.http.sse_observability.sse_disconnects"
+        ) as mock_disconnects,
         patch("pathfinder.transport.http.sse_observability.logger") as mock_logger,
         patch(
             "pathfinder.transport.http.sse_observability.time.monotonic",

@@ -13,7 +13,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from pathfinder.ai.graph.runtime import AgentDeps, DBSessionFactory
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.session import StrategyGraph, StrategySession
@@ -22,6 +21,7 @@ from pathfinder.persistence.repositories.conversation import (
     ConversationRepository,
     ConversationUpdate,
 )
+from pathfinder.platform.db import DBSessionFactory
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
@@ -29,6 +29,7 @@ from pathfinder.platform.errors import (
     ValidationError,
 )
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.save_substrategy import (
     deep_clone_with_fresh_ids,
 )
@@ -125,8 +126,7 @@ async def insert_saved_into_conversation(  # noqa: PLR0913
             code=ErrorCode.STRATEGY_NOT_FOUND,
             title="saved strategy not found",
             detail=(
-                f"could not load saved WDK strategy "
-                f"{saved_wdk_strategy_id}: {exc}"
+                f"could not load saved WDK strategy {saved_wdk_strategy_id}: {exc}"
             ),
         ) from exc
 
@@ -142,7 +142,7 @@ async def insert_saved_into_conversation(  # noqa: PLR0913
     )
 
     saved_label = saved.name or f"Saved strategy {saved_wdk_strategy_id}"
-    deps = AgentDeps(
+    deps = StrategyMutationContext(
         site_id=site_id,
         strategy_session=session,
         conversation_id=conversation_id,

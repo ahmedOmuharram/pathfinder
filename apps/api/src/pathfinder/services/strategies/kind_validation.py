@@ -62,11 +62,14 @@ async def _validate_leaf_or_transform(
         return canonical, error
 
     if is_transform:
-        return canonical, await _validate_transform_input_param(rt, site_id, search_name)
+        return canonical, await _validate_transform_input_param(
+            rt, site_id, search_name
+        )
 
     # Leaf-specific: fold-change searches with identical ref and comp samples
     # produce meaningless results.
     return canonical, _validate_fold_change_samples(search_name, canonical)
+
 
 def _validate_fold_change_samples(
     search_name: str,
@@ -89,6 +92,7 @@ def _validate_fold_change_samples(
             comp=comp,
         )
     return None
+
 
 async def _validate_transform_input_param(
     rt: str,
@@ -148,6 +152,7 @@ async def _validate_transform_input_param(
         )
     return None
 
+
 def _validate_cross_organism_intersect(
     graph: StrategyGraph,
     primary_input: StrategyStepNode,
@@ -176,6 +181,7 @@ def _validate_cross_organism_intersect(
         )
     return None
 
+
 def _resolve_search_name(
     graph: StrategyGraph,
     spec_search_name: str | None,
@@ -193,6 +199,7 @@ def _resolve_search_name(
         "search_name is required for leaf and transform steps.",
         graphId=graph.id,
     )
+
 
 async def _validate_step_by_kind(
     *,
@@ -220,6 +227,7 @@ async def _validate_step_by_kind(
         else None
     )
     return inputs.params or {}, binary_error
+
 
 async def resolve_search_name_and_validate(
     *,

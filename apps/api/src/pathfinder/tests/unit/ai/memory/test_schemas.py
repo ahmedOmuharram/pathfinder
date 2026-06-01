@@ -45,9 +45,7 @@ def test_memory_tombstone_round_trips() -> None:
         deleted_at=datetime.now(UTC),
         reason="user_deleted",
     )
-    assert MemoryTombstone.model_validate(
-        t.model_dump(by_alias=True, mode="json")
-    ) == t
+    assert MemoryTombstone.model_validate(t.model_dump(by_alias=True, mode="json")) == t
 
 
 def test_all_memory_kinds_accepted() -> None:

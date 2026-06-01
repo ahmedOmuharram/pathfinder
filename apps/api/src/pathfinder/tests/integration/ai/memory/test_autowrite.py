@@ -12,12 +12,13 @@ from pathfinder.ai.memory.store import MemoryStore
 from pathfinder.ai.memory.tombstones import TombstoneRepository
 from pathfinder.domain.strategy.plan import StrategyPlan
 from pathfinder.persistence.models import User
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 
 
 @pytest.mark.asyncio
 async def test_auto_write_persists_strategy_on_verification_complete(
-    db_cleaner: None, patch_app_db_engine: None,
+    db_cleaner: None,
+    patch_app_db_engine: None,
 ) -> None:
     del db_cleaner, patch_app_db_engine
     database_url = os.environ["DATABASE_URL"]
@@ -28,13 +29,15 @@ async def test_auto_write_persists_strategy_on_verification_complete(
         session.add(User(id=user_id))
         await session.commit()
 
-    plan = StrategyPlan.model_validate({
-        "title": "Malaria transporters",
-        "description": "Test plan",
-        "rationale": "Needed",
-        "steps": [],
-        "connections": [],
-    })
+    plan = StrategyPlan.model_validate(
+        {
+            "title": "Malaria transporters",
+            "description": "Test plan",
+            "rationale": "Needed",
+            "steps": [],
+            "connections": [],
+        }
+    )
     state = PipelineState(
         conversation_id=conversation_id,
         user_id=user_id,

@@ -71,8 +71,12 @@ async def refine_with_search(
     api = get_strategy_api(ctx.deps.site_id)
     store = get_experiment_store()
     result = await combine_with_search(
-        api=api, exp=exp, search_name=search_name,
-        parameters=parameters, operator=operator, store=store,
+        api=api,
+        exp=exp,
+        search_name=search_name,
+        parameters=parameters,
+        operator=operator,
+        store=store,
     )
     return cast(
         "JSONObject",
@@ -137,8 +141,11 @@ async def refine_with_gene_ids(
 
     store = get_experiment_store()
     result = await combine_steps(
-        api=api, exp=exp, secondary_step_id=new_step.id,
-        operator=operator, store=store,
+        api=api,
+        exp=exp,
+        secondary_step_id=new_step.id,
+        operator=operator,
+        store=store,
         custom_name=f"AI {operator} refinement",
     )
     return cast(

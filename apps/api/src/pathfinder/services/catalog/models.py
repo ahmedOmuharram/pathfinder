@@ -7,6 +7,47 @@ structured data to transport handlers.  They are NOT WDK integration models
 
 from dataclasses import dataclass
 
+from pydantic import Field
+
+from pathfinder.domain.parameters.wdk_vocab import (
+    WDKDatasetParser,
+    WDKFilterOntologyTerm,
+    WDKVocabulary,
+)
+from pathfinder.platform.pydantic_base import CamelModel
+
+
+class ParamSpecResponse(CamelModel):
+    """Normalized parameter spec (UI-friendly) with typed vocab/ontology/parsers."""
+
+    name: str
+    display_name: str | None = Field(default=None)
+    type: str
+    allow_empty_value: bool = Field(default=False)
+    allow_multiple_values: bool | None = Field(default=None)
+    multi_pick: bool | None = Field(default=None)
+    min_selected_count: int | None = Field(default=None)
+    max_selected_count: int | None = Field(default=None)
+    count_only_leaves: bool = Field(default=False)
+    initial_display_value: str | None = Field(default=None)
+    vocabulary: WDKVocabulary | None = None
+    min: float | None = None
+    max: float | None = None
+    is_number: bool = Field(default=False)
+    increment: float | None = None
+    display_type: str | None = Field(default=None)
+    is_visible: bool = Field(default=True)
+    group: str | None = None
+    dependent_params: list[str] = Field(default_factory=list)
+    help: str | None = None
+    # Filter-only metadata (populated only when type == "filter").
+    ontology: list[WDKFilterOntologyTerm] | None = Field(default=None)
+    filter_data_type_display_name: str | None = Field(default=None)
+    # Dataset-only metadata (populated only when type == "input-dataset").
+    parsers: list[WDKDatasetParser] | None = Field(default=None)
+    default_id_list: str | None = Field(default=None)
+    record_class_name: str | None = Field(default=None)
+
 
 @dataclass(frozen=True, slots=True)
 class RecordTypeInfo:

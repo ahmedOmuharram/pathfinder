@@ -14,7 +14,8 @@ router = APIRouter(prefix="/api/v1/conversations", tags=["conversations"])
 
 
 @router.post(
-    "/strategy-ast/normalize", response_model=StrategyAstNormalizeResponse,
+    "/strategy-ast/normalize",
+    response_model=StrategyAstNormalizeResponse,
 )
 async def normalize_strategy_ast(
     payload: StrategyAstNormalizeRequest,
@@ -26,6 +27,7 @@ async def normalize_strategy_ast(
     quirks).
     """
     canonical = await canonicalize_strategy_ast_parameters(
-        strategy_ast=payload.strategy_ast, site_id=payload.site_id,
+        strategy_ast=payload.strategy_ast,
+        site_id=payload.site_id,
     )
     return StrategyAstNormalizeResponse(strategy_ast=canonical)

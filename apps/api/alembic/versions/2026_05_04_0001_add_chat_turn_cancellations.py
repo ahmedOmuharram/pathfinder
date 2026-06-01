@@ -5,6 +5,7 @@ Revises: f1b8d4a92c70
 Create Date: 2026-05-04 09:30:00.000000
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -29,7 +30,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.PrimaryKeyConstraint(
-            "conversation_id", "turn_id", name="pk_chat_turn_cancellations",
+            "conversation_id",
+            "turn_id",
+            name="pk_chat_turn_cancellations",
         ),
         sa.ForeignKeyConstraint(
             ["conversation_id"],

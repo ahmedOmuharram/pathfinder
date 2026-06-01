@@ -4,6 +4,7 @@ Revision ID: 2026_04_15_0001
 Revises: b97ba9130ec3
 Create Date: 2026-04-15
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -63,7 +64,10 @@ def upgrade() -> None:
         ),
         sa.Column("pipeline", JSONB, nullable=True),
         sa.Column(
-            "step_count", sa.Integer, nullable=False, server_default="0",
+            "step_count",
+            sa.Integer,
+            nullable=False,
+            server_default="0",
         ),
         sa.Column("plan", JSONB, nullable=False, server_default="{}"),
         sa.Column("estimated_size", sa.Integer, nullable=True),
@@ -143,36 +147,68 @@ def upgrade() -> None:
     op.create_table(
         "background_tasks",
         sa.Column("id", PGUUID(as_uuid=True), primary_key=True),
-        sa.Column("chat_id", PGUUID(as_uuid=True), sa.ForeignKey("chats.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("user_id", GUID(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "chat_id",
+            PGUUID(as_uuid=True),
+            sa.ForeignKey("chats.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "user_id",
+            GUID(),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("tool_name", sa.Text, nullable=False),
         sa.Column("status", sa.Text, nullable=False),
         sa.Column("args", JSONB, nullable=False, server_default="{}"),
         sa.Column("result", JSONB, nullable=True),
         sa.Column("error", sa.Text, nullable=True),
-        sa.Column("estimated_duration_seconds", sa.Integer, nullable=False, server_default="0"),
+        sa.Column(
+            "estimated_duration_seconds", sa.Integer, nullable=False, server_default="0"
+        ),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
     )
     op.create_index("bg_tasks_chat_idx", "background_tasks", ["chat_id", "created_at"])
 
     op.create_table(
         "task_progress",
         sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
-        sa.Column("task_id", PGUUID(as_uuid=True), sa.ForeignKey("background_tasks.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "task_id",
+            PGUUID(as_uuid=True),
+            sa.ForeignKey("background_tasks.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("percent", sa.Float, nullable=False),
         sa.Column("message", sa.Text, nullable=False, server_default=""),
         sa.Column("data", JSONB, nullable=True),
-        sa.Column("emitted_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "emitted_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
     )
-    op.create_index("task_progress_task_idx", "task_progress", ["task_id", "emitted_at"])
+    op.create_index(
+        "task_progress_task_idx", "task_progress", ["task_id", "emitted_at"]
+    )
 
     # Recreate chat_events — mirrors :class:`pathfinder.persistence.models.ChatEvent`.
     op.create_table(
         "chat_events",
         sa.Column(
-            "id", sa.Integer, primary_key=True, autoincrement=True,
+            "id",
+            sa.Integer,
+            primary_key=True,
+            autoincrement=True,
         ),
         sa.Column(
             "chat_id",
@@ -203,9 +239,21 @@ def upgrade() -> None:
         sa.Column("checkpoint_id", sa.Text, nullable=False),
         sa.Column("user_id", PGUUID(as_uuid=True), nullable=False),
         sa.Column("label", sa.Text, nullable=True),
-        sa.Column("pinned", sa.Boolean, nullable=False, server_default=sa.text("false")),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "pinned", sa.Boolean, nullable=False, server_default=sa.text("false")
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("thread_id", "checkpoint_id", "user_id"),
     )
     op.create_index("checkpoint_labels_thread_idx", "checkpoint_labels", ["thread_id"])
@@ -215,7 +263,10 @@ def upgrade() -> None:
     op.create_table(
         "memory_tombstones",
         sa.Column(
-            "id", sa.Integer, primary_key=True, autoincrement=True,
+            "id",
+            sa.Integer,
+            primary_key=True,
+            autoincrement=True,
         ),
         sa.Column(
             "user_id",
@@ -245,7 +296,9 @@ def upgrade() -> None:
         ),
     )
     op.create_index(
-        "ix_memory_tombstones_user_id", "memory_tombstones", ["user_id"],
+        "ix_memory_tombstones_user_id",
+        "memory_tombstones",
+        ["user_id"],
     )
 
 

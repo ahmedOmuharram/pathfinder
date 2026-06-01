@@ -174,13 +174,13 @@ def _apply_agent_state(deps: LeadDeps, agent_deps: AgentDeps) -> None:
         deps.state.problem_frame = agent_deps.problem_frame
 
 
-
-
 def _emit_step(writer: Any, payload: SubAgentStepPayload) -> None:
     writer(
         {
             "chunk": sub_agent_step_event(payload).model_dump(
-                by_alias=True, mode="json", exclude_none=True,
+                by_alias=True,
+                mode="json",
+                exclude_none=True,
             ),
         },
     )
@@ -229,11 +229,7 @@ def _forward_inner_event(
         is_retry = isinstance(result, RetryPromptPart)
         if is_retry:
             content = result.content
-            summary = (
-                _short(content)
-                if isinstance(content, str)
-                else "retry requested"
-            )
+            summary = _short(content) if isinstance(content, str) else "retry requested"
         else:
             summary = _summarize_tool_result(result.content)
         _emit_step(
@@ -273,7 +269,8 @@ def _forward_inner_event(
 
 
 def _phase_override_kwargs(
-    runtime: Context, role: PhaseRole,
+    runtime: Context,
+    role: PhaseRole,
 ) -> dict[str, Any]:
     """Build kwargs for ``agent.override`` from the per-phase Context maps."""
     kwargs: dict[str, Any] = {}
@@ -330,8 +327,10 @@ async def _stream_sub_agent[OutputT: BaseModel](
     )
     with override_ctx:
         async for event in agent.run_stream_events(
-            work_order, deps=agent_deps,
-            usage_limits=PHASE_USAGE_LIMITS, usage=usage,
+            work_order,
+            deps=agent_deps,
+            usage_limits=PHASE_USAGE_LIMITS,
+            usage=usage,
         ):
             if isinstance(event, AgentRunResultEvent):
                 agent_output = event.result.output
@@ -359,7 +358,9 @@ async def _stream_sub_agent[OutputT: BaseModel](
 
 
 def _emit_live_ledger(
-    writer: Any, deps: LeadDeps, agent_deps: AgentDeps,
+    writer: Any,
+    deps: LeadDeps,
+    agent_deps: AgentDeps,
 ) -> None:
     """After every sub-agent tool call, sync state and broadcast a fresh
     ledger snapshot so the UI sees discovery decisions, plan edits, etc. as
@@ -370,7 +371,9 @@ def _emit_live_ledger(
     writer(
         {
             "chunk": ledger_update_event(ledger=ledger).model_dump(
-                by_alias=True, mode="json", exclude_none=True,
+                by_alias=True,
+                mode="json",
+                exclude_none=True,
             ),
         },
     )
@@ -384,7 +387,8 @@ def _parent_tool_call_id(ctx: RunContext[LeadDeps]) -> str:
 
 
 async def scope_problem(
-    ctx: RunContext[LeadDeps], reason: str,
+    ctx: RunContext[LeadDeps],
+    reason: str,
 ) -> FrameDelta:
     """Run the scoping sub-agent to frame the user's problem.
 
@@ -454,7 +458,8 @@ async def discover_searches(
 
 
 async def build_plan(
-    ctx: RunContext[LeadDeps], reason: str,
+    ctx: RunContext[LeadDeps],
+    reason: str,
 ) -> PlanDelta:
     """Run the planning sub-agent to construct a strategy plan.
 
@@ -503,14 +508,17 @@ async def execute_plan(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
     root = build_step_tree_from_plan(plan)
     agent_deps = _agent_deps(deps)
     outcome: BuildOutcome = await build_strategy_from_spec(
-        deps=agent_deps, root=root, name=plan.title or None,
+        deps=agent_deps.to_strategy_context(),
+        root=root,
+        name=plan.title or None,
     )
     deps.state.last_build_outcome = outcome
     return ExecuteDelta(outcome=outcome)
 
 
 async def recover_failed_steps(
-    ctx: RunContext[LeadDeps], reason: str,
+    ctx: RunContext[LeadDeps],
+    reason: str,
 ) -> RecoveryDelta:
     """Run the LLM execution-recovery sub-agent on a failed build.
 
@@ -543,15 +551,20 @@ async def recover_failed_steps(
         deps=deps,
     )
     _apply_agent_state(deps, agent_deps)
-    delta = streamed if streamed is not None else RecoveryDelta(
-        final_outcome=outcome,
+    delta = (
+        streamed
+        if streamed is not None
+        else RecoveryDelta(
+            final_outcome=outcome,
+        )
     )
     deps.state.last_build_outcome = delta.final_outcome
     return delta
 
 
 async def verify_strategy(
-    ctx: RunContext[LeadDeps], reason: str,
+    ctx: RunContext[LeadDeps],
+    reason: str,
 ) -> VerificationDelta:
     """Run the verification sub-agent on the built strategy."""
     deps = ctx.deps

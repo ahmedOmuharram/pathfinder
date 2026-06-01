@@ -57,7 +57,9 @@ def _combine(
 
 
 def _transform(
-    step_id: str, primary: StrategyStepNode, **params: ParamValue,
+    step_id: str,
+    primary: StrategyStepNode,
+    **params: ParamValue,
 ) -> StrategyStepNode:
     return StrategyStepNode(
         search_name="GenesByOrtholog",
@@ -205,7 +207,9 @@ def test_step_kind_transition_recreates():
     )
     wdk_ids = {"step_a": 1, "step_t": 2}
 
-    plan = plan_step_pushes(old_ast=_ast(old_root), new_ast=_ast(new_root), existing_wdk_ids=wdk_ids)
+    plan = plan_step_pushes(
+        old_ast=_ast(old_root), new_ast=_ast(new_root), existing_wdk_ids=wdk_ids
+    )
 
     by_id = {p.step_id: p for p in plan}
     assert by_id["step_t"].action == RecreateAction()
@@ -234,24 +238,30 @@ def test_added_step_creates_only_that_step():
 
 
 def test_display_name_only_change_patches_leaf():
-    old = _ast(StrategyStepNode(
-        search_name="GenesByTaxon",
-        parameters={"organism": _multi(["Pf3D7"])},
-        display_name="Falciparum",
-        id="step_a",
-    ))
-    new = _ast(StrategyStepNode(
-        search_name="GenesByTaxon",
-        parameters={"organism": _multi(["Pf3D7"])},
-        display_name="P. falciparum genes",
-        id="step_a",
-    ))
+    old = _ast(
+        StrategyStepNode(
+            search_name="GenesByTaxon",
+            parameters={"organism": _multi(["Pf3D7"])},
+            display_name="Falciparum",
+            id="step_a",
+        )
+    )
+    new = _ast(
+        StrategyStepNode(
+            search_name="GenesByTaxon",
+            parameters={"organism": _multi(["Pf3D7"])},
+            display_name="P. falciparum genes",
+            id="step_a",
+        )
+    )
     wdk_ids = {"step_a": 1}
 
     plan = plan_step_pushes(old_ast=old, new_ast=new, existing_wdk_ids=wdk_ids)
 
     assert plan == [
-        StepPushPlan(step_id="step_a", action=PatchAction(), reason="display name changed"),
+        StepPushPlan(
+            step_id="step_a", action=PatchAction(), reason="display name changed"
+        ),
     ]
 
 
@@ -288,7 +298,14 @@ def test_topology_changed_returns_true_when_step_added():
     b = _leaf("step_b")
     old = _ast(_combine("step_c", a, b, op=CombineOp.UNION))
     d = _leaf("step_d")
-    new = _ast(_combine("step_outer", _combine("step_c", a, b, op=CombineOp.UNION), d, op=CombineOp.INTERSECT))
+    new = _ast(
+        _combine(
+            "step_outer",
+            _combine("step_c", a, b, op=CombineOp.UNION),
+            d,
+            op=CombineOp.INTERSECT,
+        )
+    )
 
     assert topology_changed(old, new) is True
 
@@ -297,7 +314,14 @@ def test_topology_changed_returns_true_when_step_removed():
     a = _leaf("step_a")
     b = _leaf("step_b")
     c = _leaf("step_c")
-    old = _ast(_combine("step_outer", _combine("step_inner", a, b, op=CombineOp.UNION), c, op=CombineOp.INTERSECT))
+    old = _ast(
+        _combine(
+            "step_outer",
+            _combine("step_inner", a, b, op=CombineOp.UNION),
+            c,
+            op=CombineOp.INTERSECT,
+        )
+    )
     new = _ast(_combine("step_inner", a, b, op=CombineOp.UNION))
 
     assert topology_changed(old, new) is True

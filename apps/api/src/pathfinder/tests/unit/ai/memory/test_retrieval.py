@@ -40,6 +40,8 @@ def test_recency_decay() -> None:
 
 def test_pinned_tag_boosts_score() -> None:
     unpinned = hybrid_score(memory=_m(tags=[], last_used_days_ago=30), semantic=0.5)
-    pinned = hybrid_score(memory=_m(tags=["pinned"], last_used_days_ago=30), semantic=0.5)
+    pinned = hybrid_score(
+        memory=_m(tags=["pinned"], last_used_days_ago=30), semantic=0.5
+    )
     assert pinned > unpinned
     assert pinned - unpinned == pytest.approx(0.1, abs=0.01)

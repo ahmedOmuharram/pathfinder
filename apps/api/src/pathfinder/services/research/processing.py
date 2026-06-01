@@ -117,9 +117,7 @@ def deduplicate_and_filter(
             )
 
             if c is not None:
-                citation_authors = limit_authors(
-                    c.authors, options.max_authors
-                )
+                citation_authors = limit_authors(c.authors, options.max_authors)
                 citations_by_key[key] = c.model_copy(
                     update={"authors": citation_authors},
                 )

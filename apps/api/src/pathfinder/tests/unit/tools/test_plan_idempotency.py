@@ -13,6 +13,7 @@ from pathfinder.ai.tools.standalone._plan_models import PlannedStepInput
 from pathfinder.ai.tools.standalone.plan import create_plan
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import MultiPickValue
+from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm
 from pathfinder.domain.strategy.plan import (
     PlannedStep,
     PlanStatus,
@@ -27,7 +28,7 @@ _ORG_SPEC = ParamSpecNormalized(
     name="organism",
     param_type="multi-pick-vocabulary",
     vocabulary=[
-        {"value": "Plasmodium falciparum 3D7", "label": "P. falciparum 3D7"},
+        WDKVocabTerm(("Plasmodium falciparum 3D7", "P. falciparum 3D7", None)),
     ],
     allow_empty_value=False,
 )
@@ -48,7 +49,8 @@ def _stub_fetch_specs_by_search(monkeypatch: pytest.MonkeyPatch) -> None:
         return out
 
     monkeypatch.setattr(
-        "pathfinder.ai.tools.standalone.plan._fetch_specs_by_search", _stub,
+        "pathfinder.ai.tools.standalone.plan._fetch_specs_by_search",
+        _stub,
     )
 
 
@@ -58,7 +60,9 @@ def _deps(existing: StrategyPlan | None = None) -> AgentDeps:
     if existing is not None:
         state.active_plan = existing
     return AgentDeps(
-        site_id="plasmodb", strategy_session=session, agent_state=state,
+        site_id="plasmodb",
+        strategy_session=session,
+        agent_state=state,
     )
 
 

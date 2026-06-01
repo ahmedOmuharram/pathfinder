@@ -33,6 +33,7 @@ class GraphEdge(CamelModel):
     target_id: str
     kind: str  # "primary" | "secondary"
 
+
 class GraphSnapshotContent(CamelModel):
     """Snapshot of a strategy graph, embedded in step-mutation tool results."""
 
@@ -46,9 +47,11 @@ class GraphSnapshotContent(CamelModel):
     edges: list[GraphEdge] = Field(default_factory=list)
     strategy_ast: StrategyAst | None = None
 
+
 # ---------------------------------------------------------------------------
 # Private parsing model (replace isinstance/dict.get chains per CLAUDE.md)
 # ---------------------------------------------------------------------------
+
 
 class _ValidationErrorEntry(BaseModel):
     """A single entry in a ``ValidationError.errors`` list."""
@@ -56,9 +59,11 @@ class _ValidationErrorEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
     context: dict[str, JsonValue] = Field(default_factory=dict)
 
+
 # ---------------------------------------------------------------------------
 # Models (used by tool modules)
 # ---------------------------------------------------------------------------
+
 
 class ContextStrategyAstPayload(CamelModel):
     """Typed payload returned by build_context_strategy_ast."""
@@ -69,6 +74,7 @@ class ContextStrategyAstPayload(CamelModel):
     record_type: str
     name: str | None = None
     description: str | None = None
+
 
 class StepOkResponse(CamelModel):
     """Typed response for successful step mutations."""
@@ -83,9 +89,11 @@ class StepOkResponse(CamelModel):
     strategy_ast: StrategyAst | None = None
     graph_snapshot: GraphSnapshotContent
 
+
 # ---------------------------------------------------------------------------
 # Validation helpers
 # ---------------------------------------------------------------------------
+
 
 def get_graph(session: StrategySession, graph_id: str | None) -> StrategyGraph | None:
     """Return the graph with ``graph_id`` (or the active graph when ``None``).
@@ -96,6 +104,7 @@ def get_graph(session: StrategySession, graph_id: str | None) -> StrategyGraph |
     """
     return session.get_graph(graph_id)
 
+
 def graph_not_found(graph_id: str | None) -> ToolErrorPayload:
     if graph_id:
         return tool_error(ErrorCode.NOT_FOUND, "Graph not found", graphId=graph_id)
@@ -103,11 +112,13 @@ def graph_not_found(graph_id: str | None) -> ToolErrorPayload:
         ErrorCode.NOT_FOUND, "Graph not found. Provide a graphId.", graphId=graph_id
     )
 
+
 def step_not_found(step_id: str) -> ToolErrorPayload:
     """Standard error payload for a missing step."""
     return tool_error(
         ErrorCode.STEP_NOT_FOUND, f"Step not found: {step_id}", stepId=step_id
     )
+
 
 def get_graph_and_step(
     session: StrategySession, graph_id: str | None, step_id: str
@@ -126,6 +137,7 @@ def get_graph_and_step(
         return step_not_found(step_id)
     return graph, step
 
+
 def validation_error_payload(
     exc: ValidationError, **context: JsonValue
 ) -> ToolErrorPayload:
@@ -136,20 +148,22 @@ def validation_error_payload(
         details["errors"] = exc.errors
         for raw_error in exc.errors:
             parsed = _ValidationErrorEntry.model_validate(raw_error)
-            context.update(
-                {k: v for k, v in parsed.context.items() if v is not None}
-            )
+            context.update({k: v for k, v in parsed.context.items() if v is not None})
     details.update({k: v for k, v in context.items() if v is not None})
     return tool_error(ErrorCode.VALIDATION_ERROR, exc.title, **details)
 
 
 def validation_model_retry(
-    exc: ValidationError, **context: JsonValue,
+    exc: ValidationError,
+    **context: JsonValue,
 ) -> ModelRetry:
     payload = validation_error_payload(exc, **context).model_dump(
-        by_alias=True, mode="json", exclude_none=True,
+        by_alias=True,
+        mode="json",
+        exclude_none=True,
     )
     return ModelRetry(json.dumps(payload))
+
 
 def is_placeholder_name(name: str | None) -> bool:
     if not name:

@@ -23,11 +23,13 @@ class _EpmcResultList(BaseModel):
     model_config = ConfigDict(extra="ignore")
     result: list[JsonValue] = Field(default_factory=list)
 
+
 class _EpmcResponse(BaseModel):
     """Top-level envelope for the Europe PMC search response."""
 
     model_config = ConfigDict(extra="ignore")
     result_list: _EpmcResultList = Field(default_factory=_EpmcResultList)
+
 
 class EuropePmcClient(StandardClient):
     """Client for Europe PMC API."""
@@ -55,7 +57,7 @@ class EuropePmcClient(StandardClient):
         try:
             parsed = _EpmcResponse.model_validate(payload)
             hits = parsed.result_list.result
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             hits = []
         return list(hits)
 
@@ -64,7 +66,7 @@ class EuropePmcClient(StandardClient):
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             parsed = EuropePmcRawResult.model_validate(raw).to_parsed_paper()
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             return None
         parsed.abstract = truncate_text(parsed.abstract, abstract_max_chars)
 

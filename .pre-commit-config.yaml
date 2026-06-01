@@ -95,7 +95,7 @@ repos:
         stages: [pre-push]
       - id: shared-ts-openapi
         name: openapi types regenerate (shared-ts)
-        entry: bash -c "cd packages/shared-ts && yarn generate:openapi"
+        entry: bash -c "cd packages/shared-ts && yarn generate"
         language: system
         pass_filenames: false
         files: ^(packages/shared-ts/|apps/api/).*

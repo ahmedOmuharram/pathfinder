@@ -64,7 +64,8 @@ def _get_strategy_repeated_without_mutation(
 
 
 async def _prepare(
-    ctx: RunContext[AgentDeps], tool_defs: list[ToolDefinition],
+    ctx: RunContext[AgentDeps],
+    tool_defs: list[ToolDefinition],
 ) -> list[ToolDefinition]:
     if _get_strategy_repeated_without_mutation(ctx):
         return [td for td in tool_defs if td.name != "get_strategy"]

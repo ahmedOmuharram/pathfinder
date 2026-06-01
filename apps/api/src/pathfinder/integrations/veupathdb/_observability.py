@@ -147,7 +147,11 @@ def log_wdk_retry(retry_state: RetryCallState) -> None:
     client = retry_state.args[0]
     method = retry_state.args[1]
     path = retry_state.args[2]
-    if not isinstance(client, object) or not isinstance(method, str) or not isinstance(path, str):
+    if (
+        not isinstance(client, object)
+        or not isinstance(method, str)
+        or not isinstance(path, str)
+    ):
         return
 
     next_action = retry_state.next_action
@@ -169,7 +173,9 @@ def log_wdk_retry(retry_state: RetryCallState) -> None:
     attrs = telemetry.metric_attrs(
         outcome="retry",
         status_code=(
-            error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
+            error.response.status_code
+            if isinstance(error, httpx.HTTPStatusError)
+            else None
         ),
         retried=True,
     )

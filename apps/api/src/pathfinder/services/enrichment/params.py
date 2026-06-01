@@ -20,9 +20,7 @@ from pathfinder.platform.types import JSONObject
 WDK_VOCAB_PARAM_TYPES = frozenset({"single-pick-vocabulary", "multi-pick-vocabulary"})
 
 
-def extract_vocab_values(
-    params: Sequence[WDKParameter], param_name: str
-) -> list[str]:
+def extract_vocab_values(params: Sequence[WDKParameter], param_name: str) -> list[str]:
     """Extract the allowed vocabulary values for a named parameter.
 
     WDK vocabulary params include a ``vocabulary`` field — a list of
@@ -36,11 +34,7 @@ def extract_vocab_values(
             continue
         if not isinstance(p.vocabulary, list):
             return []
-        return [
-            str(entry[0])
-            for entry in p.vocabulary
-            if isinstance(entry, list) and entry
-        ]
+        return [entry.term for entry in p.vocabulary]
     return []
 
 

@@ -41,6 +41,7 @@ logger = get_logger(__name__)
 # Protocols -- I/O boundaries the sync service depends on
 # ---------------------------------------------------------------------------
 
+
 @runtime_checkable
 class StepDecoratorAPI(Protocol):
     """I/O boundary for post-compilation step decorations (filters, analyses, reports)."""
@@ -65,6 +66,7 @@ class StepDecoratorAPI(Protocol):
     async def run_step_report(
         self, step_id: int, report_name: str, config: JSONObject | None = None
     ) -> JsonValue: ...
+
 
 class StrategySyncAPI(StepDecoratorAPI, Protocol):
     """I/O boundary for strategy sync operations.
@@ -91,6 +93,7 @@ class StrategySyncAPI(StepDecoratorAPI, Protocol):
 
     async def get_strategy(self, strategy_id: int) -> WDKStrategyDetails: ...
 
+
 class SiteInfoLike(Protocol):
     """Protocol for site metadata needed by the sync service."""
 
@@ -98,9 +101,11 @@ class SiteInfoLike(Protocol):
         self, strategy_id: int, root_step_id: int | None = None
     ) -> str: ...
 
+
 # ---------------------------------------------------------------------------
 # Result type
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SyncResult:
@@ -114,9 +119,11 @@ class SyncResult:
     zero_step_ids: list[str]
     step_count: int
 
+
 # ---------------------------------------------------------------------------
 # Step tree construction
 # ---------------------------------------------------------------------------
+
 
 def build_step_tree_from_graph(
     root: StrategyStepNode,
@@ -148,9 +155,11 @@ def build_step_tree_from_graph(
         secondary_input=secondary,
     )
 
+
 # ---------------------------------------------------------------------------
 # Tree comparison
 # ---------------------------------------------------------------------------
+
 
 def _trees_equal(a: WDKStepTree | None, b: WDKStepTree | None) -> bool:
     """Check structural equality of two WDKStepTree objects."""
@@ -162,9 +171,11 @@ def _trees_equal(a: WDKStepTree | None, b: WDKStepTree | None) -> bool:
         a.secondary_input, b.secondary_input
     )
 
+
 # ---------------------------------------------------------------------------
 # Count and validation extraction
 # ---------------------------------------------------------------------------
+
 
 def _extract_counts_and_validations(
     strategy_info: WDKStrategyDetails,
@@ -199,9 +210,11 @@ def _extract_counts_and_validations(
 
     return counts, validations, root_count
 
+
 # ---------------------------------------------------------------------------
 # Step decorations
 # ---------------------------------------------------------------------------
+
 
 async def _apply_decorations(
     root_step: StrategyStepNode,
@@ -238,9 +251,11 @@ async def _apply_decorations(
                 config=report.config,
             )
 
+
 # ---------------------------------------------------------------------------
 # Create-or-update strategy on WDK
 # ---------------------------------------------------------------------------
+
 
 async def _create_or_update_wdk_strategy(
     api: StrategySyncAPI,
@@ -289,9 +304,11 @@ async def _create_or_update_wdk_strategy(
     )
     return wdk_strategy_id
 
+
 # ---------------------------------------------------------------------------
 # Fetch counts and apply decorations
 # ---------------------------------------------------------------------------
+
 
 async def _fetch_strategy_state(
     api: StrategySyncAPI,
@@ -314,9 +331,11 @@ async def _fetch_strategy_state(
         )
         return counts, validations, root_count, strategy_info.root_step_id
 
+
 # ---------------------------------------------------------------------------
 # Main sync function
 # ---------------------------------------------------------------------------
+
 
 async def sync_strategy(
     *,
@@ -352,7 +371,9 @@ async def sync_strategy(
 
     # 5. Create or update WDK strategy.
     name = strategy_name or graph.name or "Untitled Strategy"
-    wdk_strategy_id = await _create_or_update_wdk_strategy(api, step_tree, name, sync_state)
+    wdk_strategy_id = await _create_or_update_wdk_strategy(
+        api, step_tree, name, sync_state
+    )
 
     # 6. Fetch strategy details for counts and validations.
     counts, validations, root_count, root_wdk_step_id = await _fetch_strategy_state(
@@ -383,6 +404,7 @@ async def sync_strategy(
         step_count=len(all_steps),
     )
 
+
 def _validate_graph(root_step: StrategyStepNode, record_type: str | None) -> None:
     """Validate the strategy structure if a record type is available."""
     if not record_type:
@@ -394,6 +416,7 @@ def _validate_graph(root_step: StrategyStepNode, record_type: str | None) -> Non
         ]
         msg = f"Strategy validation failed: {errors}"
         raise StrategyCompilationError(msg)
+
 
 async def _maybe_apply_decorations(
     root_step: StrategyStepNode,
@@ -412,9 +435,11 @@ async def _maybe_apply_decorations(
     except AppError as e:
         logger.warning("Step decoration failed (non-fatal)", error=str(e))
 
+
 # ---------------------------------------------------------------------------
 # Convenience entry point (resolves integrations internally)
 # ---------------------------------------------------------------------------
+
 
 async def sync_strategy_for_site(
     *,

@@ -12,13 +12,13 @@ from uuid import UUID
 
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.memory.store import MemoryStore
-from pathfinder.ai.tools.durable import TaskProgressEmitter
 from pathfinder.ai.tools.standalone._experiment_models import (
     _run_step_control_tests,
 )
 from pathfinder.ai.tools.standalone.experiment import (
     _export_step_control_result,
 )
+from pathfinder.jobs.progress import TaskProgressEmitter
 
 
 async def run_control_tests_on_step_impl(
@@ -38,10 +38,7 @@ async def run_control_tests_on_step_impl(
     has_positives = bool(positive_controls)
     has_negatives = bool(negative_controls)
     if not has_positives and not has_negatives:
-        msg = (
-            "At least one of positive_controls or negative_controls "
-            "must be provided."
-        )
+        msg = "At least one of positive_controls or negative_controls must be provided."
         raise ValueError(msg)
 
     total_sets = int(has_positives) + int(has_negatives)
@@ -81,13 +78,9 @@ async def run_control_tests_on_step_impl(
             },
         )
 
-    await progress.update(
-        percent=0.9, message="Exporting results", data=None
-    )
+    await progress.update(percent=0.9, message="Exporting results", data=None)
     exported = await _export_step_control_result(
         result, f"step_{wdk_step_id}_control_tests"
     )
-    await progress.update(
-        percent=1.0, message="Control tests complete", data=None
-    )
+    await progress.update(percent=1.0, message="Control tests complete", data=None)
     return exported.model_dump(by_alias=True, exclude_none=True, mode="json")

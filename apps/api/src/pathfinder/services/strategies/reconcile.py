@@ -25,9 +25,7 @@ def _walk_step_tree_ids(tree: WDKStepTree) -> set[int]:
     return out
 
 
-async def fetch_wdk_strategy_step_ids(
-    site_id: str, wdk_strategy_id: int
-) -> set[int]:
+async def fetch_wdk_strategy_step_ids(site_id: str, wdk_strategy_id: int) -> set[int]:
     """Return the set of WDK step IDs currently in `wdk_strategy_id`'s tree.
 
     Raises `AppError` if WDK is unreachable; callers decide whether that's
@@ -70,9 +68,7 @@ async def reconcile_sync_state_with_wdk(
     if not dropped:
         return
     sync_state.wdk_step_ids = {
-        local: wdk
-        for local, wdk in sync_state.wdk_step_ids.items()
-        if wdk in live_ids
+        local: wdk for local, wdk in sync_state.wdk_step_ids.items() if wdk in live_ids
     }
     logger.info(
         "Reconciled sync_state against WDK",

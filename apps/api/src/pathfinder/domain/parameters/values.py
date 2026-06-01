@@ -164,7 +164,11 @@ class FilterValue(CamelModel):
 
     def to_wire(self) -> str:
         return json.dumps(
-            {"filters": [c.model_dump(by_alias=True, mode="json") for c in self.filters]},
+            {
+                "filters": [
+                    c.model_dump(by_alias=True, mode="json") for c in self.filters
+                ]
+            },
         )
 
     def to_decoded(self) -> JsonValue:
@@ -209,8 +213,6 @@ ParamValue = Annotated[
     | InputStepValue,
     Field(discriminator="type"),
 ]
-
-
 
 
 _PARAM_VALUE_ADAPTER: TypeAdapter[ParamValue] = TypeAdapter(ParamValue)
@@ -292,7 +294,8 @@ def wire_map(values: dict[str, ParamValue]) -> dict[str, str]:
 
 
 def from_wire_map(
-    wire: dict[str, str], kinds: dict[str, ParamKind],
+    wire: dict[str, str],
+    kinds: dict[str, ParamKind],
 ) -> dict[str, ParamValue]:
     out: dict[str, ParamValue] = {}
     for name, raw in wire.items():

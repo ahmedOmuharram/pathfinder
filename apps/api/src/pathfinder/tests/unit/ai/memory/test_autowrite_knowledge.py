@@ -5,6 +5,7 @@ resulting `MemoryValue` shapes, since that's the contract the memory
 store sees. The store's actual `put` is exercised by the integration
 tests in tests/integration/ai/memory/.
 """
+
 from __future__ import annotations
 
 from uuid import uuid4
@@ -33,7 +34,7 @@ def _digest(remember: list[MemoryEntryDraft]) -> VerificationDigest:
     return VerificationDigest(
         disposition=PhaseDisposition.DONE,
         prose="Strategy returned 142 Plasmodium kinases — sample records "
-              "look correct, GO enrichment confirms kinase activity.",
+        "look correct, GO enrichment confirms kinase activity.",
         reason="verification passed",
         success=True,
         key_findings=["142 hits", "GO:0016301 enrichment p<1e-12"],

@@ -13,9 +13,7 @@ router = APIRouter(prefix="/api/v1/exports", tags=["exports"])
 
 
 @router.get("/{export_id}")
-async def download_export(
-    export_id: UUID, user_id: CurrentUser
-) -> StreamingResponse:
+async def download_export(export_id: UUID, user_id: CurrentUser) -> StreamingResponse:
     """Serve a previously generated export file.
 
     Export IDs are uuid4 tokens with a 10-minute TTL. Requires the

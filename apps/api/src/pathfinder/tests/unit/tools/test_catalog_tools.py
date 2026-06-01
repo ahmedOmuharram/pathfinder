@@ -30,13 +30,24 @@ def _make_ctx(deps: AgentDeps) -> MagicMock:
 
 
 @pytest.mark.asyncio
-@patch("pathfinder.ai.tools.standalone.catalog.catalog.get_record_types", new_callable=AsyncMock)
+@patch(
+    "pathfinder.ai.tools.standalone.catalog.catalog.get_record_types",
+    new_callable=AsyncMock,
+)
 async def test_get_record_types_returns_site_record_types(
     mock_get_rt: AsyncMock,
 ) -> None:
     mock_get_rt.return_value = [
-        RecordTypeInfo(name="transcript", display_name="Genes", description="Gene/transcript records"),
-        RecordTypeInfo(name="isolate", display_name="Isolates", description="Population isolate records"),
+        RecordTypeInfo(
+            name="transcript",
+            display_name="Genes",
+            description="Gene/transcript records",
+        ),
+        RecordTypeInfo(
+            name="isolate",
+            display_name="Isolates",
+            description="Population isolate records",
+        ),
     ]
     deps = _make_deps()
     ctx = _make_ctx(deps)
@@ -53,7 +64,10 @@ async def test_get_record_types_returns_site_record_types(
 
 
 @pytest.mark.asyncio
-@patch("pathfinder.ai.tools.standalone.catalog.catalog.search_for_searches", new_callable=AsyncMock)
+@patch(
+    "pathfinder.ai.tools.standalone.catalog.catalog.search_for_searches",
+    new_callable=AsyncMock,
+)
 async def test_search_for_searches_returns_matches_with_universal(
     mock_search: AsyncMock,
 ) -> None:
@@ -99,7 +113,10 @@ async def test_search_for_searches_rejects_vague_query() -> None:
 
 
 @pytest.mark.asyncio
-@patch("pathfinder.ai.tools.standalone.catalog.catalog.list_searches", new_callable=AsyncMock)
+@patch(
+    "pathfinder.ai.tools.standalone.catalog.catalog.list_searches",
+    new_callable=AsyncMock,
+)
 async def test_list_searches_for_record_type(
     mock_list: AsyncMock,
 ) -> None:

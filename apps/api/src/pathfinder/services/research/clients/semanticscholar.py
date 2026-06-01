@@ -24,6 +24,7 @@ class _S2Response(BaseModel):
     model_config = ConfigDict(extra="ignore")
     data: list[JsonValue] = Field(default_factory=list)
 
+
 class SemanticScholarClient(StandardClient):
     """Client for Semantic Scholar API."""
 
@@ -54,7 +55,7 @@ class SemanticScholarClient(StandardClient):
         try:
             parsed = _S2Response.model_validate(payload)
             items = parsed.data
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             items = []
         return list(items)
 
@@ -63,7 +64,7 @@ class SemanticScholarClient(StandardClient):
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             parsed = SemanticScholarRawPaper.model_validate(raw).to_parsed_paper()
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             return None
         parsed.abstract = truncate_text(parsed.abstract, abstract_max_chars)
         parsed.snippet = parsed.abstract or parsed.journal_title

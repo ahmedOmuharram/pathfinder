@@ -77,19 +77,28 @@ class TestScratchpadLoopFilter:
         )
 
     def test_mutation_breaks_streak(self) -> None:
-        assert _loop_hidden_read_tools(
-            _ctx(["search_notes", "note", "search_notes"]),
-        ) == frozenset()
+        assert (
+            _loop_hidden_read_tools(
+                _ctx(["search_notes", "note", "search_notes"]),
+            )
+            == frozenset()
+        )
 
     def test_non_read_non_mutation_breaks_streak(self) -> None:
-        assert _loop_hidden_read_tools(
-            _ctx(["search_notes", "search_notes", "think", "search_notes"]),
-        ) == frozenset()
+        assert (
+            _loop_hidden_read_tools(
+                _ctx(["search_notes", "search_notes", "think", "search_notes"]),
+            )
+            == frozenset()
+        )
 
     def test_distinct_read_tools_counted_separately(self) -> None:
-        assert _loop_hidden_read_tools(
-            _ctx(["search_notes", "list_notes"]),
-        ) == frozenset()
+        assert (
+            _loop_hidden_read_tools(
+                _ctx(["search_notes", "list_notes"]),
+            )
+            == frozenset()
+        )
 
     def test_each_read_tool_hidden_on_its_own_streak(self) -> None:
         assert "list_notes" in _loop_hidden_read_tools(
@@ -105,24 +114,36 @@ class TestExecutionGetStrategyFilter:
         assert _get_strategy_repeated_without_mutation(_ctx([])) is False
 
     def test_one_get_strategy(self) -> None:
-        assert _get_strategy_repeated_without_mutation(
-            _ctx(["get_strategy"]),
-        ) is False
+        assert (
+            _get_strategy_repeated_without_mutation(
+                _ctx(["get_strategy"]),
+            )
+            is False
+        )
 
     def test_two_consecutive_fires(self) -> None:
-        assert _get_strategy_repeated_without_mutation(
-            _ctx(["get_strategy", "get_strategy"]),
-        ) is True
+        assert (
+            _get_strategy_repeated_without_mutation(
+                _ctx(["get_strategy", "get_strategy"]),
+            )
+            is True
+        )
 
     def test_prior_mutation_then_two_gets_still_fires(self) -> None:
-        assert _get_strategy_repeated_without_mutation(
-            _ctx(["create_leaf_step", "get_strategy", "get_strategy"]),
-        ) is True
+        assert (
+            _get_strategy_repeated_without_mutation(
+                _ctx(["create_leaf_step", "get_strategy", "get_strategy"]),
+            )
+            is True
+        )
 
     def test_mutation_breaks_streak(self) -> None:
-        assert _get_strategy_repeated_without_mutation(
-            _ctx(["get_strategy", "create_leaf_step", "get_strategy"]),
-        ) is False
+        assert (
+            _get_strategy_repeated_without_mutation(
+                _ctx(["get_strategy", "create_leaf_step", "get_strategy"]),
+            )
+            is False
+        )
 
 
 class TestPlanningLoopFilter:
@@ -145,14 +166,20 @@ class TestPlanningLoopFilter:
         )
 
     def test_create_plan_breaks_streak(self) -> None:
-        assert _loop_hidden_reads(
-            _ctx(["get_plan", "create_plan", "get_plan"]),
-        ) == frozenset()
+        assert (
+            _loop_hidden_reads(
+                _ctx(["get_plan", "create_plan", "get_plan"]),
+            )
+            == frozenset()
+        )
 
     def test_distinct_reads_not_combined(self) -> None:
-        assert _loop_hidden_reads(
-            _ctx(["get_plan", "get_strategy"]),
-        ) == frozenset()
+        assert (
+            _loop_hidden_reads(
+                _ctx(["get_plan", "get_strategy"]),
+            )
+            == frozenset()
+        )
 
 
 class TestPlanStateGated:

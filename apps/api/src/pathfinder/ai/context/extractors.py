@@ -69,7 +69,9 @@ def _extract_graph_mutation(record: ToolCallRecord) -> str:
     step_id = step.id
     # For combine steps use the operator; for search/transform use search_name
     label = step.operator or step.search_name or step.display_name or "?"
-    size_part = f", {step.estimated_size} genes" if step.estimated_size is not None else ""
+    size_part = (
+        f", {step.estimated_size} genes" if step.estimated_size is not None else ""
+    )
     return f"{step_id}, {label}{size_part}"
 
 
@@ -89,7 +91,9 @@ def _extract_search_overview(record: ToolCallRecord) -> str:
             parts += f", {optional_count} optional"
         return parts
     total = len(overview.required) + optional_count
-    names = [p.name for p in (overview.required + overview.optional)[:_OVERVIEW_NAME_PREVIEW]]
+    names = [
+        p.name for p in (overview.required + overview.optional)[:_OVERVIEW_NAME_PREVIEW]
+    ]
     return f"{total} params ({', '.join(names)})"
 
 
@@ -271,5 +275,5 @@ def extract_tool_summary(record: ToolCallRecord) -> str:
     extractor = _EXTRACTOR_REGISTRY.get(record.name, _extract_generic)
     try:
         return extractor(record)
-    except (ValidationError, ValueError, KeyError):
+    except ValidationError, ValueError, KeyError:
         return _extract_generic(record)

@@ -83,21 +83,29 @@ def _shape_error_hint(
     return None
 
 
-_PARAM_VALUE_FIELDS = frozenset({
-    "context_values", "parameters", "target_parameters",
-    "fixed_parameters", "controls_extra_parameters",
-})
+_PARAM_VALUE_FIELDS = frozenset(
+    {
+        "context_values",
+        "parameters",
+        "target_parameters",
+        "fixed_parameters",
+        "controls_extra_parameters",
+    }
+)
 
-_PARAM_VALUE_SHAPE_ERROR_TYPES = frozenset({
-    "union_tag_not_found",
-    "union_tag_invalid",
-    "model_attributes_type",
-    "dict_type",
-})
+_PARAM_VALUE_SHAPE_ERROR_TYPES = frozenset(
+    {
+        "union_tag_not_found",
+        "union_tag_invalid",
+        "model_attributes_type",
+        "dict_type",
+    }
+)
 
 
 def _param_value_shape_hint(
-    args: dict[str, object], error: PydanticValidationError,
+    args: dict[str, object],
+    error: PydanticValidationError,
 ) -> str | None:
     bad: list[tuple[str, object]] = []
     for entry in error.errors():
@@ -132,9 +140,9 @@ def _build_strategy_misplaced_hint(
     if not isinstance(args, dict):
         return None
     misplaced = [
-        key for key in args
-        if key in _STEP_TREE_FIELDS
-        and key not in _BUILD_STRATEGY_TOPLEVEL_ALLOWED
+        key
+        for key in args
+        if key in _STEP_TREE_FIELDS and key not in _BUILD_STRATEGY_TOPLEVEL_ALLOWED
     ]
     if not misplaced:
         return None
@@ -187,8 +195,8 @@ def _wrapped_args_hint(
 # ---------------------------------------------------------------------------
 
 _NEXT_ACTIONS_WDK_404_SEARCH = [
-    "Call search_for_searches(query=\"<describe what you need>\") to find the correct search name",
-    "Call list_searches(record_type=\"transcript\") to see all available searches",
+    'Call search_for_searches(query="<describe what you need>") to find the correct search name',
+    'Call list_searches(record_type="transcript") to see all available searches',
 ]
 
 _NEXT_ACTIONS_WDK_422 = [

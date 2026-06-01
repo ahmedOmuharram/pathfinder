@@ -6,6 +6,7 @@ provider, matching prior behavior.
 Revision ID: 2026_04_18_0003
 Revises: 2026_04_18_0002
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

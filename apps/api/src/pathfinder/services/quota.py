@@ -64,9 +64,7 @@ async def _effective_limit_usd(session: AsyncSession, user_id: UUID) -> Decimal:
     return Decimal(str(override))
 
 
-async def get_current(
-    session: AsyncSession, user_id: UUID
-) -> QuotaStatus:
+async def get_current(session: AsyncSession, user_id: UUID) -> QuotaStatus:
     """Return the user's usage for the current monthly period."""
     period = current_period_start()
     row = await session.scalar(

@@ -5,6 +5,7 @@ Revises: 3efc8ac5248a
 Create Date: 2026-04-14 13:57:14.195849
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -37,9 +38,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("tool_name", sa.String(128), nullable=False),
-        sa.Column(
-            "status", sa.String(32), nullable=False, server_default="pending"
-        ),
+        sa.Column("status", sa.String(32), nullable=False, server_default="pending"),
         sa.Column("args", JSONB, nullable=False),
         sa.Column("result", JSONB, nullable=True),
         sa.Column("error", sa.Text, nullable=True),
@@ -58,12 +57,8 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_index(
-        "ix_background_tasks_chat_id", "background_tasks", ["chat_id"]
-    )
-    op.create_index(
-        "ix_background_tasks_user_id", "background_tasks", ["user_id"]
-    )
+    op.create_index("ix_background_tasks_chat_id", "background_tasks", ["chat_id"])
+    op.create_index("ix_background_tasks_user_id", "background_tasks", ["user_id"])
 
     op.create_table(
         "task_progress",
@@ -120,10 +115,6 @@ def downgrade() -> None:
     op.drop_table("chat_events")
     op.drop_index("ix_task_progress_task_id", table_name="task_progress")
     op.drop_table("task_progress")
-    op.drop_index(
-        "ix_background_tasks_user_id", table_name="background_tasks"
-    )
-    op.drop_index(
-        "ix_background_tasks_chat_id", table_name="background_tasks"
-    )
+    op.drop_index("ix_background_tasks_user_id", table_name="background_tasks")
+    op.drop_index("ix_background_tasks_chat_id", table_name="background_tasks")
     op.drop_table("background_tasks")

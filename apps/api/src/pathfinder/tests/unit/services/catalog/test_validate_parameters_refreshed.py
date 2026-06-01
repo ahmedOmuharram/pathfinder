@@ -23,7 +23,7 @@ def _enum_param(
     name: str,
     *,
     type_: str = "single-pick-vocabulary",
-    vocab: list[list[str]],
+    vocab: list[list[str | None]],
     dependent_params: list[str] | None = None,
 ) -> WDKParameter:
     raw: JSONObject = {
@@ -50,22 +50,27 @@ def _make_response(parameters: list[WDKParameter]) -> WDKSearchResponse:
     )
 
 
-_STATIC_TAXON_VOCAB = [["TaxonA", "Taxon A"], ["TaxonB", "Taxon B"], ["TaxonC", "Taxon C"]]
-_REFRESHED_TAXON_VOCAB = [["TaxonA", "Taxon A"]]
+_STATIC_TAXON_VOCAB = [
+    ["TaxonA", "Taxon A", None],
+    ["TaxonB", "Taxon B", None],
+    ["TaxonC", "Taxon C", None],
+]
+_REFRESHED_TAXON_VOCAB = [["TaxonA", "Taxon A", None]]
 
 
 @pytest.fixture
 def stub_validation(monkeypatch: pytest.MonkeyPatch) -> None:
     organism = _enum_param(
         "organism",
-        vocab=[["Pf3D7", "P. falciparum 3D7"], ["PvP01", "P. vivax P01"]],
+        vocab=[["Pf3D7", "P. falciparum 3D7", None], ["PvP01", "P. vivax P01", None]],
         dependent_params=["taxon"],
     )
     taxon = _enum_param("taxon", vocab=_STATIC_TAXON_VOCAB)
     static_response = _make_response([organism, taxon])
 
     async def _fake_expand(
-        ctx: SearchContext, raw_context: JSONObject,
+        ctx: SearchContext,
+        raw_context: JSONObject,
     ) -> WDKSearchResponse:
         del ctx, raw_context
         return static_response
@@ -124,7 +129,9 @@ async def test_invalid_dependent_value_error_carries_refreshed_vocab(
 ) -> None:
     del stub_validation
     ctx = SearchContext(
-        site_id="plasmodb", record_type="transcript", search_name="GenesByOrganism",
+        site_id="plasmodb",
+        record_type="transcript",
+        search_name="GenesByOrganism",
     )
     with pytest.raises(ValidationError) as excinfo:
         await pv.validate_parameters(
@@ -150,7 +157,9 @@ async def test_missing_required_error_serializes_refreshed_spec(
 ) -> None:
     del stub_validation
     ctx = SearchContext(
-        site_id="plasmodb", record_type="transcript", search_name="GenesByOrganism",
+        site_id="plasmodb",
+        record_type="transcript",
+        search_name="GenesByOrganism",
     )
     with pytest.raises(ValidationError) as excinfo:
         await pv.validate_parameters(

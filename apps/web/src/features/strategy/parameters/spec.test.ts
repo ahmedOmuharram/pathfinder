@@ -84,7 +84,7 @@ describe("isMultiParam", () => {
         allowEmptyValue: false,
         allowMultipleValues: true,
         multiPick: true,
-        vocabulary: ["a", "b"],
+        vocabulary: [["a", "a", null], ["b", "b", null]],
         maxSelectedCount: 10,
         minSelectedCount: 1,
         countOnlyLeaves: false,

@@ -41,6 +41,7 @@ async def _available_gene_sets(
         for gs in sets[:10]
     ]
 
+
 async def export_gene_set(
     ctx: RunContext[AgentDeps],
     gene_set_id: str,
@@ -56,9 +57,7 @@ async def export_gene_set(
         output_format: Export format: csv or txt.
     """
     if output_format not in ("csv", "txt"):
-        msg = (
-            f"VALIDATION_ERROR: format must be 'csv' or 'txt', got {output_format!r}."
-        )
+        msg = f"VALIDATION_ERROR: format must be 'csv' or 'txt', got {output_format!r}."
         raise ModelRetry(msg)
 
     deps = ctx.deps

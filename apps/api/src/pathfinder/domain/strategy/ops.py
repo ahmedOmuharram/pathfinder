@@ -45,9 +45,7 @@ class ColocationParams(CamelModel):
 
     # High-level
     operation: Literal["overlaps", "contains", "is contained in"] = "overlaps"
-    strand: Literal["either strand", "same strand", "opposite strand"] = (
-        "either strand"
-    )
+    strand: Literal["either strand", "same strand", "opposite strand"] = "either strand"
     output: Literal["a", "b"] = "a"
 
     # Region A (gene result set) — default: 1kb upstream of gene start

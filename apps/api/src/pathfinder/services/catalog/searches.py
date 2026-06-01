@@ -88,11 +88,13 @@ async def browse_search_categories(
         # Show all names for universal searches (they're few and critical),
         # but only 5 examples for dataset-specific categories (hundreds each).
         max_examples = len(groups[cat]) if cat == "(universal)" else 5
-        result.append({
-            "category": cat,
-            "count": len(groups[cat]),
-            "examples": groups[cat][:max_examples],
-        })
+        result.append(
+            {
+                "category": cat,
+                "count": len(groups[cat]),
+                "examples": groups[cat][:max_examples],
+            }
+        )
     return result
 
 
@@ -203,15 +205,17 @@ async def search_for_searches(
         if entry.name in seen:
             continue
         seen.add(entry.name)
-        result.append(SearchMatch(
-            name=entry.name,
-            display_name=entry.display_name,
-            description=entry.description,
-            record_type=entry.record_type,
-            category=entry.category,
-            returns=entry.returns,
-            relevance=sc / max_score,
-        ))
+        result.append(
+            SearchMatch(
+                name=entry.name,
+                display_name=entry.display_name,
+                description=entry.description,
+                record_type=entry.record_type,
+                category=entry.category,
+                returns=entry.returns,
+                relevance=sc / max_score,
+            )
+        )
         if len(result) >= limit:
             break
 

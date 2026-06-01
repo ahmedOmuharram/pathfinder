@@ -23,9 +23,8 @@ from pathfinder.services.experiment.types import (
     BatchOrganismTarget,
 )
 from pathfinder.transport.http.deps import (
-    ControlSetRepo,
-    ConversationRepo,
     CurrentUser,
+    DBSession,
 )
 from pathfinder.transport.http.schemas.experiments import (
     CreateBatchExperimentRequest,
@@ -141,7 +140,9 @@ async def create_benchmark(
 
     async def _producer() -> AsyncIterator[BenchmarkEvent]:
         async for event in stream_benchmark(
-            base_config, control_sets, user_id=str(user_id),
+            base_config,
+            control_sets,
+            user_id=str(user_id),
         ):
             yield event
 
@@ -159,8 +160,7 @@ async def create_benchmark(
 )
 async def seed_strategies(
     user_id: CurrentUser,
-    conv_repo: ConversationRepo,
-    control_set_repo: ControlSetRepo,
+    session: DBSession,
     site_id: str | None = None,
 ) -> StreamingResponse:
     """Seed demo strategies and control sets across VEuPathDB sites.
@@ -172,8 +172,7 @@ async def seed_strategies(
         try:
             async for event in run_seed(
                 user_id=user_id,
-                conv_repo=conv_repo,
-                control_set_repo=control_set_repo,
+                session=session,
                 site_id=site_id,
             ):
                 yield event

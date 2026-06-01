@@ -50,7 +50,7 @@ class _RawSearchOverview(CamelModel):
 def _track_search_discovery(deps: AgentDeps, result_text: str) -> None:
     try:
         raw = _RawSearchOverview.model_validate_json(result_text)
-    except (ValidationError, ValueError):
+    except ValidationError, ValueError:
         return
     if not raw.searchName:
         return

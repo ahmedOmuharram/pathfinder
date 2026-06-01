@@ -33,11 +33,13 @@ _BACKOFF_BASE_S = 1.0
 
 # ── PubMed response envelope models ─────────────────────────────────
 
+
 class _ESearchResult(BaseModel):
     """Inner ``esearchresult`` from PubMed esearch response."""
 
     model_config = ConfigDict(extra="ignore")
     idlist: list[str] = Field(default_factory=list)
+
 
 class _ESearchResponse(BaseModel):
     """Top-level envelope for PubMed esearch response."""
@@ -45,11 +47,13 @@ class _ESearchResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     esearchresult: _ESearchResult = Field(default_factory=_ESearchResult)
 
+
 class _ESummaryResponse(BaseModel):
     """Top-level envelope for PubMed esummary response."""
 
     model_config = ConfigDict(extra="ignore")
     result: dict[str, object] = Field(default_factory=dict)
+
 
 class _PubMedSummaryEntry(BaseModel):
     """One article entry from the PubMed esummary ``result`` dict."""
@@ -59,6 +63,7 @@ class _PubMedSummaryEntry(BaseModel):
     pubdate: str = ""
     fulljournalname: str | None = None
     authors: list[_PubMedSummaryAuthor] = Field(default_factory=list)
+
 
 class PubmedClient(BaseClient):
     """Client for PubMed API.
@@ -91,7 +96,7 @@ class PubmedClient(BaseClient):
             except ExternalServiceError as exc:
                 last_exc = exc
                 if "429" in str(exc):
-                    wait = _BACKOFF_BASE_S * (2 ** attempt)
+                    wait = _BACKOFF_BASE_S * (2**attempt)
                     logger.warning(
                         "PubMed 429, retrying",
                         attempt=attempt + 1,
@@ -179,7 +184,7 @@ class PubmedClient(BaseClient):
                 continue
             try:
                 entry = _PubMedSummaryEntry.model_validate(raw_entry)
-            except (ValidationError, TypeError):
+            except ValidationError, TypeError:
                 continue
             items.append(
                 {
@@ -200,7 +205,7 @@ class PubmedClient(BaseClient):
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             article = PubMedRawArticle.model_validate(raw)
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             return None
         parsed = article.to_parsed_paper()
 

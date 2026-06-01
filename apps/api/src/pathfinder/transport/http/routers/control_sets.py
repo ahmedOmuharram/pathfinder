@@ -5,20 +5,16 @@ from uuid import UUID
 from fastapi import APIRouter, Query
 from pydantic import Field
 
-from pathfinder.persistence.models import ControlSet
-from pathfinder.persistence.repositories.control_set import ControlSetCreate
-from pathfinder.platform.errors import NotFoundError
 from pathfinder.platform.errors import ValidationError as CoreValidationError
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.uuid_utils import format_uuid
-from pathfinder.transport.http.deps import ControlSetRepo, CurrentUser
+from pathfinder.services.control_sets import (
+    ControlSetResponse,
+    ControlSetService,
+    NewControlSet,
+)
+from pathfinder.transport.http.deps import CurrentUser, DBSession
 
 router = APIRouter(prefix="/api/v1/control-sets", tags=["control-sets"])
-
-
-# ---------------------------------------------------------------------------
-# Request / response schemas
-# ---------------------------------------------------------------------------
 
 
 class CreateControlSetRequest(CamelModel):
@@ -35,51 +31,9 @@ class CreateControlSetRequest(CamelModel):
     is_public: bool = Field(default=False)
 
 
-class ControlSetResponse(CamelModel):
-    """Serialized control set returned to the client."""
-
-    id: str
-    name: str
-    site_id: str
-    record_type: str
-    positive_ids: list[str]
-    negative_ids: list[str]
-    source: str | None = None
-    tags: list[str]
-    provenance_notes: str | None = Field(None)
-    version: int
-    is_public: bool
-    user_id: str | None = Field(None)
-    created_at: str
-
-
-def _serialize(cs: ControlSet) -> ControlSetResponse:
-    """Convert an ORM ``ControlSet`` to a response model."""
-    return ControlSetResponse(
-        id=str(cs.id),
-        name=cs.name,
-        site_id=cs.site_id,
-        record_type=cs.record_type,
-        positive_ids=[str(x) for x in (cs.positive_ids or [])],
-        negative_ids=[str(x) for x in (cs.negative_ids or [])],
-        source=cs.source,
-        tags=[str(x) for x in (cs.tags or [])],
-        provenance_notes=cs.provenance_notes,
-        version=cs.version,
-        is_public=cs.is_public,
-        user_id=format_uuid(cs.user_id),
-        created_at=cs.created_at.isoformat() if cs.created_at else "",
-    )
-
-
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
-
 @router.get("", response_model=list[ControlSetResponse])
 async def list_control_sets(
-    repo: ControlSetRepo,
+    session: DBSession,
     user_id: CurrentUser,
     site_id: str | None = Query(None, alias="siteId"),
     tags: str | None = None,
@@ -91,61 +45,49 @@ async def list_control_sets(
             title="Missing required parameter",
             detail="siteId query parameter is required",
         )
-    rows = await repo.list_by_site(
+    return await ControlSetService(session).list_for_site(
         site_id=site_id,
         user_id=user_id,
         tags=tag_list,
     )
-    return [_serialize(r) for r in rows]
 
 
 @router.get("/{control_set_id}", response_model=ControlSetResponse)
 async def get_control_set(
     control_set_id: str,
-    repo: ControlSetRepo,
+    session: DBSession,
     user_id: CurrentUser,
 ) -> ControlSetResponse:
     """Get a single control set by ID."""
-    cs = await repo.get_by_id(UUID(control_set_id))
-    if cs is None:
-        raise NotFoundError(title="Control set not found")
-    if not cs.is_public and cs.user_id != user_id:
-        raise NotFoundError(title="Control set not found")
-    return _serialize(cs)
+    return await ControlSetService(session).get(UUID(control_set_id), user_id)
 
 
 @router.post("", response_model=ControlSetResponse, status_code=201)
 async def create_control_set(
     body: CreateControlSetRequest,
-    repo: ControlSetRepo,
+    session: DBSession,
     user_id: CurrentUser,
 ) -> ControlSetResponse:
     """Create a new control set."""
-    cs = await repo.create(
-        ControlSetCreate(
-            name=body.name,
-            site_id=body.site_id,
-            record_type=body.record_type,
-            positive_ids=body.positive_ids,
-            negative_ids=body.negative_ids,
-            source=body.source,
-            tags=body.tags or [],
-            provenance_notes=body.provenance_notes,
-            is_public=body.is_public,
-            user_id=user_id,
-        )
+    spec = NewControlSet(
+        name=body.name,
+        site_id=body.site_id,
+        record_type=body.record_type,
+        positive_ids=body.positive_ids,
+        negative_ids=body.negative_ids,
+        source=body.source,
+        tags=body.tags,
+        provenance_notes=body.provenance_notes,
+        is_public=body.is_public,
     )
-    return _serialize(cs)
+    return await ControlSetService(session).create(spec, user_id=user_id)
 
 
 @router.delete("/{control_set_id}", status_code=204)
 async def delete_control_set(
     control_set_id: str,
-    repo: ControlSetRepo,
+    session: DBSession,
     user_id: CurrentUser,
 ) -> None:
     """Delete a control set owned by the current user."""
-    cs = await repo.get_by_id(UUID(control_set_id))
-    if cs is None or cs.user_id != user_id:
-        raise NotFoundError(title="Control set not found")
-    await repo.delete(UUID(control_set_id))
+    await ControlSetService(session).delete(UUID(control_set_id), user_id)

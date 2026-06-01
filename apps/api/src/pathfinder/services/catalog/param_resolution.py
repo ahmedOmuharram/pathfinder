@@ -66,7 +66,6 @@ async def get_search_parameters(ctx: SearchContext) -> SearchParametersResult:
 
     resolved_ctx = SearchContext(ctx.site_id, resolved_record_type, ctx.search_name)
     response, resolved_record_type = await fetch_search_details(
-        discovery,
         resolved_ctx,
         record_types=record_types,
     )
@@ -82,7 +81,9 @@ async def get_search_parameters(ctx: SearchContext) -> SearchParametersResult:
     )
 
 
-async def get_search_parameters_tool(ctx: SearchContext) -> SearchParametersResult | ToolErrorPayload:
+async def get_search_parameters_tool(
+    ctx: SearchContext,
+) -> SearchParametersResult | ToolErrorPayload:
     """Tool-friendly wrapper that returns standardized tool_error payloads."""
     try:
         return await get_search_parameters(ctx)
@@ -152,7 +153,8 @@ async def expand_search_details_with_params(
 
 
 def _filter_context_values(
-    raw_context: dict[str, ParamValue], allowed: set[str],
+    raw_context: dict[str, ParamValue],
+    allowed: set[str],
 ) -> dict[str, ParamValue]:
     """Filter context values to keys WDK recognizes for the search (best-effort).
 

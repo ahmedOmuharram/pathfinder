@@ -6,8 +6,8 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from pathfinder import __version__
-from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.health import check_database
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.readiness import get_readiness

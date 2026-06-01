@@ -22,13 +22,15 @@ from pathfinder.services.wdk import (
     get_strategy_api,
 )
 from pathfinder.services.wdk.step_results import StepResultsService
+from pathfinder.services.wdk.step_results_models import (
+    AttributesResponse,
+    RecordDetailResponse,
+)
 from pathfinder.transport.http.deps import CurrentUser, ExperimentDep
 from pathfinder.transport.http.schemas.experiments import RefineRequest, RefineResponse
 from pathfinder.transport.http.schemas.step_results import (
-    AttributesResponse,
     ClassifiedRecord,
     DistributionResponse,
-    RecordDetailResponse,
     RecordsMeta,
     RecordsPagination,
     RecordsResponse,
@@ -43,6 +45,7 @@ router = APIRouter()
 # Query parameter groups
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RecordQueryParams:
     """Grouped query parameters for record listing endpoints."""
@@ -55,9 +58,11 @@ class RecordQueryParams:
     filter_attribute: str | None = Query(None, alias="filterAttribute")
     filter_value: str | None = Query(None, alias="filterValue")
 
+
 # ---------------------------------------------------------------------------
 # Route handlers
 # ---------------------------------------------------------------------------
+
 
 def _require_step(exp: ExperimentDep) -> StepResultsService:
     """Create a StepResultsService, raising 404 if no WDK step."""
@@ -68,16 +73,21 @@ def _require_step(exp: ExperimentDep) -> StepResultsService:
         api, step_id=exp.wdk_step_id, record_type=exp.config.record_type
     )
 
+
 @router.get("/{experiment_id}/results/attributes", response_model=AttributesResponse)
 async def get_experiment_attributes(
-    exp: ExperimentDep, user_id: CurrentUser,
+    exp: ExperimentDep,
+    user_id: CurrentUser,
 ) -> AttributesResponse:
     """Get available attributes for an experiment's record type."""
     api = get_strategy_api(exp.config.site_id)
     svc = StepResultsService(
-        api, step_id=exp.wdk_step_id or 0, record_type=exp.config.record_type,
+        api,
+        step_id=exp.wdk_step_id or 0,
+        record_type=exp.config.record_type,
     )
     return await svc.get_attributes()
+
 
 @router.get("/{experiment_id}/results/records", response_model=RecordsResponse)
 async def get_experiment_records(
@@ -116,7 +126,11 @@ async def get_experiment_records(
             if rec.attributes.get(params.filter_attribute) == params.filter_value
         ]
         classified_dicts = classify_records(
-            filtered_records, tp_ids=tp_ids, fp_ids=fp_ids, fn_ids=fn_ids, tn_ids=tn_ids,
+            filtered_records,
+            tp_ids=tp_ids,
+            fp_ids=fp_ids,
+            fn_ids=fn_ids,
+            tn_ids=tn_ids,
         )
         page = classified_dicts[params.offset : params.offset + params.limit]
         return RecordsResponse(
@@ -125,7 +139,9 @@ async def get_experiment_records(
                 total_count=len(classified_dicts),
                 display_total_count=len(classified_dicts),
                 response_count=len(page),
-                pagination=RecordsPagination(offset=params.offset, num_records=params.limit),
+                pagination=RecordsPagination(
+                    offset=params.offset, num_records=params.limit
+                ),
                 attributes=attr_list or [],
                 tables=[],
             ),
@@ -139,7 +155,11 @@ async def get_experiment_records(
         attributes=attr_list,
     )
     classified_dicts = classify_records(
-        answer.records, tp_ids=tp_ids, fp_ids=fp_ids, fn_ids=fn_ids, tn_ids=tn_ids,
+        answer.records,
+        tp_ids=tp_ids,
+        fp_ids=fp_ids,
+        fn_ids=fn_ids,
+        tn_ids=tn_ids,
     )
     return RecordsResponse(
         records=[ClassifiedRecord.model_validate(r) for r in classified_dicts],
@@ -147,11 +167,14 @@ async def get_experiment_records(
             total_count=answer.meta.total_count,
             display_total_count=answer.meta.display_total_count,
             response_count=answer.meta.response_count,
-            pagination=RecordsPagination(offset=params.offset, num_records=params.limit),
+            pagination=RecordsPagination(
+                offset=params.offset, num_records=params.limit
+            ),
             attributes=answer.meta.attributes,
             tables=answer.meta.tables,
         ),
     )
+
 
 @router.post("/{experiment_id}/results/record", response_model=RecordDetailResponse)
 async def get_experiment_record_detail(
@@ -166,9 +189,12 @@ async def get_experiment_record_detail(
 
     api = get_strategy_api(exp.config.site_id)
     svc = StepResultsService(
-        api, step_id=exp.wdk_step_id or 0, record_type=exp.config.record_type,
+        api,
+        step_id=exp.wdk_step_id or 0,
+        record_type=exp.config.record_type,
     )
     return await svc.get_record_detail(pk_parts, exp.config.site_id)
+
 
 @router.get(
     "/{experiment_id}/results/distributions/{attribute_name}",
@@ -183,6 +209,7 @@ async def get_experiment_distribution(
     svc = _require_step(exp)
     dist = await svc.get_distribution(attribute_name)
     return DistributionResponse(histogram=dist.histogram, statistics=dist.statistics)
+
 
 @router.post("/{experiment_id}/refine", response_model=RefineResponse)
 async def refine_experiment(

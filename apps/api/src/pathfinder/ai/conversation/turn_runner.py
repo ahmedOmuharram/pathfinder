@@ -33,7 +33,7 @@ from pathfinder.persistence.repositories import (
     ConversationRepository,
 )
 from pathfinder.persistence.repositories.conversation import ConversationUpdate
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
 
 _CANCEL_POLL_INTERVAL_SECONDS = 1.0
@@ -71,7 +71,8 @@ async def _watch_for_cancel(
     while not cancel_event.is_set():
         try:
             cancelled = await repo.is_cancelled(
-                conversation_id=conversation_id, turn_id=turn_id,
+                conversation_id=conversation_id,
+                turn_id=turn_id,
             )
         except Exception:
             logger.exception(
@@ -125,12 +126,16 @@ async def run_turn(
     turn_message_id = writer.turn_id
     start_event_id = await writer.write(
         StartChunk(message_id=str(turn_message_id)).model_dump(
-            by_alias=True, mode="json", exclude_none=True,
+            by_alias=True,
+            mode="json",
+            exclude_none=True,
         ),
     )
     await writer.write(
         turn_status_event(label="Preparing context").model_dump(
-            by_alias=True, mode="json", exclude_none=True,
+            by_alias=True,
+            mode="json",
+            exclude_none=True,
         ),
     )
 
@@ -141,7 +146,8 @@ async def run_turn(
         )
 
     graph_input = _build_turn_input(
-        body, user_id,
+        body,
+        user_id,
         turn_message_id=writer.turn_id,
         turn_start_event_id=start_event_id - 1,
     )
@@ -159,13 +165,17 @@ async def run_turn(
             await writer.write(t)
 
     finish_reason = (
-        "error" if result.encountered_error
-        else "other" if result.saw_interrupt or result.cancelled
+        "error"
+        if result.encountered_error
+        else "other"
+        if result.saw_interrupt or result.cancelled
         else "stop"
     )
     await writer.write(
         FinishChunk(finish_reason=finish_reason).model_dump(
-            by_alias=True, mode="json", exclude_none=True,
+            by_alias=True,
+            mode="json",
+            exclude_none=True,
         ),
     )
     await writer.write(
@@ -182,7 +192,11 @@ async def _consume_graph_stream(ctx: _StreamConsumerCtx) -> None:
     ):
         if mode == "custom":
             await _handle_custom(
-                payload, ctx.title_task, ctx.body.conversation_id, ctx.result, ctx.writer,
+                payload,
+                ctx.title_task,
+                ctx.body.conversation_id,
+                ctx.result,
+                ctx.writer,
             )
         elif mode == "updates":
             for interrupt_chunk in _interrupt_chunks(payload):
@@ -254,7 +268,9 @@ async def _drive_graph(
         )
         await writer.write(
             ErrorChunk(error_text=f"{type(exc).__name__}: {exc}").model_dump(
-                by_alias=True, mode="json", exclude_none=True,
+                by_alias=True,
+                mode="json",
+                exclude_none=True,
             ),
         )
     finally:
@@ -283,7 +299,8 @@ async def _handle_custom(
 
 
 async def _emit_title(
-    title_task: asyncio.Task[str], conversation_id: UUID,
+    title_task: asyncio.Task[str],
+    conversation_id: UUID,
 ) -> AsyncGenerator[dict[str, Any]]:
     try:
         title = await title_task
@@ -298,9 +315,12 @@ async def _emit_title(
         if conversation is not None and conversation.name:
             return
         await repo.update_conversation(
-            conversation_id, ConversationUpdate(name=title),
+            conversation_id,
+            ConversationUpdate(name=title),
         )
         await session.commit()
     yield conversation_title_event(title=title).model_dump(
-        by_alias=True, mode="json", exclude_none=True,
+        by_alias=True,
+        mode="json",
+        exclude_none=True,
     )

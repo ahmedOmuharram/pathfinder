@@ -4,6 +4,7 @@ Every ``data-*`` UI part the frontend renders starts life here or in a tool.
 Emitted via ``get_stream_writer`` alongside the agent's v6 chunks so the
 frontend sees them as native ``DataUIPart``s on the assistant message.
 """
+
 from __future__ import annotations
 
 from typing import Literal

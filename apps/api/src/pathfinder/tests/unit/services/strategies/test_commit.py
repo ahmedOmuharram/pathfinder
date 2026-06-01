@@ -175,9 +175,7 @@ async def test_delete_step_collapses_and_calls_wdk_delete(stub_api: _StubAPI) ->
 
     result = await apply_and_commit(
         deps=deps,
-        op=DeleteStepOp(
-            step_id="A", resolution=DeleteResolution.COLLAPSE_COMBINE
-        ),
+        op=DeleteStepOp(step_id="A", resolution=DeleteResolution.COLLAPSE_COMBINE),
     )
 
     graph = deps.strategy_session.graph

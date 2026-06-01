@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from pathfinder.ai.scratchpad._ids import approx_body_tokens, mint_note_id
+from pathfinder.domain.scratchpad.ids import approx_body_tokens, mint_note_id
 
 
 class TestMintNoteId:

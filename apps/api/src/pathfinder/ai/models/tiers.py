@@ -42,25 +42,55 @@ class TierPreset(CamelModel):
 
 _ANTHROPIC: dict[TierName, TierPreset] = {
     "quality": TierPreset(
-        scoping=PhaseTierConfig(model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"),
-        discovery=PhaseTierConfig(model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"),
-        planning=PhaseTierConfig(model_id="anthropic:claude-opus-4-6", reasoning_effort="high"),
-        execution=PhaseTierConfig(model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"),
-        verification=PhaseTierConfig(model_id="anthropic:claude-opus-4-6", reasoning_effort="high"),
+        scoping=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        discovery=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        planning=PhaseTierConfig(
+            model_id="anthropic:claude-opus-4-6", reasoning_effort="high"
+        ),
+        execution=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        verification=PhaseTierConfig(
+            model_id="anthropic:claude-opus-4-6", reasoning_effort="high"
+        ),
     ),
     "balanced": TierPreset(
-        scoping=PhaseTierConfig(model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"),
-        discovery=PhaseTierConfig(model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"),
-        planning=PhaseTierConfig(model_id="anthropic:claude-opus-4-6", reasoning_effort="high"),
-        execution=PhaseTierConfig(model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"),
-        verification=PhaseTierConfig(model_id="anthropic:claude-sonnet-4-6", reasoning_effort="high"),
+        scoping=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        discovery=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        planning=PhaseTierConfig(
+            model_id="anthropic:claude-opus-4-6", reasoning_effort="high"
+        ),
+        execution=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        verification=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="high"
+        ),
     ),
     "fast": TierPreset(
-        scoping=PhaseTierConfig(model_id="anthropic:claude-haiku-4-5", reasoning_effort="low"),
-        discovery=PhaseTierConfig(model_id="anthropic:claude-haiku-4-5", reasoning_effort="low"),
-        planning=PhaseTierConfig(model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"),
-        execution=PhaseTierConfig(model_id="anthropic:claude-haiku-4-5", reasoning_effort="low"),
-        verification=PhaseTierConfig(model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"),
+        scoping=PhaseTierConfig(
+            model_id="anthropic:claude-haiku-4-5", reasoning_effort="low"
+        ),
+        discovery=PhaseTierConfig(
+            model_id="anthropic:claude-haiku-4-5", reasoning_effort="low"
+        ),
+        planning=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
+        execution=PhaseTierConfig(
+            model_id="anthropic:claude-haiku-4-5", reasoning_effort="low"
+        ),
+        verification=PhaseTierConfig(
+            model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
+        ),
     ),
 }
 
@@ -70,45 +100,87 @@ _OPENAI: dict[TierName, TierPreset] = {
         discovery=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
         planning=PhaseTierConfig(model_id="openai:gpt-5.4", reasoning_effort="high"),
         execution=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
-        verification=PhaseTierConfig(model_id="openai:gpt-5.4", reasoning_effort="high"),
+        verification=PhaseTierConfig(
+            model_id="openai:gpt-5.4", reasoning_effort="high"
+        ),
     ),
     "balanced": TierPreset(
         scoping=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
         discovery=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
         planning=PhaseTierConfig(model_id="openai:gpt-5.4", reasoning_effort="high"),
         execution=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
-        verification=PhaseTierConfig(model_id="openai:gpt-4.1", reasoning_effort="medium"),
+        verification=PhaseTierConfig(
+            model_id="openai:gpt-4.1", reasoning_effort="medium"
+        ),
     ),
     "fast": TierPreset(
         scoping=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
-        discovery=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
-        planning=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
-        execution=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
-        verification=PhaseTierConfig(model_id="openai:gpt-4.1-mini", reasoning_effort="low"),
+        discovery=PhaseTierConfig(
+            model_id="openai:gpt-4.1-mini", reasoning_effort="low"
+        ),
+        planning=PhaseTierConfig(
+            model_id="openai:gpt-4.1-mini", reasoning_effort="low"
+        ),
+        execution=PhaseTierConfig(
+            model_id="openai:gpt-4.1-mini", reasoning_effort="low"
+        ),
+        verification=PhaseTierConfig(
+            model_id="openai:gpt-4.1-mini", reasoning_effort="low"
+        ),
     ),
 }
 
 _GOOGLE: dict[TierName, TierPreset] = {
     "quality": TierPreset(
-        scoping=PhaseTierConfig(model_id="google:gemini-2.5-pro", reasoning_effort="medium"),
-        discovery=PhaseTierConfig(model_id="google:gemini-2.5-pro", reasoning_effort="medium"),
-        planning=PhaseTierConfig(model_id="google:gemini-3.1-pro", reasoning_effort="high"),
-        execution=PhaseTierConfig(model_id="google:gemini-2.5-pro", reasoning_effort="medium"),
-        verification=PhaseTierConfig(model_id="google:gemini-3.1-pro", reasoning_effort="high"),
+        scoping=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        discovery=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        planning=PhaseTierConfig(
+            model_id="google:gemini-3.1-pro", reasoning_effort="high"
+        ),
+        execution=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        verification=PhaseTierConfig(
+            model_id="google:gemini-3.1-pro", reasoning_effort="high"
+        ),
     ),
     "balanced": TierPreset(
-        scoping=PhaseTierConfig(model_id="google:gemini-2.5-pro", reasoning_effort="medium"),
-        discovery=PhaseTierConfig(model_id="google:gemini-2.5-pro", reasoning_effort="medium"),
-        planning=PhaseTierConfig(model_id="google:gemini-3.1-pro", reasoning_effort="high"),
-        execution=PhaseTierConfig(model_id="google:gemini-2.5-pro", reasoning_effort="medium"),
-        verification=PhaseTierConfig(model_id="google:gemini-2.5-pro", reasoning_effort="high"),
+        scoping=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        discovery=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        planning=PhaseTierConfig(
+            model_id="google:gemini-3.1-pro", reasoning_effort="high"
+        ),
+        execution=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        verification=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="high"
+        ),
     ),
     "fast": TierPreset(
-        scoping=PhaseTierConfig(model_id="google:gemini-3-flash", reasoning_effort="low"),
-        discovery=PhaseTierConfig(model_id="google:gemini-3-flash", reasoning_effort="low"),
-        planning=PhaseTierConfig(model_id="google:gemini-2.5-pro", reasoning_effort="medium"),
-        execution=PhaseTierConfig(model_id="google:gemini-3-flash", reasoning_effort="low"),
-        verification=PhaseTierConfig(model_id="google:gemini-2.5-pro", reasoning_effort="medium"),
+        scoping=PhaseTierConfig(
+            model_id="google:gemini-3-flash", reasoning_effort="low"
+        ),
+        discovery=PhaseTierConfig(
+            model_id="google:gemini-3-flash", reasoning_effort="low"
+        ),
+        planning=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
+        execution=PhaseTierConfig(
+            model_id="google:gemini-3-flash", reasoning_effort="low"
+        ),
+        verification=PhaseTierConfig(
+            model_id="google:gemini-2.5-pro", reasoning_effort="medium"
+        ),
     ),
 }
 

@@ -40,11 +40,7 @@ class ProductActionEvent(CamelModel):
 
 
 def _clean_payload(payload: JSONObject) -> JSONObject:
-    return {
-        key: value
-        for key, value in payload.items()
-        if value is not None
-    }
+    return {key: value for key, value in payload.items() if value is not None}
 
 
 def record_product_action(event: ProductActionEvent) -> None:

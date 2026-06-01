@@ -86,21 +86,27 @@ async def api_client_other_user(
 
 @pytest.fixture
 async def conv_with_messages(
-    db_session: AsyncSession, seed_user: User,
+    db_session: AsyncSession,
+    seed_user: User,
 ) -> tuple[UUID, list[Message]]:
     conv = Conversation(
-        user_id=seed_user.id, site_id="plasmodb", name="", experiment_id=None,
+        user_id=seed_user.id,
+        site_id="plasmodb",
+        name="",
+        experiment_id=None,
     )
     db_session.add(conv)
     await db_session.flush()
     msgs: list[Message] = []
     base = datetime.now(UTC)
-    for i, (role, _text_body) in enumerate((
-        ("user", "one"),
-        ("assistant", "reply one"),
-        ("user", "two"),
-        ("assistant", "reply two"),
-    )):
+    for i, (role, _text_body) in enumerate(
+        (
+            ("user", "one"),
+            ("assistant", "reply one"),
+            ("user", "two"),
+            ("assistant", "reply two"),
+        )
+    ):
         msg = Message(
             id=uuid4(),
             conversation_id=conv.id,

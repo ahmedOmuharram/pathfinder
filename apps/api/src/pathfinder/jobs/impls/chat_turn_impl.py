@@ -27,7 +27,8 @@ async def run_chat_turn(payload: dict[str, Any]) -> None:
     body = parsed.body
 
     writer = ChatEventWriter(
-        conversation_id=body.conversation_id, turn_id=parsed.turn_id,
+        conversation_id=body.conversation_id,
+        turn_id=parsed.turn_id,
     )
     settings = get_settings()
     async with (

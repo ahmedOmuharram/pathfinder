@@ -1,6 +1,12 @@
-"""SQLAlchemy async engine and session management."""
+"""Cross-cutting database infrastructure: async engine + session management.
 
-from collections.abc import AsyncGenerator
+Lives in ``platform`` so any layer (transport, services, ai, persistence)
+may obtain a session without crossing layer boundaries. Persistence
+repositories accept an ``AsyncSession``; this module owns the engine and
+session factory.
+"""
+
+from collections.abc import AsyncGenerator, Callable
 
 from alembic import command
 from alembic.config import Config
@@ -14,6 +20,8 @@ from sqlalchemy.ext.asyncio import (
 
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.errors import InternalError
+
+DBSessionFactory = Callable[[], AsyncSession]
 
 _engine: AsyncEngine | None = None
 _session_factory_instance: async_sessionmaker[AsyncSession] | None = None

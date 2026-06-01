@@ -27,21 +27,42 @@ from pathfinder.domain.strategy.plan import (
     StrategyPlan,
 )
 
-_TRANSIENT_MARKERS: frozenset[str] = frozenset({
-    "5xx", "503", "504", "502", "timeout", "timed out", "connection", "network",
-})
-_VOCAB_MARKERS: frozenset[str] = frozenset({
-    "vocab", "validoptions", "valid options", "parameter", "param", "value",
-})
-_SEARCH_INVALID_MARKERS: frozenset[str] = frozenset({
-    "unknown search", "invalid search", "search not found",
-})
+_TRANSIENT_MARKERS: frozenset[str] = frozenset(
+    {
+        "5xx",
+        "503",
+        "504",
+        "502",
+        "timeout",
+        "timed out",
+        "connection",
+        "network",
+    }
+)
+_VOCAB_MARKERS: frozenset[str] = frozenset(
+    {
+        "vocab",
+        "validoptions",
+        "valid options",
+        "parameter",
+        "param",
+        "value",
+    }
+)
+_SEARCH_INVALID_MARKERS: frozenset[str] = frozenset(
+    {
+        "unknown search",
+        "invalid search",
+        "search not found",
+    }
+)
 _MIN_TERM_LEN: int = 3
 _MIN_SHARED_TERMS_FOR_INTENT_MATCH: int = 3
 
 
 def derive_ledger(
-    state: PipelineState, intent: UserIntent | None,
+    state: PipelineState,
+    intent: UserIntent | None,
 ) -> InvestigationLedger:
     """Pure derivation of the Ledger from PipelineState + the latest intent.
 
@@ -65,7 +86,8 @@ def derive_ledger(
 
 
 def _derive_frame_section(
-    state: PipelineState, intent: UserIntent | None,
+    state: PipelineState,
+    intent: UserIntent | None,
 ) -> FrameSection:
     frame = state.problem_frame
     if frame is None:
@@ -103,10 +125,7 @@ def _frame_matches_intent(frame_goal: str, intent: UserIntent | None) -> bool:
         return False
     a = frame_goal.casefold()
     b = intent.inferred_goal.casefold()
-    return (
-        a in b or b in a
-        or _shared_terms(a, b) >= _MIN_SHARED_TERMS_FOR_INTENT_MATCH
-    )
+    return a in b or b in a or _shared_terms(a, b) >= _MIN_SHARED_TERMS_FOR_INTENT_MATCH
 
 
 def _shared_terms(a: str, b: str) -> int:
@@ -116,7 +135,8 @@ def _shared_terms(a: str, b: str) -> int:
 
 
 def _derive_discovery_section(
-    state: PipelineState, intent: UserIntent | None,
+    state: PipelineState,
+    intent: UserIntent | None,
 ) -> DiscoverySection:
     selections = dict(state.discovered_searches)
     selected_count = sum(
@@ -138,16 +158,15 @@ def _derive_discovery_section(
 
 
 def _fit_report(
-    overview: SearchOverview, intent: UserIntent | None,
+    overview: SearchOverview,
+    intent: UserIntent | None,
 ) -> SearchFitReport:
     sides = (
         list(intent.differential_sides)
         if intent is not None and intent.is_differential
         else []
     )
-    coverage = {
-        side: _vocab_covers_side(overview, side) for side in sides
-    }
+    coverage = {side: _vocab_covers_side(overview, side) for side in sides}
     unmatched = [side for side, covered in coverage.items() if not covered]
     return SearchFitReport(
         search_name=overview.search_name,
@@ -174,17 +193,15 @@ def _vocab_covers_side(overview: SearchOverview, side: str) -> bool:
 def _snapshot_matches(snap: ParamVocabSnapshot, needle: str) -> bool:
     if snap.allowed_values:
         for entry in snap.allowed_values:
-            if (
-                needle in entry.value.casefold()
-                or needle in entry.display.casefold()
-            ):
+            if needle in entry.value.casefold() or needle in entry.display.casefold():
                 return True
     tree = snap.allowed_values_tree
     return tree is not None and needle in tree.casefold()
 
 
 def _intent_satisfaction(
-    reports: list[SearchFitReport], intent: UserIntent | None,
+    reports: list[SearchFitReport],
+    intent: UserIntent | None,
 ) -> tuple[bool, str | None]:
     if intent is None or not intent.is_differential:
         if not reports:
@@ -223,7 +240,8 @@ def _derive_plan_section(state: PipelineState) -> PlanSection:
 
 
 _PARAM_STATUS_TO_SLOT_LABEL: dict[
-    ParamStatus, Literal["needs_user_input", "needs_discovery"],
+    ParamStatus,
+    Literal["needs_user_input", "needs_discovery"],
 ] = {
     ParamStatus.NEEDS_USER_INPUT: "needs_user_input",
     ParamStatus.NEEDS_DISCOVERY: "needs_discovery",

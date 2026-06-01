@@ -42,7 +42,11 @@ class MemoryStore:
         return ("user", str(user_id), kind)
 
     async def put(
-        self, *, user_id: UUID, value: MemoryValue, key: str | None = None,
+        self,
+        *,
+        user_id: UUID,
+        value: MemoryValue,
+        key: str | None = None,
     ) -> str:
         mem_key = key or str(uuid4())
         payload = _dump_for_store(value)
@@ -50,29 +54,52 @@ class MemoryStore:
         return mem_key
 
     async def get(
-        self, *, user_id: UUID, kind: MemoryKind, key: str,
+        self,
+        *,
+        user_id: UUID,
+        kind: MemoryKind,
+        key: str,
     ) -> StoredMemory | None:
         item = await self.store.aget(self._ns(user_id, kind), key)
         return _to_stored_get(item)
 
     async def delete(
-        self, *, user_id: UUID, kind: MemoryKind, key: str,
+        self,
+        *,
+        user_id: UUID,
+        kind: MemoryKind,
+        key: str,
     ) -> None:
         await self.store.adelete(self._ns(user_id, kind), key)
 
     async def list_all(
-        self, *, user_id: UUID, kind: MemoryKind, limit: int = 100, offset: int = 0,
+        self,
+        *,
+        user_id: UUID,
+        kind: MemoryKind,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[StoredMemory]:
         items = await self.store.asearch(
-            self._ns(user_id, kind), query=None, limit=limit, offset=offset,
+            self._ns(user_id, kind),
+            query=None,
+            limit=limit,
+            offset=offset,
         )
         return [_to_stored_search(i) for i in items]
 
     async def semantic_search(
-        self, *, user_id: UUID, kind: MemoryKind, query: str, top_k: int = 8,
+        self,
+        *,
+        user_id: UUID,
+        kind: MemoryKind,
+        query: str,
+        top_k: int = 8,
     ) -> list[StoredMemory]:
         items = await self.store.asearch(
-            self._ns(user_id, kind), query=query, limit=top_k,
+            self._ns(user_id, kind),
+            query=query,
+            limit=top_k,
         )
         return [_to_stored_search(i) for i in items]
 

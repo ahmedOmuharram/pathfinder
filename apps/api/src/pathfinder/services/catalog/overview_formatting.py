@@ -135,8 +135,7 @@ def _build_dependency_section(
         dependencies[child_name] = DependencyEntry(
             depends_on=parents,
             instruction=(
-                f"Set {', '.join(parents)} first, then call "
-                f"get_parameter_options(...)"
+                f"Set {', '.join(parents)} first, then call get_parameter_options(...)"
             ),
         )
     return dependencies

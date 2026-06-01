@@ -145,9 +145,7 @@ async def _resolve_root_step(
         return resolved
 
 
-async def _fetch_step_genes(
-    api: StrategyAPI, step_id: int | None
-) -> list[str]:
+async def _fetch_step_genes(api: StrategyAPI, step_id: int | None) -> list[str]:
     if step_id is None:
         return []
     try:

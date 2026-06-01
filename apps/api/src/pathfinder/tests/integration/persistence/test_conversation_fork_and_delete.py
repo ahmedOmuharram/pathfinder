@@ -26,10 +26,9 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import pathfinder.persistence.session as session_module
+import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
-from pathfinder.ai.scratchpad.models import NoteCreate
-from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.persistence.models import (
     Conversation,
     ConversationEvent,
@@ -38,6 +37,7 @@ from pathfinder.persistence.models import (
 )
 from pathfinder.persistence.repositories.conversation import ConversationRepository
 from pathfinder.persistence.repositories.message import MessagesRepository
+from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.config import get_settings
 from pathfinder.services.conversations.fork import (
     ForkError,
@@ -150,18 +150,29 @@ async def _seed_user(session: AsyncSession, user_id: UUID) -> None:
 
 
 async def _seed_conversation(
-    session: AsyncSession, *, conversation_id: UUID, user_id: UUID, name: str = "root",
+    session: AsyncSession,
+    *,
+    conversation_id: UUID,
+    user_id: UUID,
+    name: str = "root",
 ) -> None:
     session.add(
         Conversation(
-            id=conversation_id, user_id=user_id, site_id="plasmodb", name=name,
+            id=conversation_id,
+            user_id=user_id,
+            site_id="plasmodb",
+            name=name,
         ),
     )
     await session.flush()
 
 
 async def _insert_message(
-    repo: MessagesRepository, *, conv_id: UUID, role: str, text: str,
+    repo: MessagesRepository,
+    *,
+    conv_id: UUID,
+    role: str,
+    text: str,
 ) -> UUID:
     del text
     message_id = uuid4()
@@ -175,7 +186,8 @@ async def _insert_message(
 
 
 async def test_fork_copies_prefix_and_sets_parent_refs(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -196,19 +208,27 @@ async def test_fork_copies_prefix_and_sets_parent_refs(
     async with session_module.async_session_factory() as session:
         messages = MessagesRepository(session)
         anchor_id = await _insert_message(
-            messages, conv_id=source_id, role="assistant", text="first reply",
+            messages,
+            conv_id=source_id,
+            role="assistant",
+            text="first reply",
         )
         await session.commit()
 
     async with session_module.async_session_factory() as session:
         messages = MessagesRepository(session)
-        await _insert_message(messages, conv_id=source_id, role="user", text="follow-up")
+        await _insert_message(
+            messages, conv_id=source_id, role="user", text="follow-up"
+        )
         await session.commit()
 
     async with session_module.async_session_factory() as session:
         messages = MessagesRepository(session)
         await _insert_message(
-            messages, conv_id=source_id, role="assistant", text="second reply",
+            messages,
+            conv_id=source_id,
+            role="assistant",
+            text="second reply",
         )
         await session.commit()
 
@@ -233,7 +253,8 @@ async def test_fork_copies_prefix_and_sets_parent_refs(
 
 
 async def test_fork_rejects_unknown_source(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     async with session_module.async_session_factory() as session:
@@ -251,7 +272,8 @@ async def test_fork_rejects_unknown_source(
 
 
 async def test_fork_rejects_wrong_owner(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     owner_id = uuid4()
@@ -262,11 +284,15 @@ async def test_fork_rejects_wrong_owner(
         await _seed_user(session, owner_id)
         await _seed_user(session, other_id)
         await _seed_conversation(
-            session, conversation_id=source_id, user_id=owner_id,
+            session,
+            conversation_id=source_id,
+            user_id=owner_id,
         )
         anchor_id = await _insert_message(
             MessagesRepository(session),
-            conv_id=source_id, role="assistant", text="x",
+            conv_id=source_id,
+            role="assistant",
+            text="x",
         )
         await session.commit()
 
@@ -285,7 +311,8 @@ async def test_fork_rejects_wrong_owner(
 
 
 async def test_delete_non_cascade_promotes_children(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Deleting ``b`` in a→b→c chain moves ``c`` under ``a``."""
     del patch_app_db_engine, db_cleaner
@@ -296,7 +323,9 @@ async def test_delete_non_cascade_promotes_children(
 
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
-        await _seed_conversation(session, conversation_id=a_id, user_id=user_id, name="a")
+        await _seed_conversation(
+            session, conversation_id=a_id, user_id=user_id, name="a"
+        )
         session.add(
             Message(
                 id=anchor_msg,
@@ -308,8 +337,12 @@ async def test_delete_non_cascade_promotes_children(
         await session.flush()
         session.add(
             Conversation(
-                id=b_id, user_id=user_id, site_id="plasmodb", name="b",
-                parent_conversation_id=a_id, parent_message_id=anchor_msg,
+                id=b_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="b",
+                parent_conversation_id=a_id,
+                parent_message_id=anchor_msg,
             ),
         )
         await session.flush()
@@ -324,8 +357,12 @@ async def test_delete_non_cascade_promotes_children(
         await session.flush()
         session.add(
             Conversation(
-                id=c_id, user_id=user_id, site_id="plasmodb", name="c",
-                parent_conversation_id=b_id, parent_message_id=fork_anchor,
+                id=c_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="c",
+                parent_conversation_id=b_id,
+                parent_message_id=fork_anchor,
             ),
         )
         await session.commit()
@@ -348,7 +385,8 @@ async def test_delete_non_cascade_promotes_children(
 
 
 async def test_delete_cascade_wipes_subtree(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -356,22 +394,33 @@ async def test_delete_cascade_wipes_subtree(
 
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
-        await _seed_conversation(session, conversation_id=a_id, user_id=user_id, name="a")
+        await _seed_conversation(
+            session, conversation_id=a_id, user_id=user_id, name="a"
+        )
         session.add(
             Conversation(
-                id=b_id, user_id=user_id, site_id="plasmodb", name="b",
+                id=b_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="b",
                 parent_conversation_id=a_id,
             ),
         )
         session.add(
             Conversation(
-                id=c_id, user_id=user_id, site_id="plasmodb", name="c",
+                id=c_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="c",
                 parent_conversation_id=b_id,
             ),
         )
         session.add(
             Conversation(
-                id=d_id, user_id=user_id, site_id="plasmodb", name="d",
+                id=d_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="d",
                 parent_conversation_id=c_id,
             ),
         )
@@ -394,7 +443,8 @@ async def test_delete_cascade_wipes_subtree(
 
 
 async def test_delete_root_non_cascade_promotes_children_to_roots(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Deleting root with cascade=False null-outs child's parent_* fields."""
     del patch_app_db_engine, db_cleaner
@@ -405,7 +455,10 @@ async def test_delete_root_non_cascade_promotes_children_to_roots(
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
         await _seed_conversation(
-            session, conversation_id=root_id, user_id=user_id, name="root",
+            session,
+            conversation_id=root_id,
+            user_id=user_id,
+            name="root",
         )
         session.add(
             Message(
@@ -418,7 +471,10 @@ async def test_delete_root_non_cascade_promotes_children_to_roots(
         await session.flush()
         session.add(
             Conversation(
-                id=child_id, user_id=user_id, site_id="plasmodb", name="child",
+                id=child_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="child",
                 parent_conversation_id=root_id,
                 parent_message_id=anchor_msg,
             ),
@@ -451,7 +507,10 @@ async def test_delete_root_non_cascade_promotes_children_to_roots(
 
 
 async def _set_message_created_at(
-    session: AsyncSession, *, message_id: UUID, ts: datetime,
+    session: AsyncSession,
+    *,
+    message_id: UUID,
+    ts: datetime,
 ) -> None:
     """Override a message's ``created_at`` for deterministic cutoff tests."""
     await session.execute(
@@ -477,7 +536,10 @@ async def _insert_message_at(
     """
     messages = MessagesRepository(session)
     msg_id = await _insert_message(
-        messages, conv_id=conv_id, role=role, text=text_body,
+        messages,
+        conv_id=conv_id,
+        role=role,
+        text=text_body,
     )
     await session.flush()
     await _set_message_created_at(session, message_id=msg_id, ts=ts)
@@ -485,7 +547,9 @@ async def _insert_message_at(
 
 
 async def _two_turn_source(
-    *, user_id: UUID, source_id: UUID,
+    *,
+    user_id: UUID,
+    source_id: UUID,
 ) -> tuple[list[UUID], list[datetime]]:
     """Seed a source conversation with two turns (4 messages) and 4 checkpoints.
 
@@ -523,7 +587,10 @@ async def _two_turn_source(
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
         await _seed_conversation(
-            session, conversation_id=source_id, user_id=user_id, name="root",
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
+            name="root",
         )
         await session.commit()
 
@@ -539,21 +606,33 @@ async def _two_turn_source(
             await session.commit()
         async with session_module.async_session_factory() as session:
             msg_id = await _insert_message_at(
-                session, conv_id=source_id, role=role, text_body=body, ts=msg_time,
+                session,
+                conv_id=source_id,
+                role=role,
+                text_body=body,
+                ts=msg_time,
             )
             message_ids.append(msg_id)
             await session.commit()
 
     async with session_module.async_session_factory() as session:
         await _seed_blob(
-            session, thread_id=str(source_id), channel="msg", version="v1",
+            session,
+            thread_id=str(source_id),
+            channel="msg",
+            version="v1",
         )
         await _seed_blob(
-            session, thread_id=str(source_id), channel="msg", version="v2",
+            session,
+            thread_id=str(source_id),
+            channel="msg",
+            version="v2",
         )
         for cp_id, *_ in turns:
             await _seed_write(
-                session, thread_id=str(source_id), checkpoint_id=cp_id,
+                session,
+                thread_id=str(source_id),
+                checkpoint_id=cp_id,
             )
         await session.commit()
 
@@ -641,7 +720,8 @@ async def _put_real_checkpoint(
 
 
 async def _resume_latest(
-    saver: AsyncPostgresSaver, thread_id: str,
+    saver: AsyncPostgresSaver,
+    thread_id: str,
 ) -> CheckpointTuple | None:
     return await saver.aget_tuple(
         {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}},
@@ -654,7 +734,8 @@ async def _resume_latest(
 
 
 async def test_fork_from_latest_count_matches_source(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Fork-from-latest: every checkpoint row in the source lands in the branch.
 
@@ -684,7 +765,8 @@ async def test_fork_from_latest_count_matches_source(
 
 
 async def test_fork_from_mid_chat_drops_later_turn_count(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Fork mid-chat copies strictly fewer checkpoints than the source.
 
@@ -718,7 +800,8 @@ async def test_fork_from_mid_chat_drops_later_turn_count(
 
 
 async def test_fork_cutoff_is_strictly_less_than(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """A checkpoint whose ``ts`` equals the cutoff is NOT copied.
 
@@ -733,12 +816,14 @@ async def test_fork_cutoff_is_strictly_less_than(
     base = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
     anchor_msg_ts = base + timedelta(seconds=10)
     boundary_ts = base + timedelta(seconds=20)  # cutoff = next_msg.created_at
-    next_msg_ts = boundary_ts                   # identical to checkpoint ts
+    next_msg_ts = boundary_ts  # identical to checkpoint ts
 
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
         await _seed_conversation(
-            session, conversation_id=source_id, user_id=user_id,
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
         )
         await _seed_checkpoint(
             session,
@@ -759,18 +844,28 @@ async def test_fork_cutoff_is_strictly_less_than(
     async with session_module.async_session_factory() as session:
         messages = MessagesRepository(session)
         anchor = await _insert_message(
-            messages, conv_id=source_id, role="assistant", text="anchor",
+            messages,
+            conv_id=source_id,
+            role="assistant",
+            text="anchor",
         )
         await session.flush()
         await _set_message_created_at(
-            session, message_id=anchor, ts=anchor_msg_ts,
+            session,
+            message_id=anchor,
+            ts=anchor_msg_ts,
         )
         following = await _insert_message(
-            messages, conv_id=source_id, role="user", text="next",
+            messages,
+            conv_id=source_id,
+            role="user",
+            text="next",
         )
         await session.flush()
         await _set_message_created_at(
-            session, message_id=following, ts=next_msg_ts,
+            session,
+            message_id=following,
+            ts=next_msg_ts,
         )
         await session.commit()
 
@@ -799,7 +894,8 @@ async def test_fork_cutoff_is_strictly_less_than(
 
 
 async def test_fork_identical_message_timestamps_deterministic(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Two adjacent messages with identical ``created_at``: fork still runs
     safely and produces a valid chain. Edge case for clock-resolution ties.
@@ -813,7 +909,9 @@ async def test_fork_identical_message_timestamps_deterministic(
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
         await _seed_conversation(
-            session, conversation_id=source_id, user_id=user_id,
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
         )
         await _seed_checkpoint(
             session,
@@ -827,10 +925,16 @@ async def test_fork_identical_message_timestamps_deterministic(
     async with session_module.async_session_factory() as session:
         messages = MessagesRepository(session)
         anchor = await _insert_message(
-            messages, conv_id=source_id, role="assistant", text="anchor",
+            messages,
+            conv_id=source_id,
+            role="assistant",
+            text="anchor",
         )
         other = await _insert_message(
-            messages, conv_id=source_id, role="user", text="next",
+            messages,
+            conv_id=source_id,
+            role="user",
+            text="next",
         )
         await session.flush()
         await _set_message_created_at(session, message_id=anchor, ts=shared_ts)
@@ -853,7 +957,8 @@ async def test_fork_identical_message_timestamps_deterministic(
 
 
 async def test_fork_with_no_checkpoints(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Conversation without any checkpoints forks cleanly — empty thread."""
     del patch_app_db_engine, db_cleaner
@@ -863,11 +968,16 @@ async def test_fork_with_no_checkpoints(
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
         await _seed_conversation(
-            session, conversation_id=source_id, user_id=user_id,
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
         )
         messages = MessagesRepository(session)
         anchor = await _insert_message(
-            messages, conv_id=source_id, role="assistant", text="synthetic",
+            messages,
+            conv_id=source_id,
+            role="assistant",
+            text="synthetic",
         )
         await session.commit()
 
@@ -887,7 +997,8 @@ async def test_fork_with_no_checkpoints(
 
 
 async def test_fork_messages_are_copied_in_order(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Message prefix is a fresh copy with the same order and content."""
     del patch_app_db_engine, db_cleaner
@@ -917,7 +1028,8 @@ async def test_fork_messages_are_copied_in_order(
 
 
 async def test_fork_cascade_delete_removes_descendants(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """``delete(cascade=True)`` on source wipes every descendant branch row."""
     del patch_app_db_engine, db_cleaner
@@ -947,7 +1059,8 @@ async def test_fork_cascade_delete_removes_descendants(
 
 
 async def test_fork_survives_noncascade_delete_of_source(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Non-cascade delete of source: branch is promoted to root, its own
     checkpoint copy untouched and still a valid chain.
@@ -984,7 +1097,8 @@ async def test_fork_survives_noncascade_delete_of_source(
 
 
 async def test_fork_of_fork_scopes_to_parent_branch(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Grand-fork pulls only from its direct parent (mid fork), never the
     grandparent. Tests that fork() doesn't follow ``parent_conversation_id``.
@@ -1027,7 +1141,8 @@ async def test_fork_of_fork_scopes_to_parent_branch(
 
 
 async def test_fork_resume_returns_anchor_state(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """*The* behavioral test. Seed a conversation whose checkpoints carry
     distinct ``turn_total_tokens`` values, fork mid-chat, and verify that
@@ -1042,7 +1157,9 @@ async def test_fork_resume_returns_anchor_state(
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
         await _seed_conversation(
-            session, conversation_id=source_id, user_id=user_id,
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
         )
         await session.commit()
 
@@ -1078,10 +1195,16 @@ async def test_fork_resume_returns_anchor_state(
     async with session_module.async_session_factory() as session:
         messages = MessagesRepository(session)
         anchor = await _insert_message(
-            messages, conv_id=source_id, role="assistant", text="anchor",
+            messages,
+            conv_id=source_id,
+            role="assistant",
+            text="anchor",
         )
         following = await _insert_message(
-            messages, conv_id=source_id, role="user", text="next turn",
+            messages,
+            conv_id=source_id,
+            role="user",
+            text="next turn",
         )
         await session.flush()
         await _set_message_created_at(session, message_id=anchor, ts=anchor_ts)
@@ -1106,22 +1229,19 @@ async def test_fork_resume_returns_anchor_state(
     assert source_tuple is not None
     # Source's latest state is the third (later) turn.
     assert source_tuple.checkpoint["channel_values"]["turn_total_tokens"] == 1500
-    assert (
-        source_tuple.checkpoint["channel_values"]["current_phase"] == "execution"
-    )
+    assert source_tuple.checkpoint["channel_values"]["current_phase"] == "execution"
     # Fork's latest state is the end-of-anchor-turn checkpoint — never
     # the later one, regardless of how many ts-buckets follow.
     assert fork_tuple.checkpoint["channel_values"]["turn_total_tokens"] == 250
-    assert (
-        fork_tuple.checkpoint["channel_values"]["current_phase"] == "verification"
-    )
+    assert fork_tuple.checkpoint["channel_values"]["current_phase"] == "verification"
 
     async with session_module.async_session_factory() as session:
         assert await _chain_is_valid(session, str(fork_id))
 
 
 async def test_fork_resume_latest_matches_source_exactly(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Fork-from-latest: fork's resume state is byte-identical to source's.
 
@@ -1136,7 +1256,9 @@ async def test_fork_resume_latest_matches_source_exactly(
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
         await _seed_conversation(
-            session, conversation_id=source_id, user_id=user_id,
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
         )
         await session.commit()
 
@@ -1153,11 +1275,16 @@ async def test_fork_resume_latest_matches_source_exactly(
     async with session_module.async_session_factory() as session:
         messages = MessagesRepository(session)
         anchor = await _insert_message(
-            messages, conv_id=source_id, role="assistant", text="only",
+            messages,
+            conv_id=source_id,
+            role="assistant",
+            text="only",
         )
         await session.flush()
         await _set_message_created_at(
-            session, message_id=anchor, ts=base + timedelta(seconds=10),
+            session,
+            message_id=anchor,
+            ts=base + timedelta(seconds=10),
         )
         await session.commit()
 
@@ -1184,7 +1311,8 @@ async def test_fork_resume_latest_matches_source_exactly(
 
 
 async def test_fork_scales_to_many_turns(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Multi-turn conversation: fork at an arbitrary anchor copies the
     expected count of preceding-turn checkpoints, keeps the chain valid,
@@ -1199,7 +1327,9 @@ async def test_fork_scales_to_many_turns(
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
         await _seed_conversation(
-            session, conversation_id=source_id, user_id=user_id,
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
         )
         await session.commit()
 
@@ -1222,8 +1352,10 @@ async def test_fork_scales_to_many_turns(
         async with session_module.async_session_factory() as session:
             messages = MessagesRepository(session)
             msg = await _insert_message(
-                messages, conv_id=source_id,
-                role="assistant", text=f"turn-{turn}",
+                messages,
+                conv_id=source_id,
+                role="assistant",
+                text=f"turn-{turn}",
             )
             await session.flush()
             await _set_message_created_at(
@@ -1269,7 +1401,8 @@ async def test_fork_scales_to_many_turns(
 
 
 async def test_fork_writes_only_reference_surviving_checkpoints(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Every ``checkpoint_writes`` row in the fork must join back to a
     checkpoint that also exists in the fork. No orphan writes.
@@ -1308,7 +1441,8 @@ async def test_fork_writes_only_reference_surviving_checkpoints(
 
 
 async def test_fork_preserves_blob_bytes_exactly(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Every (channel, version) blob in the source lands in the fork with
     byte-for-byte-identical ``blob`` contents.
@@ -1328,7 +1462,9 @@ async def test_fork_preserves_blob_bytes_exactly(
     async with session_module.async_session_factory() as session:
         await _seed_user(session, user_id)
         await _seed_conversation(
-            session, conversation_id=source_id, user_id=user_id,
+            session,
+            conversation_id=source_id,
+            user_id=user_id,
         )
         await session.commit()
 
@@ -1350,11 +1486,16 @@ async def test_fork_preserves_blob_bytes_exactly(
     async with session_module.async_session_factory() as session:
         messages = MessagesRepository(session)
         anchor = await _insert_message(
-            messages, conv_id=source_id, role="assistant", text="done",
+            messages,
+            conv_id=source_id,
+            role="assistant",
+            text="done",
         )
         await session.flush()
         await _set_message_created_at(
-            session, message_id=anchor, ts=base + timedelta(seconds=10),
+            session,
+            message_id=anchor,
+            ts=base + timedelta(seconds=10),
         )
         await session.commit()
 
@@ -1408,8 +1549,9 @@ async def test_fork_preserves_blob_bytes_exactly(
         frk_tuple = await _resume_latest(saver, str(fork_id))
     assert src_tuple is not None
     assert frk_tuple is not None
-    assert src_tuple.checkpoint["channel_values"] == (
-        frk_tuple.checkpoint["channel_values"]
+    assert (
+        src_tuple.checkpoint["channel_values"]
+        == (frk_tuple.checkpoint["channel_values"])
     )
 
 
@@ -1419,7 +1561,8 @@ async def test_fork_preserves_blob_bytes_exactly(
 
 
 async def test_fork_copies_scratchpad_notes_with_fresh_ids(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     """Forking a conversation duplicates its scratchpad notes under the fork.
 
@@ -1463,7 +1606,9 @@ async def test_fork_copies_scratchpad_notes_with_fresh_ids(
     async with session_module.async_session_factory() as session:
         anchor_id = await _insert_message(
             MessagesRepository(session),
-            conv_id=source_id, role="assistant", text="anchor",
+            conv_id=source_id,
+            role="assistant",
+            text="anchor",
         )
         await session.commit()
 
@@ -1504,7 +1649,8 @@ async def test_fork_copies_scratchpad_notes_with_fresh_ids(
 
 
 async def test_fork_rewrites_scratchpad_ids_in_copied_chunks(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -1538,34 +1684,36 @@ async def test_fork_rewrites_scratchpad_ids_in_copied_chunks(
                 metadata_={"mode": "strategy"},
             ),
         )
-        session.add_all([
-            ConversationEvent(
-                conversation_id=source_id,
-                turn_id=msg_id,
-                chunk={
-                    "type": "tool-note",
-                    "toolCallId": "tc-1",
-                    "state": "output-available",
-                    "input": {
-                        "title": "The one",
-                        "summary": "A note",
-                        "body": "Body here.",
+        session.add_all(
+            [
+                ConversationEvent(
+                    conversation_id=source_id,
+                    turn_id=msg_id,
+                    chunk={
+                        "type": "tool-note",
+                        "toolCallId": "tc-1",
+                        "state": "output-available",
+                        "input": {
+                            "title": "The one",
+                            "summary": "A note",
+                            "body": "Body here.",
+                        },
+                        "output": {"id": src_note_id, "title": "The one"},
                     },
-                    "output": {"id": src_note_id, "title": "The one"},
-                },
-            ),
-            ConversationEvent(
-                conversation_id=source_id,
-                turn_id=msg_id,
-                chunk={
-                    "type": "tool-read_note",
-                    "toolCallId": "tc-2",
-                    "state": "output-available",
-                    "input": {"note_id": src_note_id},
-                    "output": {"id": src_note_id, "body": "Body here."},
-                },
-            ),
-        ])
+                ),
+                ConversationEvent(
+                    conversation_id=source_id,
+                    turn_id=msg_id,
+                    chunk={
+                        "type": "tool-read_note",
+                        "toolCallId": "tc-2",
+                        "state": "output-available",
+                        "input": {"note_id": src_note_id},
+                        "output": {"id": src_note_id, "body": "Body here."},
+                    },
+                ),
+            ]
+        )
         await session.commit()
 
     async with session_module.async_session_factory() as session:

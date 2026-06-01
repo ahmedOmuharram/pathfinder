@@ -6,6 +6,7 @@ the discovery agent calls it. We assert on the resulting ``SearchOverview``
 fields and the rendered ``pinned_discovered_searches`` string — i.e. what
 downstream phases will actually see.
 """
+
 from __future__ import annotations
 
 from typing import Any

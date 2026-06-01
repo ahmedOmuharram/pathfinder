@@ -24,7 +24,8 @@ class _CapturingTransport(httpx.AsyncBaseTransport):
     requests: ClassVar[list[httpx.Request]] = []
 
     async def handle_async_request(
-        self, request: httpx.Request,
+        self,
+        request: httpx.Request,
     ) -> httpx.Response:
         self.requests.append(request)
         return httpx.Response(
@@ -40,7 +41,8 @@ def _reset() -> None:
 
 
 async def _build_client_with_transport(
-    client: HTTPClient, transport: _CapturingTransport,
+    client: HTTPClient,
+    transport: _CapturingTransport,
 ) -> None:
     """Preload the HTTPClient's internal httpx client with our test
     transport so we can assert on outgoing traffic."""
@@ -74,9 +76,7 @@ async def test_reinits_when_token_changes(
     )
     await client._request_attempt("GET", "/ping")
 
-    init_paths = [
-        r for r in _CapturingTransport.requests if "/app" in str(r.url)
-    ]
+    init_paths = [r for r in _CapturingTransport.requests if "/app" in str(r.url)]
     assert len(init_paths) == 2, (
         f"Expected 2 JSESSIONID init calls (one per token), "
         f"got {len(init_paths)}: {[str(r.url) for r in _CapturingTransport.requests]}"
@@ -99,9 +99,7 @@ async def test_does_not_reinit_when_token_unchanged(
     await client._request_attempt("GET", "/ping")
     await client._request_attempt("GET", "/ping")
 
-    init_paths = [
-        r for r in _CapturingTransport.requests if "/app" in str(r.url)
-    ]
+    init_paths = [r for r in _CapturingTransport.requests if "/app" in str(r.url)]
     assert len(init_paths) == 1, (
         f"Expected 1 JSESSIONID init call, got {len(init_paths)}"
     )
@@ -117,7 +115,9 @@ async def test_clears_jsessionid_cookie_on_reinit(
     client = HTTPClient(base_url="https://plasmodb.org/plasmo/service")
     await _build_client_with_transport(client, transport)
     client._client.cookies.set(
-        "JSESSIONID", "stale-session-A", domain="plasmodb.org",
+        "JSESSIONID",
+        "stale-session-A",
+        domain="plasmodb.org",
     )
 
     monkeypatch.setattr(
@@ -126,9 +126,12 @@ async def test_clears_jsessionid_cookie_on_reinit(
     )
     await client._request_attempt("GET", "/ping")
 
-    assert client._client.cookies.get(
-        "JSESSIONID",
-    ) != "stale-session-A", (
+    assert (
+        client._client.cookies.get(
+            "JSESSIONID",
+        )
+        != "stale-session-A"
+    ), (
         "JSESSIONID from the previous token must not leak into the new "
         "token's request chain. Either the jar should be cleared or "
         "_init_wdk_session should replace the cookie entirely."

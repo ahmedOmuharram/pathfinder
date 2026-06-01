@@ -10,6 +10,7 @@ from typing import Any, cast
 from pydantic import JsonValue
 
 from pathfinder.domain.search import SearchContext
+from pathfinder.integrations.veupathdb.discovery_service import get_discovery_service
 from pathfinder.integrations.veupathdb.wdk_models import (
     WDKRecordType,
     WDKSearchResponse,
@@ -23,19 +24,18 @@ from pathfinder.platform.types import JSONObject
 
 
 async def fetch_search_details(
-    discovery: Any,
     ctx: SearchContext,
     *,
     record_types: list[WDKRecordType] | None = None,
 ) -> tuple[WDKSearchResponse, str]:
     """Fetch search details, falling back to scanning all record types.
 
-    :param discovery: Discovery service instance.
     :param ctx: Search context (site_id + record_type + search_name).
     :param record_types: All available record types (for fallback scan).
     :returns: Tuple of (WDKSearchResponse, resolved record type).
     :raises CoreValidationError: When the search cannot be found.
     """
+    discovery = get_discovery_service()
     try:
         response = await discovery.get_search_details(ctx, expand_params=True)
     except AppError as e:
@@ -47,6 +47,7 @@ async def fetch_search_details(
         )
     else:
         return response, ctx.record_type
+
 
 async def _fallback_scan_record_types(
     discovery: Any,

@@ -6,7 +6,8 @@ from fastapi.responses import JSONResponse
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.errors import ForbiddenError
 from pathfinder.platform.security import create_user_token
-from pathfinder.transport.http.deps import UserRepo
+from pathfinder.services.users import get_or_create_user_id
+from pathfinder.transport.http.deps import DBSession
 
 router = APIRouter(prefix="/api/v1/dev", tags=["dev"])
 
@@ -16,7 +17,7 @@ def _is_mock_provider() -> bool:
 
 
 @router.post("/login")
-async def dev_login(user_repo: UserRepo, user_id: str | None = None) -> JSONResponse:
+async def dev_login(session: DBSession, user_id: str | None = None) -> JSONResponse:
     """Create a test user and return a valid auth token.
 
     Only available when ``PATHFINDER_CHAT_PROVIDER=mock`` in the test profile.
@@ -28,10 +29,10 @@ async def dev_login(user_repo: UserRepo, user_id: str | None = None) -> JSONResp
         raise ForbiddenError(title="Only available in mock mode")
 
     external_id = f"e2e-{user_id}@test.local" if user_id else "e2e@test.local"
-    user = await user_repo.get_or_create_by_external_id(external_id)
-    auth_token = create_user_token(user.id)
+    internal_id = await get_or_create_user_id(session, external_id)
+    auth_token = create_user_token(internal_id)
 
-    resp = JSONResponse({"authToken": auth_token, "userId": str(user.id)})
+    resp = JSONResponse({"authToken": auth_token, "userId": str(internal_id)})
     resp.set_cookie(
         key="pathfinder-auth",
         value=auth_token,

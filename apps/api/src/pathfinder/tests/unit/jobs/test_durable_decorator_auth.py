@@ -24,28 +24,25 @@ class _FakeInterruptError(Exception):
 class _FakeRepo:
     created: ClassVar[list[dict[str, Any]]] = []
 
-    def __init__(self, *, session_factory: object) -> None:
-        del session_factory
 
-    async def create(
-        self,
-        *,
-        conversation_id: UUID,
-        user_id: UUID,
-        tool_name: str,
-        args: dict[str, Any],
-        estimated_duration_seconds: int,
-    ) -> UUID:
-        _FakeRepo.created.append(
-            {
-                "conversation_id": conversation_id,
-                "user_id": user_id,
-                "tool_name": tool_name,
-                "args": args,
-                "estimated_duration_seconds": estimated_duration_seconds,
-            },
-        )
-        return UUID("00000000-0000-0000-0000-000000000001")
+async def _fake_create_background_task(
+    *,
+    conversation_id: UUID,
+    user_id: UUID,
+    tool_name: str,
+    args: dict[str, Any],
+    estimated_duration_seconds: int,
+) -> UUID:
+    _FakeRepo.created.append(
+        {
+            "conversation_id": conversation_id,
+            "user_id": user_id,
+            "tool_name": tool_name,
+            "args": args,
+            "estimated_duration_seconds": estimated_duration_seconds,
+        },
+    )
+    return UUID("00000000-0000-0000-0000-000000000001")
 
 
 class _FakeTask:
@@ -85,7 +82,11 @@ def patch_durable_infra(monkeypatch: pytest.MonkeyPatch) -> None:
     _FakeRepo.created.clear()
     _FakeTask.deferred.clear()
     monkeypatch.setattr(durable_mod, "interrupt", _raise_interrupt)
-    monkeypatch.setattr(durable_mod, "BackgroundTaskRepository", _FakeRepo)
+    monkeypatch.setattr(
+        durable_mod,
+        "create_background_task",
+        _fake_create_background_task,
+    )
     monkeypatch.setattr(durable_mod, "procrastinate_app", _FakeApp())
 
 

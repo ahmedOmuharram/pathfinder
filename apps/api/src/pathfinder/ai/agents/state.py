@@ -3,8 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.domain.strategy.plan import StrategyPlan
-from pathfinder.services.catalog.vocab_rendering import VocabEntry
 
 SearchSelectionStatus = Literal["candidate", "selected", "rejected"]
 
@@ -22,7 +22,7 @@ class ParamVocabSnapshot(BaseModel):
     param_type: str
     required: bool
     default_value: str | None = None
-    allowed_values: list[VocabEntry] | None = None
+    allowed_values: list[VocabOption] | None = None
     allowed_values_tree: str | None = None
 
 

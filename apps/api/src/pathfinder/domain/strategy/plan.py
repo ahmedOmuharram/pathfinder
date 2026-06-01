@@ -16,6 +16,7 @@ from pathfinder.platform.pydantic_base import CamelModel
 
 # ── Enums ───────────────────────────────────────────────────────────
 
+
 class PlanStatus(StrEnum):
     """Lifecycle status of a StrategyPlan."""
 
@@ -25,6 +26,7 @@ class PlanStatus(StrEnum):
     EXECUTING = "executing"
     COMPLETE = "complete"
     FAILED = "failed"
+
 
 class StepStatus(StrEnum):
     """Readiness status of an individual PlannedStep."""
@@ -36,12 +38,14 @@ class StepStatus(StrEnum):
     COMPLETE = "complete"
     FAILED = "failed"
 
+
 class StepType(StrEnum):
     """Structural type of a PlannedStep."""
 
     LEAF = "leaf"
     COMBINE = "combine"
     TRANSFORM = "transform"
+
 
 class ParamStatus(StrEnum):
     """Resolution status of a PlannedParameter."""
@@ -51,6 +55,7 @@ class ParamStatus(StrEnum):
     NEEDS_DISCOVERY = "needs_discovery"
     NEEDS_USER_INPUT = "needs_user_input"
     USER_SET = "user_set"
+
 
 class FailureKind(StrEnum):
     """Classification of why a plan execution failed.
@@ -66,17 +71,22 @@ class FailureKind(StrEnum):
     PARAMETER_INVALID = "parameter_invalid"
     """The search is right but parameters are off — replanning with the same catalog is enough."""
 
+
 # ── Helpers ─────────────────────────────────────────────────────────
+
 
 def _generate_plan_id() -> str:
     """Generate a plan ID: ``plan_<12 hex chars>``."""
     return f"plan_{uuid4().hex[:12]}"
 
+
 def _utc_now() -> datetime:
     """Return the current UTC datetime."""
     return datetime.now(UTC)
 
+
 # ── Data Models ─────────────────────────────────────────────────────
+
 
 class PlannedParameter(CamelModel):
     name: str
@@ -101,6 +111,7 @@ class PlannedParameter(CamelModel):
             raise ValueError(msg)
         return self
 
+
 class QuestionOption(CamelModel):
     """One option presented to the user for a UserQuestion."""
 
@@ -109,6 +120,7 @@ class QuestionOption(CamelModel):
     pros: list[str] = Field(default_factory=list)
     cons: list[str] = Field(default_factory=list)
     recommended: bool = False
+
 
 class UserQuestion(CamelModel):
     """A question the system needs to ask the user to resolve ambiguity."""
@@ -120,6 +132,7 @@ class UserQuestion(CamelModel):
     related_param: str | None = None
     options: list[QuestionOption] | None = None
     answer: JsonValue | None = None
+
 
 class PlannedStep(CamelModel):
     """A single step in a strategy plan."""
@@ -139,6 +152,7 @@ class PlannedStep(CamelModel):
     graph_step_id: str | None = None
     failure_reason: str | None = None
 
+
 class PlannedConnection(CamelModel):
     """A directed edge between two planned steps."""
 
@@ -146,6 +160,7 @@ class PlannedConnection(CamelModel):
     to_step: str
     input_type: str = "primary"
     operator: str | None = None
+
 
 class PlanTopologyError(ValueError):
     """Raised when a StrategyPlan's step/connection topology is invalid."""
@@ -194,14 +209,10 @@ class StrategyPlan(CamelModel):
         outbound: dict[str, int] = {s.id: 0 for s in self.steps}
         for conn in self.connections:
             if conn.from_step not in step_ids:
-                msg = (
-                    f"Connection references non-existent step: {conn.from_step}"
-                )
+                msg = f"Connection references non-existent step: {conn.from_step}"
                 raise PlanTopologyError(msg)
             if conn.to_step not in step_ids:
-                msg = (
-                    f"Connection references non-existent step: {conn.to_step}"
-                )
+                msg = f"Connection references non-existent step: {conn.to_step}"
                 raise PlanTopologyError(msg)
             if conn.from_step == conn.to_step:
                 msg = f"Self-loop on step {conn.from_step}"
@@ -297,13 +308,12 @@ class StrategyPlan(CamelModel):
 
         # Zero-result runs only escalate to SEARCH_INVALID after the
         # same-catalog replanning escape hatch is spent.
-        zero_result = any(
-            step.actual_count == 0 for step in failed_steps
-        )
+        zero_result = any(step.actual_count == 0 for step in failed_steps)
         if zero_result and planning_attempts > 1:
             return FailureKind.SEARCH_INVALID
 
         return FailureKind.PARAMETER_INVALID
+
 
 _PARAMETER_ERROR_MARKERS: tuple[str, ...] = (
     "invalid parameter",
@@ -312,6 +322,7 @@ _PARAMETER_ERROR_MARKERS: tuple[str, ...] = (
     "missing required parameter",
     "unknown parameter",
 )
+
 
 def _is_parameter_validation_error(reason: str) -> bool:
     """Return ``True`` when *reason* matches a WDK parameter-validation message."""

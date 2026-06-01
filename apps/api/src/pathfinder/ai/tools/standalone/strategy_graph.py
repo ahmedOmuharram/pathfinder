@@ -20,6 +20,7 @@ from pathfinder.services.strategies.schemas import StepResponse
 
 logger = get_logger(__name__)
 
+
 class StrategySummaryResponse(CamelModel):
     """Summary metadata for a strategy graph."""
 
@@ -31,6 +32,7 @@ class StrategySummaryResponse(CamelModel):
     step_count: int = 0
     description: str | None = None
     steps: list[StepResponse] | None = None
+
 
 async def get_strategy(
     ctx: RunContext[AgentDeps],
@@ -57,8 +59,7 @@ async def get_strategy(
     steps: list[StepResponse] | None = None
     if not summary_only:
         steps = [
-            serialize_step(graph, step, sync_state)
-            for step in graph.steps.values()
+            serialize_step(graph, step, sync_state) for step in graph.steps.values()
         ]
 
     return StrategySummaryResponse(

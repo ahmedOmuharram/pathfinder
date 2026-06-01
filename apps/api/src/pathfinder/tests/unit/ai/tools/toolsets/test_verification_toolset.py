@@ -24,8 +24,7 @@ def test_optimize_search_parameters_not_in_verification_toolset() -> None:
     toolset = _unwrap_to_function_toolset(build_toolset())
     tool_names = {t.name for t in toolset.tools.values()}
     assert "optimize_search_parameters" not in tool_names, (
-        "optimize_search_parameters must NOT be registered on the "
-        "verification toolset."
+        "optimize_search_parameters must NOT be registered on the verification toolset."
     )
 
 

@@ -1,9 +1,9 @@
 import json
 
-from pydantic import JsonValue
-
 from pathfinder.domain.parameters.value_utils import decode_values
-from pathfinder.domain.parameters.vocab_utils import (
+from pathfinder.domain.parameters.wdk_vocab import (
+    WDKTreeBoxVocabNode,
+    WDKVocabTerm,
     collect_leaf_terms,
     find_vocab_node,
 )
@@ -21,9 +21,9 @@ from pathfinder.platform.types import JSONObject
 
 logger = get_logger(__name__)
 
-_MIN_INDENT_VOCAB_ENTRY_LEN = 2
 _MIN_ENTRY_PARTS_FOR_CODE_STATE = 2
 _MIN_ENTRY_PARTS_FOR_QUANTIFIER = 3
+
 
 def _sort_profile_pattern(pattern: str) -> str:
     """Sort ``%code:Y%code:N%`` entries alphabetically.
@@ -38,6 +38,7 @@ def _sort_profile_pattern(pattern: str) -> str:
         return pattern
     parts = [p.strip() for p in pattern.strip("%").split("%") if p.strip()]
     return f"%{'%'.join(sorted(parts))}%" if parts else pattern
+
 
 def _validate_phyletic_codes(entries: list[str], all_known_codes: set[str]) -> None:
     invalid_codes: list[str] = []
@@ -59,6 +60,7 @@ def _validate_phyletic_codes(entries: list[str], all_known_codes: set[str]) -> N
                 f"(e.g. 'pfal' for P. falciparum, 'hsap' for H. sapiens)."
             ),
         )
+
 
 class StrategyAPIBase:
     def __init__(self, client: VEuPathDBClient, user_id: str = CURRENT_USER) -> None:
@@ -150,7 +152,7 @@ class StrategyAPIBase:
             if not spec.count_only_leaves:
                 continue
             vocab = spec.vocabulary
-            if not isinstance(vocab, dict):
+            if not isinstance(vocab, WDKTreeBoxVocabNode):
                 continue
             expanded = self._expand_single_tree_param(vocab, result[spec.name])
             if expanded is not None:
@@ -167,7 +169,7 @@ class StrategyAPIBase:
         return result
 
     def _expand_single_tree_param(
-        self, vocab: JSONObject, raw_value: str
+        self, vocab: WDKTreeBoxVocabNode, raw_value: str
     ) -> list[str] | None:
         values = decode_values(raw_value, "tree-param")
         if not values:
@@ -234,11 +236,11 @@ class StrategyAPIBase:
             return _sort_profile_pattern(f"%{'%'.join(expanded)}%")
         except AppError:
             raise
-        except (KeyError, IndexError, ValueError, TypeError):
+        except KeyError, IndexError, ValueError, TypeError:
             logger.debug("Failed to expand profile_pattern groups (non-fatal)")
             return pattern
 
-    async def _fetch_indent_vocab(self, record_type: str) -> list[JsonValue]:
+    async def _fetch_indent_vocab(self, record_type: str) -> list[WDKVocabTerm]:
         response = await self.client.get_search_details(
             record_type, "GenesByOrthologPattern", expand_params=True
         )
@@ -264,13 +266,12 @@ class StrategyAPIBase:
             WDKAnswer, result, f"WDK answer response for step {step_id}"
         )
 
+
 def _build_phyletic_tree(
-    indent_vocab: list[JsonValue],
+    indent_vocab: list[WDKVocabTerm],
 ) -> tuple[dict[str, list[str]], set[str]]:
     codes_at_depth = [
-        (str(item[0]), int(str(item[1])) if item[1] is not None else 0)
-        for item in indent_vocab
-        if isinstance(item, list) and len(item) >= _MIN_INDENT_VOCAB_ENTRY_LEN
+        (item.term, int(item.display) if item.display else 0) for item in indent_vocab
     ]
 
     children_of: dict[str, list[str]] = {}
@@ -287,6 +288,7 @@ def _build_phyletic_tree(
         else:
             leaf_codes.add(code)
     return children_of, leaf_codes
+
 
 def _expand_entries(
     entries: list[str],

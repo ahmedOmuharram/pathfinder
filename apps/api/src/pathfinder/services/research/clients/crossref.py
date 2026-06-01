@@ -19,11 +19,13 @@ class _CrossrefMessage(BaseModel):
     model_config = ConfigDict(extra="ignore")
     items: list[JsonValue] = Field(default_factory=list)
 
+
 class _CrossrefResponse(BaseModel):
     """Top-level envelope for the Crossref ``/works`` response."""
 
     model_config = ConfigDict(extra="ignore")
     message: _CrossrefMessage = Field(default_factory=_CrossrefMessage)
+
 
 class CrossrefClient(StandardClient):
     """Client for Crossref API."""
@@ -47,7 +49,7 @@ class CrossrefClient(StandardClient):
         try:
             parsed = _CrossrefResponse.model_validate(payload)
             items = parsed.message.items
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             items = []
         return list(items)
 
@@ -56,7 +58,7 @@ class CrossrefClient(StandardClient):
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             parsed = CrossRefRawWork.model_validate(raw).to_parsed_paper()
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             return None
 
         citation = Citation(

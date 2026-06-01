@@ -8,7 +8,7 @@ from pathfinder.ai.agents.compactor import (
     CompactorDeps,
     build_compactor_agent,
 )
-from pathfinder.ai.scratchpad.models import NoteCreate
+from pathfinder.domain.scratchpad.models import NoteCreate
 
 
 def test_build_returns_agent_with_output_type() -> None:
@@ -24,8 +24,5 @@ def test_compactor_deps_is_dataclass() -> None:
 def test_compaction_result_max_20_notes() -> None:
     with pytest.raises(ValidationError):
         CompactionResult(
-            notes=[
-                NoteCreate(title=f"t{i}", summary="s", body="b")
-                for i in range(21)
-            ],
+            notes=[NoteCreate(title=f"t{i}", summary="s", body="b") for i in range(21)],
         )

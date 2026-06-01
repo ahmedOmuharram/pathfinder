@@ -74,7 +74,11 @@ async def test_drive_graph_cancels_mid_call_when_event_set(
             "id": str(conv_id),
             "trigger": "submit-message",
             "messages": [
-                {"id": str(uuid4()), "role": "user", "parts": [{"type": "text", "text": "hi"}]},
+                {
+                    "id": str(uuid4()),
+                    "role": "user",
+                    "parts": [{"type": "text", "text": "hi"}],
+                },
             ],
             "conversationId": str(conv_id),
             "siteId": "plasmodb",

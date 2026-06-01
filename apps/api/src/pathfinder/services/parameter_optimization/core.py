@@ -38,6 +38,7 @@ logger = get_logger(__name__)
 # Silence optuna's internal logging (we emit our own progress events).
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+
 async def optimize_search_parameters(
     inp: OptimizationInput,
     config: OptimizationConfig | None = None,

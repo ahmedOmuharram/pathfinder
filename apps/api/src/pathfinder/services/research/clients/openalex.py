@@ -23,6 +23,7 @@ class _OAResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     results: list[JsonValue] = Field(default_factory=list)
 
+
 class OpenAlexClient(StandardClient):
     """Client for OpenAlex API."""
 
@@ -44,7 +45,7 @@ class OpenAlexClient(StandardClient):
         try:
             parsed = _OAResponse.model_validate(payload)
             items = parsed.results
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             items = []
         return list(items)
 
@@ -53,7 +54,7 @@ class OpenAlexClient(StandardClient):
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             parsed = OpenAlexRawWork.model_validate(raw).to_parsed_paper()
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             return None
         parsed.abstract = truncate_text(parsed.abstract, abstract_max_chars)
         parsed.snippet = parsed.abstract or parsed.journal_title

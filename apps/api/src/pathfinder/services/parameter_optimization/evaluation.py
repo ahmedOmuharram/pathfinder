@@ -25,6 +25,7 @@ _CACHE_PRECISION = 5
 # WDK evaluation (cached, semaphore-guarded)
 # ---------------------------------------------------------------------------
 
+
 def _cache_key(params: dict[str, ParamValue]) -> tuple[tuple[str, str], ...]:
     """Build a hashable key from optimised params (rounded floats)."""
     items: list[tuple[str, str]] = []
@@ -37,6 +38,7 @@ def _cache_key(params: dict[str, ParamValue]) -> tuple[tuple[str, str], ...]:
             items.append((k, str(v)))
     return tuple(items)
 
+
 _CacheKey = tuple[tuple[str, str], ...]
 _CacheValue = tuple[ControlTestResult | None, str]
 _EvalCache = dict[_CacheKey, _CacheValue]
@@ -45,6 +47,7 @@ _EvalCache = dict[_CacheKey, _CacheValue]
 # same asyncio.gather batch share identical params.
 _KeyLocks = dict[_CacheKey, asyncio.Lock]
 
+
 @dataclass(frozen=True, slots=True)
 class EvalRequest:
     """Bundles the WDK-specific inputs for a single trial evaluation."""
@@ -52,6 +55,7 @@ class EvalRequest:
     config: IntersectionConfig
     positive_controls: list[str] | None
     negative_controls: list[str] | None
+
 
 async def _evaluate_trial(
     request: EvalRequest,
@@ -105,6 +109,7 @@ async def _evaluate_trial(
             result_pair = (wdk_result, wdk_error)
             cache[key] = result_pair
             return result_pair
+
 
 def _unpack_gather_result(
     raw_result: tuple[ControlTestResult | None, str] | BaseException,

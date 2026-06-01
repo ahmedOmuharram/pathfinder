@@ -24,9 +24,13 @@ from pathfinder.platform.notify_dispatcher import (
 async def _notify(database_url: str, channel: str, payload: str) -> None:
     """Fire pg_notify from a separate connection (not the dispatcher's)."""
     conn_str = to_psycopg_url(database_url)
-    async with await psycopg.AsyncConnection.connect(
-        conn_str, autocommit=True,
-    ) as aconn, aconn.cursor() as cur:
+    async with (
+        await psycopg.AsyncConnection.connect(
+            conn_str,
+            autocommit=True,
+        ) as aconn,
+        aconn.cursor() as cur,
+    ):
         await cur.execute(
             psycopg.sql.SQL("SELECT pg_notify({}, {})").format(
                 psycopg.sql.Literal(channel),
@@ -70,7 +74,8 @@ async def test_subscribe_receives_notify(
         await asyncio.sleep(0.1)  # let LISTEN register
         await _notify(database_url, "pf_test_ch_1", "hello")
         received = await _drain_until(
-            queue, lambda item: item == ("pf_test_ch_1", "hello"),
+            queue,
+            lambda item: item == ("pf_test_ch_1", "hello"),
         )
         assert ("pf_test_ch_1", "hello") in received
 
@@ -90,10 +95,12 @@ async def test_two_subscribers_share_one_listen(
         await asyncio.sleep(0.1)
         await _notify(database_url, "pf_test_ch_2", "msg")
         got_q1 = await _drain_until(
-            q1, lambda item: item == ("pf_test_ch_2", "msg"),
+            q1,
+            lambda item: item == ("pf_test_ch_2", "msg"),
         )
         got_q2 = await _drain_until(
-            q2, lambda item: item == ("pf_test_ch_2", "msg"),
+            q2,
+            lambda item: item == ("pf_test_ch_2", "msg"),
         )
         assert ("pf_test_ch_2", "msg") in got_q1
         assert ("pf_test_ch_2", "msg") in got_q2
@@ -117,7 +124,8 @@ async def test_unsubscribe_stops_delivery(
             await asyncio.sleep(0.1)
             await _notify(database_url, "pf_test_ch_3", "delivered")
             received = await _drain_until(
-                q2, lambda item: item == ("pf_test_ch_3", "delivered"),
+                q2,
+                lambda item: item == ("pf_test_ch_3", "delivered"),
             )
             assert ("pf_test_ch_3", "delivered") in received
 
@@ -138,11 +146,13 @@ async def test_fanout_respects_channel_filter(
         await _notify(database_url, "pf_test_ch_a", "for_a")
         await _notify(database_url, "pf_test_ch_b", "for_b")
         got_a = await _drain_until(
-            qa, lambda item: item[0] == "pf_test_ch_a",
+            qa,
+            lambda item: item[0] == "pf_test_ch_a",
             deadline_seconds=2.0,
         )
         got_b = await _drain_until(
-            qb, lambda item: item[0] == "pf_test_ch_b",
+            qb,
+            lambda item: item[0] == "pf_test_ch_b",
             deadline_seconds=2.0,
         )
         assert all(ch == "pf_test_ch_a" for ch, _ in got_a)

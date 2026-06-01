@@ -1,30 +1,56 @@
-"""Shared helpers for strategies routers."""
+"""Conversation response DTOs + builders.
+
+Owns the ``Conversation`` ORM → response-DTO mapping so transport returns
+these without importing persistence or building them itself.
+"""
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from uuid import UUID
+
+from pydantic import Field
 
 from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.persistence.models import Conversation
 from pathfinder.platform.logging import get_logger
+from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.strategies.schemas import (
+    StepResponse,
     step_response_from_strategy_ast,
 )
 from pathfinder.services.wdk import get_site
-from pathfinder.transport.http.schemas import (
-    ConversationResponse,
-    StepResponse,
-)
 
 logger = get_logger(__name__)
 
 
-def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
-    """Compute the WDK URL for a strategy if possible.
+class ConversationResponse(CamelModel):
+    id: UUID
+    name: str
+    title: str | None = None
+    description: str | None = None
+    site_id: str
+    record_type: str | None
+    steps: list[StepResponse] = Field(default_factory=list)
+    root_step_id: str | None = Field(default=None)
+    wdk_strategy_id: int | None = Field(default=None)
+    is_saved: bool = Field(default=False)
+    created_at: datetime
+    updated_at: datetime
+    step_count: int | None = Field(default=None)
+    estimated_size: int | None = Field(default=None)
+    wdk_url: str | None = Field(default=None)
+    gene_set_id: str | None = Field(default=None)
+    experiment_id: str | None = Field(default=None)
+    dismissed_at: datetime | None = Field(default=None)
+    total_tokens: int = Field(default=0)
+    total_cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
+    parent_conversation_id: UUID | None = Field(default=None)
+    parent_message_id: UUID | None = Field(default=None)
 
-    Returns ``None`` when the strategy has no WDK ID or the site is unknown.
-    """
+
+def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
     if wdk_strategy_id is None or not site_id:
         return None
     try:
@@ -40,15 +66,7 @@ def _compute_wdk_url(site_id: str, wdk_strategy_id: int | None) -> str | None:
         return None
 
 
-def derive_steps_from_strategy_ast(
-    payload: StrategyAst | None,
-) -> list[StepResponse]:
-    """Derive step responses from a typed plan payload. Returns [] if None.
-
-    If the payload contains ``step_counts`` (stored during WDK detail fetch),
-    each step's ``estimated_size`` is populated from it, enabling zero-cost count
-    display for WDK-linked strategies.
-    """
+def derive_steps_from_strategy_ast(payload: StrategyAst | None) -> list[StepResponse]:
     if payload is None:
         return []
     return [
@@ -57,10 +75,7 @@ def derive_steps_from_strategy_ast(
     ]
 
 
-def extract_strategy_description(
-    payload: StrategyAst | None,
-) -> str | None:
-    """Extract description from a typed plan payload."""
+def extract_strategy_description(payload: StrategyAst | None) -> str | None:
     if payload is None:
         return None
     return payload.description
@@ -70,17 +85,12 @@ def extract_root_step_id(
     payload: StrategyAst | None,
     fallback_root_step_id: str | None = None,
 ) -> str | None:
-    """Extract the root step ID from a typed plan payload."""
     if payload is not None:
         return payload.root.id
     return fallback_root_step_id
 
 
 def _parse_strategy_ast(plan_raw: JSONObject) -> StrategyAst | None:
-    """Parse a raw JSON plan dict into a typed payload.
-
-    Returns ``None`` when the dict is empty or invalid.
-    """
     if not plan_raw or "root" not in plan_raw:
         return None
     try:
@@ -96,15 +106,9 @@ def build_conversation_response(
     total_tokens: int = 0,
     total_cost_usd: Decimal | None = None,
 ) -> ConversationResponse:
-    """Build a ``ConversationResponse`` from a ``Conversation`` (detail view).
-
-    Steps and rootStepId are derived from the plan at read time. ``total_tokens``
-    and ``total_cost_usd`` surface cumulative chat usage for the footer under
-    the composer; pass them after aggregating ``Message.metadata.usage``.
-    """
+    """Build a detail-view ``ConversationResponse`` from a ``Conversation``."""
     payload = _parse_strategy_ast(conversation.strategy_ast)
     root_step_id = extract_root_step_id(payload)
-
     wdk_url = _compute_wdk_url(conversation.site_id, conversation.wdk_strategy_id)
 
     return ConversationResponse(
@@ -136,10 +140,7 @@ def build_conversation_summary(
     *,
     site_id: str = "",
 ) -> ConversationResponse:
-    """Build a ``ConversationResponse`` (list view) from a ``Conversation``.
-
-    Returns a summary with ``steps=[]`` and the denormalized fields populated.
-    """
+    """Build a list-view ``ConversationResponse`` (steps=[]) from a ``Conversation``."""
     effective_site_id = site_id or conversation.site_id
     wdk_url = _compute_wdk_url(effective_site_id, conversation.wdk_strategy_id)
 

@@ -123,8 +123,7 @@ class WebSearchService:
                 summary = s.strip() if isinstance(s, str) and s.strip() else None
                 r.summary = summary
                 if (
-                    not r.snippet
-                    or len(r.snippet.strip()) < _MIN_SNIPPET_LENGTH
+                    not r.snippet or len(r.snippet.strip()) < _MIN_SNIPPET_LENGTH
                 ) and summary:
                     r.snippet = summary
 
@@ -159,7 +158,10 @@ class WebSearchService:
         )
 
     async def _ddgs_search(
-        self, q: str, *, limit: int,
+        self,
+        q: str,
+        *,
+        limit: int,
     ) -> tuple[list[WebSearchResult], _DiagnosticsTracker]:
         diag = _DiagnosticsTracker(attempts=1)
         service_name = "web search"

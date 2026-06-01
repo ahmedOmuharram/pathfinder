@@ -17,6 +17,7 @@ from pathfinder.ai.graph.state import (
 )
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.intent import IntentClassification, UserIntent
+from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.domain.strategy.build_outcome import (
     BuildOutcome,
     StepPushFailure,
@@ -31,7 +32,6 @@ from pathfinder.domain.strategy.plan import (
     StrategyPlan,
     UserQuestion,
 )
-from pathfinder.services.catalog.vocab_rendering import VocabEntry
 
 
 def _state(**kwargs: object) -> PipelineState:
@@ -69,8 +69,8 @@ def _gametocyte_only_search() -> SearchOverview:
                 param_type="single-pick-vocabulary",
                 required=True,
                 allowed_values=[
-                    VocabEntry(value="male gametocyte", display="male gametocyte"),
-                    VocabEntry(value="female gametocyte", display="female gametocyte"),
+                    VocabOption(value="male gametocyte", display="male gametocyte"),
+                    VocabOption(value="female gametocyte", display="female gametocyte"),
                 ],
             ),
         },
@@ -91,9 +91,10 @@ def _full_lifecycle_search() -> SearchOverview:
                 param_type="single-pick-vocabulary",
                 required=True,
                 allowed_values=[
-                    VocabEntry(value="gametocyte", display="gametocyte"),
-                    VocabEntry(
-                        value="asexual blood stage", display="asexual blood stage",
+                    VocabOption(value="gametocyte", display="gametocyte"),
+                    VocabOption(
+                        value="asexual blood stage",
+                        display="asexual blood stage",
                     ),
                 ],
             ),
@@ -199,7 +200,9 @@ def test_intent_non_differential_satisfied_when_any_selected() -> None:
 
 def _plan_with_user_slot() -> StrategyPlan:
     return StrategyPlan(
-        title="t", description="d", rationale="r",
+        title="t",
+        description="d",
+        rationale="r",
         steps=[
             PlannedStep(
                 id="s1",
@@ -299,7 +302,9 @@ def test_build_section_recovery_kind_param_replan_on_vocab_error() -> None:
 
 def test_build_section_succeeded() -> None:
     outcome = BuildOutcome(
-        pushed_step_ids=["s1"], wdk_strategy_id=1, root_count=10,
+        pushed_step_ids=["s1"],
+        wdk_strategy_id=1,
+        root_count=10,
     )
     state = _state(last_build_outcome=outcome)
     ledger = derive_ledger(state, None)

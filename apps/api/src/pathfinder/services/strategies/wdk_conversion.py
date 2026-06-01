@@ -57,9 +57,7 @@ def _resolve_expanded_reference(
     """
     if not combine_step.expanded:
         return (None, None)
-    secondary_step_id = (
-        int(secondary_node.id) if secondary_node.id.isdigit() else None
-    )
+    secondary_step_id = int(secondary_node.id) if secondary_node.id.isdigit() else None
     if secondary_step_id is None:
         return (None, None)
     secondary_wdk = steps.get(str(secondary_step_id))
@@ -98,7 +96,9 @@ def _build_node(
 
     if tree_node.primary_input and tree_node.secondary_input:
         left = _build_node(tree_node.primary_input, steps, record_type, wire_by_step_id)
-        right = _build_node(tree_node.secondary_input, steps, record_type, wire_by_step_id)
+        right = _build_node(
+            tree_node.secondary_input, steps, record_type, wire_by_step_id
+        )
         raw_operator = _extract_operator(wire_parameters)
         if raw_operator is None:
             msg = (
@@ -107,7 +107,9 @@ def _build_node(
             )
             raise DataParsingError(msg)
         expanded_strategy_id, expanded_name = _resolve_expanded_reference(
-            step, right, steps,
+            step,
+            right,
+            steps,
         )
         return StrategyStepNode(
             search_name=search_name,
@@ -121,7 +123,9 @@ def _build_node(
         )
     wire_by_step_id[local_id] = dict(wire_parameters)
     if tree_node.primary_input:
-        input_node = _build_node(tree_node.primary_input, steps, record_type, wire_by_step_id)
+        input_node = _build_node(
+            tree_node.primary_input, steps, record_type, wire_by_step_id
+        )
         return StrategyStepNode(
             search_name=search_name,
             primary_input=input_node,
@@ -175,7 +179,10 @@ def build_snapshot_from_wdk(
 
     wire_by_step_id: dict[str, dict[str, str]] = {}
     root = _build_node(
-        wdk_strategy.step_tree, wdk_strategy.steps, record_type, wire_by_step_id,
+        wdk_strategy.step_tree,
+        wdk_strategy.steps,
+        record_type,
+        wire_by_step_id,
     )
 
     step_counts, wdk_step_ids = _extract_wdk_metadata(root, wdk_strategy.steps)
@@ -263,7 +270,10 @@ async def canonicalize_synced_parameters(
         cache_key = (record_type, search_name)
         if cache_key not in spec_cache:
             spec_cache[cache_key] = await _load_search_spec(
-                api, record_type, search_name, wire_params,
+                api,
+                record_type,
+                search_name,
+                wire_params,
             )
 
         cached_search = spec_cache.get(cache_key)

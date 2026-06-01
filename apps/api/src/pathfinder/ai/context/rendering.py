@@ -86,7 +86,11 @@ def render_context_summary(summaries: list[TurnSummary]) -> str:
     unbounded growth in long conversations.
     """
     # Cap: keep only the most recent turns.
-    capped = summaries[-_MAX_TURN_SUMMARIES:] if len(summaries) > _MAX_TURN_SUMMARIES else summaries
+    capped = (
+        summaries[-_MAX_TURN_SUMMARIES:]
+        if len(summaries) > _MAX_TURN_SUMMARIES
+        else summaries
+    )
     lines: list[str] = []
     for summary in capped:
         if not summary.tool_summaries:
@@ -147,7 +151,9 @@ def _render_plan_step_call(step: _PlanNode) -> str:
     """Render a single plan step as an executable tool call string."""
     if step.search_name == _COMBINE_SEARCH_NAME:
         primary_name = step.primary_input.display_name if step.primary_input else "?"
-        secondary_name = step.secondary_input.display_name if step.secondary_input else "?"
+        secondary_name = (
+            step.secondary_input.display_name if step.secondary_input else "?"
+        )
         return (
             f'combine_steps("{primary_name}", "{secondary_name}", "{step.operator}")'
             f'  display_name="{step.display_name}"'
@@ -367,7 +373,9 @@ def render_graph_state(
     lines: list[str] = []
     for step_id, step in graph.steps.items():
         parts = _render_step_header(step_id, step)
-        suffix = _render_step_suffix(step_id, sync_state, is_root=step_id in graph.roots)
+        suffix = _render_step_suffix(
+            step_id, sync_state, is_root=step_id in graph.roots
+        )
         if suffix:
             parts.append(suffix)
         line = " ".join(parts)

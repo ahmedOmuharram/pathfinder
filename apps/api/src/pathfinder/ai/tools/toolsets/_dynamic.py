@@ -24,7 +24,8 @@ class DynamicEnumToolset(WrapperToolset[AgentDepsT]):
         return None
 
     async def get_tools(
-        self, ctx: RunContext[AgentDepsT],
+        self,
+        ctx: RunContext[AgentDepsT],
     ) -> dict[str, ToolsetTool[AgentDepsT]]:
         base_tools = await self.wrapped.get_tools(ctx)
         overrides = self.build_overrides(ctx)

@@ -36,6 +36,7 @@ from pathfinder.domain.parameters.values import (
     SinglePickValue,
     StringValue,
 )
+from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm
 from pathfinder.domain.strategy.plan import ParamStatus, StepType
 
 # ---------------------------------------------------------------------------
@@ -49,8 +50,8 @@ def test_build_param_preserves_wdk_param_type_treebox() -> None:
         param_type="multi-pick-vocabulary",
         display_type="treeBox",
         vocabulary=[
-            {"value": "pfal", "label": "P. falciparum"},
-            {"value": "pvivax", "label": "P. vivax"},
+            WDKVocabTerm(("pfal", "P. falciparum", None)),
+            WDKVocabTerm(("pvivax", "P. vivax", None)),
         ],
         help="Select one or more organisms",
         allow_empty_value=False,
@@ -109,8 +110,8 @@ def test_build_param_preserves_vocabulary_options() -> None:
         param_type="single-pick-vocabulary",
         display_type="select",
         vocabulary=[
-            {"value": "opt-a", "label": "Option A"},
-            {"value": "opt-b", "label": "Option B"},
+            WDKVocabTerm(("opt-a", "Option A", None)),
+            WDKVocabTerm(("opt-b", "Option B", None)),
         ],
     )
 
@@ -175,8 +176,8 @@ def test_convert_step_with_param_specs_enriches_all_params() -> None:
             param_type="multi-pick-vocabulary",
             display_type="treeBox",
             vocabulary=[
-                {"value": "pfal", "label": "P. falciparum"},
-                {"value": "pvivax", "label": "P. vivax"},
+                WDKVocabTerm(("pfal", "P. falciparum", None)),
+                WDKVocabTerm(("pvivax", "P. vivax", None)),
             ],
             help="Pick one or more organisms",
             allow_empty_value=False,

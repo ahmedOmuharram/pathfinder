@@ -30,9 +30,7 @@ async def echo_task(message: str) -> str:
     return message
 
 
-@procrastinate_app.task(
-    queue="verification", name="durable:run_control_tests_on_step"
-)
+@procrastinate_app.task(queue="verification", name="durable:run_control_tests_on_step")
 async def run_control_tests_on_step_job(
     task_id: str,
     thread_id: str,
@@ -48,9 +46,7 @@ async def run_control_tests_on_step_job(
     )
 
 
-@procrastinate_app.task(
-    queue="verification", name="durable:optimize_search_parameters"
-)
+@procrastinate_app.task(queue="verification", name="durable:optimize_search_parameters")
 async def optimize_search_parameters_job(
     task_id: str,
     thread_id: str,
@@ -66,9 +62,7 @@ async def optimize_search_parameters_job(
     )
 
 
-@procrastinate_app.task(
-    queue="verification", name="durable:geneset_enrichment"
-)
+@procrastinate_app.task(queue="verification", name="durable:geneset_enrichment")
 async def geneset_enrichment_job(
     task_id: str,
     thread_id: str,

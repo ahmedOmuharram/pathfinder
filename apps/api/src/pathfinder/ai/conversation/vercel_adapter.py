@@ -41,7 +41,9 @@ VERCEL_AI_DSP_HEADERS: dict[str, str] = {
 }
 
 _PHASE_STUB_INPUT: SubmitMessage = SubmitMessage(
-    trigger="submit-message", id="phase", messages=[],
+    trigger="submit-message",
+    id="phase",
+    messages=[],
 )
 
 
@@ -59,7 +61,8 @@ class PinnedVercelAIEventStream(VercelAIEventStream[Any, Any]):
     _index_to_message_id: dict[int, str] = field(default_factory=dict, init=False)
 
     async def on_error(
-        self, error: Exception,
+        self,
+        error: Exception,
     ) -> AsyncIterator[BaseChunk]:
         # GraphBubbleUp is langgraph control flow; re-raise so Pregel sees it.
         if isinstance(error, GraphBubbleUp):
@@ -73,7 +76,8 @@ class PinnedVercelAIEventStream(VercelAIEventStream[Any, Any]):
             yield chunk
 
     async def handle_part_start(
-        self, event: PartStartEvent,
+        self,
+        event: PartStartEvent,
     ) -> AsyncIterator[BaseChunk]:
         async for chunk in super().handle_part_start(event):
             yield chunk
@@ -81,7 +85,8 @@ class PinnedVercelAIEventStream(VercelAIEventStream[Any, Any]):
             self._index_to_message_id[event.index] = self.message_id
 
     async def handle_part_delta(
-        self, event: PartDeltaEvent,
+        self,
+        event: PartDeltaEvent,
     ) -> AsyncIterator[BaseChunk]:
         pinned = self._index_to_message_id.get(event.index)
         if pinned is None:
@@ -97,7 +102,8 @@ class PinnedVercelAIEventStream(VercelAIEventStream[Any, Any]):
             self.message_id = saved
 
     async def handle_part_end(
-        self, event: PartEndEvent,
+        self,
+        event: PartEndEvent,
     ) -> AsyncIterator[BaseChunk]:
         pinned = self._index_to_message_id.get(event.index)
         if pinned is None:
@@ -148,7 +154,8 @@ class PhaseStreamEmitter:
         self._stream.message_id = self.message_id
 
     async def chunks(
-        self, events: AsyncIterator[Any],
+        self,
+        events: AsyncIterator[Any],
     ) -> AsyncIterator[BaseChunk]:
         async for chunk in self._stream.transform_stream(events):
             if isinstance(chunk, (StartChunk, FinishChunk, DoneChunk)):
@@ -158,7 +165,8 @@ class PhaseStreamEmitter:
             yield chunk
 
     def _synthesize_missing_start(
-        self, chunk: BaseChunk,
+        self,
+        chunk: BaseChunk,
     ) -> list[BaseChunk]:
         if isinstance(chunk, ToolInputStartChunk):
             self._started_tool_call_ids.add(chunk.tool_call_id)
@@ -170,7 +178,8 @@ class PhaseStreamEmitter:
         # call land first. Backfill the missing start (and an
         # input-available stub) so the browser parser accepts them.
         if isinstance(chunk, _TOOL_OUTPUT_CHUNKS) and not isinstance(
-            chunk, ToolApprovalRequestChunk,
+            chunk,
+            ToolApprovalRequestChunk,
         ):
             tool_call_id = chunk.tool_call_id
             if tool_call_id in self._started_tool_call_ids:
@@ -181,7 +190,8 @@ class PhaseStreamEmitter:
                 return []
             return [
                 ToolInputStartChunk(
-                    tool_call_id=tool_call_id, tool_name=hint.tool_name,
+                    tool_call_id=tool_call_id,
+                    tool_name=hint.tool_name,
                 ),
                 ToolInputAvailableChunk(
                     tool_call_id=tool_call_id,

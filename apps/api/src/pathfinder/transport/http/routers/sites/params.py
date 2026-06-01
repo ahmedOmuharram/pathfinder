@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from pathfinder.domain.search import SearchContext
 from pathfinder.services import catalog
+from pathfinder.services.catalog.models import ParamSpecResponse
 from pathfinder.services.catalog.param_specs_formatting import (
     build_param_specs,
     build_param_specs_from_list,
@@ -11,7 +12,6 @@ from pathfinder.services.catalog.param_specs_formatting import (
 from pathfinder.services.catalog.param_validation import ValidationResponse
 from pathfinder.transport.http.schemas import (
     DependentParamsRequest,
-    ParamSpecResponse,
     ParamSpecsRequest,
     SearchValidationRequest,
 )

@@ -10,14 +10,13 @@ from pydantic import (
     ConfigDict,
     Field,
     JsonValue,
-    TypeAdapter,
-    ValidationError,
     model_validator,
 )
 from pydantic_ai.exceptions import ModelRetry
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
 from pathfinder.domain.parameters.values import ParamValue, as_param_kind
+from pathfinder.domain.parameters.wdk_vocab import WDKVocabulary, flatten_vocab
 from pathfinder.domain.strategy.ast import COMBINE_SEARCH_NAME
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
@@ -32,7 +31,7 @@ from pathfinder.domain.strategy.plan import (
     UserQuestion,
 )
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONArray, JSONObject
+from pathfinder.platform.types import JSONObject
 
 UnfilledSlotReason = Literal["needs_discovery", "needs_user_input"]
 _PARAM_STATUS_FOR_REASON: dict[UnfilledSlotReason, ParamStatus] = {
@@ -69,10 +68,17 @@ class UnfilledSlotInput(BaseModel):
         return self
 
 
-_OPERATOR_STRINGS_AS_SEARCH_NAME: frozenset[str] = frozenset({
-    "intersect", "union", "minus", "rminus",
-    "lonly", "ronly", "colocate",
-})
+_OPERATOR_STRINGS_AS_SEARCH_NAME: frozenset[str] = frozenset(
+    {
+        "intersect",
+        "union",
+        "minus",
+        "rminus",
+        "lonly",
+        "ronly",
+        "colocate",
+    }
+)
 
 
 class PlannedStepInput(BaseModel):
@@ -101,9 +107,13 @@ class PlannedStepInput(BaseModel):
     def _normalize_combine_search_name(self) -> PlannedStepInput:
         if self.step_type != StepType.COMBINE:
             return self
-        if self.search_name.lower() in _OPERATOR_STRINGS_AS_SEARCH_NAME or not self.search_name:
+        if (
+            self.search_name.lower() in _OPERATOR_STRINGS_AS_SEARCH_NAME
+            or not self.search_name
+        ):
             self.search_name = COMBINE_SEARCH_NAME
         return self
+
 
 class PlannedConnectionInput(BaseModel):
     """Input model for a planned connection from the LLM."""
@@ -112,6 +122,7 @@ class PlannedConnectionInput(BaseModel):
     to_step: str
     input_type: str = "primary"
     operator: str | None = None
+
 
 class UserQuestionInput(BaseModel):
     """Input model for a user question from the LLM."""
@@ -122,11 +133,13 @@ class UserQuestionInput(BaseModel):
     related_param: str | None = None
     options: list[DecisionOptionInput] | None = None
 
+
 class ConnectionRef(BaseModel):
     """Reference to a connection for removal."""
 
     from_step: str
     to_step: str
+
 
 class StepPatch(BaseModel):
     """Patch to apply to an existing planned step."""
@@ -145,6 +158,7 @@ class StepPatch(BaseModel):
     rationale: str | None = None
     operator: str | None = None
 
+
 class PlanCreatedResponse(CamelModel):
     """Acknowledgment that a plan was created.
 
@@ -157,6 +171,7 @@ class PlanCreatedResponse(CamelModel):
     step_count: int
     planning_artifact: JSONObject | None = None
 
+
 class DecisionOptionInput(BaseModel):
     """Input model for a decision option."""
 
@@ -165,6 +180,7 @@ class DecisionOptionInput(BaseModel):
     pros: list[str] = Field(default_factory=list)
     cons: list[str] = Field(default_factory=list)
     recommended: bool = False
+
 
 class DecisionOption(CamelModel):
     """A decision option."""
@@ -175,6 +191,7 @@ class DecisionOption(CamelModel):
     cons: list[str] = Field(default_factory=list)
     recommended: bool = False
 
+
 class DecisionResponse(CamelModel):
     """Response containing a decision for the user."""
 
@@ -183,6 +200,7 @@ class DecisionResponse(CamelModel):
     options: list[DecisionOption] = Field(default_factory=list)
     context: str = ""
     recommendation: str | None = None
+
 
 def _convert_step(
     s: PlannedStepInput,
@@ -252,6 +270,7 @@ def _build_unfilled_param(
         options=_extract_vocab_values(spec.vocabulary),
     )
 
+
 def _build_param(
     name: str,
     value: ParamValue | None,
@@ -283,6 +302,7 @@ def _build_param(
         options=_extract_vocab_values(spec.vocabulary),
     )
 
+
 def _build_constraints(spec: ParamSpecNormalized) -> dict[str, JsonValue] | None:
     """Build a constraints dict from WDK spec metadata."""
     constraints: dict[str, JsonValue] = {}
@@ -304,37 +324,14 @@ def _build_constraints(spec: ParamSpecNormalized) -> dict[str, JsonValue] | None
         constraints["maxLength"] = spec.max_length
     return constraints or None
 
-class _VocabItem(BaseModel):
-    """WDK vocabulary list entry shape: ``{"value": str, "display": ..., ...}``.
-
-    ``extra="ignore"`` forward-compatible with new WDK fields.  A raw string
-    is also accepted via the ``str`` arm of the union in ``_VOCAB_ADAPTER``.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-    value: str
-
-_VOCAB_ADAPTER: TypeAdapter[list[_VocabItem | str]] = TypeAdapter(
-    list[_VocabItem | str]
-)
 
 def _extract_vocab_values(
-    vocabulary: JSONObject | JSONArray | None,
+    vocabulary: WDKVocabulary | None,
 ) -> list[str] | None:
-    """Extract vocabulary option values from a WDK vocabulary payload.
-
-    Routes validation through a typed ``TypeAdapter[list[_VocabItem | str]]``
-    so the isinstance discrimination happens inside Pydantic rather than
-    being scattered at the call site.
-    """
-    if vocabulary is None:
-        return None
-    try:
-        items = _VOCAB_ADAPTER.validate_python(vocabulary)
-    except ValidationError:
-        return None
-    values = [entry if isinstance(entry, str) else entry.value for entry in items]
+    """Extract vocabulary option values from a typed WDK vocabulary."""
+    values = [option.value for option in flatten_vocab(vocabulary)]
     return values or None
+
 
 def _convert_connection(c: PlannedConnectionInput) -> PlannedConnection:
     """Convert an input connection to a domain PlannedConnection."""
@@ -344,6 +341,7 @@ def _convert_connection(c: PlannedConnectionInput) -> PlannedConnection:
         input_type=c.input_type,
         operator=c.operator,
     )
+
 
 def _convert_question(q: UserQuestionInput) -> UserQuestion:
     """Convert an input question to a domain UserQuestion.
@@ -375,6 +373,7 @@ def _convert_question(q: UserQuestionInput) -> UserQuestion:
         options=options,
     )
 
+
 def _validate_domain_topology(plan: StrategyPlan) -> None:
     """Re-run topology invariants after in-place mutation of a plan."""
     try:
@@ -382,6 +381,7 @@ def _validate_domain_topology(plan: StrategyPlan) -> None:
     except PlanTopologyError as exc:
         msg = f"TOPOLOGY_ERROR: {exc}"
         raise ModelRetry(msg) from exc
+
 
 def _validate_domain_parameters(
     plan: StrategyPlan,
@@ -403,7 +403,8 @@ def _validate_domain_parameters(
             continue
         if step.step_type == StepType.LEAF:
             missing = [
-                param.name for param in step.parameters
+                param.name
+                for param in step.parameters
                 if param.required
                 and param.status != ParamStatus.SET
                 and param.status not in legit_unset
@@ -415,6 +416,7 @@ def _validate_domain_parameters(
                     "Use update_plan with step_updates to set them."
                 )
                 raise ModelRetry(msg)
+
 
 def _apply_step_patches(
     plan: StrategyPlan,
@@ -437,11 +439,7 @@ def _apply_step_patches(
             )
             raise ModelRetry(msg)
         _apply_metadata_patch(step, patch)
-        param_specs = (
-            specs_by_search.get(step.search_name)
-            if specs_by_search
-            else None
-        )
+        param_specs = specs_by_search.get(step.search_name) if specs_by_search else None
         if patch.parameters is not None:
             _apply_parameters_patch(step, patch.parameters, param_specs)
         if patch.unfilled_slots is not None:
@@ -466,7 +464,8 @@ def _apply_parameters_patch(
 ) -> None:
     for name, value in parameters.items():
         existing = next(
-            (p for p in step.parameters if p.name == name), None,
+            (p for p in step.parameters if p.name == name),
+            None,
         )
         if existing is not None:
             existing.value = value
@@ -484,7 +483,8 @@ def _apply_unfilled_slots_patch(
     for slot in slots:
         spec = param_specs.get(slot.name) if param_specs else None
         existing = next(
-            (p for p in step.parameters if p.name == slot.name), None,
+            (p for p in step.parameters if p.name == slot.name),
+            None,
         )
         rebuilt = _build_unfilled_param(slot, spec)
         if existing is not None:

@@ -51,7 +51,11 @@ class ModelEntry(CamelModel):
     @model_validator(mode="before")
     @classmethod
     def _derive_from_id(cls, data: Any) -> Any:
-        if isinstance(data, dict) and isinstance(data.get("id"), str) and ":" in data["id"]:
+        if (
+            isinstance(data, dict)
+            and isinstance(data.get("id"), str)
+            and ":" in data["id"]
+        ):
             provider, model_name = data["id"].split(":", 1)
             data.setdefault("provider", provider)
             data.setdefault("model_name", model_name)

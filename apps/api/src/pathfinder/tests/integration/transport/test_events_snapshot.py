@@ -43,7 +43,8 @@ async def seed_user(db_session: AsyncSession) -> User:
 
 @pytest.fixture
 async def conversation(
-    db_session: AsyncSession, seed_user: User,
+    db_session: AsyncSession,
+    seed_user: User,
 ) -> Conversation:
     conv = Conversation(
         id=uuid4(),
@@ -62,7 +63,8 @@ async def conversation(
 
 @pytest.fixture
 async def api_client(
-    app: FastAPI, seed_user: User,
+    app: FastAPI,
+    seed_user: User,
 ) -> AsyncGenerator[httpx.AsyncClient]:
     transport = httpx.ASGITransport(app=app)
     token = create_user_token(seed_user.id)
@@ -75,17 +77,21 @@ async def api_client(
 
 
 async def _seed_chunks(
-    *, conversation_id: UUID, chunks: list[dict[str, Any]],
+    *,
+    conversation_id: UUID,
+    chunks: list[dict[str, Any]],
 ) -> None:
     writer = ChatEventWriter(
-        conversation_id=conversation_id, turn_id=uuid4(),
+        conversation_id=conversation_id,
+        turn_id=uuid4(),
     )
     for chunk in chunks:
         await writer.write(chunk)
 
 
 async def test_snapshot_returns_empty_log_for_new_conversation(
-    api_client: httpx.AsyncClient, conversation: Conversation,
+    api_client: httpx.AsyncClient,
+    conversation: Conversation,
 ) -> None:
     response = await api_client.get(
         f"/api/v1/conversations/{conversation.id}/events/snapshot",
@@ -97,7 +103,8 @@ async def test_snapshot_returns_empty_log_for_new_conversation(
 
 
 async def test_snapshot_returns_full_chunk_log(
-    api_client: httpx.AsyncClient, conversation: Conversation,
+    api_client: httpx.AsyncClient,
+    conversation: Conversation,
 ) -> None:
     user_id = uuid4()
     assistant_id = uuid4()
@@ -114,7 +121,8 @@ async def test_snapshot_returns_full_chunk_log(
         {"type": "done"},
     ]
     await _seed_chunks(
-        conversation_id=conversation.id, chunks=seeded,
+        conversation_id=conversation.id,
+        chunks=seeded,
     )
     response = await api_client.get(
         f"/api/v1/conversations/{conversation.id}/events/snapshot",
@@ -129,7 +137,8 @@ async def test_snapshot_returns_full_chunk_log(
 
 
 async def test_snapshot_round_trips_through_reducer(
-    api_client: httpx.AsyncClient, conversation: Conversation,
+    api_client: httpx.AsyncClient,
+    conversation: Conversation,
 ) -> None:
     user_id = uuid4()
     assistant_id = uuid4()
@@ -145,7 +154,8 @@ async def test_snapshot_round_trips_through_reducer(
         {"type": "done"},
     ]
     await _seed_chunks(
-        conversation_id=conversation.id, chunks=seeded,
+        conversation_id=conversation.id,
+        chunks=seeded,
     )
     response = await api_client.get(
         f"/api/v1/conversations/{conversation.id}/events/snapshot",
@@ -156,14 +166,13 @@ async def test_snapshot_round_trips_through_reducer(
     assert messages[0]["id"] == str(user_id)
     assert messages[0]["parts"][0]["text"] == "ping"
     assert messages[1]["id"] == str(assistant_id)
-    text_parts = [
-        p for p in messages[1]["parts"] if p["type"] == "text"
-    ]
+    text_parts = [p for p in messages[1]["parts"] if p["type"] == "text"]
     assert text_parts[0]["text"] == "pong"
 
 
 async def test_snapshot_caps_at_in_flight_user_message(
-    api_client: httpx.AsyncClient, conversation: Conversation,
+    api_client: httpx.AsyncClient,
+    conversation: Conversation,
 ) -> None:
     user_a = uuid4()
     asst_a = uuid4()
@@ -188,7 +197,8 @@ async def test_snapshot_caps_at_in_flight_user_message(
         {"type": "text-delta", "id": "t2", "delta": "partial"},
     ]
     await _seed_chunks(
-        conversation_id=conversation.id, chunks=seeded,
+        conversation_id=conversation.id,
+        chunks=seeded,
     )
     response = await api_client.get(
         f"/api/v1/conversations/{conversation.id}/events/snapshot",
@@ -210,7 +220,8 @@ async def test_snapshot_caps_at_in_flight_user_message(
 
 
 async def test_snapshot_ignores_rogue_mid_turn_user_message(
-    api_client: httpx.AsyncClient, conversation: Conversation,
+    api_client: httpx.AsyncClient,
+    conversation: Conversation,
 ) -> None:
     user_a = uuid4()
     asst_a = uuid4()
@@ -242,7 +253,8 @@ async def test_snapshot_ignores_rogue_mid_turn_user_message(
         },
     ]
     await _seed_chunks(
-        conversation_id=conversation.id, chunks=seeded,
+        conversation_id=conversation.id,
+        chunks=seeded,
     )
     response = await api_client.get(
         f"/api/v1/conversations/{conversation.id}/events/snapshot",
@@ -259,7 +271,7 @@ def _parse_sse_frames(frames: list[str]) -> list[dict[str, Any]]:
         for line in frame.splitlines():
             if not line.startswith("data: "):
                 continue
-            payload = line[len("data: "):]
+            payload = line[len("data: ") :]
             if payload == "[DONE]":
                 chunks.append({"type": "done"})
                 continue
@@ -289,7 +301,8 @@ def _assert_tool_chunks_well_formed(chunks: list[dict[str, Any]]) -> None:
 
 
 async def test_resume_stream_after_snapshot_cap_replays_tool_input_start(
-    api_client: httpx.AsyncClient, conversation: Conversation,
+    api_client: httpx.AsyncClient,
+    conversation: Conversation,
 ) -> None:
     """Reproduces the prod failure: an in-flight assistant turn with an
     open tool call, plus a rogue user-message persisted mid-turn. The
@@ -326,7 +339,7 @@ async def test_resume_stream_after_snapshot_cap_replays_tool_input_start(
         {
             "type": "tool-input-delta",
             "toolCallId": "call_inflight",
-            "inputTextDelta": "{\"q\":",
+            "inputTextDelta": '{"q":',
         },
         user_message_chunk(
             message_id=str(user_rogue),
@@ -335,7 +348,7 @@ async def test_resume_stream_after_snapshot_cap_replays_tool_input_start(
         {
             "type": "tool-input-delta",
             "toolCallId": "call_inflight",
-            "inputTextDelta": "\"x\"}",
+            "inputTextDelta": '"x"}',
         },
     ]
     await _seed_chunks(conversation_id=conversation.id, chunks=in_flight)
@@ -362,8 +375,10 @@ async def test_resume_stream_after_snapshot_cap_replays_tool_input_start(
     await _seed_chunks(conversation_id=conversation.id, chunks=completion)
 
     frames: list[str] = [
-        frame async for frame in iter_sse(
-            conversation_id=conversation.id, after=snap["cursor"],
+        frame
+        async for frame in iter_sse(
+            conversation_id=conversation.id,
+            after=snap["cursor"],
         )
     ]
     resume_chunks = _parse_sse_frames(frames)

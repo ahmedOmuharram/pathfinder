@@ -51,4 +51,3 @@ class OptimizationProgressEventData(CamelModel):
     sensitivity: dict[str, float] | None = None
     total_time_seconds: float | None = Field(default=None)
     error: str | None = None
-

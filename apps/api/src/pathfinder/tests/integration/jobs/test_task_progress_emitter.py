@@ -5,14 +5,14 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from pathfinder.ai.tools.durable import TaskProgressEmitter
+from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.persistence.models import (
     BackgroundTask,
     Conversation,
     TaskProgress,
     User,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 
 
 @pytest.mark.asyncio
@@ -25,7 +25,11 @@ async def test_emitter_writes_progress_rows_in_order(
     task_id = uuid4()
     async with async_session_factory() as session:
         session.add(User(id=user_id))
-        session.add(Conversation(id=conversation_id, user_id=user_id, site_id="plasmodb", name=""))
+        session.add(
+            Conversation(
+                id=conversation_id, user_id=user_id, site_id="plasmodb", name=""
+            )
+        )
         await session.flush()
         session.add(
             BackgroundTask(

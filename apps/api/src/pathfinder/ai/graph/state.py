@@ -90,7 +90,8 @@ class VerificationDigest(CamelModel):
     key_findings: list[str] = Field(default_factory=list, max_length=10)
     caveats: list[str] = Field(default_factory=list, max_length=10)
     remember: list[MemoryEntryDraft] = Field(
-        default_factory=list, max_length=5,
+        default_factory=list,
+        max_length=5,
     )
 
 
@@ -128,15 +129,18 @@ class StrategySketchNode(CamelModel):
     label: str = Field(max_length=80)
     description: str = Field(max_length=240)
     inputs: list[str] = Field(default_factory=list)
-    operator: Literal[
-        "UNION",
-        "INTERSECT",
-        "MINUS",
-        "RMINUS",
-        "COLOCATE",
-        "LONLY",
-        "RONLY",
-    ] | None = None
+    operator: (
+        Literal[
+            "UNION",
+            "INTERSECT",
+            "MINUS",
+            "RMINUS",
+            "COLOCATE",
+            "LONLY",
+            "RONLY",
+        ]
+        | None
+    ) = None
 
 
 class ProblemFrame(CamelModel):
@@ -151,7 +155,8 @@ class ProblemFrame(CamelModel):
     success_criteria: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
     strategy_sketch: list[StrategySketchNode] = Field(
-        default_factory=list, max_length=12,
+        default_factory=list,
+        max_length=12,
     )
     blocking_questions: list[ClarificationQuestion] = Field(default_factory=list)
     optional_questions: list[ClarificationQuestion] = Field(default_factory=list)

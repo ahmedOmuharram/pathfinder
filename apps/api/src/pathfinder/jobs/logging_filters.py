@@ -85,18 +85,14 @@ def install_procrastinate_redaction() -> None:
             candidate_names.add(logger_name)
     for logger_name in candidate_names:
         logger = logging.getLogger(logger_name)
-        if not any(
-            isinstance(f, RedactSensitiveKwargsFilter) for f in logger.filters
-        ):
+        if not any(isinstance(f, RedactSensitiveKwargsFilter) for f in logger.filters):
             logger.addFilter(filt)
     # Root-handler fallback: catches any procrastinate sub-logger created
     # after this call returns, since child records propagate up to root
     # handlers (but not parent filters).
     root = logging.getLogger()
     for handler in root.handlers:
-        if not any(
-            isinstance(f, RedactSensitiveKwargsFilter) for f in handler.filters
-        ):
+        if not any(isinstance(f, RedactSensitiveKwargsFilter) for f in handler.filters):
             handler.addFilter(filt)
 
 

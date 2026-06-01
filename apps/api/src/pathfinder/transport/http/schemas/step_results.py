@@ -4,27 +4,12 @@ from typing import Literal
 
 from pydantic import JsonValue
 
-from pathfinder.integrations.veupathdb.wdk_models import (
+from pathfinder.domain.wdk_values import (
     WDKHistogramBin,
     WDKHistogramStatistics,
     WDKRecordIdPart,
 )
 from pathfinder.platform.pydantic_base import CamelModel
-
-
-class RecordAttribute(CamelModel):
-    name: str
-    display_name: str
-    help: str | None
-    type: str | None
-    is_displayable: bool
-    is_sortable: bool
-    is_suggested: bool
-
-
-class AttributesResponse(CamelModel):
-    attributes: list[RecordAttribute]
-    record_type: str
 
 
 class ClassifiedRecord(CamelModel):
@@ -56,16 +41,6 @@ class RecordsMeta(CamelModel):
 class RecordsResponse(CamelModel):
     records: list[ClassifiedRecord]
     meta: RecordsMeta
-
-
-class RecordDetailResponse(CamelModel):
-    display_name: str
-    id: list[WDKRecordIdPart]
-    record_class_name: str
-    attributes: dict[str, JsonValue]
-    attribute_names: dict[str, str]
-    tables: dict[str, JsonValue]
-    table_errors: list[str]
 
 
 class DistributionResponse(CamelModel):

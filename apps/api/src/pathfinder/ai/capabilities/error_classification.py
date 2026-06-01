@@ -150,7 +150,9 @@ def build_error_directive(
     args_str = _sanitize_args(tool_args)
     tool_call = f"{tool_name}({args_str})"
 
-    numbered_actions = "\n".join(f"  {i + 1}. {action}" for i, action in enumerate(next_actions))
+    numbered_actions = "\n".join(
+        f"  {i + 1}. {action}" for i, action in enumerate(next_actions)
+    )
 
     return (
         f"ERROR: {error_type}\n"

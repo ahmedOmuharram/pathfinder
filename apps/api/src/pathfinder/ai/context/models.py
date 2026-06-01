@@ -12,6 +12,7 @@ class ToolCallRecord(BaseModel):
     result: str
     is_error: bool = False
 
+
 class TurnSummary(BaseModel):
     """Compressed representation of one turn's tool activity."""
 

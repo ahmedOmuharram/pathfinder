@@ -23,8 +23,8 @@ from pathfinder.ai.agents.state import (
     SearchOverview,
 )
 from pathfinder.ai.tools.standalone import catalog_discovery
+from pathfinder.domain.parameters.wdk_vocab import VocabOption
 from pathfinder.services.catalog.param_formatting import ParameterInfo
-from pathfinder.services.catalog.vocab_rendering import VocabEntry
 
 
 def _ctx_with_state(state: AgentToolState) -> Any:
@@ -43,7 +43,9 @@ def _wdk_param(name: str) -> Any:
 
 
 def _patch_resolve_and_client(
-    monkeypatch: pytest.MonkeyPatch, *, param_names: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    param_names: list[str],
 ) -> None:
     async def _resolve(*_args: Any, **_kw: Any) -> str:
         return "transcript"
@@ -94,9 +96,9 @@ async def test_get_parameter_options_writes_param_vocab_snapshot(
         value_format='{"type": "single-pick-vocabulary", "value": "<one of allowed_values>"}',
         default_value="6772.93",
         allowed_values=[
-            VocabEntry(value="1693.23", display="1693 reads"),
-            VocabEntry(value="3386.46", display="3386 reads"),
-            VocabEntry(value="6772.93", display="6772 reads"),
+            VocabOption(value="1693.23", display="1693 reads"),
+            VocabOption(value="3386.46", display="3386 reads"),
+            VocabOption(value="6772.93", display="6772 reads"),
         ],
     )
     monkeypatch.setattr(
@@ -156,7 +158,7 @@ async def test_param_vocab_snapshot_accumulates_across_calls(
             help="",
             value_format='{"type": "single-pick-vocabulary", "value": "<one of allowed_values>"}',
             default_value="6772.93",
-            allowed_values=[VocabEntry(value="6772.93", display="6772 reads")],
+            allowed_values=[VocabOption(value="6772.93", display="6772 reads")],
         ),
         "fold_change": ParameterInfo(
             name="fold_change",
@@ -177,10 +179,14 @@ async def test_param_vocab_snapshot_accumulates_across_calls(
 
     ctx = _ctx_with_state(state)
     await catalog_discovery.get_parameter_options(
-        ctx, search_name="FoldChange", parameter_id="hard_floor",
+        ctx,
+        search_name="FoldChange",
+        parameter_id="hard_floor",
     )
     await catalog_discovery.get_parameter_options(
-        ctx, search_name="FoldChange", parameter_id="fold_change",
+        ctx,
+        search_name="FoldChange",
+        parameter_id="fold_change",
     )
     overview = state.get_overview("FoldChange")
     assert overview is not None
@@ -211,8 +217,8 @@ def test_pinned_discovered_searches_renders_param_vocab() -> None:
                     required=True,
                     default_value="6772.93",
                     allowed_values=[
-                        VocabEntry(value="1693.23", display="1693 reads"),
-                        VocabEntry(value="6772.93", display="6772 reads"),
+                        VocabOption(value="1693.23", display="1693 reads"),
+                        VocabOption(value="6772.93", display="6772 reads"),
                     ],
                 ),
             },

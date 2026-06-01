@@ -29,7 +29,6 @@ class ReadinessResponse(CamelModel):
 class ProviderStatus(CamelModel):
     """Per-provider API-key availability."""
 
-
     openai: bool
     anthropic: bool
     google: bool
@@ -38,7 +37,6 @@ class ProviderStatus(CamelModel):
 
 class SystemConfigResponse(CamelModel):
     """System configuration status (unauthenticated)."""
-
 
     chat_provider: str
     llm_configured: bool

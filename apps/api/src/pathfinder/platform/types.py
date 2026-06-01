@@ -10,10 +10,18 @@ ReasoningEffort = Literal["none", "low", "medium", "high"]
 TierName = Literal["quality", "balanced", "fast", "custom"]
 
 PipelinePhase = Literal[
-    "scoping", "discovery", "planning", "execution", "verification",
+    "scoping",
+    "discovery",
+    "planning",
+    "execution",
+    "verification",
 ]
 PIPELINE_PHASES: tuple[PipelinePhase, ...] = (
-    "scoping", "discovery", "planning", "execution", "verification",
+    "scoping",
+    "discovery",
+    "planning",
+    "execution",
+    "verification",
 )
 
 

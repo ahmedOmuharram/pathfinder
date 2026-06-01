@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathfinder.ai.scratchpad.models import Note
+from pathfinder.domain.scratchpad.models import Note
 
 _EMPTY_PHASE_BLOCK = (
     "## Scratchpad (empty)\n\n"
@@ -37,7 +37,11 @@ def _split_pinned(notes: list[Note]) -> tuple[list[Note], list[Note]]:
 
 
 def _render_core(
-    notes: list[Note], *, total_count: int, budget_chars: int, include_rule: bool,
+    notes: list[Note],
+    *,
+    total_count: int,
+    budget_chars: int,
+    include_rule: bool,
 ) -> str:
     pinned, recent = _split_pinned(notes)
     header = f"## Scratchpad ({total_count} notes, {len(pinned)} pinned)"
@@ -63,7 +67,10 @@ def _render_core(
 
 
 def render_scratchpad_for_phase(
-    notes: list[Note], *, total_count: int, budget_chars: int = 10000,
+    notes: list[Note],
+    *,
+    total_count: int,
+    budget_chars: int = 10000,
 ) -> str:
     if total_count == 0:
         return _EMPTY_PHASE_BLOCK
@@ -76,7 +83,10 @@ def render_scratchpad_for_phase(
 
 
 def render_scratchpad_for_supervisor(
-    notes: list[Note], *, total_count: int, budget_chars: int = 10000,
+    notes: list[Note],
+    *,
+    total_count: int,
+    budget_chars: int = 10000,
 ) -> str:
     if total_count == 0:
         return _EMPTY_SUPERVISOR_BLOCK

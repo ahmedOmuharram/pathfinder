@@ -24,6 +24,7 @@ _SEARCH_ADAPTER: TypeAdapter[WDKSearch] = TypeAdapter(WDKSearch)
 _RECORD_TYPE_ADAPTER: TypeAdapter[WDKRecordType] = TypeAdapter(WDKRecordType)
 _PARAMETER_ADAPTER: TypeAdapter[WDKParameter] = TypeAdapter(WDKParameter)
 
+
 class SearchEndpoints:
     """Mixin providing search and record-type WDK endpoints.
 

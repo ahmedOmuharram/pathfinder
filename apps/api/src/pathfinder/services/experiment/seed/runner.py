@@ -14,9 +14,17 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from pathfinder.domain.strategy.ast import StrategyStepNode
 from pathfinder.integrations.veupathdb.factory import get_strategy_api
-from pathfinder.persistence.repositories.control_set import ControlSetCreate
+from pathfinder.persistence.repositories import (
+    ConversationRepository,
+)
+from pathfinder.persistence.repositories.control_set import (
+    ControlSetCreate,
+    ControlSetRepository,
+)
 from pathfinder.platform.errors import sanitize_error_for_client
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.experiment.materialization import (
@@ -148,8 +156,7 @@ async def _process_single_seed(
 async def run_seed(
     *,
     user_id: UUID,
-    conv_repo: Any,
-    control_set_repo: Any,
+    session: AsyncSession,
     site_id: str | None = None,
 ) -> AsyncIterator[SeedEvent]:
     """Create seed strategies and control sets, yielding typed progress events.
@@ -176,8 +183,8 @@ async def run_seed(
         total=total,
         semaphore=semaphore,
         queue=queue,
-        conv_repo=conv_repo,
-        control_set_repo=control_set_repo,
+        conv_repo=ConversationRepository(session),
+        control_set_repo=ControlSetRepository(session),
         user_id=user_id,
     )
 

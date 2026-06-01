@@ -9,6 +9,7 @@ for LLM-driven compaction runs triggered on verification done.
 Revision ID: 2026_04_20_0001
 Revises: 2026_04_18_0006
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

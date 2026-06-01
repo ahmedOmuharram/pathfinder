@@ -56,6 +56,7 @@ __all__ = [
 
 logger = get_logger(__name__)
 
+
 @dataclass
 class IntersectionConfig:
     """Configuration for a single control-test intersection run.
@@ -138,12 +139,14 @@ class IntersectionConfig:
             id_field=id_field,
         )
 
+
 def _find_param_type(params: list[WDKParameter], param_name: str) -> str | None:
     """Find the type of a named parameter in a WDK parameters list."""
     for p in params:
         if p.name == param_name:
             return p.type
     return None
+
 
 async def resolve_controls_param_type(
     api: StrategyAPI,
@@ -175,6 +178,7 @@ async def resolve_controls_param_type(
             error=str(exc),
         )
     return None
+
 
 async def _run_intersection_control(
     config: IntersectionConfig,
@@ -218,7 +222,9 @@ async def _run_intersection_control(
         api, controls_rt, config.controls_search_name, config.controls_param_name
     )
 
-    controls_params: dict[str, ParamValue] = dict(config.controls_extra_parameters or {})
+    controls_params: dict[str, ParamValue] = dict(
+        config.controls_extra_parameters or {}
+    )
     if param_type == "input-dataset":
         config_ds = WDKDatasetConfigIdList(
             source_type="idList",
@@ -299,6 +305,7 @@ async def _run_intersection_control(
     finally:
         await delete_temp_strategy(api, temp_strategy_id)
 
+
 async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
     """Best-effort cleanup of leaked internal control-test strategies.
 
@@ -314,6 +321,7 @@ async def _cleanup_internal_control_test_strategies(api: StrategyAPI) -> None:
         )
         return
     await cleanup_internal_control_test_strategies(api, strategies)
+
 
 def _extract_intersection_data(
     payload: JSONObject,
@@ -332,6 +340,7 @@ def _extract_intersection_data(
     if isinstance(ids_value, list):
         id_set = {str(x) for x in ids_value if x is not None}
     return count, id_set, isinstance(ids_value, list)
+
 
 async def run_positive_negative_controls(
     config: IntersectionConfig,

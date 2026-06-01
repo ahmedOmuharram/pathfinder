@@ -71,7 +71,10 @@ class _AssertWalker(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
-        if isinstance(node.func, ast.Attribute) and node.func.attr in _STRONG_VALIDATING_CALLS:
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr in _STRONG_VALIDATING_CALLS
+        ):
             self.has_validating_call = True
         self.generic_visit(node)
 
@@ -85,29 +88,28 @@ def _is_pytest_raises(expr: ast.expr) -> bool:
     return isinstance(func, ast.Name) and func.id == "raises"
 
 
+def _is_weak_compare(expr: ast.Compare) -> bool:
+    if len(expr.ops) != 1:
+        return False
+    op = expr.ops[0]
+    if isinstance(op, (ast.Is, ast.IsNot)):
+        return _compares_to_none(expr)
+    if isinstance(op, (ast.In, ast.NotIn)):
+        return _is_weak_membership(expr)
+    return False
+
+
 def _is_weak_assert(expr: ast.expr) -> bool:
-    if isinstance(expr, ast.Constant):
-        return True
-    if isinstance(expr, (ast.Name, ast.Attribute, ast.Subscript)):
+    if isinstance(expr, (ast.Constant, ast.Name, ast.Attribute, ast.Subscript)):
         return True
     if isinstance(expr, ast.UnaryOp) and isinstance(expr.op, ast.Not):
         return _is_weak_assert(expr.operand)
     if isinstance(expr, ast.BoolOp):
         return all(_is_weak_assert(v) for v in expr.values)
     if isinstance(expr, ast.Call):
-        return (
-            isinstance(expr.func, ast.Name)
-            and expr.func.id in _WEAK_BUILTINS
-        )
+        return isinstance(expr.func, ast.Name) and expr.func.id in _WEAK_BUILTINS
     if isinstance(expr, ast.Compare):
-        ops = expr.ops
-        if len(ops) == 1:
-            op = ops[0]
-            if isinstance(op, (ast.Is, ast.IsNot)):
-                return _compares_to_none(expr)
-            if isinstance(op, (ast.In, ast.NotIn)):
-                return _is_weak_membership(expr)
-        return False
+        return _is_weak_compare(expr)
     return False
 
 
@@ -145,16 +147,16 @@ def _scan_function(
     walker = _AssertWalker()
     walker.visit(fn)
     has_strong = (
-        walker.strong > 0
-        or walker.has_pytest_raises
-        or walker.has_validating_call
+        walker.strong > 0 or walker.has_pytest_raises or walker.has_validating_call
     )
     return walker, has_strong
 
 
-def _classify(walker: _AssertWalker, has_strong: bool) -> str | None:
-    if walker.weak == 0 and walker.strong == 0 and not (
-        walker.has_pytest_raises or walker.has_validating_call
+def _classify(walker: _AssertWalker, *, has_strong: bool) -> str | None:
+    if (
+        walker.weak == 0
+        and walker.strong == 0
+        and not (walker.has_pytest_raises or walker.has_validating_call)
     ):
         return "no_assertions"
     if not has_strong:
@@ -174,7 +176,7 @@ def _scan_file(path: Path) -> list[tuple[Path, int, str, str]]:
         if not node.name.startswith("test_"):
             continue
         walker, has_strong = _scan_function(node)
-        verdict = _classify(walker, has_strong)
+        verdict = _classify(walker, has_strong=has_strong)
         if verdict:
             offenders.append((path, node.lineno, node.name, verdict))
     return offenders
@@ -221,7 +223,9 @@ def main() -> int:
         if target.is_file():
             files.append(target)
         else:
-            files.extend(p for p in target.rglob("test_*.py") if p.name not in SKIP_NAMES)
+            files.extend(
+                p for p in target.rglob("test_*.py") if p.name not in SKIP_NAMES
+            )
 
     all_offenders: list[tuple[Path, int, str, str]] = []
     for path in sorted(files):
@@ -274,9 +278,9 @@ def _iter_test_functions(files: list[Path]):
         except SyntaxError:
             continue
         for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
-                "test_"
-            ):
+            if isinstance(
+                node, (ast.FunctionDef, ast.AsyncFunctionDef)
+            ) and node.name.startswith("test_"):
                 yield path, node
 
 

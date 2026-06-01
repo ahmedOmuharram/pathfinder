@@ -58,7 +58,8 @@ def _build_response_entry(entry: ModelEntry) -> ModelCatalogEntryResponse:
     if live.output is not None:
         payload["output_price"] = live.output
     return ModelCatalogEntryResponse(
-        **payload, enabled=_provider_enabled(entry.provider),
+        **payload,
+        enabled=_provider_enabled(entry.provider),
     )
 
 

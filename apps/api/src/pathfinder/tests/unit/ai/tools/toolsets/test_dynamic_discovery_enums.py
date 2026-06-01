@@ -8,6 +8,7 @@ Anthropic's constrained generation read to mask non-enum tokens at
 sampling time — so if the enum doesn't land here, the whole
 hallucination-prevention story is broken.
 """
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -37,7 +38,8 @@ def _stub_model() -> FunctionModel:
         return ModelResponse(parts=[TextPart(content="ok")])
 
     async def _stream(
-        messages: list[ModelMessage], info: AgentInfo,
+        messages: list[ModelMessage],
+        info: AgentInfo,
     ) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
         del messages, info
         yield "ok"
@@ -81,7 +83,8 @@ def test_overrides_constrain_search_name_after_first_inspection() -> None:
     inspection-dependent tools is locked to the inspected set."""
     state = AgentToolState()
     state.register_search(
-        "GenesByGoTerm", _ov("GenesByGoTerm", ["go_term", "taxon"]),
+        "GenesByGoTerm",
+        _ov("GenesByGoTerm", ["go_term", "taxon"]),
     )
     overrides = _discovery_enum_overrides(_ctx(state))
     assert overrides[("update_search_decision", "search_name")] == [
@@ -100,10 +103,12 @@ def test_overrides_constrain_parameter_id_after_inspection() -> None:
     inspected searches (the body still verifies per-search membership)."""
     state = AgentToolState()
     state.register_search(
-        "GenesByGoTerm", _ov("GenesByGoTerm", ["go_term", "taxon"]),
+        "GenesByGoTerm",
+        _ov("GenesByGoTerm", ["go_term", "taxon"]),
     )
     state.register_search(
-        "GenesByText", _ov("GenesByText", ["query", "max_pvalue"]),
+        "GenesByText",
+        _ov("GenesByText", ["query", "max_pvalue"]),
     )
     overrides = _discovery_enum_overrides(_ctx(state))
     assert overrides[("get_parameter_options", "parameter_id")] == [
@@ -125,10 +130,12 @@ async def test_get_parameter_options_schema_carries_enum() -> None:
     generation reads this enum and refuses to emit any other value."""
     state = AgentToolState()
     state.register_search(
-        "GenesByGoTerm", _ov("GenesByGoTerm", ["go_term", "taxon"]),
+        "GenesByGoTerm",
+        _ov("GenesByGoTerm", ["go_term", "taxon"]),
     )
     state.register_search(
-        "GenesByText", _ov("GenesByText", ["query"]),
+        "GenesByText",
+        _ov("GenesByText", ["query"]),
     )
     toolset = build_toolset()
     tools = await toolset.get_tools(_ctx(state))
@@ -154,7 +161,8 @@ async def test_unrelated_tools_unchanged() -> None:
     their original schemas."""
     state = AgentToolState()
     state.register_search(
-        "GenesByGoTerm", _ov("GenesByGoTerm", ["go_term"]),
+        "GenesByGoTerm",
+        _ov("GenesByGoTerm", ["go_term"]),
     )
     toolset = build_toolset()
     tools = await toolset.get_tools(_ctx(state))
@@ -164,9 +172,7 @@ async def test_unrelated_tools_unchanged() -> None:
     # The think tool's "thought" arg should remain a plain string with
     # no enum injected — our override targets are surgical.
     for prop in properties.values():
-        assert "enum" not in prop, (
-            f"unrelated tool got an enum override: {prop!r}"
-        )
+        assert "enum" not in prop, f"unrelated tool got an enum override: {prop!r}"
 
 
 @pytest.mark.asyncio

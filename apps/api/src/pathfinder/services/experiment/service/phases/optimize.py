@@ -34,12 +34,14 @@ from pathfinder.services.parameter_optimization import (
 
 logger = get_logger(__name__)
 
+
 def _spec_optimizable(s: OptimizationSpec) -> bool:
     if s.type == "categorical":
         choices = s.choices or []
         valid = [c for c in choices if isinstance(c, str) and c.strip()]
         return len(valid) > 0
     return True
+
 
 async def phase_optimize_parameters(
     pctx: PhaseContext,
@@ -75,9 +77,7 @@ async def phase_optimize_parameters(
     ]
 
     fixed_params: dict[str, ParamValue] = {
-        k: v
-        for k, v in config.parameters.items()
-        if k not in optimizable_names
+        k: v for k, v in config.parameters.items() if k not in optimizable_names
     }
 
     async def _opt_progress(event: JSONObject) -> None:
@@ -126,6 +126,7 @@ async def phase_optimize_parameters(
         return result, metrics
 
     return None, metrics
+
 
 async def phase_optimize_tree_knobs(
     pctx: PhaseContext,

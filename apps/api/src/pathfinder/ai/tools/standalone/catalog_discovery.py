@@ -50,7 +50,11 @@ from pathfinder.services.wdk import (
 
 
 def _did_you_mean(
-    candidate: str, valid: list[str], *, kind: str, search_name: str | None = None,
+    candidate: str,
+    valid: list[str],
+    *,
+    kind: str,
+    search_name: str | None = None,
 ) -> str:
     """Build a ``ModelRetry`` message body that lists candidates the model
     can copy verbatim. Anthropic / OpenAI both treat this as the model's
@@ -107,10 +111,7 @@ async def get_search_overview(
     )
 
     # Register in agent state (discovery gate)
-    visible_params = [
-        p for p in params
-        if p.is_visible
-    ]
+    visible_params = [p for p in params if p.is_visible]
     overview = SearchOverview(
         search_name=search.url_segment,
         display_name=search.display_name or search.url_segment,
@@ -118,7 +119,8 @@ async def get_search_overview(
         description=search.description or search.summary,
         parameter_names=[p.name for p in visible_params],
         required_params=[
-            p.name for p in visible_params
+            p.name
+            for p in visible_params
             if not p.allow_empty_value or p.min_selected_count >= 1
         ],
     )
@@ -172,12 +174,17 @@ async def get_parameter_options(
     if has_context and context_values is not None:
         encoded_ctx = encode_wdk_params(dict(context_values))
         result = await client.get_search_details_with_params(
-            rt, search_name, context=encoded_ctx, expand_params=True,
+            rt,
+            search_name,
+            context=encoded_ctx,
+            expand_params=True,
         )
         all_params = result.search_data.parameters or []
     else:
         details = await client.get_search_details(
-            rt, search_name, expand_params=True,
+            rt,
+            search_name,
+            expand_params=True,
         )
         all_params = details.search_data.parameters or []
 
@@ -193,7 +200,9 @@ async def get_parameter_options(
     for p in all_params:
         if p.name == parameter_id:
             filtered = _filter_vocab(p, query) if query else p
-            info = format_typed_param(filtered, depends_on=depends_on, controls=controls)
+            info = format_typed_param(
+                filtered, depends_on=depends_on, controls=controls
+            )
             _snapshot_param_vocab(deps, search_name, info)
             return info
 
@@ -203,7 +212,10 @@ async def get_parameter_options(
         search_name=search_name,
         requested_parameter_id=parameter_id,
         message=_did_you_mean(
-            parameter_id, valid, kind="parameter_id", search_name=search_name,
+            parameter_id,
+            valid,
+            kind="parameter_id",
+            search_name=search_name,
         ),
         suggestions=suggestions,
         valid_parameter_ids=sorted(valid),
@@ -211,7 +223,9 @@ async def get_parameter_options(
 
 
 def _snapshot_param_vocab(
-    deps: AgentDeps, search_name: str, info: ParameterInfo,
+    deps: AgentDeps,
+    search_name: str,
+    info: ParameterInfo,
 ) -> None:
     overview = deps.agent_state.get_overview(search_name)
     if overview is None:

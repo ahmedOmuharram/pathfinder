@@ -65,11 +65,15 @@ async def resolve_search_and_validate_params(
         record_type_hint = await callbacks.find_record_type_hint(
             search_name, resolved_record_type
         )
-        return resolved_record_type, parameters, tool_error(
-            ErrorCode.SEARCH_NOT_FOUND,
-            f"Unknown or invalid search: {search_name}",
-            recordType=resolved_record_type,
-            recordTypeHint=record_type_hint,
+        return (
+            resolved_record_type,
+            parameters,
+            tool_error(
+                ErrorCode.SEARCH_NOT_FOUND,
+                f"Unknown or invalid search: {search_name}",
+                recordType=resolved_record_type,
+                recordTypeHint=record_type_hint,
+            ),
         )
     # Don't let auxiliary record types (e.g. genomic-segment for DynSpan
     # motif searches used as COLOCATE Set B) overwrite the primary record

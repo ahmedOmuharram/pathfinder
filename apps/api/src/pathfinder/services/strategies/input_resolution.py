@@ -123,9 +123,7 @@ def _duplicate_subtree(
     a new step that will consume it immediately.
     """
     cloned_primary = (
-        _duplicate_subtree(step.primary_input, graph)
-        if step.primary_input
-        else None
+        _duplicate_subtree(step.primary_input, graph) if step.primary_input else None
     )
     cloned_secondary = (
         _duplicate_subtree(step.secondary_input, graph)

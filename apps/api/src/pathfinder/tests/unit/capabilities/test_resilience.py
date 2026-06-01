@@ -44,26 +44,46 @@ class TestClassifyWDKError:
     """WDKError classification depends on HTTP status code."""
 
     def test_wdk_500_is_transient(self) -> None:
-        assert classify_error(WDKError("server blew up", status=500)) == ErrorCategory.TRANSIENT
+        assert (
+            classify_error(WDKError("server blew up", status=500))
+            == ErrorCategory.TRANSIENT
+        )
 
     def test_wdk_502_is_transient(self) -> None:
-        assert classify_error(WDKError("bad gateway", status=502)) == ErrorCategory.TRANSIENT
+        assert (
+            classify_error(WDKError("bad gateway", status=502))
+            == ErrorCategory.TRANSIENT
+        )
 
     def test_wdk_503_is_transient(self) -> None:
-        assert classify_error(WDKError("service unavailable", status=503)) == ErrorCategory.TRANSIENT
+        assert (
+            classify_error(WDKError("service unavailable", status=503))
+            == ErrorCategory.TRANSIENT
+        )
 
     def test_wdk_400_is_semantic(self) -> None:
-        assert classify_error(WDKError("bad request", status=400)) == ErrorCategory.SEMANTIC
+        assert (
+            classify_error(WDKError("bad request", status=400))
+            == ErrorCategory.SEMANTIC
+        )
 
     def test_wdk_404_is_semantic(self) -> None:
-        assert classify_error(WDKError("not found", status=404)) == ErrorCategory.SEMANTIC
+        assert (
+            classify_error(WDKError("not found", status=404)) == ErrorCategory.SEMANTIC
+        )
 
     def test_wdk_422_is_semantic(self) -> None:
-        assert classify_error(WDKError("unprocessable", status=422)) == ErrorCategory.SEMANTIC
+        assert (
+            classify_error(WDKError("unprocessable", status=422))
+            == ErrorCategory.SEMANTIC
+        )
 
     def test_wdk_499_is_semantic(self) -> None:
         # Boundary: 499 < 500 → SEMANTIC
-        assert classify_error(WDKError("client error", status=499)) == ErrorCategory.SEMANTIC
+        assert (
+            classify_error(WDKError("client error", status=499))
+            == ErrorCategory.SEMANTIC
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +115,9 @@ class TestClassifyOSErrors:
         assert classify_error(OSError("file not found")) == ErrorCategory.TRANSIENT
 
     def test_connection_refused_error_is_transient(self) -> None:
-        assert classify_error(ConnectionRefusedError("refused")) == ErrorCategory.TRANSIENT
+        assert (
+            classify_error(ConnectionRefusedError("refused")) == ErrorCategory.TRANSIENT
+        )
 
     def test_connection_error_is_transient(self) -> None:
         assert classify_error(ConnectionError("reset")) == ErrorCategory.TRANSIENT
@@ -137,19 +159,33 @@ class TestClassifyRuntimeErrorPermanent:
     """RuntimeError with config/availability messages → PERMANENT."""
 
     def test_not_configured_is_permanent(self) -> None:
-        assert classify_error(RuntimeError("service not configured")) == ErrorCategory.PERMANENT
+        assert (
+            classify_error(RuntimeError("service not configured"))
+            == ErrorCategory.PERMANENT
+        )
 
     def test_not_available_is_permanent(self) -> None:
-        assert classify_error(RuntimeError("feature not available")) == ErrorCategory.PERMANENT
+        assert (
+            classify_error(RuntimeError("feature not available"))
+            == ErrorCategory.PERMANENT
+        )
 
     def test_not_enabled_is_permanent(self) -> None:
-        assert classify_error(RuntimeError("tool not enabled")) == ErrorCategory.PERMANENT
+        assert (
+            classify_error(RuntimeError("tool not enabled")) == ErrorCategory.PERMANENT
+        )
 
     def test_service_is_disabled_is_permanent(self) -> None:
-        assert classify_error(RuntimeError("service is disabled")) == ErrorCategory.PERMANENT
+        assert (
+            classify_error(RuntimeError("service is disabled"))
+            == ErrorCategory.PERMANENT
+        )
 
     def test_case_insensitive_matching(self) -> None:
-        assert classify_error(RuntimeError("Service Not Configured")) == ErrorCategory.PERMANENT
+        assert (
+            classify_error(RuntimeError("Service Not Configured"))
+            == ErrorCategory.PERMANENT
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +197,10 @@ class TestClassifyRuntimeErrorUnknown:
     """RuntimeError without config messages → UNKNOWN."""
 
     def test_generic_runtime_error_is_unknown(self) -> None:
-        assert classify_error(RuntimeError("something unexpected")) == ErrorCategory.UNKNOWN
+        assert (
+            classify_error(RuntimeError("something unexpected"))
+            == ErrorCategory.UNKNOWN
+        )
 
     def test_runtime_error_with_empty_message_is_unknown(self) -> None:
         assert classify_error(RuntimeError()) == ErrorCategory.UNKNOWN
@@ -449,7 +488,9 @@ def _make_ctx() -> MagicMock:
 
 
 def _make_call(tool_name: str = "get_search_overview") -> ToolCallPart:
-    return ToolCallPart(tool_name=tool_name, args='{"search_name":"Foo"}', tool_call_id="tc_1")
+    return ToolCallPart(
+        tool_name=tool_name, args='{"search_name":"Foo"}', tool_call_id="tc_1"
+    )
 
 
 def _make_tool_def(name: str = "get_search_overview") -> ToolDefinition:
@@ -549,7 +590,10 @@ class TestPrepareTools:
         capability = ToolResilience()
         ctx = _make_ctx()
         ctx.retries = {"get_record_types": 3}
-        tool_defs = [_make_tool_def("get_record_types"), _make_tool_def("list_searches")]
+        tool_defs = [
+            _make_tool_def("get_record_types"),
+            _make_tool_def("list_searches"),
+        ]
         result = await capability.prepare_tools(ctx, tool_defs)
         names = [td.name for td in result]
         assert "get_record_types" not in names
@@ -560,7 +604,10 @@ class TestPrepareTools:
         capability = ToolResilience()
         ctx = _make_ctx()
         ctx.retries = {"get_record_types": 2}
-        tool_defs = [_make_tool_def("get_record_types"), _make_tool_def("list_searches")]
+        tool_defs = [
+            _make_tool_def("get_record_types"),
+            _make_tool_def("list_searches"),
+        ]
         result = await capability.prepare_tools(ctx, tool_defs)
         names = [td.name for td in result]
         assert "get_record_types" in names
@@ -571,7 +618,10 @@ class TestPrepareTools:
         capability = ToolResilience()
         ctx = _make_ctx()
         ctx.retries = {}
-        tool_defs = [_make_tool_def("get_record_types"), _make_tool_def("list_searches")]
+        tool_defs = [
+            _make_tool_def("get_record_types"),
+            _make_tool_def("list_searches"),
+        ]
         result = await capability.prepare_tools(ctx, tool_defs)
         assert result == tool_defs
 

@@ -60,7 +60,8 @@ def _is_static_tool_part(part: Part) -> bool:
 
 
 def _merge_metadata(
-    existing: dict[str, Any] | None, incoming: dict[str, Any] | None,
+    existing: dict[str, Any] | None,
+    incoming: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     if incoming is None:
         return existing
@@ -74,7 +75,7 @@ def _merge_metadata(
 def _try_parse_partial_json(text: str) -> Any | None:
     try:
         return json.loads(text)
-    except (json.JSONDecodeError, ValueError):
+    except json.JSONDecodeError, ValueError:
         return None
 
 
@@ -107,9 +108,7 @@ def _apply_optional(part: Part, key: str, value: Any) -> None:
 
 
 def _build_tool_part(update: _ToolUpdate) -> Part:
-    type_field = (
-        "dynamic-tool" if update.dynamic else f"tool-{update.tool_name}"
-    )
+    type_field = "dynamic-tool" if update.dynamic else f"tool-{update.tool_name}"
     part: Part = {
         "type": type_field,
         "toolCallId": update.tool_call_id,
@@ -125,9 +124,7 @@ def _build_tool_part(update: _ToolUpdate) -> Part:
     _apply_optional(part, "providerExecuted", update.provider_executed)
     _apply_optional(part, "preliminary", update.preliminary)
     if update.provider_metadata is not None:
-        part[_provider_metadata_key(update.state_value)] = (
-            update.provider_metadata
-        )
+        part[_provider_metadata_key(update.state_value)] = update.provider_metadata
     return part
 
 
@@ -143,13 +140,14 @@ def _patch_tool_part(part: Part, update: _ToolUpdate) -> None:
     _apply_optional(part, "providerExecuted", update.provider_executed)
     _apply_optional(part, "preliminary", update.preliminary)
     if update.provider_metadata is not None:
-        part[_provider_metadata_key(update.state_value)] = (
-            update.provider_metadata
-        )
+        part[_provider_metadata_key(update.state_value)] = update.provider_metadata
 
 
 def _find_tool_part_by_id(
-    state: _State, tool_call_id: str, *, dynamic: bool,
+    state: _State,
+    tool_call_id: str,
+    *,
+    dynamic: bool,
 ) -> Part | None:
     for part in _iter_parts(state):
         if part.get("toolCallId") != tool_call_id:
@@ -163,7 +161,9 @@ def _find_tool_part_by_id(
 
 def _upsert_tool_part(state: _State, update: _ToolUpdate) -> None:
     existing = _find_tool_part_by_id(
-        state, update.tool_call_id, dynamic=update.dynamic,
+        state,
+        update.tool_call_id,
+        dynamic=update.dynamic,
     )
     if existing is not None:
         _patch_tool_part(existing, update)
@@ -289,9 +289,7 @@ def _h_tool_input_start(state: _State, chunk: Chunk) -> None:
     tool_call_id = str(chunk["toolCallId"])
     tool_name = str(chunk["toolName"])
     dynamic = bool(chunk.get("dynamic", False))
-    existing_static = sum(
-        1 for p in state.message["parts"] if _is_static_tool_part(p)
-    )
+    existing_static = sum(1 for p in state.message["parts"] if _is_static_tool_part(p))
     state.partial_tool_calls[tool_call_id] = _PartialToolCall(
         text="",
         tool_name=tool_name,
@@ -353,7 +351,8 @@ def _h_tool_input_error(state: _State, chunk: Chunk) -> None:
     tool_name = str(chunk["toolName"])
     existing = next(
         (
-            p for p in state.message["parts"]
+            p
+            for p in state.message["parts"]
             if _is_tool_part(p) and p.get("toolCallId") == tool_call_id
         ),
         None,
@@ -453,7 +452,8 @@ def _h_start(state: _State, chunk: Chunk) -> None:
     meta = chunk.get("messageMetadata")
     if meta is not None:
         state.message["metadata"] = _merge_metadata(
-            state.message.get("metadata"), meta,
+            state.message.get("metadata"),
+            meta,
         )
 
 
@@ -463,7 +463,8 @@ def _h_finish(state: _State, chunk: Chunk) -> None:
     meta = chunk.get("messageMetadata")
     if meta is not None:
         state.message["metadata"] = _merge_metadata(
-            state.message.get("metadata"), meta,
+            state.message.get("metadata"),
+            meta,
         )
 
 
@@ -471,7 +472,8 @@ def _h_message_metadata(state: _State, chunk: Chunk) -> None:
     meta = chunk.get("messageMetadata")
     if meta is not None:
         state.message["metadata"] = _merge_metadata(
-            state.message.get("metadata"), meta,
+            state.message.get("metadata"),
+            meta,
         )
 
 
@@ -527,7 +529,8 @@ def _apply_chunk(state: _State, chunk: Chunk) -> None:
 
 
 def reduce_chunks(
-    chunks: list[Chunk], default_message_id: str,
+    chunks: list[Chunk],
+    default_message_id: str,
 ) -> dict[str, Any]:
     state = _new_state(default_message_id)
     for chunk in chunks:
@@ -560,7 +563,9 @@ ASSISTANT_MESSAGE_CHUNK_TYPE = "assistant-message"
 
 
 def user_message_chunk(
-    *, message_id: str, parts: list[dict[str, Any]],
+    *,
+    message_id: str,
+    parts: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "type": USER_MESSAGE_CHUNK_TYPE,
@@ -569,7 +574,9 @@ def user_message_chunk(
 
 
 def system_message_chunk(
-    *, message_id: str, parts: list[dict[str, Any]],
+    *,
+    message_id: str,
+    parts: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "type": SYSTEM_MESSAGE_CHUNK_TYPE,
@@ -585,7 +592,8 @@ _ENVELOPE_CHUNK_TYPES = {
 
 
 def reduce_chunks_to_messages(
-    chunks: list[Chunk], fallback_id_prefix: str = "msg",
+    chunks: list[Chunk],
+    fallback_id_prefix: str = "msg",
 ) -> list[dict[str, Any]]:
     messages: list[dict[str, Any]] = []
     pending: list[Chunk] = []
@@ -593,9 +601,12 @@ def reduce_chunks_to_messages(
     for chunk in chunks:
         if chunk.get("type") in _ENVELOPE_CHUNK_TYPES:
             if pending:
-                messages.append(reduce_chunks(
-                    pending, f"{fallback_id_prefix}-{assistant_index}",
-                ))
+                messages.append(
+                    reduce_chunks(
+                        pending,
+                        f"{fallback_id_prefix}-{assistant_index}",
+                    )
+                )
                 assistant_index += 1
                 pending = []
             raw = chunk.get("message")
@@ -604,15 +615,21 @@ def reduce_chunks_to_messages(
             continue
         pending.append(chunk)
         if chunk.get("type") == "done":
-            messages.append(reduce_chunks(
-                pending, f"{fallback_id_prefix}-{assistant_index}",
-            ))
+            messages.append(
+                reduce_chunks(
+                    pending,
+                    f"{fallback_id_prefix}-{assistant_index}",
+                )
+            )
             assistant_index += 1
             pending = []
     if pending:
-        messages.append(reduce_chunks(
-            pending, f"{fallback_id_prefix}-{assistant_index}",
-        ))
+        messages.append(
+            reduce_chunks(
+                pending,
+                f"{fallback_id_prefix}-{assistant_index}",
+            )
+        )
     return messages
 
 

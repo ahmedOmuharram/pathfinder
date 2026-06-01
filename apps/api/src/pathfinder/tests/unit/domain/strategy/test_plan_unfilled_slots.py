@@ -36,7 +36,9 @@ from pathfinder.domain.strategy.plan import (
 )
 
 
-def _spec(name: str, *, allow_empty: bool = False, param_type: str = "string") -> ParamSpecNormalized:
+def _spec(
+    name: str, *, allow_empty: bool = False, param_type: str = "string"
+) -> ParamSpecNormalized:
     return ParamSpecNormalized(
         name=name,
         param_type=param_type,
@@ -62,7 +64,9 @@ def test_unfilled_slot_needs_discovery_yields_planned_parameter() -> None:
     )
     spec_map = {
         "fold_change": _spec("fold_change", param_type="number"),
-        "samples_fc_comp_generic": _spec("samples_fc_comp_generic", param_type="multi-pick-vocabulary"),
+        "samples_fc_comp_generic": _spec(
+            "samples_fc_comp_generic", param_type="multi-pick-vocabulary"
+        ),
     }
     step = _convert_step(step_input, param_specs=spec_map)
     assert step.status == StepStatus.READY

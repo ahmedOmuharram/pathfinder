@@ -18,11 +18,13 @@ async def get_catalog(site_id: str) -> SearchCatalog:
     discovery = get_discovery_service()
     return await discovery.get_catalog(site_id)
 
+
 logger = get_logger(__name__)
 
 
 async def resolve_record_type_value(
-    site_id: str, record_type: str | None,
+    site_id: str,
+    record_type: str | None,
 ) -> str | None:
     if not record_type:
         return record_type
@@ -70,7 +72,9 @@ async def _lookup_record_type_for_search(
 
 
 def _scan_record_type_excluding(
-    catalog: SearchCatalog, search_name: str, exclude: str,
+    catalog: SearchCatalog,
+    search_name: str,
+    exclude: str,
 ) -> str | None:
     for rt_name in catalog._searches:
         if rt_name != exclude and catalog.find_search(rt_name, search_name):
@@ -79,7 +83,9 @@ def _scan_record_type_excluding(
 
 
 async def find_record_type_hint(
-    site_id: str, search_name: str, exclude: str | None = None,
+    site_id: str,
+    search_name: str,
+    exclude: str | None = None,
 ) -> str | None:
     try:
         catalog = await get_catalog(site_id)

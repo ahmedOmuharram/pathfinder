@@ -50,6 +50,7 @@ class PushOutcome(BaseModel):
     def partial(self) -> bool:
         return len(self.failed) > 0
 
+
 logger = get_logger(__name__)
 
 
@@ -144,7 +145,9 @@ async def _push_combine_step(
     Returns the WDK step ID or None if inputs are missing.
     """
     primary_wdk_id = (
-        sync_state.wdk_step_ids.get(step.primary_input.id) if step.primary_input else None
+        sync_state.wdk_step_ids.get(step.primary_input.id)
+        if step.primary_input
+        else None
     )
     secondary_wdk_id = (
         sync_state.wdk_step_ids.get(step.secondary_input.id)
@@ -223,7 +226,9 @@ async def _push_transform_step(
     Returns the WDK step ID or None if input is missing.
     """
     input_wdk_id = (
-        sync_state.wdk_step_ids.get(step.primary_input.id) if step.primary_input else None
+        sync_state.wdk_step_ids.get(step.primary_input.id)
+        if step.primary_input
+        else None
     )
     if input_wdk_id is None:
         logger.warning(

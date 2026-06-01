@@ -12,6 +12,7 @@ These are the contractual properties — if any of them break, the next
 LLM request will either be billed for the bloat we tried to elide, or
 fail outright with a "tool_use_id has no matching tool_result" error.
 """
+
 from __future__ import annotations
 
 from pydantic_ai.messages import (
@@ -60,7 +61,9 @@ def _tool_return(
     return ModelRequest(
         parts=[
             ToolReturnPart(
-                tool_name=name, content=content, tool_call_id=call_id,
+                tool_name=name,
+                content=content,
+                tool_call_id=call_id,
             ),
         ],
     )
@@ -181,8 +184,7 @@ def test_tool_call_args_are_not_touched() -> None:
     out = elide_consumed_tool_results(list(msgs))
     for call in _calls_in_order(out):
         assert call.args == {
-            "q": call.args["q"]
-            if isinstance(call.args, dict) else "query_x",
+            "q": call.args["q"] if isinstance(call.args, dict) else "query_x",
             "context": "important_args",
         } or isinstance(call.args, str)
 
@@ -201,12 +203,8 @@ def test_user_and_system_messages_untouched() -> None:
     user_prompts: list[UserPromptPart] = []
     for msg in out:
         if isinstance(msg, ModelRequest):
-            sys_prompts.extend(
-                p for p in msg.parts if isinstance(p, SystemPromptPart)
-            )
-            user_prompts.extend(
-                p for p in msg.parts if isinstance(p, UserPromptPart)
-            )
+            sys_prompts.extend(p for p in msg.parts if isinstance(p, SystemPromptPart))
+            user_prompts.extend(p for p in msg.parts if isinstance(p, UserPromptPart))
     assert [p.content for p in sys_prompts] == ["scoped to PathFinder"]
     user_contents = [p.content for p in user_prompts]
     assert "find Plasmodium kinases" in user_contents
@@ -227,7 +225,9 @@ def test_retry_prompt_parts_untouched() -> None:
         msgs.append(
             ModelRequest(
                 parts=[
-                    retry if i == 0 else ToolReturnPart(
+                    retry
+                    if i == 0
+                    else ToolReturnPart(
                         tool_name="tool_x",
                         content="OK",
                         tool_call_id=f"call_{i}",
@@ -282,12 +282,8 @@ def test_text_only_assistant_responses_not_dropped() -> None:
     for msg in out:
         if not isinstance(msg, ModelResponse):
             continue
-        text_contents.extend(
-            p.content for p in msg.parts if isinstance(p, TextPart)
-        )
-    expected = [
-        f"thinking step {i}" for i in range(KEEP_RECENT_TOOL_PAIRS + 1)
-    ]
+        text_contents.extend(p.content for p in msg.parts if isinstance(p, TextPart))
+    expected = [f"thinking step {i}" for i in range(KEEP_RECENT_TOOL_PAIRS + 1)]
     assert text_contents == expected
 
 
@@ -310,9 +306,7 @@ def test_realistic_30_call_discovery_loop_collapses_payload() -> None:
     full_count = sum(1 for r in returns if r.content == big)
     assert full_count == KEEP_RECENT_TOOL_PAIRS
     elided_bytes = sum(
-        len(big) - len(str(r.content))
-        for r in returns
-        if r.content != big
+        len(big) - len(str(r.content)) for r in returns if r.content != big
     )
     # Sanity: we save (n - K) * (~3KB - stub_size) ≈ tens of KB per request.
     assert elided_bytes > 50_000

@@ -32,14 +32,16 @@ logger = get_logger(__name__)
 _MAX_RETRIES = 3
 _BACKOFF_BASE_S = 2.0
 
+
 async def _safe_fetch_summary(
     client: httpx.AsyncClient, url: str | None, max_chars: int
 ) -> str | None:
     """Fetch page summary, returning None on failure."""
     try:
         return await fetch_page_summary(client, url, max_chars=max_chars)
-    except (httpx.HTTPError, ValueError, TypeError, UnicodeDecodeError, OSError):
+    except httpx.HTTPError, ValueError, TypeError, UnicodeDecodeError, OSError:
         return None
+
 
 class PreprintClient(BaseClient):
     """Client for preprint site searches via DuckDuckGo.
@@ -72,7 +74,7 @@ class PreprintClient(BaseClient):
             except ExternalServiceError as exc:
                 last_exc = exc
                 if "429" in str(exc):
-                    wait = _BACKOFF_BASE_S * (2 ** attempt)
+                    wait = _BACKOFF_BASE_S * (2**attempt)
                     logger.warning(
                         "DuckDuckGo 429, retrying",
                         attempt=attempt + 1,
@@ -152,7 +154,7 @@ class PreprintClient(BaseClient):
     ) -> tuple[ParsedPaper, Citation] | None:
         try:
             result = PreprintRawResult.model_validate(raw)
-        except (ValidationError, TypeError):
+        except ValidationError, TypeError:
             return None
         source = self._current_source
 

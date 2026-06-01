@@ -4,12 +4,12 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from pathfinder.persistence import session as session_module
 from pathfinder.persistence.models import Conversation
 from pathfinder.persistence.repositories.conversation import (
     ConversationRepository,
     ConversationUpdate,
 )
+from pathfinder.platform.db import async_session_factory
 
 
 async def _make_conversation(
@@ -22,7 +22,7 @@ async def _make_conversation(
     wdk_strategy_id: int | None = None,
 ) -> UUID:
     cid = uuid4()
-    async with session_module.async_session_factory() as session:
+    async with async_session_factory() as session:
         session.add(
             Conversation(
                 id=cid,
@@ -71,10 +71,11 @@ async def test_count_consumers_per_saved_strategy_aggregates_across_conversation
         imported_saved_strategy_ids=[11111, 22222],
     )
 
-    async with session_module.async_session_factory() as db:
+    async with async_session_factory() as db:
         repo = ConversationRepository(db)
         counts = await repo.count_consumers_per_saved_strategy(
-            authed_user_id, site,
+            authed_user_id,
+            site,
         )
 
     assert counts == {11111: 2, 22222: 1}
@@ -100,7 +101,7 @@ async def test_list_consumers_excludes_self_and_other_users(
         imported_saved_strategy_ids=[saved_id],
     )
 
-    async with session_module.async_session_factory() as db:
+    async with async_session_factory() as db:
         repo = ConversationRepository(db)
         consumers = await repo.list_consumers_of_saved_strategy(
             authed_user_id,
@@ -123,7 +124,7 @@ async def test_imported_saved_strategy_ids_persists_via_update_conversation(
         name="consumer",
     )
 
-    async with session_module.async_session_factory() as db:
+    async with async_session_factory() as db:
         repo = ConversationRepository(db)
         await repo.update_conversation(
             cid,
@@ -131,7 +132,7 @@ async def test_imported_saved_strategy_ids_persists_via_update_conversation(
         )
         await db.commit()
 
-    async with session_module.async_session_factory() as db:
+    async with async_session_factory() as db:
         repo = ConversationRepository(db)
         conv = await repo.get_by_id(cid)
         assert conv is not None
@@ -151,9 +152,10 @@ async def test_count_returns_zero_when_no_consumers(
         is_saved=True,
         wdk_strategy_id=strategy_to_count,
     )
-    async with session_module.async_session_factory() as db:
+    async with async_session_factory() as db:
         repo = ConversationRepository(db)
         counts = await repo.count_consumers_per_saved_strategy(
-            authed_user_id, site,
+            authed_user_id,
+            site,
         )
     assert counts.get(strategy_to_count, 0) == 0

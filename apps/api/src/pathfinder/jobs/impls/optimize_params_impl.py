@@ -8,7 +8,6 @@ from pydantic import JsonValue
 
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.memory.store import MemoryStore
-from pathfinder.ai.tools.durable import TaskProgressEmitter
 from pathfinder.ai.tools.standalone._optimization_models import (
     OptimizationControls,
     OptimizationSettings,
@@ -21,6 +20,7 @@ from pathfinder.domain.parameters.optimization import (
     VariantResult,
     VariantSpec,
 )
+from pathfinder.jobs.progress import TaskProgressEmitter
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.experiment.types import (
@@ -41,6 +41,7 @@ logger = get_logger(__name__)
 # matches the WDK-friendly batch size used elsewhere and keeps a sweep of
 # typical 5-15 variants from oversubscribing the upstream service.
 _DEFAULT_MAX_PARALLEL = 5
+
 
 async def run_single_trial(
     variant: VariantSpec,
@@ -73,6 +74,7 @@ async def run_single_trial(
         progress_callback=_on_progress,
     )
     return result.model_dump(by_alias=True, mode="json")
+
 
 async def optimize_search_parameters_impl(
     *,
@@ -114,8 +116,8 @@ async def optimize_search_parameters_impl(
         else OptimizationSettings.model_validate(settings or {})
     )
 
-    specs, fixed_parameters, controls_extra_parameters = (
-        _parse_and_validate_inputs(target_m, controls_m)
+    specs, fixed_parameters, controls_extra_parameters = _parse_and_validate_inputs(
+        target_m, controls_m
     )
 
     sweep_target = SweepTarget(
@@ -179,10 +181,13 @@ async def optimize_search_parameters_impl(
                 )
             except Exception as exc:
                 logger.exception(
-                    "variant trial failed", variant_id=v.id, error=str(exc),
+                    "variant trial failed",
+                    variant_id=v.id,
+                    error=str(exc),
                 )
                 await scoped.update(
-                    percent=1.0, message=f"Variant {v.id} failed: {exc}",
+                    percent=1.0,
+                    message=f"Variant {v.id} failed: {exc}",
                 )
                 return VariantResult(
                     variant_id=v.id,
@@ -206,11 +211,15 @@ async def optimize_search_parameters_impl(
         result_json["modelId"] = settings_m.model_id
 
     await progress.update(
-        percent=0.98, message="Exporting sweep result", data=None,
+        percent=0.98,
+        message="Exporting sweep result",
+        data=None,
     )
     await _attach_export(cast("JSONObject", result_json), target_m.search_name)
     await progress.update(
-        percent=1.0, message="Sweep complete", data=None,
+        percent=1.0,
+        message="Sweep complete",
+        data=None,
     )
     await progress.flush()
     return result_json

@@ -66,12 +66,16 @@ async def test_offset_returns_different_items_than_page_zero(
     del db_cleaner, patch_app_db_engine
     seeded_keys = set(await _seed(app_memory_store, authed_user_id, n=8))
 
-    page0 = (await authed_client.get(
-        "/api/v1/memories?limit=4&offset=0",
-    )).json()
-    page1 = (await authed_client.get(
-        "/api/v1/memories?limit=4&offset=4",
-    )).json()
+    page0 = (
+        await authed_client.get(
+            "/api/v1/memories?limit=4&offset=0",
+        )
+    ).json()
+    page1 = (
+        await authed_client.get(
+            "/api/v1/memories?limit=4&offset=4",
+        )
+    ).json()
 
     keys0 = {item["key"] for item in page0["knowledge"]}
     keys1 = {item["key"] for item in page1["knowledge"]}

@@ -9,7 +9,9 @@ logger = get_logger(__name__)
 
 @runtime_checkable
 class StepDeleteAPI(Protocol):
-    async def delete_step(self, step_id: int, *, user_id: str | None = None) -> None: ...
+    async def delete_step(
+        self, step_id: int, *, user_id: str | None = None
+    ) -> None: ...
 
 
 async def delete_orphaned_wdk_steps(

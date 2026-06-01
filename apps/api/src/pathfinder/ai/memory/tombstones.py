@@ -44,7 +44,8 @@ class TombstoneRepository:
 
     async def exists(self, *, user_id: UUID, value: MemoryValue) -> bool:
         hashes = await self.existing_hashes(
-            user_id=user_id, values=[value],
+            user_id=user_id,
+            values=[value],
         )
         return (value.kind, compute_content_hash(value.content)) in hashes
 
@@ -67,11 +68,13 @@ class TombstoneRepository:
         ]
         async with self.session_factory() as session:
             stmt = select(
-                MemoryTombstoneRow.kind, MemoryTombstoneRow.content_hash,
+                MemoryTombstoneRow.kind,
+                MemoryTombstoneRow.content_hash,
             ).where(
                 MemoryTombstoneRow.user_id == user_id,
                 tuple_(
-                    MemoryTombstoneRow.kind, MemoryTombstoneRow.content_hash,
+                    MemoryTombstoneRow.kind,
+                    MemoryTombstoneRow.content_hash,
                 ).in_(pairs),
             )
             rows = (await session.execute(stmt)).all()

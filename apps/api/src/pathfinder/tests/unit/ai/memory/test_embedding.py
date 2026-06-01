@@ -44,11 +44,13 @@ async def test_similar_strings_have_higher_cosine_than_dissimilar() -> None:
         nv = math.sqrt(sum(a * a for a in v))
         return dot / (nu * nv)
 
-    vectors = await embed_text([
-        "plasmodium falciparum drug target genes",
-        "falciparum antimalarial targets",
-        "a recipe for chocolate chip cookies",
-    ])
+    vectors = await embed_text(
+        [
+            "plasmodium falciparum drug target genes",
+            "falciparum antimalarial targets",
+            "a recipe for chocolate chip cookies",
+        ]
+    )
     similar = cos(vectors[0], vectors[1])
     unrelated = cos(vectors[0], vectors[2])
     assert similar > unrelated

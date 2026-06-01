@@ -65,7 +65,13 @@ def _flat_tool_names_from_agent(agent: Agent[Any, Any]) -> set[str]:
 
 @pytest.mark.parametrize(
     "agent",
-    [scoping_agent, discovery_agent, planning_agent, execution_agent, verification_agent],
+    [
+        scoping_agent,
+        discovery_agent,
+        planning_agent,
+        execution_agent,
+        verification_agent,
+    ],
     ids=["scoping", "discovery", "planning", "execution", "verification"],
 )
 def test_phase_agent_exposes_scratchpad_tools(agent: Agent[object, object]) -> None:
@@ -79,7 +85,13 @@ def test_phase_agent_exposes_scratchpad_tools(agent: Agent[object, object]) -> N
 
 @pytest.mark.parametrize(
     "agent",
-    [scoping_agent, discovery_agent, planning_agent, execution_agent, verification_agent],
+    [
+        scoping_agent,
+        discovery_agent,
+        planning_agent,
+        execution_agent,
+        verification_agent,
+    ],
     ids=["scoping", "discovery", "planning", "execution", "verification"],
 )
 def test_phase_toolset_does_not_embed_scratchpad(
@@ -93,8 +105,7 @@ def test_phase_toolset_does_not_embed_scratchpad(
     # one and the scratchpad one. The scratchpad one owns every scratchpad
     # tool.
     assert len(phase_toolsets) == 2, (
-        f"{agent.name!r} has {len(phase_toolsets)} caller FunctionToolsets; "
-        "expected 2"
+        f"{agent.name!r} has {len(phase_toolsets)} caller FunctionToolsets; expected 2"
     )
     owners: dict[str, int] = dict.fromkeys(_SCRATCHPAD_TOOL_NAMES, 0)
     for ts in phase_toolsets:

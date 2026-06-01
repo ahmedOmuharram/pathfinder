@@ -176,8 +176,7 @@ class InvestigationLedger(CamelModel):
         """
         intent = self.user_intent
         intent_line = (
-            f"- intent: {intent.classification.value} — "
-            f"{intent.inferred_goal[:120]}"
+            f"- intent: {intent.classification.value} — {intent.inferred_goal[:120]}"
             if intent is not None
             else "- intent: not classified yet"
         )
@@ -191,43 +190,45 @@ class InvestigationLedger(CamelModel):
         lines = ["# Investigation Ledger", intent_line]
         if diff_line:
             lines.append(diff_line)
-        lines.extend([
-            "",
-            "## Frame",
-            f"- needed: {self.frame.needed}",
-            f"- blocked: {self.frame.blocked}",
-            f"- blocking_questions: {len(self.frame.blocking_questions_unanswered)}",
-            "",
-            "## Discovery",
-            f"- selected: {self.discovery.selected_count}",
-            f"- rejected: {self.discovery.rejected_count}",
-            f"- intent_satisfied: {self.discovery.intent_satisfied}",
-            f"- intent_gap: {self.discovery.intent_gap or 'none'}",
-            f"- needs_more_discovery: {self.discovery.needs_more_discovery}",
-            "",
-            "## Plan",
-            f"- present: {self.plan.plan is not None}",
-            f"- approved: {self.plan.approved}",
-            f"- open_user_input_slots: {len(self.plan.open_user_input_slots)}",
-            f"- open_discovery_slots: {len(self.plan.open_discovery_slots)}",
-            f"- blocked_kind: {self.plan.blocked_kind}",
-            f"- ready_to_execute: {self.plan.ready_to_execute}",
-            "",
-            "## Build",
-            f"- pushed: {self.build.pushed_count}",
-            f"- failed: {self.build.failed_count}",
-            f"- skipped: {self.build.skipped_count}",
-            f"- zero_result_steps: {len(self.build.zero_result_steps)}",
-            f"- needs_recovery: {self.build.needs_recovery}",
-            f"- recovery_kind: {self.build.recovery_kind}",
-            f"- succeeded: {self.build.succeeded}",
-            "",
-            "## Verification",
-            f"- complete: {self.verification.complete}",
-            f"- successful: {self.verification.successful}",
-            "",
-            f"## Sub-agent calls this turn: {len(self.sub_agent_calls_this_turn)}",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Frame",
+                f"- needed: {self.frame.needed}",
+                f"- blocked: {self.frame.blocked}",
+                f"- blocking_questions: {len(self.frame.blocking_questions_unanswered)}",
+                "",
+                "## Discovery",
+                f"- selected: {self.discovery.selected_count}",
+                f"- rejected: {self.discovery.rejected_count}",
+                f"- intent_satisfied: {self.discovery.intent_satisfied}",
+                f"- intent_gap: {self.discovery.intent_gap or 'none'}",
+                f"- needs_more_discovery: {self.discovery.needs_more_discovery}",
+                "",
+                "## Plan",
+                f"- present: {self.plan.plan is not None}",
+                f"- approved: {self.plan.approved}",
+                f"- open_user_input_slots: {len(self.plan.open_user_input_slots)}",
+                f"- open_discovery_slots: {len(self.plan.open_discovery_slots)}",
+                f"- blocked_kind: {self.plan.blocked_kind}",
+                f"- ready_to_execute: {self.plan.ready_to_execute}",
+                "",
+                "## Build",
+                f"- pushed: {self.build.pushed_count}",
+                f"- failed: {self.build.failed_count}",
+                f"- skipped: {self.build.skipped_count}",
+                f"- zero_result_steps: {len(self.build.zero_result_steps)}",
+                f"- needs_recovery: {self.build.needs_recovery}",
+                f"- recovery_kind: {self.build.recovery_kind}",
+                f"- succeeded: {self.build.succeeded}",
+                "",
+                "## Verification",
+                f"- complete: {self.verification.complete}",
+                f"- successful: {self.verification.successful}",
+                "",
+                f"## Sub-agent calls this turn: {len(self.sub_agent_calls_this_turn)}",
+            ]
+        )
         return "\n".join(lines)
 
     def render_section(self, section: str) -> str:
@@ -273,8 +274,7 @@ def _render_frame_full(section: FrameSection) -> str:
 def _render_discovery_full(section: DiscoverySection) -> str:
     parts = [
         "## Discovery (full)",
-        f"- selected: {section.selected_count}, "
-        f"rejected: {section.rejected_count}",
+        f"- selected: {section.selected_count}, rejected: {section.rejected_count}",
     ]
     for status in ("selected", "candidate", "rejected"):
         group = [r for r in section.fit_reports if r.selection_status == status]
@@ -320,8 +320,7 @@ def _render_plan_full(section: PlanSection) -> str:
             f"search={step.search_name} status={step.status.value}",
         )
         parts.extend(
-            f"    {p.name}={p.value!r} status={p.status.value} "
-            f"required={p.required}"
+            f"    {p.name}={p.value!r} status={p.status.value} required={p.required}"
             for p in step.parameters
         )
     if section.open_user_input_slots:
@@ -333,8 +332,7 @@ def _render_plan_full(section: PlanSection) -> str:
     if section.open_discovery_slots:
         parts.append("\n### Open discovery slots")
         parts.extend(
-            f"- {s.step_id}.{s.param_name}"
-            for s in section.open_discovery_slots
+            f"- {s.step_id}.{s.param_name}" for s in section.open_discovery_slots
         )
     return "\n".join(parts)
 
@@ -355,8 +353,7 @@ def _render_build_full(section: BuildSection) -> str:
     if o.failed_steps:
         parts.append("\n### Failed steps")
         parts.extend(
-            f"- {f.step_id} ({f.search_name}): {f.error}"
-            for f in o.failed_steps
+            f"- {f.step_id} ({f.search_name}): {f.error}" for f in o.failed_steps
         )
     return "\n".join(parts)
 

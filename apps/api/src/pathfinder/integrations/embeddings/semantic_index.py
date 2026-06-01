@@ -34,7 +34,9 @@ logger = get_logger(__name__)
 _MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
 
 # Pre-computed embeddings shipped with the repo.
-_BUNDLED_CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "embeddings"
+_BUNDLED_CACHE_DIR = (
+    Path(__file__).resolve().parent.parent.parent / "data" / "embeddings"
+)
 
 
 class _CacheConfig:
@@ -109,9 +111,7 @@ def _cache_path(site_id: str) -> Path:
     return _cache_config.dir / f"{site_id}.npz"
 
 
-def _try_load_cache(
-    site_id: str, catalog_hash: str
-) -> NDArray[Any] | None:
+def _try_load_cache(site_id: str, catalog_hash: str) -> NDArray[Any] | None:
     """Try loading cached embeddings, checking both runtime and bundled dirs."""
     for cache_dir in (_cache_config.dir, _BUNDLED_CACHE_DIR):
         path = cache_dir / f"{site_id}.npz"
@@ -123,7 +123,7 @@ def _try_load_cache(
             if stored_hash is not None and str(stored_hash) == catalog_hash:
                 result: NDArray[Any] = data["embeddings"]
                 return result
-        except (OSError, ValueError, KeyError):
+        except OSError, ValueError, KeyError:
             logger.debug("Cache load failed", path=str(path))
     return None
 
@@ -207,7 +207,9 @@ class SemanticSearchIndex:
             "Semantic search index built and cached",
             site_id=self.site_id,
             num_entries=len(self.entries),
-            embedding_dim=self.embeddings.shape[1] if self.embeddings is not None else 0,
+            embedding_dim=self.embeddings.shape[1]
+            if self.embeddings is not None
+            else 0,
         )
 
     def query(self, query_text: str, top_k: int = 20) -> list[tuple[str, str, float]]:
@@ -265,7 +267,10 @@ class SemanticSearchIndex:
 
         # 3. Display names
         parts.append(search.display_name)
-        if search.short_display_name and search.short_display_name != search.display_name:
+        if (
+            search.short_display_name
+            and search.short_display_name != search.display_name
+        ):
             parts.append(search.short_display_name)
 
         # 4. Summary
@@ -281,7 +286,9 @@ class SemanticSearchIndex:
             parts.append(param_text)
 
         # 7. CamelCase-split search name
-        name_words = " ".join(re.findall(r"[A-Z][a-z]+|[a-z]+|[A-Z]+|\d+", search.url_segment))
+        name_words = " ".join(
+            re.findall(r"[A-Z][a-z]+|[a-z]+|[A-Z]+|\d+", search.url_segment)
+        )
         parts.append(name_words)
 
         # 8. Description (HTML-stripped)

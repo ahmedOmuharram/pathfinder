@@ -3,6 +3,7 @@
 import asyncio
 from collections.abc import Sequence
 
+from pathfinder.integrations.embeddings.semantic_index import SemanticSearchIndex
 from pathfinder.integrations.veupathdb.catalog_metadata import (
     load_dataset_metadata,
     load_ontology_categories,
@@ -121,7 +122,10 @@ class SearchCatalog:
                         "Search catalog restored from stale cache, refreshing in background",
                         site_id=self.site_id,
                     )
-                    spawn(self._background_refresh(client), name=f"catalog-refresh-{self.site_id}")
+                    spawn(
+                        self._background_refresh(client),
+                        name=f"catalog-refresh-{self.site_id}",
+                    )
                 else:
                     logger.info(
                         "Search catalog restored from cache",
@@ -159,7 +163,7 @@ class SearchCatalog:
                 record_types=len(self._record_types),
                 total_searches=sum(len(s) for s in self._searches.values()),
             )
-        except (AppError, OSError, RuntimeError):
+        except AppError, OSError, RuntimeError:
             logger.warning(
                 "Background catalog refresh failed (serving stale cache)",
                 site_id=self.site_id,
@@ -168,20 +172,13 @@ class SearchCatalog:
 
     def _build_semantic_index(self) -> None:
         """Build semantic search index from cached searches + dataset metadata."""
-        # Deferred import: services.catalog.__init__ re-exports param_resolution
-        # which imports discovery_service, creating a circular dependency at
-        # module load time.  Safe here because this only runs at catalog-load time.
-        from pathfinder.services.catalog.semantic_index import (  # noqa: PLC0415
-            SemanticSearchIndex,
-        )
-
         try:
             index = SemanticSearchIndex(site_id=self.site_id)
             index.build(
                 self._searches,
                 category_labels=self._search_category_labels,
             )
-        except (AppError, OSError, ValueError, TypeError):
+        except AppError, OSError, ValueError, TypeError:
             logger.warning(
                 "Failed to build semantic index (non-fatal)",
                 site_id=self.site_id,

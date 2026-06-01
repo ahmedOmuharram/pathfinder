@@ -8,7 +8,7 @@ from pydantic_ai import Agent, RunContext
 from pathfinder.ai.agents._model_resolution import (
     resolve_orchestrator_model_entry,
 )
-from pathfinder.ai.scratchpad.models import NoteCreate
+from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.platform.pydantic_base import CamelModel
 
 
@@ -43,7 +43,8 @@ says "using GenesByRNASeq with params X").
 
 
 def build_compactor_agent(
-    *, model_id: str | None = None,
+    *,
+    model_id: str | None = None,
 ) -> Agent[CompactorDeps, CompactionResult]:
     entry = resolve_orchestrator_model_entry(model_id, None)
     agent: Agent[CompactorDeps, CompactionResult] = Agent(

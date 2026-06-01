@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from sqlalchemy import text
 
-from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.session import StrategyGraph
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
@@ -19,6 +18,7 @@ from pathfinder.persistence.repositories import ConversationRepository
 from pathfinder.persistence.repositories.conversation import ConversationUpdate
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
+from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.sync import SyncResult
 
 logger = get_logger(__name__)
@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 async def persist_strategy_ast_to_conversation(
     *,
-    deps: AgentDeps,
+    deps: StrategyMutationContext,
     graph: StrategyGraph,
     sync_result: SyncResult | None,
 ) -> None:
@@ -56,7 +56,8 @@ async def persist_strategy_ast_to_conversation(
             current = await repo.get_by_id(deps.conversation_id)
             merged_ast = _merge_agent_ast_into_current(current, agent_ast)
             wdk_strategy_id_to_write = (
-                sync_result.wdk_strategy_id if sync_result is not None
+                sync_result.wdk_strategy_id
+                if sync_result is not None
                 else (current.wdk_strategy_id if current is not None else None)
             )
             await repo.update_conversation(
@@ -79,7 +80,8 @@ async def persist_strategy_ast_to_conversation(
 
 
 def _merge_agent_ast_into_current(
-    current: Conversation | None, agent_ast: StrategyAst,
+    current: Conversation | None,
+    agent_ast: StrategyAst,
 ) -> StrategyAst:
     """Write the agent's AST but preserve persisted ``wdk_step_ids`` it lacks.
 

@@ -69,9 +69,7 @@ def test_install_covers_loggers_created_after_install() -> None:
     root_handlers_with_filter = [
         h
         for h in logging.getLogger().handlers
-        if any(
-            isinstance(f, RedactSensitiveKwargsFilter) for f in h.filters
-        )
+        if any(isinstance(f, RedactSensitiveKwargsFilter) for f in h.filters)
     ]
     assert root_handlers_with_filter, (
         "Root handler must carry the redaction filter so late-created "

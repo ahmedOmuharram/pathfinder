@@ -11,12 +11,15 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.wdk_vocab import (
+    VocabOption,
+    WDKTreeBoxVocabNode,
+    WDKVocabulary,
+)
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONArray, JSONObject
 from pathfinder.services.catalog.vocab_rendering import (
     _MAX_VOCAB_ENTRIES,
-    VocabEntry,
     allowed_values,
     render_vocab_tree,
 )
@@ -41,8 +44,10 @@ _VALUE_FORMAT_TEMPLATES: dict[str, str] = {
 
 def _value_format(param_type: str) -> str:
     return _VALUE_FORMAT_TEMPLATES.get(
-        param_type, '{"type": "string", "value": "<your value>"}',
+        param_type,
+        '{"type": "string", "value": "<your value>"}',
     )
+
 
 _PROFILE_PATTERN_HELP = (
     "Phylogenetic profile pattern. Format: %CODE:STATE[:QUANTIFIER]% (percent-delimited).\n"
@@ -81,7 +86,7 @@ class ParameterInfo(CamelModel):
     help: str
     value_format: str
     default_value: str | None = None
-    allowed_values: list[VocabEntry] | None = None
+    allowed_values: list[VocabOption] | None = None
     allowed_values_tree: str | None = None
     allowed_values_note: str | None = None
     controls_vocab_of: list[str] | None = None
@@ -149,7 +154,7 @@ def _build_typed_controls_map(
 
 @dataclass(frozen=True)
 class _VocabFields:
-    allowed_values: list[VocabEntry] | None = None
+    allowed_values: list[VocabOption] | None = None
     allowed_values_tree: str | None = None
     allowed_values_note: str | None = None
 
@@ -166,9 +171,11 @@ def _format_vocabulary_raw(
     *,
     param_name: str,
     param_type: str,
-    vocabulary: JSONObject | JSONArray | None,
+    vocabulary: WDKVocabulary | None,
 ) -> _VocabFields:
-    if param_type == "multi-pick-vocabulary" and isinstance(vocabulary, dict):
+    if param_type == "multi-pick-vocabulary" and isinstance(
+        vocabulary, WDKTreeBoxVocabNode
+    ):
         tree_lines = render_vocab_tree(vocabulary, max_lines=80)
         if tree_lines:
             tree_text = "\n".join(tree_lines)
@@ -190,7 +197,9 @@ def _format_vocabulary_raw(
                     f"Showing first {_MAX_VOCAB_ENTRIES} of many values (list truncated). "
                     "Use the exact value/ID you need; it does not have to appear in this list."
                 )
-            return _VocabFields(allowed_values=allowed_entries, allowed_values_note=note)
+            return _VocabFields(
+                allowed_values=allowed_entries, allowed_values_note=note
+            )
 
     return _VocabFields()
 

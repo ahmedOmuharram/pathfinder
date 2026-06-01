@@ -20,6 +20,7 @@ API_USER_AGENT = "pathfinder-planner/1.0"
 _DEFAULT_MAX_RETRIES = 3
 _DEFAULT_BACKOFF_BASE_S = 1.0
 
+
 class SearchResponse(CamelModel):
     """Standard response from a literature search client."""
 
@@ -27,6 +28,7 @@ class SearchResponse(CamelModel):
     source: str
     results: list[ParsedPaper]
     citations: list[Citation]
+
 
 class BaseClient:
     """Common initialisation for all literature API clients."""
@@ -70,6 +72,7 @@ class BaseClient:
         """
         raise NotImplementedError
 
+
 class StandardClient(BaseClient):
     """Client with the standard fetch-parse-build search pattern.
 
@@ -98,9 +101,7 @@ class StandardClient(BaseClient):
             citations=citations,
         )
 
-    async def _fetch_with_retry(
-        self, query: str, *, limit: int
-    ) -> list[JsonValue]:
+    async def _fetch_with_retry(self, query: str, *, limit: int) -> list[JsonValue]:
         """Call ``_fetch_raw`` with retry on 429 and transient errors."""
         last_exc: Exception | None = None
         for attempt in range(self._max_retries):
@@ -109,7 +110,7 @@ class StandardClient(BaseClient):
             except ExternalServiceError as exc:
                 last_exc = exc
                 if "429" in str(exc):
-                    wait = self._backoff_base_s * (2 ** attempt)
+                    wait = self._backoff_base_s * (2**attempt)
                     logger.warning(
                         "%s 429, retrying",
                         self._source_name,
@@ -122,7 +123,7 @@ class StandardClient(BaseClient):
             except Exception as exc:
                 last_exc = exc
                 if attempt < self._max_retries - 1:
-                    wait = self._backoff_base_s * (2 ** attempt)
+                    wait = self._backoff_base_s * (2**attempt)
                     logger.warning(
                         "%s request failed, retrying",
                         self._source_name,
@@ -137,6 +138,7 @@ class StandardClient(BaseClient):
 
     async def _fetch_raw(self, query: str, *, limit: int) -> list[JsonValue]:
         raise NotImplementedError
+
 
 def build_response(
     *,

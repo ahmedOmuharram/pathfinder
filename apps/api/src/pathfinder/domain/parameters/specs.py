@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pathfinder.domain.parameters.vocab_utils import collect_leaf_terms
-from pathfinder.platform.types import JSONArray, JSONObject
+from pathfinder.domain.parameters.wdk_vocab import WDKVocabulary, vocab_keys
+from pathfinder.platform.types import JSONObject
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,7 @@ class ParamSpecNormalized:
     allow_empty_value: bool = False
     min_selected_count: int | None = None
     max_selected_count: int | None = None
-    vocabulary: JSONObject | JSONArray | None = None
+    vocabulary: WDKVocabulary | None = None
     count_only_leaves: bool = False
     is_number: bool = False
     min: float | None = None
@@ -103,27 +103,11 @@ def find_dependent_value_violations(
         value = parameters.get(name)
         if value in (None, "", [], {}):
             continue
-        allowed = _vocab_keys(spec.vocabulary)
+        allowed = vocab_keys(spec.vocabulary)
         bad = [str(v) for v in _value_as_list(value) if str(v) not in allowed]
         if bad:
             violations.append((name, bad))
     return violations
-
-
-def _vocab_keys(vocab: JSONObject | JSONArray) -> set[str]:
-    if isinstance(vocab, list):
-        out: set[str] = set()
-        for item in vocab:
-            if isinstance(item, list) and item:
-                out.add(str(item[0]))
-            elif isinstance(item, dict) and "value" in item:
-                out.add(str(item["value"]))
-            else:
-                out.add(str(item))
-        return out
-    if isinstance(vocab, dict) and ("data" in vocab or "children" in vocab):
-        return {t for t in collect_leaf_terms(vocab) if t}
-    return {str(k) for k in vocab}
 
 
 def _value_as_list(value: object) -> list[object]:

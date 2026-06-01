@@ -5,20 +5,18 @@ Revises: c832cac9ff78
 Create Date: 2026-04-14 12:18:35.494732
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
-
-import pathfinder.persistence.models  # custom SQLAlchemy types (GUID, ...)
-
 # revision identifiers, used by Alembic.
-revision: str = '5fc62ca94b51'
-down_revision: Union[str, Sequence[str], None] = 'c832cac9ff78'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "5fc62ca94b51"
+down_revision: str | Sequence[str] | None = "c832cac9ff78"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

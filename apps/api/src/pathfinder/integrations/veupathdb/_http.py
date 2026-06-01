@@ -30,6 +30,7 @@ logger = get_logger(__name__)
 
 _HTTP_SERVER_ERROR = 500
 
+
 def _inject_auth_cookie(request: httpx.Request, auth_token: str) -> None:
     """Append an ``Authorization`` cookie to a built request.
 
@@ -43,6 +44,7 @@ def _inject_auth_cookie(request: httpx.Request, auth_token: str) -> None:
         request.headers["cookie"] = f"{existing}; {auth_cookie}"
     else:
         request.headers["cookie"] = auth_cookie
+
 
 def _convert_params_for_httpx(
     params: JSONObject | None,
@@ -80,6 +82,7 @@ def _convert_params_for_httpx(
             # Convert other types to string
             result[k] = str(v)
     return result
+
 
 class HTTPClient:
     """Low-level HTTP transport for VEuPathDB WDK REST services."""
@@ -282,7 +285,10 @@ class HTTPClient:
         )
         try:
             result = await self._request_attempt(
-                method, path, params=params, json=json,
+                method,
+                path,
+                params=params,
+                json=json,
             )
         except RetryError as e:
             last = e.last_attempt.exception()

@@ -22,7 +22,10 @@ class ToolErrorPayload(CamelModel):
     message: str
     details: JSONObject | None = None
 
-def tool_error(code: str | Enum, message: str, **details: JsonValue) -> ToolErrorPayload:
+
+def tool_error(
+    code: str | Enum, message: str, **details: JsonValue
+) -> ToolErrorPayload:
     """Build a standardized tool error payload.
 
     :param code: Error code (string or Enum).

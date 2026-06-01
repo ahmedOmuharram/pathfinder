@@ -38,7 +38,9 @@ class _FakeGraph:
 
 
 @asynccontextmanager
-async def _fake_checkpointer_ctx(*args: object, **kwargs: object) -> AsyncIterator[None]:
+async def _fake_checkpointer_ctx(
+    *args: object, **kwargs: object
+) -> AsyncIterator[None]:
     del args, kwargs
     yield None
 
@@ -77,10 +79,14 @@ async def test_run_chat_turn_sets_ctxvar_from_payload(
     observer = _ObservingRunTurn()
     monkeypatch.setattr(chat_turn_impl_mod, "run_turn", observer)
     monkeypatch.setattr(
-        chat_turn_impl_mod, "lifespan_checkpointer", _fake_checkpointer_ctx,
+        chat_turn_impl_mod,
+        "lifespan_checkpointer",
+        _fake_checkpointer_ctx,
     )
     monkeypatch.setattr(
-        chat_turn_impl_mod, "lifespan_memory_store", _fake_memory_ctx,
+        chat_turn_impl_mod,
+        "lifespan_memory_store",
+        _fake_memory_ctx,
     )
     monkeypatch.setattr(chat_turn_impl_mod, "build_graph", _fake_build_graph)
 
@@ -104,10 +110,14 @@ async def test_run_chat_turn_resets_ctxvar_after_run(
     observer = _ObservingRunTurn()
     monkeypatch.setattr(chat_turn_impl_mod, "run_turn", observer)
     monkeypatch.setattr(
-        chat_turn_impl_mod, "lifespan_checkpointer", _fake_checkpointer_ctx,
+        chat_turn_impl_mod,
+        "lifespan_checkpointer",
+        _fake_checkpointer_ctx,
     )
     monkeypatch.setattr(
-        chat_turn_impl_mod, "lifespan_memory_store", _fake_memory_ctx,
+        chat_turn_impl_mod,
+        "lifespan_memory_store",
+        _fake_memory_ctx,
     )
     monkeypatch.setattr(chat_turn_impl_mod, "build_graph", _fake_build_graph)
 
@@ -131,10 +141,14 @@ async def test_run_chat_turn_tolerates_missing_token(
     observer = _ObservingRunTurn()
     monkeypatch.setattr(chat_turn_impl_mod, "run_turn", observer)
     monkeypatch.setattr(
-        chat_turn_impl_mod, "lifespan_checkpointer", _fake_checkpointer_ctx,
+        chat_turn_impl_mod,
+        "lifespan_checkpointer",
+        _fake_checkpointer_ctx,
     )
     monkeypatch.setattr(
-        chat_turn_impl_mod, "lifespan_memory_store", _fake_memory_ctx,
+        chat_turn_impl_mod,
+        "lifespan_memory_store",
+        _fake_memory_ctx,
     )
     monkeypatch.setattr(chat_turn_impl_mod, "build_graph", _fake_build_graph)
 

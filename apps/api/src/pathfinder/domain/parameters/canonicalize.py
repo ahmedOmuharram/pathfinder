@@ -30,14 +30,12 @@ from pathfinder.domain.parameters.values import (
     from_decoded,
     to_decoded,
 )
-from pathfinder.domain.parameters.vocab_utils import (
+from pathfinder.domain.parameters.wdk_vocab import (
+    WDKVocabulary,
     collect_leaf_terms,
     find_vocab_node,
-    get_node_term,
-    get_vocab_children,
 )
 from pathfinder.platform.errors import ValidationError
-from pathfinder.platform.types import JSONArray, JSONObject
 
 FAKE_ALL_SENTINEL = "@@fake@@"
 
@@ -49,7 +47,8 @@ class ParameterCanonicalizer:
     specs: dict[str, ParamSpecNormalized]
 
     def canonicalize(
-        self, parameters: dict[str, ParamValue],
+        self,
+        parameters: dict[str, ParamValue],
     ) -> dict[str, ParamValue]:
         canonical: dict[str, ParamValue] = {}
         for name, value in (parameters or {}).items():
@@ -64,7 +63,9 @@ class ParameterCanonicalizer:
             if spec.param_type == "input-step":
                 continue
             decoded_value = self._canonicalize_value(spec, to_decoded(value))
-            canonical[name] = from_decoded(as_param_kind(spec.param_type), decoded_value)
+            canonical[name] = from_decoded(
+                as_param_kind(spec.param_type), decoded_value
+            )
         return canonical
 
     def _canonicalize_value(
@@ -136,21 +137,17 @@ class ParameterCanonicalizer:
         return leaf
 
     def _expand_leaf_terms_for_match(
-        self, vocabulary: JSONObject | JSONArray | None, match: str
+        self, vocabulary: WDKVocabulary | None, match: str
     ) -> list[str]:
-        if not isinstance(vocabulary, dict) or not match:
-            return []
         matched_node = find_vocab_node(vocabulary, match)
-        if not matched_node:
+        if matched_node is None:
             return []
         return collect_leaf_terms(matched_node)
 
     def _find_leaf_term_for_match(
-        self, vocabulary: JSONObject | JSONArray | None, match: str
+        self, vocabulary: WDKVocabulary | None, match: str
     ) -> str | None:
-        if not isinstance(vocabulary, dict) or not match:
-            return None
         matched_node = find_vocab_node(vocabulary, match)
-        if not matched_node or get_vocab_children(matched_node):
+        if matched_node is None or matched_node.children:
             return None
-        return get_node_term(matched_node)
+        return matched_node.data.term or None

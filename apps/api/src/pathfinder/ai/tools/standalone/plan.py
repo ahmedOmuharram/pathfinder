@@ -69,15 +69,13 @@ from pathfinder.domain.strategy.plan import (
     StrategyPlan,
     UserQuestion,
 )
-from pathfinder.integrations.veupathdb.discovery_service import (
-    get_discovery_service,
-)
 from pathfinder.platform.errors import ValidationError, WDKError
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
 from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import (
     adapt_param_specs_from_search,
 )
+from pathfinder.services.catalog.param_discovery import fetch_search_details
 from pathfinder.services.catalog.param_validation import validate_parameters
 from pathfinder.services.catalog.validation_callbacks import (
     make_validation_callbacks,
@@ -85,7 +83,8 @@ from pathfinder.services.catalog.validation_callbacks import (
 
 
 def _validate_plan_search_names(
-    deps: AgentDeps, steps: list[PlannedStepInput],
+    deps: AgentDeps,
+    steps: list[PlannedStepInput],
 ) -> None:
     """Raise ``ModelRetry`` with did-you-mean suggestions if any planned
     step references a search outside discovery's selected universe.
@@ -108,11 +107,13 @@ def _validate_plan_search_names(
     ]
     if not bad:
         return
-    suggestions = sorted({
-        match
-        for name in bad
-        for match in get_close_matches(name, selected, n=3, cutoff=0.3)
-    })
+    suggestions = sorted(
+        {
+            match
+            for name in bad
+            for match in get_close_matches(name, selected, n=3, cutoff=0.3)
+        }
+    )
     msg = (
         f"Planned step(s) reference search names {bad!r} that discovery "
         f"did not select. Did you mean: {suggestions}? "
@@ -122,7 +123,8 @@ def _validate_plan_search_names(
 
 
 def _validate_step_parameter_keys(
-    deps: AgentDeps, steps: list[PlannedStepInput],
+    deps: AgentDeps,
+    steps: list[PlannedStepInput],
 ) -> None:
     """Raise ``ModelRetry`` if any step's ``parameters`` dict has keys
     that aren't part of that search's discovered parameter list.
@@ -144,9 +146,7 @@ def _validate_step_parameter_keys(
         invalid = [k for k in step.parameters if k not in valid]
         if invalid:
             sorted_valid = sorted(valid)
-            bad_pairs.extend(
-                (step.search_name, k, sorted_valid) for k in invalid
-            )
+            bad_pairs.extend((step.search_name, k, sorted_valid) for k in invalid)
     if not bad_pairs:
         return
     lines = [
@@ -155,9 +155,8 @@ def _validate_step_parameter_keys(
         f"Valid params: {valid}"
         for search_name, key, valid in bad_pairs
     ]
-    msg = (
-        "One or more planned step parameters reference unknown keys:\n"
-        + "\n".join(lines)
+    msg = "One or more planned step parameters reference unknown keys:\n" + "\n".join(
+        lines
     )
     raise ModelRetry(msg)
 
@@ -176,9 +175,7 @@ def _validate_patch_parameter_keys(
         if not patch.parameters:
             continue
         existing = existing_steps.get(patch.step_id)
-        search_name = patch.search_name or (
-            existing.search_name if existing else None
-        )
+        search_name = patch.search_name or (existing.search_name if existing else None)
         if not search_name:
             continue
         valid = state.param_keys_for(search_name)
@@ -187,9 +184,7 @@ def _validate_patch_parameter_keys(
         invalid = [k for k in patch.parameters if k not in valid]
         if invalid:
             sorted_valid = sorted(valid)
-            bad_pairs.extend(
-                (search_name, k, sorted_valid) for k in invalid
-            )
+            bad_pairs.extend((search_name, k, sorted_valid) for k in invalid)
     if not bad_pairs:
         return
     lines = [
@@ -223,7 +218,8 @@ def _validate_update_plan_inputs(
 
 
 def _validate_patch_search_names(
-    deps: AgentDeps, patches: list[StepPatch],
+    deps: AgentDeps,
+    patches: list[StepPatch],
 ) -> None:
     """Equivalent to ``_validate_plan_search_names`` but for the patch
     shape used by ``update_plan`` — only validates patches that try to
@@ -233,14 +229,20 @@ def _validate_patch_search_names(
     selected = sorted(deps.agent_state.selected_search_names())
     if not selected:
         return
-    bad = [p.search_name for p in patches if p.search_name and p.search_name not in selected]
+    bad = [
+        p.search_name
+        for p in patches
+        if p.search_name and p.search_name not in selected
+    ]
     if not bad:
         return
-    suggestions = sorted({
-        match
-        for name in bad
-        for match in get_close_matches(name, selected, n=3, cutoff=0.3)
-    })
+    suggestions = sorted(
+        {
+            match
+            for name in bad
+            for match in get_close_matches(name, selected, n=3, cutoff=0.3)
+        }
+    )
     msg = (
         f"update_plan patches reference search names {bad!r} that "
         f"discovery did not select. Did you mean: {suggestions}? "
@@ -271,7 +273,6 @@ async def _fetch_specs_by_search(
     if not unique:
         return {}
 
-    discovery = get_discovery_service()
     results: dict[str, dict[str, ParamSpecNormalized]] = {}
     for search_name, step in unique.items():
         ctx = SearchContext(
@@ -279,7 +280,7 @@ async def _fetch_specs_by_search(
             record_type=step.record_type,
             search_name=search_name,
         )
-        response = await discovery.get_search_details(ctx, expand_params=True)
+        response, _ = await fetch_search_details(ctx)
         results[search_name] = adapt_param_specs_from_search(response.search_data)
     return results
 
@@ -289,9 +290,7 @@ def _step_to_node(step: PlannedStep) -> StrategyStepNode:
     return StrategyStepNode(
         search_name=step.search_name,
         display_name=step.display_name,
-        parameters={
-            p.name: p.value for p in step.parameters if p.value is not None
-        },
+        parameters={p.name: p.value for p in step.parameters if p.value is not None},
     )
 
 
@@ -330,7 +329,11 @@ def _build_proposed_plan(plan: StrategyPlan) -> JSONObject | None:
     # Find root: step that is never a from_step target, or the last step.
     target_ids = {c.to_step for c in plan.connections}
     root_id = next(
-        (s.id for s in plan.steps if s.id not in target_ids and s.step_type != StepType.LEAF),
+        (
+            s.id
+            for s in plan.steps
+            if s.id not in target_ids and s.step_type != StepType.LEAF
+        ),
         None,
     )
     if root_id is None:
@@ -356,7 +359,9 @@ def _normalize_question_text(value: str | None) -> str:
     return " ".join(value.split()).casefold()
 
 
-def _question_key(question: UserQuestion | UserQuestionInput) -> tuple[str, str, str, str]:
+def _question_key(
+    question: UserQuestion | UserQuestionInput,
+) -> tuple[str, str, str, str]:
     """Build a stable semantic identity for a user question."""
     return (
         _normalize_question_text(question.question),
@@ -457,7 +462,8 @@ def slot_forms_for_stream(plan: StrategyPlan) -> list[StreamPlanSlotForm]:
     for step in plan.steps:
         for p in step.parameters:
             if p.status not in (
-                ParamStatus.NEEDS_USER_INPUT, ParamStatus.NEEDS_DISCOVERY,
+                ParamStatus.NEEDS_USER_INPUT,
+                ParamStatus.NEEDS_DISCOVERY,
             ):
                 continue
             question = questions_by_slot.get((step.id, p.name))
@@ -669,26 +675,33 @@ def _mutate_plan(
         remove_set = set(remove_steps)
         plan.steps = [s for s in plan.steps if s.id not in remove_set]
         plan.connections = [
-            c for c in plan.connections
+            c
+            for c in plan.connections
             if c.from_step not in remove_set and c.to_step not in remove_set
         ]
 
     if step_updates:
         _apply_step_patches(
-            plan, step_updates, specs_by_search=specs_by_search,
+            plan,
+            step_updates,
+            specs_by_search=specs_by_search,
         )
 
     if add_steps:
         plan.steps.extend(
-            _convert_step(s, param_specs=specs_by_search.get(s.search_name) if specs_by_search else None)
+            _convert_step(
+                s,
+                param_specs=specs_by_search.get(s.search_name)
+                if specs_by_search
+                else None,
+            )
             for s in add_steps
         )
 
     if remove_connections:
         remove_pairs = {(r.from_step, r.to_step) for r in remove_connections}
         plan.connections = [
-            c for c in plan.connections
-            if (c.from_step, c.to_step) not in remove_pairs
+            c for c in plan.connections if (c.from_step, c.to_step) not in remove_pairs
         ]
 
     if add_connections:
@@ -751,7 +764,8 @@ async def update_plan(
                 )
     try:
         specs_by_search = await _fetch_specs_by_search(
-            ctx.deps.site_id, enrichable_steps,
+            ctx.deps.site_id,
+            enrichable_steps,
         )
     except (httpx.HTTPError, WDKError) as exc:
         return tool_error(
@@ -847,7 +861,8 @@ async def submit_plan(
 
 
 def _apply_slot_answers_to_plan(
-    plan: StrategyPlan, answers: list[PlanSlotAnswer],
+    plan: StrategyPlan,
+    answers: list[PlanSlotAnswer],
 ) -> None:
     if not answers:
         return
@@ -857,7 +872,8 @@ def _apply_slot_answers_to_plan(
         if step is None:
             continue
         param = next(
-            (p for p in step.parameters if p.name == ans.param_name), None,
+            (p for p in step.parameters if p.name == ans.param_name),
+            None,
         )
         if param is None:
             continue
@@ -869,10 +885,7 @@ def _apply_slot_answers_to_plan(
             continue
         key = (q.related_step, q.related_param)
         if key in answered_keys:
-            value = next(
-                a.value for a in answers
-                if (a.step_id, a.param_name) == key
-            )
+            value = next(a.value for a in answers if (a.step_id, a.param_name) == key)
             q.answer = value
 
 

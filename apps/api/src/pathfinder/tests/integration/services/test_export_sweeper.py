@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import func, select
 
 from pathfinder.persistence.models import Export, User
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.services.export.sweeper import sweep_expired_exports
 
 
@@ -21,16 +21,26 @@ async def test_sweeper_deletes_only_expired(
     async with async_session_factory() as session:
         session.add(User(id=user_id))
         await session.flush()
-        session.add(Export(
-            id=uuid4(), user_id=user_id, filename="old.csv",
-            content_type="text/csv", data=b"x",
-            expires_at=now - timedelta(minutes=1),
-        ))
-        session.add(Export(
-            id=uuid4(), user_id=user_id, filename="fresh.csv",
-            content_type="text/csv", data=b"y",
-            expires_at=now + timedelta(minutes=5),
-        ))
+        session.add(
+            Export(
+                id=uuid4(),
+                user_id=user_id,
+                filename="old.csv",
+                content_type="text/csv",
+                data=b"x",
+                expires_at=now - timedelta(minutes=1),
+            )
+        )
+        session.add(
+            Export(
+                id=uuid4(),
+                user_id=user_id,
+                filename="fresh.csv",
+                content_type="text/csv",
+                data=b"y",
+                expires_at=now + timedelta(minutes=5),
+            )
+        )
         await session.commit()
 
     deleted = await sweep_expired_exports()

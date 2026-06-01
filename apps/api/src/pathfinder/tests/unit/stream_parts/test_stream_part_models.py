@@ -85,11 +85,7 @@ def test_strategy_link_validates():
 def test_plan_artifact_validates():
     art = PlanArtifact(
         plan_id="p_x",
-        steps=[
-            PlannedStep(
-                order=0, search_name="ByText", rationale="filter by term"
-            )
-        ],
+        steps=[PlannedStep(order=0, search_name="ByText", rationale="filter by term")],
         rationale="three-step funnel",
     )
     assert len(art.steps) == 1

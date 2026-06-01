@@ -37,6 +37,7 @@ def _step_updated_return(
         metadata=[graph_snapshot_chunk(session, graph)],
     )
 
+
 async def add_step_filter(
     ctx: RunContext[AgentDeps],
     step_id: str,
@@ -71,6 +72,7 @@ async def add_step_filter(
     step.filters = existing
 
     return _step_updated_return(session, graph, step)
+
 
 async def add_step_analysis(
     ctx: RunContext[AgentDeps],
@@ -110,6 +112,7 @@ async def add_step_analysis(
     )
 
     return _step_updated_return(session, graph, step)
+
 
 async def add_step_report(
     ctx: RunContext[AgentDeps],

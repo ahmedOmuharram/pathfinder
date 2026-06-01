@@ -1,4 +1,5 @@
 """Deterministic LLM mock — emits a single LeadResponse via FunctionModel."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -18,7 +19,8 @@ _MOCK_PROSE = "[mock] Investigation paused — supply more context or rephrase."
 
 def _lead_response_payload() -> dict[str, object]:
     return LeadResponse(prose=_MOCK_PROSE, next_state="await_user").model_dump(
-        by_alias=True, mode="json",
+        by_alias=True,
+        mode="json",
     )
 
 
@@ -31,14 +33,16 @@ def _final_result_part() -> ToolCallPart:
 
 
 def _mock_function(
-    messages: list[ModelMessage], info: AgentInfo,
+    messages: list[ModelMessage],
+    info: AgentInfo,
 ) -> ModelResponse:
     del messages, info
     return ModelResponse(parts=[_final_result_part()])
 
 
 async def _mock_stream_function(
-    messages: list[ModelMessage], info: AgentInfo,
+    messages: list[ModelMessage],
+    info: AgentInfo,
 ) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
     del messages, info
     part = _final_result_part()

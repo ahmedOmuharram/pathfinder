@@ -16,6 +16,7 @@ The tool runs the same ``get_search_overview`` flow discovery uses, so on
 return ``discovered_searches`` is updated and downstream constrained tools
 will accept the new search name on their next call.
 """
+
 from __future__ import annotations
 
 from pydantic_ai import RunContext
@@ -60,5 +61,7 @@ async def request_search_inspection(
         conversation_id=format_uuid(ctx.deps.conversation_id),
     )
     return await get_search_overview(
-        ctx, search_name=search_name, record_type=record_type,
+        ctx,
+        search_name=search_name,
+        record_type=record_type,
     )

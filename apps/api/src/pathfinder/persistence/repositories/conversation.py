@@ -107,9 +107,8 @@ class ConversationRepository:
 
         If ``name`` already exists, appends ``(1)``, ``(2)``, etc.
         """
-        query = (
-            select(Conversation.name)
-            .where(Conversation.user_id == user_id, Conversation.site_id == site_id)
+        query = select(Conversation.name).where(
+            Conversation.user_id == user_id, Conversation.site_id == site_id
         )
         if exclude_conversation_id is not None:
             query = query.where(Conversation.id != exclude_conversation_id)
@@ -155,7 +154,9 @@ class ConversationRepository:
         return conversation
 
     async def get_by_id(self, conversation_id: UUID) -> Conversation | None:
-        result = await self.session.execute(select(Conversation).where(Conversation.id == conversation_id))
+        result = await self.session.execute(
+            select(Conversation).where(Conversation.id == conversation_id)
+        )
         return result.scalar_one_or_none()
 
     async def get_by_id_with_strategy_lock(
@@ -174,7 +175,10 @@ class ConversationRepository:
         return result.scalar_one_or_none()
 
     async def delete(
-        self, conversation_id: UUID, *, cascade: bool = False,
+        self,
+        conversation_id: UUID,
+        *,
+        cascade: bool = False,
     ) -> None:
         """Delete a conversation.
 
@@ -317,7 +321,9 @@ class ConversationRepository:
 
     # ── Strategy metadata writes ──
 
-    async def update_conversation(self, conversation_id: UUID, upd: ConversationUpdate) -> None:
+    async def update_conversation(
+        self, conversation_id: UUID, upd: ConversationUpdate
+    ) -> None:
         """Dynamically update chat metadata based on provided fields."""
         values = _collect_chat_values(upd)
         if upd.name is not None:
@@ -335,7 +341,9 @@ class ConversationRepository:
             return
 
         await self.session.execute(
-            update(Conversation).where(Conversation.id == conversation_id).values(**values)
+            update(Conversation)
+            .where(Conversation.id == conversation_id)
+            .values(**values)
         )
         await self.session.flush()
 
@@ -378,25 +386,26 @@ class ConversationRepository:
 
         Returns the number of pruned chats.
         """
-        stmt = (
-            select(Conversation.id, Conversation.wdk_strategy_id)
-            .where(
-                Conversation.user_id == user_id,
-                Conversation.site_id == site_id,
-                Conversation.wdk_strategy_id.is_not(None),
-                Conversation.dismissed_at.is_(None),
-            )
+        stmt = select(Conversation.id, Conversation.wdk_strategy_id).where(
+            Conversation.user_id == user_id,
+            Conversation.site_id == site_id,
+            Conversation.wdk_strategy_id.is_not(None),
+            Conversation.dismissed_at.is_(None),
         )
         result = await self.session.execute(stmt)
         rows = result.all()
 
         orphan_ids = [
-            conversation_id for conversation_id, wdk_id in rows if wdk_id not in live_wdk_ids
+            conversation_id
+            for conversation_id, wdk_id in rows
+            if wdk_id not in live_wdk_ids
         ]
 
         if not orphan_ids:
             return 0
 
-        await self.session.execute(delete(Conversation).where(Conversation.id.in_(orphan_ids)))
+        await self.session.execute(
+            delete(Conversation).where(Conversation.id.in_(orphan_ids))
+        )
         await self.session.flush()
         return len(orphan_ids)

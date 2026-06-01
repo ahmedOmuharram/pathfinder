@@ -43,10 +43,14 @@ def test_load_system_prompt_bundle_metadata() -> None:
         bundle = load_system_prompt_bundle()
 
     assert bundle.text == "system prompt\n\n---\n\nsafety prompt\n\n---\n\nsite hints"
-    assert bundle.langfuse_metadata()["prompt_bundle"] == "system@2,safety@local,site-hints@4"
-    assert bundle.langfuse_metadata()["prompt_bundle_hash"] == sha256(
-        bundle.text.encode("utf-8")
-    ).hexdigest()
+    assert (
+        bundle.langfuse_metadata()["prompt_bundle"]
+        == "system@2,safety@local,site-hints@4"
+    )
+    assert (
+        bundle.langfuse_metadata()["prompt_bundle_hash"]
+        == sha256(bundle.text.encode("utf-8")).hexdigest()
+    )
     assert bundle.langfuse_metadata()["system_prompt_version"] == "2"
     assert bundle.langfuse_metadata()["site_hints_prompt_version"] == "4"
 

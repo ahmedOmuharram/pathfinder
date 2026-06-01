@@ -87,7 +87,10 @@ async def retrieve_relevant_memories(
     all_hits: list[StoredMemory] = []
     for kind in ALL_KINDS:
         hits = await store.semantic_search(
-            user_id=user_id, kind=kind, query=query, top_k=per_kind,
+            user_id=user_id,
+            kind=kind,
+            query=query,
+            top_k=per_kind,
         )
         for stored in hits:
             if not stored.value.auto_retrieve:

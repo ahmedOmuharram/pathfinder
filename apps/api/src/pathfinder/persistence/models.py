@@ -88,9 +88,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    monthly_cost_limit_usd: Mapped[float | None] = mapped_column(
-        Float, nullable=True
-    )
+    monthly_cost_limit_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     conversations: Mapped[list[Conversation]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -245,7 +243,9 @@ class Conversation(Base):
     # (via expanded combiner inputs). Used as a deletion guard: a saved
     # strategy with at least one consumer cannot be deleted.
     imported_saved_strategy_ids: Mapped[list[int]] = mapped_column(
-        JSONB, nullable=False, default=list,
+        JSONB,
+        nullable=False,
+        default=list,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -313,10 +313,14 @@ class Export(Base):
     content_type: Mapped[str] = mapped_column(String(64), nullable=False)
     data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True,
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False,
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
 
 
@@ -325,9 +329,7 @@ class MemoryTombstoneRow(Base):
 
     __tablename__ = "memory_tombstones"
 
-    id: Mapped[int] = mapped_column(
-        Integer, primary_key=True, autoincrement=True
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[UUID] = mapped_column(
         GUID(),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -358,9 +360,7 @@ class BackgroundTask(Base):
 
     __tablename__ = "background_tasks"
 
-    id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True
-    )
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     conversation_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),
@@ -374,12 +374,8 @@ class BackgroundTask(Base):
         nullable=False,
     )
     tool_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="pending"
-    )
-    args: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict
-    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    args: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     estimated_duration_seconds: Mapped[int] = mapped_column(
@@ -403,9 +399,7 @@ class TaskProgress(Base):
 
     __tablename__ = "task_progress"
 
-    id: Mapped[int] = mapped_column(
-        Integer, primary_key=True, autoincrement=True
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     task_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("background_tasks.id", ondelete="CASCADE"),
@@ -427,9 +421,7 @@ class ConversationEvent(Base):
 
     __tablename__ = "conversation_events"
 
-    id: Mapped[int] = mapped_column(
-        Integer, primary_key=True, autoincrement=True
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     conversation_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),
@@ -488,10 +480,16 @@ class ScratchpadNote(Base):
     summary: Mapped[str] = mapped_column(String, nullable=False)
     body: Mapped[str] = mapped_column(String, nullable=False)
     tags: Mapped[list[str]] = mapped_column(
-        JSONB, nullable=False, default=list, server_default="[]",
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default="[]",
     )
     pinned: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false",
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
     )
     body_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     fts: Mapped[str] = mapped_column(
@@ -505,7 +503,9 @@ class ScratchpadNote(Base):
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False,
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -535,7 +535,9 @@ class ScratchpadCompaction(Base):
         nullable=False,
     )
     triggered_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False,
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
     )
     before_count: Mapped[int] = mapped_column(Integer, nullable=False)
     after_count: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -543,7 +545,9 @@ class ScratchpadCompaction(Base):
     after_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     model_id: Mapped[str] = mapped_column(String, nullable=False)
     cost_usd: Mapped[Decimal] = mapped_column(
-        Numeric(precision=12, scale=6), nullable=False, server_default="0",
+        Numeric(precision=12, scale=6),
+        nullable=False,
+        server_default="0",
     )
     trigger_reason: Mapped[str] = mapped_column(String, nullable=False)
 

@@ -17,6 +17,7 @@ class EnrichmentRow(TypedDict):
     maxScore: float
     experimentCount: int
 
+
 class EnrichmentCompareResult(TypedDict):
     """Return shape of :func:`compare_enrichment_across`."""
 
@@ -24,6 +25,7 @@ class EnrichmentCompareResult(TypedDict):
     experimentLabels: dict[str, str]
     rows: list[EnrichmentRow]
     totalTerms: int
+
 
 def compare_enrichment_across(
     experiments: list[Experiment],

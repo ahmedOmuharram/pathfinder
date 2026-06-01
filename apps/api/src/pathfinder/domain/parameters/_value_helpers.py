@@ -31,51 +31,61 @@ def _safe_float(value: JsonValue) -> float | None:
     except ValueError:
         return None
 
+
 _ParamHandler = Callable[["ParamSpecNormalized", "JsonValue"], "ProcessedParam"]
 
 _RANGE_PAIR_LENGTH = 2
 
 _NUMERIC_PARAM_TYPES = frozenset({"number", "number-range"})
 
+
 @dataclass(frozen=True)
 class MultiPickProcessed:
     value: list[str]
     kind: Literal["multi_pick"] = "multi_pick"
+
 
 @dataclass(frozen=True)
 class SinglePickProcessed:
     value: str
     kind: Literal["single_pick"] = "single_pick"
 
+
 @dataclass(frozen=True)
 class ScalarProcessed:
     value: str
     kind: Literal["scalar"] = "scalar"
+
 
 @dataclass(frozen=True)
 class RangeProcessed:
     value: JSONObject
     kind: Literal["range"] = "range"
 
+
 @dataclass(frozen=True)
 class FilterProcessed:
     value: JsonValue
     kind: Literal["filter"] = "filter"
+
 
 @dataclass(frozen=True)
 class InputDatasetProcessed:
     value: str
     kind: Literal["input_dataset"] = "input_dataset"
 
+
 @dataclass(frozen=True)
 class UnknownProcessed:
     value: JsonValue
     kind: Literal["unknown"] = "unknown"
 
+
 @dataclass(frozen=True)
 class EmptyProcessed:
     value: JsonValue
     kind: Literal["empty"] = "empty"
+
 
 ProcessedParam = (
     MultiPickProcessed
@@ -94,12 +104,14 @@ RANGE_TYPES = frozenset({"number-range", "date-range"})
 
 # -- public helpers ----------------------------------------------------------
 
+
 def stringify(value: JsonValue) -> str:
     if value is None:
         return ""
     if isinstance(value, bool):
         return "true" if value else "false"
     return str(value)
+
 
 def handle_empty(spec: ParamSpecNormalized, value: JsonValue) -> JsonValue:
     if spec.allow_empty_value:
@@ -109,6 +121,7 @@ def handle_empty(spec: ParamSpecNormalized, value: JsonValue) -> JsonValue:
         detail=f"Parameter '{spec.name}' requires a value.",
         errors=[{"param": spec.name}],
     )
+
 
 def validate_multi_count(spec: ParamSpecNormalized, values: list[str]) -> None:
     if not values and spec.allow_empty_value:
@@ -128,6 +141,7 @@ def validate_multi_count(spec: ParamSpecNormalized, values: list[str]) -> None:
             errors=[{"param": spec.name, "value": list(values)}],
         )
 
+
 def validate_single_required(spec: ParamSpecNormalized) -> None:
     if spec.allow_empty_value:
         return
@@ -139,6 +153,7 @@ def validate_single_required(spec: ParamSpecNormalized) -> None:
         detail=f"Parameter '{spec.name}' requires a value.",
         errors=[{"param": spec.name}],
     )
+
 
 def validate_numeric_range(spec: ParamSpecNormalized, numeric_value: float) -> None:
     """Validate a numeric value against min/max constraints if present."""
@@ -161,6 +176,7 @@ def validate_numeric_range(spec: ParamSpecNormalized, numeric_value: float) -> N
             errors=[{"param": spec.name, "value": numeric_value}],
         )
 
+
 def validate_string_length(spec: ParamSpecNormalized, string_value: str) -> None:
     """Validate a string value against max_length constraint if present."""
     if spec.max_length is not None and len(string_value) > spec.max_length:
@@ -173,7 +189,9 @@ def validate_string_length(spec: ParamSpecNormalized, string_value: str) -> None
             errors=[{"param": spec.name, "value": string_value}],
         )
 
+
 # -- shared dispatch chain ---------------------------------------------------
+
 
 def process_value(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
     """Validate, decode, and coerce *value* according to *spec*.
@@ -191,7 +209,9 @@ def process_value(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam
         return UnknownProcessed(value=value)
     return handler(spec, value)
 
+
 # -- per-type processors -----------------------------------------------------
+
 
 def process_multi_pick(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
     values = [stringify(v) for v in decode_values(value, spec.name)]
@@ -201,6 +221,7 @@ def process_multi_pick(spec: ParamSpecNormalized, value: JsonValue) -> Processed
     ]
     validate_multi_count(spec, matched)
     return MultiPickProcessed(value=matched)
+
 
 def process_single_pick(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
     decoded = decode_values(value, spec.name)
@@ -221,6 +242,7 @@ def process_single_pick(spec: ParamSpecNormalized, value: JsonValue) -> Processe
         validate_single_required(spec)
     return SinglePickProcessed(value=stringify(selected))
 
+
 def process_scalar(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
     if isinstance(value, (list, dict, tuple, set)):
         raise ValidationError(
@@ -239,6 +261,7 @@ def process_scalar(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedPara
         validate_string_length(spec, str_value)
 
     return ScalarProcessed(value=str_value)
+
 
 def process_range(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
     range_dict: JSONObject
@@ -263,11 +286,13 @@ def process_range(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam
 
     return RangeProcessed(value=range_dict)
 
+
 def process_filter(spec: ParamSpecNormalized, value: JsonValue) -> ProcessedParam:
     _ = spec
     if isinstance(value, (dict, list)):
         return FilterProcessed(value=value)
     return FilterProcessed(value=stringify(value))
+
 
 def process_input_dataset(
     spec: ParamSpecNormalized, value: JsonValue
@@ -281,6 +306,7 @@ def process_input_dataset(
             )
         return InputDatasetProcessed(value=stringify(value[0]))
     return InputDatasetProcessed(value=stringify(value))
+
 
 # -- dispatch table (must come after function definitions) -------------------
 

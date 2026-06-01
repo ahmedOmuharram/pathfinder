@@ -25,22 +25,21 @@ EXEMPT_PATTERNS: set[str] = {
     "integrations/veupathdb/wdk_models.py",
     "transport/http/schemas/experiment_responses.py",
     # Single-responsibility modules where splitting would be artificial
-    "domain/strategy/session.py",                        # core state machine
-    "services/strategies/sync.py",                       # tightly coupled tree building
-    "services/strategies/step_creation.py",              # single step-creation concern
-    "services/control_tests.py",                         # cohesive control test logic
+    "domain/strategy/session.py",  # core state machine
+    "services/strategies/sync.py",  # tightly coupled tree building
+    "services/strategies/step_creation.py",  # single step-creation concern
+    "services/control_tests.py",  # cohesive control test logic
     "services/experiment/step_analysis/phase_sensitivity.py",  # single analysis pipeline
-    "services/catalog/param_validation.py",              # single validation pipeline
-    "transport/http/routers/gene_sets.py",               # pure transport layer
-    "integrations/veupathdb/strategy_api/base.py",       # core API client
-    "integrations/veupathdb/strategy_api/steps.py",      # step API endpoints
+    "services/catalog/param_validation.py",  # single validation pipeline
+    "transport/http/routers/gene_sets.py",  # pure transport layer
+    "integrations/veupathdb/strategy_api/base.py",  # core API client
+    "integrations/veupathdb/strategy_api/steps.py",  # step API endpoints
     # Borderline files (300-325 meaningful lines) — single-responsibility
-    "ai/models/catalog.py",                              # catalog model wrapper
-    "ai/tools/standalone/plan.py",                       # plan tool (LLM interface)
-    "persistence/repositories/stream.py",                # Redis stream repository
-    "services/gene_lookup/lookup.py",                    # gene lookup service
-    "services/research/utils.py",                        # research utility cluster
-    "services/catalog/param_validation.py",              # single validation pipeline
+    "ai/models/catalog.py",  # catalog model wrapper
+    "ai/tools/standalone/plan.py",  # plan tool (LLM interface)
+    "persistence/repositories/stream.py",  # Redis stream repository
+    "services/gene_lookup/lookup.py",  # gene lookup service
+    "services/research/utils.py",  # research utility cluster
 }
 
 
@@ -80,7 +79,7 @@ def main() -> int:
         print(f"\n{len(violations)} file(s) exceed {args.limit} meaningful lines:\n")
         for path, lines in violations:
             print(f"  FAIL  {path}: {lines} lines (limit {args.limit})")
-        print(f"\nFix by splitting into smaller modules.")
+        print("\nFix by splitting into smaller modules.")
         return 1
 
     print(f"All files under {args.limit} meaningful lines.")

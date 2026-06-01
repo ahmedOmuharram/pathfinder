@@ -33,7 +33,9 @@ from pathfinder.domain.strategy.plan import (
 )
 
 
-def _make_plan(*, params: list[PlannedParameter], questions: list[UserQuestion] | None = None) -> StrategyPlan:
+def _make_plan(
+    *, params: list[PlannedParameter], questions: list[UserQuestion] | None = None
+) -> StrategyPlan:
     step = PlannedStep(
         id="step_1",
         search_name="GenesByRNASeqFoldChange",

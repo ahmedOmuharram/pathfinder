@@ -53,9 +53,7 @@ class ControlSetRepository:
             conditions.append(ControlSet.is_public.is_(True))
 
         if tags:
-            conditions.append(
-                cast(ControlSet.tags, JSONB).has_any(array(tags))
-            )
+            conditions.append(cast(ControlSet.tags, JSONB).has_any(array(tags)))
 
         stmt = (
             select(ControlSet)

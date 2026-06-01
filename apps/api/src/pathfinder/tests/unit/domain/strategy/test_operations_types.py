@@ -48,7 +48,11 @@ class TestDiscriminatorParsing:
         op = _ADAPTER.validate_python(
             {
                 "kind": "addCombine",
-                "step": {"id": "c", "searchName": "__combine__", "operator": "INTERSECT"},
+                "step": {
+                    "id": "c",
+                    "searchName": "__combine__",
+                    "operator": "INTERSECT",
+                },
                 "leftId": "a",
                 "rightId": "b",
             }

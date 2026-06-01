@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-import pathfinder.persistence.session as session_module
+import pathfinder.platform.db as session_module
 from pathfinder.persistence.models import Conversation, User
 from pathfinder.persistence.repositories.message import MessagesRepository
 

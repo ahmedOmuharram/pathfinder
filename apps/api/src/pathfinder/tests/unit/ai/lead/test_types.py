@@ -186,7 +186,8 @@ def test_plan_section_blocked_kind_needs_user_when_user_slots_open() -> None:
         plan=_plan_with_unresolved_slot(),
         open_user_input_slots=[
             OpenSlot(
-                step_id="s1", param_name="p",
+                step_id="s1",
+                param_name="p",
                 status="needs_user_input",
                 question="?",
             ),
@@ -220,7 +221,10 @@ def test_discovery_section_needs_more_discovery_when_zero_selections() -> None:
 
 def test_verification_section_successful_only_when_digest_success() -> None:
     digest_ok = VerificationDigest(
-        disposition=PhaseDisposition.DONE, prose="ok", reason="x", success=True,
+        disposition=PhaseDisposition.DONE,
+        prose="ok",
+        reason="x",
+        success=True,
     )
     section_ok = VerificationSection(digest=digest_ok)
     assert section_ok.successful is True

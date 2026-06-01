@@ -1,27 +1,11 @@
 """Typed error model with problem+json responses."""
 
 from enum import StrEnum
-from http import HTTPStatus
 
 import pydantic
-import structlog
-from fastapi import HTTPException, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from pathfinder.platform.types import JSONArray
-
-_logger = structlog.get_logger(__name__)
-
-_STATUS_TO_ERROR_CODE: dict[int, "ErrorCode"] = {}
-
-
-def _init_status_map() -> None:
-    """Populate _STATUS_TO_ERROR_CODE after ErrorCode is defined."""
-    _STATUS_TO_ERROR_CODE[HTTPStatus.NOT_FOUND] = ErrorCode.NOT_FOUND
-    _STATUS_TO_ERROR_CODE[HTTPStatus.UNAUTHORIZED] = ErrorCode.UNAUTHORIZED
-    _STATUS_TO_ERROR_CODE[HTTPStatus.FORBIDDEN] = ErrorCode.FORBIDDEN
-    _STATUS_TO_ERROR_CODE[HTTPStatus.TOO_MANY_REQUESTS] = ErrorCode.RATE_LIMITED
 
 
 class ErrorCode(StrEnum):
@@ -59,9 +43,6 @@ class ErrorCode(StrEnum):
     # Specialists / launchers
     SPECIALIST_PRECONDITION_FAILED = "SPECIALIST_PRECONDITION_FAILED"
     SESSION_CONFLICT = "SESSION_CONFLICT"
-
-
-_init_status_map()
 
 
 class ProblemDetail(BaseModel):
@@ -283,52 +264,3 @@ def sanitize_error_for_client(exc: BaseException) -> str:
     if isinstance(exc, AppError):
         return str(exc)
     return _GENERIC_ERROR
-
-
-async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
-    """Handle AppError exceptions."""
-    log = _logger.bind(
-        method=request.method,
-        path=request.url.path,
-        status=exc.status,
-        code=exc.code.value,
-        title=exc.title,
-        detail=exc.detail,
-        errors=exc.errors,
-    )
-    if exc.status >= HTTPStatus.INTERNAL_SERVER_ERROR:
-        log.error("Request failed", exc_info=exc)
-    else:
-        log.warning("Request failed")
-    problem = ProblemDetail(
-        type=f"/errors/{exc.code.value}",
-        title=exc.title,
-        status=exc.status,
-        detail=exc.detail,
-        instance=str(request.url),
-        code=exc.code,
-        errors=exc.errors,
-    )
-    return JSONResponse(
-        status_code=exc.status,
-        content=problem.model_dump(exclude_none=True),
-        media_type="application/problem+json",
-    )
-
-
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    """Handle FastAPI HTTPException."""
-    code = _STATUS_TO_ERROR_CODE.get(exc.status_code, ErrorCode.INTERNAL_ERROR)
-
-    problem = ProblemDetail(
-        type=f"/errors/{code.value}",
-        title=str(exc.detail),
-        status=exc.status_code,
-        instance=str(request.url),
-        code=code,
-    )
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=problem.model_dump(exclude_none=True),
-        media_type="application/problem+json",
-    )

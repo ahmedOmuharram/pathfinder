@@ -53,7 +53,9 @@ class TestComputeDeleteChoices:
         }
         default = next(c for c in choices if c.is_default)
         assert default.resolution == DeleteResolution.COLLAPSE_COMBINE
-        collapse = next(c for c in choices if c.resolution == DeleteResolution.COLLAPSE_COMBINE)
+        collapse = next(
+            c for c in choices if c.resolution == DeleteResolution.COLLAPSE_COMBINE
+        )
         assert sorted(collapse.will_delete) == ["a", "c"]
 
     def test_root_combine_promote_or_delete_strategy(self) -> None:
@@ -72,7 +74,9 @@ class TestComputeDeleteChoices:
             DeleteResolution.PROMOTE_PRIMARY,
             DeleteResolution.DELETE_STRATEGY,
         }
-        promote = next(c for c in choices if c.resolution == DeleteResolution.PROMOTE_PRIMARY)
+        promote = next(
+            c for c in choices if c.resolution == DeleteResolution.PROMOTE_PRIMARY
+        )
         assert sorted(promote.will_delete) == ["b", "c"]
 
     def test_transform_in_middle(self) -> None:

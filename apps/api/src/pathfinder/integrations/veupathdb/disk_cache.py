@@ -63,7 +63,7 @@ def try_load_catalog_cache(site_id: str) -> CatalogSnapshot | None:
     try:
         raw = path.read_text()
         return CatalogSnapshot.model_validate_json(raw)
-    except (OSError, ValueError, json.JSONDecodeError):
+    except OSError, ValueError, json.JSONDecodeError:
         logger.debug("Catalog cache load failed", path=str(path))
         return None
 

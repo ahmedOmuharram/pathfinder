@@ -117,7 +117,8 @@ class NotifyDispatcher:
         if self._reader_task is not None:
             return
         self._reader_task = asyncio.create_task(
-            self._reader_loop(), name="notify-dispatcher",
+            self._reader_loop(),
+            name="notify-dispatcher",
         )
         logger.info("notify dispatcher started")
 
@@ -141,7 +142,8 @@ class NotifyDispatcher:
 
     @asynccontextmanager
     async def subscribe(
-        self, channels: frozenset[str],
+        self,
+        channels: frozenset[str],
     ) -> AsyncIterator[asyncio.Queue[tuple[str, str]]]:
         """Register interest in ``channels`` and yield a queue.
 
@@ -250,7 +252,8 @@ class NotifyDispatcher:
         async for attempt in retrying:
             with attempt:
                 self._conn = await psycopg.AsyncConnection.connect(
-                    conn_str, autocommit=True,
+                    conn_str,
+                    autocommit=True,
                 )
                 self._listened_channels.clear()  # new session
                 logger.info("notify dispatcher connected")

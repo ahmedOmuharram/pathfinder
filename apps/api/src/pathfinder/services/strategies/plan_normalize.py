@@ -28,6 +28,7 @@ LoadSearchDetails = Callable[
 """Callback that loads WDK search details for a (record_type, search_name)
 pair, returning a fully validated ``WDKSearchResponse``."""
 
+
 async def make_search_detail_loader(site_id: str) -> LoadSearchDetails:
     """Create a search detail loader for a site.
 
@@ -38,19 +39,27 @@ async def make_search_detail_loader(site_id: str) -> LoadSearchDetails:
     api = get_strategy_api(site_id)
 
     async def _load(
-        record_type: str, name: str, params: Mapping[str, ParamValue],
+        record_type: str,
+        name: str,
+        params: Mapping[str, ParamValue],
     ) -> WDKSearchResponse:
         context = encode_params(dict(params))
         try:
             return await api.client.get_search_details_with_params(
-                record_type, name, context=context, expand_params=True,
+                record_type,
+                name,
+                context=context,
+                expand_params=True,
             )
         except WDKError:
             return await api.client.get_search_details(
-                record_type, name, expand_params=True,
+                record_type,
+                name,
+                expand_params=True,
             )
 
     return _load
+
 
 def _strip_combine_bq_keys(params: dict[str, ParamValue]) -> None:
     """Remove WDK boolean-question parameter keys from a combine node's params dict."""
@@ -58,6 +67,7 @@ def _strip_combine_bq_keys(params: dict[str, ParamValue]) -> None:
         key = str(k)
         if key == "bq_operator" or key.startswith(("bq_left_op", "bq_right_op")):
             params.pop(k, None)
+
 
 async def _load_and_cache_spec(
     specs_cache: dict[tuple[str, str, str], dict[str, ParamSpecNormalized]],
@@ -93,6 +103,7 @@ async def _load_and_cache_spec(
     specs_cache[cache_key] = spec_map
     return spec_map
 
+
 async def canonicalize_strategy_ast_parameters(
     *,
     strategy_ast: StrategyAst,
@@ -118,9 +129,8 @@ async def canonicalize_strategy_ast_parameters(
         params: dict[str, ParamValue] = dict(node.parameters)
 
         is_combine = (
-            (node.primary_input is not None and node.secondary_input is not None)
-            or node.search_name == COMBINE_SEARCH_NAME
-        )
+            node.primary_input is not None and node.secondary_input is not None
+        ) or node.search_name == COMBINE_SEARCH_NAME
 
         if is_combine:
             _strip_combine_bq_keys(params)

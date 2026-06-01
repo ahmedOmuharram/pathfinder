@@ -46,6 +46,7 @@ def _create_sampler(
     # "bayesian" or any unrecognised method → TPE
     return optuna.samplers.TPESampler(seed=42), budget
 
+
 def _suggest_trial_params(
     trial: optuna.trial.Trial,
     parameter_space: list[ParameterSpec],
@@ -64,18 +65,22 @@ def _suggest_trial_params(
             )
         elif spec.param_type == "integer":
             params[spec.name] = NumberValue(
-                value=float(trial.suggest_int(
-                    spec.name,
-                    int(spec.min or 0),
-                    int(spec.max or 100),
-                    step=int(spec.step) if spec.step else 1,
-                )),
+                value=float(
+                    trial.suggest_int(
+                        spec.name,
+                        int(spec.min or 0),
+                        int(spec.max or 100),
+                        step=int(spec.step) if spec.step else 1,
+                    )
+                ),
             )
         elif spec.param_type == "categorical":
             params[spec.name] = SinglePickValue(
-                value=str(trial.suggest_categorical(
-                    spec.name,
-                    spec.choices or [""],
-                )),
+                value=str(
+                    trial.suggest_categorical(
+                        spec.name,
+                        spec.choices or [""],
+                    )
+                ),
             )
     return params

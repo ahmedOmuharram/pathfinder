@@ -15,6 +15,7 @@ logger = get_logger(__name__)
 
 _PVALUE_SIGNIFICANCE_THRESHOLD = 0.05
 
+
 async def run_enrichment_for_gene_set(
     gene_set: GeneSet,
     analysis_types: list[EnrichmentAnalysisType],

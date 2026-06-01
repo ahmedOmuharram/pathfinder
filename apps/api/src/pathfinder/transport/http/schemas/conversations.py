@@ -1,16 +1,11 @@
 """Conversation request/response DTOs — unified chat + strategy shape."""
 
-from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
 from pydantic import Field
 
 from pathfinder.domain.strategy.strategy_ast import StrategyAst
 from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.services.strategies.schemas import (
-    StepResponse,
-)
 
 
 class StepCountsRequest(CamelModel):
@@ -42,49 +37,6 @@ class BeginConversationResponse(CamelModel):
     conversation_id: UUID
     is_new: bool
     name: str
-
-
-class ConversationSummaryResponse(CamelModel):
-    id: UUID
-    name: str
-    site_id: str
-    record_type: str | None
-    wdk_strategy_id: int | None = Field(default=None)
-    is_saved: bool = Field(default=False)
-    step_count: int
-    estimated_size: int | None = Field(default=None)
-    gene_set_id: str | None = Field(default=None)
-    experiment_id: str | None = Field(default=None)
-    dismissed_at: datetime | None = Field(default=None)
-    created_at: datetime
-    updated_at: datetime
-    parent_conversation_id: UUID | None = Field(default=None,)
-    parent_message_id: UUID | None = Field(default=None,)
-
-
-class ConversationResponse(CamelModel):
-    id: UUID
-    name: str
-    title: str | None = None
-    description: str | None = None
-    site_id: str
-    record_type: str | None
-    steps: list[StepResponse] = Field(default_factory=list)
-    root_step_id: str | None = Field(default=None)
-    wdk_strategy_id: int | None = Field(default=None)
-    is_saved: bool = Field(default=False)
-    created_at: datetime
-    updated_at: datetime
-    step_count: int | None = Field(default=None)
-    estimated_size: int | None = Field(default=None)
-    wdk_url: str | None = Field(default=None)
-    gene_set_id: str | None = Field(default=None)
-    experiment_id: str | None = Field(default=None)
-    dismissed_at: datetime | None = Field(default=None)
-    total_tokens: int = Field(default=0)
-    total_cost_usd: Decimal = Field(default_factory=lambda: Decimal(0))
-    parent_conversation_id: UUID | None = Field(default=None,)
-    parent_message_id: UUID | None = Field(default=None,)
 
 
 class CreateConversationRequest(CamelModel):

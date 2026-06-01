@@ -16,15 +16,15 @@ def test_durable_tasks_registered_on_verification_queue() -> None:
     assert "durable:optimize_search_parameters" in tasks
     assert "durable:geneset_enrichment" in tasks
 
-    assert (
-        tasks["durable:run_control_tests_on_step"].queue == "verification"
-    ), tasks["durable:run_control_tests_on_step"].queue
-    assert (
-        tasks["durable:optimize_search_parameters"].queue == "verification"
-    ), tasks["durable:optimize_search_parameters"].queue
-    assert (
-        tasks["durable:geneset_enrichment"].queue == "verification"
-    ), tasks["durable:geneset_enrichment"].queue
+    assert tasks["durable:run_control_tests_on_step"].queue == "verification", tasks[
+        "durable:run_control_tests_on_step"
+    ].queue
+    assert tasks["durable:optimize_search_parameters"].queue == "verification", tasks[
+        "durable:optimize_search_parameters"
+    ].queue
+    assert tasks["durable:geneset_enrichment"].queue == "verification", tasks[
+        "durable:geneset_enrichment"
+    ].queue
 
 
 @pytest.mark.asyncio

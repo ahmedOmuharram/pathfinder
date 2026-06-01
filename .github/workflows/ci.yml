@@ -27,7 +27,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/api
-        run: uv sync --extra dev
+        run: uv sync
 
       - name: Run ruff
         working-directory: apps/api
@@ -39,11 +39,22 @@ jobs:
 
       - name: Run mypy
         working-directory: apps/api
-        run: uv run mypy .
+        run: uv run mypy src
 
       - name: Run pyright
         working-directory: apps/api
         run: uv run pyright src/pathfinder
+
+      - name: Check import-linter contracts
+        working-directory: apps/api
+        run: uv run lint-imports
+
+      - name: Check file sizes
+        run: bash scripts/check-file-size.sh apps/api/src 300
+
+      - name: Audit dependencies
+        working-directory: apps/api
+        run: uv run pip-audit
 
       - name: Check OpenAPI spec is up to date
         working-directory: apps/api
@@ -65,7 +76,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/api
-        run: uv sync --extra dev
+        run: uv sync
 
       - name: Build Sphinx docs
         working-directory: apps/api
@@ -101,13 +112,14 @@ jobs:
 
       - name: Install dependencies
         working-directory: apps/api
-        run: uv sync --extra dev
+        run: uv sync
 
       - name: Run tests
         working-directory: apps/api
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
           API_SECRET_KEY: test-secret-key-xxxxx-xxxxx-xxxxx
+          PATHFINDER_CHAT_PROVIDER: mock
         run: uv run pytest --cov=src --cov-report=xml --cov-fail-under=40
 
   lint-web:
@@ -145,6 +157,10 @@ jobs:
         working-directory: apps/web
         run: yarn check:boundaries
 
+      - name: Check for unused code (knip)
+        working-directory: apps/web
+        run: npx knip
+
   check-shared-ts:
     name: Check shared TS types
     runs-on: ubuntu-latest
@@ -164,9 +180,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Check OpenAPI-generated types are up to date
+      - name: Check generated types are up to date
         working-directory: packages/shared-ts
-        run: yarn check:openapi
+        run: yarn check:generated
 
   test-web:
     name: Test Web

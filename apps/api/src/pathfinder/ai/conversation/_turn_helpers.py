@@ -33,8 +33,8 @@ from pathfinder.domain.strategy.strategy_ast import (
     StrategyAst,
 )
 from pathfinder.persistence.models import Conversation
-from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.db import async_session_factory
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.processing import LiteratureSearchResponse
 from pathfinder.services.research.web_search import (
@@ -123,7 +123,7 @@ def _build_runtime_context(
         if conversation.strategy_ast and "root" in conversation.strategy_ast:
             try:
                 plan_payload = StrategyAst.model_validate(conversation.strategy_ast)
-            except (ValueError, KeyError, TypeError):
+            except ValueError, KeyError, TypeError:
                 plan_payload = None
         persisted = PersistedStrategyGraph(
             id=str(conversation.id),
@@ -134,11 +134,10 @@ def _build_runtime_context(
         experiment_id = conversation.experiment_id
 
     strategy_session = build_strategy_session(
-        site_id=site_id, strategy_graph=persisted,
+        site_id=site_id,
+        strategy_graph=persisted,
     )
-    is_mock = (
-        get_settings().pathfinder_chat_provider.strip().lower() == "mock"
-    )
+    is_mock = get_settings().pathfinder_chat_provider.strip().lower() == "mock"
     return Context(
         site_id=site_id,
         user_id=user_id,
@@ -276,7 +275,8 @@ def _iter_raw_interrupts(
             continue
         try:
             durable = _DurableInterruptPayload.model_validate(
-                item.value, strict=False,
+                item.value,
+                strict=False,
             )
         except ValidationError:
             continue

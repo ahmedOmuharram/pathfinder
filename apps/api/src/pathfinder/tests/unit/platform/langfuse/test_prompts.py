@@ -86,7 +86,9 @@ class TestLoadPromptLangfuseError:
 
     def test_falls_back_on_not_found_error(self) -> None:
         mock_client = MagicMock()
-        mock_client.get_prompt.side_effect = NotFoundError(body={"message": "not found"})
+        mock_client.get_prompt.side_effect = NotFoundError(
+            body={"message": "not found"}
+        )
         with patch(
             "pathfinder.platform.langfuse.prompts.get_langfuse",
             return_value=mock_client,
@@ -168,7 +170,9 @@ class TestSeedPrompts:
     def test_seeds_missing_prompts(self) -> None:
         mock_client = MagicMock()
         # get_prompt raises NotFoundError for all names (they don't exist yet)
-        mock_client.get_prompt.side_effect = NotFoundError(body={"message": "not found"})
+        mock_client.get_prompt.side_effect = NotFoundError(
+            body={"message": "not found"}
+        )
         with patch(
             "pathfinder.platform.langfuse.prompts.get_langfuse",
             return_value=mock_client,

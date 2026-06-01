@@ -97,5 +97,6 @@ def build_toolset() -> AbstractToolset[AgentDeps]:
         ],
     )
     return DynamicEnumToolset(
-        wrapped=base, build_overrides=_discovery_enum_overrides,
+        wrapped=base,
+        build_overrides=_discovery_enum_overrides,
     )

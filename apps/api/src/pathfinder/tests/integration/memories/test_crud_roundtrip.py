@@ -22,8 +22,12 @@ async def test_list_returns_real_keys_so_delete_works(
 ) -> None:
     del db_cleaner, patch_app_db_engine
     value = MemoryValue(
-        kind="knowledge", name="x", summary="y",
-        tags=[], content={"fact": "z"}, created_at=datetime.now(UTC),
+        kind="knowledge",
+        name="x",
+        summary="y",
+        tags=[],
+        content={"fact": "z"},
+        created_at=datetime.now(UTC),
     )
     stored_key = await app_memory_store.put(user_id=authed_user_id, value=value)
     assert stored_key, "put must return a non-empty key"
@@ -55,8 +59,12 @@ async def test_edit_preserves_key_and_persists(
 ) -> None:
     del db_cleaner, patch_app_db_engine
     value = MemoryValue(
-        kind="knowledge", name="original", summary="s",
-        tags=[], content={}, created_at=datetime.now(UTC),
+        kind="knowledge",
+        name="original",
+        summary="s",
+        tags=[],
+        content={},
+        created_at=datetime.now(UTC),
     )
     key = await app_memory_store.put(user_id=authed_user_id, value=value)
 
@@ -79,8 +87,12 @@ async def test_search_returns_real_keys(
 ) -> None:
     del db_cleaner, patch_app_db_engine
     value = MemoryValue(
-        kind="knowledge", name="plasmodium targets", summary="malaria drug targets",
-        tags=[], content={}, created_at=datetime.now(UTC),
+        kind="knowledge",
+        name="plasmodium targets",
+        summary="malaria drug targets",
+        tags=[],
+        content={},
+        created_at=datetime.now(UTC),
     )
     key = await app_memory_store.put(user_id=authed_user_id, value=value)
 

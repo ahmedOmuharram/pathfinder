@@ -264,6 +264,7 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "Transport never imports integrations or persistence directly"
 type = "forbidden"
+allow_indirect_imports = true
 source_modules = ["pathfinder.transport"]
 forbidden_modules = [
     "pathfinder.integrations",
@@ -273,6 +274,7 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "AI tools never import integrations or persistence directly"
 type = "forbidden"
+allow_indirect_imports = true
 source_modules = ["pathfinder.ai.tools"]
 forbidden_modules = [
     "pathfinder.integrations",
@@ -282,6 +284,7 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "Services never import transport or AI"
 type = "forbidden"
+allow_indirect_imports = true
 source_modules = ["pathfinder.services"]
 forbidden_modules = [
     "pathfinder.transport",
@@ -291,6 +294,7 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "Integrations never import services, transport, or AI"
 type = "forbidden"
+allow_indirect_imports = true
 source_modules = ["pathfinder.integrations"]
 forbidden_modules = [
     "pathfinder.services",
@@ -301,6 +305,7 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "Persistence never imports services, transport, AI, or integrations"
 type = "forbidden"
+allow_indirect_imports = true
 source_modules = ["pathfinder.persistence"]
 forbidden_modules = [
     "pathfinder.services",

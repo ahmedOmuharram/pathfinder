@@ -106,9 +106,7 @@ def test_data_part_dedupes_by_id() -> None:
         {"type": "done"},
     ]
     msg = reduce_chunks(chunks, "fallback")
-    snapshots = [
-        p for p in msg["parts"] if p["type"] == "data-graph-snapshot"
-    ]
+    snapshots = [p for p in msg["parts"] if p["type"] == "data-graph-snapshot"]
     assert len(snapshots) == 1
     assert snapshots[0]["data"] == {"isBuilt": True, "stepCount": 3}
 
@@ -136,9 +134,7 @@ def test_data_part_without_id_appends_new() -> None:
         {"type": "done"},
     ]
     msg = reduce_chunks(chunks, "fallback")
-    decisions = [
-        p for p in msg["parts"] if p["type"] == "data-supervisor-decision"
-    ]
+    decisions = [p for p in msg["parts"] if p["type"] == "data-supervisor-decision"]
     assert len(decisions) == 2
     assert [d["data"]["to"] for d in decisions] == ["scoping", "discovery"]
 

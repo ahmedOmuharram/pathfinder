@@ -13,9 +13,11 @@ from pathfinder.platform.types import JSONObject
 # Sentinel search names for non-search nodes in the step graph.
 COMBINE_SEARCH_NAME = "__combine__"
 
+
 def generate_step_id() -> str:
     """Generate a unique step ID."""
     return f"step_{uuid4().hex[:8]}"
+
 
 class StepFilter(CamelModel):
     """Filter applied to a step's result.
@@ -52,6 +54,7 @@ class StepFilter(CamelModel):
             except ValueError, TypeError, ValidationError:
                 continue
         return result
+
 
 class StepAnalysis(CamelModel):
     """Analysis configuration for a step.
@@ -99,6 +102,7 @@ class StepAnalysis(CamelModel):
                 continue
         return result
 
+
 class StepReport(CamelModel):
     """Report request attached to a step.
 
@@ -133,6 +137,7 @@ class StepReport(CamelModel):
                 continue
         return result
 
+
 class StrategyStepNode(CamelModel):
     """Recursive strategy node.
 
@@ -150,9 +155,9 @@ class StrategyStepNode(CamelModel):
         if not isinstance(data, dict):
             return data
         has_search = "searchName" in data or "search_name" in data
-        has_both_inputs = (
-            "primaryInput" in data or "primary_input" in data
-        ) and ("secondaryInput" in data or "secondary_input" in data)
+        has_both_inputs = ("primaryInput" in data or "primary_input" in data) and (
+            "secondaryInput" in data or "secondary_input" in data
+        )
         if not has_search and has_both_inputs:
             data["searchName"] = COMBINE_SEARCH_NAME
         return data
@@ -202,18 +207,15 @@ class StrategyStepNode(CamelModel):
         if self.operator != CombineOp.COLOCATE and self.colocation_params is not None:
             msg = "colocationParams is only allowed when operator is COLOCATE"
             raise ValueError(msg)
-        is_combine = (
-            self.primary_input is not None and self.secondary_input is not None
-        )
+        is_combine = self.primary_input is not None and self.secondary_input is not None
         if self.expanded_strategy_id is not None and not is_combine:
             msg = (
                 "expandedStrategyId is only valid on combine steps "
                 "(WDK requires the saved strategy to feed an input slot)"
             )
             raise ValueError(msg)
-        if (
-            self.expanded_strategy_id is not None
-            and not (self.expanded_name and self.expanded_name.strip())
+        if self.expanded_strategy_id is not None and not (
+            self.expanded_name and self.expanded_name.strip()
         ):
             msg = (
                 "expandedName is required when expandedStrategyId is set "
@@ -230,6 +232,7 @@ class StrategyStepNode(CamelModel):
         if self.primary_input is not None:
             return "transform"
         return "search"
+
 
 def walk_step_tree(root: StrategyStepNode) -> list[StrategyStepNode]:
     """Depth-first traversal of a StrategyStepNode tree.

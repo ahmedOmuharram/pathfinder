@@ -55,8 +55,7 @@ def _is_pure_approval(text: str) -> bool:
     head = match.group("head") or ""
     tail = match.group("tail") or ""
     return bool(
-        _PURE_APPROVAL_BYPASS.match(head)
-        and _PURE_APPROVAL_BYPASS.match(tail),
+        _PURE_APPROVAL_BYPASS.match(head) and _PURE_APPROVAL_BYPASS.match(tail),
     )
 
 
@@ -73,10 +72,14 @@ class UserInputScanner:
     model_dir: Path = field(default_factory=resolve_model_dir)
     _piguard: PIGuardScanner | None = field(default=None, init=False, repr=False)
     _invisible: InvisibleTextScanner | None = field(
-        default=None, init=False, repr=False,
+        default=None,
+        init=False,
+        repr=False,
     )
     _lock: threading.Lock = field(
-        default_factory=threading.Lock, init=False, repr=False,
+        default_factory=threading.Lock,
+        init=False,
+        repr=False,
     )
 
     def _ensure_initialised(self) -> tuple[PIGuardScanner, InvisibleTextScanner]:

@@ -12,8 +12,12 @@ from typing import Annotated, Literal
 
 from pydantic import Discriminator, Field, field_validator
 
+from pathfinder.domain.parameters.wdk_vocab import (
+    WDKDatasetParser,
+    WDKFilterOntologyTerm,
+    WDKVocabulary,
+)
 from pathfinder.integrations.veupathdb.wdk_models import WDKModel
-from pathfinder.platform.types import JSONArray, JSONObject
 
 
 class WDKBaseParameter(WDKModel):
@@ -39,7 +43,7 @@ class WDKBaseParameter(WDKModel):
     initial_display_value: str | None = None
     properties: dict[str, list[str]] = Field(default_factory=dict)
 
-    vocabulary: JSONObject | JSONArray | None = None
+    vocabulary: WDKVocabulary | None = None
     count_only_leaves: bool = False
     display_type: str = ""
     min_selected_count: int = 0
@@ -51,13 +55,13 @@ class WDKBaseParameter(WDKModel):
     is_number: bool = False
 
     # Filter-only fields (declared on base so the formatter can read uniformly).
-    ontology: list[JSONObject] = Field(default_factory=list)
+    ontology: list[WDKFilterOntologyTerm] = Field(default_factory=list)
     filter_data_type_display_name: str | None = None
 
     # Dataset-only fields (declared on base for the same reason).
     default_id_list: str | None = None
     record_class_name: str | None = None
-    parsers: list[JSONObject] = Field(default_factory=list)
+    parsers: list[WDKDatasetParser] = Field(default_factory=list)
 
     @field_validator("max_selected_count", mode="before")
     @classmethod
@@ -129,7 +133,7 @@ class WDKDatasetParam(WDKBaseParameter):
     type: Literal["input-dataset"] = "input-dataset"
     default_id_list: str | None = None
     record_class_name: str | None = None
-    parsers: list[JSONObject] = Field(default_factory=list)
+    parsers: list[WDKDatasetParser] = Field(default_factory=list)
 
 
 class WDKEnumParam(WDKBaseParameter):
@@ -143,7 +147,7 @@ class WDKEnumParam(WDKBaseParameter):
     display_type: str = ""
     max_selected_count: int | None = None
     min_selected_count: int = 0
-    vocabulary: JSONObject | JSONArray | None = None
+    vocabulary: WDKVocabulary | None = None
     count_only_leaves: bool = False
     depth_expanded: int = 0
 
@@ -153,8 +157,8 @@ class WDKFilterParam(WDKBaseParameter):
 
     type: Literal["filter"] = "filter"
     min_selected_count: int = 0
-    ontology: list[JSONObject] = Field(default_factory=list)
-    values: JSONObject | None = None
+    ontology: list[WDKFilterOntologyTerm] = Field(default_factory=list)
+    values: dict[str, list[str]] | None = None
     filter_data_type_display_name: str | None = None
     hide_empty_ontology_nodes: bool = False
     sort_leaves_before_branches: bool = False

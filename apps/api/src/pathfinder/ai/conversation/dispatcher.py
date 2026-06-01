@@ -29,7 +29,7 @@ from pathfinder.persistence.repositories import (
 from pathfinder.persistence.repositories.conversation import (
     ConversationRepository,
 )
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.conversations.begin import begin_conversation
 
@@ -55,12 +55,14 @@ async def _cancel_in_flight_prior_turn(conversation_id: UUID) -> None:
         return
     repo = ChatTurnCancellationRepository(session_factory=async_session_factory)
     await repo.request_cancel(
-        conversation_id=conversation_id, turn_id=row.turn_id,
+        conversation_id=conversation_id,
+        turn_id=row.turn_id,
     )
 
 
 async def _is_approval_reply(
-    session: AsyncSession, conversation_id: UUID,
+    session: AsyncSession,
+    conversation_id: UUID,
 ) -> bool:
     """Return True when the previous assistant message halted on an
     AWAITING_USER phase outcome — the user's current reply is plausibly
@@ -139,7 +141,9 @@ async def dispatch(
 
     turn_id = body.prior_assistant_message_id or uuid4()
     payload = ChatTurnPayload.from_context(
-        body=body, user_id=user_id, turn_id=turn_id,
+        body=body,
+        user_id=user_id,
+        turn_id=turn_id,
     )
     await run_chat_turn_job.defer_async(
         payload=payload.model_dump(mode="json", by_alias=True),

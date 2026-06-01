@@ -12,6 +12,7 @@ Re-record with::
     PATHFINDER_RECORD_GOLDEN=1 uv run pytest \\
         src/pathfinder/tests/integration/chat/test_chat_sse_golden.py -v
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -34,9 +35,7 @@ from pathfinder.tests.integration.chat._helpers import parse_sse_body, redact
 
 pytestmark = pytest.mark.asyncio
 
-_FIXTURE_PATH = (
-    Path(__file__).parent / "_fixtures" / "chat_sse_golden_simple_turn.json"
-)
+_FIXTURE_PATH = Path(__file__).parent / "_fixtures" / "chat_sse_golden_simple_turn.json"
 
 # The fixed prompt drives the mock supervisor into the ``question`` branch:
 # a single supervisor decision + a turn-qa data chunk + finish/done. No
@@ -46,25 +45,27 @@ _PROMPT = "hi"
 # The full set of chunk ``type`` values the dispatcher is allowed to emit on
 # this turn. Any chunk type outside this set indicates new behavior the
 # golden must explicitly cover — re-record the fixture and update this set.
-_ALLOWED_CHUNK_TYPES: frozenset[str] = frozenset({
-    "start",
-    "finish",
-    "done",
-    "start-step",
-    "finish-step",
-    "text-start",
-    "text-delta",
-    "text-end",
-    "tool-input-start",
-    "tool-input-delta",
-    "tool-input-available",
-    "tool-output-available",
-    "data-sub-agent-call",
-    "data-ledger-update",
-    "data-turn-usage",
-    "data-conversation-title",
-    "message-metadata",
-})
+_ALLOWED_CHUNK_TYPES: frozenset[str] = frozenset(
+    {
+        "start",
+        "finish",
+        "done",
+        "start-step",
+        "finish-step",
+        "text-start",
+        "text-delta",
+        "text-end",
+        "tool-input-start",
+        "tool-input-delta",
+        "tool-input-available",
+        "tool-output-available",
+        "data-sub-agent-call",
+        "data-ledger-update",
+        "data-turn-usage",
+        "data-conversation-title",
+        "message-metadata",
+    }
+)
 
 
 @pytest.fixture
@@ -94,10 +95,7 @@ async def _drain_chat_jobs() -> None:
 
 async def _wait_until_enqueued(connector: InMemoryConnector) -> None:
     while True:
-        if any(
-            j["task_name"] == "chat_turn:run"
-            for j in connector.jobs.values()
-        ):
+        if any(j["task_name"] == "chat_turn:run" for j in connector.jobs.values()):
             return
         await asyncio.sleep(0.02)
 
@@ -120,7 +118,9 @@ def _post_body(conv_id: UUID, prompt: str) -> dict[str, Any]:
 
 
 async def _run_turn_and_collect(
-    app: FastAPI, user_id: UUID, in_memory_jobs: InMemoryConnector,
+    app: FastAPI,
+    user_id: UUID,
+    in_memory_jobs: InMemoryConnector,
 ) -> list[dict[str, Any]]:
     conv_id = uuid4()
     token = create_user_token(user_id)
@@ -142,9 +142,7 @@ async def _run_turn_and_collect(
         response = await asyncio.wait_for(post_task, timeout=30.0)
 
     if response.status_code != 200:
-        msg = (
-            f"chat returned {response.status_code}; body={response.text[:500]!r}"
-        )
+        msg = f"chat returned {response.status_code}; body={response.text[:500]!r}"
         raise AssertionError(msg)
     raw_chunks = parse_sse_body(response.text)
     return [redact(c) for c in raw_chunks]
@@ -166,7 +164,8 @@ def _save_fixture(chunks: list[dict[str, Any]]) -> None:
 
 
 def _diff_message(
-    actual: list[dict[str, Any]], expected: list[dict[str, Any]],
+    actual: list[dict[str, Any]],
+    expected: list[dict[str, Any]],
 ) -> str:
     actual_json = json.dumps(actual, indent=2, sort_keys=True)
     expected_json = json.dumps(expected, indent=2, sort_keys=True)

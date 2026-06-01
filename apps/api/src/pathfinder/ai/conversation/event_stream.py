@@ -41,8 +41,8 @@ from sqlalchemy import select
 from sqlalchemy.engine import make_url
 
 from pathfinder.persistence.models import ConversationEvent
-from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.config import get_settings
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -134,7 +134,8 @@ def _asyncpg_dsn(database_url: str) -> str:
 
 
 async def _fetch_after(
-    conversation_id: UUID, after: int,
+    conversation_id: UUID,
+    after: int,
 ) -> list[tuple[int, dict[str, Any]]]:
     """Fetch chat-stream chunks. Task-tagged rows belong to the per-task SSE
     endpoint and use a different envelope shape (``{"sse": "<frame>"}``);
@@ -162,7 +163,8 @@ async def fetch_chunks_from_zero(
 
 
 async def fetch_chunks_after(
-    conversation_id: UUID, after: int,
+    conversation_id: UUID,
+    after: int,
 ) -> tuple[int, list[dict[str, Any]]]:
     rows = await _fetch_after(conversation_id, after)
     chunks: list[dict[str, Any]] = []
@@ -341,7 +343,9 @@ async def replay_and_tail(
             last_sent = event_id
 
         async for event_id, chunk in _drain_and_yield(
-            conversation_id, last_sent, queue,
+            conversation_id,
+            last_sent,
+            queue,
         ):
             yield event_id, chunk
     finally:
@@ -349,10 +353,13 @@ async def replay_and_tail(
 
 
 async def iter_sse(
-    *, conversation_id: UUID, after: int,
+    *,
+    conversation_id: UUID,
+    after: int,
 ) -> AsyncIterator[str]:
     async for event_id, chunk in replay_and_tail(
-        conversation_id=conversation_id, after=after,
+        conversation_id=conversation_id,
+        after=after,
     ):
         if not isinstance(chunk, dict) or "type" not in chunk:
             logger.warning(

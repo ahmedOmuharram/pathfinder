@@ -6,8 +6,8 @@ from pathfinder.ai.context.rendering import render_graph_state
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.prompts.loader import load_system_prompt
 from pathfinder.ai.scratchpad.rendering import render_scratchpad_for_phase
-from pathfinder.ai.scratchpad.repository import ScratchpadRepository
 from pathfinder.domain.strategy.plan import PlanStatus
+from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 
 
 def base_system_prompt(ctx: RunContext[AgentDeps]) -> str:
@@ -57,8 +57,7 @@ def pinned_problem_frame(ctx: RunContext[AgentDeps]) -> str | None:
                 else ""
             )
             lines.append(
-                f"- {node.id} ({node.kind}): {node.label} — "
-                f"{node.description}{ref}",
+                f"- {node.id} ({node.kind}): {node.label} — {node.description}{ref}",
             )
 
     if frame.blocking_questions:
@@ -154,6 +153,7 @@ def pinned_discovered_searches(ctx: RunContext[AgentDeps]) -> str | None:
 
 def _render_search(name: str, ov: object) -> list[str]:
     from pathfinder.ai.agents.state import SearchOverview  # noqa: PLC0415
+
     if not isinstance(ov, SearchOverview):
         return []
     header_bits = [f"`{name}`", f"({ov.record_type})"]
@@ -169,9 +169,7 @@ def _render_search(name: str, ov: object) -> list[str]:
     if ov.required_params:
         out.append(f"    required params: {', '.join(ov.required_params)}")
     if ov.param_hints:
-        hint_str = ", ".join(
-            f"{k}={v}" for k, v in sorted(ov.param_hints.items())
-        )
+        hint_str = ", ".join(f"{k}={v}" for k, v in sorted(ov.param_hints.items()))
         out.append(f"    hints: {hint_str}")
     if ov.param_vocab:
         out.append("    param_vocab (copy values verbatim):")
@@ -182,6 +180,7 @@ def _render_search(name: str, ov: object) -> list[str]:
 
 def _render_vocab_snapshot(name: str, snap: object) -> list[str]:
     from pathfinder.ai.agents.state import ParamVocabSnapshot  # noqa: PLC0415
+
     if not isinstance(snap, ParamVocabSnapshot):
         return []
     head = f"      - `{name}` ({snap.param_type})"

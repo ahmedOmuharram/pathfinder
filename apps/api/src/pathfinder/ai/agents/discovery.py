@@ -189,7 +189,6 @@ discovery_agent: Agent[AgentDeps, DiscoveryDelta] = Agent(
         ToolResilience(),
         _discovery_hooks,
         Thinking(effort="medium"),
-
     ],
     history_processors=PHASE_HISTORY_PROCESSORS,
     retries=3,
@@ -245,5 +244,3 @@ def _rediscovery_context(ctx: RunContext[AgentDeps]) -> str | None:
     )
 
     return "\n".join(lines)
-
-

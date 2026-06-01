@@ -1,40 +1,31 @@
 """Vocabulary tree rendering and value extraction.
 
 Pure module (no I/O). Formats WDK vocabulary trees for display and
-extracts allowed parameter values from vocabulary data.
+extracts allowed parameter values from typed vocabulary data.
 """
 
-from pathfinder.domain.parameters.vocab_utils import (
+from pathfinder.domain.parameters.wdk_vocab import (
+    VocabOption,
+    WDKTreeBoxVocabNode,
+    WDKVocabulary,
     flatten_vocab,
-    get_node_term,
-    get_vocab_children,
 )
-from pathfinder.platform.pydantic_base import CamelModel
-from pathfinder.platform.types import JSONArray, JSONObject
 
 # Cap rendered vocab entries so the LLM tool response stays within a
 # manageable size; large WDK vocabularies can have thousands of values.
 _MAX_VOCAB_ENTRIES = 50
 
 
-class VocabEntry(CamelModel):
-    """Single vocabulary entry with WDK-submittable value and display label."""
-
-    value: str
-    display: str
-
-
-def _count_descendants(node: JSONObject) -> int:
+def _count_descendants(node: WDKTreeBoxVocabNode) -> int:
     """Count all descendants of a vocab tree node (excluding itself)."""
-    children = get_vocab_children(node)
-    total = len(children)
-    for child in children:
+    total = len(node.children)
+    for child in node.children:
         total += _count_descendants(child)
     return total
 
 
 def render_vocab_tree(
-    node: JSONObject,
+    node: WDKTreeBoxVocabNode,
     *,
     max_lines: int = 80,
     _depth: int = 0,
@@ -51,20 +42,18 @@ def render_vocab_tree(
     if len(_lines) >= max_lines:
         return _lines
 
-    term = get_node_term(node)
-    is_fake_root = term is None or term == "@@fake@@"
+    term = node.data.term
+    is_fake_root = not term or term == "@@fake@@"
 
     if not is_fake_root:
         _lines.append(f"{'  ' * _depth}{term}")
 
-    children = get_vocab_children(node)
-
-    for child in children:
+    for child in node.children:
         if len(_lines) >= max_lines:
             # Show remaining top-level categories as summaries.
-            remaining = children[children.index(child):]
+            remaining = node.children[node.children.index(child) :]
             for r in remaining:
-                r_term = get_node_term(r)
+                r_term = r.data.term
                 if r_term and r_term != "@@fake@@":
                     desc_count = _count_descendants(r)
                     if desc_count > 0:
@@ -80,33 +69,21 @@ def render_vocab_tree(
     return _lines
 
 
-def allowed_values(
-    vocab: JSONObject | JSONArray | None,
-) -> list[VocabEntry]:
+def allowed_values(vocab: WDKVocabulary | None) -> list[VocabOption]:
     """Extract WDK-accepted parameter values from a vocabulary.
 
-    Returns ``VocabEntry`` objects (value + display) so the LLM knows
-    both *what to pass* and *what it means*.
-
-    :param vocab: Vocabulary tree or flat list from catalog.
-    :returns: List of VocabEntry instances (capped at 50).
+    Returns ``VocabOption`` objects (value + display) so the LLM knows
+    both *what to pass* and *what it means*. Capped at 50.
     """
     if not vocab:
         return []
-    entries: list[VocabEntry] = []
+    entries: list[VocabOption] = []
     seen: set[str] = set()
-    for entry in flatten_vocab(vocab, prefer_term=True):
-        # Prefer the WDK-accepted value; fall back to display if missing.
-        candidate = entry.get("value") or entry.get("display")
-        if not candidate:
+    for option in flatten_vocab(vocab):
+        if not option.value or option.value in seen:
             continue
-        text = str(candidate)
-        if text in seen:
-            continue
-        seen.add(text)
-        display = entry.get("display")
-        display_str = str(display) if display else text
-        entries.append(VocabEntry(value=text, display=display_str))
+        seen.add(option.value)
+        entries.append(option)
         if len(entries) >= _MAX_VOCAB_ENTRIES:
             break
     return entries

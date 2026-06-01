@@ -11,18 +11,19 @@ from pydantic_ai.toolsets.abstract import AbstractToolset
 from pydantic_ai.toolsets.function import FunctionToolset
 from pydantic_ai.toolsets.prepared import PreparedToolset
 
-from pathfinder.ai.graph.runtime import AgentDeps, DBSessionFactory
+from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.graph.stream_events import scratchpad_updated_event
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.ai.memory.store import MemoryStore
-from pathfinder.ai.scratchpad.models import (
+from pathfinder.domain.scratchpad.models import (
     Note,
     NoteCreate,
     NoteDetail,
     NoteRef,
     NoteUpdate,
 )
-from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
+from pathfinder.platform.db import DBSessionFactory
 from pathfinder.platform.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,13 +34,15 @@ _MSG_MEMORY_UNAVAILABLE = "memory store unavailable"
 
 def _ref_payload(note: Note) -> dict[str, object]:
     return NoteRef.model_validate(note, from_attributes=True).model_dump(
-        by_alias=True, mode="json",
+        by_alias=True,
+        mode="json",
     )
 
 
 def _note_payload(note: Note) -> dict[str, object]:
     return NoteDetail.model_validate(note, from_attributes=True).model_dump(
-        by_alias=True, mode="json",
+        by_alias=True,
+        mode="json",
     )
 
 
@@ -138,7 +141,9 @@ async def update_note(
         repo = ScratchpadRepository(session)
         try:
             updated = await repo.update(
-                conversation_id=conversation_id, note_id=note_id, patch=patch,
+                conversation_id=conversation_id,
+                note_id=note_id,
+                patch=patch,
             )
         except LookupError as exc:
             raise ModelRetry(_not_found_msg(note_id)) from exc
@@ -151,7 +156,8 @@ async def update_note(
 
 
 async def delete_note(
-    ctx: RunContext[AgentDeps], note_id: str,
+    ctx: RunContext[AgentDeps],
+    note_id: str,
 ) -> ToolReturn[str]:
     """Remove a note. Use when the note is superseded by a newer one."""
     ctx_or_none = _require_context(ctx)
@@ -165,12 +171,14 @@ async def delete_note(
             raise ModelRetry(_not_found_msg(note_id))
         await session.commit()
     return ToolReturn(
-        return_value="deleted", metadata=[scratchpad_updated_event()],
+        return_value="deleted",
+        metadata=[scratchpad_updated_event()],
     )
 
 
 async def pin_note(
-    ctx: RunContext[AgentDeps], note_id: str,
+    ctx: RunContext[AgentDeps],
+    note_id: str,
 ) -> ToolReturn[dict[str, object]]:
     """Pin a note so compaction never merges or drops it."""
     ctx_or_none = _require_context(ctx)
@@ -181,18 +189,22 @@ async def pin_note(
         repo = ScratchpadRepository(session)
         try:
             updated = await repo.set_pinned(
-                conversation_id=conversation_id, note_id=note_id, pinned=True,
+                conversation_id=conversation_id,
+                note_id=note_id,
+                pinned=True,
             )
         except LookupError as exc:
             raise ModelRetry(_not_found_msg(note_id)) from exc
         await session.commit()
     return ToolReturn(
-        return_value=_ref_payload(updated), metadata=[scratchpad_updated_event()],
+        return_value=_ref_payload(updated),
+        metadata=[scratchpad_updated_event()],
     )
 
 
 async def unpin_note(
-    ctx: RunContext[AgentDeps], note_id: str,
+    ctx: RunContext[AgentDeps],
+    note_id: str,
 ) -> ToolReturn[dict[str, object]]:
     """Unpin a previously pinned note."""
     ctx_or_none = _require_context(ctx)
@@ -203,18 +215,22 @@ async def unpin_note(
         repo = ScratchpadRepository(session)
         try:
             updated = await repo.set_pinned(
-                conversation_id=conversation_id, note_id=note_id, pinned=False,
+                conversation_id=conversation_id,
+                note_id=note_id,
+                pinned=False,
             )
         except LookupError as exc:
             raise ModelRetry(_not_found_msg(note_id)) from exc
         await session.commit()
     return ToolReturn(
-        return_value=_ref_payload(updated), metadata=[scratchpad_updated_event()],
+        return_value=_ref_payload(updated),
+        metadata=[scratchpad_updated_event()],
     )
 
 
 def _filter_description(
-    tag: str | None, pinned: bool | None,
+    tag: str | None,
+    pinned: bool | None,
 ) -> str:
     parts: list[str] = []
     if tag is not None:
@@ -245,7 +261,10 @@ async def list_notes(
     async with factory() as session:
         repo = ScratchpadRepository(session)
         notes = await repo.list_notes(
-            conversation_id=conversation_id, tag=tag, pinned=pinned, limit=limit,
+            conversation_id=conversation_id,
+            tag=tag,
+            pinned=pinned,
+            limit=limit,
         )
         total, _ = await repo.totals(conversation_id=conversation_id)
 
@@ -261,7 +280,9 @@ async def list_notes(
 
 
 async def search_notes(
-    ctx: RunContext[AgentDeps], query: str, limit: int = 10,
+    ctx: RunContext[AgentDeps],
+    query: str,
+    limit: int = 10,
 ) -> dict[str, object]:
     """Keyword/phrase search across title + summary + body via Postgres FTS.
 
@@ -281,7 +302,9 @@ async def search_notes(
     async with factory() as session:
         repo = ScratchpadRepository(session)
         hits = await repo.search_notes(
-            conversation_id=conversation_id, query=query, limit=limit,
+            conversation_id=conversation_id,
+            query=query,
+            limit=limit,
         )
         total, _ = await repo.totals(conversation_id=conversation_id)
 
@@ -304,7 +327,8 @@ async def search_notes(
 
 
 async def read_note(
-    ctx: RunContext[AgentDeps], note_id: str,
+    ctx: RunContext[AgentDeps],
+    note_id: str,
 ) -> dict[str, object]:
     """Fetch the full note (including body) by id."""
     ctx_or_none = _require_context(ctx)
@@ -366,16 +390,18 @@ async def promote_to_memory(
     return await mem_store.put(user_id=user_id, value=value)
 
 
-_EMPTY_SCRATCHPAD_HIDDEN = frozenset({
-    "list_notes",
-    "search_notes",
-    "read_note",
-    "update_note",
-    "delete_note",
-    "pin_note",
-    "unpin_note",
-    "promote_to_memory",
-})
+_EMPTY_SCRATCHPAD_HIDDEN = frozenset(
+    {
+        "list_notes",
+        "search_notes",
+        "read_note",
+        "update_note",
+        "delete_note",
+        "pin_note",
+        "unpin_note",
+        "promote_to_memory",
+    }
+)
 
 _SCRATCHPAD_READ_TOOLS = frozenset({"search_notes", "list_notes", "read_note"})
 
@@ -400,7 +426,9 @@ def _loop_hidden_read_tools(ctx: RunContext[AgentDeps]) -> frozenset[str]:
                 counts[part.tool_name] = counts.get(part.tool_name, 0) + 1
                 continue
             # Any other tool (mutation or unrelated) ends the read streak.
-            return frozenset({n for n, c in counts.items() if c >= _MAX_CONSECUTIVE_READ})
+            return frozenset(
+                {n for n, c in counts.items() if c >= _MAX_CONSECUTIVE_READ}
+            )
     return frozenset({n for n, c in counts.items() if c >= _MAX_CONSECUTIVE_READ})
 
 

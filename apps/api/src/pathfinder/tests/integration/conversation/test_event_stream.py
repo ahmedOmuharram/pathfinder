@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-import pathfinder.persistence.session as session_module
+import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.event_stream import replay_and_tail
 from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.persistence.models import Conversation, User
@@ -19,7 +19,10 @@ async def _seed_conversation() -> tuple[UUID, UUID]:
         session.add(User(id=user_id))
         session.add(
             Conversation(
-                id=conv_id, user_id=user_id, site_id="plasmodb", name="t",
+                id=conv_id,
+                user_id=user_id,
+                site_id="plasmodb",
+                name="t",
             ),
         )
         await session.commit()
@@ -28,7 +31,8 @@ async def _seed_conversation() -> tuple[UUID, UUID]:
 
 @pytest.mark.asyncio
 async def test_replay_returns_events_past_cursor(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     conv_id, turn_id = await _seed_conversation()
@@ -41,7 +45,8 @@ async def test_replay_returns_events_past_cursor(
 
     async def consume() -> None:
         async for event_id, chunk in replay_and_tail(
-            conversation_id=conv_id, after=id1,
+            conversation_id=conv_id,
+            after=id1,
         ):
             collected.append((event_id, chunk))
             if event_id >= id3:
@@ -54,7 +59,8 @@ async def test_replay_returns_events_past_cursor(
 
 @pytest.mark.asyncio
 async def test_tail_yields_events_produced_after_subscribe(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     conv_id, turn_id = await _seed_conversation()
@@ -63,7 +69,8 @@ async def test_tail_yields_events_produced_after_subscribe(
 
     async def consume() -> None:
         async for event_id, chunk in replay_and_tail(
-            conversation_id=conv_id, after=0,
+            conversation_id=conv_id,
+            after=0,
         ):
             collected.append((event_id, chunk))
             if len(collected) >= 3:
@@ -76,8 +83,11 @@ async def test_tail_yields_events_produced_after_subscribe(
         await writer.write({"type": "text-end", "id": "a"})
 
     await asyncio.wait_for(
-        asyncio.gather(consume(), produce()), timeout=10,
+        asyncio.gather(consume(), produce()),
+        timeout=10,
     )
     assert [c["type"] for _, c in collected] == [
-        "text-start", "text-delta", "text-end",
+        "text-start",
+        "text-delta",
+        "text-end",
     ]

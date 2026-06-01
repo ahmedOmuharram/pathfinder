@@ -55,7 +55,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
-import pathfinder.persistence.session as session_module
+import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.checkpointer import to_psycopg_url
 from pathfinder.integrations.veupathdb.site_router import get_site_router
 from pathfinder.jobs.app import procrastinate_app
@@ -191,8 +191,10 @@ def _apply_procrastinate_schema_sync(database_url: str) -> None:
     target tables are missing so the call is idempotent across test sessions.
     """
     psycopg_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
-    with psycopg.connect(psycopg_url, autocommit=True) as connection, \
-            connection.cursor() as cursor:
+    with (
+        psycopg.connect(psycopg_url, autocommit=True) as connection,
+        connection.cursor() as cursor,
+    ):
         cursor.execute(
             "SELECT 1 FROM information_schema.tables "
             "WHERE table_name = 'procrastinate_jobs'"
@@ -361,6 +363,7 @@ async def app_notify_dispatcher(
     from pathfinder.platform.notify_dispatcher import (  # noqa: PLC0415
         lifespan_notify_dispatcher,
     )
+
     database_url = os.environ["DATABASE_URL"]
     async with lifespan_notify_dispatcher(database_url) as dispatcher:
         app.state.notify_dispatcher = dispatcher

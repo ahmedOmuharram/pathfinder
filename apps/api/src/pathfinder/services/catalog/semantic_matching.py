@@ -6,13 +6,13 @@ index, and injects high-similarity searches that keyword scoring missed.
 
 import asyncio
 
+from pathfinder.integrations.embeddings.semantic_index import SemanticSearchIndex
 from pathfinder.integrations.veupathdb.discovery_service import DiscoveryService
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
 from pathfinder.platform.errors import AppError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.catalog.models import SearchMatch
 from pathfinder.services.catalog.scoring import resolve_returns
-from pathfinder.services.catalog.semantic_index import SemanticSearchIndex
 
 logger = get_logger(__name__)
 
@@ -57,9 +57,7 @@ async def apply_semantic_bonus(
         rt_set = set(record_types)
         sem_results = await asyncio.to_thread(index.query, query, 50)
         sem_scores = {
-            name: sim
-            for name, rt, sim in sem_results
-            if rt in rt_set or not rt_set
+            name: sim for name, rt, sim in sem_results if rt in rt_set or not rt_set
         }
 
         for i, (sc, entry) in enumerate(scored):
@@ -78,5 +76,5 @@ async def apply_semantic_bonus(
             if search is None:
                 continue
             scored.append((_SEMANTIC_BOOST * sim, build_search_match(search, rt)))
-    except (AppError, OSError, ValueError, TypeError):
+    except AppError, OSError, ValueError, TypeError:
         logger.debug("Semantic bonus failed (non-fatal)", exc_info=True)

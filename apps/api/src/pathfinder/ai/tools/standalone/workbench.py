@@ -63,9 +63,7 @@ async def create_workbench_gene_set(
         raise ModelRetry(msg)
     deps = ctx.deps
     src = wdk_source or WdkSourceSpec()
-    source: GeneSetSource = (
-        "strategy" if src.wdk_strategy_id is not None else "paste"
-    )
+    source: GeneSetSource = "strategy" if src.wdk_strategy_id is not None else "paste"
     gs = GeneSet(
         id=str(uuid4()),
         name=name,
@@ -109,12 +107,17 @@ async def create_workbench_gene_set(
 
 
 EnrichmentType = Literal[
-    "go_function", "go_process", "go_component", "pathway", "word",
+    "go_function",
+    "go_process",
+    "go_component",
+    "pathway",
+    "word",
 ]
 
 
 def _enrichment_chunks_from_result(
-    resumed: Any, task_id: UUID,
+    resumed: Any,
+    task_id: UUID,
 ) -> list[BaseChunk]:
     if not isinstance(resumed, dict):
         return []

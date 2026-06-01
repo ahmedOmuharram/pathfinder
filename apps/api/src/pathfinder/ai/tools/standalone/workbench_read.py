@@ -103,9 +103,7 @@ async def get_step_contributions(
     if not exp:
         return WorkbenchError(error="Conversation has no associated experiment")
     if not exp.step_analysis:
-        return WorkbenchError(
-            error="No step analysis available for this experiment"
-        )
+        return WorkbenchError(error="No step analysis available for this experiment")
 
     return StepContributionsResult(
         step_contributions=exp.step_analysis.step_contributions,
@@ -140,9 +138,7 @@ async def get_ensemble_analysis(
     if not exp:
         return WorkbenchError(error="Conversation has no associated experiment")
     if not exp.step_analysis:
-        return WorkbenchError(
-            error="No step analysis available for this experiment"
-        )
+        return WorkbenchError(error="No step analysis available for this experiment")
 
     return EnsembleAnalysisResult(step_analysis=exp.step_analysis)
 

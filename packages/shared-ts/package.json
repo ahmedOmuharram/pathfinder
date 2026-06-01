@@ -6,6 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "generate": "kubb",
+    "check:generated": "kubb && git diff --exit-code src/generated",
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "eslint src/",

@@ -6,6 +6,7 @@ JSONB shape: ``{provider, tier, phases: {<PhaseName>: {modelId, reasoningEffort}
 Revision ID: 2026_04_22_0001
 Revises: 2026_04_21_0001
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

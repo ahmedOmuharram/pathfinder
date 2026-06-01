@@ -38,6 +38,7 @@ _DEFAULT_NUMERIC_LEVELS = 5
 
 ProgressFn = Callable[[float, str, dict[str, JsonValue] | None], Awaitable[None]]
 
+
 @dataclass(frozen=True, slots=True)
 class SweepTarget:
     """Inputs that define the WDK target search for every variant."""
@@ -46,6 +47,7 @@ class SweepTarget:
     record_type: str
     search_name: str
     fixed_parameters: dict[str, ParamValue]
+
 
 @dataclass(frozen=True, slots=True)
 class SweepControls:
@@ -58,6 +60,7 @@ class SweepControls:
     positive_controls: list[str] | None
     negative_controls: list[str] | None
     id_field: str | None
+
 
 def _enumerate_spec_values(spec: ParameterSpec) -> list[ParamValue]:
     """Materialise a ParameterSpec into a list of concrete typed values."""
@@ -87,6 +90,7 @@ def _enumerate_spec_values(spec: ParameterSpec) -> list[ParamValue]:
     step_size = (hi_f - lo_f) / (n - 1)
     return [NumberValue(value=lo_f + i * step_size) for i in range(n)]
 
+
 def enumerate_variants(
     parameter_space: list[ParameterSpec],
     fixed_parameters: dict[str, ParamValue],
@@ -110,6 +114,7 @@ def enumerate_variants(
         params: dict[str, ParamValue] = {**fixed_parameters, **sweep_values}
         variants.append(VariantSpec(id=f"v{idx}", params=params))
     return variants
+
 
 async def _evaluate_variant_wdk(
     variant: VariantSpec,
@@ -143,6 +148,7 @@ async def _evaluate_variant_wdk(
         return None, str(exc)
     return wdk_result, ""
 
+
 async def run_trial(
     variant: VariantSpec,
     *,
@@ -170,14 +176,14 @@ async def run_trial(
             {"params": to_decoded_map(variant.params)},
         )
 
-    wdk_result, wdk_error = await _evaluate_variant_wdk(
-        variant, target, controls
-    )
+    wdk_result, wdk_error = await _evaluate_variant_wdk(variant, target, controls)
 
     if wdk_result is None:
         if progress_callback is not None:
             await progress_callback(
-                1.0, f"Variant {variant.id} WDK error", {"error": wdk_error},
+                1.0,
+                f"Variant {variant.id} WDK error",
+                {"error": wdk_error},
             )
         return VariantResult(
             variant_id=variant.id,

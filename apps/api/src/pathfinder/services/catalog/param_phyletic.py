@@ -5,6 +5,7 @@ from typing import cast
 from pydantic import JsonValue
 
 from pathfinder.domain.parameters.specs import ParamSpecNormalized
+from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm
 from pathfinder.domain.search import SearchContext
 from pathfinder.integrations.veupathdb.discovery_service import (
     get_discovery_service,
@@ -12,24 +13,24 @@ from pathfinder.integrations.veupathdb.discovery_service import (
 from pathfinder.platform.errors import AppError, ErrorCode
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tool_errors import ToolErrorPayload, tool_error
-from pathfinder.platform.types import JSONArray, JSONObject
+from pathfinder.platform.types import JSONObject
 from pathfinder.services.catalog.param_adapters import adapt_param_specs_from_search
 from pathfinder.services.catalog.param_discovery import fetch_search_details
 from pathfinder.services.wdk.record_types import resolve_record_type
 
 logger = get_logger(__name__)
 
-_MIN_VOCAB_ENTRY_LENGTH = 2
 # Cap phyletic tree matches to keep the tool response concise for the LLM
 # and avoid overwhelming it with hundreds of species/clade entries.
 _MAX_TREE_MATCHES = 20
 
+
 def _extract_phyletic_vocabs(
     specs: dict[str, ParamSpecNormalized],
-) -> tuple[JSONArray, JSONArray]:
+) -> tuple[list[WDKVocabTerm], list[WDKVocabTerm]]:
     """Extract phyletic_term_map and phyletic_indent_map vocabularies from param specs."""
-    term_map_vocab: JSONArray = []
-    indent_map_vocab: JSONArray = []
+    term_map_vocab: list[WDKVocabTerm] = []
+    indent_map_vocab: list[WDKVocabTerm] = []
     term_spec = specs.get("phyletic_term_map")
     if term_spec and isinstance(term_spec.vocabulary, list):
         term_map_vocab = term_spec.vocabulary
@@ -38,24 +39,24 @@ def _extract_phyletic_vocabs(
         indent_map_vocab = indent_spec.vocabulary
     return term_map_vocab, indent_map_vocab
 
-def _build_group_codes(indent_map_vocab: JSONArray) -> set[str]:
+
+def _depth_of(entry: WDKVocabTerm) -> int:
+    """Indent map encodes tree depth as the display element."""
+    return int(entry.display) if entry.display else 0
+
+
+def _build_group_codes(indent_map_vocab: list[WDKVocabTerm]) -> set[str]:
     """Build set of group codes (non-leaf nodes) from indent map entries."""
     group_codes: set[str] = set()
     for i, entry in enumerate(indent_map_vocab):
-        if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
-            continue
-        code = str(entry[0])
-        depth = int(str(entry[1])) if entry[1] is not None else 0
-        if i + 1 < len(indent_map_vocab):
-            nxt = indent_map_vocab[i + 1]
-            if isinstance(nxt, list) and len(nxt) >= _MIN_VOCAB_ENTRY_LENGTH:
-                next_depth = int(str(nxt[1])) if nxt[1] is not None else 0
-                if next_depth > depth:
-                    group_codes.add(code)
+        depth = _depth_of(entry)
+        if i + 1 < len(indent_map_vocab) and _depth_of(indent_map_vocab[i + 1]) > depth:
+            group_codes.add(entry.term)
     return group_codes
 
+
 def _match_phyletic_entries(
-    term_map_vocab: JSONArray,
+    term_map_vocab: list[WDKVocabTerm],
     group_codes: set[str],
     query: str,
 ) -> list[JSONObject]:
@@ -68,14 +69,10 @@ def _match_phyletic_entries(
     # Collect all entries.
     all_entries: list[tuple[str, str, bool]] = []
     for entry in term_map_vocab:
-        if not isinstance(entry, list) or len(entry) < _MIN_VOCAB_ENTRY_LENGTH:
+        if entry.term == "ALL":
             continue
-        code = str(entry[0])
-        label = str(entry[1])
-        if code == "ALL":
-            continue
-        is_leaf = code not in group_codes
-        all_entries.append((code, label, is_leaf))
+        is_leaf = entry.term not in group_codes
+        all_entries.append((entry.term, entry.display, is_leaf))
 
     if not all_entries:
         return []
@@ -87,6 +84,7 @@ def _match_phyletic_entries(
         for code, label, is_leaf in ranked[:_MAX_TREE_MATCHES]
     ]
 
+
 def _rank_by_semantic_similarity(
     query: str,
     candidates: list[tuple[str, str, bool]],
@@ -95,7 +93,7 @@ def _rank_by_semantic_similarity(
     try:
         import numpy as np  # noqa: PLC0415
 
-        from pathfinder.services.catalog.semantic_index import (  # noqa: PLC0415
+        from pathfinder.integrations.embeddings.semantic_index import (  # noqa: PLC0415
             get_embedding_model,
         )
 
@@ -103,9 +101,7 @@ def _rank_by_semantic_similarity(
         query_emb = np.array(list(model.embed([query])))
         label_embs = np.array(list(model.embed([label for _, label, _ in candidates])))
         sims = (label_embs @ query_emb.T).flatten()
-        ranked = sorted(
-            zip(candidates, sims, strict=True), key=lambda x: -x[1]
-        )
+        ranked = sorted(zip(candidates, sims, strict=True), key=lambda x: -x[1])
         return [c for c, _ in ranked]
     except (ImportError, OSError) as exc:
         logger.warning(
@@ -115,6 +111,7 @@ def _rank_by_semantic_similarity(
             num_candidates=len(candidates),
         )
         return candidates
+
 
 async def lookup_phyletic_codes(
     site_id: str,
@@ -137,7 +134,6 @@ async def lookup_phyletic_codes(
         resolved = resolve_record_type(record_types, record_type) or record_type
 
         response, _ = await fetch_search_details(
-            discovery,
             SearchContext(site_id, resolved, "GenesByOrthologPattern"),
             record_types=record_types,
         )

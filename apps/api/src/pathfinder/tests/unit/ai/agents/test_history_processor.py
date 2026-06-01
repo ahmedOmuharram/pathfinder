@@ -29,7 +29,9 @@ def _tool_return(call_id: str, name: str = "foo") -> ModelRequest:
     return ModelRequest(
         parts=[
             ToolReturnPart(
-                tool_name=name, content="ok", tool_call_id=call_id,
+                tool_name=name,
+                content="ok",
+                tool_call_id=call_id,
             ),
         ],
     )
@@ -106,19 +108,11 @@ class TestPairToolCalls:
         follow_up = result[2]
         assert isinstance(follow_up, ModelRequest)
         tool_return_idx = next(
-            (
-                i
-                for i, p in enumerate(follow_up.parts)
-                if isinstance(p, ToolReturnPart)
-            ),
+            (i for i, p in enumerate(follow_up.parts) if isinstance(p, ToolReturnPart)),
             None,
         )
         user_prompt_idx = next(
-            (
-                i
-                for i, p in enumerate(follow_up.parts)
-                if isinstance(p, UserPromptPart)
-            ),
+            (i for i, p in enumerate(follow_up.parts) if isinstance(p, UserPromptPart)),
             None,
         )
         assert tool_return_idx is not None
@@ -201,7 +195,9 @@ class TestPairToolCalls:
         mixed_request = ModelRequest(
             parts=[
                 ToolReturnPart(
-                    tool_name="ghost", content="x", tool_call_id="ghost",
+                    tool_name="ghost",
+                    content="x",
+                    tool_call_id="ghost",
                 ),
                 UserPromptPart(content="hello again"),
             ],
@@ -215,9 +211,7 @@ class TestPairToolCalls:
         part_types = [type(p).__name__ for p in survivors.parts]
         assert "UserPromptPart" in part_types
         return_ids = {
-            p.tool_call_id
-            for p in survivors.parts
-            if isinstance(p, ToolReturnPart)
+            p.tool_call_id for p in survivors.parts if isinstance(p, ToolReturnPart)
         }
         assert "ghost" not in return_ids
         assert "c1" in return_ids
@@ -233,10 +227,14 @@ class TestPairToolCalls:
             ModelRequest(
                 parts=[
                     ToolReturnPart(
-                        tool_name="foo", content="first", tool_call_id="c1",
+                        tool_name="foo",
+                        content="first",
+                        tool_call_id="c1",
                     ),
                     ToolReturnPart(
-                        tool_name="foo", content="second", tool_call_id="c1",
+                        tool_name="foo",
+                        content="second",
+                        tool_call_id="c1",
                     ),
                 ],
             ),
@@ -280,7 +278,9 @@ class TestPairToolCalls:
             ModelRequest(
                 parts=[
                     ToolReturnPart(
-                        tool_name="foo", content="dup", tool_call_id="c1",
+                        tool_name="foo",
+                        content="dup",
+                        tool_call_id="c1",
                     ),
                     UserPromptPart(content="new question"),
                 ],
@@ -302,13 +302,19 @@ class TestPairToolCalls:
             ModelRequest(
                 parts=[
                     ToolReturnPart(
-                        tool_name="foo", content="a", tool_call_id="c1",
+                        tool_name="foo",
+                        content="a",
+                        tool_call_id="c1",
                     ),
                     ToolReturnPart(
-                        tool_name="foo", content="b", tool_call_id="c2",
+                        tool_name="foo",
+                        content="b",
+                        tool_call_id="c2",
                     ),
                     ToolReturnPart(
-                        tool_name="foo", content="c", tool_call_id="c3",
+                        tool_name="foo",
+                        content="c",
+                        tool_call_id="c3",
                     ),
                 ],
             ),
@@ -383,10 +389,14 @@ class TestPairToolCalls:
             ModelRequest(
                 parts=[
                     ToolReturnPart(
-                        tool_name="foo", content="a", tool_call_id="c1",
+                        tool_name="foo",
+                        content="a",
+                        tool_call_id="c1",
                     ),
                     ToolReturnPart(
-                        tool_name="foo", content="b", tool_call_id="c2",
+                        tool_name="foo",
+                        content="b",
+                        tool_call_id="c2",
                     ),
                 ],
             ),

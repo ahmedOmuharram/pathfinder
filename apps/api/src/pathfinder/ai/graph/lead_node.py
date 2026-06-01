@@ -116,13 +116,15 @@ _SUB_AGENT_TOOL_TO_PHASE: dict[str, str] = {
 }
 _SUB_AGENT_TOOL_NAMES = frozenset(_SUB_AGENT_TOOL_TO_PHASE.keys())
 
-_SUPPRESSED_SUB_AGENT_CHUNK_TYPES = frozenset({
-    "tool-input-start",
-    "tool-input-delta",
-    "tool-input-available",
-    "tool-output-available",
-    "tool-input-error",
-})
+_SUPPRESSED_SUB_AGENT_CHUNK_TYPES = frozenset(
+    {
+        "tool-input-start",
+        "tool-input-delta",
+        "tool-input-available",
+        "tool-output-available",
+        "tool-input-error",
+    }
+)
 
 
 @dataclass
@@ -162,7 +164,9 @@ def _emit_chunk(writer: Any, chunk: BaseChunk) -> None:
     writer(
         {
             "chunk": chunk.model_dump(
-                by_alias=True, mode="json", exclude_none=True,
+                by_alias=True,
+                mode="json",
+                exclude_none=True,
             ),
         },
     )
@@ -209,7 +213,8 @@ def _build_deferred_tool_results(
 
 
 def _absorb_run_result(
-    event: AgentRunResultEvent[Any], capture: _LeadRunCapture,
+    event: AgentRunResultEvent[Any],
+    capture: _LeadRunCapture,
 ) -> None:
     run_result = event.result
     capture.new_messages = list(run_result.new_messages())
@@ -242,7 +247,8 @@ def _absorb_run_result(
 
 
 def _is_suppressed_sub_agent_chunk(
-    chunk: BaseChunk, sub_agent_tool_calls: dict[str, str],
+    chunk: BaseChunk,
+    sub_agent_tool_calls: dict[str, str],
 ) -> bool:
     """Hide the default tool-input/output chunks for sub-agent calls so
     the rich ``data-sub-agent-call`` card is the only inline rendering."""
@@ -331,14 +337,16 @@ def _handle_sub_agent_event(
         sub_agent_tool_calls[event.tool_call_id] = tool_name
         _emit_chunk(
             writer,
-            sub_agent_call_event(SubAgentCallPayload(
-                tool_call_id=event.tool_call_id,
-                sub_agent=tool_name,
-                phase=_SUB_AGENT_TOOL_TO_PHASE[tool_name],
-                state="started",
-                model_id=sub_agent_model_id(tool_name),
-                summary=_summarize_sub_agent_call_args(event.part.args_as_dict()),
-            )),
+            sub_agent_call_event(
+                SubAgentCallPayload(
+                    tool_call_id=event.tool_call_id,
+                    sub_agent=tool_name,
+                    phase=_SUB_AGENT_TOOL_TO_PHASE[tool_name],
+                    state="started",
+                    model_id=sub_agent_model_id(tool_name),
+                    summary=_summarize_sub_agent_call_args(event.part.args_as_dict()),
+                )
+            ),
         )
         return
     if isinstance(event, FunctionToolResultEvent):
@@ -348,24 +356,24 @@ def _handle_sub_agent_event(
         result = event.result
         if isinstance(result, RetryPromptPart):
             content = result.content
-            summary = (
-                content[:280] if isinstance(content, str) else "retry requested"
-            )
+            summary = content[:280] if isinstance(content, str) else "retry requested"
             is_retry = True
         else:
             summary = _summarize_sub_agent_result(result)
             is_retry = False
         _emit_chunk(
             writer,
-            sub_agent_call_event(SubAgentCallPayload(
-                tool_call_id=event.tool_call_id,
-                sub_agent=result_tool_name,
-                phase=_SUB_AGENT_TOOL_TO_PHASE[result_tool_name],
-                state="failed" if is_retry else "completed",
-                model_id=sub_agent_model_id(result_tool_name),
-                summary=summary,
-                succeeded=not is_retry,
-            )),
+            sub_agent_call_event(
+                SubAgentCallPayload(
+                    tool_call_id=event.tool_call_id,
+                    sub_agent=result_tool_name,
+                    phase=_SUB_AGENT_TOOL_TO_PHASE[result_tool_name],
+                    state="failed" if is_retry else "completed",
+                    model_id=sub_agent_model_id(result_tool_name),
+                    summary=summary,
+                    succeeded=not is_retry,
+                )
+            ),
         )
         ledger = derive_ledger(deps.state, deps.intent)
         _emit_chunk(writer, ledger_update_event(ledger=ledger))
@@ -390,15 +398,9 @@ async def _charge_token_delta(
         return
     delta_input = usage.input_tokens - capture.charged_input_tokens
     delta_output = usage.output_tokens - capture.charged_output_tokens
-    delta_cache_read = (
-        usage.cache_read_tokens - capture.charged_cache_read_tokens
-    )
-    delta_cache_write = (
-        usage.cache_write_tokens - capture.charged_cache_write_tokens
-    )
-    delta_tokens = (
-        delta_input + delta_output + delta_cache_read + delta_cache_write
-    )
+    delta_cache_read = usage.cache_read_tokens - capture.charged_cache_read_tokens
+    delta_cache_write = usage.cache_write_tokens - capture.charged_cache_write_tokens
+    delta_tokens = delta_input + delta_output + delta_cache_read + delta_cache_write
     if delta_tokens <= 0:
         return
     provider_name, model_name = _split_agent_model(agent_model)
@@ -481,7 +483,10 @@ async def _persist_residual_quota(
 
 
 def _emit_residual_prose(
-    writer: Any, capture: _LeadRunCapture, *, message_id: UUID,
+    writer: Any,
+    capture: _LeadRunCapture,
+    *,
+    message_id: UUID,
 ) -> None:
     response = capture.response
     if response is None or not response.prose or capture.prose_already_streamed:
@@ -513,7 +518,10 @@ def _model_id(agent: Any) -> str:
 
 
 def _build_metadata(
-    *, state: PipelineState, total_tokens: int, cost_usd: Decimal,
+    *,
+    state: PipelineState,
+    total_tokens: int,
+    cost_usd: Decimal,
 ) -> dict[str, Any]:
     return MessageMetadata.model_validate(
         {
@@ -530,7 +538,8 @@ def _build_metadata(
 
 
 async def _retrieve_memories(
-    state: PipelineState, runtime: Runtime[Context],
+    state: PipelineState,
+    runtime: Runtime[Context],
 ) -> list[MemoryValue]:
     if state.pending_approval is not None:
         return list(state.retrieved_memories)
@@ -549,7 +558,9 @@ async def _retrieve_memories(
 
 
 async def write_turn_message(
-    *, context: Context, state: PipelineState,
+    *,
+    context: Context,
+    state: PipelineState,
 ) -> UUID | None:
     """Persist the assistant message after the Lead's run completes.
 
@@ -558,7 +569,8 @@ async def write_turn_message(
     producer of turn messages.
     """
     _, chunks = await fetch_chunks_after(
-        state.conversation_id, state.turn_start_event_id,
+        state.conversation_id,
+        state.turn_start_event_id,
     )
     if not chunks:
         return None
@@ -619,7 +631,8 @@ async def _drive_lead_stream(
 ) -> None:
     deferred_hint = _deferred_hint(state.pending_approval)
     emitter = PhaseStreamEmitter(
-        message_id=str(message_id), deferred_hint=deferred_hint,
+        message_id=str(message_id),
+        deferred_hint=deferred_hint,
     )
     deferred_results = _build_deferred_tool_results(state)
     capture.approval_consumed = deferred_results is not None
@@ -651,10 +664,17 @@ async def _drive_lead_stream(
                 _absorb_run_result(event, capture)
             else:
                 _handle_sub_agent_event(
-                    deps, writer, event, sub_agent_tool_calls,
+                    deps,
+                    writer,
+                    event,
+                    sub_agent_tool_calls,
                 )
             await _charge_token_delta(
-                runtime.context, state, capture, usage_acc, writer,
+                runtime.context,
+                state,
+                capture,
+                usage_acc,
+                writer,
                 agent_model,
             )
             yield event
@@ -663,7 +683,8 @@ async def _drive_lead_stream(
         with override_ctx:
             async for v6_chunk in emitter.chunks(_agent_events()):
                 if _is_suppressed_sub_agent_chunk(
-                    v6_chunk, sub_agent_tool_calls,
+                    v6_chunk,
+                    sub_agent_tool_calls,
                 ):
                     continue
                 _emit_chunk(writer, v6_chunk)
@@ -746,7 +767,8 @@ def _consume_blocking_questions_on_user_reply(state: PipelineState) -> None:
 
 
 async def lead_node(
-    state: PipelineState, runtime: Runtime[Context],
+    state: PipelineState,
+    runtime: Runtime[Context],
 ) -> Command[Literal["finalize_turn"]]:
     writer = get_stream_writer()
     memories = await _retrieve_memories(state, runtime)
@@ -783,8 +805,12 @@ async def lead_node(
     )
 
     await _drive_lead_stream(
-        state=state, runtime=runtime, deps=deps, capture=capture,
-        writer=writer, message_id=message_id,
+        state=state,
+        runtime=runtime,
+        deps=deps,
+        capture=capture,
+        writer=writer,
+        message_id=message_id,
     )
 
     if capture.response is None and capture.pending_approval is None:
@@ -811,12 +837,16 @@ async def lead_node(
     _emit_chunk(
         writer,
         turn_usage_event(
-            total_tokens=cumulative_tokens, cost_usd=str(cumulative_cost),
+            total_tokens=cumulative_tokens,
+            cost_usd=str(cumulative_cost),
         ),
     )
     final_ledger = derive_ledger(deps.state, deps.intent)
     _emit_chunk(writer, ledger_update_event(ledger=final_ledger))
     delta = _build_state_delta(
-        state=state, deps=deps, capture=capture, memories=memories,
+        state=state,
+        deps=deps,
+        capture=capture,
+        memories=memories,
     )
     return Command(goto=_FINALIZE, update=delta)

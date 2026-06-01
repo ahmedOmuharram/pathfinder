@@ -121,7 +121,8 @@ Ledger.
 """
 
 verification_agent: Agent[
-    AgentDeps, VerificationDelta | DeferredToolRequests,
+    AgentDeps,
+    VerificationDelta | DeferredToolRequests,
 ] = Agent(
     "openai:gpt-4.1-mini",
     output_type=[VerificationDelta, DeferredToolRequests],
@@ -129,7 +130,8 @@ verification_agent: Agent[
     instructions=_VERIFICATION_INSTRUCTIONS,
     toolsets=[build_toolset(), build_scratchpad_toolset()],
     capabilities=[
-        ToolResilience(), Thinking(effort="high"),
+        ToolResilience(),
+        Thinking(effort="high"),
     ],
     history_processors=PHASE_HISTORY_PROCESSORS,
     retries=3,
@@ -147,5 +149,3 @@ for _fn in (
     pinned_discovered_searches,
 ):
     verification_agent.instructions(_fn)
-
-

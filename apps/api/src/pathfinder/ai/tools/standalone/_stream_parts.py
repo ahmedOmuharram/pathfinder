@@ -79,9 +79,7 @@ def _coerce_operator(op: str | None) -> GraphEdgeOperator | None:
 # ── Graph snapshot ─────────────────────────────────────────────────────────
 
 
-def _count_for_step(
-    step_id: str, sync_state: SyncStateProtocol | None
-) -> int:
+def _count_for_step(step_id: str, sync_state: SyncStateProtocol | None) -> int:
     """Safe lookup of estimated size for a step, default 0."""
     if sync_state is None:
         return 0
@@ -159,9 +157,7 @@ def build_graph_snapshot_payload(
     )
 
 
-def graph_snapshot_chunk(
-    session: StrategySession, graph: StrategyGraph
-) -> DataChunk:
+def graph_snapshot_chunk(session: StrategySession, graph: StrategyGraph) -> DataChunk:
     """Build the ``data-graph-snapshot`` DataChunk for a graph."""
     payload = build_graph_snapshot_payload(session, graph)
     return DataChunk(
@@ -224,9 +220,7 @@ def strategy_link_chunk(
 # ── Problem frame ──────────────────────────────────────────────────────────
 
 
-def problem_frame_chunk(
-    frame: ProblemFrame, *, site_id: str
-) -> DataChunk:
+def problem_frame_chunk(frame: ProblemFrame, *, site_id: str) -> DataChunk:
     """Build the ``data-problem-frame`` DataChunk from an internal ProblemFrame.
 
     The wire payload mirrors the internal frame field-for-field so the UI can

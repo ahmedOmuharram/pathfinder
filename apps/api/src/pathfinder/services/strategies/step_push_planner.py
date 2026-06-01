@@ -157,10 +157,14 @@ def plan_step_pushes(
     # walk_step_tree returns leaves first → ancestors processed after descendants.
     for step in new_steps:
         action, _ = decisions[step.id]
-        if isinstance(action, (SkipAction, PatchAction)) and needs_recreate_due_to_descendant(step):
+        if isinstance(
+            action, (SkipAction, PatchAction)
+        ) and needs_recreate_due_to_descendant(step):
             decisions[step.id] = (RecreateAction(), "descendant recreated")
 
     return [
-        StepPushPlan(step_id=step.id, action=decisions[step.id][0], reason=decisions[step.id][1])
+        StepPushPlan(
+            step_id=step.id, action=decisions[step.id][0], reason=decisions[step.id][1]
+        )
         for step in new_steps
     ]

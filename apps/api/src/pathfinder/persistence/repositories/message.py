@@ -59,7 +59,9 @@ class MessagesRepository:
         )
         await self.session.execute(stmt)
 
-    async def list_messages_for_conversation(self, conversation_id: UUID) -> list[Message]:
+    async def list_messages_for_conversation(
+        self, conversation_id: UUID
+    ) -> list[Message]:
         """Return messages for a chat, oldest first."""
         stmt = (
             select(Message)
@@ -70,7 +72,8 @@ class MessagesRepository:
         return list(result.scalars().all())
 
     async def sum_usage_for_conversation(
-        self, conversation_id: UUID,
+        self,
+        conversation_id: UUID,
     ) -> tuple[int, Decimal]:
         """Sum ``metadata.usage.{totalTokens,costUsd}`` across all messages."""
         stmt = select(Message.metadata_).where(

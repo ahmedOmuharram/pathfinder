@@ -7,6 +7,7 @@ valid names and (b) the full set of valid names. Returning instead of
 raising preserves retry budget — the model self-corrects on its next
 call from the typed payload.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -111,7 +112,10 @@ async def test_unknown_parameter_returns_not_on_search_with_close_match(
     assert result.search_name == "GenesByESTOverlap"
     assert "min_overlap_size" in result.suggestions
     assert set(result.valid_parameter_ids) == {
-        "min_pct_idents", "min_overlap_size", "datasets", "expansion_factor",
+        "min_pct_idents",
+        "min_overlap_size",
+        "datasets",
+        "expansion_factor",
     }
     assert "minOverlap" in result.message
     assert "GenesByESTOverlap" in result.message

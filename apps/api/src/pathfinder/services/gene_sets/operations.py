@@ -84,9 +84,7 @@ class GeneSetService:
     ) -> GeneSet:
         """Create a gene set, auto-resolving from WDK if needed."""
         ctx = wdk or GeneSetWdkContext()
-        gene_ids, ctx, step_count = await resolve_wdk_context(
-            site_id, gene_ids, ctx
-        )
+        gene_ids, ctx, step_count = await resolve_wdk_context(site_id, gene_ids, ctx)
 
         # Deduplicate gene IDs while preserving order
         seen: set[str] = set()

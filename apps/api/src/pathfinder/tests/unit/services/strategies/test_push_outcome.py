@@ -115,7 +115,10 @@ class CountingStrategyAPI:
     ) -> None:
         del user_id, record_type, search_config
         self.calls.append(
-            _CallRecord("update_step_search_config", {"step_id": step_id, "search_name": search_name})
+            _CallRecord(
+                "update_step_search_config",
+                {"step_id": step_id, "search_name": search_name},
+            )
         )
 
     async def update_step_properties(
@@ -127,7 +130,10 @@ class CountingStrategyAPI:
     ) -> None:
         del user_id
         self.calls.append(
-            _CallRecord("update_step_properties", {"step_id": step_id, "custom_name": spec.custom_name})
+            _CallRecord(
+                "update_step_properties",
+                {"step_id": step_id, "custom_name": spec.custom_name},
+            )
         )
 
     async def find_step(self, step_id: int, user_id: str | None = None) -> WDKStep:

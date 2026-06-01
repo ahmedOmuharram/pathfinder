@@ -6,6 +6,7 @@ Two responsibilities only:
 - redact volatile fields (ids, timestamps, UUIDs) so the snapshot stays
   stable across runs.
 """
+
 from __future__ import annotations
 
 import json
@@ -13,32 +14,34 @@ import re
 from datetime import datetime
 from typing import Any
 
-_VOLATILE_KEYS: frozenset[str] = frozenset({
-    "id",
-    "run_id",
-    "runId",
-    "chat_id",
-    "chatId",
-    "message_id",
-    "messageId",
-    "step_id",
-    "stepId",
-    "task_id",
-    "taskId",
-    "tool_call_id",
-    "toolCallId",
-    "trace_id",
-    "traceId",
-    "created_at",
-    "createdAt",
-    "updated_at",
-    "updatedAt",
-    "started_at",
-    "startedAt",
-    "finished_at",
-    "finishedAt",
-    "timestamp",
-})
+_VOLATILE_KEYS: frozenset[str] = frozenset(
+    {
+        "id",
+        "run_id",
+        "runId",
+        "chat_id",
+        "chatId",
+        "message_id",
+        "messageId",
+        "step_id",
+        "stepId",
+        "task_id",
+        "taskId",
+        "tool_call_id",
+        "toolCallId",
+        "trace_id",
+        "traceId",
+        "created_at",
+        "createdAt",
+        "updated_at",
+        "updatedAt",
+        "started_at",
+        "startedAt",
+        "finished_at",
+        "finishedAt",
+        "timestamp",
+    }
+)
 
 _REDACTED = "<REDACTED>"
 
@@ -68,7 +71,7 @@ def parse_sse_body(body: str) -> list[dict[str, Any]]:
         data_line: str | None = None
         for line in block.splitlines():
             if line.startswith("data:"):
-                data_line = line[len("data:"):].strip()
+                data_line = line[len("data:") :].strip()
                 break
         if data_line is None:
             continue

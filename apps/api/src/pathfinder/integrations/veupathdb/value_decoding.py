@@ -19,7 +19,8 @@ def encode_params(decoded: dict[str, ParamValue]) -> WireParams:
 
 
 def decode_params(
-    wire: WireParams, kinds: dict[str, ParamKind],
+    wire: WireParams,
+    kinds: dict[str, ParamKind],
 ) -> dict[str, ParamValue]:
     out: dict[str, ParamValue] = {}
     for name, raw in wire.items():

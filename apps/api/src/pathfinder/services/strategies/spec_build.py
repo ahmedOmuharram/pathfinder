@@ -20,7 +20,6 @@ are deleted in the same change set.
 
 from __future__ import annotations
 
-from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.domain.parameters.values import ParamValue
 from pathfinder.domain.search import SearchContext
 from pathfinder.domain.strategy.ast import (
@@ -35,6 +34,7 @@ from pathfinder.services.catalog.param_validation import validate_parameters
 from pathfinder.services.catalog.validation_callbacks import (
     make_validation_callbacks,
 )
+from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.persist import (
     persist_strategy_ast_to_conversation,
 )
@@ -48,7 +48,7 @@ logger = get_logger(__name__)
 
 async def build_strategy_from_spec(
     *,
-    deps: AgentDeps,
+    deps: StrategyMutationContext,
     root: StrategyStepNode,
     name: str | None = None,
     description: str | None = None,
@@ -79,13 +79,17 @@ async def build_strategy_from_spec(
 
     sync_state = ensure_sync_state(session)
     await reconcile_sync_state_with_wdk(
-        sync_state, deps.site_id, sync_state.wdk_strategy_id,
+        sync_state,
+        deps.site_id,
+        sync_state.wdk_strategy_id,
     )
 
     # Persist the local AST immediately so the rail reflects the agent's
     # declared structure even if WDK pushes fail or take time.
     await persist_strategy_ast_to_conversation(
-        deps=deps, graph=graph, sync_result=None,
+        deps=deps,
+        graph=graph,
+        sync_result=None,
     )
 
     outcome = BuildOutcome()
@@ -101,7 +105,9 @@ async def build_strategy_from_spec(
         # Re-persist with the wdk_step_ids that did land. No sync (a sync
         # call would raise on the unpushed steps).
         await persist_strategy_ast_to_conversation(
-            deps=deps, graph=graph, sync_result=None,
+            deps=deps,
+            graph=graph,
+            sync_result=None,
         )
         return outcome
 
@@ -115,7 +121,9 @@ async def build_strategy_from_spec(
     except AppError as exc:
         logger.warning("strategy sync failed", error=str(exc))
         await persist_strategy_ast_to_conversation(
-            deps=deps, graph=graph, sync_result=None,
+            deps=deps,
+            graph=graph,
+            sync_result=None,
         )
         outcome.failed_steps.append(
             StepPushFailure(
@@ -133,7 +141,9 @@ async def build_strategy_from_spec(
     outcome.zero_step_ids = list(sync_result.zero_step_ids)
 
     await persist_strategy_ast_to_conversation(
-        deps=deps, graph=graph, sync_result=sync_result,
+        deps=deps,
+        graph=graph,
+        sync_result=sync_result,
     )
     return outcome
 
@@ -209,7 +219,8 @@ async def _push_tree_to_wdk(
 
 
 def _has_failed_descendant(
-    node: StrategyStepNode, failed_ids: set[str],
+    node: StrategyStepNode,
+    failed_ids: set[str],
 ) -> bool:
     """True if any DFS-descendant of ``node`` already failed its push."""
     if node.primary_input is not None:

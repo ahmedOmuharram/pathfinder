@@ -5,14 +5,15 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-import pathfinder.persistence.session as session_module
+import pathfinder.platform.db as session_module
 from pathfinder.persistence.models import Conversation, Message, User
 from pathfinder.persistence.repositories import MessagesRepository
 
 
 @pytest.mark.asyncio
 async def test_upsert_replaces_metadata(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -65,7 +66,8 @@ async def test_upsert_replaces_metadata(
 
 @pytest.mark.asyncio
 async def test_sum_usage_reads_partial_turn_metadata(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()
@@ -104,7 +106,8 @@ async def test_sum_usage_reads_partial_turn_metadata(
 
 @pytest.mark.asyncio
 async def test_insert_message_is_idempotent_on_same_id(
-    patch_app_db_engine: None, db_cleaner: None,
+    patch_app_db_engine: None,
+    db_cleaner: None,
 ) -> None:
     del patch_app_db_engine, db_cleaner
     user_id = uuid4()

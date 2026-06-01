@@ -39,7 +39,8 @@ async def unheaded_client(
     del patch_app_db_engine, db_cleaner
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
-        transport=transport, base_url="http://test",
+        transport=transport,
+        base_url="http://test",
     ) as c:
         yield c
 

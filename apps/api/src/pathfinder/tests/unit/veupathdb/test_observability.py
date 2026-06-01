@@ -59,7 +59,9 @@ def test_log_wdk_retry_records_retry_metric_and_warning() -> None:
     )
 
     with (
-        patch("pathfinder.integrations.veupathdb._observability.wdk_request_retries") as mock_retries,
+        patch(
+            "pathfinder.integrations.veupathdb._observability.wdk_request_retries"
+        ) as mock_retries,
         patch("pathfinder.integrations.veupathdb._observability.logger") as mock_logger,
     ):
         log_wdk_retry(retry_state)
@@ -102,7 +104,14 @@ def test_site_search_request_telemetry_builds_expected_attrs() -> None:
 
 def test_log_site_search_retry_records_retry_metric_and_warning() -> None:
     retry_state = SimpleNamespace(
-        args=(SimpleNamespace(_base_url="https://plasmodb.org"), "transporters", [], [], 20, 0),
+        args=(
+            SimpleNamespace(_base_url="https://plasmodb.org"),
+            "transporters",
+            [],
+            [],
+            20,
+            0,
+        ),
         next_action=SimpleNamespace(sleep=1.5),
         outcome=SimpleNamespace(
             failed=True,

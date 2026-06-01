@@ -26,7 +26,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from pathfinder.persistence.session import async_session_factory
+from pathfinder.platform.db import async_session_factory
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.tasks import spawn
 

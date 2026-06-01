@@ -70,5 +70,7 @@ def test_parity_case(case: dict[str, Any]) -> None:
             assert actual == expected_primary, parent_id
         if "secondary" in slots:
             expected_secondary = slots["secondary"]
-            actual = node.secondary_input.id if node.secondary_input is not None else None
+            actual = (
+                node.secondary_input.id if node.secondary_input is not None else None
+            )
             assert actual == expected_secondary, parent_id

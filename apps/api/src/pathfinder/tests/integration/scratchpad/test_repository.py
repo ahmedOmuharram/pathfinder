@@ -5,9 +5,9 @@ from uuid import UUID
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pathfinder.ai.scratchpad.models import NoteCreate, NoteUpdate
-from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.domain.scratchpad.models import NoteCreate, NoteUpdate
 from pathfinder.persistence.models import Conversation, User
+from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 
 
 @pytest.fixture
@@ -27,7 +27,9 @@ async def conv_id(db_session: AsyncSession, seed_user: User) -> UUID:
 
 class TestCreateAndRead:
     async def test_create_and_get(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         created = await repo.create(
@@ -49,7 +51,9 @@ class TestCreateAndRead:
 
 class TestUpdate:
     async def test_partial_update_body_refreshes_tokens(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         created = await repo.create(
@@ -68,7 +72,9 @@ class TestUpdate:
         assert updated.body_tokens == 100
 
     async def test_update_missing_returns_none_sentinel_via_error(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         result = await repo.get(conversation_id=conv_id, note_id="n-nope")
@@ -77,7 +83,9 @@ class TestUpdate:
 
 class TestListAndSearch:
     async def test_list_for_index_pinned_first(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         for i in range(3):
@@ -95,7 +103,9 @@ class TestListAndSearch:
         assert ids[0] == pinned.id
 
     async def test_list_by_tag(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         await repo.create(
@@ -111,7 +121,9 @@ class TestListAndSearch:
         assert {n.title for n in alphas} == {"a"}
 
     async def test_search_notes_fts_hit(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         await repo.create(
@@ -132,14 +144,17 @@ class TestListAndSearch:
         )
         await db_session.commit()
         hits = await repo.search_notes(
-            conversation_id=conv_id, query="gametocyte threshold",
+            conversation_id=conv_id,
+            query="gametocyte threshold",
         )
         assert any("GenesByRNASeq" in n.title for n in hits)
 
 
 class TestPinAndDelete:
     async def test_pin_toggle(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         created = await repo.create(
@@ -148,13 +163,17 @@ class TestPinAndDelete:
         )
         await db_session.commit()
         pinned = await repo.set_pinned(
-            conversation_id=conv_id, note_id=created.id, pinned=True,
+            conversation_id=conv_id,
+            note_id=created.id,
+            pinned=True,
         )
         await db_session.commit()
         assert pinned.pinned is True
 
     async def test_delete(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         created = await repo.create(
@@ -170,7 +189,9 @@ class TestPinAndDelete:
 
 class TestTotalsAndReplaceNonPinned:
     async def test_totals(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         for i in range(5):
@@ -184,7 +205,9 @@ class TestTotalsAndReplaceNonPinned:
         assert tokens == 5 * 10
 
     async def test_compactable_totals_excludes_pinned(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         # 3 pinned + 2 non-pinned. `totals` sees all 5; `compactable_totals`
@@ -193,7 +216,10 @@ class TestTotalsAndReplaceNonPinned:
             await repo.create(
                 conversation_id=conv_id,
                 data=NoteCreate(
-                    title=f"pin{i}", summary="s", body="x" * 40, pinned=True,
+                    title=f"pin{i}",
+                    summary="s",
+                    body="x" * 40,
+                    pinned=True,
                 ),
             )
         for i in range(2):
@@ -213,7 +239,9 @@ class TestTotalsAndReplaceNonPinned:
         assert comp_tokens == 2 * 20
 
     async def test_replace_non_pinned_keeps_pinned(
-        self, db_session: AsyncSession, conv_id: UUID,
+        self,
+        db_session: AsyncSession,
+        conv_id: UUID,
     ) -> None:
         repo = ScratchpadRepository(db_session)
         pinned = await repo.create(

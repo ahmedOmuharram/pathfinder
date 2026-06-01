@@ -1,26 +1,10 @@
-"""Task events SSE endpoint.
+"""Task events SSE endpoint + task list/status/progress queries.
 
-Streams durable-task progress and resumed-graph chunks to the client as
-``text/event-stream`` frames. Replays existing ``task_progress`` +
-``chat_events`` rows on connect, then subscribes to two Postgres channels
-(``task_progress:<conversation_id>`` and ``chat_events:<conversation_id>``) via
-``LISTEN/NOTIFY`` so new rows land in the stream as soon as they are written.
-
-Frame format mirrors the chat dispatcher: every frame is
-``event: stream\\ndata: {camelCase StreamEvent JSON}\\n\\n``. The terminal
-marker is a typed :class:`shared_py.stream_events.DoneEvent`; clients filter
-on ``event: stream`` and dispatch on the typed payload's ``type``
-discriminator.
-
-Ordering: we track ``last_progress_id`` and ``last_event_id`` across the
-replay + NOTIFY loop. Every NOTIFY triggers ``WHERE id > :last`` queries that
-yield the full batch of unseen rows in id order, so no rows are duplicated
-or dropped even when multiple writes arrive between notifications.
-
-Termination: the loop exits when the ``BackgroundTask`` row reaches the
-terminal ``complete`` or ``failed`` status (emitting a final
-``data-task-completed`` chunk + a typed ``DoneEvent``), when the client
-disconnects, or when the long poll on ``notifies()`` is cancelled.
+Streams durable-task progress to the client as ``text/event-stream`` frames.
+Replays existing ``task_progress`` rows on connect, then subscribes to the
+``task_progress:<conversation_id>`` Postgres channel via ``LISTEN/NOTIFY`` so
+new rows land in the stream as soon as they are written. All DB access lives
+in :mod:`pathfinder.services.tasks.queries`.
 """
 
 from __future__ import annotations
@@ -30,19 +14,21 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from shared_py.stream_events import CustomEvent, DoneEvent, StreamEvent
-from sqlalchemy import select
 
-from pathfinder.persistence.models import (
-    BackgroundTask,
-    TaskProgress,
-)
-from pathfinder.persistence.session import async_session_factory
 from pathfinder.platform.notify_dispatcher import NotifyDispatcher
 from pathfinder.platform.pydantic_base import CamelModel
 from pathfinder.platform.security import get_current_user
+from pathfinder.services.tasks.queries import (
+    ProgressRow,
+    latest_progress_by_task,
+    list_task_rows,
+    load_task,
+    progress_rows,
+    terminal_status,
+)
 from pathfinder.transport.http.schemas.tasks import (
     TaskListItem,
     TaskListResponse,
@@ -52,35 +38,18 @@ from pathfinder.transport.http.schemas.tasks import (
 
 router = APIRouter(prefix="/api/v1/conversations", tags=["tasks"])
 
-# Polling timeout on ``aconn.notifies()``. Short enough to check
-# ``request.is_disconnected()`` responsively; long enough to avoid busy-looping.
 _NOTIFY_POLL_TIMEOUT_SECONDS: float = 1.0
-_TERMINAL_TASK_STATUSES: frozenset[str] = frozenset({"complete", "failed"})
 
 
 def _encode_event(event: StreamEvent) -> str:
-    return (
-        f"event: stream\n"
-        f"data: {event.model_dump_json(by_alias=True)}\n\n"
-    )
+    return f"event: stream\ndata: {event.model_dump_json(by_alias=True)}\n\n"
 
 
 class _Cursor(CamelModel):
-    """Monotonic cursor across ``task_progress`` + ``chat_events``.
-
-    We track the largest id seen on each channel so that after every NOTIFY we
-    can fetch the strictly-newer rows in one query, in id order, with no
-    duplicates and no drops.
-    """
-
     last_progress_id: int = 0
-    last_event_id: int = 0
 
 
-@router.get(
-    "/{conversation_id}/tasks",
-    response_model=TaskListResponse,
-)
+@router.get("/{conversation_id}/tasks", response_model=TaskListResponse)
 async def list_tasks(
     conversation_id: UUID,
     user_id: Annotated[UUID, Depends(get_current_user)],
@@ -95,41 +64,16 @@ async def list_tasks(
         ),
     ] = None,
 ) -> TaskListResponse:
-    """Return durable tasks for a conversation, newest first.
-
-    Used by the right-rail Tasks panel to surface in-flight enrichment /
-    optimization / control-test runs alongside the latest progress
-    snapshot from ``task_progress``.
-    """
-    requested_statuses: set[str] | None = None
+    """Return durable tasks for a conversation, newest first."""
+    statuses: set[str] | None = None
     if status_in:
-        requested_statuses = {
-            s.strip() for s in status_in.split(",") if s.strip()
-        }
-    async with async_session_factory() as session:
-        query = (
-            select(BackgroundTask)
-            .where(
-                BackgroundTask.conversation_id == conversation_id,
-                BackgroundTask.user_id == user_id,
-            )
-            .order_by(BackgroundTask.created_at.desc())
-        )
-        if requested_statuses:
-            query = query.where(BackgroundTask.status.in_(requested_statuses))
-        tasks = (await session.execute(query)).scalars().all()
-        latest_progress: dict[UUID, TaskProgress] = {}
-        if tasks:
-            task_ids = [t.id for t in tasks]
-            progress_rows = (
-                await session.execute(
-                    select(TaskProgress)
-                    .where(TaskProgress.task_id.in_(task_ids))
-                    .order_by(TaskProgress.id.desc())
-                )
-            ).scalars().all()
-            for row in progress_rows:
-                latest_progress.setdefault(row.task_id, row)
+        statuses = {s.strip() for s in status_in.split(",") if s.strip()}
+    tasks = await list_task_rows(
+        conversation_id=conversation_id,
+        user_id=user_id,
+        statuses=statuses,
+    )
+    latest = await latest_progress_by_task([t.id for t in tasks])
     items = [
         TaskListItem(
             task_id=task.id,
@@ -139,16 +83,8 @@ async def list_tasks(
             created_at=task.created_at,
             started_at=task.started_at,
             completed_at=task.completed_at,
-            latest_percent=(
-                latest_progress[task.id].percent
-                if task.id in latest_progress
-                else None
-            ),
-            latest_message=(
-                latest_progress[task.id].message
-                if task.id in latest_progress
-                else None
-            ),
+            latest_percent=latest[task.id].percent if task.id in latest else None,
+            latest_message=latest[task.id].message if task.id in latest else None,
             error=task.error,
         )
         for task in tasks
@@ -156,18 +92,17 @@ async def list_tasks(
     return TaskListResponse(tasks=items)
 
 
-@router.get(
-    "/{conversation_id}/tasks/{task_id}",
-    response_model=TaskStatusResponse,
-)
+@router.get("/{conversation_id}/tasks/{task_id}", response_model=TaskStatusResponse)
 async def task_status(
     conversation_id: UUID,
     task_id: UUID,
     user_id: Annotated[UUID, Depends(get_current_user)],
 ) -> TaskStatusResponse:
     """Return current status + metadata for a durable task."""
-    task = await _load_task(
-        conversation_id=conversation_id, task_id=task_id, user_id=user_id
+    task = await load_task(
+        conversation_id=conversation_id,
+        task_id=task_id,
+        user_id=user_id,
     )
     return TaskStatusResponse(
         task_id=task.id,
@@ -191,15 +126,7 @@ async def task_progress_history(
     user_id: Annotated[UUID, Depends(get_current_user)],
 ) -> list[TaskProgressEvent]:
     """Return the ordered list of progress rows persisted so far."""
-    await _load_task(conversation_id=conversation_id, task_id=task_id, user_id=user_id)
-    async with async_session_factory() as session:
-        rows = (
-            await session.execute(
-                select(TaskProgress)
-                .where(TaskProgress.task_id == task_id)
-                .order_by(TaskProgress.id)
-            )
-        ).scalars().all()
+    await load_task(conversation_id=conversation_id, task_id=task_id, user_id=user_id)
     return [
         TaskProgressEvent(
             task_id=task_id,
@@ -208,7 +135,7 @@ async def task_progress_history(
             data=row.data,
             emitted_at=row.emitted_at,
         )
-        for row in rows
+        for row in await progress_rows(task_id)
     ]
 
 
@@ -219,10 +146,9 @@ async def task_events(
     request: Request,
     user_id: Annotated[UUID, Depends(get_current_user)],
 ) -> StreamingResponse:
-    """Open an SSE stream for a durable task's progress + resumed graph output."""
-    await _load_task(conversation_id=conversation_id, task_id=task_id, user_id=user_id)
+    """Open an SSE stream for a durable task's progress."""
+    await load_task(conversation_id=conversation_id, task_id=task_id, user_id=user_id)
     dispatcher: NotifyDispatcher = request.app.state.notify_dispatcher
-
     return StreamingResponse(
         _event_stream(
             conversation_id=conversation_id,
@@ -235,25 +161,7 @@ async def task_events(
     )
 
 
-async def _load_task(
-    *, conversation_id: UUID, task_id: UUID, user_id: UUID
-) -> BackgroundTask:
-    async with async_session_factory() as session:
-        task = (
-            await session.execute(
-                select(BackgroundTask).where(
-                    BackgroundTask.id == task_id,
-                    BackgroundTask.conversation_id == conversation_id,
-                    BackgroundTask.user_id == user_id,
-                )
-            )
-        ).scalar_one_or_none()
-    if task is None:
-        raise HTTPException(status_code=404, detail="task not found")
-    return task
-
-
-def _progress_chunk(task_id: UUID, row: TaskProgress) -> CustomEvent:
+def _progress_chunk(task_id: UUID, row: ProgressRow) -> CustomEvent:
     return CustomEvent(
         kind="data-task-progress",
         data={
@@ -265,9 +173,7 @@ def _progress_chunk(task_id: UUID, row: TaskProgress) -> CustomEvent:
     )
 
 
-def _completed_chunk(
-    task_id: UUID, status: str, error: str | None
-) -> CustomEvent:
+def _completed_chunk(task_id: UUID, status: str, error: str | None) -> CustomEvent:
     return CustomEvent(
         kind="data-task-completed",
         data={
@@ -285,15 +191,7 @@ async def _event_stream(
     request: Request,
     dispatcher: NotifyDispatcher,
 ) -> AsyncIterator[str]:
-    """Subscribe BEFORE querying so no NOTIFY can be lost.
-
-    Streams ``data-task-progress`` rows from ``task_progress`` plus the
-    final ``data-task-completed`` chunk derived from ``background_tasks``.
-    Resume-graph chunks live on the main chat stream now (see
-    :func:`pathfinder.jobs.runner._resume_graph`); this endpoint is purely
-    for the per-task progress sub-feed the right-rail TaskCard subscribes
-    to.
-    """
+    """Subscribe BEFORE querying so no NOTIFY can be lost."""
     progress_channel = f"task_progress:{conversation_id}"
     encountered_error = False
     try:
@@ -301,16 +199,12 @@ async def _event_stream(
         async with dispatcher.subscribe(
             frozenset({progress_channel}),
         ) as notify_queue:
-            async for frame in _replay_progress(
-                task_id=task_id, cursor=cursor,
-            ):
+            async for frame in _drain(task_id, cursor):
                 yield frame
-
             terminal = await _terminal_chunk_if_done(task_id)
             if terminal is not None:
                 yield _encode_event(terminal)
                 return
-
             async for frame in _poll_loop(
                 notify_queue=notify_queue,
                 task_id=task_id,
@@ -323,26 +217,14 @@ async def _event_stream(
         raise
     finally:
         yield _encode_event(
-            DoneEvent(reason="error" if encountered_error else "completed")
+            DoneEvent(reason="error" if encountered_error else "completed"),
         )
 
 
-async def _replay_progress(
-    *, task_id: UUID, cursor: _Cursor,
-) -> AsyncIterator[str]:
-    async with async_session_factory() as session:
-        progress_rows = (
-            await session.execute(
-                select(TaskProgress)
-                .where(TaskProgress.task_id == task_id)
-                .order_by(TaskProgress.id)
-            )
-        ).scalars().all()
-    for progress_row in progress_rows:
-        cursor.last_progress_id = max(
-            cursor.last_progress_id, progress_row.id
-        )
-        yield _encode_event(_progress_chunk(task_id, progress_row))
+async def _drain(task_id: UUID, cursor: _Cursor) -> AsyncIterator[str]:
+    for row in await progress_rows(task_id, after_id=cursor.last_progress_id):
+        cursor.last_progress_id = max(cursor.last_progress_id, row.id)
+        yield _encode_event(_progress_chunk(task_id, row))
 
 
 async def _poll_loop(
@@ -356,59 +238,29 @@ async def _poll_loop(
     while True:
         if await request.is_disconnected():
             return
-
         await _wait_for_notify(notify_queue)
-        async for frame in _drain_progress(task_id, cursor):
+        async for frame in _drain(task_id, cursor):
             yield frame
-
         terminal = await _terminal_chunk_if_done(task_id)
         if terminal is not None:
             yield _encode_event(terminal)
             return
 
 
-async def _wait_for_notify(
-    notify_queue: asyncio.Queue[tuple[str, str]],
-) -> None:
-    """Wake up on any NOTIFY or on poll-timeout. Channel is ignored.
-
-    Both tables are drained unconditionally every iteration, so which
-    channel fired is irrelevant — we only need the wake-up signal.
-    """
+async def _wait_for_notify(notify_queue: asyncio.Queue[tuple[str, str]]) -> None:
+    """Wake up on any NOTIFY or on poll-timeout. Channel is ignored."""
     try:
         await asyncio.wait_for(
-            notify_queue.get(), timeout=_NOTIFY_POLL_TIMEOUT_SECONDS,
+            notify_queue.get(),
+            timeout=_NOTIFY_POLL_TIMEOUT_SECONDS,
         )
     except TimeoutError:
         return
 
 
-async def _drain_progress(
-    task_id: UUID, cursor: _Cursor
-) -> AsyncIterator[str]:
-    async with async_session_factory() as session:
-        rows = (
-            await session.execute(
-                select(TaskProgress)
-                .where(
-                    TaskProgress.task_id == task_id,
-                    TaskProgress.id > cursor.last_progress_id,
-                )
-                .order_by(TaskProgress.id)
-            )
-        ).scalars().all()
-    for row in rows:
-        cursor.last_progress_id = row.id
-        yield _encode_event(_progress_chunk(task_id, row))
-
-
 async def _terminal_chunk_if_done(task_id: UUID) -> CustomEvent | None:
-    async with async_session_factory() as session:
-        task = (
-            await session.execute(
-                select(BackgroundTask).where(BackgroundTask.id == task_id)
-            )
-        ).scalar_one_or_none()
-    if task is None or task.status not in _TERMINAL_TASK_STATUSES:
+    terminal = await terminal_status(task_id)
+    if terminal is None:
         return None
-    return _completed_chunk(task_id, task.status, task.error)
+    status, error = terminal
+    return _completed_chunk(task_id, status, error)

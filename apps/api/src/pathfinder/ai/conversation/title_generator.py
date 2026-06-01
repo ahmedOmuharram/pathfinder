@@ -74,7 +74,11 @@ def _trim_title(raw: str) -> str:
     # Strip outer matching quotes/backticks/angle brackets (a few iterations
     # in case the model nested them).
     for _ in range(3):
-        if len(title) >= _MIN_QUOTED_LEN and title[0] == title[-1] and title[0] in "\"'`":
+        if (
+            len(title) >= _MIN_QUOTED_LEN
+            and title[0] == title[-1]
+            and title[0] in "\"'`"
+        ):
             title = title[1:-1].strip()
         else:
             break
@@ -134,7 +138,7 @@ async def generate_conversation_title(
                 f"User's first message:\n{cleaned}",
                 usage_limits=_TITLE_USAGE_LIMITS,
             )
-    except (AgentRunError, UserError, httpx.HTTPError, TimeoutError, OSError):
+    except AgentRunError, UserError, httpx.HTTPError, TimeoutError, OSError:
         return _fallback_title(first_user_message)
 
     return _trim_title(result.output) or _fallback_title(first_user_message)

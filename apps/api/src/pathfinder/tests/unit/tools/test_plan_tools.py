@@ -33,6 +33,7 @@ from pathfinder.domain.parameters.values import (
     MultiPickValue,
     NumberValue,
 )
+from pathfinder.domain.parameters.wdk_vocab import WDKVocabTerm
 from pathfinder.domain.strategy.plan import (
     ParamStatus,
     PlanStatus,
@@ -53,6 +54,7 @@ def _unwrap(result: Any) -> Any:
     if isinstance(result, ToolReturn):
         return result.return_value
     return result
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -133,8 +135,8 @@ _DEFAULT_ORGANISM_SPEC = ParamSpecNormalized(
     param_type="multi-pick-vocabulary",
     display_type="treeBox",
     vocabulary=[
-        {"value": "Plasmodium falciparum 3D7", "label": "P. falciparum 3D7"},
-        {"value": "Plasmodium vivax", "label": "P. vivax"},
+        WDKVocabTerm(("Plasmodium falciparum 3D7", "P. falciparum 3D7", None)),
+        WDKVocabTerm(("Plasmodium vivax", "P. vivax", None)),
     ],
     help="Select one or more organisms",
     allow_empty_value=False,
@@ -170,10 +172,12 @@ def _stub_fetch_specs_by_search(monkeypatch: pytest.MonkeyPatch) -> None:
         return dict(kwargs.get("parameters") or {})
 
     monkeypatch.setattr(
-        "pathfinder.ai.tools.standalone.plan._fetch_specs_by_search", _stub,
+        "pathfinder.ai.tools.standalone.plan._fetch_specs_by_search",
+        _stub,
     )
     monkeypatch.setattr(
-        "pathfinder.ai.tools.standalone.plan.validate_parameters", _stub_validate,
+        "pathfinder.ai.tools.standalone.plan.validate_parameters",
+        _stub_validate,
     )
 
 
@@ -573,8 +577,8 @@ def test_convert_step_populates_constraints_and_options_from_spec() -> None:
             param_type="multi-pick-vocabulary",
             display_type="treeBox",
             vocabulary=[
-                {"value": "pfal", "label": "P. falciparum"},
-                {"value": "pvivax", "label": "P. vivax"},
+                WDKVocabTerm(("pfal", "P. falciparum", None)),
+                WDKVocabTerm(("pvivax", "P. vivax", None)),
             ],
         ),
         "num_genes": ParamSpecNormalized(
@@ -640,14 +644,14 @@ def test_apply_step_patches_uses_specs_for_new_params() -> None:
         },
     }
 
-    patches = [StepPatch(
-        step_id="step_a",
-        parameters={"num_genes": NumberValue(value=100)},
-    )]
+    patches = [
+        StepPatch(
+            step_id="step_a",
+            parameters={"num_genes": NumberValue(value=100)},
+        )
+    ]
     _apply_step_patches(plan, patches, specs_by_search=specs)
 
-    param = next(
-        p for p in plan.steps[0].parameters if p.name == "num_genes"
-    )
+    param = next(p for p in plan.steps[0].parameters if p.name == "num_genes")
     assert param.param_type == "number"
     assert param.description == "Number of genes to return"

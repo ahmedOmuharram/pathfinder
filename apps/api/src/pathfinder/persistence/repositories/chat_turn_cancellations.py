@@ -17,7 +17,10 @@ class ChatTurnCancellationRepository:
         self._session_factory = session_factory
 
     async def request_cancel(
-        self, *, conversation_id: UUID, turn_id: UUID,
+        self,
+        *,
+        conversation_id: UUID,
+        turn_id: UUID,
     ) -> None:
         stmt = (
             pg_insert(ChatTurnCancellation)
@@ -30,10 +33,7 @@ class ChatTurnCancellationRepository:
             await session.execute(stmt)
             await session.execute(
                 text(
-                    "SELECT pg_notify("
-                    ":channel, "
-                    ":payload"
-                    ")",
+                    "SELECT pg_notify(:channel, :payload)",
                 ),
                 {
                     "channel": f"chat_turn_cancel:{conversation_id}",
@@ -43,7 +43,10 @@ class ChatTurnCancellationRepository:
             await session.commit()
 
     async def is_cancelled(
-        self, *, conversation_id: UUID, turn_id: UUID,
+        self,
+        *,
+        conversation_id: UUID,
+        turn_id: UUID,
     ) -> bool:
         stmt = select(ChatTurnCancellation).where(
             ChatTurnCancellation.conversation_id == conversation_id,

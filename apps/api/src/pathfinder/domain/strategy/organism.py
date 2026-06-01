@@ -30,6 +30,7 @@ def _parse_organisms(params: Mapping[str, ParamValue]) -> set[str] | None:
                 return terms
     return None
 
+
 def extract_output_organisms(step: StrategyStepNode) -> set[str] | None:
     """Return the organism scope of a step's output, or None if unknown.
 

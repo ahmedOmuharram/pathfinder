@@ -60,7 +60,9 @@ class BackgroundTaskRepository:
             return result.scalar_one_or_none()
 
     async def list_active_for_conversation(
-        self, *, conversation_id: UUID,
+        self,
+        *,
+        conversation_id: UUID,
     ) -> list[BackgroundTask]:
         active_states = ("pending", "running", "resuming", "result_ready")
         async with self._session_factory() as session:
@@ -78,9 +80,7 @@ class BackgroundTaskRepository:
             started_at=datetime.now(UTC),
         )
 
-    async def mark_result_ready(
-        self, *, task_id: UUID, result: dict[str, Any]
-    ) -> None:
+    async def mark_result_ready(self, *, task_id: UUID, result: dict[str, Any]) -> None:
         await self._set_values(
             task_id,
             status="result_ready",

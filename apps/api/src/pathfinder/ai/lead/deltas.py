@@ -60,7 +60,8 @@ class PlanDelta(CamelModel):
         for step in self.plan.steps:
             for p in step.parameters:
                 if p.status in (
-                    ParamStatus.NEEDS_USER_INPUT, ParamStatus.NEEDS_DISCOVERY,
+                    ParamStatus.NEEDS_USER_INPUT,
+                    ParamStatus.NEEDS_DISCOVERY,
                 ):
                     return True
         return False

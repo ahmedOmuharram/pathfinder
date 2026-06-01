@@ -3,6 +3,7 @@
 Revision ID: 2026_04_18_0002
 Revises: 2026_04_18_0001
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

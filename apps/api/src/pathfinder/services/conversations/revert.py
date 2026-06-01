@@ -65,9 +65,7 @@ async def revert_conversation_to_message(
             conversation_id=str(conversation_id),
             target_message_id=str(target_message_id),
             message_belongs_to=(
-                str(wrong_conv_owner)
-                if wrong_conv_owner is not None
-                else None
+                str(wrong_conv_owner) if wrong_conv_owner is not None else None
             ),
         )
         msg = "Target message not found"
@@ -85,30 +83,38 @@ async def revert_conversation_to_message(
     cutoff_ts = target.created_at
     thread_id = str(conversation_id)
 
-    deleted_messages = _rows(await session.execute(
-        delete(Message).where(
-            Message.conversation_id == conversation_id,
-            Message.created_at >= cutoff_ts,
-        ),
-    ))
-    deleted_notes = _rows(await session.execute(
-        delete(ScratchpadNote).where(
-            ScratchpadNote.conversation_id == conversation_id,
-            ScratchpadNote.created_at >= cutoff_ts,
-        ),
-    ))
-    deleted_events = _rows(await session.execute(
-        delete(ConversationEvent).where(
-            ConversationEvent.conversation_id == conversation_id,
-            ConversationEvent.emitted_at >= cutoff_ts,
-        ),
-    ))
-    deleted_tasks = _rows(await session.execute(
-        delete(BackgroundTask).where(
-            BackgroundTask.conversation_id == conversation_id,
-            BackgroundTask.created_at >= cutoff_ts,
-        ),
-    ))
+    deleted_messages = _rows(
+        await session.execute(
+            delete(Message).where(
+                Message.conversation_id == conversation_id,
+                Message.created_at >= cutoff_ts,
+            ),
+        )
+    )
+    deleted_notes = _rows(
+        await session.execute(
+            delete(ScratchpadNote).where(
+                ScratchpadNote.conversation_id == conversation_id,
+                ScratchpadNote.created_at >= cutoff_ts,
+            ),
+        )
+    )
+    deleted_events = _rows(
+        await session.execute(
+            delete(ConversationEvent).where(
+                ConversationEvent.conversation_id == conversation_id,
+                ConversationEvent.emitted_at >= cutoff_ts,
+            ),
+        )
+    )
+    deleted_tasks = _rows(
+        await session.execute(
+            delete(BackgroundTask).where(
+                BackgroundTask.conversation_id == conversation_id,
+                BackgroundTask.created_at >= cutoff_ts,
+            ),
+        )
+    )
 
     writes_stmt = text(
         """
@@ -121,9 +127,12 @@ async def revert_conversation_to_message(
           AND (c.checkpoint->>'ts')::timestamptz >= :cutoff
         """,
     ).bindparams(bindparam("cutoff", type_=DateTime(timezone=True)))
-    deleted_writes = _rows(await session.execute(
-        writes_stmt, {"thread_id": thread_id, "cutoff": cutoff_ts},
-    ))
+    deleted_writes = _rows(
+        await session.execute(
+            writes_stmt,
+            {"thread_id": thread_id, "cutoff": cutoff_ts},
+        )
+    )
 
     checkpoints_stmt = text(
         """
@@ -132,9 +141,12 @@ async def revert_conversation_to_message(
           AND (checkpoint->>'ts')::timestamptz >= :cutoff
         """,
     ).bindparams(bindparam("cutoff", type_=DateTime(timezone=True)))
-    deleted_checkpoints = _rows(await session.execute(
-        checkpoints_stmt, {"thread_id": thread_id, "cutoff": cutoff_ts},
-    ))
+    deleted_checkpoints = _rows(
+        await session.execute(
+            checkpoints_stmt,
+            {"thread_id": thread_id, "cutoff": cutoff_ts},
+        )
+    )
 
     logger.info(
         "conversation reverted to message",

@@ -76,7 +76,11 @@ from pathfinder.platform.pydantic_base import CamelModel
 
 LeadTurnState = Literal["await_user", "complete"]
 LedgerSectionName = Literal[
-    "frame", "discovery", "plan", "build", "verification",
+    "frame",
+    "discovery",
+    "plan",
+    "build",
+    "verification",
 ]
 
 
@@ -109,8 +113,7 @@ def pinned_user_intent(ctx: RunContext[LeadDeps]) -> str | None:
     intent = ctx.deps.intent
     if intent is None:
         return (
-            "## User Intent\n"
-            "Not classified yet. Call ``classify_user_intent`` first."
+            "## User Intent\nNot classified yet. Call ``classify_user_intent`` first."
         )
     lines = [
         "## User Intent",
@@ -136,7 +139,8 @@ def pinned_user_prompt(ctx: RunContext[LeadDeps]) -> str | None:
 
 
 def classify_user_intent(
-    ctx: RunContext[LeadDeps], intent: UserIntent,
+    ctx: RunContext[LeadDeps],
+    intent: UserIntent,
 ) -> UserIntent:
     """Classify the user's intent for this turn. Call this exactly once,
     before any other sub-agent call.
@@ -152,7 +156,8 @@ def classify_user_intent(
 
 
 def read_ledger_section(
-    ctx: RunContext[LeadDeps], section: LedgerSectionName,
+    ctx: RunContext[LeadDeps],
+    section: LedgerSectionName,
 ) -> str:
     """Return the full detail of one Ledger section.
 

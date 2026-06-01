@@ -34,9 +34,7 @@ def _assert_reasoning_well_formed(chunks: list[BaseChunk]) -> None:
     active: set[str] = set()
     for chunk in chunks:
         if isinstance(chunk, ReasoningStartChunk):
-            assert chunk.id not in active, (
-                f"duplicate reasoning-start id {chunk.id}"
-            )
+            assert chunk.id not in active, f"duplicate reasoning-start id {chunk.id}"
             active.add(chunk.id)
         elif isinstance(chunk, ReasoningDeltaChunk):
             assert chunk.id in active, (
@@ -44,9 +42,7 @@ def _assert_reasoning_well_formed(chunks: list[BaseChunk]) -> None:
                 f"(active={active}, chunks={[type(c).__name__ for c in chunks]})"
             )
         elif isinstance(chunk, ReasoningEndChunk):
-            assert chunk.id in active, (
-                f"reasoning-end for unopened id {chunk.id}"
-            )
+            assert chunk.id in active, f"reasoning-end for unopened id {chunk.id}"
             active.remove(chunk.id)
 
 
@@ -57,13 +53,9 @@ def _assert_text_well_formed(chunks: list[BaseChunk]) -> None:
             assert chunk.id not in active, f"duplicate text-start id {chunk.id}"
             active.add(chunk.id)
         elif isinstance(chunk, TextDeltaChunk):
-            assert chunk.id in active, (
-                f"text-delta for unopened id {chunk.id}"
-            )
+            assert chunk.id in active, f"text-delta for unopened id {chunk.id}"
         elif isinstance(chunk, TextEndChunk):
-            assert chunk.id in active, (
-                f"text-end for unopened id {chunk.id}"
-            )
+            assert chunk.id in active, f"text-end for unopened id {chunk.id}"
             active.remove(chunk.id)
 
 
@@ -88,7 +80,8 @@ async def _interleaved_thinking_stream() -> AsyncIterator[object]:
     text_1 = TextPart(content="visible reply", provider_name="anthropic")
     yield PartStartEvent(index=1, part=text_1, previous_part_kind="thinking")
     yield PartDeltaEvent(
-        index=1, delta=TextPartDelta(content_delta=" more text", provider_name="anthropic"),
+        index=1,
+        delta=TextPartDelta(content_delta=" more text", provider_name="anthropic"),
     )
     yield PartEndEvent(index=1, part=text_1, next_part_kind="thinking")
 
@@ -97,13 +90,17 @@ async def _interleaved_thinking_stream() -> AsyncIterator[object]:
     yield PartStartEvent(index=2, part=thinking_2, previous_part_kind="text")
     yield PartDeltaEvent(
         index=2,
-        delta=ThinkingPartDelta(content_delta=" more reasoning", provider_name="anthropic"),
+        delta=ThinkingPartDelta(
+            content_delta=" more reasoning", provider_name="anthropic"
+        ),
     )
     yield PartEndEvent(index=2, part=thinking_2, next_part_kind="tool-call")
 
     # --- tool call 3 (ensures the stream can close cleanly) ---
     tool_3 = ToolCallPart(
-        tool_name="noop", args={"ok": True}, tool_call_id="call-xyz",
+        tool_name="noop",
+        args={"ok": True},
+        tool_call_id="call-xyz",
     )
     yield PartStartEvent(index=3, part=tool_3, previous_part_kind="thinking")
     yield PartEndEvent(index=3, part=tool_3, next_part_kind=None)
@@ -154,7 +151,9 @@ async def _delta_before_start_stream() -> AsyncIterator[object]:
     yield PartStartEvent(index=2, part=thinking_2, previous_part_kind="text")
     yield PartDeltaEvent(
         index=2,
-        delta=ThinkingPartDelta(content_delta="continuation", provider_name="anthropic"),
+        delta=ThinkingPartDelta(
+            content_delta="continuation", provider_name="anthropic"
+        ),
     )
     yield PartEndEvent(index=2, part=thinking_2, next_part_kind=None)
 
@@ -203,7 +202,8 @@ async def _out_of_order_delta_stream() -> AsyncIterator[object]:
     text_1 = TextPart(content="", provider_name="anthropic")
     yield PartStartEvent(index=1, part=text_1, previous_part_kind="thinking")
     yield PartDeltaEvent(
-        index=1, delta=TextPartDelta(content_delta="t", provider_name="anthropic"),
+        index=1,
+        delta=TextPartDelta(content_delta="t", provider_name="anthropic"),
     )
 
     # A late delta arrives for the original thinking part (index 0). A

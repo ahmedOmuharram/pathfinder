@@ -17,6 +17,7 @@ _HEADER_RE = re.compile(
     r"^\s*(?P<count>\d+)\s+validation error for\s+(?P<model>.+?)\s*$"
 )
 
+
 def _parse_meta(meta_str: str) -> dict[str, str]:
     """Parse ``key=value, key=value`` metadata from a Pydantic error line."""
     meta: dict[str, str] = {}
@@ -26,6 +27,7 @@ def _parse_meta(meta_str: str) -> dict[str, str]:
         key, value = part.split("=", 1)
         meta[key.strip()] = value.strip()
     return meta
+
 
 def _parse_error_line(ln: str, current_loc: str) -> JSONObject:
     """Parse a single indented Pydantic error detail line into a structured dict."""
@@ -47,6 +49,7 @@ def _parse_error_line(ln: str, current_loc: str) -> JSONObject:
         err["meta"] = cast("JsonValue", meta)
     return err
 
+
 def _collect_errors(lines: list[str]) -> JSONArray:
     """Walk body lines and collect structured error objects."""
     errors: JSONArray = []
@@ -61,6 +64,7 @@ def _collect_errors(lines: list[str]) -> JSONArray:
         else:
             current_loc = ln.strip()
     return errors
+
 
 def parse_pydantic_validation_error_text(text: str | None) -> JSONObject | None:
     """Parse Pydantic v2 ValidationError string into a structured payload.

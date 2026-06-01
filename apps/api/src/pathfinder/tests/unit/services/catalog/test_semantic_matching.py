@@ -5,9 +5,9 @@ from typing import cast
 
 import pytest
 
+from pathfinder.integrations.embeddings.semantic_index import SemanticSearchIndex
 from pathfinder.integrations.veupathdb.discovery_service import DiscoveryService
 from pathfinder.services.catalog import semantic_matching
-from pathfinder.services.catalog.semantic_index import SemanticSearchIndex
 
 
 class _FakeCatalog:

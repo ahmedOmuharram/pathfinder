@@ -20,10 +20,14 @@ _ALL_SCOPING_TOOLS = [
     ToolDefinition(name="think", description="", parameters_json_schema={}),
     ToolDefinition(name="web_search", description="", parameters_json_schema={}),
     ToolDefinition(
-        name="literature_search", description="", parameters_json_schema={},
+        name="literature_search",
+        description="",
+        parameters_json_schema={},
     ),
     ToolDefinition(
-        name="set_problem_frame", description="", parameters_json_schema={},
+        name="set_problem_frame",
+        description="",
+        parameters_json_schema={},
     ),
 ]
 

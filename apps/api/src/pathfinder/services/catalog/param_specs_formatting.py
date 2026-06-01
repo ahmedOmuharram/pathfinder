@@ -1,15 +1,14 @@
 """Format WDK parameter objects into normalized ParamSpecResponse DTOs.
 
-This service module owns the mapping from integration-layer WDK parameter
-types to the transport-layer ``ParamSpecResponse`` shape so that transport
-routers never import integration types directly.
+Owns the mapping from integration-layer WDK parameter types to the
+service-layer ``ParamSpecResponse`` shape that transport returns.
 """
 
 from collections.abc import Sequence
 
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
 from pathfinder.integrations.veupathdb.wdk_parameters import WDKParameter
-from pathfinder.transport.http.schemas import ParamSpecResponse
+from pathfinder.services.catalog.models import ParamSpecResponse
 
 
 def build_param_specs_from_list(
@@ -57,14 +56,10 @@ def build_param_specs_from_list(
                     list(param.parsers) if param.type == "input-dataset" else None
                 ),
                 default_id_list=(
-                    param.default_id_list
-                    if param.type == "input-dataset"
-                    else None
+                    param.default_id_list if param.type == "input-dataset" else None
                 ),
                 record_class_name=(
-                    param.record_class_name
-                    if param.type == "input-dataset"
-                    else None
+                    param.record_class_name if param.type == "input-dataset" else None
                 ),
             ),
         )

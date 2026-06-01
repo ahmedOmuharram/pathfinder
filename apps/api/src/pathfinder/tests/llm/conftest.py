@@ -33,7 +33,8 @@ pydantic_ai.models.ALLOW_MODEL_REQUESTS = True
 
 
 def pytest_collection_modifyitems(
-    config: pytest.Config, items: list[pytest.Item],
+    config: pytest.Config,
+    items: list[pytest.Item],
 ) -> None:
     del config
     marker = pytest.mark.llm
@@ -137,8 +138,11 @@ def kinase_discovered_searches() -> dict[str, SearchOverview]:
             "GenesByGoTerm",
             required=["organism", "go_term_evidence", "go_term"],
             all_params=[
-                "organism", "go_term_evidence", "go_term_slim",
-                "go_term", "go_typeahead",
+                "organism",
+                "go_term_evidence",
+                "go_term_slim",
+                "go_term",
+                "go_typeahead",
             ],
         ),
         "GenesByTransmembraneDomains": _search_overview(
@@ -198,10 +202,12 @@ def deps_scoping(plasmodb_site: str) -> AgentDeps:
 
 @pytest.fixture
 def deps_discovery(
-    plasmodb_site: str, kinase_problem_frame: ProblemFrame,
+    plasmodb_site: str,
+    kinase_problem_frame: ProblemFrame,
 ) -> AgentDeps:
     return _build_deps(
-        site_id=plasmodb_site, problem_frame=kinase_problem_frame,
+        site_id=plasmodb_site,
+        problem_frame=kinase_problem_frame,
     )
 
 

@@ -59,7 +59,9 @@ def test_add_otel_context_with_active_span():
     mock_ctx.span_id = 0x1234567890ABCDEF
     mock_span.get_span_context.return_value = mock_ctx
 
-    with patch("pathfinder.platform.logging.trace.get_current_span", return_value=mock_span):
+    with patch(
+        "pathfinder.platform.logging.trace.get_current_span", return_value=mock_span
+    ):
         event_dict: dict[str, object] = {"event": "test"}
         result = add_otel_context(logging.getLogger(), "", event_dict)
 

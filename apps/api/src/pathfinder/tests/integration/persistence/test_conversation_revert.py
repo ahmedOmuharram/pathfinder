@@ -7,17 +7,17 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select, text
 
-import pathfinder.persistence.session as session_module
+import pathfinder.platform.db as session_module
 from pathfinder.ai.conversation.checkpointer import lifespan_checkpointer
 from pathfinder.ai.conversation.ui_message_reducer import user_message_chunk
-from pathfinder.ai.scratchpad.models import NoteCreate
-from pathfinder.ai.scratchpad.repository import ScratchpadRepository
+from pathfinder.domain.scratchpad.models import NoteCreate
 from pathfinder.persistence.models import (
     Conversation,
     ConversationEvent,
     Message,
     User,
 )
+from pathfinder.persistence.repositories.scratchpad import ScratchpadRepository
 from pathfinder.platform.config import get_settings
 from pathfinder.services.conversations.revert import (
     RevertError,
@@ -58,7 +58,10 @@ async def _seed_user() -> User:
 async def _seed_conversation(user_id: UUID) -> Conversation:
     async with session_module.async_session_factory() as session:
         row = Conversation(
-            user_id=user_id, site_id="plasmodb", name="", experiment_id=None,
+            user_id=user_id,
+            site_id="plasmodb",
+            name="",
+            experiment_id=None,
         )
         session.add(row)
         await session.commit()
@@ -269,8 +272,7 @@ class TestRevertConversation:
             rows = (
                 await session.execute(
                     text(
-                        "SELECT checkpoint_id FROM checkpoints "
-                        "WHERE thread_id = :tid",
+                        "SELECT checkpoint_id FROM checkpoints WHERE thread_id = :tid",
                     ),
                     {"tid": str(conv.id)},
                 )
