@@ -115,7 +115,7 @@ async def dispatch(
     if not body.is_approval_resume:
         await _cancel_in_flight_prior_turn(body.conversation_id)
         is_approval = await _is_approval_reply(session, body.conversation_id)
-        scan_user_input(body.last_user_text, is_approval_reply=is_approval)
+        await scan_user_input(body.last_user_text, is_approval_reply=is_approval)
 
         await MessagesRepository(session).insert_message(
             message_id=body.last_user_message_id,

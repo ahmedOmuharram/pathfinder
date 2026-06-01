@@ -4,6 +4,8 @@ Boosts search candidates by cosine similarity from a sentence-transformer
 index, and injects high-similarity searches that keyword scoring missed.
 """
 
+import asyncio
+
 from pathfinder.integrations.veupathdb.discovery_service import DiscoveryService
 from pathfinder.integrations.veupathdb.wdk_models import WDKSearch
 from pathfinder.platform.errors import AppError
@@ -53,7 +55,7 @@ async def apply_semantic_bonus(
             return
 
         rt_set = set(record_types)
-        sem_results = index.query(query, top_k=50)
+        sem_results = await asyncio.to_thread(index.query, query, 50)
         sem_scores = {
             name: sim
             for name, rt, sim in sem_results

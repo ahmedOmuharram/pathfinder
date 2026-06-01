@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import re
 import threading
 from dataclasses import dataclass, field
@@ -127,9 +128,9 @@ class UserInputScanner:
 _scanner = UserInputScanner()
 
 
-def scan_user_input(text: str, *, is_approval_reply: bool = False) -> None:
-    """Module-level entry point. See :meth:`UserInputScanner.scan`."""
-    _scanner.scan(text, is_approval_reply=is_approval_reply)
+async def scan_user_input(text: str, *, is_approval_reply: bool = False) -> None:
+    """Offload the CPU-bound scan to a thread so the event loop stays free."""
+    await asyncio.to_thread(_scanner.scan, text, is_approval_reply=is_approval_reply)
 
 
 __all__ = [
