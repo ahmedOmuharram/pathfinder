@@ -1,0 +1,114 @@
+"use client";
+
+import type { ReasoningEffort } from "@pathfinder/shared";
+import { useSettingsStore } from "@/state/useSettingsStore";
+import { useModelCatalogQuery } from "@/lib/query/hooks/useModelCatalogQuery";
+import {
+  PHASE_DESCRIPTIONS,
+  PHASE_LABELS,
+  PHASE_ROLES,
+  type PhaseRole,
+} from "@/lib/models/phaseRoles";
+import { ModelPicker } from "@/features/settings/components/ModelPicker";
+import { ReasoningToggle } from "@/lib/components/ReasoningToggle";
+
+export function ModelSettings() {
+  const { data } = useModelCatalogQuery();
+  const modelCatalog = data?.models ?? [];
+  const phaseDefaults =
+    (data?.phaseDefaults ?? {}) as Partial<Record<PhaseRole, string>>;
+  const phaseModels = useSettingsStore((s) => s.phaseModels);
+  const setPhaseModel = useSettingsStore((s) => s.setPhaseModel);
+  const phaseReasoning = useSettingsStore((s) => s.phaseReasoning);
+  const setPhaseReasoning = useSettingsStore((s) => s.setPhaseReasoning);
+
+  return (
+    <div className="space-y-1">
+      <div className="mb-3">
+        <p className="text-xs text-muted-foreground">
+          The Lead orchestrates everything you see in chat. Each phase below
+          runs as a sub-agent the Lead delegates to. Pick a model + reasoning
+          effort per phase; leave blank to use the default.
+        </p>
+      </div>
+
+      <div className="divide-y divide-border/40">
+        {PHASE_ROLES.map((role) => (
+          <PhaseRow
+            key={role}
+            role={role}
+            models={modelCatalog}
+            defaultModelId={phaseDefaults[role] ?? null}
+            selectedModelId={phaseModels[role] ?? null}
+            onSelectModel={(id) => setPhaseModel(role, id)}
+            reasoningEffort={phaseReasoning[role] ?? null}
+            onSelectReasoning={(effort) => setPhaseReasoning(role, effort)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface PhaseRowProps {
+  role: PhaseRole;
+  models: ReturnType<typeof useModelCatalogQuery>["data"] extends infer D
+    ? D extends { models: infer M }
+      ? M
+      : never
+    : never;
+  defaultModelId: string | null;
+  selectedModelId: string | null;
+  onSelectModel: (id: string | null) => void;
+  reasoningEffort: ReasoningEffort | null;
+  onSelectReasoning: (effort: ReasoningEffort | null) => void;
+}
+
+function PhaseRow({
+  role,
+  models,
+  defaultModelId,
+  selectedModelId,
+  onSelectModel,
+  reasoningEffort,
+  onSelectReasoning,
+}: PhaseRowProps) {
+  const resolvedModel =
+    models.find((m) => m.id === (selectedModelId ?? defaultModelId)) ?? null;
+  const supportsReasoning = resolvedModel?.supportsReasoning ?? false;
+  const effectiveEffort = reasoningEffort ?? "medium";
+
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto] items-start gap-3 py-3">
+      <div>
+        <div className="text-sm font-medium text-foreground">
+          {PHASE_LABELS[role]}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {PHASE_DESCRIPTIONS[role]}
+        </div>
+        {defaultModelId !== null && selectedModelId === null && (
+          <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+            Default: {defaultModelId}
+          </div>
+        )}
+      </div>
+      <ModelPicker
+        models={models}
+        selectedModelId={selectedModelId}
+        onSelect={(id) => onSelectModel(id || null)}
+        serverDefaultId={defaultModelId}
+      />
+      {supportsReasoning ? (
+        <ReasoningToggle
+          value={effectiveEffort}
+          onChange={(effort) => onSelectReasoning(effort)}
+        />
+      ) : (
+        <div className="text-[10px] text-muted-foreground/60 self-center">
+          no reasoning
+        </div>
+      )}
+    </div>
+  );
+}

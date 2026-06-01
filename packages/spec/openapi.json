@@ -6312,6 +6312,46 @@
                             }
                         ],
                         "title": "Experimentid"
+                    },
+                    "phaseModels": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "propertyNames": {
+                            "enum": [
+                                "lead",
+                                "scoping",
+                                "discovery",
+                                "planning",
+                                "execution",
+                                "verification"
+                            ]
+                        },
+                        "type": "object",
+                        "title": "Phasemodels"
+                    },
+                    "phaseReasoning": {
+                        "additionalProperties": {
+                            "type": "string",
+                            "enum": [
+                                "none",
+                                "low",
+                                "medium",
+                                "high"
+                            ]
+                        },
+                        "propertyNames": {
+                            "enum": [
+                                "lead",
+                                "scoping",
+                                "discovery",
+                                "planning",
+                                "execution",
+                                "verification"
+                            ]
+                        },
+                        "type": "object",
+                        "title": "Phasereasoning"
                     }
                 },
                 "type": "object",
@@ -11970,13 +12010,31 @@
                             "custom"
                         ],
                         "title": "Defaulttier"
+                    },
+                    "phaseDefaults": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "propertyNames": {
+                            "enum": [
+                                "lead",
+                                "scoping",
+                                "discovery",
+                                "planning",
+                                "execution",
+                                "verification"
+                            ]
+                        },
+                        "type": "object",
+                        "title": "Phasedefaults"
                     }
                 },
                 "type": "object",
                 "required": [
                     "models",
                     "defaultProvider",
-                    "defaultTier"
+                    "defaultTier",
+                    "phaseDefaults"
                 ],
                 "title": "ModelListResponse",
                 "description": "Response for the /models endpoint."

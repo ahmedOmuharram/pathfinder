@@ -17,8 +17,9 @@ from pydantic_ai.ui.vercel_ai.request_types import (
     ToolApprovalResponded,
 )
 
+from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.conversation.request_body import ChatRequestBody
-from pathfinder.ai.graph.runtime import Context
+from pathfinder.ai.graph.runtime import Context, ReasoningEffort
 from pathfinder.ai.graph.state import PlanSlotAnswer
 from pathfinder.ai.graph.stream_events import background_task_started_event
 from pathfinder.domain.research.citations import (
@@ -112,6 +113,8 @@ def _build_runtime_context(
     site_id: str,
     user_id: UUID,
     memory_store: AsyncPostgresStore | None,
+    phase_models: dict[PhaseRole, str] | None = None,
+    phase_reasoning: dict[PhaseRole, ReasoningEffort] | None = None,
 ) -> Context:
     persisted: PersistedStrategyGraph | None = None
     experiment_id: str | None = None
@@ -148,6 +151,8 @@ def _build_runtime_context(
         cancel_event=asyncio.Event(),
         memory_store=memory_store,
         experiment_id=experiment_id,
+        phase_models=dict(phase_models or {}),
+        phase_reasoning=dict(phase_reasoning or {}),
     )
 
 

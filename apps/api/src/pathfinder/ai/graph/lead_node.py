@@ -76,6 +76,7 @@ from pathfinder.ai.graph.stream_events import (
     SubAgentCallPayload,
     ledger_update_event,
     sub_agent_call_event,
+    turn_status_event,
     turn_usage_event,
 )
 from pathfinder.ai.lead.derive import derive_ledger
@@ -583,13 +584,28 @@ async def write_turn_message(
     return message_id
 
 
-def _resolve_lead_model_context() -> tuple[Any, str]:
-    """Swap in the deterministic mock when the chat provider is mock."""
+def _resolve_lead_model_context(
+    *,
+    model_override: str | None = None,
+    reasoning_effort: str | None = None,
+) -> tuple[Any, str]:
+    """Swap in the mock for the mock provider, otherwise honor per-request overrides."""
     if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
         if isinstance(lead_agent.model, FunctionModel):
             return contextlib.nullcontext(), "mock:lead"
         return lead_agent.override(model=get_mock_model()), "mock:lead"
-    return contextlib.nullcontext(), _model_id(lead_agent)
+
+    override_kwargs: dict[str, Any] = {}
+    if model_override:
+        override_kwargs["model"] = model_override
+    if reasoning_effort in ("low", "medium", "high"):
+        override_kwargs["model_settings"] = {"thinking": reasoning_effort}
+
+    if not override_kwargs:
+        return contextlib.nullcontext(), _model_id(lead_agent)
+
+    effective_model = model_override or _model_id(lead_agent)
+    return lead_agent.override(**override_kwargs), effective_model
 
 
 async def _drive_lead_stream(
@@ -610,8 +626,15 @@ async def _drive_lead_stream(
     resume_prompt = _resume_user_prompt(state)
     resume_history = _resume_message_history(state)
     usage_acc = RunUsage()
-    override_ctx, agent_model = _resolve_lead_model_context()
+    override_ctx, agent_model = _resolve_lead_model_context(
+        model_override=runtime.context.phase_models.get("lead"),
+        reasoning_effort=runtime.context.phase_reasoning.get("lead"),
+    )
     sub_agent_tool_calls: dict[str, str] = {}
+    _emit_chunk(
+        writer,
+        turn_status_event(label="Thinking...", waiting_on_llm=True),
+    )
 
     async def _agent_events() -> AsyncGenerator[
         AgentStreamEvent | AgentRunResultEvent[Any]

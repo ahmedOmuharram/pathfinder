@@ -10,7 +10,10 @@ from pydantic_ai.ui.vercel_ai.request_types import (
     UIMessage,
 )
 
+from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.platform.pydantic_base import CamelModel
+
+ReasoningEffort = Literal["none", "low", "medium", "high"]
 
 
 class ChatRequestBody(CamelModel):
@@ -35,6 +38,8 @@ class ChatRequestBody(CamelModel):
     site_id: str = ""
     mode: str = "strategy"
     experiment_id: str | None = None
+    phase_models: dict[PhaseRole, str] = Field(default_factory=dict)
+    phase_reasoning: dict[PhaseRole, ReasoningEffort] = Field(default_factory=dict)
 
     @property
     def last_user_text(self) -> str:

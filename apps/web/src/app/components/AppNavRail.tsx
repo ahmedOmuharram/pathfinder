@@ -1,7 +1,7 @@
 "use client";
 
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Bookmark, Layers, MessageCircle, PanelLeft, Settings } from "lucide-react";
+import { Bookmark, Brain, Layers, MessageCircle, PanelLeft, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -33,6 +33,7 @@ interface AppNavRailProps {
   siteId: string;
   onSiteChange: (siteId: string) => void;
   onOpenSettings: () => void;
+  onOpenModelSettings: () => void;
   onToggleSidebar: () => void;
   sidebarExpanded: boolean;
 }
@@ -53,6 +54,7 @@ export function AppNavRail({
   siteId,
   onSiteChange,
   onOpenSettings,
+  onOpenModelSettings,
   onToggleSidebar,
   sidebarExpanded,
 }: AppNavRailProps) {
@@ -111,6 +113,21 @@ export function AppNavRail({
 
         <div className="mt-auto flex flex-col items-center gap-1">
           <SiteSwitcherButton siteId={siteId} onChange={onSiteChange} />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onOpenModelSettings}
+                aria-label="AI model settings"
+                data-testid="nav-rail-ai-button"
+              >
+                <Brain className="h-4 w-4" aria-hidden />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">AI model</TooltipContent>
+          </Tooltip>
 
           <Tooltip>
             <TooltipTrigger asChild>

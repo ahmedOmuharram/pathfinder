@@ -459,12 +459,24 @@ export interface LedgerFramePayload {
   frame: Record<string, unknown> | null;
 }
 
+export interface LedgerSearchFitReport {
+  searchName: string;
+  displayName: string;
+  selectionStatus: "selected" | "candidate" | "rejected";
+  intentSidesCovered: Record<string, boolean>;
+  intentSidesUnmatched: string[];
+  confidence: number;
+  rationale: string;
+  selectionReason: string;
+}
+
 export interface LedgerDiscoveryPayload {
   selectedCount: number;
   rejectedCount: number;
   intentSatisfied: boolean;
   intentGap: string | null;
   needsMoreDiscovery: boolean;
+  fitReports: LedgerSearchFitReport[];
 }
 
 export interface LedgerPlanPayload {
@@ -562,7 +574,8 @@ export type DataPartKind =
   | "data-verification-summary"
   | "data-conversation-title"
   | "data-scratchpad-updated"
-  | "data-turn-usage";
+  | "data-turn-usage"
+  | "data-turn-status";
 
 export interface DataPartPayloadMap {
   "data-sub-agent-call": DataSubAgentCallPayload;
@@ -587,6 +600,12 @@ export interface DataPartPayloadMap {
   "data-conversation-title": DataConversationTitlePayload;
   "data-scratchpad-updated": Record<string, never>;
   "data-turn-usage": TurnUsage;
+  "data-turn-status": TurnStatusPayload;
+}
+
+export interface TurnStatusPayload {
+  label: string;
+  waitingOnLlm: boolean;
 }
 
 export type TypedDataPart<K extends DataPartKind = DataPartKind> = {

@@ -42,5 +42,6 @@ export function DataPartRenderer({
     .with("data-conversation-title", (k) => renderKind(k, data))
     .with("data-scratchpad-updated", (k) => renderKind(k, data))
     .with("data-turn-usage", (k) => renderKind(k, data))
+    .with("data-turn-status", (k) => renderKind(k, data))
     .exhaustive();
 }

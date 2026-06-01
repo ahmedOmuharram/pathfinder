@@ -30,8 +30,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      api:
-        condition: service_healthy
     environment:
       API_ENV: ${API_ENV:-development}
       API_SECRET_KEY: ${API_SECRET_KEY:-pathfinder-dev-secret-key-change-me-1234567890}

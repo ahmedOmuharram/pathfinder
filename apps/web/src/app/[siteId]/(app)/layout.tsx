@@ -117,7 +117,8 @@ function AppShellInner({
           <AppNavRail
             siteId={selectedSite}
             onSiteChange={handleSiteChange}
-            onOpenSettings={modals.openSettings}
+            onOpenSettings={() => modals.openSettings()}
+            onOpenModelSettings={() => modals.openSettings("model")}
             onToggleSidebar={toggleLeft}
             sidebarExpanded={!leftCollapsed}
           />
@@ -161,6 +162,8 @@ function AppShellInner({
         open={modals.showSettings}
         onClose={modals.closeSettings}
         siteId={selectedSite}
+        tab={modals.settingsTab}
+        onTabChange={modals.setSettingsTab}
       />
     </div>
   );

@@ -15,13 +15,14 @@ they just emit typed deltas instead of PhaseOutcome.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
-from pydantic_ai import Agent, AgentRunResultEvent, RunContext
+from pydantic_ai import AgentRunResultEvent, RunContext
 from pydantic_ai.messages import (
     AgentStreamEvent,
     FunctionToolCallEvent,
@@ -36,6 +37,7 @@ from pydantic_ai.usage import RunUsage, UsageLimits
 from pathfinder.ai.agents.discovery import discovery_agent
 from pathfinder.ai.agents.execution import execution_agent
 from pathfinder.ai.agents.planning import planning_agent
+from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.scoping import scoping_agent
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.agents.verification import verification_agent
@@ -43,7 +45,9 @@ from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.graph.stream_events import (
     SubAgentStepPayload,
+    ledger_update_event,
     sub_agent_step_event,
+    turn_status_event,
 )
 from pathfinder.ai.lead.deltas import (
     DiscoveryDelta,
@@ -53,6 +57,7 @@ from pathfinder.ai.lead.deltas import (
     RecoveryDelta,
     VerificationDelta,
 )
+from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.memory.schemas import MemoryValue
 from pathfinder.domain.strategy.build_outcome import BuildOutcome
@@ -65,12 +70,20 @@ PHASE_USAGE_LIMITS: UsageLimits = UsageLimits(
     total_tokens_limit=2_000_000,
 )
 
-SUB_AGENT_TOOL_TO_AGENT = {
-    "scope_problem": scoping_agent,
-    "discover_searches": discovery_agent,
-    "build_plan": planning_agent,
-    "recover_failed_steps": execution_agent,
-    "verify_strategy": verification_agent,
+_SUB_AGENT_BY_ROLE: dict[PhaseRole, Any] = {
+    "scoping": scoping_agent,
+    "discovery": discovery_agent,
+    "planning": planning_agent,
+    "execution": execution_agent,
+    "verification": verification_agent,
+}
+
+TOOL_TO_PHASE_ROLE: dict[str, PhaseRole] = {
+    "scope_problem": "scoping",
+    "discover_searches": "discovery",
+    "build_plan": "planning",
+    "recover_failed_steps": "execution",
+    "verify_strategy": "verification",
 }
 
 
@@ -80,10 +93,10 @@ def sub_agent_model_id(tool_name: str) -> str:
     """
     if tool_name == "execute_plan":
         return "declarative:no-llm"
-    agent = SUB_AGENT_TOOL_TO_AGENT.get(tool_name)
-    if agent is None:
+    role = TOOL_TO_PHASE_ROLE.get(tool_name)
+    if role is None:
         return ""
-    model = agent.model
+    model = _SUB_AGENT_BY_ROLE[role].model
     if model is None:
         return ""
     if isinstance(model, str):
@@ -259,15 +272,40 @@ def _forward_inner_event(
             )
 
 
+def _phase_override_kwargs(
+    runtime: Context, role: PhaseRole,
+) -> dict[str, Any]:
+    """Build kwargs for ``agent.override`` from the per-phase Context maps."""
+    kwargs: dict[str, Any] = {}
+    model_override = runtime.phase_models.get(role)
+    if model_override:
+        kwargs["model"] = model_override
+    effort = runtime.phase_reasoning.get(role)
+    if effort in ("low", "medium", "high"):
+        kwargs["model_settings"] = {"thinking": effort}
+    return kwargs
+
+
+_PHASE_STATUS_LABELS: dict[PhaseRole, str] = {
+    "lead": "Thinking...",
+    "scoping": "Scoping the problem...",
+    "discovery": "Finding searches...",
+    "planning": "Building a plan...",
+    "execution": "Recovering failed steps...",
+    "verification": "Verifying the strategy...",
+}
+
+
 async def _stream_sub_agent[OutputT: BaseModel](
     *,
-    agent: Agent[AgentDeps, Any],
+    role: PhaseRole,
     work_order: str,
     agent_deps: AgentDeps,
     parent_tool_call_id: str,
     expected_output_type: type[OutputT],
     deps: LeadDeps,
 ) -> OutputT | None:
+    agent = _SUB_AGENT_BY_ROLE[role]
     """Run a sub-agent, forward its inner events as
     ``data-sub-agent-step`` chunks, push its usage into the Lead's
     accumulator (using the sub-agent's own model for cost attribution),
@@ -276,31 +314,66 @@ async def _stream_sub_agent[OutputT: BaseModel](
     inner_calls: dict[str, str] = {}
     output: OutputT | None = None
     usage = RunUsage()
-    async for event in agent.run_stream_events(
-        work_order, deps=agent_deps,
-        usage_limits=PHASE_USAGE_LIMITS, usage=usage,
-    ):
-        if isinstance(event, AgentRunResultEvent):
-            agent_output = event.result.output
-            if isinstance(agent_output, expected_output_type):
-                output = agent_output
-            response = event.result.response
-            deps.record_sub_agent_usage(
-                SubAgentRunUsage(
-                    usage=event.result.usage(),
-                    model_name=response.model_name,
-                    provider_name=response.provider_name,
-                    provider_url=response.provider_url,
-                ),
+    override_kwargs = _phase_override_kwargs(deps.runtime, role)
+    override_ctx = (
+        agent.override(**override_kwargs)
+        if override_kwargs
+        else contextlib.nullcontext()
+    )
+    writer(
+        {
+            "chunk": turn_status_event(
+                label=_PHASE_STATUS_LABELS.get(role, "Working..."),
+                waiting_on_llm=True,
+            ).model_dump(by_alias=True, mode="json", exclude_none=True),
+        },
+    )
+    with override_ctx:
+        async for event in agent.run_stream_events(
+            work_order, deps=agent_deps,
+            usage_limits=PHASE_USAGE_LIMITS, usage=usage,
+        ):
+            if isinstance(event, AgentRunResultEvent):
+                agent_output = event.result.output
+                if isinstance(agent_output, expected_output_type):
+                    output = agent_output
+                response = event.result.response
+                deps.record_sub_agent_usage(
+                    SubAgentRunUsage(
+                        usage=event.result.usage(),
+                        model_name=response.model_name,
+                        provider_name=response.provider_name,
+                        provider_url=response.provider_url,
+                    ),
+                )
+                continue
+            _forward_inner_event(
+                parent_tool_call_id=parent_tool_call_id,
+                writer=writer,
+                inner_calls=inner_calls,
+                event=event,
             )
-            continue
-        _forward_inner_event(
-            parent_tool_call_id=parent_tool_call_id,
-            writer=writer,
-            inner_calls=inner_calls,
-            event=event,
-        )
+            if isinstance(event, FunctionToolResultEvent):
+                _emit_live_ledger(writer, deps, agent_deps)
     return output
+
+
+def _emit_live_ledger(
+    writer: Any, deps: LeadDeps, agent_deps: AgentDeps,
+) -> None:
+    """After every sub-agent tool call, sync state and broadcast a fresh
+    ledger snapshot so the UI sees discovery decisions, plan edits, etc. as
+    they happen instead of waiting for the sub-agent to return to the Lead.
+    """
+    _apply_agent_state(deps, agent_deps)
+    ledger = derive_ledger(deps.state, deps.intent)
+    writer(
+        {
+            "chunk": ledger_update_event(ledger=ledger).model_dump(
+                by_alias=True, mode="json", exclude_none=True,
+            ),
+        },
+    )
 
 
 def _parent_tool_call_id(ctx: RunContext[LeadDeps]) -> str:
@@ -327,7 +400,7 @@ async def scope_problem(
     )
     agent_deps = _agent_deps(deps)
     delta = await _stream_sub_agent(
-        agent=scoping_agent,
+        role="scoping",
         work_order=work_order,
         agent_deps=agent_deps,
         parent_tool_call_id=_parent_tool_call_id(ctx),
@@ -366,7 +439,7 @@ async def discover_searches(
     work_order = "\n".join(work_order_parts)
     agent_deps = _agent_deps(deps)
     delta = await _stream_sub_agent(
-        agent=discovery_agent,
+        role="discovery",
         work_order=work_order,
         agent_deps=agent_deps,
         parent_tool_call_id=_parent_tool_call_id(ctx),
@@ -397,7 +470,7 @@ async def build_plan(
     )
     agent_deps = _agent_deps(deps)
     delta = await _stream_sub_agent(
-        agent=planning_agent,
+        role="planning",
         work_order=work_order,
         agent_deps=agent_deps,
         parent_tool_call_id=_parent_tool_call_id(ctx),
@@ -462,7 +535,7 @@ async def recover_failed_steps(
     work_order = "\n".join(work_order_parts)
     agent_deps = _agent_deps(deps)
     streamed = await _stream_sub_agent(
-        agent=execution_agent,
+        role="execution",
         work_order=work_order,
         agent_deps=agent_deps,
         parent_tool_call_id=_parent_tool_call_id(ctx),
@@ -488,7 +561,7 @@ async def verify_strategy(
     )
     agent_deps = _agent_deps(deps)
     delta = await _stream_sub_agent(
-        agent=verification_agent,
+        role="verification",
         work_order=work_order,
         agent_deps=agent_deps,
         parent_tool_call_id=_parent_tool_call_id(ctx),

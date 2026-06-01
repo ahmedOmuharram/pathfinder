@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Literal
 from uuid import UUID
 
 from langgraph.store.postgres.aio import AsyncPostgresStore
 from pydantic import BaseModel, ConfigDict, Field, SkipValidation
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.capabilities.repetition_guard import ToolRepetitionGuard
 from pathfinder.ai.graph.state import (
@@ -22,6 +23,7 @@ from pathfinder.domain.strategy.session import StrategySession
 from pathfinder.services.research.literature_search import LiteratureSearchService
 from pathfinder.services.research.web_search import WebSearchService
 
+ReasoningEffort = Literal["none", "low", "medium", "high"]
 DBSessionFactory = Callable[[], AsyncSession]
 
 
@@ -39,6 +41,8 @@ class Context:
     cancel_event: asyncio.Event
     memory_store: AsyncPostgresStore | None = None
     experiment_id: str | None = None
+    phase_models: dict[PhaseRole, str] = field(default_factory=dict)
+    phase_reasoning: dict[PhaseRole, ReasoningEffort] = field(default_factory=dict)
 
 
 class AgentDeps(BaseModel):

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, use, useState } from "react";
+import { type ReactNode, use } from "react";
 import { useRouter } from "next/navigation";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
@@ -12,6 +12,7 @@ import { LoadingScreen } from "@/app/components/LoadingScreen";
 import { SettingsPage } from "@/features/settings/components/SettingsPage";
 import { useAuthRefresh } from "@/lib/query/hooks/useAuthRefresh";
 import { useSystemConfig } from "@/app/hooks/useSystemConfig";
+import { useModalState } from "@/app/hooks/useModalState";
 import { SetupRequiredScreen } from "@/app/components/SetupRequiredScreen";
 import { useSiteTheme } from "@/features/sites/hooks/useSiteTheme";
 import { WorkbenchSidebar } from "@/features/workbench/components/WorkbenchSidebar";
@@ -62,7 +63,7 @@ function WorkbenchLayoutInner({
     router.push(`/${nextSite}/workbench`);
   };
 
-  const [showSettings, setShowSettings] = useState(false);
+  const modals = useModalState();
   const { geneSearchOpen, toggleGeneSearch, leftSidebarOpen, toggleLeftSidebar } =
     useWorkbenchStore(
       useShallow((s) => ({
@@ -88,7 +89,8 @@ function WorkbenchLayoutInner({
         <AppNavRail
           siteId={selectedSite}
           onSiteChange={handleSiteChange}
-          onOpenSettings={() => setShowSettings(true)}
+          onOpenSettings={() => modals.openSettings()}
+          onOpenModelSettings={() => modals.openSettings("model")}
           onToggleSidebar={toggleLeftSidebar}
           sidebarExpanded={leftSidebarOpen}
         />
@@ -115,9 +117,11 @@ function WorkbenchLayoutInner({
       </div>
 
       <SettingsPage
-        open={showSettings}
-        onClose={() => setShowSettings(false)}
+        open={modals.showSettings}
+        onClose={modals.closeSettings}
         siteId={selectedSite}
+        tab={modals.settingsTab}
+        onTabChange={modals.setSettingsTab}
       />
     </div>
   );

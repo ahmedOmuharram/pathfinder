@@ -1,21 +1,24 @@
-/**
- * User settings store — persisted via Zustand persist middleware.
- *
- * Stores debug toggles and WDK delete preference.
- */
-
+import type { ReasoningEffort } from "@pathfinder/shared";
+import type { PhaseRole } from "@/lib/models/phaseRoles";
 import { createPersistedStore } from "./middleware";
+
+export type PhaseModelMap = Partial<Record<PhaseRole, string>>;
+export type PhaseReasoningMap = Partial<Record<PhaseRole, ReasoningEffort>>;
 
 interface SettingsState {
   showRawToolCalls: boolean;
   showTokenUsage: boolean;
   deleteFromWdk: boolean;
   firstRunHintDismissed: boolean;
+  phaseModels: PhaseModelMap;
+  phaseReasoning: PhaseReasoningMap;
 
   setShowRawToolCalls: (show: boolean) => void;
   setShowTokenUsage: (show: boolean) => void;
   setDeleteFromWdk: (v: boolean) => void;
   dismissFirstRunHint: () => void;
+  setPhaseModel: (role: PhaseRole, id: string | null) => void;
+  setPhaseReasoning: (role: PhaseRole, effort: ReasoningEffort | null) => void;
   resetToDefaults: () => void;
 }
 
@@ -24,7 +27,18 @@ const DEFAULTS = {
   showTokenUsage: true,
   deleteFromWdk: false,
   firstRunHintDismissed: false,
-} as const;
+  phaseModels: {} as PhaseModelMap,
+  phaseReasoning: {} as PhaseReasoningMap,
+};
+
+function withoutKey<K extends string, V>(
+  map: Partial<Record<K, V>>,
+  key: K,
+): Partial<Record<K, V>> {
+  const next = { ...map };
+  delete next[key];
+  return next;
+}
 
 export const useSettingsStore = createPersistedStore<SettingsState>(
   "SettingsStore",
@@ -35,7 +49,22 @@ export const useSettingsStore = createPersistedStore<SettingsState>(
     setShowTokenUsage: (show) => set({ showTokenUsage: show }),
     setDeleteFromWdk: (v) => set({ deleteFromWdk: v }),
     dismissFirstRunHint: () => set({ firstRunHintDismissed: true }),
-    resetToDefaults: () => set({ ...DEFAULTS }),
+    setPhaseModel: (role, id) =>
+      set((state) => ({
+        phaseModels:
+          id == null || id === ""
+            ? withoutKey(state.phaseModels, role)
+            : { ...state.phaseModels, [role]: id },
+      })),
+    setPhaseReasoning: (role, effort) =>
+      set((state) => ({
+        phaseReasoning:
+          effort == null
+            ? withoutKey(state.phaseReasoning, role)
+            : { ...state.phaseReasoning, [role]: effort },
+      })),
+    resetToDefaults: () =>
+      set({ ...DEFAULTS, phaseModels: {}, phaseReasoning: {} }),
   }),
   {
     name: "pathfinder-settings",
@@ -44,6 +73,8 @@ export const useSettingsStore = createPersistedStore<SettingsState>(
       showTokenUsage: s.showTokenUsage,
       deleteFromWdk: s.deleteFromWdk,
       firstRunHintDismissed: s.firstRunHintDismissed,
+      phaseModels: s.phaseModels,
+      phaseReasoning: s.phaseReasoning,
     }),
   },
 );

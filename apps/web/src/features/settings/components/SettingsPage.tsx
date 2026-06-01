@@ -1,19 +1,15 @@
 "use client";
 
-/**
- * SettingsPage -- modal-based settings with Data, Advanced, and Seeding tabs.
- */
-
-import { useState } from "react";
 import { Modal } from "@/lib/components/Modal";
+import type { SettingsTab } from "../types";
 import { DataSettings } from "./settings/DataSettings";
 import { AdvancedSettings } from "./settings/AdvancedSettings";
 import { SeedingSettings } from "./settings/SeedingSettings";
 import { MemorySettings } from "./settings/MemorySettings";
+import { ModelSettings } from "./settings/ModelSettings";
 
-type Tab = "data" | "memory" | "advanced" | "seeding";
-
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: "model", label: "Model" },
   { id: "data", label: "Data" },
   { id: "memory", label: "Memory" },
   { id: "advanced", label: "Advanced" },
@@ -24,10 +20,17 @@ interface SettingsPageProps {
   open: boolean;
   onClose: () => void;
   siteId: string;
+  tab: SettingsTab;
+  onTabChange: (tab: SettingsTab) => void;
 }
 
-export function SettingsPage({ open, onClose, siteId }: SettingsPageProps) {
-  const [tab, setTab] = useState<Tab>("data");
+export function SettingsPage({
+  open,
+  onClose,
+  siteId,
+  tab,
+  onTabChange,
+}: SettingsPageProps) {
 
   return (
     <Modal
@@ -43,7 +46,7 @@ export function SettingsPage({ open, onClose, siteId }: SettingsPageProps) {
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => onTabChange(t.id)}
             className={`px-4 py-2.5 text-sm font-semibold transition-colors ${
               tab === t.id
                 ? "border-b-2 border-primary text-foreground"
@@ -57,6 +60,7 @@ export function SettingsPage({ open, onClose, siteId }: SettingsPageProps) {
 
       {/* Tab content — scrollable */}
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        {tab === "model" && <ModelSettings />}
         {tab === "data" && <DataSettings siteId={siteId} />}
         {tab === "memory" && <MemorySettings />}
         {tab === "advanced" && <AdvancedSettings />}

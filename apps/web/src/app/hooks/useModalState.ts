@@ -1,8 +1,13 @@
 import { useState } from "react";
+import type { SettingsTab } from "@/features/settings/types";
+
+export type { SettingsTab };
 
 interface ModalState {
   showSettings: boolean;
-  openSettings: () => void;
+  settingsTab: SettingsTab;
+  openSettings: (tab?: SettingsTab) => void;
+  setSettingsTab: (tab: SettingsTab) => void;
   closeSettings: () => void;
 
   graphEditing: boolean;
@@ -12,16 +17,22 @@ interface ModalState {
 
 export function useModalState(): ModalState {
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("data");
   const [graphEditing, setGraphEditing] = useState(false);
 
-  const openSettings = () => setShowSettings(true);
+  const openSettings = (tab?: SettingsTab) => {
+    if (tab !== undefined) setSettingsTab(tab);
+    setShowSettings(true);
+  };
   const closeSettings = () => setShowSettings(false);
   const openGraphEditor = () => setGraphEditing(true);
   const closeGraphEditor = () => setGraphEditing(false);
 
   return {
     showSettings,
+    settingsTab,
     openSettings,
+    setSettingsTab,
     closeSettings,
     graphEditing,
     openGraphEditor,

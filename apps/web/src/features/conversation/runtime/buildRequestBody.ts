@@ -1,4 +1,8 @@
 import type { UIMessage } from "ai";
+import type {
+  PhaseModelMap,
+  PhaseReasoningMap,
+} from "@/state/useSettingsStore";
 
 export interface BuildChatRequestBodyArgs {
   conversationId: string;
@@ -7,6 +11,8 @@ export interface BuildChatRequestBodyArgs {
   trigger: string;
   messages: UIMessage[];
   baseBody: Record<string, unknown> | undefined;
+  phaseModels?: PhaseModelMap;
+  phaseReasoning?: PhaseReasoningMap;
 }
 
 export interface ChatRequestBodyShape {
@@ -16,6 +22,10 @@ export interface ChatRequestBodyShape {
   trigger: string;
   messages: UIMessage[];
   [key: string]: unknown;
+}
+
+function hasEntries(map: object | undefined): boolean {
+  return map !== undefined && Object.keys(map).length > 0;
 }
 
 export function buildChatRequestBody(
@@ -35,5 +45,9 @@ export function buildChatRequestBody(
     id: args.id,
     trigger: args.trigger,
     messages: args.messages,
+    ...(hasEntries(args.phaseModels) ? { phaseModels: args.phaseModels } : {}),
+    ...(hasEntries(args.phaseReasoning)
+      ? { phaseReasoning: args.phaseReasoning }
+      : {}),
   };
 }

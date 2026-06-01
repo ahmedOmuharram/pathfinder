@@ -8,6 +8,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      worker:
+        condition: service_started
     environment:
       API_ENV: ${API_ENV:-production}
       API_SECRET_KEY: ${API_SECRET_KEY:-}

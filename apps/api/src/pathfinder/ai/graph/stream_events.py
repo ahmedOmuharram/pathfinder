@@ -73,6 +73,16 @@ def turn_usage_event(*, total_tokens: int, cost_usd: str) -> DataChunk:
     )
 
 
+def turn_status_event(*, label: str, waiting_on_llm: bool = False) -> DataChunk:
+    """Live status hint for the placeholder shown before the first message
+    part arrives. ``waiting_on_llm`` lets the UI distinguish real thinking
+    from preparatory work."""
+    return DataChunk(
+        type="data-turn-status",
+        data={"label": label, "waitingOnLlm": waiting_on_llm},
+    )
+
+
 class SubAgentCallPayload(CamelModel):
     """Payload for the ``data-sub-agent-call`` chunk.
 

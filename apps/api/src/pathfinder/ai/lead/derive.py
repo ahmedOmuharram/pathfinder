@@ -125,11 +125,7 @@ def _derive_discovery_section(
     rejected_count = sum(
         1 for ov in selections.values() if ov.selection_status == "rejected"
     )
-    fit_reports = [
-        _fit_report(ov, intent)
-        for ov in selections.values()
-        if ov.selection_status in ("selected", "candidate")
-    ]
+    fit_reports = [_fit_report(ov, intent) for ov in selections.values()]
     intent_satisfied, intent_gap = _intent_satisfaction(fit_reports, intent)
     return DiscoverySection(
         selections=selections,
@@ -161,6 +157,7 @@ def _fit_report(
         intent_sides_unmatched=unmatched,
         confidence=overview.confidence,
         rationale=overview.rationale,
+        selection_reason=overview.selection_reason,
     )
 
 

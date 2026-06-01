@@ -48,4 +48,5 @@ export const dataPartComponents: {
   "data-conversation-title": DataConversationTitle,
   "data-scratchpad-updated": () => null,
   "data-turn-usage": () => null,
+  "data-turn-status": () => null,
 };

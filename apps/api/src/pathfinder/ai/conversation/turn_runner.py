@@ -24,7 +24,10 @@ from pathfinder.ai.conversation._turn_helpers import (
 from pathfinder.ai.conversation.event_writer import ChatEventWriter
 from pathfinder.ai.conversation.request_body import ChatRequestBody
 from pathfinder.ai.conversation.title_generator import generate_conversation_title
-from pathfinder.ai.graph.stream_events import conversation_title_event
+from pathfinder.ai.graph.stream_events import (
+    conversation_title_event,
+    turn_status_event,
+)
 from pathfinder.persistence.repositories import (
     ChatTurnCancellationRepository,
     ConversationRepository,
@@ -115,11 +118,18 @@ async def run_turn(
         site_id=effective_site_id,
         user_id=user_id,
         memory_store=memory_store,
+        phase_models=body.phase_models,
+        phase_reasoning=body.phase_reasoning,
     )
 
     turn_message_id = writer.turn_id
     start_event_id = await writer.write(
         StartChunk(message_id=str(turn_message_id)).model_dump(
+            by_alias=True, mode="json", exclude_none=True,
+        ),
+    )
+    await writer.write(
+        turn_status_event(label="Preparing context").model_dump(
             by_alias=True, mode="json", exclude_none=True,
         ),
     )

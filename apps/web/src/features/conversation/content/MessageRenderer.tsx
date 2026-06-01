@@ -13,7 +13,6 @@ import {
 } from "@assistant-ui/react";
 import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
 import remarkGfm from "remark-gfm";
-import { Shimmer } from "@/components/ai-elements/shimmer";
 import type { DataPartKind } from "@pathfinder/shared";
 import type { ToolUIPart } from "ai";
 import {
@@ -53,6 +52,7 @@ import {
 } from "@/components/ai-elements/tool";
 import { Button } from "@/components/ui/button";
 
+import { AssistantThinkingPlaceholder } from "./AssistantThinkingPlaceholder";
 import { DataPartRenderer } from "./DataPartRenderer";
 import { ModelBadge } from "./ModelBadge";
 import { dataPartComponents } from "./contentComponents";
@@ -202,30 +202,6 @@ export function UserEditComposer() {
         </ComposerPrimitive.Root>
       </Message>
     </motion.div>
-  );
-}
-
-function selectAssistantPlaceholderVisible(m: ThreadMessage): boolean {
-  if (m.status?.type !== "running") return false;
-  for (const part of m.content) {
-    if (part.type === "text" && part.text.length > 0) return false;
-    if (part.type === "reasoning" && part.text.length > 0) return false;
-    if (part.type === "tool-call") return false;
-    if (part.type === "data") return false;
-  }
-  return true;
-}
-
-function AssistantThinkingPlaceholder() {
-  const visible = useMessage({
-    optional: true,
-    selector: selectAssistantPlaceholderVisible,
-  });
-  if (visible !== true) return null;
-  return (
-    <Shimmer as="span" className="text-sm font-medium" duration={1.2}>
-      Thinking...
-    </Shimmer>
   );
 }
 

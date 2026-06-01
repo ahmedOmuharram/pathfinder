@@ -28,6 +28,7 @@ import type { DataSubAgentStepPayload } from "@pathfinder/shared";
 import { usePlanStore } from "@/state/usePlanStore";
 import { useSubAgentStepsStore } from "@/state/useSubAgentStepsStore";
 import { useSessionStore } from "@/state/useSessionStore";
+import { useSettingsStore } from "@/state/useSettingsStore";
 import { useStrategyStore } from "@/state/strategy/store";
 
 import { buildChatRequestBody } from "./buildRequestBody";
@@ -67,6 +68,7 @@ export function useChatRuntime({
       }),
     prepareSendMessagesRequest: async ({ id, messages, trigger, body }) => {
       const siteId = useSessionStore.getState().selectedSite;
+      const { phaseModels, phaseReasoning } = useSettingsStore.getState();
       await beginStrategy(conversationId, { siteId });
       return {
         body: buildChatRequestBody({
@@ -76,6 +78,8 @@ export function useChatRuntime({
           trigger,
           messages,
           baseBody: body as Record<string, unknown> | undefined,
+          phaseModels,
+          phaseReasoning,
         }),
       };
     },

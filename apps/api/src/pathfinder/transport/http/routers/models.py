@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 from pydantic import ConfigDict
 
+from pathfinder.ai.agents.registry import PhaseRole, phase_defaults
 from pathfinder.ai.models.catalog import ModelEntry, get_model_catalog
 from pathfinder.ai.pricing import lookup_per_mtok_prices
 from pathfinder.platform.config import get_settings
@@ -24,6 +25,7 @@ class ModelListResponse(CamelModel):
     models: list[ModelCatalogEntryResponse]
     default_provider: ModelProvider
     default_tier: TierName
+    phase_defaults: dict[PhaseRole, str]
 
 
 router = APIRouter(prefix="/api/v1", tags=["models"])
@@ -81,4 +83,5 @@ async def list_models() -> ModelListResponse:
         models=models,
         default_provider=settings.default_provider,
         default_tier=settings.default_tier,
+        phase_defaults=phase_defaults(),
     )

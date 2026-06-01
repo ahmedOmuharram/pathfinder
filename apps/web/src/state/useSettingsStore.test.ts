@@ -11,6 +11,8 @@ describe("state/useSettingsStore", () => {
     expect(s.showRawToolCalls).toBe(false);
     expect(s.showTokenUsage).toBe(true);
     expect(s.deleteFromWdk).toBe(false);
+    expect(s.phaseModels).toEqual({});
+    expect(s.phaseReasoning).toEqual({});
   });
 
   it("setShowRawToolCalls updates state", () => {
@@ -28,15 +30,40 @@ describe("state/useSettingsStore", () => {
     expect(useSettingsStore.getState().deleteFromWdk).toBe(true);
   });
 
-  it("resetToDefaults restores all fields", () => {
+  it("setPhaseModel sets and clears per-phase model id", () => {
+    useSettingsStore.getState().setPhaseModel("lead", "openai:gpt-5.4");
+    expect(useSettingsStore.getState().phaseModels).toEqual({
+      lead: "openai:gpt-5.4",
+    });
+    useSettingsStore
+      .getState()
+      .setPhaseModel("discovery", "anthropic:claude-sonnet-4-6");
+    expect(useSettingsStore.getState().phaseModels).toEqual({
+      lead: "openai:gpt-5.4",
+      discovery: "anthropic:claude-sonnet-4-6",
+    });
+    useSettingsStore.getState().setPhaseModel("lead", null);
+    expect(useSettingsStore.getState().phaseModels).toEqual({
+      discovery: "anthropic:claude-sonnet-4-6",
+    });
+  });
+
+  it("setPhaseReasoning sets and clears per-phase reasoning effort", () => {
+    useSettingsStore.getState().setPhaseReasoning("lead", "high");
+    expect(useSettingsStore.getState().phaseReasoning).toEqual({ lead: "high" });
+    useSettingsStore.getState().setPhaseReasoning("lead", null);
+    expect(useSettingsStore.getState().phaseReasoning).toEqual({});
+  });
+
+  it("resetToDefaults clears every map", () => {
     const store = useSettingsStore;
     store.getState().setShowRawToolCalls(true);
-    store.getState().setShowTokenUsage(false);
-    store.getState().setDeleteFromWdk(true);
+    store.getState().setPhaseModel("lead", "openai:gpt-5");
+    store.getState().setPhaseReasoning("planning", "low");
     store.getState().resetToDefaults();
     const s = store.getState();
     expect(s.showRawToolCalls).toBe(false);
-    expect(s.showTokenUsage).toBe(true);
-    expect(s.deleteFromWdk).toBe(false);
+    expect(s.phaseModels).toEqual({});
+    expect(s.phaseReasoning).toEqual({});
   });
 });

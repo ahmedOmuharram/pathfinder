@@ -63,6 +63,7 @@ class SearchFitReport(CamelModel):
     intent_sides_unmatched: list[str] = Field(default_factory=list)
     confidence: float
     rationale: str = ""
+    selection_reason: str = ""
 
 
 class DiscoverySection(CamelModel):
@@ -270,21 +271,35 @@ def _render_frame_full(section: FrameSection) -> str:
 
 
 def _render_discovery_full(section: DiscoverySection) -> str:
-    parts = ["## Discovery (full)"]
-    for report in section.fit_reports:
-        parts.append(
-            f"- `{report.search_name}` [{report.selection_status}] "
-            f"conf={report.confidence:.2f}",
-        )
-        if report.intent_sides_unmatched:
-            parts.append(
-                f"    unmatched sides: {report.intent_sides_unmatched}",
-            )
-        if report.rationale:
-            parts.append(f"    why: {report.rationale}")
+    parts = [
+        "## Discovery (full)",
+        f"- selected: {section.selected_count}, "
+        f"rejected: {section.rejected_count}",
+    ]
+    for status in ("selected", "candidate", "rejected"):
+        group = [r for r in section.fit_reports if r.selection_status == status]
+        if not group:
+            continue
+        parts.append(f"\n### {status.title()} ({len(group)})")
+        for report in group:
+            parts.extend(_render_fit_report(report))
     if section.intent_gap:
         parts.append(f"\nintent_gap: {section.intent_gap}")
     return "\n".join(parts)
+
+
+def _render_fit_report(report: SearchFitReport) -> list[str]:
+    out = [
+        f"- `{report.search_name}` — {report.display_name} "
+        f"(conf={report.confidence:.2f})",
+    ]
+    if report.selection_reason:
+        out.append(f"    decision: {report.selection_reason}")
+    if report.rationale:
+        out.append(f"    why: {report.rationale}")
+    if report.intent_sides_unmatched:
+        out.append(f"    unmatched sides: {report.intent_sides_unmatched}")
+    return out
 
 
 def _render_plan_full(section: PlanSection) -> str:

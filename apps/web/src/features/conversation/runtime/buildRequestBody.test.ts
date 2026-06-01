@@ -59,4 +59,37 @@ describe("buildChatRequestBody", () => {
     expect(out["extra"]).toBe("passthrough");
     expect(out.conversationId).toBe("c1");
   });
+
+  it("includes phaseModels and phaseReasoning when non-empty", () => {
+    const out = buildChatRequestBody({
+      conversationId: "c1",
+      siteId: "plasmodb",
+      id: "x",
+      trigger: "submit-message",
+      messages: [],
+      baseBody: undefined,
+      phaseModels: { lead: "openai:gpt-5.4", discovery: "anthropic:claude-sonnet-4-6" },
+      phaseReasoning: { lead: "high" },
+    });
+    expect(out["phaseModels"]).toEqual({
+      lead: "openai:gpt-5.4",
+      discovery: "anthropic:claude-sonnet-4-6",
+    });
+    expect(out["phaseReasoning"]).toEqual({ lead: "high" });
+  });
+
+  it("omits phaseModels and phaseReasoning when empty or missing", () => {
+    const out = buildChatRequestBody({
+      conversationId: "c1",
+      siteId: "plasmodb",
+      id: "x",
+      trigger: "submit-message",
+      messages: [],
+      baseBody: undefined,
+      phaseModels: {},
+      phaseReasoning: {},
+    });
+    expect("phaseModels" in out).toBe(false);
+    expect("phaseReasoning" in out).toBe(false);
+  });
 });
