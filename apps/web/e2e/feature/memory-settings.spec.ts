@@ -5,9 +5,9 @@ test.describe("Settings / Memory tab", () => {
   test("Memory tab renders four namespace sections", async ({ page }) => {
     await page.goto("/conversation");
 
-    // Wait for the chat view to settle so the top-bar Settings button is
+    // Wait for the chat view to settle so the nav-rail Settings button is
     // mounted with its onClick wired up.
-    await expect(page.getByRole("textbox", { name: /ask anything/i })).toBeVisible({
+    await expect(page.getByTestId("message-input")).toBeVisible({
       timeout: 15_000,
     });
 

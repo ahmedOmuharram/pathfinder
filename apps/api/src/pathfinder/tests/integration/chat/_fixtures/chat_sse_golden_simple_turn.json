@@ -4,13 +4,27 @@
     "type": "start"
   },
   {
-    "type": "start-step"
+    "data": {
+      "label": "Preparing context",
+      "waitingOnLlm": false
+    },
+    "type": "data-turn-status"
+  },
+  {
+    "data": {
+      "label": "Thinking...",
+      "waitingOnLlm": true
+    },
+    "type": "data-turn-status"
   },
   {
     "data": {
       "title": "hi"
     },
     "type": "data-conversation-title"
+  },
+  {
+    "type": "start-step"
   },
   {
     "toolCallId": "<REDACTED>",
@@ -23,6 +37,13 @@
     "type": "tool-input-delta"
   },
   {
+    "data": {
+      "costUsd": "0",
+      "totalTokens": 64
+    },
+    "type": "data-turn-usage"
+  },
+  {
     "input": {
       "nextState": "await_user",
       "prose": "[mock] Investigation paused \u2014 supply more context or rephrase."
@@ -32,16 +53,17 @@
     "type": "tool-input-available"
   },
   {
-    "data": {
-      "costUsd": "0",
-      "totalTokens": 64
-    },
-    "type": "data-turn-usage"
-  },
-  {
     "output": "Final result processed.",
     "toolCallId": "<REDACTED>",
     "type": "tool-output-available"
+  },
+  {
+    "messageMetadata": {
+      "pydantic_ai": {
+        "timestamp": "<REDACTED>"
+      }
+    },
+    "type": "message-metadata"
   },
   {
     "type": "finish-step"

@@ -8,6 +8,7 @@ with a semaphore to cap the number of parallel WDK requests.
 """
 
 import asyncio
+import json
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -48,6 +49,48 @@ logger = get_logger(__name__)
 _MAX_CONCURRENT_SEEDS = 10
 
 
+def _coerce_param_value(value: object) -> object:
+    """Normalize a legacy wire-format seed parameter into a typed ParamValue.
+
+    Seed definitions encode parameters as WDK wire strings (JSON-array for
+    multi-pick vocabularies, ``{"min","max"}`` for ranges, plain text
+    otherwise). ``StrategyStepNode`` requires typed ``ParamValue`` objects, so
+    adapt at the seed boundary. Scalars become string values — they serialize
+    back to the same wire form on the WDK push regardless of the WDK param's
+    declared kind. Already-typed values pass through unchanged.
+    """
+    if isinstance(value, dict) or not isinstance(value, str):
+        return value
+    try:
+        parsed = json.loads(value)
+    except (ValueError, TypeError):
+        return {"type": "string", "value": value}
+    if isinstance(parsed, list):
+        return {"type": "multi-pick-vocabulary", "values": [str(x) for x in parsed]}
+    if isinstance(parsed, dict) and ("min" in parsed or "max" in parsed):
+        bounds: dict[str, object] = {"type": "number-range"}
+        if parsed.get("min") not in (None, ""):
+            bounds["min"] = float(parsed["min"])
+        if parsed.get("max") not in (None, ""):
+            bounds["max"] = float(parsed["max"])
+        return bounds
+    return {"type": "string", "value": value}
+
+
+def _coerce_step_tree_params(node: object) -> object:
+    """Recursively coerce every step's ``parameters`` to typed ParamValues."""
+    if not isinstance(node, dict):
+        return node
+    result: dict[str, object] = dict(node)
+    params = result.get("parameters")
+    if isinstance(params, dict):
+        result["parameters"] = {k: _coerce_param_value(v) for k, v in params.items()}
+    for child_key in ("primaryInput", "secondaryInput"):
+        if result.get(child_key) is not None:
+            result[child_key] = _coerce_step_tree_params(result[child_key])
+    return result
+
+
 @dataclass
 class _SeedRunContext:
     """Shared execution infrastructure for seed processing.
@@ -86,7 +129,9 @@ async def _process_single_seed(
         try:
             api = get_strategy_api(seed.site_id)
 
-            tree_node = StrategyStepNode.model_validate(seed.step_tree)
+            tree_node = StrategyStepNode.model_validate(
+                _coerce_step_tree_params(seed.step_tree)
+            )
             root_tree = await _materialize_step_tree(
                 api, tree_node, seed.record_type, site_id=seed.site_id
             )

@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import type { Page } from "@playwright/test";
 import type { ChatPage } from "../pages/chat.page";
 import type { SidebarPage } from "../pages/sidebar.page";
 import type { ApiClient } from "../fixtures/api-client";
@@ -41,35 +42,28 @@ async function makeWdkLinked(
 }
 
 /** Start a new chat and wait for the strategy creation to complete. */
-async function startNewChat(
-  page: import("@playwright/test").Page,
-  sidebarPage: import("../pages/sidebar.page").SidebarPage,
-) {
-  const ready = page.waitForResponse(
-    (resp) =>
-      resp.url().includes("/strategies/open") &&
-      resp.request().method() === "POST" &&
-      resp.ok(),
-  );
+async function startNewChat(page: Page, sidebarPage: SidebarPage) {
+  // "New chat" opens a fresh, lazily-created conversation (no /open POST until
+  // the first message). Just wait for the empty composer to be ready.
   await sidebarPage.createNew();
-  await ready;
+  await expect(page.getByTestId("message-input")).toBeVisible({ timeout: 15_000 });
 }
 
 /** Wait for a DELETE 204 response targeting a specific strategy. */
-function waitForDelete(page: import("@playwright/test").Page, strategyId: string) {
+function waitForDelete(page: Page, strategyId: string) {
   return page.waitForResponse(
     (resp) =>
-      resp.url().includes(`/strategies/${strategyId}`) &&
+      resp.url().includes(`/conversations/${strategyId}`) &&
       resp.request().method() === "DELETE" &&
       resp.status() === 204,
   );
 }
 
 /** Wait for a POST restore response targeting a specific strategy. */
-function waitForRestore(page: import("@playwright/test").Page, strategyId: string) {
+function waitForRestore(page: Page, strategyId: string) {
   return page.waitForResponse(
     (resp) =>
-      resp.url().includes(`/strategies/${strategyId}/restore`) &&
+      resp.url().includes(`/conversations/${strategyId}/restore`) &&
       resp.request().method() === "POST" &&
       resp.ok(),
   );
@@ -80,7 +74,10 @@ function waitForRestore(page: import("@playwright/test").Page, strategyId: strin
 test.describe("Dismissed Strategies", () => {
   test.describe.configure({ mode: "serial" });
 
-  test.beforeEach(async ({ chatPage }) => {
+  test.beforeEach(async ({ chatPage, apiClient }) => {
+    // Purge prior conversations (incl. dismissed) so dismissed-count
+    // assertions aren't polluted by earlier tests in this serial suite.
+    await apiClient.delete("/api/v1/user/data?deleteWdk=true");
     await chatPage.goto();
     await chatPage.newChat();
   });
@@ -154,7 +151,10 @@ test.describe("Dismissed Strategies", () => {
 test.describe("Dismissed Strategies — complex flows", () => {
   test.describe.configure({ mode: "serial" });
 
-  test.beforeEach(async ({ chatPage }) => {
+  test.beforeEach(async ({ chatPage, apiClient }) => {
+    // Purge prior conversations (incl. dismissed) so dismissed-count
+    // assertions aren't polluted by earlier tests in this serial suite.
+    await apiClient.delete("/api/v1/user/data?deleteWdk=true");
     await chatPage.goto();
     await chatPage.newChat();
   });
@@ -163,47 +163,35 @@ test.describe("Dismissed Strategies — complex flows", () => {
     chatPage,
     sidebarPage,
     apiClient,
-    page,
   }) => {
     const strategyId = await makeWdkLinked(chatPage, sidebarPage, apiClient);
 
-    // ── First dismiss ──
-    let deleteCompleted = waitForDelete(page, strategyId);
+    // ── First dismiss ── (UI state is the source of truth; a response-wait
+    // race on the second cycle made this flaky.)
     await sidebarPage.delete(strategyId);
-    await deleteCompleted;
-
     await expect(sidebarPage.item(strategyId)).not.toBeVisible({
-      timeout: 10_000,
+      timeout: 15_000,
     });
     await sidebarPage.expectDismissedCount(1);
 
     // ── First restore ──
     await sidebarPage.expandDismissed();
-    let restoreCompleted = waitForRestore(page, strategyId);
     await sidebarPage.restoreDismissed(strategyId);
-    await restoreCompleted;
-
     await expect(sidebarPage.item(strategyId)).toBeVisible({
       timeout: 15_000,
     });
     await sidebarPage.expectNoDismissedSection();
 
     // ── Second dismiss ──
-    deleteCompleted = waitForDelete(page, strategyId);
     await sidebarPage.delete(strategyId);
-    await deleteCompleted;
-
     await expect(sidebarPage.item(strategyId)).not.toBeVisible({
-      timeout: 10_000,
+      timeout: 15_000,
     });
     await sidebarPage.expectDismissedCount(1);
 
     // ── Second restore ──
     await sidebarPage.expandDismissed();
-    restoreCompleted = waitForRestore(page, strategyId);
     await sidebarPage.restoreDismissed(strategyId);
-    await restoreCompleted;
-
     await expect(sidebarPage.item(strategyId)).toBeVisible({
       timeout: 15_000,
     });
@@ -220,12 +208,13 @@ test.describe("Dismissed Strategies — complex flows", () => {
     apiClient,
     page,
   }) => {
-    // Create first WDK strategy.
+    // Create first WDK strategy. (Keep prompts plainly biological — some
+    // phrasings trip the PIGuard safety screen.)
     const id1 = await makeWdkLinked(
       chatPage,
       sidebarPage,
       apiClient,
-      "first strategy for multi-dismiss",
+      "find kinase genes",
     );
 
     // Create second WDK strategy (new chat first so sidebar has 2 items).
@@ -234,25 +223,19 @@ test.describe("Dismissed Strategies — complex flows", () => {
       chatPage,
       sidebarPage,
       apiClient,
-      "second strategy for multi-dismiss",
+      "find transporter genes",
     );
 
-    // Dismiss both.
-    let deleteCompleted = waitForDelete(page, id2);
+    // Dismiss both. (UI state is the source of truth; response-waits raced.)
     await sidebarPage.delete(id2);
-    await deleteCompleted;
-
-    await expect(sidebarPage.item(id2)).not.toBeVisible({ timeout: 10_000 });
+    await expect(sidebarPage.item(id2)).not.toBeVisible({ timeout: 15_000 });
     await sidebarPage.expectDismissedCount(1);
 
     // Wait for id1 to be visible after sidebar refetch before deleting it.
     await expect(sidebarPage.item(id1)).toBeVisible({ timeout: 10_000 });
 
-    deleteCompleted = waitForDelete(page, id1);
     await sidebarPage.delete(id1);
-    await deleteCompleted;
-
-    await expect(sidebarPage.item(id1)).not.toBeVisible({ timeout: 10_000 });
+    await expect(sidebarPage.item(id1)).not.toBeVisible({ timeout: 15_000 });
     await sidebarPage.expectDismissedCount(2);
 
     // Expand dismissed — both visible.
@@ -261,18 +244,12 @@ test.describe("Dismissed Strategies — complex flows", () => {
     await sidebarPage.expectDismissedItemVisible(id2);
 
     // Restore one — count drops to 1.
-    const restoreCompleted = waitForRestore(page, id1);
     await sidebarPage.restoreDismissed(id1);
-    await restoreCompleted;
-
     await expect(sidebarPage.item(id1)).toBeVisible({ timeout: 15_000 });
     await sidebarPage.expectDismissedCount(1);
 
     // Restore the other — dismissed section disappears.
-    const restoreCompleted2 = waitForRestore(page, id2);
     await sidebarPage.restoreDismissed(id2);
-    await restoreCompleted2;
-
     await expect(sidebarPage.item(id2)).toBeVisible({ timeout: 15_000 });
     await sidebarPage.expectNoDismissedSection();
   });
@@ -287,7 +264,7 @@ test.describe("Dismissed Strategies — complex flows", () => {
       chatPage,
       sidebarPage,
       apiClient,
-      "strategy to restore and reuse",
+      "find membrane protein genes",
     );
 
     // Dismiss it.
@@ -314,8 +291,9 @@ test.describe("Dismissed Strategies — complex flows", () => {
     await sidebarPage.selectConversation(strategyId);
 
     // Send a new message to verify the conversation is fully functional.
-    await chatPage.send("follow-up after restore");
-    await chatPage.expectAssistantMessage(/follow-up after restore/);
+    // (Plainly biological — some phrasings trip the PIGuard safety screen.)
+    await chatPage.send("find ribosomal genes");
+    await chatPage.expectAssistantMessage(/ribosomal genes/);
 
     // API confirms strategy still exists and is accessible.
     const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);

@@ -7,6 +7,7 @@ The transport layer (``transport.http.routers.user_data``) is a thin HTTP
 adapter that delegates to this module.
 """
 
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
@@ -25,6 +26,7 @@ from pathfinder.persistence.models import (
     ExperimentRow,
     GeneSetRow,
 )
+from pathfinder.platform.errors import WDKError
 from pathfinder.platform.logging import get_logger
 from pathfinder.services.gene_sets.store import get_gene_set_store
 
@@ -127,30 +129,42 @@ async def _purge_wdk_strategies(site_id: str | None, *, delete_wdk: bool) -> int
     if not delete_wdk:
         return 0
 
-    wdk_deleted = 0
     sites_to_purge: set[str] = set()
     if site_id:
         sites_to_purge.add(site_id)
     else:
         sites_to_purge.update(s.id for s in list_sites())
 
+    # Delete concurrently (bounded) — a sequential per-strategy loop across all
+    # sites can run for minutes and trip the upstream connection's idle reset.
+    semaphore = asyncio.Semaphore(10)
+    wdk_deleted = 0
     for purge_site in sites_to_purge:
         try:
             api = get_strategy_api(purge_site)
             wdk_strategies = await api.list_strategies()
-            for wdk_strat in wdk_strategies:
+        except (ValueError, RuntimeError, WDKError) as exc:
+            logger.debug("WDK purge skipped for site", site=purge_site, error=str(exc))
+            continue
+
+        async def _delete_one(strategy_id: int, *, site: str = purge_site) -> int:
+            async with semaphore:
                 try:
-                    await api.delete_strategy(wdk_strat.strategy_id)
-                    wdk_deleted += 1
-                except (ValueError, RuntimeError) as exc:
+                    await get_strategy_api(site).delete_strategy(strategy_id)
+                except (ValueError, RuntimeError, WDKError) as exc:
                     logger.warning(
                         "Failed to delete WDK strategy during user data purge",
-                        wdk_strategy_id=wdk_strat.strategy_id,
-                        site=purge_site,
+                        wdk_strategy_id=strategy_id,
+                        site=site,
                         error=str(exc),
                     )
-        except (ValueError, RuntimeError) as exc:
-            logger.debug("WDK purge skipped for site", site=purge_site, error=str(exc))
+                    return 0
+                return 1
+
+        outcomes = await asyncio.gather(
+            *(_delete_one(s.strategy_id) for s in wdk_strategies)
+        )
+        wdk_deleted += sum(outcomes)
     return wdk_deleted
 
 

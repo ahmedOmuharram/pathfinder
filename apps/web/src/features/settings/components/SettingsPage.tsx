@@ -31,7 +31,6 @@ export function SettingsPage({
   tab,
   onTabChange,
 }: SettingsPageProps) {
-
   return (
     <Modal
       open={open}

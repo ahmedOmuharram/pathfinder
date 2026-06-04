@@ -356,7 +356,11 @@ describe("buildAutoOptimizeSpecs", () => {
       makeSpec({
         name: "organism",
         type: "single-pick-vocabulary",
-        vocabulary: [["org1", "org1", null], ["org2", "org2", null], ["org3", "org3", null]],
+        vocabulary: [
+          ["org1", "org1", null],
+          ["org2", "org2", null],
+          ["org3", "org3", null],
+        ],
       }),
     ];
     const result = buildAutoOptimizeSpecs(specs);
@@ -414,7 +418,10 @@ describe("buildAutoOptimizeSpecs", () => {
       makeSpec({
         name: "org",
         type: "single-pick-vocabulary",
-        vocabulary: [["a", "a", null], ["b", "b", null]],
+        vocabulary: [
+          ["a", "a", null],
+          ["b", "b", null],
+        ],
       }),
     ];
     const result = buildAutoOptimizeSpecs(specs);
@@ -459,7 +466,10 @@ describe("buildDisplayMap", () => {
       makeSpec({
         name: "org",
         type: "string",
-        vocabulary: [["alpha", "alpha", null], ["beta", "beta", null]],
+        vocabulary: [
+          ["alpha", "alpha", null],
+          ["beta", "beta", null],
+        ],
       }),
     ];
     const result = buildDisplayMap(parameters, paramSpecs);

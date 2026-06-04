@@ -22,6 +22,7 @@
  */
 
 import { test, expect } from "../fixtures/test";
+import type { BrowserContext } from "@playwright/test";
 
 const TASK_ID = "00000000-0000-0000-0000-0000000000aa";
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
@@ -39,13 +40,12 @@ function uiMessageStreamHeaders(): Record<string, string> {
 }
 
 interface OpenStrategyResponse {
+  conversationId?: string;
   strategyId?: string;
   id?: string;
 }
 
-async function openStrategy(
-  context: import("@playwright/test").BrowserContext,
-): Promise<string> {
+async function openStrategy(context: BrowserContext): Promise<string> {
   const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
     data: { siteId: "veupathdb" },
     headers: { "X-Requested-With": "XMLHttpRequest" },
@@ -54,7 +54,7 @@ async function openStrategy(
     throw new Error(`openStrategy failed: ${resp.status()}`);
   }
   const body = (await resp.json()) as OpenStrategyResponse;
-  const id = body.strategyId ?? body.id;
+  const id = body.conversationId ?? body.strategyId ?? body.id;
   if (id === undefined || id === "") {
     throw new Error("openStrategy returned no id");
   }
@@ -70,6 +70,9 @@ test.describe("Durable verification TaskCard", () => {
   }) => {
     const strategyId = await openStrategy(context);
 
+    // Background-task progress is rendered from chunks delivered on the chat
+    // event stream (data-background-task-started → data-task-progress →
+    // data-task-completed), each by its own typed part renderer.
     const chatStream = [
       sseFrame({
         type: "start",
@@ -89,6 +92,14 @@ test.describe("Durable verification TaskCard", () => {
           estimatedDurationSeconds: 3,
         },
       }),
+      sseFrame({
+        type: "data-task-progress",
+        data: { taskId: TASK_ID, percent: 0.66, message: "Comparing controls" },
+      }),
+      sseFrame({
+        type: "data-task-completed",
+        data: { taskId: TASK_ID, status: "success" },
+      }),
       sseFrame({ type: "finish", finishReason: "stop" }),
       "data: [DONE]\n\n",
     ].join("");
@@ -101,40 +112,10 @@ test.describe("Durable verification TaskCard", () => {
       });
     });
 
-    await page.route(
-      `**/api/v1/conversations/*/tasks/${TASK_ID}/events`,
-      async (route) => {
-        const payload = [
-          sseFrame({
-            type: "data-task-progress",
-            data: { taskId: TASK_ID, percent: 0.33, message: "Querying WDK step" },
-          }),
-          sseFrame({
-            type: "data-task-progress",
-            data: { taskId: TASK_ID, percent: 0.66, message: "Comparing controls" },
-          }),
-          sseFrame({
-            type: "data-task-progress",
-            data: { taskId: TASK_ID, percent: 0.99, message: "Exporting results" },
-          }),
-          sseFrame({
-            type: "data-task-completed",
-            data: { taskId: TASK_ID, status: "success" },
-          }),
-          "data: [DONE]\n\n",
-        ].join("");
-        await route.fulfill({
-          status: 200,
-          headers: uiMessageStreamHeaders(),
-          body: payload,
-        });
-      },
-    );
-
     await page.goto(`/conversation/${strategyId}`);
-    const composer = page.getByPlaceholder("Ask anything", { exact: false });
+    const composer = page.getByTestId("message-input");
     await expect(composer).toBeVisible({ timeout: 30_000 });
-    const submit = page.getByRole("button", { name: /Submit/i });
+    const submit = page.getByRole("button", { name: /Send/i });
     await composer.click();
     await composer.pressSequentially("kick off durable verification", {
       delay: 15,
@@ -142,13 +123,17 @@ test.describe("Durable verification TaskCard", () => {
     await expect(submit).toBeEnabled({ timeout: 15_000 });
     await composer.press("Enter");
 
-    const card = page.getByTestId("task-card");
-    await expect(card).toBeVisible({ timeout: 20_000 });
-    await expect(card).toContainText("run_control_tests_on_step");
+    // The started badge names the durable tool.
+    const started = page.getByTestId("data-background-task-started");
+    await expect(started).toBeVisible({ timeout: 20_000 });
+    await expect(started).toContainText("run_control_tests_on_step");
 
-    await expect(card).toHaveAttribute("data-status", "success", {
+    // Progress + success completion render as their own parts.
+    await expect(page.getByTestId("data-task-progress").first()).toBeVisible({
       timeout: 15_000,
     });
-    await expect(card).toContainText(/Completed in/);
+    const completed = page.getByTestId("data-task-completed");
+    await expect(completed).toBeVisible({ timeout: 15_000 });
+    await expect(completed).toContainText(/completed/i);
   });
 });

@@ -1,21 +1,15 @@
 import { type Locator, type Page, expect } from "@playwright/test";
 
 export class SitePickerComponent {
-  readonly select: Locator;
   readonly switcherTrigger: Locator;
 
   constructor(private page: Page) {
-    this.select = page.getByTestId("site-select");
     this.switcherTrigger = page.getByRole("button", { name: /switch database/i });
   }
 
   async selectSite(siteId: string) {
-    if (await this.switcherTrigger.isVisible().catch(() => false)) {
-      await this.switcherTrigger.click();
-      await this.page.getByTestId(`site-menu-item-${siteId}`).click();
-      return;
-    }
-    await this.select.selectOption(siteId);
+    await this.switcherTrigger.click();
+    await this.page.getByTestId(`site-menu-item-${siteId}`).click();
   }
 
   async confirmSwitch() {
@@ -27,6 +21,7 @@ export class SitePickerComponent {
   }
 
   async expectCurrentSite(siteId: string) {
-    await expect(this.select).toHaveValue(siteId);
+    // The active site lives in the URL (`/{siteId}/...`) now, not a <select>.
+    await expect(this.page).toHaveURL(new RegExp(`/${siteId}(/|$)`));
   }
 }

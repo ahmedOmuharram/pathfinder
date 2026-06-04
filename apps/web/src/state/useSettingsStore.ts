@@ -63,8 +63,7 @@ export const useSettingsStore = createPersistedStore<SettingsState>(
             ? withoutKey(state.phaseReasoning, role)
             : { ...state.phaseReasoning, [role]: effort },
       })),
-    resetToDefaults: () =>
-      set({ ...DEFAULTS, phaseModels: {}, phaseReasoning: {} }),
+    resetToDefaults: () => set({ ...DEFAULTS, phaseModels: {}, phaseReasoning: {} }),
   }),
   {
     name: "pathfinder-settings",

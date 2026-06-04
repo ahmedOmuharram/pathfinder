@@ -99,9 +99,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       ];
       await Promise.all(
         workerSiteIds.map(async (siteId) => {
-          const url = siteId
-            ? `${BASE_URL}/api/v1/gene-sets?siteId=${siteId}`
-            : `${BASE_URL}/api/v1/gene-sets`;
+          const url =
+            siteId != null && siteId !== ""
+              ? `${BASE_URL}/api/v1/gene-sets?siteId=${siteId}`
+              : `${BASE_URL}/api/v1/gene-sets`;
           const resp = await req.get(url);
           if (resp.ok()) {
             const geneSets = (await resp.json()) as { id: string }[];
@@ -151,9 +152,10 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       ];
       await Promise.all(
         allSiteIds.map(async (siteId) => {
-          const url = siteId
-            ? `${BASE_URL}/api/v1/gene-sets?siteId=${siteId}`
-            : `${BASE_URL}/api/v1/gene-sets`;
+          const url =
+            siteId != null && siteId !== ""
+              ? `${BASE_URL}/api/v1/gene-sets?siteId=${siteId}`
+              : `${BASE_URL}/api/v1/gene-sets`;
           const resp = await req.get(url);
           if (resp.ok()) {
             const geneSets = (await resp.json()) as { id: string }[];

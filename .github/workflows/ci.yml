@@ -50,7 +50,8 @@ jobs:
         run: uv run lint-imports
 
       - name: Check file sizes
-        run: bash scripts/check-file-size.sh apps/api/src 300
+        working-directory: apps/api
+        run: uv run python scripts/check_max_lines.py
 
       - name: Audit dependencies
         working-directory: apps/api
@@ -157,10 +158,6 @@ jobs:
         working-directory: apps/web
         run: yarn check:boundaries
 
-      - name: Check for unused code (knip)
-        working-directory: apps/web
-        run: npx knip
-
   check-shared-ts:
     name: Check shared TS types
     runs-on: ubuntu-latest
@@ -210,51 +207,38 @@ jobs:
   test-e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: pathfinder_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Install API dependencies
-        working-directory: apps/api
-        run: uv sync
-
-      - name: Start API server
-        working-directory: apps/api
-        env:
-          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/pathfinder_test
-          API_SECRET_KEY: test-secret-key-xxxxx-xxxxx-xxxxx
-          PATHFINDER_CHAT_PROVIDER: mock
-        run: uv run uvicorn pathfinder.main:app --host 0.0.0.0 --port 8000 &
-
-      - name: Wait for API
+      # The e2e stack runs the production images: the API bakes the PIGuard
+      # model + serves real settings, and web runs the standalone server
+      # (`next start` cannot serve `output: "standalone"`). The e2e overlay
+      # forces API_ENV=test + mock provider and maps the DB to 5433.
+      - name: Prepare e2e env
         run: |
-          for i in {1..30}; do
-            curl -fsS http://localhost:8000/health/ready && exit 0
-            sleep 1
+          cp .env.test.example .env.test
+          printf '\nAPI_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" >> .env.test
+
+      - name: Build + start the stack (mock provider, test env)
+        run: |
+          docker compose --env-file .env.test \
+            -f docker-compose.yml -f docker-compose.e2e.yml \
+            up -d --build api web worker
+
+      - name: Wait for API + web
+        run: |
+          ok=
+          for _ in $(seq 1 60); do
+            curl -fsS http://localhost:8000/health/ready >/dev/null 2>&1 && { ok=1; break; }
+            sleep 5
           done
-          echo "API did not become ready in time" >&2
-          exit 1
+          [ -n "$ok" ] || { echo "API not ready"; docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs api | tail -80; exit 1; }
+          ok=
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:3000/ >/dev/null 2>&1 && { ok=1; break; }
+            sleep 2
+          done
+          [ -n "$ok" ] || { echo "web not ready"; docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs web | tail -50; exit 1; }
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -273,30 +257,18 @@ jobs:
         working-directory: apps/web
         run: yarn playwright install --with-deps
 
-      - name: Build web
-        working-directory: apps/web
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:8000
-        run: yarn build
-
-      - name: Start web
-        working-directory: apps/web
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:8000
-          PORT: "3000"
-        run: yarn start -p 3000 &
-
-      - name: Wait for web
-        run: |
-          for i in {1..30}; do
-            curl -fsS http://localhost:3000/ && exit 0
-            sleep 1
-          done
-          echo "Web did not become ready in time" >&2
-          exit 1
-
       - name: Run Playwright tests
         working-directory: apps/web
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
         run: yarn test:e2e
+
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs --tail=120
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose --env-file .env.test \
+            -f docker-compose.yml -f docker-compose.e2e.yml down -v

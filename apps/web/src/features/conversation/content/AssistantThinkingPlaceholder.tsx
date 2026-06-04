@@ -5,10 +5,7 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 
 const DEFAULT_LABEL = "Thinking...";
 
-function readTurnStatus(part: {
-  type: string;
-  data?: unknown;
-}): string | null {
+function readTurnStatus(part: { type: string; data?: unknown }): string | null {
   if (part.type !== "data-turn-status") return null;
   const data = part.data;
   if (data == null || typeof data !== "object") return null;

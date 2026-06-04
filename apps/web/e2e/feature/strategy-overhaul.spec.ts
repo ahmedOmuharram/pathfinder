@@ -12,6 +12,8 @@
  * the overhaul without relying on prior-test state.
  */
 import { test, expect } from "../fixtures/test";
+import type { ChatPage } from "../pages/chat.page";
+import type { GraphPage } from "../pages/graph.page";
 import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 /**
@@ -19,8 +21,8 @@ import { MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
  * have something to render. Captures the conversation id for navigation.
  */
 async function seedStrategy(
-  chatPage: import("../pages/chat.page").ChatPage,
-  graphPage: import("../pages/graph.page").GraphPage,
+  chatPage: ChatPage,
+  graphPage: GraphPage,
 ): Promise<{ conversationId: string; firstStepId: string }> {
   await chatPage.send(MOCK_PLAN_PROMPT);
   await chatPage.expectPlanningArtifact();

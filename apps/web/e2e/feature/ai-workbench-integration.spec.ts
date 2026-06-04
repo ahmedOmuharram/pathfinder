@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { fetchConversationMessages } from "../fixtures/api-client";
 import { MOCK_DELEGATION_PROMPT, MOCK_PLAN_PROMPT } from "../fixtures/mock-prompts";
 
 test.describe("AI Workbench Integration", () => {
@@ -27,11 +28,8 @@ test.describe("AI Workbench Integration", () => {
     // API: Strategy persisted — use captured ID for isolation
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
-    expect(fullResp.ok()).toBeTruthy();
-    const full = await fullResp.json();
-    expect(full.messages).toBeDefined();
-    expect(full.messages.length).toBeGreaterThan(0);
+    const messages = await fetchConversationMessages(apiClient, strategyId);
+    expect(messages.length).toBeGreaterThan(0);
   });
 
   test("artifact graph creates exportable strategy persisted in DB", async ({

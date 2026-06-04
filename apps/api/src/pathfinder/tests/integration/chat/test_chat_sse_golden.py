@@ -62,6 +62,7 @@ _ALLOWED_CHUNK_TYPES: frozenset[str] = frozenset(
         "data-sub-agent-call",
         "data-ledger-update",
         "data-turn-usage",
+        "data-turn-status",
         "data-conversation-title",
         "message-metadata",
     }

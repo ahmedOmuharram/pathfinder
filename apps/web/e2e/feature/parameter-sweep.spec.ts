@@ -14,6 +14,7 @@
  */
 
 import { test, expect } from "../fixtures/test";
+import type { BrowserContext } from "@playwright/test";
 
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 const TASK_ID = "00000000-0000-0000-0000-sweep0000001";
@@ -31,13 +32,12 @@ function chatStreamHeaders(): Record<string, string> {
 }
 
 interface OpenStrategyResponse {
+  conversationId?: string;
   strategyId?: string;
   id?: string;
 }
 
-async function openStrategy(
-  context: import("@playwright/test").BrowserContext,
-): Promise<string> {
+async function openStrategy(context: BrowserContext): Promise<string> {
   const resp = await context.request.post(`${BASE_URL}/api/v1/conversations/open`, {
     data: { siteId: "veupathdb" },
     headers: { "X-Requested-With": "XMLHttpRequest" },
@@ -46,7 +46,7 @@ async function openStrategy(
     throw new Error(`openStrategy failed: ${resp.status()}`);
   }
   const body = (await resp.json()) as OpenStrategyResponse;
-  const id = body.strategyId ?? body.id;
+  const id = body.conversationId ?? body.strategyId ?? body.id;
   if (id === undefined || id === "") {
     throw new Error("openStrategy returned no id");
   }

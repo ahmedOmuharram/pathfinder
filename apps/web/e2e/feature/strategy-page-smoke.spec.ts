@@ -6,13 +6,12 @@
  * editor Sheet. Useful when the chat infrastructure is unavailable.
  */
 import { test, expect } from "../fixtures/test";
+import type { BrowserContext, Page } from "@playwright/test";
 
 const SITE_ID = "plasmodb";
 
 /** Expand the right rail's Strategy panel so the StrategyPanel content mounts. */
-async function openStrategyRailPanel(
-  page: import("@playwright/test").Page,
-): Promise<void> {
+async function openStrategyRailPanel(page: Page): Promise<void> {
   const openBtn = page.getByRole("button", { name: /open strategy/i });
   await openBtn.click();
 }
@@ -23,7 +22,7 @@ interface SeededStrategy {
 }
 
 async function seedStrategyViaApi(
-  ctx: import("@playwright/test").BrowserContext,
+  ctx: BrowserContext,
   baseURL: string,
 ): Promise<SeededStrategy> {
   const req = ctx.request;
@@ -37,10 +36,13 @@ async function seedStrategyViaApi(
         root: {
           searchName: "GenesByText",
           parameters: {
-            text_expression: "kinase",
-            text_fields: '["primary_key","gene_product"]',
-            document_type: "gene",
-            max_pvalue: "0.5",
+            text_expression: { type: "string", value: "kinase" },
+            text_fields: {
+              type: "string",
+              value: '["primary_key","gene_product"]',
+            },
+            document_type: { type: "string", value: "gene" },
+            max_pvalue: { type: "number", value: 0.5 },
           },
           displayName: "All kinase transcripts",
         },
@@ -124,7 +126,6 @@ test.describe("Strategy page smoke (post-overhaul)", () => {
 
   test("back-to-chat returns to the conversation route", async ({
     context,
-    page,
     graphPage,
   }) => {
     const baseURL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";

@@ -1,4 +1,6 @@
 import { test, expect } from "../fixtures/test";
+import type { WorkbenchSidebarPage } from "../pages/workbench-sidebar.page";
+import type { Page } from "@playwright/test";
 import { clearAllGeneSets } from "../fixtures/api-client";
 
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
@@ -8,8 +10,8 @@ const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
  * and verify the card shows the expected count.
  */
 async function addGeneSet(
-  page: import("@playwright/test").Page,
-  workbenchSidebarPage: import("../pages/workbench-sidebar.page").WorkbenchSidebarPage,
+  page: Page,
+  workbenchSidebarPage: WorkbenchSidebarPage,
   name: string,
   geneIds: string[],
 ) {
@@ -25,8 +27,8 @@ async function addGeneSet(
  * Helper: create and immediately activate a gene set.
  */
 async function addAndActivateGeneSet(
-  page: import("@playwright/test").Page,
-  workbenchSidebarPage: import("../pages/workbench-sidebar.page").WorkbenchSidebarPage,
+  page: Page,
+  workbenchSidebarPage: WorkbenchSidebarPage,
   name: string,
   geneIds: string[],
 ) {
@@ -337,7 +339,7 @@ test.describe("Workbench Panel Functionality", () => {
   });
 
   // ── All 12 panels listed ──────────────────────────────────────────
-  test("all 12 analysis panels are listed when a gene set is active", async ({
+  test("all analysis panels are listed when a gene set is active", async ({
     page,
     seedData,
     workbenchSidebarPage,
@@ -354,13 +356,10 @@ test.describe("Workbench Panel Functionality", () => {
       "Results Table",
       "Enrichment Analysis",
       "Distribution Explorer",
-      "Evaluate Strategy",
       "Step Contribution",
       "Gene Confidence",
       "Ensemble Scoring",
       "Reverse Search",
-      "Batch Evaluation",
-      "Benchmark",
       "Custom Enrichment",
       "Parameter Sweep",
     ];

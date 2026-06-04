@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
-import { useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEventListener } from "usehooks-ts";
 import { useStrategyGraphCtx } from "@/features/strategy/graph/StrategyGraphContext";
 import { useAddStepMutation } from "@/features/strategy/mutations";
@@ -29,7 +29,11 @@ export function useStrategyKeyboardShortcuts({
   const ctx = useStrategyGraphCtx();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   const router = useRouter();
+  const pathname = usePathname();
+  const siteId = String(useParams()["siteId"] ?? "");
   const conversationId = ctx.strategy?.id ?? "";
+  const strategyHref = `/${siteId}/conversation/${conversationId}/strategy`;
+  const chatHref = `/${siteId}/conversation/${conversationId}`;
   useAddStepMutation(conversationId);
 
   const leaderRef = useRef<{ key: "g"; expires: number } | null>(null);
@@ -56,13 +60,13 @@ export function useStrategyKeyboardShortcuts({
       if (event.key === "s") {
         event.preventDefault();
         leaderRef.current = null;
-        router.push(`/conversation/${conversationId}/strategy`);
+        router.push(strategyHref);
         return;
       }
       if (event.key === "c") {
         event.preventDefault();
         leaderRef.current = null;
-        router.push(`/conversation/${conversationId}`);
+        router.push(chatHref);
         return;
       }
       // Any other key cancels the leader.
@@ -135,13 +139,21 @@ export function useStrategyKeyboardShortcuts({
         return;
       }
       case "Escape": {
-        if (ctx.selectedStep != null) {
-          event.preventDefault();
-          ctx.setSelectedStep(null);
+        // If a sheet/dialog (editor, quick switcher, …) is open, let it
+        // handle Esc and close itself — never navigate out from under it.
+        if (document.querySelector('[role="dialog"][data-state="open"]') != null) {
           return;
         }
         event.preventDefault();
-        router.push(`/conversation/${conversationId}`);
+        const onStepRoute = pathname.includes("/strategy/step/");
+        // A deep-linked step route keeps the editor in the URL; Esc steps up
+        // to the canvas. From the bare canvas, Esc returns to chat.
+        if (ctx.selectedStep != null || onStepRoute) {
+          ctx.setSelectedStep(null);
+          if (onStepRoute) router.push(strategyHref);
+          return;
+        }
+        router.push(chatHref);
         return;
       }
       case "g": {
@@ -154,5 +166,8 @@ export function useStrategyKeyboardShortcuts({
     }
   };
 
-  useEventListener("keydown", handleKeyDown);
+  // Capture phase so Esc is observed before an open Radix sheet/dialog
+  // tears itself down — otherwise we'd read stale "no editor open" state and
+  // wrongly navigate away from the canvas.
+  useEventListener("keydown", handleKeyDown, undefined, { capture: true });
 }

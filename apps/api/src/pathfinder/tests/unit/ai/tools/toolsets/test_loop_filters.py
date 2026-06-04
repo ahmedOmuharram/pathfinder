@@ -9,7 +9,7 @@ from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.graph.runtime import AgentDeps
-from pathfinder.ai.scratchpad.tools import _loop_hidden_read_tools
+from pathfinder.ai.scratchpad.toolset import _loop_hidden_read_tools
 from pathfinder.ai.tools.toolsets.execution import (
     _get_strategy_repeated_without_mutation,
 )

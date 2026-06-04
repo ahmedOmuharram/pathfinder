@@ -1,8 +1,10 @@
 import { test, expect } from "../fixtures/test";
+import type { WorkbenchSidebarPage } from "../pages/workbench-sidebar.page";
+import type { Page } from "@playwright/test";
 
 async function addAndActivateGeneSet(
-  page: import("@playwright/test").Page,
-  workbenchSidebarPage: import("../pages/workbench-sidebar.page").WorkbenchSidebarPage,
+  page: Page,
+  workbenchSidebarPage: WorkbenchSidebarPage,
   name: string,
   geneIds: string[],
 ) {
@@ -86,7 +88,7 @@ test.describe("Analysis Panels", () => {
     ).toBeVisible();
   });
 
-  test("all 12 analysis panels are listed", async ({
+  test("all analysis panels are listed", async ({
     page,
     seedData,
     workbenchSidebarPage,
@@ -103,18 +105,15 @@ test.describe("Analysis Panels", () => {
       "Results Table",
       "Enrichment Analysis",
       "Distribution Explorer",
-      "Evaluate Strategy",
       "Step Contribution",
       "Gene Confidence",
       "Ensemble Scoring",
       "Reverse Search",
-      "Batch Evaluation",
-      "Benchmark",
       "Custom Enrichment",
       "Parameter Sweep",
     ];
 
-    // UI: All 12 panels visible
+    // UI: All panels visible
     for (const title of panelTitles) {
       await workbenchMainPage.expectPanelVisible(title);
     }

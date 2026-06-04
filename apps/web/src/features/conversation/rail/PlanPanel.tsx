@@ -40,7 +40,7 @@ function findPendingApproval(messages: UIMessage[]): PendingApprovalInfo | null 
     if (message?.role !== "assistant") continue;
     for (const part of message.parts) {
       if (
-        part.type === "tool-submit_plan" &&
+        part.type === "tool-submit_plan_for_approval" &&
         "state" in part &&
         part.state === "approval-requested" &&
         "approval" in part

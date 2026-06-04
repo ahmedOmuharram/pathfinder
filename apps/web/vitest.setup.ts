@@ -1,3 +1,4 @@
+import type * as TestingLibraryReact from "@testing-library/react";
 import { createElement, type ComponentType, type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, vi } from "vitest";
@@ -15,10 +16,16 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   globalThis.ResizeObserver =
     ResizeObserverPolyfill as unknown as typeof ResizeObserver;
 }
-if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+if (
+  typeof Element !== "undefined" &&
+  typeof (Element.prototype as Partial<Element>).scrollIntoView !== "function"
+) {
   Element.prototype.scrollIntoView = function scrollIntoView() {};
 }
-if (typeof Element !== "undefined" && !Element.prototype.hasPointerCapture) {
+if (
+  typeof Element !== "undefined" &&
+  typeof (Element.prototype as Partial<Element>).hasPointerCapture !== "function"
+) {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.setPointerCapture = () => {};
@@ -45,7 +52,7 @@ function withQueryClient(Wrapper?: WrapperComponent): WrapperComponent {
     return createElement(
       QueryClientProvider,
       { client: queryClient },
-      Wrapper ? createElement(Wrapper, { children }) : children,
+      Wrapper ? createElement(Wrapper, null, children) : children,
     );
   }
 
@@ -53,7 +60,7 @@ function withQueryClient(Wrapper?: WrapperComponent): WrapperComponent {
 }
 
 vi.mock("@testing-library/react", async () => {
-  const actual = await vi.importActual<typeof import("@testing-library/react")>(
+  const actual = await vi.importActual<typeof TestingLibraryReact>(
     "@testing-library/react",
   );
 

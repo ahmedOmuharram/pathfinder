@@ -38,7 +38,6 @@ uv run pre-commit install --hook-type pre-commit --hook-type pre-push
 | **vitest** | `apps/web/`, `packages/shared-ts/` | Run frontend unit tests |
 | **next build** | `apps/web/`, `packages/shared-ts/` | Full production build |
 | **pip-audit** | `apps/api/pyproject.toml` | Check Python dependencies for known vulnerabilities |
-| **knip** | `apps/web/`, `packages/shared-ts/` | Detect unused exports, dependencies, and files |
 
 ## Testing
 
@@ -111,10 +110,10 @@ Three mechanisms enforce code structure beyond standard linting:
 
 ### File size cap
 
-`scripts/check-file-size.sh` fails if any Python source file in `apps/api/src/` exceeds **300 lines** of code (excluding blanks, comments, tests, seeds, and prompt files). This prevents modules from growing too large.
+`apps/api/scripts/check_max_lines.py` fails if any Python source file in `apps/api/src/` exceeds **400 meaningful lines** of code (excluding blanks, comments, tests, seeds, prompt files, and exempt pure-model modules). This prevents modules from growing too large.
 
 ```bash
-bash scripts/check-file-size.sh apps/api/src 300
+cd apps/api && uv run python scripts/check_max_lines.py
 ```
 
 ### Import linter

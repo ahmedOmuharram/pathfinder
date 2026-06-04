@@ -4,11 +4,13 @@ import { clearAllGeneSets } from "../fixtures/api-client";
 const BASE_URL = process.env["PLAYWRIGHT_BASE_URL"] ?? "http://localhost:3000";
 
 test.describe("Workbench routing", () => {
-  test.beforeEach(async ({ page, sitePicker }) => {
+  // Stay on the default site (veupathdb) so the bare `/workbench` and
+  // `/workbench/{id}` routes (which redirect to the default site) resolve
+  // against the same site the gene sets live on.
+  test.beforeEach(async ({ page }) => {
     await clearAllGeneSets(page.context(), BASE_URL);
     await page.goto("/workbench");
     await expect(page.getByRole("heading", { name: /gene sets/i })).toBeVisible();
-    await sitePicker.selectSite("plasmodb");
   });
 
   test("/workbench shows landing state, clicking gene set navigates to /workbench/{id}", async ({
@@ -49,7 +51,7 @@ test.describe("Workbench routing", () => {
         name: "Direct Nav Set",
         source: "paste",
         geneIds: seedData.plasmoGenes.slice(0, 2),
-        siteId: "plasmodb",
+        siteId: "veupathdb",
       },
     });
     expect(resp.ok()).toBeTruthy();
@@ -73,7 +75,7 @@ test.describe("Workbench routing", () => {
         name: "Back Nav Set",
         source: "paste",
         geneIds: seedData.plasmoGenes.slice(0, 2),
-        siteId: "plasmodb",
+        siteId: "veupathdb",
       },
     });
     expect(resp.ok()).toBeTruthy();

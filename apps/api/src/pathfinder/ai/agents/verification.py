@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic_ai import Agent, DeferredToolRequests
-from pydantic_ai.capabilities import Thinking
+from pydantic_ai.capabilities import ProcessHistory, Thinking
 
 from pathfinder.ai.agents._history_processor import (
     PHASE_HISTORY_PROCESSORS,
@@ -16,7 +16,7 @@ from pathfinder.ai.agents._instructions import (
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead.deltas import VerificationDelta
-from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
+from pathfinder.ai.scratchpad.toolset import build_scratchpad_toolset
 from pathfinder.ai.tools.toolsets.verification import build_toolset
 
 _VERIFICATION_INSTRUCTIONS = """\
@@ -132,8 +132,8 @@ verification_agent: Agent[
     capabilities=[
         ToolResilience(),
         Thinking(effort="high"),
+        *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
     ],
-    history_processors=PHASE_HISTORY_PROCESSORS,
     retries=3,
     description="Inspects strategy results and validates correctness",
     name="verification",

@@ -1,0 +1,220 @@
+"""Lead-run capture + token/cost accounting.
+
+Shared base for the Lead node: the mutable ``_LeadRunCapture`` accumulator,
+the chunk-emit primitive, and the streaming/residual quota charging that
+mutate it. Kept separate so ``lead_node`` and its event helpers can share
+this state without an import cycle.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from decimal import Decimal
+from typing import Any
+from uuid import UUID
+
+from pydantic_ai.messages import ModelMessage
+from pydantic_ai.ui.vercel_ai.response_types import (
+    BaseChunk,
+    TextDeltaChunk,
+    TextEndChunk,
+    TextStartChunk,
+)
+from pydantic_ai.usage import RunUsage
+from sqlalchemy.exc import SQLAlchemyError
+
+from pathfinder.ai.cost import cost_for_run
+from pathfinder.ai.graph.runtime import Context
+from pathfinder.ai.graph.state import PendingApproval, PipelineState
+from pathfinder.ai.graph.stream_events import turn_usage_event
+from pathfinder.ai.lead.lead_agent import LeadResponse
+from pathfinder.platform.logging import get_logger
+from pathfinder.services import quota as quota_service
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class _LeadRunCapture:
+    """Terminal state captured from the Lead agent's streaming run."""
+
+    new_messages: list[ModelMessage] = field(default_factory=list)
+    finish_reason: str = "stop"
+    response: LeadResponse | None = None
+    tokens: int = 0
+    cost_usd: Decimal = field(default_factory=lambda: Decimal(0))
+    charged_input_tokens: int = 0
+    charged_output_tokens: int = 0
+    charged_cache_read_tokens: int = 0
+    charged_cache_write_tokens: int = 0
+    charged_cost: Decimal = field(default_factory=lambda: Decimal(0))
+    sub_agent_tokens: int = 0
+    sub_agent_cost: Decimal = field(default_factory=lambda: Decimal(0))
+    pending_approval: PendingApproval | None = None
+    approval_consumed: bool = False
+    prose_already_streamed: bool = False
+
+    @property
+    def charged_tokens(self) -> int:
+        return self.charged_input_tokens + self.charged_output_tokens
+
+    @property
+    def cumulative_tokens(self) -> int:
+        return self.charged_tokens + self.sub_agent_tokens
+
+    @property
+    def cumulative_cost(self) -> Decimal:
+        return self.charged_cost + self.sub_agent_cost
+
+    def live_totals(self, state: PipelineState) -> tuple[int, str]:
+        """Running turn totals (base + charged-so-far) for a usage event."""
+        return (
+            state.turn_total_tokens + self.cumulative_tokens,
+            str(state.turn_total_cost_usd + self.cumulative_cost),
+        )
+
+    def residual_totals(self, state: PipelineState) -> tuple[int, str]:
+        """Final turn totals using the captured (not charged) lead tokens."""
+        return (
+            state.turn_total_tokens + self.tokens + self.sub_agent_tokens,
+            str(state.turn_total_cost_usd + self.cost_usd + self.sub_agent_cost),
+        )
+
+
+def _emit_chunk(writer: Any, chunk: BaseChunk) -> None:
+    writer(
+        {
+            "chunk": chunk.model_dump(
+                by_alias=True,
+                mode="json",
+                exclude_none=True,
+            ),
+        },
+    )
+
+
+def emit_turn_usage(writer: Any, total_tokens: int, cost_usd: str) -> None:
+    _emit_chunk(writer, turn_usage_event(total_tokens=total_tokens, cost_usd=cost_usd))
+
+
+def _emit_residual_prose(
+    writer: Any,
+    capture: _LeadRunCapture,
+    *,
+    message_id: UUID,
+) -> None:
+    response = capture.response
+    if response is None or not response.prose or capture.prose_already_streamed:
+        return
+    chunk_id = f"lead-prose-{message_id}"
+    _emit_chunk(writer, TextStartChunk(id=chunk_id))
+    _emit_chunk(writer, TextDeltaChunk(id=chunk_id, delta=response.prose))
+    _emit_chunk(writer, TextEndChunk(id=chunk_id))
+
+
+def _model_id(agent: Any) -> str:
+    model = agent.model
+    if model is None:
+        return ""
+    if isinstance(model, str):
+        return model
+    raw: Any = model.model_id
+    return str(raw)
+
+
+def _split_agent_model(agent_model: str) -> tuple[str | None, str | None]:
+    if ":" not in agent_model:
+        return None, agent_model or None
+    provider, _, model = agent_model.partition(":")
+    return provider or None, model or None
+
+
+async def _charge_token_delta(
+    context: Context | None,
+    state: PipelineState,
+    capture: _LeadRunCapture,
+    usage: RunUsage,
+    writer: Any,
+    agent_model: str,
+) -> None:
+    if context is None:
+        return
+    delta_input = usage.input_tokens - capture.charged_input_tokens
+    delta_output = usage.output_tokens - capture.charged_output_tokens
+    delta_cache_read = usage.cache_read_tokens - capture.charged_cache_read_tokens
+    delta_cache_write = usage.cache_write_tokens - capture.charged_cache_write_tokens
+    delta_tokens = delta_input + delta_output + delta_cache_read + delta_cache_write
+    if delta_tokens <= 0:
+        return
+    provider_name, model_name = _split_agent_model(agent_model)
+    delta_cost = cost_for_run(
+        usage=RunUsage(
+            input_tokens=delta_input,
+            output_tokens=delta_output,
+            cache_read_tokens=delta_cache_read,
+            cache_write_tokens=delta_cache_write,
+        ),
+        model_name=model_name,
+        provider_name=provider_name,
+        provider_url=None,
+    )
+    try:
+        async with context.db_session_factory() as session:
+            await quota_service.accumulate(
+                session,
+                user_id=state.user_id,
+                tokens=delta_tokens,
+                cost_usd=delta_cost,
+            )
+            await session.commit()
+    except SQLAlchemyError:
+        logger.warning(
+            "failed to accumulate streaming token delta",
+            user_id=str(state.user_id),
+            conversation_id=str(state.conversation_id),
+            delta=delta_tokens,
+        )
+        return
+    capture.charged_input_tokens += delta_input
+    capture.charged_output_tokens += delta_output
+    capture.charged_cache_read_tokens += delta_cache_read
+    capture.charged_cache_write_tokens += delta_cache_write
+    capture.charged_cost += delta_cost
+    total_tokens, cost_usd = capture.live_totals(state)
+    emit_turn_usage(writer, total_tokens, cost_usd)
+
+
+async def _persist_residual_quota(
+    context: Context | None,
+    state: PipelineState,
+    capture: _LeadRunCapture,
+) -> None:
+    if context is None:
+        return
+    lead_residual_tokens = max(capture.tokens - capture.charged_tokens, 0)
+    lead_residual_cost = max(capture.cost_usd - capture.charged_cost, Decimal(0))
+    sub_agent_tokens = capture.sub_agent_tokens
+    sub_agent_cost = capture.sub_agent_cost
+    total_tokens = lead_residual_tokens + sub_agent_tokens
+    total_cost = lead_residual_cost + sub_agent_cost
+    if total_tokens == 0 and total_cost == 0:
+        return
+    async with context.db_session_factory() as session:
+        try:
+            await quota_service.accumulate(
+                session,
+                user_id=state.user_id,
+                tokens=total_tokens,
+                cost_usd=total_cost,
+            )
+            capture.charged_output_tokens += lead_residual_tokens
+            capture.charged_cost += lead_residual_cost
+            capture.sub_agent_tokens = 0
+            capture.sub_agent_cost = Decimal(0)
+        except SQLAlchemyError:
+            logger.warning(
+                "failed to accumulate lead residual quota",
+                user_id=str(state.user_id),
+                conversation_id=str(state.conversation_id),
+            )
+        await session.commit()

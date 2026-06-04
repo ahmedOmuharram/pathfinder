@@ -151,3 +151,41 @@ async def background_auto_import_gene_sets(
                 site_id=site_id,
                 error=str(e),
             )
+
+
+async def import_gene_set_for_conversation(
+    *,
+    conversation_id: UUID,
+    site_id: str,
+    user_id: UUID,
+) -> GeneSet | None:
+    """Create + link a gene set for a single just-built conversation.
+
+    Called inline after an auto-build commits ``wdk_strategy_id``, so a fresh
+    session sees it. Idempotent (``_is_eligible`` + ``find_by_wdk_strategy``).
+    Returns the created gene set, or ``None`` if ineligible/already imported.
+    """
+    async with async_session_factory() as session:
+        try:
+            repo = ConversationRepository(session)
+            conversation = await repo.get_by_id(conversation_id)
+            if conversation is None:
+                return None
+            gene_set_svc = GeneSetService(get_gene_set_store())
+            created = await auto_import_gene_sets(
+                [conversation],
+                conv_repo=repo,
+                gene_set_service=gene_set_svc,
+                site_id=site_id,
+                user_id=user_id,
+            )
+            await session.commit()
+        except (AppError, RuntimeError) as e:
+            await session.rollback()
+            logger.warning(
+                "Gene set auto-import for conversation failed",
+                conversation_id=str(conversation_id),
+                error=str(e),
+            )
+            return None
+        return created[0] if created else None

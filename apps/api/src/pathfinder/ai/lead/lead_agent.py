@@ -42,7 +42,7 @@ from typing import Literal
 
 from pydantic import Field
 from pydantic_ai import Agent, DeferredToolRequests, RunContext, Tool
-from pydantic_ai.capabilities import Thinking
+from pydantic_ai.capabilities import ProcessHistory, Thinking
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.ui.vercel_ai.response_types import DataChunk
@@ -57,8 +57,7 @@ from pathfinder.ai.lead.slot_answers import (
     assert_no_unresolved_slots,
     mark_plan_approved,
 )
-from pathfinder.ai.lead.sub_agent_tools import (
-    LeadDeps,
+from pathfinder.ai.lead.sub_agent_dispatch import (
     build_plan,
     discover_searches,
     execute_plan,
@@ -66,6 +65,7 @@ from pathfinder.ai.lead.sub_agent_tools import (
     scope_problem,
     verify_strategy,
 )
+from pathfinder.ai.lead.sub_agent_tools import LeadDeps
 from pathfinder.ai.tools.standalone._stream_parts import plan_artifact_chunk
 from pathfinder.ai.tools.standalone.plan import (
     planned_steps_for_stream,
@@ -426,8 +426,10 @@ lead_agent: Agent[LeadDeps, LeadResponse | DeferredToolRequests] = Agent(
         Tool(verify_strategy),
         Tool(submit_plan_for_approval, requires_approval=True),
     ],
-    capabilities=[Thinking(effort="high")],
-    history_processors=PHASE_HISTORY_PROCESSORS,
+    capabilities=[
+        Thinking(effort="high"),
+        *(ProcessHistory[LeadDeps](p) for p in PHASE_HISTORY_PROCESSORS),
+    ],
     retries=3,
     description="The user's voice — orchestrates sub-agents via the Ledger",
     name="lead",

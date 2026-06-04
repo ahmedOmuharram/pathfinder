@@ -49,13 +49,13 @@ _ANTHROPIC: dict[TierName, TierPreset] = {
             model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
         ),
         planning=PhaseTierConfig(
-            model_id="anthropic:claude-opus-4-6", reasoning_effort="high"
+            model_id="anthropic:claude-opus-4-7", reasoning_effort="high"
         ),
         execution=PhaseTierConfig(
             model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
         ),
         verification=PhaseTierConfig(
-            model_id="anthropic:claude-opus-4-6", reasoning_effort="high"
+            model_id="anthropic:claude-opus-4-7", reasoning_effort="high"
         ),
     ),
     "balanced": TierPreset(
@@ -66,7 +66,7 @@ _ANTHROPIC: dict[TierName, TierPreset] = {
             model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"
         ),
         planning=PhaseTierConfig(
-            model_id="anthropic:claude-opus-4-6", reasoning_effort="high"
+            model_id="anthropic:claude-opus-4-7", reasoning_effort="high"
         ),
         execution=PhaseTierConfig(
             model_id="anthropic:claude-sonnet-4-6", reasoning_effort="medium"

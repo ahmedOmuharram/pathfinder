@@ -36,7 +36,7 @@ test.describe("Auth", () => {
     const modelsResp = await apiClient.get("/api/v1/models");
     expect(modelsResp.ok()).toBeTruthy();
     const models = await modelsResp.json();
-    expect(models.default).toBeTruthy();
+    expect(models.defaultProvider).toBeTruthy();
   });
 
   test("page reload preserves session — UI and API intact", async ({
@@ -49,8 +49,9 @@ test.describe("Auth", () => {
     await chatPage.goto();
     await chatPage.newChat();
 
-    // Send a message to create state
-    await chatPage.send("test session persistence");
+    // Send a message to create state. (Keep it plainly biological — phrases
+    // like "session persistence" trip the PIGuard safety screen.)
+    await chatPage.send("show me kinase genes");
     await chatPage.expectAssistantMessage(/\[mock\]/);
     await chatPage.expectIdle();
 
@@ -69,7 +70,7 @@ test.describe("Auth", () => {
     // UI: Still signed in — composer visible, message still there
     await authPage.expectSignedIn();
     await expect(
-      page.getByTestId("user-message").filter({ hasText: "test session persistence" }),
+      page.locator(".is-user").filter({ hasText: "show me kinase genes" }),
     ).toBeVisible({ timeout: 15_000 });
 
     // UI: Sidebar still shows conversations

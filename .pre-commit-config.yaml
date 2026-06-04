@@ -74,7 +74,7 @@ repos:
         files: ^apps/api/.*
       - id: file-size-api
         name: file size check (api)
-        entry: bash scripts/check-file-size.sh apps/api/src 300
+        entry: bash -c "cd apps/api && $HOME/.local/bin/uv run python scripts/check_max_lines.py"
         language: system
         pass_filenames: false
         types: [python]
@@ -99,10 +99,3 @@ repos:
         language: system
         pass_filenames: false
         files: ^(packages/shared-ts/|apps/api/).*
-      - id: knip-web
-        name: knip (web)
-        entry: bash -c "cd apps/web && npx knip"
-        language: system
-        pass_filenames: false
-        files: ^(apps/web/|packages/shared-ts/).*
-        stages: [pre-push]

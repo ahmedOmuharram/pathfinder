@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { fetchConversationMessages } from "../fixtures/api-client";
 
 /**
  * Feature: Conversations — CRUD verified against real PostgreSQL.
@@ -24,12 +25,9 @@ test.describe("Conversations", () => {
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
 
-    // Fetch full strategy to verify messages are stored
-    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
-    expect(fullResp.ok()).toBeTruthy();
-    const full = await fullResp.json();
-    expect(full.messages).toBeDefined();
-    expect(full.messages.length).toBeGreaterThan(0);
+    // Messages are reconstructed from the persisted event snapshot.
+    const messages = await fetchConversationMessages(apiClient, strategyId);
+    expect(messages.length).toBeGreaterThan(0);
   });
 
   test("create new conversation via button persists to DB", async ({
@@ -80,6 +78,14 @@ test.describe("Conversations", () => {
 
     const conversationId = await sidebarPage.firstConversationId();
 
+    // Link a WDK strategy id so delete soft-dismisses (non-WDK chats are
+    // hard-deleted and would not appear in the dismissed list).
+    const patchResp = await apiClient.patch(
+      `/api/v1/conversations/${conversationId}`,
+      { data: { wdkStrategyId: Math.floor(Date.now() / 1000) } },
+    );
+    expect(patchResp.ok()).toBeTruthy();
+
     // Verify exists before delete
     const beforeResp = await apiClient.get(`/api/v1/conversations/${conversationId}`);
     expect(beforeResp.ok()).toBeTruthy();
@@ -87,7 +93,7 @@ test.describe("Conversations", () => {
     // Wait for the DELETE API call to complete alongside the UI action
     const deleteCompleted = page.waitForResponse(
       (resp) =>
-        resp.url().includes(`/strategies/${conversationId}`) &&
+        resp.url().includes(`/conversations/${conversationId}`) &&
         resp.request().method() === "DELETE",
     );
     await sidebarPage.delete(conversationId);

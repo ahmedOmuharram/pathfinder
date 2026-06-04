@@ -27,8 +27,7 @@ export function ModelPicker({
     serverDefaultId != null && serverDefaultId !== ""
       ? models.find((m) => m.id === serverDefaultId)
       : null;
-  const displayName =
-    selectedModel?.name ?? serverDefaultModel?.name ?? "Default";
+  const displayName = selectedModel?.name ?? serverDefaultModel?.name ?? "Default";
 
   return (
     <>

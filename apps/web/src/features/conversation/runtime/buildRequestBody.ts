@@ -1,8 +1,5 @@
 import type { UIMessage } from "ai";
-import type {
-  PhaseModelMap,
-  PhaseReasoningMap,
-} from "@/state/useSettingsStore";
+import type { PhaseModelMap, PhaseReasoningMap } from "@/state/useSettingsStore";
 
 export interface BuildChatRequestBodyArgs {
   conversationId: string;
@@ -46,8 +43,6 @@ export function buildChatRequestBody(
     trigger: args.trigger,
     messages: args.messages,
     ...(hasEntries(args.phaseModels) ? { phaseModels: args.phaseModels } : {}),
-    ...(hasEntries(args.phaseReasoning)
-      ? { phaseReasoning: args.phaseReasoning }
-      : {}),
+    ...(hasEntries(args.phaseReasoning) ? { phaseReasoning: args.phaseReasoning } : {}),
   };
 }

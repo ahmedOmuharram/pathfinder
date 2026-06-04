@@ -7,7 +7,7 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command
 from sqlalchemy.exc import SQLAlchemyError
 
-from pathfinder.ai.graph.lead_node import write_turn_message
+from pathfinder.ai.graph._lead_turn import write_turn_message
 from pathfinder.ai.graph.runtime import Context
 from pathfinder.ai.graph.state import PipelineState
 from pathfinder.ai.graph.stream_events import scratchpad_updated_event

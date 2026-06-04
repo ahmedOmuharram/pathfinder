@@ -15,8 +15,9 @@ import { ReasoningToggle } from "@/lib/components/ReasoningToggle";
 export function ModelSettings() {
   const { data } = useModelCatalogQuery();
   const modelCatalog = data?.models ?? [];
-  const phaseDefaults =
-    (data?.phaseDefaults ?? {}) as Partial<Record<PhaseRole, string>>;
+  const phaseDefaults = (data?.phaseDefaults ?? {}) as Partial<
+    Record<PhaseRole, string>
+  >;
   const phaseModels = useSettingsStore((s) => s.phaseModels);
   const setPhaseModel = useSettingsStore((s) => s.setPhaseModel);
   const phaseReasoning = useSettingsStore((s) => s.phaseReasoning);
@@ -26,9 +27,9 @@ export function ModelSettings() {
     <div className="space-y-1">
       <div className="mb-3">
         <p className="text-xs text-muted-foreground">
-          The Lead orchestrates everything you see in chat. Each phase below
-          runs as a sub-agent the Lead delegates to. Pick a model + reasoning
-          effort per phase; leave blank to use the default.
+          The Lead orchestrates everything you see in chat. Each phase below runs as a
+          sub-agent the Lead delegates to. Pick a model + reasoning effort per phase;
+          leave blank to use the default.
         </p>
       </div>
 
@@ -81,12 +82,8 @@ function PhaseRow({
   return (
     <div className="grid grid-cols-[1fr_auto_auto] items-start gap-3 py-3">
       <div>
-        <div className="text-sm font-medium text-foreground">
-          {PHASE_LABELS[role]}
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {PHASE_DESCRIPTIONS[role]}
-        </div>
+        <div className="text-sm font-medium text-foreground">{PHASE_LABELS[role]}</div>
+        <div className="text-xs text-muted-foreground">{PHASE_DESCRIPTIONS[role]}</div>
         {defaultModelId !== null && selectedModelId === null && (
           <div className="mt-0.5 text-[10px] text-muted-foreground/70">
             Default: {defaultModelId}

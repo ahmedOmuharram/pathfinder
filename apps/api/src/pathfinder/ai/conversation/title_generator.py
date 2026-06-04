@@ -23,6 +23,10 @@ from pydantic_ai.usage import UsageLimits
 
 from pathfinder.ai.models.catalog import get_smallest_model
 from pathfinder.ai.models.mock import get_mock_model
+from pathfinder.ai.models.settings import (
+    build_model_settings,
+    to_pydantic_ai_model_name,
+)
 from pathfinder.platform.config import get_settings
 from pathfinder.platform.types import ModelProvider
 
@@ -118,10 +122,12 @@ async def generate_conversation_title(
             return _fallback_title(first_user_message)
         entry = None
 
+    title_model_id = entry.id if entry is not None else "openai:gpt-4o-mini"
     agent: Agent[None, str] = Agent(
-        entry.id if entry is not None else "openai:gpt-4o-mini",
+        to_pydantic_ai_model_name(title_model_id),
         output_type=str,
         instructions=_TITLE_INSTRUCTIONS,
+        model_settings=build_model_settings(title_model_id),
         retries=1,
         name="conversation-title",
         defer_model_check=True,

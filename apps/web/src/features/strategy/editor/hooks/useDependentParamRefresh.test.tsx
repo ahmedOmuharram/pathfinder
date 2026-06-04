@@ -45,12 +45,18 @@ function spec(overrides: Partial<ParamSpec>): ParamSpec {
 const ORGANISM_SPEC = spec({
   name: "organism",
   dependentParams: ["gene_list"],
-  vocabulary: [["A", "A", null], ["B", "B", null]],
+  vocabulary: [
+    ["A", "A", null],
+    ["B", "B", null],
+  ],
 });
 
 const GENE_LIST_SPEC = spec({
   name: "gene_list",
-  vocabulary: [["G1", "G1", null], ["G2", "G2", null]],
+  vocabulary: [
+    ["G1", "G1", null],
+    ["G2", "G2", null],
+  ],
 });
 
 const INDEPENDENT_SPEC = spec({ name: "free_text" });
@@ -83,7 +89,13 @@ describe("useDependentParamRefresh", () => {
 
   it("fires when a parent param with dependentParams changes", async () => {
     refreshDependentParamsMock.mockResolvedValue([
-      spec({ name: "gene_list", vocabulary: [["NEW1", "NEW1", null], ["NEW2", "NEW2", null]] }),
+      spec({
+        name: "gene_list",
+        vocabulary: [
+          ["NEW1", "NEW1", null],
+          ["NEW2", "NEW2", null],
+        ],
+      }),
     ]);
 
     const { result } = renderHook(() =>
@@ -117,7 +129,13 @@ describe("useDependentParamRefresh", () => {
 
   it("clears a stale dependent value when no longer valid and toasts", async () => {
     refreshDependentParamsMock.mockResolvedValue([
-      spec({ name: "gene_list", vocabulary: [["X1", "X1", null], ["X2", "X2", null]] }),
+      spec({
+        name: "gene_list",
+        vocabulary: [
+          ["X1", "X1", null],
+          ["X2", "X2", null],
+        ],
+      }),
     ]);
 
     const onClearStaleValue = vi.fn();

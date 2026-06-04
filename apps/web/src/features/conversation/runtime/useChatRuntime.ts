@@ -26,6 +26,7 @@ import { getMyQuotaQueryKey } from "@pathfinder/shared/generated/hooks/useGetMyQ
 import { listScratchpadNotesQueryOptions } from "@pathfinder/shared/generated/hooks/useListScratchpadNotes";
 import type { DataSubAgentStepPayload } from "@pathfinder/shared";
 import { usePlanStore } from "@/state/usePlanStore";
+import { useRightRailStore } from "@/state/useRightRailStore";
 import { useSubAgentStepsStore } from "@/state/useSubAgentStepsStore";
 import { useSessionStore } from "@/state/useSessionStore";
 import { useSettingsStore } from "@/state/useSettingsStore";
@@ -115,12 +116,20 @@ export function useChatRuntime({
         case "data-gene-set":
           useSessionStore.getState().recordGeneSet(geneSetSchema.parse(dataPart.data));
           break;
-        case "data-graph-snapshot":
-          graphSnapshotSchema.parse(dataPart.data);
+        case "data-graph-snapshot": {
+          const snapshot = graphSnapshotSchema.parse(dataPart.data);
           void queryClient.invalidateQueries({
             queryKey: strategyQueryOptions(conversationId).queryKey,
           });
+          // Surface the freshly built strategy: switch the rail to the
+          // Strategy panel so the user sees the result of the auto-build.
+          if (snapshot.nodes.length > 0) {
+            useRightRailStore
+              .getState()
+              .openPanelId("strategy", { strategyStepCount: snapshot.nodes.length });
+          }
           break;
+        }
         case "data-strategy-meta":
           strategyMetaSchema.parse(dataPart.data);
           break;

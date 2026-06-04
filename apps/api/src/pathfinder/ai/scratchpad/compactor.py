@@ -110,7 +110,7 @@ async def maybe_compact_scratchpad(
         threshold_tokens=COMPACT_TOKENS_THRESHOLD,
     )
 
-    usage = result.usage()
+    usage = result.usage
     response = result.response
     cost = cost_for_run(
         usage=usage,

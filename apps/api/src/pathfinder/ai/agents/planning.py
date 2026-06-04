@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic_ai import Agent, DeferredToolRequests
-from pydantic_ai.capabilities import Hooks, Thinking
+from pydantic_ai.capabilities import Hooks, ProcessHistory, Thinking
 from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.agents._history_processor import (
@@ -20,7 +20,7 @@ from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead.deltas import PlanDelta
-from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
+from pathfinder.ai.scratchpad.toolset import build_scratchpad_toolset
 from pathfinder.ai.tools.toolsets.planning import build_toolset
 from pathfinder.domain.strategy.plan import PlanStatus, StepStatus
 
@@ -203,8 +203,8 @@ planning_agent: Agent[AgentDeps, PlanDelta | DeferredToolRequests] = Agent(
         ToolResilience(),
         _planning_hooks,
         Thinking(effort="high"),
+        *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
     ],
-    history_processors=PHASE_HISTORY_PROCESSORS,
     retries=3,
     description="Creates structured execution plans from discovery findings",
     name="planning",

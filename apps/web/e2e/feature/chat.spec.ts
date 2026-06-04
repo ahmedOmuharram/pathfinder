@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/test";
+import { fetchConversationMessages } from "../fixtures/api-client";
 import {
   MOCK_DELEGATION_DRAFT_PROMPT,
   MOCK_PLAN_PROMPT,
@@ -26,14 +27,11 @@ test.describe("Chat", () => {
     await chatPage.expectAssistantMessage(/\[mock\]/);
     await chatPage.expectIdle();
 
-    // Fetch full strategy — verify messages stored (use captured ID)
+    // Messages are reconstructed from the persisted event snapshot.
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
-    expect(fullResp.ok()).toBeTruthy();
-    const full = await fullResp.json();
-    expect(full.messages).toBeDefined();
-    expect(full.messages.length).toBeGreaterThan(0);
+    const messages = await fetchConversationMessages(apiClient, strategyId);
+    expect(messages.length).toBeGreaterThan(0);
   });
 
   test("empty message keeps send button disabled", async ({ chatPage }) => {
@@ -65,19 +63,22 @@ test.describe("Chat", () => {
 
   test("planning flow presents a preview plan and waits for approval before execution", async ({
     chatPage,
-    graphPage,
-    page,
+    apiClient,
   }) => {
     await chatPage.send(MOCK_PLAN_PROMPT);
+    // The plan is surfaced as a reviewable artifact with an Approve button —
+    // i.e. presented and waiting for the user before any execution.
     await chatPage.expectPlanningArtifact();
+    await expect(chatPage.planArtifact.first()).toBeVisible();
     await chatPage.expectIdle();
 
-    await expect(page.getByText("presented", { exact: true })).toBeVisible({
-      timeout: 15_000,
-    });
-    await graphPage.expectRailPanel();
-    const previewPillCount = await graphPage.railStepRows.count();
-    expect(previewPillCount).toBeGreaterThan(0);
+    // The strategy must NOT be built yet — no WDK strategy id before approval.
+    const strategyId = chatPage.lastStrategyId;
+    expect(strategyId).toBeTruthy();
+    const resp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
+    expect(resp.ok()).toBeTruthy();
+    const conv = await resp.json();
+    expect(conv.wdkStrategyId).toBeFalsy();
   });
 
   test("approving a presented plan executes via structured route without chat pollution", async ({
@@ -99,9 +100,10 @@ test.describe("Chat", () => {
     const full = await fullResp.json();
 
     expect(full.steps.length).toBeGreaterThan(0);
+    const messages = await fetchConversationMessages(apiClient, strategyId);
     expect(
-      full.messages.some(
-        (message: { role: string; content: string }) =>
+      messages.some(
+        (message) =>
           message.role === "user" && message.content.includes("[Plan interaction:"),
       ),
     ).toBe(false);
@@ -109,22 +111,34 @@ test.describe("Chat", () => {
 
   test("delegation draft stores event data", async ({ chatPage, apiClient }) => {
     await chatPage.send(MOCK_DELEGATION_DRAFT_PROMPT);
-    await chatPage.expectAssistantMessage(/\[mock\]/);
+    // A draft halts at the reviewable plan artifact (awaiting approval) rather
+    // than emitting a final assistant message.
+    await chatPage.expectPlanningArtifact();
     await chatPage.expectIdle();
 
-    // Fetch full conversation — messages should be stored (use captured ID)
+    // Messages are reconstructed from the persisted event snapshot.
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
-    expect(fullResp.ok()).toBeTruthy();
-    const full = await fullResp.json();
-    expect(full.messages.length).toBeGreaterThan(0);
+    const messages = await fetchConversationMessages(apiClient, strategyId);
+    expect(messages.length).toBeGreaterThan(0);
   });
 
-  test("stop streaming cancels operation", async ({ chatPage }) => {
+  test("stop streaming cancels operation", async ({ chatPage, page }) => {
+    // The mock responds near-instantly, so hold the chat SSE open to keep the
+    // stop button on screen long enough to click it.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/api/v1/chat", async (route) => {
+      await held;
+      await route.continue();
+    });
+
     await chatPage.send("slow");
-    await chatPage.expectStreaming();
+    await expect(page.getByTestId("stop-button")).toBeVisible({ timeout: 15_000 });
     await chatPage.stopStreaming();
+    release();
     await chatPage.expectIdle();
   });
 
@@ -179,12 +193,9 @@ test.describe("Chat", () => {
     // Verify both messages persisted (use captured ID)
     const strategyId = chatPage.lastStrategyId;
     expect(strategyId).toBeTruthy();
-    const fullResp = await apiClient.get(`/api/v1/conversations/${strategyId}`);
-    const full = await fullResp.json();
-    const userMsgs = full.messages.filter((m: { role: string }) => m.role === "user");
-    const assistantMsgs = full.messages.filter(
-      (m: { role: string }) => m.role === "assistant",
-    );
+    const messages = await fetchConversationMessages(apiClient, strategyId);
+    const userMsgs = messages.filter((m) => m.role === "user");
+    const assistantMsgs = messages.filter((m) => m.role === "assistant");
     expect(userMsgs.length).toBeGreaterThanOrEqual(2);
     expect(assistantMsgs.length).toBeGreaterThanOrEqual(2);
   });

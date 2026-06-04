@@ -9,9 +9,21 @@ import pytest
 from pathfinder.ai.models.catalog import (
     ModelEntry,
     get_model_catalog,
+    get_model_entry,
     get_smallest_model,
 )
 from pathfinder.platform.types import ModelProvider
+
+
+def test_opus_4_7_present_with_prices_verified_against_genai_prices() -> None:
+    # Prices verified against genai-prices 0.0.62 (anthropic/claude-opus-4-7
+    # base tier): $5/input, $0.50/cache-read, $25/output per MTok.
+    entry = get_model_entry("anthropic:claude-opus-4-7")
+    assert entry is not None
+    assert entry.input_price == 5.00
+    assert entry.cached_input_price == 0.50
+    assert entry.output_price == 25.00
+    assert entry.supports_reasoning is True
 
 
 def test_every_provider_has_at_most_one_smallest_entry() -> None:

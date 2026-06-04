@@ -45,7 +45,7 @@ function planArtifactPart(plan: PlanArtifact) {
 
 function approvalPart(opts: { approvalId?: string; planId?: string }) {
   return {
-    type: "tool-submit_plan" as const,
+    type: "tool-submit_plan_for_approval" as const,
     toolCallId: "call-1",
     state: "approval-requested" as const,
     input: { planId: opts.planId ?? "p1" },

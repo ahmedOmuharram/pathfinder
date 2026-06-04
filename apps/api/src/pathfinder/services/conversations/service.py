@@ -14,7 +14,6 @@ from pathfinder.domain.strategy.ast import walk_step_tree
 from pathfinder.domain.strategy.operations import GraphOperation
 from pathfinder.domain.strategy.ops import CombineOp
 from pathfinder.domain.strategy.strategy_ast import (
-    PersistedStrategyGraph,
     StrategyAst,
 )
 from pathfinder.persistence.repositories import (
@@ -22,7 +21,6 @@ from pathfinder.persistence.repositories import (
     ConversationUpdate,
 )
 from pathfinder.persistence.repositories.message import MessagesRepository
-from pathfinder.platform.db import _get_session_factory, async_session_factory
 from pathfinder.platform.errors import (
     AppError,
     ErrorCode,
@@ -31,6 +29,7 @@ from pathfinder.platform.errors import (
 )
 from pathfinder.platform.logging import get_logger
 from pathfinder.platform.types import JSONObject
+from pathfinder.services.conversations import strategy_ops
 from pathfinder.services.conversations.authz import (
     get_owned_conversation_or_404,
     get_owned_or_404,
@@ -42,18 +41,13 @@ from pathfinder.services.conversations.responses import (
     build_conversation_response,
     build_conversation_summary,
 )
-from pathfinder.services.strategies.commit import apply_and_commit
-from pathfinder.services.strategies.context import StrategyMutationContext
 from pathfinder.services.strategies.insert_saved import (
     InsertSavedResult,
-    insert_saved_into_conversation,
 )
 from pathfinder.services.strategies.plan_validation import validate_plan_or_raise
 from pathfinder.services.strategies.save_substrategy import (
     SavedSubstrategyResult,
-    save_subtree_as_strategy,
 )
-from pathfinder.services.strategies.session_factory import build_strategy_session
 from pathfinder.services.strategies.wdk_sync import (
     lazy_fetch_wdk_detail,
     sync_is_saved_to_wdk,
@@ -268,45 +262,12 @@ class ConversationService:
         await self._repo.delete(conversation_id, cascade=cascade)
 
     async def get_ast(self, conversation_id: UUID, user_id: UUID) -> JSONObject:
-        conversation = await get_owned_conversation_or_404(
-            self._repo,
-            conversation_id,
-            user_id,
-        )
-        if not conversation.strategy_ast:
-            raise NotFoundError(
-                code=ErrorCode.STRATEGY_NOT_FOUND,
-                title="Strategy has no plan AST",
-            )
-        return conversation.strategy_ast
+        return await strategy_ops.get_ast(self._repo, conversation_id, user_id)
 
     async def restore(
         self, conversation_id: UUID, user_id: UUID
     ) -> ConversationResponse:
-        conversation = await get_owned_conversation_or_404(
-            self._repo,
-            conversation_id,
-            user_id,
-        )
-        if conversation.dismissed_at is None:
-            raise ValidationError(
-                detail="Strategy is not dismissed",
-                errors=[
-                    {
-                        "path": "strategyId",
-                        "message": "Not dismissed",
-                        "code": "INVALID_STATE",
-                    },
-                ],
-            )
-        await self._repo.restore(conversation_id)
-        updated = await self._repo.get_by_id(conversation_id)
-        if not updated:
-            raise NotFoundError(
-                code=ErrorCode.STRATEGY_NOT_FOUND,
-                title="Strategy not found",
-            )
-        return build_conversation_summary(updated)
+        return await strategy_ops.restore(self._repo, conversation_id, user_id)
 
     async def apply_operation(
         self,
@@ -316,39 +277,9 @@ class ConversationService:
         site_id: str,
         op: GraphOperation,
     ) -> ConversationResponse:
-        conversation = await get_owned_conversation_or_404(
-            self._repo,
-            conversation_id,
-            user_id,
+        return await strategy_ops.apply_operation(
+            self._repo, conversation_id, user_id, site_id=site_id, op=op
         )
-        if not conversation.strategy_ast:
-            raise NotFoundError(
-                code=ErrorCode.STRATEGY_NOT_FOUND,
-                title="Strategy AST missing",
-            )
-        persisted = PersistedStrategyGraph(
-            id=str(conversation_id),
-            name=conversation.name,
-            strategy_ast=StrategyAst.model_validate(conversation.strategy_ast),
-            wdk_strategy_id=conversation.wdk_strategy_id,
-        )
-        ctx = StrategyMutationContext(
-            site_id=site_id,
-            strategy_session=build_strategy_session(
-                site_id=site_id,
-                strategy_graph=persisted,
-            ),
-            conversation_id=conversation_id,
-            db_session_factory=_get_session_factory(),
-        )
-        await apply_and_commit(deps=ctx, op=op)
-        refreshed = await self._repo.get_by_id(conversation_id)
-        if refreshed is None:
-            raise NotFoundError(
-                code=ErrorCode.STRATEGY_NOT_FOUND,
-                title="Strategy not found after commit",
-            )
-        return build_conversation_response(refreshed)
 
     async def save_substrategy(
         self,
@@ -360,36 +291,16 @@ class ConversationService:
         name: str,
         description: str | None,
     ) -> SavedSubstrategyResult:
-        conversation = await get_owned_conversation_or_404(
+        return await strategy_ops.save_substrategy(
             self._repo,
             conversation_id,
             user_id,
-        )
-        if conversation.strategy_ast is None:
-            raise ValidationError(
-                title="conversation has no strategy",
-                detail="cannot save substrategy from an empty conversation",
-            )
-        persisted = PersistedStrategyGraph(
-            id=str(conversation_id),
-            name=conversation.name,
-            strategy_ast=StrategyAst.model_validate(conversation.strategy_ast),
-            wdk_strategy_id=conversation.wdk_strategy_id,
-        )
-        session = build_strategy_session(site_id=site_id, strategy_graph=persisted)
-        graph = session.get_graph(None)
-        if graph is None or step_id not in graph.steps:
-            raise NotFoundError(
-                code=ErrorCode.STEP_NOT_FOUND,
-                title="step not found",
-                detail=f"step {step_id!r} not found in conversation {conversation_id}",
-            )
-        return await save_subtree_as_strategy(
-            session=session,
-            site_id=site_id,
-            source_step_id=step_id,
-            name=name,
-            description=description,
+            strategy_ops.SaveSubstrategyParams(
+                site_id=site_id,
+                step_id=step_id,
+                name=name,
+                description=description,
+            ),
         )
 
     async def count_saved_strategy_consumers(
@@ -397,7 +308,9 @@ class ConversationService:
         user_id: UUID,
         site_id: str,
     ) -> dict[int, int]:
-        return await self._repo.count_consumers_per_saved_strategy(user_id, site_id)
+        return await strategy_ops.count_saved_strategy_consumers(
+            self._repo, user_id, site_id
+        )
 
     async def insert_saved(
         self,
@@ -409,31 +322,16 @@ class ConversationService:
         saved_wdk_strategy_id: int,
         operator: CombineOp,
     ) -> InsertSavedResult:
-        conversation = await get_owned_conversation_or_404(
+        return await strategy_ops.insert_saved(
             self._repo,
             conversation_id,
             user_id,
-        )
-        if conversation.strategy_ast is None:
-            raise ValidationError(
-                title="conversation has no strategy",
-                detail="cannot insert into an empty conversation",
-            )
-        persisted = PersistedStrategyGraph(
-            id=str(conversation_id),
-            name=conversation.name,
-            strategy_ast=StrategyAst.model_validate(conversation.strategy_ast),
-            wdk_strategy_id=conversation.wdk_strategy_id,
-        )
-        session = build_strategy_session(site_id=site_id, strategy_graph=persisted)
-        return await insert_saved_into_conversation(
-            session=session,
-            site_id=site_id,
-            conversation_id=conversation_id,
-            db_session_factory=async_session_factory,
-            target_step_id=target_step_id,
-            saved_wdk_strategy_id=saved_wdk_strategy_id,
-            operator=operator,
+            strategy_ops.InsertSavedParams(
+                site_id=site_id,
+                target_step_id=target_step_id,
+                saved_wdk_strategy_id=saved_wdk_strategy_id,
+                operator=operator,
+            ),
         )
 
     async def dismiss(self, conversation_id: UUID, user_id: UUID) -> None:

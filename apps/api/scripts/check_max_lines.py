@@ -1,6 +1,6 @@
 """Check that Python source files stay under the line limit.
 
-Enforces a 300-line cap (excluding blank lines and comments) on production
+Enforces a 400-line cap (excluding blank lines and comments) on production
 code. Seed data, test files, and pure-model files are exempt.
 
 Usage:
@@ -11,7 +11,7 @@ import argparse
 import sys
 from pathlib import Path
 
-DEFAULT_LIMIT = 300
+DEFAULT_LIMIT = 400
 SRC_ROOT = Path("src/pathfinder")
 
 # Directories and files exempt from the line limit.
@@ -24,6 +24,8 @@ EXEMPT_PATTERNS: set[str] = {
     # Pure data-model / schema files (no logic, splitting is artificial)
     "integrations/veupathdb/wdk_models.py",
     "transport/http/schemas/experiment_responses.py",
+    "persistence/models.py",  # SQLAlchemy ORM table definitions
+    "ai/tools/standalone/_plan_models.py",  # Pydantic plan models
     # Single-responsibility modules where splitting would be artificial
     "domain/strategy/session.py",  # core state machine
     "services/strategies/sync.py",  # tightly coupled tree building

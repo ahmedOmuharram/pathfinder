@@ -22,12 +22,13 @@ test.describe("User Data Purge", () => {
     // Create data on plasmodb
     await chatPage.goto();
     await sitePicker.selectSite("plasmodb");
-    await chatPage.newChat();
+    await chatPage.newChat("plasmodb");
     await chatPage.send("test message for plasmodb");
     await chatPage.expectAssistantMessage(/\[mock\]/);
 
-    // Add a gene set on plasmodb
-    await page.goto("/workbench");
+    // Add a gene set on plasmodb (site-explicit — bare /workbench would
+    // redirect to the default site and create the set on the wrong one).
+    await page.goto("/plasmodb/workbench");
     await expect(page.getByRole("heading", { name: /gene sets/i })).toBeVisible();
     await workbenchSidebarPage.openAddModal();
     await page.getByLabel(/name/i).fill("Plasmo Genes");
@@ -71,12 +72,12 @@ test.describe("User Data Purge", () => {
     await chatPage.goto();
 
     await sitePicker.selectSite("plasmodb");
-    await chatPage.newChat();
+    await chatPage.newChat("plasmodb");
     await chatPage.send("plasmodb data");
     await chatPage.expectAssistantMessage(/\[mock\]/);
 
     await sitePicker.selectSite("toxodb");
-    await chatPage.newChat();
+    await chatPage.newChat("toxodb");
     await chatPage.send("toxodb data");
     await chatPage.expectAssistantMessage(/\[mock\]/);
 
@@ -155,8 +156,11 @@ test.describe("User Data Purge", () => {
     }
     expect(sitesWithStrategies).toBeGreaterThan(1);
 
-    // Purge ALL data with deleteWdk=true
-    const purgeResp = await apiClient.delete("/api/v1/user/data?deleteWdk=true");
+    // Purge ALL data with deleteWdk=true. Deleting every seeded WDK strategy
+    // across all sites is slow, so allow well beyond the default request timeout.
+    const purgeResp = await apiClient.delete("/api/v1/user/data?deleteWdk=true", {
+      timeout: 240_000,
+    });
     expect(purgeResp.ok()).toBeTruthy();
     const result = (await purgeResp.json()) as {
       ok: boolean;

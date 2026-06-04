@@ -5,9 +5,9 @@ type SettingsTab = "Model" | "Data" | "Advanced" | "Seeding";
 export class SettingsPage {
   constructor(private page: Page) {}
 
-  /** Open settings via the top bar settings button. */
+  /** Open settings via the nav rail settings button. */
   async open() {
-    await this.page.getByRole("button", { name: /settings/i }).click();
+    await this.page.getByTestId("nav-rail-settings-button").click();
     await expect(
       this.page.getByRole("dialog").filter({ hasText: /settings/i }),
     ).toBeVisible();

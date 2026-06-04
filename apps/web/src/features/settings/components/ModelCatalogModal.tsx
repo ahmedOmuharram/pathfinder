@@ -46,9 +46,7 @@ export function ModelCatalogModal({
 }: ModelCatalogModalProps) {
   const { data } = useModelCatalogQuery();
   const catalog = data?.models ?? [];
-  const [providerFilter, setProviderFilter] = useState<"all" | ModelProvider>(
-    "all",
-  );
+  const [providerFilter, setProviderFilter] = useState<"all" | ModelProvider>("all");
   const [sortKey, setSortKey] = useState<SortKey>("inputPrice");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 

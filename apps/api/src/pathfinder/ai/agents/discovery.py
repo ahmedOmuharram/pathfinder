@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic_ai import Agent
-from pydantic_ai.capabilities import Hooks, Thinking
+from pydantic_ai.capabilities import Hooks, ProcessHistory, Thinking
 from pydantic_ai.tools import RunContext
 
 from pathfinder.ai.agents._history_processor import (
@@ -19,7 +19,7 @@ from pathfinder.ai.capabilities.repetition_guard import repetition_guard_hook
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead.deltas import DiscoveryDelta
-from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
+from pathfinder.ai.scratchpad.toolset import build_scratchpad_toolset
 from pathfinder.ai.tools.toolsets.discovery import build_toolset
 from pathfinder.domain.strategy.plan import PlanStatus, StepStatus
 
@@ -189,8 +189,8 @@ discovery_agent: Agent[AgentDeps, DiscoveryDelta] = Agent(
         ToolResilience(),
         _discovery_hooks,
         Thinking(effort="medium"),
+        *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
     ],
-    history_processors=PHASE_HISTORY_PROCESSORS,
     retries=3,
     description="Explores WDK catalog, searches, parameters, and literature",
     name="discovery",

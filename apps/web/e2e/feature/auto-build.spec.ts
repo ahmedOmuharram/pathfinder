@@ -66,7 +66,9 @@ test.describe("Auto-Build Pipeline", () => {
     // is on the transcript record type, not "gene").
     expect(step.recordType).toBeTruthy();
     expect(step.parameters).toBeDefined();
-    expect(step.parameters.organism).toContain("Plasmodium falciparum 3D7");
+    // Parameters serialize as typed ParamValue objects (discriminated by
+    // `type`); organism is a multi-pick vocabulary carrying `values`.
+    expect(step.parameters.organism.values).toContain("Plasmodium falciparum 3D7");
   });
 
   test("auto-build creates gene set with real gene IDs from WDK", async ({

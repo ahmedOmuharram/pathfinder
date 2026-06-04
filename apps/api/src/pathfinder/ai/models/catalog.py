@@ -180,9 +180,20 @@ _CLOUD_MODELS: tuple[ModelEntry, ...] = (
     ),
     # Anthropic
     ModelEntry.entry(
+        id="anthropic:claude-opus-4-7",
+        name="Claude Opus 4.7",
+        description="Most capable Anthropic model",
+        supports_reasoning=True,
+        context_size=1_000_000,
+        default_reasoning_budget=8192,
+        input_price=5.00,
+        cached_input_price=0.50,
+        output_price=25.00,
+    ),
+    ModelEntry.entry(
         id="anthropic:claude-opus-4-6",
         name="Claude Opus 4.6",
-        description="Most capable Anthropic model",
+        description="Prior-generation Opus",
         supports_reasoning=True,
         context_size=1_000_000,
         default_reasoning_budget=8192,

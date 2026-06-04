@@ -22,7 +22,7 @@ from typing import Any
 
 from langgraph.config import get_stream_writer
 from pydantic import BaseModel
-from pydantic_ai import AgentRunResultEvent, RunContext
+from pydantic_ai import AgentRunResultEvent
 from pydantic_ai.messages import (
     AgentStreamEvent,
     FunctionToolCallEvent,
@@ -31,6 +31,13 @@ from pydantic_ai.messages import (
     RetryPromptPart,
     TextPart,
     ThinkingPart,
+    ToolReturnPart,
+)
+from pydantic_ai.ui.vercel_ai.response_types import (
+    DataChunk,
+    FileChunk,
+    SourceDocumentChunk,
+    SourceUrlChunk,
 )
 from pydantic_ai.usage import RunUsage, UsageLimits
 
@@ -39,7 +46,6 @@ from pathfinder.ai.agents.execution import execution_agent
 from pathfinder.ai.agents.planning import planning_agent
 from pathfinder.ai.agents.roles import PhaseRole
 from pathfinder.ai.agents.scoping import scoping_agent
-from pathfinder.ai.agents.state import AgentToolState
 from pathfinder.ai.agents.verification import verification_agent
 from pathfinder.ai.graph.runtime import AgentDeps, Context
 from pathfinder.ai.graph.state import PipelineState
@@ -49,20 +55,15 @@ from pathfinder.ai.graph.stream_events import (
     sub_agent_step_event,
     turn_status_event,
 )
-from pathfinder.ai.lead.deltas import (
-    DiscoveryDelta,
-    ExecuteDelta,
-    FrameDelta,
-    PlanDelta,
-    RecoveryDelta,
-    VerificationDelta,
-)
 from pathfinder.ai.lead.derive import derive_ledger
 from pathfinder.ai.lead.intent import UserIntent
 from pathfinder.ai.memory.schemas import MemoryValue
-from pathfinder.domain.strategy.build_outcome import BuildOutcome
-from pathfinder.services.strategies.plan_to_spec import build_step_tree_from_plan
-from pathfinder.services.strategies.spec_build import build_strategy_from_spec
+from pathfinder.ai.models.mock import get_mock_model
+from pathfinder.ai.models.settings import (
+    build_model_settings,
+    to_pydantic_ai_model_name,
+)
+from pathfinder.platform.config import get_settings
 
 PHASE_USAGE_LIMITS: UsageLimits = UsageLimits(
     request_limit=60,
@@ -87,6 +88,20 @@ TOOL_TO_PHASE_ROLE: dict[str, PhaseRole] = {
 }
 
 
+def _model_id_str(agent: Any) -> str:
+    """The stable ``provider:model`` id baked into an agent at construction."""
+    model = agent.model
+    if model is None:
+        return ""
+    if isinstance(model, str):
+        return model
+    return str(model.model_id)
+
+
+def _phase_default_model_id(role: PhaseRole) -> str:
+    return _model_id_str(_SUB_AGENT_BY_ROLE[role])
+
+
 def sub_agent_model_id(tool_name: str) -> str:
     """Model id for a sub-agent tool name. ``execute_plan`` is declarative
     (no LLM); everything else maps to the underlying phase agent's model.
@@ -96,12 +111,7 @@ def sub_agent_model_id(tool_name: str) -> str:
     role = TOOL_TO_PHASE_ROLE.get(tool_name)
     if role is None:
         return ""
-    model = _SUB_AGENT_BY_ROLE[role].model
-    if model is None:
-        return ""
-    if isinstance(model, str):
-        return model
-    return str(model.model_id)
+    return _phase_default_model_id(role)
 
 
 @dataclass
@@ -132,37 +142,6 @@ class LeadDeps:
     record_sub_agent_usage: Callable[[SubAgentRunUsage], None] = field(
         default=lambda _u: None,
     )
-
-
-def _agent_deps(deps: LeadDeps) -> AgentDeps:
-    state = deps.state
-    runtime = deps.runtime
-    return AgentDeps(
-        site_id=runtime.site_id,
-        user_id=runtime.user_id,
-        strategy_session=runtime.strategy_session,
-        web_search_service=runtime.web_search_service,
-        literature_search_service=runtime.literature_search_service,
-        agent_state=AgentToolState(
-            discovered_searches=dict(state.discovered_searches),
-            active_plan=state.active_plan,
-        ),
-        problem_frame=state.problem_frame,
-        experiment_id=runtime.experiment_id,
-        cancel_event=runtime.cancel_event,
-        memory_store=runtime.memory_store,
-        retrieved_memories=deps.retrieved_memories,
-        conversation_id=state.conversation_id,
-        db_session_factory=runtime.db_session_factory,
-        plan_slot_answers=_slot_answers(state),
-    )
-
-
-def _slot_answers(state: PipelineState) -> list:  # type: ignore[type-arg]
-    pending = state.pending_approval
-    if pending is None:
-        return []
-    return list(state.plan_slot_answers.get(pending.tool_call_id, []))
 
 
 def _apply_agent_state(deps: LeadDeps, agent_deps: AgentDeps) -> None:
@@ -196,6 +175,31 @@ def _summarize_tool_result(content: object) -> str:
     if isinstance(content, str):
         return _short(content)
     return _short(repr(content))
+
+
+_STREAMABLE_METADATA = (DataChunk, SourceUrlChunk, SourceDocumentChunk, FileChunk)
+
+
+def _forward_tool_metadata(writer: Any, metadata: object) -> None:
+    """Forward a sub-agent tool's ``ToolReturn.metadata`` chunks to the
+    main stream.
+
+    Sub-agent tools (e.g. ``create_plan``) run outside the VercelAIAdapter
+    that surfaces direct-agent tool metadata, so their ``DataChunk`` /
+    source / file payloads would be dropped. Re-emit the same chunk shapes
+    the adapter would, so artifacts (plan, gene set, graph) reach the UI.
+    """
+    if not isinstance(metadata, list):
+        return
+    for chunk in metadata:
+        if isinstance(chunk, _STREAMABLE_METADATA):
+            writer(
+                {
+                    "chunk": chunk.model_dump(
+                        by_alias=True, mode="json", exclude_none=True
+                    ),
+                },
+            )
 
 
 def _forward_inner_event(
@@ -243,6 +247,8 @@ def _forward_inner_event(
                 result_summary=summary,
             ),
         )
+        if isinstance(result, ToolReturnPart):
+            _forward_tool_metadata(writer, result.metadata)
         return
     if isinstance(event, PartEndEvent):
         part = event.part
@@ -272,15 +278,20 @@ def _phase_override_kwargs(
     runtime: Context,
     role: PhaseRole,
 ) -> dict[str, Any]:
-    """Build kwargs for ``agent.override`` from the per-phase Context maps."""
-    kwargs: dict[str, Any] = {}
-    model_override = runtime.phase_models.get(role)
-    if model_override:
-        kwargs["model"] = model_override
+    """Resolve the effective model + provider settings for a phase run.
+
+    Always overrides: the effective model (user pick, else the phase default)
+    is translated to its pydantic-ai name and paired with provider-correct
+    settings (caching + reasoning effort), so caching is applied on every run.
+    """
+    if get_settings().pathfinder_chat_provider.strip().lower() == "mock":
+        return {"model": get_mock_model()}
+    effective_model = runtime.phase_models.get(role) or _phase_default_model_id(role)
     effort = runtime.phase_reasoning.get(role)
-    if effort in ("low", "medium", "high"):
-        kwargs["model_settings"] = {"thinking": effort}
-    return kwargs
+    return {
+        "model": to_pydantic_ai_model_name(effective_model),
+        "model_settings": build_model_settings(effective_model, thinking=effort),
+    }
 
 
 _PHASE_STATUS_LABELS: dict[PhaseRole, str] = {
@@ -339,7 +350,7 @@ async def _stream_sub_agent[OutputT: BaseModel](
                 response = event.result.response
                 deps.record_sub_agent_usage(
                     SubAgentRunUsage(
-                        usage=event.result.usage(),
+                        usage=event.result.usage,
                         model_name=response.model_name,
                         provider_name=response.provider_name,
                         provider_url=response.provider_url,
@@ -377,213 +388,3 @@ def _emit_live_ledger(
             ),
         },
     )
-
-
-def _parent_tool_call_id(ctx: RunContext[LeadDeps]) -> str:
-    """The Lead's tool_call_id for the active sub-agent dispatch.
-    Always present when invoked through the Lead's toolset; defensively
-    returns an empty string if missing so we never crash on telemetry."""
-    return ctx.tool_call_id or ""
-
-
-async def scope_problem(
-    ctx: RunContext[LeadDeps],
-    reason: str,
-) -> FrameDelta:
-    """Run the scoping sub-agent to frame the user's problem.
-
-    Use when the Ledger reports ``frame.needed`` is True. The sub-agent
-    returns a ``FrameDelta`` containing the saved ``ProblemFrame`` and
-    any blocking questions that the Lead must surface to the user.
-    """
-    deps = ctx.deps
-    work_order = (
-        f"Scoping work order: {reason}\n"
-        f"User's latest message: {deps.state.user_prompt}\n"
-        "Frame the biological problem. Return a FrameDelta."
-    )
-    agent_deps = _agent_deps(deps)
-    delta = await _stream_sub_agent(
-        role="scoping",
-        work_order=work_order,
-        agent_deps=agent_deps,
-        parent_tool_call_id=_parent_tool_call_id(ctx),
-        expected_output_type=FrameDelta,
-        deps=deps,
-    )
-    _apply_agent_state(deps, agent_deps)
-    if delta is None:
-        msg = "Scoping sub-agent did not return a FrameDelta."
-        raise RuntimeError(msg)
-    deps.state.problem_frame = delta.frame
-    return delta
-
-
-async def discover_searches(
-    ctx: RunContext[LeadDeps],
-    reason: str,
-    intent_summary: str,
-    hints: str = "",
-) -> DiscoveryDelta:
-    """Run the discovery sub-agent to find WDK searches.
-
-    ``hints`` carries Lead-derived guidance (e.g. "vocab gap: prior
-    selection covers gametocyte but not asexual blood stages — find a
-    search whose vocab spans both"). The sub-agent commits selections
-    via ``update_search_decision``; we mirror those onto LeadDeps.state.
-    """
-    deps = ctx.deps
-    work_order_parts = [
-        f"Discovery work order: {reason}",
-        f"Intent: {intent_summary}",
-    ]
-    if hints:
-        work_order_parts.append(f"Hints: {hints}")
-    work_order_parts.append("Return a DiscoveryDelta.")
-    work_order = "\n".join(work_order_parts)
-    agent_deps = _agent_deps(deps)
-    delta = await _stream_sub_agent(
-        role="discovery",
-        work_order=work_order,
-        agent_deps=agent_deps,
-        parent_tool_call_id=_parent_tool_call_id(ctx),
-        expected_output_type=DiscoveryDelta,
-        deps=deps,
-    )
-    _apply_agent_state(deps, agent_deps)
-    if delta is None:
-        msg = "Discovery sub-agent did not return a DiscoveryDelta."
-        raise RuntimeError(msg)
-    return delta
-
-
-async def build_plan(
-    ctx: RunContext[LeadDeps],
-    reason: str,
-) -> PlanDelta:
-    """Run the planning sub-agent to construct a strategy plan.
-
-    The sub-agent does NOT submit the plan — it only authors it. The
-    Lead is responsible for surfacing the plan to the user via its own
-    ``submit_plan_for_approval`` deferred-tool.
-    """
-    deps = ctx.deps
-    work_order = (
-        f"Planning work order: {reason}\n"
-        "Construct a complete StrategyPlan from the discovered searches.\n"
-        "Return a PlanDelta."
-    )
-    agent_deps = _agent_deps(deps)
-    delta = await _stream_sub_agent(
-        role="planning",
-        work_order=work_order,
-        agent_deps=agent_deps,
-        parent_tool_call_id=_parent_tool_call_id(ctx),
-        expected_output_type=PlanDelta,
-        deps=deps,
-    )
-    _apply_agent_state(deps, agent_deps)
-    if delta is not None:
-        return delta
-    plan = agent_deps.agent_state.active_plan
-    if plan is None:
-        msg = "Planning sub-agent returned no plan."
-        raise RuntimeError(msg)
-    return PlanDelta(plan=plan)
-
-
-async def execute_plan(ctx: RunContext[LeadDeps]) -> ExecuteDelta:
-    """Materialize the APPROVED plan declaratively (no LLM).
-
-    Builds a ``StrategyStepNode`` tree from the plan and pushes it via
-    ``build_strategy_from_spec``. The Lead inspects the returned outcome
-    via ``ledger.build`` to decide whether to call ``recover_failed_steps``
-    or ``verify_strategy``.
-    """
-    deps = ctx.deps
-    plan = deps.state.active_plan
-    if plan is None:
-        msg = "No active plan to execute. Build a plan first."
-        raise RuntimeError(msg)
-    root = build_step_tree_from_plan(plan)
-    agent_deps = _agent_deps(deps)
-    outcome: BuildOutcome = await build_strategy_from_spec(
-        deps=agent_deps.to_strategy_context(),
-        root=root,
-        name=plan.title or None,
-    )
-    deps.state.last_build_outcome = outcome
-    return ExecuteDelta(outcome=outcome)
-
-
-async def recover_failed_steps(
-    ctx: RunContext[LeadDeps],
-    reason: str,
-) -> RecoveryDelta:
-    """Run the LLM execution-recovery sub-agent on a failed build.
-
-    Only valid when ``ledger.build.needs_recovery`` is True and the
-    failure shape is amenable to targeted edits (param replan, partial
-    build). For ``search_replan`` the Lead should call
-    ``discover_searches`` instead.
-    """
-    deps = ctx.deps
-    outcome = deps.state.last_build_outcome
-    if outcome is None:
-        msg = "No build outcome to recover from."
-        raise RuntimeError(msg)
-    work_order_parts = [
-        f"Recovery work order: {reason}",
-        f"Failed steps: {len(outcome.failed_steps)}",
-        f"Skipped: {len(outcome.skipped_step_ids)}",
-        f"Zero-result: {len(outcome.zero_step_ids)}",
-        "Edit the affected steps via update_leaf_params / replace_subtree.",
-        "Return a RecoveryDelta with actions_taken and final_outcome.",
-    ]
-    work_order = "\n".join(work_order_parts)
-    agent_deps = _agent_deps(deps)
-    streamed = await _stream_sub_agent(
-        role="execution",
-        work_order=work_order,
-        agent_deps=agent_deps,
-        parent_tool_call_id=_parent_tool_call_id(ctx),
-        expected_output_type=RecoveryDelta,
-        deps=deps,
-    )
-    _apply_agent_state(deps, agent_deps)
-    delta = (
-        streamed
-        if streamed is not None
-        else RecoveryDelta(
-            final_outcome=outcome,
-        )
-    )
-    deps.state.last_build_outcome = delta.final_outcome
-    return delta
-
-
-async def verify_strategy(
-    ctx: RunContext[LeadDeps],
-    reason: str,
-) -> VerificationDelta:
-    """Run the verification sub-agent on the built strategy."""
-    deps = ctx.deps
-    work_order = (
-        f"Verification work order: {reason}\n"
-        "Inspect the built strategy. Return a VerificationDelta."
-    )
-    agent_deps = _agent_deps(deps)
-    delta = await _stream_sub_agent(
-        role="verification",
-        work_order=work_order,
-        agent_deps=agent_deps,
-        parent_tool_call_id=_parent_tool_call_id(ctx),
-        expected_output_type=VerificationDelta,
-        deps=deps,
-    )
-    _apply_agent_state(deps, agent_deps)
-    if delta is None:
-        msg = "Verification sub-agent did not return a VerificationDelta."
-        raise TypeError(msg)
-    deps.state.verification_digest = delta.digest
-    return delta

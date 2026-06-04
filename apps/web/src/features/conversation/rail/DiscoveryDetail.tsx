@@ -1,9 +1,6 @@
 "use client";
 
-import type {
-  LedgerDiscoveryPayload,
-  LedgerSearchFitReport,
-} from "@pathfinder/shared";
+import type { LedgerDiscoveryPayload, LedgerSearchFitReport } from "@pathfinder/shared";
 
 import { StatusPill, type Tone } from "./LedgerPanelPrimitives";
 
@@ -19,11 +16,7 @@ const STATUS_ORDER: LedgerSearchFitReport["selectionStatus"][] = [
   "rejected",
 ];
 
-export function DiscoveryDetail({
-  discovery,
-}: {
-  discovery: LedgerDiscoveryPayload;
-}) {
+export function DiscoveryDetail({ discovery }: { discovery: LedgerDiscoveryPayload }) {
   const reports = discovery.fitReports;
   if (reports.length === 0) {
     return (
@@ -71,9 +64,7 @@ function SearchDecisionCard({ report }: { report: LedgerSearchFitReport }) {
           <div className="truncate font-medium text-foreground">
             {report.displayName}
           </div>
-          <code className="text-[10px] text-muted-foreground">
-            {report.searchName}
-          </code>
+          <code className="text-[10px] text-muted-foreground">{report.searchName}</code>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <StatusPill
@@ -104,9 +95,7 @@ function SearchDecisionCard({ report }: { report: LedgerSearchFitReport }) {
       )}
       {report.intentSidesUnmatched.length > 0 && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
-          <span className="text-[10px] text-muted-foreground">
-            sides unmatched:
-          </span>
+          <span className="text-[10px] text-muted-foreground">sides unmatched:</span>
           {report.intentSidesUnmatched.map((side) => (
             <StatusPill key={side} text={side} tone="warn" />
           ))}

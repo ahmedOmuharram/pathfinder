@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic_ai import Agent
-from pydantic_ai.capabilities import Thinking
+from pydantic_ai.capabilities import ProcessHistory, Thinking
 
 from pathfinder.ai.agents._history_processor import (
     PHASE_HISTORY_PROCESSORS,
@@ -16,7 +16,7 @@ from pathfinder.ai.agents._instructions import (
 from pathfinder.ai.capabilities.resilience import ToolResilience
 from pathfinder.ai.graph.runtime import AgentDeps
 from pathfinder.ai.lead.deltas import FrameDelta
-from pathfinder.ai.scratchpad.tools import build_scratchpad_toolset
+from pathfinder.ai.scratchpad.toolset import build_scratchpad_toolset
 from pathfinder.ai.tools.toolsets.scoping import build_toolset
 
 _SCOPING_INSTRUCTIONS = """\
@@ -218,8 +218,11 @@ scoping_agent: Agent[AgentDeps, FrameDelta] = Agent(
     deps_type=AgentDeps,
     instructions=_SCOPING_INSTRUCTIONS,
     toolsets=[build_toolset(), build_scratchpad_toolset()],
-    capabilities=[ToolResilience(), Thinking(effort="medium")],
-    history_processors=PHASE_HISTORY_PROCESSORS,
+    capabilities=[
+        ToolResilience(),
+        Thinking(effort="medium"),
+        *(ProcessHistory[AgentDeps](p) for p in PHASE_HISTORY_PROCESSORS),
+    ],
     retries=3,
     description="Frames the biological problem before WDK discovery",
     name="scoping",
